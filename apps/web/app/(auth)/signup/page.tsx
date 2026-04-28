@@ -23,13 +23,18 @@ export default function SignupPage() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
-    const result = await authClient.signUp.email({ email, password, name });
-    setSubmitting(false);
-    if (result.error) {
-      setError(result.error.message ?? 'Signup failed');
-      return;
+    try {
+      const result = await authClient.signUp.email({ email, password, name });
+      if (result.error) {
+        setError(result.error.message ?? 'Signup failed');
+        return;
+      }
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error — is the API reachable?');
+    } finally {
+      setSubmitting(false);
     }
-    router.push('/dashboard');
   }
 
   return (

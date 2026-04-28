@@ -22,13 +22,18 @@ export default function LoginPage() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
-    const result = await authClient.signIn.email({ email, password });
-    setSubmitting(false);
-    if (result.error) {
-      setError(result.error.message ?? 'Sign-in failed');
-      return;
+    try {
+      const result = await authClient.signIn.email({ email, password });
+      if (result.error) {
+        setError(result.error.message ?? 'Sign-in failed');
+        return;
+      }
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error — is the API reachable?');
+    } finally {
+      setSubmitting(false);
     }
-    router.push('/dashboard');
   }
 
   return (

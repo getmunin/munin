@@ -2,7 +2,12 @@ import { All, Controller, Inject, Req, Res } from '@nestjs/common';
 import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import type { Db } from '@munin/db';
 import { DB } from '../common/db/db.module.js';
-import { createMuninAuth, readGoogleProviderFromEnv, type MuninAuth } from './auth.config.js';
+import {
+  createMuninAuth,
+  readGoogleProviderFromEnv,
+  readTrustedOriginsFromEnv,
+  type MuninAuth,
+} from './auth.config.js';
 
 const PUBLIC_URL_FALLBACK = 'http://localhost:3001';
 
@@ -15,6 +20,7 @@ export class AuthController {
       db,
       baseUrl: process.env.MUNIN_PUBLIC_URL ?? PUBLIC_URL_FALLBACK,
       authSecret: requireAuthSecret(),
+      trustedOrigins: readTrustedOriginsFromEnv(),
       google: readGoogleProviderFromEnv(),
     });
   }

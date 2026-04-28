@@ -8,10 +8,18 @@ export interface MuninAuthOptions {
   db: Db;
   baseUrl: string;
   authSecret: string;
+  trustedOrigins?: string[];
   google?: { clientId: string; clientSecret: string };
 }
 
-export function createMuninAuth({ db, baseUrl, authSecret, google }: MuninAuthOptions) {
+export function createMuninAuth({
+  db,
+  baseUrl,
+  authSecret,
+  trustedOrigins,
+  google,
+}: MuninAuthOptions) {
+  const origins = uniqueOrigins([baseUrl, ...(trustedOrigins ?? [])]);
   return betterAuth({
     baseURL: baseUrl,
     basePath: '/auth',
@@ -38,8 +46,12 @@ export function createMuninAuth({ db, baseUrl, authSecret, google }: MuninAuthOp
           },
         }
       : undefined,
-    trustedOrigins: [baseUrl],
+    trustedOrigins: origins,
   });
+}
+
+function uniqueOrigins(values: string[]): string[] {
+  return Array.from(new Set(values.map((v) => v.replace(/\/+$/, ''))));
 }
 
 export function readGoogleProviderFromEnv(): { clientId: string; clientSecret: string } | undefined {
@@ -47,4 +59,10 @@ export function readGoogleProviderFromEnv(): { clientId: string; clientSecret: s
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) return undefined;
   return { clientId, clientSecret };
+}
+
+export function readTrustedOriginsFromEnv(): string[] {
+  const env = process.env.MUNIN_AUTH_TRUSTED_ORIGINS;
+  if (!env) return ['http://localhost:3000', 'http://127.0.0.1:3000'];
+  return env.split(',').map((s) => s.trim()).filter(Boolean);
 }

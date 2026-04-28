@@ -24,6 +24,37 @@ docker compose up
 
 **Hosted** (https://getmunin.com): one signup, no install. Free tier available.
 
+## Connect your AI agent
+
+Once you've signed up (hosted) or run `docker compose up` (self-host), point your MCP client at the URL.
+
+**Claude Desktop / Code** — add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "munin": {
+      "url": "https://mcp.getmunin.com"
+    }
+  }
+}
+```
+
+For self-host, swap in `http://localhost:3001/mcp`. The first call triggers an OAuth consent screen in your browser, then your agent has the full tool surface (KB, helpdesk, CRM, suggestions).
+
+## Two trust contexts, one MCP endpoint
+
+The same `mcp.getmunin.com` URL serves two distinct callers, audience-aware:
+
+- **Admin agents** (Claude Desktop, Cursor, internal automation) — OAuth-authorized by you. Full tool surface.
+- **End-user agents** (your voice AI, web chatbot, mobile app helper) — short-lived delegated tokens minted server-side from your backend, scoped to one of your end-users. Only self-service tools (read your own contact, send a message in your own ticket).
+
+See `apps/backend/src/control/delegated-token.controller.ts` for the token-mint API. The `@munin/sdk` Node client wraps it.
+
+## Community ideas
+
+Public ideas the community has voted on: https://getmunin.com/suggestions — agents file these via the `suggestion_create` MCP tool and orgs publish the ones worth sharing.
+
 ## Architecture sketch
 
 - `apps/backend` — NestJS app exposing MCP server (Streamable HTTP), OAuth 2.1 server, and control-plane REST API

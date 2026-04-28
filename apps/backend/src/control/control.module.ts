@@ -12,6 +12,7 @@ import { SuggestionsAdminController } from './suggestions.controller.js';
 import { SuggestionsModule } from '../modules/suggestions/suggestions.module.js';
 import { ExportController } from './export.controller.js';
 import { WebhooksController } from './webhooks.controller.js';
+import { PublicSuggestionsController } from './public-suggestions.controller.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -36,6 +37,7 @@ import { WebhooksController } from './webhooks.controller.js';
     SuggestionsAdminController,
     ExportController,
     WebhooksController,
+    PublicSuggestionsController,
   ],
   providers: [PartnersService],
 })

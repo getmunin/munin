@@ -21,3 +21,16 @@ export { AuditLogger, type AuditEventInput } from './audit.js';
 export { ClaimManager, type ClaimResult } from './claims.js';
 export { WebhookDispatcher, type WebhookEventInput } from './webhooks.js';
 export { CredentialResolver, type ResolvedCredential } from './credentials.js';
+export {
+  type EmbeddingProvider,
+  OpenAIEmbeddingProvider,
+  StubEmbeddingProvider,
+  readEmbeddingProviderFromEnv,
+} from './embedding.js';
+export {
+  chunkDocument,
+  estimateTokens,
+  contentHash,
+  type Chunk,
+  type ChunkOptions,
+} from './chunker.js';

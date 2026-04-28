@@ -1,11 +1,13 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  Inject,
   Patch,
   UseGuards,
   UseInterceptors,
-  BadRequestException,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { schema } from '@munin/db';
@@ -14,6 +16,7 @@ import { getCurrentContext } from '@munin/core';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { PartnersService } from './partners.service.js';
 
 const PatchDto = z.object({
   name: z.string().min(1).max(128).optional(),
@@ -33,6 +36,8 @@ interface OrgDto {
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class OrgsController {
+  constructor(@Inject(PartnersService) private readonly partners: PartnersService) {}
+
   @Get()
   async me(): Promise<OrgDto> {
     const ctx = getCurrentContext();
@@ -76,5 +81,17 @@ export class OrgsController {
       settings: updated!.settings,
       createdAt: updated!.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Customer-side revocation of partner access. Severs the Org.partner_id
+   * pointer and revokes every admin key the partner provisioned. The
+   * customer keeps their data + their direct-claimed dashboard password.
+   */
+  @Delete('partner-access')
+  async revokePartner(): Promise<{ revoked: true }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    return this.partners.revokePartnerAccess(actor.orgId);
   }
 }

@@ -7,6 +7,8 @@ import type { Route } from 'next';
 import {
   Activity,
   Bot,
+  Building2,
+  Download,
   KeyRound,
   LayoutDashboard,
   Lightbulb,
@@ -40,6 +42,8 @@ const NAV: { href: Route; label: string; icon: React.ComponentType<{ className?:
   { href: '/dashboard/suggestions', label: 'Suggestions', icon: Lightbulb },
   { href: '/dashboard/usage', label: 'Usage', icon: Activity },
   { href: '/dashboard/audit-log', label: 'Audit log', icon: ScrollText },
+  { href: '/dashboard/partner-access', label: 'Partner access', icon: Building2 },
+  { href: '/dashboard/export', label: 'Data export', icon: Download },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

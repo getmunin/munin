@@ -10,6 +10,7 @@ import { AuditLogController } from './audit-log.controller.js';
 import { UsageController } from './usage.controller.js';
 import { SuggestionsAdminController } from './suggestions.controller.js';
 import { SuggestionsModule } from '../modules/suggestions/suggestions.module.js';
+import { ExportController } from './export.controller.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -32,6 +33,7 @@ import { SuggestionsModule } from '../modules/suggestions/suggestions.module.js'
     AuditLogController,
     UsageController,
     SuggestionsAdminController,
+    ExportController,
   ],
   providers: [PartnersService],
 })

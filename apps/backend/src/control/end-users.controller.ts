@@ -7,12 +7,13 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { schema } from '@munin/db';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getCurrentContext } from '@munin/core';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
@@ -71,6 +72,39 @@ export class EndUsersController {
     return this.findOrCreate(parsed.data);
   }
 
+  @Get()
+  async list(@Query('limit') limit?: string): Promise<EndUserDto[]> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const take = clampLimit(limit, 50, 200);
+    const rows = await ctx.db
+      .select()
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.orgId, actor.orgId))
+      .orderBy(desc(schema.endUsers.createdAt))
+      .limit(take);
+    return rows.map(toDto);
+  }
+
+  @Post(':id/revoke-tokens')
+  @HttpCode(200)
+  async revokeTokens(@Param('id') id: string): Promise<{ revoked: number }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const result = await ctx.db
+      .update(schema.tokens)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(
+          eq(schema.tokens.endUserId, id),
+          eq(schema.tokens.orgId, actor.orgId),
+          isNull(schema.tokens.revokedAt),
+        ),
+      )
+      .returning({ id: schema.tokens.id });
+    return { revoked: result.length };
+  }
+
   @Get(':id')
   async get(@Param('id') id: string): Promise<EndUserDto> {
     const ctx = getCurrentContext();
@@ -113,6 +147,12 @@ export class EndUsersController {
       .returning();
     return toDto(created!);
   }
+}
+
+function clampLimit(value: string | undefined, fallback: number, max: number): number {
+  const n = value ? Number.parseInt(value, 10) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(n, max);
 }
 
 function toDto(row: typeof schema.endUsers.$inferSelect): EndUserDto {

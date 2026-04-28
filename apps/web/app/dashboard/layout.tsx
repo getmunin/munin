@@ -4,7 +4,16 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { Activity, Bot, LayoutDashboard, ScrollText, LogOut } from 'lucide-react';
+import {
+  Activity,
+  Bot,
+  KeyRound,
+  LayoutDashboard,
+  Lightbulb,
+  LogOut,
+  ScrollText,
+  Users,
+} from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,6 +35,9 @@ import { cn } from '@/lib/utils';
 const NAV: { href: Route; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/agents', label: 'Connected agents', icon: Bot },
+  { href: '/dashboard/api-keys', label: 'API keys', icon: KeyRound },
+  { href: '/dashboard/end-users', label: 'End-users', icon: Users },
+  { href: '/dashboard/suggestions', label: 'Suggestions', icon: Lightbulb },
   { href: '/dashboard/usage', label: 'Usage', icon: Activity },
   { href: '/dashboard/audit-log', label: 'Audit log', icon: ScrollText },
 ];

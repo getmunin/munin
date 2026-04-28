@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Bot, Code2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,9 +51,9 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button disabled className="w-full">
+            <Button className="w-full" render={<Link href="/dashboard/api-keys" />}>
               <KeyRound className="size-4" />
-              Create API key (coming soon)
+              Manage API keys
             </Button>
           </CardContent>
         </Card>

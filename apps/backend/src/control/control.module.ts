@@ -8,6 +8,8 @@ import { PartnerOrgsController } from './partners.controller.js';
 import { PartnersService } from './partners.service.js';
 import { AuditLogController } from './audit-log.controller.js';
 import { UsageController } from './usage.controller.js';
+import { SuggestionsAdminController } from './suggestions.controller.js';
+import { SuggestionsModule } from '../modules/suggestions/suggestions.module.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -19,6 +21,7 @@ import { UsageController } from './usage.controller.js';
  * that's the privilege boundary.
  */
 @Module({
+  imports: [SuggestionsModule],
   controllers: [
     ApiKeysController,
     EndUsersController,
@@ -28,6 +31,7 @@ import { UsageController } from './usage.controller.js';
     PartnerOrgsController,
     AuditLogController,
     UsageController,
+    SuggestionsAdminController,
   ],
   providers: [PartnersService],
 })

@@ -12,6 +12,7 @@ import { KbModule } from './modules/kb/kb.module.js';
 import { BootstrapModule } from './modules/bootstrap/bootstrap.module.js';
 import { SuggestionsModule } from './modules/suggestions/suggestions.module.js';
 import { DeskModule } from './modules/desk/desk.module.js';
+import { CrmModule } from './modules/crm/crm.module.js';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module.js';
 import { QuotasModule } from './common/quotas/quotas.module.js';
 import { MailModule } from './common/mail/mail.module.js';
@@ -31,6 +32,7 @@ import { WebhookModule } from './common/webhooks/webhook.module.js';
     BootstrapModule,
     SuggestionsModule,
     DeskModule,
+    CrmModule,
   ],
   controllers: [HealthController, WhoamiController],
   providers: [AuthGuard, TenancyInterceptor, AuditInterceptor],

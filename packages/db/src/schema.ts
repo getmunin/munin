@@ -733,6 +733,216 @@ export const deskMessages = pgTable(
   }),
 );
 
+// ───────────────────────── CRM (M4) ───────────────────────────────────
+// Modern CRM: relationships as a graph, AI-native fields as first-class
+// columns (so agents don't pollute description/notes), compliance fields
+// (do_not_contact, unsubscribed_at, last_contacted_at) gate outbound.
+
+export const crmCompanies = pgTable(
+  'crm_companies',
+  {
+    id: id('cco'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    domain: text('domain'),
+    ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
+    tags: jsonb('tags').$type<string[]>().notNull().default([]),
+    customFields: jsonb('custom_fields').$type<Record<string, unknown>>().notNull().default({}),
+    aiSummary: text('ai_summary'),
+    aiSummaryAt: timestamp('ai_summary_at', { withTimezone: true }),
+    aiNextAction: text('ai_next_action'),
+    engagementScore: integer('engagement_score').notNull().default(0),
+    lastAiTouchAt: timestamp('last_ai_touch_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('crm_companies_org_idx').on(t.orgId),
+    domainIdx: index('crm_companies_domain_idx').on(t.orgId, t.domain),
+  }),
+);
+
+export const crmContacts = pgTable(
+  'crm_contacts',
+  {
+    id: id('cct'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
+    companyId: text('company_id').references(() => crmCompanies.id, { onDelete: 'set null' }),
+    name: text('name'),
+    email: text('email'),
+    phone: text('phone'),
+    title: text('title'),
+    address: text('address'),
+    ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
+    tags: jsonb('tags').$type<string[]>().notNull().default([]),
+    customFields: jsonb('custom_fields').$type<Record<string, unknown>>().notNull().default({}),
+    aiSummary: text('ai_summary'),
+    aiSummaryAt: timestamp('ai_summary_at', { withTimezone: true }),
+    aiNextAction: text('ai_next_action'),
+    engagementScore: integer('engagement_score').notNull().default(0),
+    lastAiTouchAt: timestamp('last_ai_touch_at', { withTimezone: true }),
+    doNotContact: boolean('do_not_contact').notNull().default(false),
+    unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
+    lastContactedAt: timestamp('last_contacted_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('crm_contacts_org_idx').on(t.orgId),
+    emailIdx: index('crm_contacts_email_idx').on(t.orgId, t.email),
+    phoneIdx: index('crm_contacts_phone_idx').on(t.orgId, t.phone),
+    endUserIdx: index('crm_contacts_end_user_idx').on(t.endUserId),
+    companyIdx: index('crm_contacts_company_idx').on(t.companyId),
+  }),
+);
+
+export const crmPipelines = pgTable(
+  'crm_pipelines',
+  {
+    id: id('cpl'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: varchar('slug', { length: 64 }).notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    slugUq: uniqueIndex('crm_pipelines_slug_uq').on(t.orgId, t.slug),
+  }),
+);
+
+export const crmStages = pgTable(
+  'crm_stages',
+  {
+    id: id('cst'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    pipelineId: text('pipeline_id')
+      .notNull()
+      .references(() => crmPipelines.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    position: integer('position').notNull().default(0),
+    winLoss: varchar('win_loss', { length: 8 }).notNull().default('open'),
+    // 'open' | 'won' | 'lost'
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    pipelineIdx: index('crm_stages_pipeline_idx').on(t.pipelineId, t.position),
+  }),
+);
+
+export const crmDeals = pgTable(
+  'crm_deals',
+  {
+    id: id('cdl'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    pipelineId: text('pipeline_id')
+      .notNull()
+      .references(() => crmPipelines.id, { onDelete: 'restrict' }),
+    stageId: text('stage_id')
+      .notNull()
+      .references(() => crmStages.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    amountCents: bigint('amount_cents', { mode: 'number' }),
+    currency: varchar('currency', { length: 8 }),
+    primaryContactId: text('primary_contact_id').references(() => crmContacts.id, {
+      onDelete: 'set null',
+    }),
+    companyId: text('company_id').references(() => crmCompanies.id, { onDelete: 'set null' }),
+    ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
+    expectedCloseAt: timestamp('expected_close_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    aiSummary: text('ai_summary'),
+    aiSummaryAt: timestamp('ai_summary_at', { withTimezone: true }),
+    aiNextAction: text('ai_next_action'),
+    engagementScore: integer('engagement_score').notNull().default(0),
+    lastAiTouchAt: timestamp('last_ai_touch_at', { withTimezone: true }),
+    customFields: jsonb('custom_fields').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('crm_deals_org_idx').on(t.orgId),
+    pipelineIdx: index('crm_deals_pipeline_idx').on(t.pipelineId),
+    stageIdx: index('crm_deals_stage_idx').on(t.stageId),
+    contactIdx: index('crm_deals_contact_idx').on(t.primaryContactId),
+    companyIdx: index('crm_deals_company_idx').on(t.companyId),
+  }),
+);
+
+export const crmActivities = pgTable(
+  'crm_activities',
+  {
+    id: id('cac'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    type: varchar('type', { length: 16 }).notNull(),
+    // 'note' | 'call' | 'email' | 'meeting' | 'task'
+    subject: text('subject'),
+    body: text('body'),
+    contactId: text('contact_id').references(() => crmContacts.id, { onDelete: 'cascade' }),
+    companyId: text('company_id').references(() => crmCompanies.id, { onDelete: 'cascade' }),
+    dealId: text('deal_id').references(() => crmDeals.id, { onDelete: 'cascade' }),
+    endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
+    actorType: varchar('actor_type', { length: 16 }).notNull(),
+    // 'user' | 'agent' | 'end_user' | 'system'
+    actorId: text('actor_id').notNull(),
+    dueAt: timestamp('due_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+  },
+  (t) => ({
+    orgIdx: index('crm_activities_org_idx').on(t.orgId, t.createdAt),
+    contactIdx: index('crm_activities_contact_idx').on(t.contactId, t.createdAt),
+    dealIdx: index('crm_activities_deal_idx').on(t.dealId, t.createdAt),
+    endUserIdx: index('crm_activities_end_user_idx').on(t.endUserId),
+  }),
+);
+
+// Relationships: foundation for graph-y associations (champion / decision-
+// maker / blocker on a deal; "introduced by" between contacts; "former
+// company" between contact and company). Polymorphic via from_type/to_type
+// + from_id/to_id; the service enforces valid (type, id) pairs at write
+// time. Time-bounded via started_at / ended_at so historical relationships
+// stick around without obscuring current ones.
+export const crmRelationships = pgTable(
+  'crm_relationships',
+  {
+    id: id('crl'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    fromType: varchar('from_type', { length: 16 }).notNull(),
+    fromId: text('from_id').notNull(),
+    toType: varchar('to_type', { length: 16 }).notNull(),
+    toId: text('to_id').notNull(),
+    role: varchar('role', { length: 64 }).notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+  },
+  (t) => ({
+    orgIdx: index('crm_relationships_org_idx').on(t.orgId),
+    fromIdx: index('crm_relationships_from_idx').on(t.fromType, t.fromId),
+    toIdx: index('crm_relationships_to_idx').on(t.toType, t.toId),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   partners,
@@ -765,6 +975,13 @@ export const allTables = {
   deskContacts,
   deskConversations,
   deskMessages,
+  crmCompanies,
+  crmContacts,
+  crmPipelines,
+  crmStages,
+  crmDeals,
+  crmActivities,
+  crmRelationships,
 };
 
 export type AllTables = typeof allTables;

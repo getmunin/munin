@@ -30,6 +30,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   const rlsPath = resolve(here, 'rls.sql');
   const kbPath = resolve(here, 'kb.sql');
   const deskPath = resolve(here, 'desk.sql');
+  const crmPath = resolve(here, 'crm.sql');
 
   const client = postgres(connectionString, { max: 1 });
   const db = drizzle(client);
@@ -48,6 +49,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   await client.unsafe(readFileSync(rlsPath, 'utf8'));
   await client.unsafe(readFileSync(kbPath, 'utf8'));
   await client.unsafe(readFileSync(deskPath, 'utf8'));
+  await client.unsafe(readFileSync(crmPath, 'utf8'));
 
   // 4. App role (idempotent). Password defaults to the role name; override
   //    via MUNIN_APP_PASSWORD for non-dev deployments.

@@ -22,10 +22,15 @@ export class AuditLogger {
    * if audit is failing repeatedly, we'd want the operator to know.)
    */
   async record(input: AuditEventInput): Promise<void> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor?.orgId || (input.target?.type === 'org' ? input.target.id : null);
+    // Partner cross-org operations have no single org_id; skipping these here
+    // keeps audit_log clean. Partners can grow a dedicated partner_audit_log
+    // when there's demand for tracking provisioning activity over time.
+    if (!orgId) return;
     try {
-      const ctx = getCurrentContext();
       await ctx.db.insert(schema.auditLog).values({
-        orgId: ctx.actor?.orgId ?? 'org_system',
+        orgId,
         actorType: ctx.actor?.type ?? 'system',
         actorId: ctx.actor?.id ?? null,
         tool: input.tool ?? null,

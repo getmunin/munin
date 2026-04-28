@@ -18,6 +18,12 @@ interface RequestWithAuth {
 }
 
 async function applyTenancyGUCs(tx: Db, actor: ActorIdentity): Promise<void> {
+  // Partners operate across many orgs they provisioned. Their controllers
+  // filter manually by partner_id; explicit bypass-on for the transaction.
+  if (actor.type === 'partner') {
+    await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    return;
+  }
   await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
   if (actor.orgId) {
     await tx.execute(sql`SELECT set_config('app.org_id', ${actor.orgId}, true)`);

@@ -4,6 +4,8 @@ import { EndUsersController } from './end-users.controller.js';
 import { DelegatedTokenController } from './delegated-token.controller.js';
 import { TokensController } from './tokens.controller.js';
 import { OrgsController } from './orgs.controller.js';
+import { PartnerOrgsController } from './partners.controller.js';
+import { PartnersService } from './partners.service.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -21,6 +23,8 @@ import { OrgsController } from './orgs.controller.js';
     DelegatedTokenController,
     TokensController,
     OrgsController,
+    PartnerOrgsController,
   ],
+  providers: [PartnersService],
 })
 export class ControlModule {}

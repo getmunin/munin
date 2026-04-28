@@ -1,0 +1,43 @@
+import { Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
+import { getCurrentContext, type ActorIdentity } from '@munin/core';
+import { AuthGuard } from './auth/auth.guard.js';
+import { TenancyInterceptor } from './tenancy/tenancy.interceptor.js';
+import { AuditInterceptor } from './audit/audit.interceptor.js';
+
+/**
+ * Minimal authenticated endpoint: returns the resolved caller identity.
+ *
+ * Lets us smoke-test the full chain (AuthGuard → TenancyInterceptor →
+ * AuditInterceptor → controller) without needing a real domain module yet.
+ */
+@Controller()
+@UseGuards(AuthGuard)
+@UseInterceptors(TenancyInterceptor, AuditInterceptor)
+export class WhoamiController {
+  @Get('whoami')
+  whoami(): { actor: SerializedActor; correlationId: string } {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    return { actor: serialize(actor), correlationId: ctx.correlationId };
+  }
+}
+
+interface SerializedActor {
+  type: string;
+  id: string;
+  orgId: string;
+  scopes: readonly string[];
+  audiences: readonly string[];
+  endUserId?: string;
+}
+
+function serialize(a: ActorIdentity): SerializedActor {
+  return {
+    type: a.type,
+    id: a.id,
+    orgId: a.orgId,
+    scopes: a.scopes,
+    audiences: a.audiences,
+    endUserId: a.endUserId,
+  };
+}

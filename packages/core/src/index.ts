@@ -1,8 +1,22 @@
-// Shared platform services. To be filled out in M0.3.
-//   - AgentRegistry (resolve API keys / tokens to (org, agent, audience))
-//   - AuditLogger (record every mutation)
-//   - ClaimManager (acquire / release / extend soft locks)
-//   - WebhookDispatcher (queue + retry)
-//   - TenancyContext (org_id + optional end_user_id, request-scoped)
+/**
+ * @munin/core — framework-agnostic platform services.
+ *
+ * Everything here is plain TypeScript / Drizzle. NestJS-specific wrappers
+ * (interceptors, guards, modules) live in apps/backend/src/common/.
+ */
 
-export const PLACEHOLDER = 'to be implemented in M0.3';
+export {
+  ActorIdentity,
+  type ActorType,
+  type Audience,
+  type RequestContext,
+  RequestContextStore,
+  getCurrentContext,
+  withContext,
+} from './context.js';
+
+export { hashSecret, randomToken, signHmac, verifyHmac, timingSafeEqual } from './crypto.js';
+export { AuditLogger, type AuditEventInput } from './audit.js';
+export { ClaimManager, type ClaimResult } from './claims.js';
+export { WebhookDispatcher, type WebhookEventInput } from './webhooks.js';
+export { CredentialResolver, type ResolvedCredential } from './credentials.js';

@@ -47,16 +47,21 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const header = request.headers['authorization'];
     const value = Array.isArray(header) ? header[0] : header;
+    let credential: ResolvedCredential | null = null;
 
-    if (!value || !value.toLowerCase().startsWith('bearer ')) {
-      if (allowAnon) return true;
-      throw new UnauthorizedException('missing bearer token');
+    if (value && value.toLowerCase().startsWith('bearer ')) {
+      const raw = value.slice('Bearer '.length).trim();
+      credential = looksLikeApiKey(raw)
+        ? await this.resolver.resolveApiKey(raw)
+        : await this.resolver.resolveBearerToken(raw);
+    } else {
+      const cookieHeader = request.headers['cookie'];
+      const cookieValue = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader;
+      const sessionToken = readSessionCookie(cookieValue);
+      if (sessionToken) {
+        credential = await this.resolver.resolveSessionToken(sessionToken);
+      }
     }
-
-    const raw = value.slice('Bearer '.length).trim();
-    const credential = looksLikeApiKey(raw)
-      ? await this.resolver.resolveApiKey(raw)
-      : await this.resolver.resolveBearerToken(raw);
 
     if (!credential) {
       if (allowAnon) return true;
@@ -66,6 +71,25 @@ export class AuthGuard implements CanActivate {
     request.credential = credential;
     return true;
   }
+}
+
+const SESSION_COOKIE_NAMES = ['better-auth.session_token', '__Secure-better-auth.session_token'];
+
+function readSessionCookie(cookieHeader: string | undefined): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    const name = part.slice(0, eq).trim();
+    if (!SESSION_COOKIE_NAMES.includes(name)) continue;
+    const raw = decodeURIComponent(part.slice(eq + 1).trim());
+    // BetterAuth signs session tokens as `<token>.<signature>`. Both halves
+    // are stored in the cookie; we only need the token portion to look up
+    // the sessions row, the signature is verified at write time by BA itself.
+    const dot = raw.indexOf('.');
+    return dot >= 0 ? raw.slice(0, dot) : raw;
+  }
+  return null;
 }
 
 /** Munin API keys are `mn_<kind>_<random>`. Anything else is treated as a bearer/OAuth token. */

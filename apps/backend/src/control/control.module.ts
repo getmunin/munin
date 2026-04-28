@@ -6,6 +6,8 @@ import { TokensController } from './tokens.controller.js';
 import { OrgsController } from './orgs.controller.js';
 import { PartnerOrgsController } from './partners.controller.js';
 import { PartnersService } from './partners.service.js';
+import { AuditLogController } from './audit-log.controller.js';
+import { UsageController } from './usage.controller.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -24,6 +26,8 @@ import { PartnersService } from './partners.service.js';
     TokensController,
     OrgsController,
     PartnerOrgsController,
+    AuditLogController,
+    UsageController,
   ],
   providers: [PartnersService],
 })

@@ -1,6 +1,6 @@
 import type { Db } from '@munin/db';
 import { schema } from '@munin/db';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import { ActorIdentity, type Audience } from './context.js';
 import { hashSecret } from './crypto.js';
 
@@ -137,5 +137,43 @@ export class CredentialResolver {
     }
 
     return null;
+  }
+
+  /**
+   * Resolve a BetterAuth session cookie into a user-typed actor.
+   *
+   * Used by the dashboard so the user's browser session can call control-plane
+   * endpoints without first minting an API key. Returns null when the session
+   * is missing, expired, or the user has no org membership.
+   */
+  async resolveSessionToken(rawToken: string): Promise<ResolvedCredential | null> {
+    const sessionRows = await this.db
+      .select()
+      .from(schema.sessions)
+      .where(and(eq(schema.sessions.token, rawToken), gt(schema.sessions.expiresAt, new Date())))
+      .limit(1);
+    const session = sessionRows[0];
+    if (!session) return null;
+
+    const memberships = await this.db
+      .select()
+      .from(schema.orgMembers)
+      .where(eq(schema.orgMembers.userId, session.userId))
+      .limit(1);
+    const membership = memberships[0];
+    if (!membership) return null;
+
+    const actor = new ActorIdentity(
+      'user',
+      session.userId,
+      membership.orgId,
+      ['*'],
+      ['admin'],
+      undefined,
+      session.id,
+      undefined,
+      session.userId,
+    );
+    return { actor, expiresAt: session.expiresAt };
   }
 }

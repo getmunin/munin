@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@munin/mcp-toolkit';
 import { KbService } from './kb.service.js';
+import { KbSearchService } from './kb.search.js';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 
@@ -53,11 +54,20 @@ const RestoreVersionInput = z.object({
   ifVersion: z.number().int().nonnegative(),
 });
 
+const SearchInput = z.object({
+  query: z.string().min(1).max(500),
+  spaceId: z.string().optional(),
+  limit: z.number().int().positive().max(50).optional(),
+});
+
 const EmptyInput = z.object({});
 
 @Injectable()
 export class KbAdminTools {
-  constructor(@Inject(KbService) private readonly kb: KbService) {}
+  constructor(
+    @Inject(KbService) private readonly kb: KbService,
+    @Inject(KbSearchService) private readonly searchService: KbSearchService,
+  ) {}
 
   @McpTool({
     name: 'kb_list_spaces',
@@ -96,13 +106,26 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_get_document',
-    description: 'Read one knowledge-base document, including its full body, tags, and current version.',
-    audiences: ['admin'],
+    description:
+      'Read one knowledge-base document, including its full body, tags, and current version. End-user agents see only documents marked `public`.',
+    audiences: ['admin', 'self_service'],
     scopes: ['kb:read'],
     input: GetDocumentInput,
   })
   getDocument(args: z.infer<typeof GetDocumentInput>) {
     return this.kb.getDocument(args.id);
+  }
+
+  @McpTool({
+    name: 'kb_search',
+    description:
+      'Search the knowledge base by natural-language query. Combines full-text search and vector similarity for the best of both. End-user agents see only documents marked `public`.',
+    audiences: ['admin', 'self_service'],
+    scopes: ['kb:read'],
+    input: SearchInput,
+  })
+  search(args: z.infer<typeof SearchInput>) {
+    return this.searchService.search(args);
   }
 
   @McpTool({

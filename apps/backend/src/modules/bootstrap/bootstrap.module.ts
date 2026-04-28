@@ -3,6 +3,7 @@ import { BootstrapRunner } from '@munin/bootstrap';
 import { BootstrapTools } from './bootstrap.tools.js';
 import { BootstrapRegistry } from './bootstrap.registry.js';
 import { kbBootstrap } from '../kb/kb.bootstrap.js';
+import { deskBootstrap } from '../desk/desk.bootstrap.js';
 
 /**
  * The two universal bootstrap MCP tools live here. Each domain module
@@ -16,7 +17,7 @@ import { kbBootstrap } from '../kb/kb.bootstrap.js';
       provide: BootstrapRegistry,
       useFactory: (): BootstrapRegistry => {
         const reg = new BootstrapRegistry();
-        const runners: BootstrapRunner[] = [kbBootstrap];
+        const runners: BootstrapRunner[] = [kbBootstrap, deskBootstrap];
         for (const r of runners) reg.add(r);
         return reg;
       },

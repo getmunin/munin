@@ -68,7 +68,7 @@ export class AuthGuard implements CanActivate {
   }
 }
 
-/** Heuristic: API keys are `<prefix>_<base64url>`; OAuth tokens are pure JWT or base64url with no prefix. */
+/** Munin API keys are `mn_<kind>_<random>`. Anything else is treated as a bearer/OAuth token. */
 function looksLikeApiKey(raw: string): boolean {
-  return /^[a-z]{3,8}_[A-Za-z0-9_-]{16,}$/.test(raw);
+  return /^mn_(admin|part|dlg)_[A-Za-z0-9_-]+$/.test(raw);
 }

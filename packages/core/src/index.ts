@@ -16,6 +16,7 @@ export {
 } from './context.js';
 
 export { hashSecret, randomToken, signHmac, verifyHmac, timingSafeEqual } from './crypto.js';
+export { buildApiKey, keyPrefix, isWellFormedKey, type KeyKind } from './keys.js';
 export { AuditLogger, type AuditEventInput } from './audit.js';
 export { ClaimManager, type ClaimResult } from './claims.js';
 export { WebhookDispatcher, type WebhookEventInput } from './webhooks.js';

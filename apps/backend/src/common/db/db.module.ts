@@ -19,7 +19,12 @@ export const DB = Symbol('Db');
       useFactory: (): Db => {
         const url = process.env.DATABASE_URL;
         if (!url) throw new Error('DATABASE_URL is required');
-        return createDb(url);
+        // Service-role mode: session GUC `app.bypass_rls=on` so auth
+        // resolution and scheduled jobs can read cross-org rows before
+        // a tenant context is established. The TenancyInterceptor still
+        // overrides it per request via transaction-local set_config so
+        // RLS policies apply during real tenant work.
+        return createDb(url, { serviceRole: true });
       },
     },
   ],

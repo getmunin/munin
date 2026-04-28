@@ -1,0 +1,129 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  NotFoundException,
+  Param,
+  Post,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { z } from 'zod';
+import { schema } from '@munin/db';
+import { and, eq } from 'drizzle-orm';
+import { getCurrentContext } from '@munin/core';
+import { AuthGuard } from '../common/auth/auth.guard.js';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+
+const EndUserPatchDto = z.object({
+  externalId: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  name: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+const LookupDto = z
+  .object({
+    externalId: z.string().optional(),
+    email: z.string().email().optional(),
+    phone: z.string().optional(),
+  })
+  .refine((v) => v.externalId || v.email || v.phone, {
+    message: 'at least one of externalId, email, phone is required',
+  });
+
+interface EndUserDto {
+  id: string;
+  externalId: string | null;
+  email: string | null;
+  phone: string | null;
+  name: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+@Controller('api/end-users')
+@UseGuards(AuthGuard)
+@UseInterceptors(TenancyInterceptor, AuditInterceptor)
+export class EndUsersController {
+  /**
+   * Find or create an EndUser by externalId / email / phone.
+   * Returns 200 + the row (whether existing or just-created).
+   */
+  @Post('lookup')
+  @HttpCode(200)
+  async lookup(@Body() body: unknown): Promise<EndUserDto> {
+    const parsed = LookupDto.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.findOrCreate(parsed.data);
+  }
+
+  @Post()
+  @HttpCode(201)
+  async create(@Body() body: unknown): Promise<EndUserDto> {
+    const parsed = EndUserPatchDto.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.findOrCreate(parsed.data);
+  }
+
+  @Get(':id')
+  async get(@Param('id') id: string): Promise<EndUserDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select()
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.id, id), eq(schema.endUsers.orgId, actor.orgId)))
+      .limit(1);
+    const row = rows[0];
+    if (!row) throw new NotFoundException(`EndUser ${id} not found`);
+    return toDto(row);
+  }
+
+  private async findOrCreate(input: z.infer<typeof EndUserPatchDto>): Promise<EndUserDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+
+    if (input.externalId) {
+      const existing = await ctx.db
+        .select()
+        .from(schema.endUsers)
+        .where(
+          and(eq(schema.endUsers.orgId, actor.orgId), eq(schema.endUsers.externalId, input.externalId)),
+        )
+        .limit(1);
+      if (existing[0]) return toDto(existing[0]);
+    }
+
+    const [created] = await ctx.db
+      .insert(schema.endUsers)
+      .values({
+        orgId: actor.orgId,
+        externalId: input.externalId ?? null,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        name: input.name ?? null,
+        metadata: input.metadata ?? {},
+      })
+      .returning();
+    return toDto(created!);
+  }
+}
+
+function toDto(row: typeof schema.endUsers.$inferSelect): EndUserDto {
+  return {
+    id: row.id,
+    externalId: row.externalId,
+    email: row.email,
+    phone: row.phone,
+    name: row.name,
+    metadata: row.metadata,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}

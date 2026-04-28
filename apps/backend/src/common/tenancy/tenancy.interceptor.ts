@@ -58,6 +58,9 @@ export class TenancyInterceptor implements NestInterceptor {
   ): Promise<unknown> {
     return this.db.transaction(async (tx) => {
       // Set GUCs scoped to this transaction.
+      // The connection has session-level `app.bypass_rls=on` (service role);
+      // we override it here so RLS policies apply within the request.
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
       if (actor.orgId) {
         await tx.execute(sql`SELECT set_config('app.org_id', ${actor.orgId}, true)`);
       }

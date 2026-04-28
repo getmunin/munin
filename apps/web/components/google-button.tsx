@@ -1,24 +1,29 @@
 'use client';
 
-import { authClient } from '../lib/auth-client';
+import { Button } from '@/components/ui/button';
+import { authClient } from '@/lib/auth-client';
 
 interface GoogleButtonProps {
   callbackUrl?: string;
   label?: string;
 }
 
-export function GoogleButton({ callbackUrl = '/dashboard', label = 'Continue with Google' }: GoogleButtonProps) {
+export function GoogleButton({
+  callbackUrl = '/dashboard',
+  label = 'Continue with Google',
+}: GoogleButtonProps) {
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      className="w-full"
       onClick={() => {
         void authClient.signIn.social({ provider: 'google', callbackURL: callbackUrl });
       }}
-      className="flex w-full items-center justify-center gap-3 rounded border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50"
     >
       <GoogleLogo />
       {label}
-    </button>
+    </Button>
   );
 }
 

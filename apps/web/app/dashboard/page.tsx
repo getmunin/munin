@@ -2,7 +2,23 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { authClient } from '../../lib/auth-client';
+import { Bot, Code2, KeyRound, LogOut } from 'lucide-react';
+import { authClient } from '@/lib/auth-client';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -13,55 +29,115 @@ export default function DashboardPage() {
   }, [isPending, session, router]);
 
   if (isPending || !session) {
-    return <p className="p-8 text-sm text-neutral-500">Loading…</p>;
+    return <p className="p-8 text-sm text-muted-foreground">Loading…</p>;
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 space-y-8">
-      <header className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Munin</h1>
-          <p className="text-sm text-neutral-600">Signed in as {session.user.email}</p>
+    <div className="min-h-screen bg-muted/30">
+      <header className="border-b bg-background">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
+          <span className="text-lg font-semibold tracking-tight">Munin</span>
+          <UserMenu
+            email={session.user.email}
+            name={session.user.name ?? session.user.email}
+            image={session.user.image ?? null}
+            onSignOut={() => {
+              void (async () => {
+                await authClient.signOut();
+                router.push('/login');
+              })();
+            }}
+          />
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            void (async () => {
-              await authClient.signOut();
-              router.push('/login');
-            })();
-          }}
-          className="rounded border border-neutral-300 px-3 py-1 text-sm hover:bg-neutral-50"
-        >
-          Sign out
-        </button>
       </header>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Connect your AI agent</h2>
-        <code className="block rounded bg-neutral-50 p-3 text-xs">
-          mcp.getmunin.com
-        </code>
-        <p className="text-sm text-neutral-600">
-          Add this URL to your AI agent (Claude Desktop, Cursor, custom) to start. You'll see a
-          consent screen here.
-        </p>
-      </section>
+      <main className="mx-auto max-w-5xl space-y-6 px-6 py-10">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Welcome to Munin</h1>
+          <p className="text-sm text-muted-foreground">
+            Connect your AI agent or build a server-side integration.
+          </p>
+        </div>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Build a server integration</h2>
-        <p className="text-sm text-neutral-600">
-          Voice AI, web chatbot, or mobile app? Create an admin API key and use it server-side to
-          mint short-lived end-user tokens for your customer-facing agents.
-        </p>
-        <button
-          type="button"
-          className="rounded bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-          disabled
-        >
-          Create API key (coming soon)
-        </button>
-      </section>
-    </main>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Bot className="size-5 text-muted-foreground" />
+                <CardTitle>Connect your AI agent</CardTitle>
+              </div>
+              <CardDescription>
+                Add this URL to Claude Desktop, Cursor, or any MCP client.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <code className="block rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+                https://mcp.getmunin.com
+              </code>
+              <p className="text-xs text-muted-foreground">
+                You'll see a consent screen here when an agent connects.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Code2 className="size-5 text-muted-foreground" />
+                <CardTitle>Build a server integration</CardTitle>
+              </div>
+              <CardDescription>
+                Voice AI, web chatbot, or mobile app? Mint short-lived end-user tokens server-side.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button disabled className="w-full">
+                <KeyRound className="size-4" />
+                Create API key (coming soon)
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+interface UserMenuProps {
+  email: string;
+  name: string;
+  image: string | null;
+  onSignOut: () => void;
+}
+
+function UserMenu({ email, name, image, onSignOut }: UserMenuProps) {
+  const initials = name
+    .split(' ')
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .slice(0, 2)
+    .join('');
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" className="h-9 gap-2 px-2" />}>
+        <Avatar className="size-7">
+          {image && <AvatarImage src={image} alt={name} />}
+          <AvatarFallback>{initials || '?'}</AvatarFallback>
+        </Avatar>
+        <span className="hidden text-sm font-medium sm:inline">{name}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <span className="text-sm font-medium">{name}</span>
+            <span className="text-xs text-muted-foreground">{email}</span>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onSignOut}>
+          <LogOut className="size-4" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

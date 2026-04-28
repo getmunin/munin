@@ -37,7 +37,6 @@ export class AuditLogger {
         error: input.error ?? null,
       });
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('[audit] failed to record:', err);
     }
   }

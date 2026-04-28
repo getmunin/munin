@@ -8,9 +8,10 @@ import { AuditInterceptor } from './common/audit/audit.interceptor.js';
 import { McpModule } from './mcp/mcp.module.js';
 import { ControlModule } from './control/control.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { KbModule } from './modules/kb/kb.module.js';
 
 @Module({
-  imports: [DbModule, AuthModule, McpModule, ControlModule],
+  imports: [DbModule, AuthModule, McpModule, ControlModule, KbModule],
   controllers: [HealthController, WhoamiController],
   providers: [AuthGuard, TenancyInterceptor, AuditInterceptor],
 })

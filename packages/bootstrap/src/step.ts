@@ -27,7 +27,13 @@ export interface BootstrapStep<T = unknown> {
   apply: (value: T, ctx: BootstrapStepCtx) => Promise<void> | void;
 }
 
-/** Tiny helper for step definition with Zod inference. */
-export function defineStep<T>(step: BootstrapStep<T>): BootstrapStep<T> {
-  return step;
+/**
+ * Tiny helper for step definition with Zod inference. Erases the value type
+ * to `unknown` at the boundary so heterogeneous step arrays compile — the
+ * runner re-validates inputs against `schema` before passing to `apply`,
+ * which has access to the original narrow type via inference inside the
+ * defining call site.
+ */
+export function defineStep<T>(step: BootstrapStep<T>): BootstrapStep<unknown> {
+  return step as unknown as BootstrapStep<unknown>;
 }

@@ -9,9 +9,10 @@ import { McpModule } from './mcp/mcp.module.js';
 import { ControlModule } from './control/control.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { KbModule } from './modules/kb/kb.module.js';
+import { BootstrapModule } from './modules/bootstrap/bootstrap.module.js';
 
 @Module({
-  imports: [DbModule, AuthModule, McpModule, ControlModule, KbModule],
+  imports: [DbModule, AuthModule, McpModule, ControlModule, KbModule, BootstrapModule],
   controllers: [HealthController, WhoamiController],
   providers: [AuthGuard, TenancyInterceptor, AuditInterceptor],
 })

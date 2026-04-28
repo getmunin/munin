@@ -1,6 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { AuditLogger, type ActorIdentity, type Audience } from '@munin/core';
+import type { AuditLogger, ActorIdentity, Audience } from '@munin/core';
 import type { McpToolRegistry } from './registry.js';
 
 export interface CreateMcpServerOptions {
@@ -64,7 +64,7 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
       const value = await tool.handler(parseResult.data);
       await audit.record({
         tool: tool.meta.name,
-        args: parseResult.data as Record<string, unknown>,
+        args: parseResult.data,
         result: 'ok',
       });
       return {

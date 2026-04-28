@@ -58,7 +58,7 @@ const skipReason = TEST_URL
     const rows = await client.begin(async (sql) => {
       await sql`SELECT set_config('app.bypass_rls', 'off', true)`;
       await sql`SELECT set_config('app.org_id', ${orgA}, true)`;
-      return sql`SELECT name FROM end_users WHERE name IN ('A user', 'B user')`;
+      return sql<{ name: string }[]>`SELECT name FROM end_users WHERE name IN ('A user', 'B user')`;
     });
     expect(rows.map((r) => r.name).sort()).toEqual(['A user']);
   });
@@ -67,7 +67,7 @@ const skipReason = TEST_URL
     const rows = await client.begin(async (sql) => {
       await sql`SELECT set_config('app.bypass_rls', 'off', true)`;
       await sql`SELECT set_config('app.org_id', ${orgB}, true)`;
-      return sql`SELECT name FROM end_users WHERE name IN ('A user', 'B user')`;
+      return sql<{ name: string }[]>`SELECT name FROM end_users WHERE name IN ('A user', 'B user')`;
     });
     expect(rows.map((r) => r.name).sort()).toEqual(['B user']);
   });
@@ -92,7 +92,7 @@ const skipReason = TEST_URL
   it('bypass mode sees rows for all orgs', async () => {
     const rows = await client.begin(async (sql) => {
       await sql`SELECT set_config('app.bypass_rls', 'on', true)`;
-      return sql`SELECT name FROM end_users WHERE name IN ('A user', 'B user')`;
+      return sql<{ name: string }[]>`SELECT name FROM end_users WHERE name IN ('A user', 'B user')`;
     });
     expect(rows.map((r) => r.name).sort()).toEqual(['A user', 'B user']);
   });

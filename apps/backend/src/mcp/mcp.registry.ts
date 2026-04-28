@@ -31,7 +31,7 @@ export class McpRegistryService extends McpToolRegistry implements OnModuleInit 
           | McpToolMeta
           | undefined;
         if (!meta) continue;
-        const fn = (instance as Record<string, unknown>)[methodName];
+        const fn = instance[methodName];
         if (typeof fn !== 'function') continue;
         this.register(meta, (args) => (fn as (a: unknown) => unknown).call(instance, args));
       }

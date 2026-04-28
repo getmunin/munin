@@ -5,7 +5,7 @@ import type { McpToolMeta } from './decorator.js';
 export interface RegisteredMcpTool {
   meta: McpToolMeta;
   /** Bound handler — already has `this` resolved to the providing service instance. */
-  handler: (args: unknown) => Promise<unknown> | unknown;
+  handler: (args: unknown) => unknown;
   /** JSON Schema (draft 2020-12) generated from meta.input via zod 4. */
   inputJsonSchema: object;
 }

@@ -15,11 +15,13 @@ import { DeskModule } from './modules/desk/desk.module.js';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module.js';
 import { QuotasModule } from './common/quotas/quotas.module.js';
 import { MailModule } from './common/mail/mail.module.js';
+import { WebhookModule } from './common/webhooks/webhook.module.js';
 
 @Module({
   imports: [
     DbModule,
     MailModule,
+    WebhookModule,
     RateLimitModule,
     QuotasModule,
     AuthModule,

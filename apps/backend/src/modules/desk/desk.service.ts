@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@munin/db';
 import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
-import { getCurrentContext } from '@munin/core';
+import { getCurrentContext, WebhookDispatcher } from '@munin/core';
 
 export class DeskInvalidError extends Error {
   readonly code = 'desk_invalid';
@@ -64,6 +64,8 @@ export interface ConversationDetail extends ConversationSummary {
 
 @Injectable()
 export class DeskService {
+  constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
+
   // ─── Channels ───────────────────────────────────────────────────────────
 
   async listChannels(): Promise<ChannelDto[]> {
@@ -219,18 +221,38 @@ export class DeskService {
       subject: input.subject ?? null,
     });
 
-    await ctx.db.insert(schema.deskMessages).values({
-      orgId: actor.orgId,
-      conversationId: conv.id,
-      authorType: input.authorType,
-      authorId: input.authorId,
-      body: input.body,
-      internal: false,
-    });
+    const [firstMsg] = await ctx.db
+      .insert(schema.deskMessages)
+      .values({
+        orgId: actor.orgId,
+        conversationId: conv.id,
+        authorType: input.authorType,
+        authorId: input.authorId,
+        body: input.body,
+        internal: false,
+      })
+      .returning();
     await ctx.db
       .update(schema.deskConversations)
       .set({ lastMessageAt: new Date() })
       .where(eq(schema.deskConversations.id, conv.id));
+
+    await this.webhooks.emit({
+      type: 'conversation.created',
+      payload: { conversationId: conv.id, displayId: conv.displayId, channelId: conv.channelId },
+    });
+    await this.webhooks.emit({
+      type:
+        input.authorType === 'end_user'
+          ? 'conversation.message.received'
+          : 'conversation.message.sent',
+      payload: {
+        conversationId: conv.id,
+        messageId: firstMsg!.id,
+        authorType: input.authorType,
+        internal: false,
+      },
+    });
 
     return this.getConversation(conv.id);
   }
@@ -268,6 +290,21 @@ export class DeskService {
       .update(schema.deskConversations)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.deskConversations.id, input.conversationId));
+
+    if (!row!.internal) {
+      await this.webhooks.emit({
+        type:
+          input.authorType === 'end_user'
+            ? 'conversation.message.received'
+            : 'conversation.message.sent',
+        payload: {
+          conversationId: input.conversationId,
+          messageId: row!.id,
+          authorType: input.authorType,
+          internal: false,
+        },
+      });
+    }
     return toMessageDto(row!);
   }
 
@@ -282,6 +319,10 @@ export class DeskService {
       .where(eq(schema.deskConversations.id, input.id))
       .returning();
     if (!result[0]) throw new NotFoundException(`desk_not_found: conversation ${input.id}`);
+    await this.webhooks.emit({
+      type: 'conversation.assigned',
+      payload: { conversationId: input.id, assigneeUserId: input.assigneeUserId },
+    });
     return toConversationSummary(result[0]);
   }
 
@@ -304,6 +345,10 @@ export class DeskService {
       .where(eq(schema.deskConversations.id, input.id))
       .returning();
     if (!result[0]) throw new NotFoundException(`desk_not_found: conversation ${input.id}`);
+    await this.webhooks.emit({
+      type: 'conversation.status_changed',
+      payload: { conversationId: input.id, status: input.status },
+    });
     return toConversationSummary(result[0]);
   }
 

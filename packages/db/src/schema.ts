@@ -1,0 +1,444 @@
+/**
+ * Munin platform schema (foundational).
+ *
+ * Domain modules (kb, desk, crm) will add their own tables in later milestones,
+ * but everything in this file is shared infrastructure: tenancy, identity,
+ * audit, claims, webhooks, suggestions, partners.
+ *
+ * Tenancy: every org-scoped table carries `org_id` and is governed by RLS.
+ * RLS policies live in src/rls.sql (applied during migrations).
+ */
+import { sql } from 'drizzle-orm';
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  varchar,
+} from 'drizzle-orm/pg-core';
+import { makeId } from './id.js';
+
+const id = (prefix: string) =>
+  text('id')
+    .primaryKey()
+    .$defaultFn(() => makeId(prefix));
+
+const createdAt = timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
+const updatedAt = timestamp('updated_at', { withTimezone: true }).notNull().defaultNow();
+
+// ───────────────────────────── Partners ──────────────────────────────
+// One row per integration partner (e.g. Threll). Highest-privilege keys.
+export const partners = pgTable('partners', {
+  id: id('ptr'),
+  name: text('name').notNull(),
+  slug: varchar('slug', { length: 64 }).notNull().unique(),
+  partnerKeyHash: text('partner_key_hash').notNull(),
+  scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+  consentUrlTemplate: text('consent_url_template'),
+  brandingMetadata: jsonb('branding_metadata').$type<Record<string, unknown>>().default({}),
+  createdAt,
+  updatedAt,
+});
+
+// ───────────────────────────── Orgs / Users ──────────────────────────
+export const orgs = pgTable(
+  'orgs',
+  {
+    id: id('org'),
+    name: text('name').notNull(),
+    slug: varchar('slug', { length: 64 }).notNull().unique(),
+    partnerId: text('partner_id').references(() => partners.id, { onDelete: 'set null' }),
+    settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    partnerIdx: index('orgs_partner_idx').on(t.partnerId),
+  }),
+);
+
+// Users are managed by BetterAuth, but we declare the table so Drizzle queries
+// can join it. BetterAuth migration will add columns it needs (password hash, etc).
+export const users = pgTable('users', {
+  id: id('usr'),
+  email: text('email').notNull().unique(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  name: text('name'),
+  image: text('image'),
+  createdAt,
+  updatedAt,
+});
+
+// Membership: which users belong to which orgs (single-org per user in v0.4 but
+// schema supports many-to-many for future).
+export const orgMembers = pgTable(
+  'org_members',
+  {
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: varchar('role', { length: 32 }).notNull().default('owner'),
+    createdAt,
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.orgId, t.userId] }),
+    userIdx: index('org_members_user_idx').on(t.userId),
+  }),
+);
+
+// ───────────────────────────── End-users ─────────────────────────────
+// People that customer-facing agents act on behalf of. One per org-bound identity.
+export const endUsers = pgTable(
+  'end_users',
+  {
+    id: id('eu'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    externalId: text('external_id'),
+    email: text('email'),
+    phone: text('phone'),
+    name: text('name'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('end_users_org_idx').on(t.orgId),
+    externalUq: uniqueIndex('end_users_org_external_uq').on(t.orgId, t.externalId),
+    emailIdx: index('end_users_email_idx').on(t.orgId, t.email),
+    phoneIdx: index('end_users_phone_idx').on(t.orgId, t.phone),
+  }),
+);
+
+// ───────────────────────────── Agents ────────────────────────────────
+// Internal identity for any agent acting on data, used by audit/claims.
+export const agents = pgTable(
+  'agents',
+  {
+    id: id('agt'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
+    scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+    rateLimitPerMin: integer('rate_limit_per_min'),
+    rateLimitPerDay: integer('rate_limit_per_day'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('agents_org_idx').on(t.orgId),
+  }),
+);
+
+// ───────────────────────────── OAuth (MCP spec) ──────────────────────
+// Dynamically-registered OAuth clients (per the MCP OAuth 2.1 flow).
+export const oauthClients = pgTable(
+  'oauth_clients',
+  {
+    id: id('oac'),
+    orgId: text('org_id').references(() => orgs.id, { onDelete: 'cascade' }),
+    clientId: text('client_id').notNull().unique(),
+    clientSecretHash: text('client_secret_hash'),
+    name: text('name').notNull(),
+    redirectUris: jsonb('redirect_uris').$type<string[]>().notNull().default([]),
+    grantTypes: jsonb('grant_types').$type<string[]>().notNull().default([]),
+    scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('oauth_clients_org_idx').on(t.orgId),
+  }),
+);
+
+// Tokens issued via OAuth or as delegated end-user JWTs.
+export const tokens = pgTable(
+  'tokens',
+  {
+    id: id('tok'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    type: varchar('type', { length: 32 }).notNull(),
+    // 'oauth_access' | 'oauth_refresh' | 'delegated_end_user' | 'guest'
+    tokenHash: text('token_hash').notNull().unique(),
+    scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+    audiences: jsonb('audiences').$type<('admin' | 'self_service')[]>().notNull().default([]),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id').references(() => agents.id, { onDelete: 'cascade' }),
+    oauthClientId: text('oauth_client_id').references(() => oauthClients.id, { onDelete: 'cascade' }),
+    endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+  },
+  (t) => ({
+    orgIdx: index('tokens_org_idx').on(t.orgId),
+    typeIdx: index('tokens_type_idx').on(t.type),
+    endUserIdx: index('tokens_end_user_idx').on(t.endUserId),
+  }),
+);
+
+// Long-lived admin API keys (and partner keys, scoped via type).
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    id: id('akey'),
+    orgId: text('org_id').references(() => orgs.id, { onDelete: 'cascade' }),
+    partnerId: text('partner_id').references(() => partners.id, { onDelete: 'cascade' }),
+    type: varchar('type', { length: 32 }).notNull(), // 'admin' | 'partner'
+    name: text('name').notNull(),
+    keyHash: text('key_hash').notNull().unique(),
+    keyPrefix: varchar('key_prefix', { length: 16 }).notNull(),
+    scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdByUserId: text('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt,
+  },
+  (t) => ({
+    orgIdx: index('api_keys_org_idx').on(t.orgId),
+    partnerIdx: index('api_keys_partner_idx').on(t.partnerId),
+    prefixIdx: index('api_keys_prefix_idx').on(t.keyPrefix),
+  }),
+);
+
+// ───────────────────────────── Audit & events ────────────────────────
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: id('aud'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    actorType: varchar('actor_type', { length: 32 }).notNull(),
+    // 'user' | 'admin_agent' | 'end_user_agent' | 'partner' | 'system'
+    actorId: text('actor_id'),
+    tool: text('tool'),
+    method: text('method'),
+    target: jsonb('target').$type<{ type: string; id: string }>(),
+    args: jsonb('args').$type<Record<string, unknown>>(),
+    correlationId: text('correlation_id'),
+    result: varchar('result', { length: 16 }),
+    error: text('error'),
+    createdAt,
+  },
+  (t) => ({
+    orgIdx: index('audit_log_org_idx').on(t.orgId, t.createdAt),
+    correlationIdx: index('audit_log_correlation_idx').on(t.correlationId),
+    actorIdx: index('audit_log_actor_idx').on(t.actorType, t.actorId),
+  }),
+);
+
+export const events = pgTable(
+  'events',
+  {
+    id: id('evt'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    actorId: text('actor_id'),
+    correlationId: text('correlation_id'),
+    hopCount: integer('hop_count').notNull().default(0),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+  },
+  (t) => ({
+    orgIdx: index('events_org_idx').on(t.orgId, t.createdAt),
+    typeIdx: index('events_type_idx').on(t.type),
+    correlationIdx: index('events_correlation_idx').on(t.correlationId),
+  }),
+);
+
+// ───────────────────────────── Claims ────────────────────────────────
+// Soft locks: "agent X is working on entity Y for the next N minutes."
+export const claims = pgTable(
+  'claims',
+  {
+    id: id('clm'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    entityType: text('entity_type').notNull(),
+    entityId: text('entity_id').notNull(),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
+    createdAt,
+  },
+  (t) => ({
+    entityIdx: index('claims_entity_idx').on(t.orgId, t.entityType, t.entityId),
+    expiresIdx: index('claims_expires_idx').on(t.expiresAt),
+  }),
+);
+
+// ───────────────────────────── Webhooks ──────────────────────────────
+export const webhooks = pgTable(
+  'webhooks',
+  {
+    id: id('whk'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    secret: text('secret').notNull(),
+    events: jsonb('events').$type<string[]>().notNull().default([]),
+    active: boolean('active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('webhooks_org_idx').on(t.orgId),
+  }),
+);
+
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: id('whd'),
+    webhookId: text('webhook_id')
+      .notNull()
+      .references(() => webhooks.id, { onDelete: 'cascade' }),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    attempt: integer('attempt').notNull().default(0),
+    statusCode: integer('status_code'),
+    durationMs: integer('duration_ms'),
+    error: text('error'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => ({
+    webhookIdx: index('webhook_deliveries_webhook_idx').on(t.webhookId),
+    pendingIdx: index('webhook_deliveries_pending_idx').on(t.nextAttemptAt),
+  }),
+);
+
+// ───────────────────────────── Bootstrap state ───────────────────────
+// Conversational config progress per app per org.
+export const bootstrapState = pgTable(
+  'bootstrap_state',
+  {
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    appKey: varchar('app_key', { length: 32 }).notNull(),
+    // 'kb' | 'desk' | 'crm' | future
+    completedSteps: jsonb('completed_steps').$type<string[]>().notNull().default([]),
+    answers: jsonb('answers').$type<Record<string, unknown>>().notNull().default({}),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    updatedAt,
+    createdAt,
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.orgId, t.appKey] }),
+  }),
+);
+
+// ───────────────────────────── Suggestions / votes ───────────────────
+export const suggestions = pgTable(
+  'suggestions',
+  {
+    id: id('sug'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    appScope: varchar('app_scope', { length: 32 }),
+    status: varchar('status', { length: 16 }).notNull().default('open'),
+    // 'open' | 'planned' | 'in_progress' | 'done' | 'wontfix' | 'duplicate'
+    createdByType: varchar('created_by_type', { length: 16 }).notNull(),
+    // 'agent' | 'user'
+    createdById: text('created_by_id').notNull(),
+    voteCount: integer('vote_count').notNull().default(0),
+    public: boolean('public').notNull().default(false),
+    duplicateOfId: text('duplicate_of_id'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('suggestions_org_idx').on(t.orgId),
+    statusIdx: index('suggestions_status_idx').on(t.status),
+    publicIdx: index('suggestions_public_idx').on(t.public, t.voteCount),
+  }),
+);
+
+export const votes = pgTable(
+  'votes',
+  {
+    suggestionId: text('suggestion_id')
+      .notNull()
+      .references(() => suggestions.id, { onDelete: 'cascade' }),
+    voterType: varchar('voter_type', { length: 16 }).notNull(),
+    voterId: text('voter_id').notNull(),
+    comment: text('comment'),
+    createdAt,
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.suggestionId, t.voterType, t.voterId] }),
+  }),
+);
+
+// ───────────────────────────── Rate limits ──────────────────────────
+// Token-bucket / sliding-window counters per org per token-type.
+// Postgres-only impl for v0.4; Redis later if hot.
+export const rateLimitCounters = pgTable(
+  'rate_limit_counters',
+  {
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    bucket: varchar('bucket', { length: 64 }).notNull(),
+    windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+    count: bigint('count', { mode: 'number' }).notNull().default(0),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.orgId, t.bucket, t.windowStart] }),
+  }),
+);
+
+// All the tables exported as a single namespace for convenience:
+export const allTables = {
+  partners,
+  orgs,
+  users,
+  orgMembers,
+  endUsers,
+  agents,
+  oauthClients,
+  tokens,
+  apiKeys,
+  auditLog,
+  events,
+  claims,
+  webhooks,
+  webhookDeliveries,
+  bootstrapState,
+  suggestions,
+  votes,
+  rateLimitCounters,
+};
+
+export type AllTables = typeof allTables;
+export { sql };

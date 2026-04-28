@@ -1,0 +1,46 @@
+{
+  "name": "@munin/backend",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "@munin/bootstrap": "workspace:*",
+    "@munin/core": "workspace:*",
+    "@munin/db": "workspace:*",
+    "@munin/mcp-toolkit": "workspace:*",
+    "@munin/types": "workspace:*",
+    "@nestjs/common": "^10.4.0",
+    "@nestjs/core": "^10.4.0",
+    "@nestjs/platform-express": "^10.4.0",
+    "better-auth": "^1.1.0",
+    "drizzle-orm": "^0.36.4",
+    "express": "^4.21.0",
+    "postgres": "^3.4.5",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@munin/eslint-config": "workspace:*",
+    "@munin/tsconfig": "workspace:*",
+    "@nestjs/cli": "^10.4.0",
+    "@nestjs/testing": "^10.4.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.7.0",
+    "eslint": "^9.10.0",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

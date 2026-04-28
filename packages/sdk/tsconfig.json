@@ -1,0 +1,5 @@
+{
+  "extends": "@munin/tsconfig/library.json",
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules"]
+}

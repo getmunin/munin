@@ -1,0 +1,46 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# turbo cache
+.turbo/
+
+# env files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.zed/
+
+# os
+.DS_Store
+Thumbs.db
+
+# coverage
+coverage/
+
+# drizzle
+drizzle/meta/
+
+# misc
+*.tgz
+.cache/

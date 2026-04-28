@@ -591,6 +591,148 @@ export const kbDocumentVersions = pgTable(
   }),
 );
 
+// ───────────────────────── Helpdesk (M3) ─────────────────────────────
+// Channels: where customers reach the org. v0.4 ships email + a built-in
+// "chat" channel for self-service conversations; voice / sms come later.
+export const deskChannels = pgTable(
+  'desk_channels',
+  {
+    id: id('dch'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    type: varchar('type', { length: 16 }).notNull(),
+    // 'email' | 'voice' | 'chat' | 'sms'
+    name: text('name').notNull(),
+    config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
+    active: boolean('active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('desk_channels_org_idx').on(t.orgId),
+    typeIdx: index('desk_channels_type_idx').on(t.orgId, t.type),
+  }),
+);
+
+// Topics: lightweight categorization (Billing, Support, Refunds…). Slug-unique
+// per org so agents can address them in conversation.
+export const deskTopics = pgTable(
+  'desk_topics',
+  {
+    id: id('dtp'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: varchar('slug', { length: 64 }).notNull(),
+    color: varchar('color', { length: 16 }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('desk_topics_org_idx').on(t.orgId),
+    slugUq: uniqueIndex('desk_topics_org_slug_uq').on(t.orgId, t.slug),
+  }),
+);
+
+// Contacts: helpdesk-specific view of a person. Links to EndUser when one
+// exists (so the same human in CRM, helpdesk, and KB-self-service is visibly
+// the same entity). For pre-EndUser flows (anonymous contact form, etc.)
+// the FK is nullable so contacts can land first.
+export const deskContacts = pgTable(
+  'desk_contacts',
+  {
+    id: id('dct'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
+    name: text('name'),
+    email: text('email'),
+    phone: text('phone'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('desk_contacts_org_idx').on(t.orgId),
+    emailIdx: index('desk_contacts_email_idx').on(t.orgId, t.email),
+    endUserIdx: index('desk_contacts_end_user_idx').on(t.endUserId),
+  }),
+);
+
+// Conversations: the unit of work (vs the legacy "ticket"). Spans multiple
+// channels in principle; in v0.4 a conversation is bound to one channel at
+// creation but threading rules (M3+) can span channels via the same contact.
+//
+// `display_id` is per-org via a CTE-and-coalesce on insert (postgres SEQUENCE
+// per org would be cleaner; for v0.4 we MAX() + 1 inside a transaction —
+// fine at our scale and simpler than CREATE SEQUENCE per-org plumbing).
+export const deskConversations = pgTable(
+  'desk_conversations',
+  {
+    id: id('dcv'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    displayId: integer('display_id').notNull(),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => deskChannels.id, { onDelete: 'restrict' }),
+    contactId: text('contact_id').references(() => deskContacts.id, { onDelete: 'set null' }),
+    endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
+    topicId: text('topic_id').references(() => deskTopics.id, { onDelete: 'set null' }),
+    assigneeUserId: text('assignee_user_id').references(() => users.id, { onDelete: 'set null' }),
+    subject: text('subject'),
+    status: varchar('status', { length: 16 }).notNull().default('open'),
+    // 'open' | 'snoozed' | 'closed' | 'spam'
+    snoozeUntil: timestamp('snooze_until', { withTimezone: true }),
+    lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('desk_conversations_org_idx').on(t.orgId),
+    statusIdx: index('desk_conversations_status_idx').on(t.orgId, t.status),
+    endUserIdx: index('desk_conversations_end_user_idx').on(t.endUserId),
+    contactIdx: index('desk_conversations_contact_idx').on(t.contactId),
+    displayIdUq: uniqueIndex('desk_conversations_display_uq').on(t.orgId, t.displayId),
+    lastMsgIdx: index('desk_conversations_last_msg_idx').on(t.orgId, t.lastMessageAt),
+  }),
+);
+
+// Messages: posts inside a conversation. `internal=true` is staff-only
+// (agent draft, side-comment); end-user audience never sees them. Author
+// tags `(author_type, author_id)` so audit trails can name who said what.
+export const deskMessages = pgTable(
+  'desk_messages',
+  {
+    id: id('dms'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => deskConversations.id, { onDelete: 'cascade' }),
+    authorType: varchar('author_type', { length: 16 }).notNull(),
+    // 'user' | 'agent' | 'end_user' | 'system'
+    authorId: text('author_id').notNull(),
+    body: text('body').notNull(),
+    bodyHtml: text('body_html'),
+    internal: boolean('internal').notNull().default(false),
+    inReplyToId: text('in_reply_to_id'),
+    attachments: jsonb('attachments').$type<unknown[]>().notNull().default([]),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+  },
+  (t) => ({
+    conversationIdx: index('desk_messages_conv_idx').on(t.conversationId, t.createdAt),
+    orgIdx: index('desk_messages_org_idx').on(t.orgId),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   partners,
@@ -618,6 +760,11 @@ export const allTables = {
   kbDocuments,
   kbDocumentChunks,
   kbDocumentVersions,
+  deskChannels,
+  deskTopics,
+  deskContacts,
+  deskConversations,
+  deskMessages,
 };
 
 export type AllTables = typeof allTables;

@@ -1,0 +1,72 @@
+import { Injectable } from '@nestjs/common';
+import { schema } from '@munin/db';
+import { sql } from 'drizzle-orm';
+import { getCurrentContext } from '@munin/core';
+
+export class QuotaExceededError extends Error {
+  readonly code = 'quota_exceeded';
+  constructor(public readonly resource: string, public readonly cap: number) {
+    super(`quota_exceeded: this org is at the ${resource} limit (${cap}). Upgrade or delete unused rows.`);
+  }
+}
+
+export type QuotaResource = 'kb_documents' | 'kb_spaces';
+
+const FREE_TIER_QUOTAS: Record<QuotaResource, number> = {
+  kb_documents: 10_000,
+  kb_spaces: 100,
+};
+
+interface OrgSettings {
+  quotas?: Partial<Record<QuotaResource, number>>;
+}
+
+const TABLE_FOR: Record<QuotaResource, string> = {
+  kb_documents: 'kb_documents',
+  kb_spaces: 'kb_spaces',
+};
+
+/**
+ * Free-tier row caps. Counted at write time inside the request transaction;
+ * the count and the insert see the same MVCC snapshot, so two concurrent
+ * inserts cannot both pass when the org is one row from the cap (the second
+ * will block on lock acquisition or fail at insert with a serialization error
+ * if the table is heavily contended — neither is worse than rejecting at
+ * the cap edge).
+ */
+@Injectable()
+export class QuotasService {
+  async assertCanAdd(resource: QuotaResource): Promise<void> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    if (!orgId) return;
+    const cap = await this.cap(orgId, resource);
+    const used = await this.count(resource);
+    if (used >= cap) throw new QuotaExceededError(resource, cap);
+  }
+
+  async cap(orgId: string, resource: QuotaResource): Promise<number> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ settings: schema.orgs.settings })
+      .from(schema.orgs)
+      .where(sql`${schema.orgs.id} = ${orgId}`)
+      .limit(1);
+    const settings = (rows[0]?.settings ?? {}) as OrgSettings;
+    return settings.quotas?.[resource] ?? FREE_TIER_QUOTAS[resource];
+  }
+
+  /**
+   * Count rows for the resource in the calling org. Table name comes from a
+   * fixed enum-mapped lookup (no user input), interpolated as an identifier.
+   */
+  async count(resource: QuotaResource): Promise<number> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const table = TABLE_FOR[resource];
+    const rows = await ctx.db.execute<{ n: number } & Record<string, unknown>>(
+      sql`SELECT COUNT(*)::int AS n FROM ${sql.identifier(table)} WHERE org_id = ${orgId}`,
+    );
+    return rows[0]?.n ?? 0;
+  }
+}

@@ -4,6 +4,7 @@ import { schema } from '@munin/db';
 import { chunkDocument, contentHash, getCurrentContext } from '@munin/core';
 import type { ActorIdentity } from '@munin/core';
 import { EmbeddingProviderHolder } from './embedding.provider.js';
+import { QuotasService } from '../../common/quotas/quotas.service.js';
 
 export class KbConflictError extends Error {
   readonly code = 'kb_version_conflict';
@@ -74,6 +75,7 @@ export interface VersionDto {
 export class KbService {
   constructor(
     @Inject(EmbeddingProviderHolder) private readonly embeddings: EmbeddingProviderHolder,
+    @Inject(QuotasService) private readonly quotas: QuotasService,
   ) {}
 
   // ─── Spaces ─────────────────────────────────────────────────────────────
@@ -97,6 +99,7 @@ export class KbService {
     if (!isValidSlug(input.slug)) {
       throw new KbInvalidError('slug must be lowercase letters, digits and hyphens (1-64 chars)');
     }
+    await this.quotas.assertCanAdd('kb_spaces');
     const existing = await ctx.db
       .select({ id: schema.kbSpaces.id })
       .from(schema.kbSpaces)
@@ -178,6 +181,7 @@ export class KbService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     await this.assertSpaceExists(input.spaceId);
+    await this.quotas.assertCanAdd('kb_documents');
     const hash = contentHash(input.title, input.body);
     const [doc] = await ctx.db
       .insert(schema.kbDocuments)

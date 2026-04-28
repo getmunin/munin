@@ -163,12 +163,18 @@ importers:
 
   packages/bootstrap:
     dependencies:
+      '@munin/core':
+        specifier: workspace:*
+        version: link:../core
       '@munin/db':
         specifier: workspace:*
         version: link:../db
       '@munin/types':
         specifier: workspace:*
         version: link:../types
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(kysely@0.28.16)(postgres@3.4.9)
       zod:
         specifier: ^4.3.6
         version: 4.3.6

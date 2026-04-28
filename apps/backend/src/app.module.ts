@@ -13,10 +13,12 @@ import { BootstrapModule } from './modules/bootstrap/bootstrap.module.js';
 import { SuggestionsModule } from './modules/suggestions/suggestions.module.js';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module.js';
 import { QuotasModule } from './common/quotas/quotas.module.js';
+import { MailModule } from './common/mail/mail.module.js';
 
 @Module({
   imports: [
     DbModule,
+    MailModule,
     RateLimitModule,
     QuotasModule,
     AuthModule,

@@ -27,6 +27,7 @@ const skipReason = TEST_URL
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod';
     process.env.MUNIN_KEY_PEPPER ??= 'test-pepper';
     process.env.MUNIN_EMBEDDING_PROVIDER = 'stub';
+    process.env.MUNIN_MAIL_PROVIDER = 'stub';
 
     await runMigrations(TEST_URL!);
 

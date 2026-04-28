@@ -1,7 +1,15 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@munin/db';
 import { and, asc, eq, isNull } from 'drizzle-orm';
-import { buildApiKey, getCurrentContext, hashSecret, keyPrefix, randomToken } from '@munin/core';
+import {
+  buildApiKey,
+  getCurrentContext,
+  hashSecret,
+  keyPrefix,
+  randomToken,
+  type Mailer,
+} from '@munin/core';
+import { MAILER } from '../common/mail/mail.module.js';
 
 export interface ProvisionInput {
   name: string;
@@ -31,6 +39,8 @@ const OWNER_CLAIM_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 @Injectable()
 export class PartnersService {
+  constructor(@Inject(MAILER) private readonly mailer: Mailer) {}
+
   /**
    * Provision a new org for the partner, mint a fresh admin API key for the
    * customer's backend integration, and create an owner-claim token the
@@ -78,6 +88,7 @@ export class PartnersService {
       value: hashSecret(claimToken),
       expiresAt,
     });
+    await this.sendOwnerClaim(input.ownerEmail, input.ownerName, org!.id, claimToken);
 
     return {
       org: { id: org!.id, name: org!.name, slug: org!.slug, partnerId: org!.partnerId },
@@ -146,7 +157,38 @@ export class PartnersService {
       value: hashSecret(claimToken),
       expiresAt,
     });
+    await this.sendOwnerClaim(email, undefined, id, claimToken);
     return { token: claimToken, expiresAt: expiresAt.toISOString(), email };
+  }
+
+  private async sendOwnerClaim(
+    email: string,
+    name: string | undefined,
+    orgId: string,
+    token: string,
+  ): Promise<void> {
+    const webBase = (process.env.MUNIN_WEB_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+    const url = `${webBase}/claim?org=${encodeURIComponent(orgId)}&token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+    const greeting = name ? `Hi ${name},` : 'Hi,';
+    try {
+      await this.mailer.send({
+        to: email,
+        subject: 'Claim your Munin account',
+        text: [
+          greeting,
+          '',
+          'A Munin org was just created for you by an integration partner.',
+          'Set your password to access it directly (the link is valid for 7 days):',
+          '',
+          url,
+          '',
+          'If you weren\'t expecting this, you can ignore the email — the org will keep working through the partner.',
+        ].join('\n'),
+      });
+    } catch {
+      // Email failures must not break provisioning — the partner still gets
+      // back the claim token in the API response and can resend later.
+    }
   }
 
   /**

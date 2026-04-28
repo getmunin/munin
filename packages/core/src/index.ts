@@ -34,3 +34,11 @@ export {
   type Chunk,
   type ChunkOptions,
 } from './chunker.js';
+export {
+  type Mailer,
+  type MailMessage,
+  type SentMessage,
+  ResendMailer,
+  StubMailer,
+  readMailerFromEnv,
+} from './mailer.js';

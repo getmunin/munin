@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { schema, type Db } from '@munin/db';
+import type { Mailer } from '@munin/core';
 
 export type MuninAuth = ReturnType<typeof createMuninAuth>;
 
@@ -10,6 +11,9 @@ export interface MuninAuthOptions {
   authSecret: string;
   trustedOrigins?: string[];
   google?: { clientId: string; clientSecret: string };
+  mailer?: Mailer;
+  /** URL of the dashboard, used to build verification + reset links. */
+  webBaseUrl?: string;
 }
 
 export function createMuninAuth({
@@ -18,8 +22,12 @@ export function createMuninAuth({
   authSecret,
   trustedOrigins,
   google,
+  mailer,
+  webBaseUrl,
 }: MuninAuthOptions) {
   const origins = uniqueOrigins([baseUrl, ...(trustedOrigins ?? [])]);
+  const dashboardUrl = (webBaseUrl ?? trustedOrigins?.[0] ?? baseUrl).replace(/\/+$/, '');
+
   return betterAuth({
     baseURL: baseUrl,
     basePath: '/auth',
@@ -37,7 +45,42 @@ export function createMuninAuth({
       enabled: true,
       requireEmailVerification: false,
       autoSignIn: true,
+      sendResetPassword: mailer
+        ? async ({ user, url }: { user: { email: string }; url: string }) => {
+            await mailer.send({
+              to: user.email,
+              subject: 'Reset your Munin password',
+              text: [
+                'You asked to reset your Munin password.',
+                '',
+                `Click the link below to set a new one (valid for 1 hour):`,
+                url,
+                '',
+                "If you didn't request this, you can ignore this email.",
+              ].join('\n'),
+            });
+          }
+        : undefined,
     },
+    emailVerification: mailer
+      ? {
+          sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
+            await mailer.send({
+              to: user.email,
+              subject: 'Verify your Munin email',
+              text: [
+                `Welcome to Munin.`,
+                '',
+                'Confirm your email so we know we can reach you:',
+                url,
+                '',
+                `If you didn't sign up, ignore this email.`,
+              ].join('\n'),
+            });
+          },
+          sendOnSignUp: true,
+        }
+      : undefined,
     socialProviders: google
       ? {
           google: {
@@ -47,6 +90,9 @@ export function createMuninAuth({
         }
       : undefined,
     trustedOrigins: origins,
+    advanced: {
+      useSecureCookies: dashboardUrl.startsWith('https://'),
+    },
   });
 }
 

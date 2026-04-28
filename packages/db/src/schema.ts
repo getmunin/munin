@@ -63,8 +63,9 @@ export const orgs = pgTable(
   }),
 );
 
-// Users are managed by BetterAuth, but we declare the table so Drizzle queries
-// can join it. BetterAuth migration will add columns it needs (password hash, etc).
+// Identity tables managed by BetterAuth (email/password + Google OAuth in M0).
+// Names match BetterAuth's default schema; the auth adapter is wired in
+// apps/backend/src/auth/.
 export const users = pgTable('users', {
   id: id('usr'),
   email: text('email').notNull().unique(),
@@ -74,6 +75,65 @@ export const users = pgTable('users', {
   createdAt,
   updatedAt,
 });
+
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: id('ses'),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    token: text('token').notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    userIdx: index('sessions_user_idx').on(t.userId),
+  }),
+);
+
+export const accounts = pgTable(
+  'accounts',
+  {
+    id: id('acc'),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    accountId: text('account_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    idToken: text('id_token'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+    scope: text('scope'),
+    password: text('password'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    userIdx: index('accounts_user_idx').on(t.userId),
+    providerIdx: uniqueIndex('accounts_provider_account_uq').on(t.providerId, t.accountId),
+  }),
+);
+
+export const verifications = pgTable(
+  'verifications',
+  {
+    id: id('ver'),
+    identifier: text('identifier').notNull(),
+    value: text('value').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    identifierIdx: index('verifications_identifier_idx').on(t.identifier),
+  }),
+);
 
 // Membership: which users belong to which orgs (single-org per user in v0.4 but
 // schema supports many-to-many for future).
@@ -423,6 +483,9 @@ export const allTables = {
   partners,
   orgs,
   users,
+  sessions,
+  accounts,
+  verifications,
   orgMembers,
   endUsers,
   agents,

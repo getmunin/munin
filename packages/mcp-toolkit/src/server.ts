@@ -1,0 +1,88 @@
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { AuditLogger, type ActorIdentity, type Audience } from '@munin/core';
+import type { McpToolRegistry } from './registry.js';
+
+export interface CreateMcpServerOptions {
+  registry: McpToolRegistry;
+  audience: Audience;
+  actor: ActorIdentity;
+  audit: AuditLogger;
+  serverInfo?: { name: string; version: string };
+}
+
+/**
+ * Build an MCP `Server` instance configured for one request / one actor.
+ *
+ * Lifecycle: create per request (Streamable HTTP, stateless mode), wire to
+ * a transport, let the transport drive it, dispose. This way each call
+ * sees only the tools the actor is allowed to use, and audit attribution
+ * is correct.
+ */
+export function createMcpServer(opts: CreateMcpServerOptions): Server {
+  const { registry, audience, actor, audit } = opts;
+  const info = opts.serverInfo ?? { name: 'munin', version: process.env.MUNIN_VERSION ?? '0.4.0' };
+
+  const server = new Server(info, { capabilities: { tools: {} } });
+
+  // tools/list — visible-to-this-audience subset.
+  server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools: registry.list(audience).map((t) => ({
+      name: t.meta.name,
+      description: t.meta.description,
+      inputSchema: t.inputJsonSchema as Record<string, unknown>,
+    })),
+  }));
+
+  // tools/call — audience + scope check, validate input, dispatch, audit.
+  server.setRequestHandler(CallToolRequestSchema, async (req) => {
+    const tool = registry.get(req.params.name);
+    if (!tool) {
+      await audit.record({ tool: req.params.name, result: 'denied', error: 'unknown_tool' });
+      return errorResult(`Unknown tool: ${req.params.name}`);
+    }
+
+    if (!tool.meta.audiences.includes(audience)) {
+      await audit.record({ tool: tool.meta.name, result: 'denied', error: 'audience_mismatch' });
+      return errorResult(`Tool ${tool.meta.name} is not available for this caller`);
+    }
+
+    for (const scope of tool.meta.scopes) {
+      if (!actor.hasScope(scope)) {
+        await audit.record({ tool: tool.meta.name, result: 'denied', error: `missing_scope:${scope}` });
+        return errorResult(`Missing required scope: ${scope}`);
+      }
+    }
+
+    const parseResult = tool.meta.input.safeParse(req.params.arguments ?? {});
+    if (!parseResult.success) {
+      await audit.record({ tool: tool.meta.name, result: 'error', error: 'invalid_input' });
+      return errorResult(`Invalid input: ${parseResult.error.message}`);
+    }
+
+    try {
+      const value = await tool.handler(parseResult.data);
+      await audit.record({
+        tool: tool.meta.name,
+        args: parseResult.data as Record<string, unknown>,
+        result: 'ok',
+      });
+      return {
+        content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }],
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await audit.record({ tool: tool.meta.name, result: 'error', error: message });
+      return errorResult(message);
+    }
+  });
+
+  return server;
+}
+
+function errorResult(message: string) {
+  return {
+    isError: true,
+    content: [{ type: 'text' as const, text: message }],
+  };
+}

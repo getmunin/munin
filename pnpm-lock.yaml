@@ -284,7 +284,7 @@ importers:
   packages/mcp-toolkit:
     dependencies:
       '@modelcontextprotocol/sdk':
-        specifier: ^1.18.0
+        specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
       '@munin/core':
         specifier: workspace:*
@@ -292,12 +292,12 @@ importers:
       '@munin/types':
         specifier: workspace:*
         version: link:../types
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
       zod:
         specifier: ^4.3.6
         version: 4.3.6
-      zod-to-json-schema:
-        specifier: ^3.23.5
-        version: 3.25.2(zod@4.3.6)
     devDependencies:
       '@munin/eslint-config':
         specifier: workspace:*

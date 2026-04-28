@@ -28,6 +28,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   const here = dirname(fileURLToPath(import.meta.url));
   const folder = migrationsFolder ?? resolve(here, '..', 'drizzle');
   const rlsPath = resolve(here, 'rls.sql');
+  const kbPath = resolve(here, 'kb.sql');
 
   const client = postgres(connectionString, { max: 1 });
   const db = drizzle(client);
@@ -40,9 +41,12 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   // 2. Schema migrations.
   await migrate(db, { migrationsFolder: folder });
 
-  // 3. RLS policies. postgres-js client.unsafe supports multi-statement.
+  // 3. RLS policies and module post-migration SQL (FTS columns, HNSW indexes,
+  //    per-module RLS). postgres-js client.unsafe supports multi-statement.
   const rlsSql = readFileSync(rlsPath, 'utf8');
   await client.unsafe(rlsSql);
+  const kbSql = readFileSync(kbPath, 'utf8');
+  await client.unsafe(kbSql);
 
   // 4. App role (idempotent). Password defaults to the role name; override
   //    via MUNIN_APP_PASSWORD for non-dev deployments.

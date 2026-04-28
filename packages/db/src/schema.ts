@@ -21,8 +21,11 @@ import {
   timestamp,
   uniqueIndex,
   varchar,
+  vector,
 } from 'drizzle-orm/pg-core';
 import { makeId } from './id.js';
+
+export const EMBEDDING_DIMENSIONS = 1536;
 
 const id = (prefix: string) =>
   text('id')
@@ -478,6 +481,116 @@ export const rateLimitCounters = pgTable(
   }),
 );
 
+// ───────────────────────── Knowledge Base (M1) ───────────────────────
+// Spaces are KB containers (Engineering, Customer Docs, etc.). Slug is
+// unique per org so agents can address them in conversation by slug.
+export const kbSpaces = pgTable(
+  'kb_spaces',
+  {
+    id: id('ksp'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: varchar('slug', { length: 64 }).notNull(),
+    description: text('description'),
+    settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('kb_spaces_org_idx').on(t.orgId),
+    orgSlugUq: uniqueIndex('kb_spaces_org_slug_uq').on(t.orgId, t.slug),
+  }),
+);
+
+// `version` is the optimistic-concurrency token (clients must pass `if_version`
+// on writes). `content_hash` lets us skip re-embedding when the body hasn't
+// actually changed (e.g. metadata-only patches).
+export const kbDocuments = pgTable(
+  'kb_documents',
+  {
+    id: id('kdoc'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    spaceId: text('space_id')
+      .notNull()
+      .references(() => kbSpaces.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    public: boolean('public').notNull().default(false),
+    version: integer('version').notNull().default(1),
+    contentHash: varchar('content_hash', { length: 64 }).notNull(),
+    tags: jsonb('tags').$type<string[]>().notNull().default([]),
+    createdByType: varchar('created_by_type', { length: 16 }).notNull(),
+    // 'agent' | 'user'
+    createdById: text('created_by_id').notNull(),
+    updatedByType: varchar('updated_by_type', { length: 16 }).notNull(),
+    updatedById: text('updated_by_id').notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('kb_documents_org_idx').on(t.orgId),
+    spaceIdx: index('kb_documents_space_idx').on(t.spaceId),
+    publicIdx: index('kb_documents_public_idx').on(t.orgId, t.public),
+  }),
+);
+
+// One row per chunk produced by the chunker. Embeddings are populated
+// asynchronously after the document write commits — `embedding` is nullable
+// so the document is queryable via FTS even before vectors land.
+export const kbDocumentChunks = pgTable(
+  'kb_document_chunks',
+  {
+    id: id('kch'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    documentId: text('document_id')
+      .notNull()
+      .references(() => kbDocuments.id, { onDelete: 'cascade' }),
+    chunkIndex: integer('chunk_index').notNull(),
+    content: text('content').notNull(),
+    tokenCount: integer('token_count').notNull(),
+    embedding: vector('embedding', { dimensions: EMBEDDING_DIMENSIONS }),
+    createdAt,
+  },
+  (t) => ({
+    documentIdx: index('kb_chunks_document_idx').on(t.documentId),
+    orgIdx: index('kb_chunks_org_idx').on(t.orgId),
+    docOrderUq: uniqueIndex('kb_chunks_doc_order_uq').on(t.documentId, t.chunkIndex),
+  }),
+);
+
+// Immutable snapshots taken on every successful write so kb_restore_version
+// can roll back to any prior state.
+export const kbDocumentVersions = pgTable(
+  'kb_document_versions',
+  {
+    id: id('kver'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    documentId: text('document_id')
+      .notNull()
+      .references(() => kbDocuments.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    public: boolean('public').notNull(),
+    tags: jsonb('tags').$type<string[]>().notNull().default([]),
+    createdByType: varchar('created_by_type', { length: 16 }).notNull(),
+    createdById: text('created_by_id').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    docVersionUq: uniqueIndex('kb_versions_doc_version_uq').on(t.documentId, t.version),
+    orgIdx: index('kb_versions_org_idx').on(t.orgId),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   partners,
@@ -501,6 +614,10 @@ export const allTables = {
   suggestions,
   votes,
   rateLimitCounters,
+  kbSpaces,
+  kbDocuments,
+  kbDocumentChunks,
+  kbDocumentVersions,
 };
 
 export type AllTables = typeof allTables;

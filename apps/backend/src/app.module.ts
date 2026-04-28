@@ -11,10 +11,12 @@ import { AuthModule } from './auth/auth.module.js';
 import { KbModule } from './modules/kb/kb.module.js';
 import { BootstrapModule } from './modules/bootstrap/bootstrap.module.js';
 import { SuggestionsModule } from './modules/suggestions/suggestions.module.js';
+import { RateLimitModule } from './common/rate-limit/rate-limit.module.js';
 
 @Module({
   imports: [
     DbModule,
+    RateLimitModule,
     AuthModule,
     McpModule,
     ControlModule,

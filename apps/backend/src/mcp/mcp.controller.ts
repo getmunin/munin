@@ -17,6 +17,7 @@ import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import { McpRegistryService } from './mcp.registry.js';
+import { RateLimitService } from '../common/rate-limit/rate-limit.service.js';
 
 /**
  * Streamable HTTP entry point for the MCP server.
@@ -35,7 +36,10 @@ import { McpRegistryService } from './mcp.registry.js';
 export class McpController {
   private readonly audit = new AuditLogger();
 
-  constructor(@Inject(McpRegistryService) private readonly registry: McpRegistryService) {}
+  constructor(
+    @Inject(McpRegistryService) private readonly registry: McpRegistryService,
+    @Inject(RateLimitService) private readonly rateLimit: RateLimitService,
+  ) {}
 
   @Post()
   async post(@Req() req: Request, @Res() res: Response) {
@@ -65,6 +69,7 @@ export class McpController {
       audience,
       actor,
       audit: this.audit,
+      rateLimit: () => this.rateLimit.consume(),
     });
 
     const transport = new StreamableHTTPServerTransport({

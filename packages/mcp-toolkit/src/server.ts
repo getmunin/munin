@@ -8,6 +8,13 @@ export interface CreateMcpServerOptions {
   audience: Audience;
   actor: ActorIdentity;
   audit: AuditLogger;
+  /**
+   * Called once per tools/call before dispatch. If it throws, the call is
+   * denied with the thrown error's message and an audit row is written
+   * with `result: 'denied'`. tools/list is intentionally not gated so
+   * agents can still discover capabilities while rate-limited.
+   */
+  rateLimit?: (toolName: string) => Promise<void> | void;
   serverInfo?: { name: string; version: string };
 }
 
@@ -20,7 +27,7 @@ export interface CreateMcpServerOptions {
  * is correct.
  */
 export function createMcpServer(opts: CreateMcpServerOptions): Server {
-  const { registry, audience, actor, audit } = opts;
+  const { registry, audience, actor, audit, rateLimit } = opts;
   const info = opts.serverInfo ?? { name: 'munin', version: process.env.MUNIN_VERSION ?? '0.4.0' };
 
   const server = new Server(info, { capabilities: { tools: {} } });
@@ -58,6 +65,16 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
     if (!parseResult.success) {
       await audit.record({ tool: tool.meta.name, result: 'error', error: 'invalid_input' });
       return errorResult(`Invalid input: ${parseResult.error.message}`);
+    }
+
+    if (rateLimit) {
+      try {
+        await rateLimit(tool.meta.name);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        await audit.record({ tool: tool.meta.name, result: 'denied', error: 'rate_limited' });
+        return errorResult(message);
+      }
     }
 
     try {

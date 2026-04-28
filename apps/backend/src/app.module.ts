@@ -10,9 +10,18 @@ import { ControlModule } from './control/control.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { KbModule } from './modules/kb/kb.module.js';
 import { BootstrapModule } from './modules/bootstrap/bootstrap.module.js';
+import { SuggestionsModule } from './modules/suggestions/suggestions.module.js';
 
 @Module({
-  imports: [DbModule, AuthModule, McpModule, ControlModule, KbModule, BootstrapModule],
+  imports: [
+    DbModule,
+    AuthModule,
+    McpModule,
+    ControlModule,
+    KbModule,
+    BootstrapModule,
+    SuggestionsModule,
+  ],
   controllers: [HealthController, WhoamiController],
   providers: [AuthGuard, TenancyInterceptor, AuditInterceptor],
 })

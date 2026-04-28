@@ -114,6 +114,9 @@ importers:
       '@munin/types':
         specifier: workspace:*
         version: link:../../packages/types
+      better-auth:
+        specifier: ^1.6.9
+        version: 1.6.9(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(kysely@0.28.16)(postgres@3.4.9))(next@15.5.15(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@2.1.9(@types/node@22.19.17)(terser@5.46.2))
       next:
         specifier: ^15.0.0
         version: 15.5.15(react-dom@19.2.5(react@19.2.5))(react@19.2.5)

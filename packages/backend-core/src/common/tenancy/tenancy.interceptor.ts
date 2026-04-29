@@ -19,9 +19,6 @@ interface RequestWithAuth {
 
 async function applyTenancyGUCs(tx: Db | Tx, actor: ActorIdentity): Promise<void> {
   await applyEncryptionKeyGUC(tx);
-  // Partner actors (cloud-only) operate across the orgs they provisioned;
-  // their controllers filter manually by partner_id, so we bypass RLS for
-  // the request transaction. OSS code paths never produce 'partner' actors.
   if (actor.type === 'partner') {
     await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
     return;

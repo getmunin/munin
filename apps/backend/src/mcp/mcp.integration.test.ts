@@ -166,6 +166,180 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('scope gating: an admin key without kb:write cannot call kb_create_document', async () => {
+    const limitedKey = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId,
+      type: 'admin',
+      name: 'mcp-it-limited',
+      keyHash: hashSecret(limitedKey),
+      keyPrefix: keyPrefix(limitedKey),
+      scopes: ['kb:read'], // read-only, no kb:write, no '*'
+    });
+
+    await withClient(limitedKey, async (c) => {
+      // Tool is still listed — audience filtering is independent of scopes.
+      const { tools } = await c.listTools();
+      const names = tools.map((t) => t.name);
+      expect(names).toContain('kb_search');
+      expect(names).toContain('kb_create_document');
+
+      // kb_search works (kb:read).
+      const search = await c.callTool({ name: 'kb_search', arguments: { query: 'anything' } });
+      expect(JSON.stringify(search)).not.toMatch(/Missing required scope/);
+
+      // kb_create_document is denied with a scope error message.
+      const denied = await c.callTool({
+        name: 'kb_create_document',
+        arguments: {
+          spaceId: '00000000-0000-0000-0000-000000000000',
+          title: 'should not happen',
+          body: 'no',
+        },
+      }) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(denied.isError).toBe(true);
+      expect(denied.content?.[0]?.text ?? '').toMatch(/Missing required scope: kb:write/);
+    });
+  }, 30_000);
+
+  it('audit log: a scope-denied call writes a result=denied row with the scope error', async () => {
+    const auditKey = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId,
+      type: 'admin',
+      name: 'mcp-it-audit',
+      keyHash: hashSecret(auditKey),
+      keyPrefix: keyPrefix(auditKey),
+      scopes: ['kb:read'], // missing kb:write — kb_create_document will be denied
+    });
+
+    await withClient(auditKey, async (c) => {
+      const denied = (await c.callTool({
+        name: 'kb_create_document',
+        arguments: {
+          spaceId: '00000000-0000-0000-0000-000000000000',
+          title: 'x',
+          body: 'x',
+        },
+      })) as { isError?: boolean };
+      expect(denied.isError).toBe(true);
+    });
+
+    // Audit row written by createMcpServer's deny path. Read with bypass on so
+    // we can see the row regardless of org GUC state.
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db
+      .select({ tool: schema.auditLog.tool, result: schema.auditLog.result, error: schema.auditLog.error })
+      .from(schema.auditLog)
+      .where(sql`org_id = ${orgId} AND tool = 'kb_create_document' AND result = 'denied'`);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((r) => (r.error ?? '').includes('missing_scope:kb:write'))).toBe(true);
+  }, 30_000);
+
+  it('scope gating: an admin key with empty scopes is denied even on kb:read tools', async () => {
+    const noScopesKey = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId,
+      type: 'admin',
+      name: 'mcp-it-no-scopes',
+      keyHash: hashSecret(noScopesKey),
+      keyPrefix: keyPrefix(noScopesKey),
+      scopes: [],
+    });
+
+    await withClient(noScopesKey, async (c) => {
+      const denied = await c.callTool({
+        name: 'kb_search',
+        arguments: { query: 'whatever' },
+      }) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(denied.isError).toBe(true);
+      expect(denied.content?.[0]?.text ?? '').toMatch(/Missing required scope: kb:read/);
+
+      // ping has no scope requirement — still works for the same actor.
+      const ping = await c.callTool({ name: 'ping', arguments: { message: 'ok' } });
+      expect(JSON.stringify(ping)).toContain('ok');
+    });
+  }, 30_000);
+
+  it('rate limit: per-minute cap is enforced and the second call returns rate_limited', async () => {
+    // Fresh org with a 1-call-per-minute cap so the test can hit the limit deterministically.
+    const ts = Date.now();
+    const [rlOrg] = await db
+      .insert(schema.orgs)
+      .values({
+        name: 'RL Org',
+        slug: `mcp-rl-${ts}`,
+        settings: { rateLimits: { perMinute: 1, perDay: 1000 } },
+      })
+      .returning();
+    const rlAdminKey = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId: rlOrg!.id,
+      type: 'admin',
+      name: 'rl-admin',
+      keyHash: hashSecret(rlAdminKey),
+      keyPrefix: keyPrefix(rlAdminKey),
+      scopes: ['*'],
+    });
+
+    try {
+      await withClient(rlAdminKey, async (c) => {
+        const first = await c.callTool({ name: 'ping', arguments: { message: 'a' } });
+        expect(JSON.stringify(first)).toContain('a');
+
+        const second = await c.callTool({ name: 'ping', arguments: { message: 'b' } }) as {
+          isError?: boolean;
+          content?: Array<{ text?: string }>;
+        };
+        expect(second.isError).toBe(true);
+        expect(second.content?.[0]?.text ?? '').toMatch(/rate_limited/);
+      });
+    } finally {
+      // Give the async audit interceptor a tick to finish before we drop the org,
+      // otherwise its INSERT races the cascading cleanup and logs a noisy FK error.
+      await new Promise((r) => setTimeout(r, 50));
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.delete(schema.orgs).where(sql`id = ${rlOrg!.id}`);
+    }
+  }, 30_000);
+
+  it('expired bearer token is rejected at connect (401)', async () => {
+    const expired = randomToken(32);
+    await db.insert(schema.tokens).values({
+      orgId,
+      type: 'delegated_end_user',
+      tokenHash: hashSecret(expired),
+      scopes: ['kb:read'],
+      audiences: ['self_service'],
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+
+    await expect(
+      withClient(expired, async (c) => {
+        await c.listTools();
+      }),
+    ).rejects.toThrow();
+  }, 30_000);
+
+  it('revoked bearer token is rejected at connect (401)', async () => {
+    const revoked = randomToken(32);
+    await db.insert(schema.tokens).values({
+      orgId,
+      type: 'delegated_end_user',
+      tokenHash: hashSecret(revoked),
+      scopes: ['kb:read'],
+      audiences: ['self_service'],
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: new Date(),
+    });
+
+    await expect(
+      withClient(revoked, async (c) => {
+        await c.listTools();
+      }),
+    ).rejects.toThrow();
+  }, 30_000);
+
   it('end-user agent sees only self-service tools and only public docs', async () => {
     // First seed a public + a private doc as admin.
     let publicDocId = '';

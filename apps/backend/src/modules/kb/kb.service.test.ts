@@ -10,7 +10,7 @@ import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { KbService, KbConflictError, KbNotFoundError, KbInvalidError } from './kb.service.js';
 import { EmbeddingProviderHolder } from './embedding.provider.js';
-import { QuotasService } from '../../common/quotas/quotas.service.js';
+import { QuotaExceededError, QuotasService } from '../../common/quotas/quotas.service.js';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL
@@ -64,7 +64,7 @@ const skipReason = TEST_URL
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
       await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
       const ctx: RequestContext = {
-        db: tx as unknown as typeof appDb,
+        db: tx,
         actor,
         correlationId: randomUUID(),
       };
@@ -154,6 +154,27 @@ const skipReason = TEST_URL
     );
     expect(restored.version).toBe(3);
     expect(restored.body).toBe('Body v1');
+  });
+
+  it('createDocument throws QuotaExceededError at the org cap and writes no row', async () => {
+    // Tighten the cap for this test only.
+    await db
+      .update(schema.orgs)
+      .set({ settings: { quotas: { kb_documents: 1 } } })
+      .where(sql`id = ${orgId}`);
+    try {
+      const space = await run(() => svc.createSpace({ name: 'Q', slug: 'q' }));
+      await run(() => svc.createDocument({ spaceId: space.id, title: 'first', body: 'one' }));
+      await expect(
+        run(() => svc.createDocument({ spaceId: space.id, title: 'second', body: 'two' })),
+      ).rejects.toThrow(QuotaExceededError);
+      const rows = await db.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM kb_documents WHERE org_id = ${orgId}`,
+      );
+      expect(rows[0]!.count).toBe(1);
+    } finally {
+      await db.update(schema.orgs).set({ settings: {} }).where(sql`id = ${orgId}`);
+    }
   });
 
   it('deletes with concurrency check', async () => {

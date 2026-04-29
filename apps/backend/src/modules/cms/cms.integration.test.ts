@@ -240,6 +240,52 @@ const skipReason = TEST_URL
     void entryVersion;
   }, 30_000);
 
+  it('delivery: a locale-specific draft is 404; published siblings in another locale are not silently substituted', async () => {
+    await withClient(adminKey, async (c) => {
+      // Add a second locale and create same-slug entries: en=published, es=draft.
+      await c.callTool({
+        name: 'cms_create_locale',
+        arguments: { code: 'es', name: 'Spanish' },
+      });
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'localized',
+          locale: 'en',
+          data: { title: 'EN', slug: 'localized', body: 'English body.' },
+          status: 'published',
+        },
+      });
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'localized',
+          locale: 'es',
+          data: { title: 'ES', slug: 'localized', body: 'Cuerpo español.' },
+          status: 'draft',
+        },
+      });
+    });
+
+    // Without a locale param, the controller picks any published row — should
+    // be the en entry (the es one is a draft and must not appear).
+    const noLocale = await fetch(`${baseUrl}/api/cms/v1/${orgSlug}/pages/localized`);
+    expect(noLocale.status).toBe(200);
+    expect(((await noLocale.json()) as { locale: string }).locale).toBe('en');
+
+    // With locale=es: there's no published es entry, so 404 — never a silent
+    // fallback to the en entry.
+    const esQuery = await fetch(`${baseUrl}/api/cms/v1/${orgSlug}/pages/localized?locale=es`);
+    expect(esQuery.status).toBe(404);
+
+    // With locale=en: returns the en entry as expected.
+    const enQuery = await fetch(`${baseUrl}/api/cms/v1/${orgSlug}/pages/localized?locale=en`);
+    expect(enQuery.status).toBe(200);
+    expect(((await enQuery.json()) as { locale: string }).locale).toBe('en');
+  }, 30_000);
+
   it('end-user agent has no cms_* tools (CMS is admin-only)', async () => {
     await withClient(endUserToken, async (c) => {
       const { tools } = await c.listTools();

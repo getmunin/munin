@@ -23,6 +23,7 @@ const skipReason = TEST_URL
   let adminKey: string;
   let endUserToken: string;
   let endUserId: string;
+  let otherEndUserToken: string;
 
   beforeAll(async () => {
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod';
@@ -70,6 +71,23 @@ const skipReason = TEST_URL
       scopes: ['crm:read', 'crm:write'],
       audiences: ['self_service'],
       endUserId,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    // Second end-user in the SAME org. Used to assert end-user-vs-end-user
+    // isolation: Bob must not be able to read Alice's contact via any tool.
+    const [eu2] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'eu-2', name: 'Bob', email: 'bob@example.com' })
+      .returning();
+    otherEndUserToken = randomToken(32);
+    await db.insert(schema.tokens).values({
+      orgId,
+      type: 'delegated_end_user',
+      tokenHash: hashSecret(otherEndUserToken),
+      scopes: ['crm:read', 'crm:write'],
+      audiences: ['self_service'],
+      endUserId: eu2!.id,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
 
@@ -226,6 +244,23 @@ const skipReason = TEST_URL
         }),
       );
       expect(logged.actorType).toBe('end_user');
+    });
+  }, 30_000);
+
+  it('end-user isolation: Bob cannot read Alice\'s contact via crm_get_my_contact', async () => {
+    // Bob has no contact linked to him; getMyContact must NOT return Alice's
+    // contact even though it lives in the same org. RLS narrows by end_user_id.
+    await withClient(otherEndUserToken, async (c) => {
+      const result = (await c.callTool({
+        name: 'crm_get_my_contact',
+        arguments: {},
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(result.isError).toBe(true);
+      const text = result.content?.[0]?.text ?? '';
+      // Either the service throws crm_not_found, or the RLS-filtered query
+      // returns zero rows — both surface as a not-found error to the caller.
+      expect(text).toMatch(/not.?found|no contact/i);
+      expect(text).not.toMatch(/Alice/);
     });
   }, 30_000);
 });

@@ -1,5 +1,6 @@
 export { api, ApiError } from './api';
 export { authClient } from './auth-client';
+export { OrgSwitcher } from './components/org-switcher';
 
 export { AcceptInvitePage } from './pages/accept-invite';
 export { AgentsPage } from './pages/dashboard-agents';

@@ -17,6 +17,7 @@ import { InvitationsController } from './invitations.controller.js';
 import { AcceptInvitationController } from './accept-invitation.controller.js';
 import { InvitationsService } from './invitations.service.js';
 import { MembersController } from './members.controller.js';
+import { MembershipsController } from './memberships.controller.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -44,6 +45,7 @@ import { MembersController } from './members.controller.js';
     InvitationsController,
     AcceptInvitationController,
     MembersController,
+    MembershipsController,
   ],
   providers: [InvitationsService],
 })

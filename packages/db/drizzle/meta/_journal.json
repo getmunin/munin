@@ -50,6 +50,13 @@
       "when": 1777446154239,
       "tag": "0006_dashing_spitfire",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777450291282,
+      "tag": "0007_condemned_juggernaut",
+      "breakpoints": true
     }
   ]
 }

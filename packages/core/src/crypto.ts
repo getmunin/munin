@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual as nodeTimingSafeEqual } from 'node:crypto';
+import { sql, type SQL } from 'drizzle-orm';
 
 /**
  * Hash a secret (API key, partner key, OAuth client secret) for at-rest storage.
@@ -34,4 +35,64 @@ export function timingSafeEqual(a: string, b: string): boolean {
   const bBuf = Buffer.from(b);
   if (aBuf.length !== bBuf.length) return false;
   return nodeTimingSafeEqual(aBuf, bBuf);
+}
+
+// ─── At-rest secret encryption (pgcrypto) ───────────────────────────────────
+// For secrets we need to recover (SMTP / IMAP passwords on conv_channels,
+// future API-provider creds) we lean on Postgres's pgcrypto extension —
+// `pgp_sym_encrypt` / `pgp_sym_decrypt` — instead of rolling AES in TypeScript.
+// pgcrypto is well-audited, ships with stock Postgres, and keeps the crypto
+// adjacent to the data it protects. The extension is enabled by `runMigrations`
+// alongside vector / pg_trgm / citext.
+//
+// Key handling mirrors the existing RLS GUC pattern: the request transaction
+// sets `app.crypt_key` once via SET LOCAL, and the SQL fragments below read it
+// via current_setting. The key never appears in query parameters or logs.
+
+/**
+ * Read the at-rest encryption key from `MUNIN_ENCRYPTION_KEY` env. The key is
+ * never decoded into a Buffer — it's passed to Postgres as a string and
+ * pgcrypto handles the rest. Tolerates base64 / base64url / hex / raw text;
+ * the only requirement is that it's stable across deployments (rotation is a
+ * v0.5 concern).
+ */
+export function readEncryptionKey(): string {
+  const raw = process.env.MUNIN_ENCRYPTION_KEY;
+  if (!raw) {
+    throw new Error('MUNIN_ENCRYPTION_KEY is required for at-rest secret encryption');
+  }
+  return raw;
+}
+
+/**
+ * SQL helper to set `app.crypt_key` for the current transaction. Call once at
+ * the top of a tenant transaction (alongside the RLS GUCs) so subsequent
+ * encrypt/decrypt fragments can reach for it via current_setting.
+ *
+ * Use as: `await tx.execute(setEncryptionKeySql())`.
+ */
+export function setEncryptionKeySql(): SQL {
+  return sql`SELECT set_config('app.crypt_key', ${readEncryptionKey()}, true)`;
+}
+
+/**
+ * SQL fragment that encrypts a value with the per-tx key. Wraps
+ * `pgp_sym_encrypt(plain, current_setting('app.crypt_key'))` and base64-
+ * encodes the bytea so the result round-trips through text columns / jsonb.
+ *
+ * Use as: `sql\`UPDATE x SET secret_ct = ${encryptSecretSql(value)} WHERE …\``
+ */
+export function encryptSecretSql(plaintext: string | SQL): SQL {
+  return sql`encode(pgp_sym_encrypt(${plaintext}, current_setting('app.crypt_key')), 'base64')`;
+}
+
+/**
+ * SQL fragment that decrypts a base64-encoded ciphertext column produced by
+ * `encryptSecretSql`. Returns `text`; throws (Postgres-side) on a wrong key
+ * or corrupted ciphertext.
+ *
+ * Use as: `sql\`SELECT ${decryptSecretSql(schema.foo.secretCt)} AS pw FROM …\``
+ */
+export function decryptSecretSql(ciphertext: string | SQL): SQL {
+  return sql`pgp_sym_decrypt(decode(${ciphertext}, 'base64'), current_setting('app.crypt_key'))::text`;
 }

@@ -18,6 +18,7 @@ interface RequestWithAuth {
 }
 
 async function applyTenancyGUCs(tx: Db, actor: ActorIdentity): Promise<void> {
+  await applyEncryptionKeyGUC(tx);
   // Partners operate across many orgs they provisioned. Their controllers
   // filter manually by partner_id; explicit bypass-on for the transaction.
   if (actor.type === 'partner') {
@@ -31,6 +32,18 @@ async function applyTenancyGUCs(tx: Db, actor: ActorIdentity): Promise<void> {
   if (actor.endUserId) {
     await tx.execute(sql`SELECT set_config('app.end_user_id', ${actor.endUserId}, true)`);
   }
+}
+
+/**
+ * Set `app.crypt_key` for the current transaction so SQL fragments wrapping
+ * pgcrypto's pgp_sym_encrypt / pgp_sym_decrypt can pick it up via
+ * current_setting. Silently no-ops when MUNIN_ENCRYPTION_KEY is unset —
+ * encryption-aware code paths surface a clear error at use time.
+ */
+async function applyEncryptionKeyGUC(tx: Db): Promise<void> {
+  const key = process.env.MUNIN_ENCRYPTION_KEY;
+  if (!key) return;
+  await tx.execute(sql`SELECT set_config('app.crypt_key', ${key}, true)`);
 }
 
 function awaitNextHandler(next: CallHandler): Promise<unknown> {

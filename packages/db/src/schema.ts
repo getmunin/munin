@@ -776,6 +776,59 @@ export const convMessages = pgTable(
   }),
 );
 
+// Outbound delivery bookkeeping for the email channel. One row per
+// outbound message that needs to leave the building over SMTP.
+// EmailOutboundWorker drains queued rows; updates with sent_at on
+// success, bumps attempt + next_attempt_at on failure (5 attempts, then
+// status='dead'). `message_id_header` is the RFC-822 Message-ID we
+// stamped, used by inbound threading to chain replies back.
+export const convMessageDeliveries = pgTable(
+  'conv_message_deliveries',
+  {
+    id: id('cmd'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => convMessages.id, { onDelete: 'cascade' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => convChannels.id, { onDelete: 'cascade' }),
+    status: varchar('status', { length: 16 }).notNull().default('queued'),
+    // 'queued' | 'sent' | 'failed' | 'dead'
+    attempt: integer('attempt').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    error: text('error'),
+    messageIdHeader: text('message_id_header'),
+    inReplyToHeader: text('in_reply_to_header'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    drainIdx: index('conv_message_deliveries_drain_idx').on(t.status, t.nextAttemptAt),
+    orgIdx: index('conv_message_deliveries_org_idx').on(t.orgId),
+    msgIdx: index('conv_message_deliveries_msg_idx').on(t.messageId),
+    msgIdHeaderIdx: index('conv_message_deliveries_msgid_idx').on(t.messageIdHeader),
+  }),
+);
+
+// One row per email channel for IMAP poll bookkeeping. `last_uid_seen`
+// is the high-water UID for the configured mailbox; the worker fetches
+// `UID > last_uid_seen` on each tick. RLS inherits from the parent
+// channel via a sub-select policy (channels carry org_id).
+export const convEmailInboundState = pgTable('conv_email_inbound_state', {
+  channelId: text('channel_id')
+    .primaryKey()
+    .references(() => convChannels.id, { onDelete: 'cascade' }),
+  lastUidSeen: bigint('last_uid_seen', { mode: 'number' }),
+  lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  createdAt,
+  updatedAt,
+});
+
 // ───────────────────────── CRM (M4) ───────────────────────────────────
 // Modern CRM: relationships as a graph, AI-native fields as first-class
 // columns (so agents don't pollute description/notes), compliance fields
@@ -1199,6 +1252,8 @@ export const allTables = {
   convContacts,
   convConversations,
   convMessages,
+  convMessageDeliveries,
+  convEmailInboundState,
   crmCompanies,
   crmContacts,
   crmPipelines,

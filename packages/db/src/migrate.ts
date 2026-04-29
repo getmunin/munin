@@ -5,14 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-const REQUIRED_EXTENSIONS = ['vector', 'pg_trgm', 'citext'];
+const REQUIRED_EXTENSIONS = ['vector', 'pg_trgm', 'citext', 'pgcrypto'];
 const APP_ROLE = 'munin_app';
 
 /**
  * Run Drizzle migrations against the given Postgres connection string.
  *
  * Steps, in order:
- *   1. Ensure required Postgres extensions exist (pgvector, pg_trgm, citext).
+ *   1. Ensure required Postgres extensions exist (pgvector, pg_trgm, citext, pgcrypto).
  *   2. Apply Drizzle SQL migrations from packages/db/drizzle/.
  *   3. Apply RLS policies from packages/db/src/rls.sql.
  *   4. Ensure a non-superuser application role `munin_app` exists with
@@ -32,6 +32,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   const convPath = resolve(here, 'conv.sql');
   const crmPath = resolve(here, 'crm.sql');
   const cmsPath = resolve(here, 'cms.sql');
+  const emailPath = resolve(here, 'email.sql');
 
   const client = postgres(connectionString, { max: 1 });
   const db = drizzle(client);
@@ -52,6 +53,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   await client.unsafe(readFileSync(convPath, 'utf8'));
   await client.unsafe(readFileSync(crmPath, 'utf8'));
   await client.unsafe(readFileSync(cmsPath, 'utf8'));
+  await client.unsafe(readFileSync(emailPath, 'utf8'));
 
   // 4. App role (idempotent). Password defaults to the role name; override
   //    via MUNIN_APP_PASSWORD for non-dev deployments.

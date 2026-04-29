@@ -15,6 +15,7 @@ import {
   LogOut,
   ScrollText,
   Users,
+  UsersRound,
 } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ import { cn } from '@/lib/utils';
 
 const NAV: { href: Route; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+  { href: '/dashboard/team', label: 'Team', icon: UsersRound },
   { href: '/dashboard/agents', label: 'Connected agents', icon: Bot },
   { href: '/dashboard/api-keys', label: 'API keys', icon: KeyRound },
   { href: '/dashboard/end-users', label: 'End-users', icon: Users },

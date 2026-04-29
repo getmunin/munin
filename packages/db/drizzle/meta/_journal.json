@@ -43,6 +43,13 @@
       "when": 1777410753127,
       "tag": "0005_flimsy_zarda",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777446154239,
+      "tag": "0006_dashing_spitfire",
+      "breakpoints": true
     }
   ]
 }

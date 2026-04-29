@@ -2,6 +2,8 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { schema, type Db } from '@munin/db';
 import type { Mailer } from '@munin/core';
+import { eq, sql } from 'drizzle-orm';
+import { randomBytes } from 'node:crypto';
 
 export type MuninAuth = ReturnType<typeof createMuninAuth>;
 
@@ -93,6 +95,58 @@ export function createMuninAuth({
     advanced: {
       useSecureCookies: dashboardUrl.startsWith('https://'),
     },
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user: { id: string; email: string; name?: string | null }) => {
+            await provisionPersonalOrgFor(db, user);
+          },
+        },
+      },
+    },
+  });
+}
+
+/**
+ * Auto-provision a personal org + owner membership for a freshly-created
+ * user. Idempotent: skips if the user already has any membership (e.g. an
+ * invited user accepted the invite before the hook ran, or a re-run of the
+ * hook).
+ *
+ * The slug derives from the email local part plus a short random suffix to
+ * sidestep collisions; full collision-loop is overkill at our scale.
+ */
+async function provisionPersonalOrgFor(
+  db: Db,
+  user: { id: string; email: string; name?: string | null },
+): Promise<void> {
+  const existing = await db
+    .select({ orgId: schema.orgMembers.orgId })
+    .from(schema.orgMembers)
+    .where(eq(schema.orgMembers.userId, user.id))
+    .limit(1);
+  if (existing[0]) return;
+
+  const localPart = user.email.split('@')[0] ?? 'org';
+  const baseSlug = localPart
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32) || 'org';
+  const slug = `${baseSlug}-${randomBytes(3).toString('hex')}`;
+  const name = user.name?.trim() || `${baseSlug}'s workspace`;
+
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const [org] = await tx
+      .insert(schema.orgs)
+      .values({ name, slug })
+      .returning({ id: schema.orgs.id });
+    await tx.insert(schema.orgMembers).values({
+      orgId: org!.id,
+      userId: user.id,
+      role: 'owner',
+    });
   });
 }
 

@@ -145,6 +145,9 @@ export class CredentialResolver {
    * Used by the dashboard so the user's browser session can call control-plane
    * endpoints without first minting an API key. Returns null when the session
    * is missing, expired, or the user has no org membership.
+   *
+   * Picks the user's default membership (`is_default = true`) if one is
+   * marked, falling back to the first membership ordered by created_at.
    */
   async resolveSessionToken(rawToken: string): Promise<ResolvedCredential | null> {
     const sessionRows = await this.db
@@ -158,9 +161,10 @@ export class CredentialResolver {
     const memberships = await this.db
       .select()
       .from(schema.orgMembers)
-      .where(eq(schema.orgMembers.userId, session.userId))
-      .limit(1);
-    const membership = memberships[0];
+      .where(eq(schema.orgMembers.userId, session.userId));
+    const membership =
+      memberships.find((m) => m.isDefault) ??
+      [...memberships].sort((a, b) => +a.createdAt - +b.createdAt)[0];
     if (!membership) return null;
 
     const actor = new ActorIdentity(
@@ -175,5 +179,18 @@ export class CredentialResolver {
       session.userId,
     );
     return { actor, expiresAt: session.expiresAt };
+  }
+
+  /**
+   * Look up just the user_id for a session token. Used by the accept-invite
+   * endpoint, where the invitee may have no memberships yet.
+   */
+  async resolveSessionUserId(rawToken: string): Promise<string | null> {
+    const rows = await this.db
+      .select({ userId: schema.sessions.userId })
+      .from(schema.sessions)
+      .where(and(eq(schema.sessions.token, rawToken), gt(schema.sessions.expiresAt, new Date())))
+      .limit(1);
+    return rows[0]?.userId ?? null;
   }
 }

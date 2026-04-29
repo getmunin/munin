@@ -207,6 +207,17 @@ CREATE POLICY tenant_isolation ON rate_limit_counters
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
+-- ───────────────────────── org_invitations ─────────────────────────────────
+-- Members-management surface; org-scoped, admin-only. The accept-invite
+-- endpoint reads via service-role bypass since the invitee isn't yet a
+-- member of the target org and can't satisfy the GUC.
+ALTER TABLE org_invitations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_invitations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON org_invitations;
+CREATE POLICY tenant_isolation ON org_invitations
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
 -- ───────────────────────── tables intentionally WITHOUT RLS ────────────────
 -- These are accessed only by the service role / migrations:
 --   users          (BetterAuth-managed; tenant scoping via org_members)

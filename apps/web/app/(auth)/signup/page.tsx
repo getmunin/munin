@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { authClient } from '@/lib/auth-client';
 import { GoogleButton } from '@/components/google-button';
 import { Button } from '@/components/ui/button';
@@ -11,8 +12,19 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
-export default function SignupPage() {
+function safeRedirect(raw: string | null): Route {
+  // Only allow same-origin paths starting with `/`. Drop anything else to
+  // sidestep open-redirect mistakes.
+  if (raw && raw.startsWith('/') && !raw.startsWith('//')) {
+    return raw as Route;
+  }
+  return '/dashboard';
+}
+
+function SignupForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const redirectTo = safeRedirect(params.get('redirect'));
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,7 +41,7 @@ export default function SignupPage() {
         setError(result.error.message ?? 'Signup failed');
         return;
       }
-      router.push('/dashboard');
+      router.push(redirectTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error — is the API reachable?');
     } finally {
@@ -44,7 +56,7 @@ export default function SignupPage() {
         <CardDescription>Munin — agent-native business apps.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <GoogleButton callbackUrl="/dashboard" label="Sign up with Google" />
+        <GoogleButton callbackUrl={redirectTo} label="Sign up with Google" />
 
         <DividerWithLabel label="or" />
 
@@ -111,5 +123,13 @@ function DividerWithLabel({ label }: { label: string }) {
       {label}
       <Separator className="flex-1" />
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
   );
 }

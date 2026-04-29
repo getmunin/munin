@@ -138,8 +138,10 @@ export const verifications = pgTable(
   }),
 );
 
-// Membership: which users belong to which orgs (single-org per user in v0.4 but
-// schema supports many-to-many for future).
+// Membership: which users belong to which orgs. Many-to-many — a user can
+// be a member of multiple orgs (their personal org plus any team orgs
+// they were invited to). `role` gates membership-management actions: only
+// owners can invite, change roles, or remove members.
 export const orgMembers = pgTable(
   'org_members',
   {
@@ -150,11 +152,44 @@ export const orgMembers = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     role: varchar('role', { length: 32 }).notNull().default('owner'),
+    // 'owner' | 'member'
+    /** Which membership the dashboard's session-cookie path resolves to. */
+    isDefault: boolean('is_default').notNull().default(false),
     createdAt,
   },
   (t) => ({
     pk: primaryKey({ columns: [t.orgId, t.userId] }),
     userIdx: index('org_members_user_idx').on(t.userId),
+  }),
+);
+
+// Invitations: pending invites to join an org. Token is hashed at rest;
+// the plaintext goes out in the invite email so the recipient can claim
+// without proving prior knowledge of the org_id.
+export const orgInvitations = pgTable(
+  'org_invitations',
+  {
+    id: id('inv'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    role: varchar('role', { length: 32 }).notNull().default('member'),
+    tokenHash: text('token_hash').notNull().unique(),
+    invitedByUserId: text('invited_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    acceptedByUserId: text('accepted_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => ({
+    orgIdx: index('org_invitations_org_idx').on(t.orgId),
+    emailIdx: index('org_invitations_email_idx').on(t.orgId, t.email),
   }),
 );
 
@@ -1140,6 +1175,7 @@ export const allTables = {
   accounts,
   verifications,
   orgMembers,
+  orgInvitations,
   endUsers,
   agents,
   oauthClients,

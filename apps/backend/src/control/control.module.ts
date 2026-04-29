@@ -15,6 +15,10 @@ import { WebhooksController } from './webhooks.controller.js';
 import { PublicSuggestionsController } from './public-suggestions.controller.js';
 import { CmsDeliveryController } from './cms-delivery.controller.js';
 import { CmsModule } from '../modules/cms/cms.module.js';
+import { InvitationsController } from './invitations.controller.js';
+import { AcceptInvitationController } from './accept-invitation.controller.js';
+import { InvitationsService } from './invitations.service.js';
+import { MembersController } from './members.controller.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -41,7 +45,10 @@ import { CmsModule } from '../modules/cms/cms.module.js';
     WebhooksController,
     PublicSuggestionsController,
     CmsDeliveryController,
+    InvitationsController,
+    AcceptInvitationController,
+    MembersController,
   ],
-  providers: [PartnersService],
+  providers: [PartnersService, InvitationsService],
 })
 export class ControlModule {}

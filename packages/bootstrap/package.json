@@ -1,8 +1,17 @@
 {
   "name": "@munin/bootstrap",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
   "license": "MIT",
+  "description": "Munin bootstrap engine: agent-driven app configuration via Q&A flows.",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getmunin/munin.git",
+    "directory": "packages/bootstrap"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

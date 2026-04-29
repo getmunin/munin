@@ -3,12 +3,16 @@ import { randomToken } from './crypto.js';
 /**
  * Munin API-key format: `mn_<kind>_<random>`
  *
- *   kind = 'admin' | 'part' (partner) | 'dlg' (delegated end-user, short-lived)
+ *   kind = 'admin' | 'dlg' (delegated end-user, short-lived)
  *
- * The first 8 chars of the key (`mn_admin`, `mn_part_`, `mn_dlg__`) are the
- * "prefix" we index by — narrows the row lookup in resolveApiKey before we
- * compute the full hash. Random portion is 32 bytes base64url (~43 chars,
- * ~256 bits of entropy).
+ * The `'part'` kind exists in the type union for the cloud build's
+ * `@munin-cloud/partner` package, which mints partner keys; OSS does not
+ * produce or accept them.
+ *
+ * The first 8 chars of the key (`mn_admin`, `mn_dlg__`) are the "prefix"
+ * we index by — narrows the row lookup in resolveApiKey before we compute
+ * the full hash. Random portion is 32 bytes base64url (~43 chars, ~256
+ * bits of entropy).
  */
 
 export type KeyKind = 'admin' | 'part' | 'dlg';

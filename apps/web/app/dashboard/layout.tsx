@@ -7,7 +7,6 @@ import type { Route } from 'next';
 import {
   Activity,
   Bot,
-  Building2,
   Download,
   KeyRound,
   LayoutDashboard,
@@ -17,13 +16,13 @@ import {
   Users,
   UsersRound,
 } from 'lucide-react';
-import { authClient } from '@/lib/auth-client';
-import { Button } from '@/components/ui/button';
+import { authClient } from '@munin/dashboard-pages';
+import { Button } from '@munin/ui';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from '@/components/ui/avatar';
+} from '@munin/ui';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,10 +31,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+} from '@munin/ui';
+import { cn } from '@munin/ui';
 
-const NAV: { href: Route; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+type NavItem = { href: Route; label: string; icon: React.ComponentType<{ className?: string }> };
+
+const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/team', label: 'Team', icon: UsersRound },
   { href: '/dashboard/agents', label: 'Connected agents', icon: Bot },
@@ -44,7 +45,6 @@ const NAV: { href: Route; label: string; icon: React.ComponentType<{ className?:
   { href: '/dashboard/suggestions', label: 'Suggestions', icon: Lightbulb },
   { href: '/dashboard/usage', label: 'Usage', icon: Activity },
   { href: '/dashboard/audit-log', label: 'Audit log', icon: ScrollText },
-  { href: '/dashboard/partner-access', label: 'Partner access', icon: Building2 },
   { href: '/dashboard/export', label: 'Data export', icon: Download },
 ];
 

@@ -16,7 +16,10 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm -r --filter '@munin/*' --filter '!@munin/eslint-config' --filter '!@munin/tsconfig' --filter '!@munin/backend' --filter '!@munin/web' build && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",

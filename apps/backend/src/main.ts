@@ -1,9 +1,12 @@
-import { createApp } from './bootstrap-app.js';
+import 'reflect-metadata';
+import { createApp } from '@munin/backend-core';
+import { AppModule } from './app.module.js';
 
 async function bootstrap() {
-  const app = await createApp();
+  const app = await createApp(AppModule);
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);
+  // eslint-disable-next-line no-console
   console.log(`munin-backend listening on :${port}`);
 }
 

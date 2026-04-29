@@ -1,7 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Db, Tx } from '@munin/db';
 
-/** Who is performing an action; stamped into every audit row. */
+/**
+ * Who is performing an action; stamped into every audit row. The `'partner'`
+ * variant is reserved for cloud overlays (`@munin-cloud/partner`); OSS code
+ * paths never produce it.
+ */
 export type ActorType = 'user' | 'admin_agent' | 'end_user_agent' | 'partner' | 'system';
 
 /** Tool surfaces a token can call. */
@@ -21,6 +25,7 @@ export class ActorIdentity {
     public readonly audiences: readonly Audience[],
     public readonly endUserId?: string,
     public readonly tokenId?: string,
+    /** Reserved for cloud overlays (`@munin-cloud/partner`); OSS leaves undefined. */
     public readonly partnerId?: string,
     public readonly userId?: string,
   ) {}

@@ -107,8 +107,7 @@ CREATE POLICY tenant_isolation ON tokens
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
 -- ───────────────────────── api_keys ────────────────────────────────────────
--- api_keys can be org-scoped (admin) or partner-scoped (partner key).
--- Org-scoped rows are visible to that org; partner-scoped rows only via bypass.
+-- Admin API keys are org-scoped: visible to the org they belong to.
 ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE api_keys FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON api_keys;
@@ -221,5 +220,4 @@ CREATE POLICY tenant_isolation ON org_invitations
 -- ───────────────────────── tables intentionally WITHOUT RLS ────────────────
 -- These are accessed only by the service role / migrations:
 --   users          (BetterAuth-managed; tenant scoping via org_members)
---   partners       (admin-only resource, accessed via partner key + bypass)
 --   org_members    (composite key already enforces tenancy)

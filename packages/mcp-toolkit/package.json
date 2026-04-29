@@ -1,8 +1,17 @@
 {
   "name": "@munin/mcp-toolkit",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
   "license": "MIT",
+  "description": "Decorators + registry that turn NestJS providers into MCP tools.",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getmunin/munin.git",
+    "directory": "packages/mcp-toolkit"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual as nodeTimingSafeE
 import { sql, type SQL } from 'drizzle-orm';
 
 /**
- * Hash a secret (API key, partner key, OAuth client secret) for at-rest storage.
+ * Hash a secret (API key, OAuth client secret) for at-rest storage.
  *
  * We use SHA-256 + a fixed pepper from MUNIN_KEY_PEPPER env var. Keys are
  * already high-entropy (24+ bytes random) so adding bcrypt-style work factor

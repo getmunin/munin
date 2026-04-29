@@ -3,10 +3,13 @@
  *
  * Domain modules (kb, desk, crm) will add their own tables in later milestones,
  * but everything in this file is shared infrastructure: tenancy, identity,
- * audit, claims, webhooks, suggestions, partners.
+ * audit, claims, webhooks, suggestions.
  *
  * Tenancy: every org-scoped table carries `org_id` and is governed by RLS.
  * RLS policies live in src/sql/rls.sql (applied during migrations).
+ *
+ * The cloud build layers a `partners` table and `partner_id` columns on
+ * top of this schema via `@munin-cloud/partner`; OSS does not ship them.
  */
 import { sql } from 'drizzle-orm';
 import {
@@ -35,36 +38,15 @@ const id = (prefix: string) =>
 const createdAt = timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const updatedAt = timestamp('updated_at', { withTimezone: true }).notNull().defaultNow();
 
-// ───────────────────────────── Partners ──────────────────────────────
-// One row per integration partner (e.g. Threll). Highest-privilege keys.
-export const partners = pgTable('partners', {
-  id: id('ptr'),
+// ───────────────────────────── Orgs / Users ──────────────────────────
+export const orgs = pgTable('orgs', {
+  id: id('org'),
   name: text('name').notNull(),
   slug: varchar('slug', { length: 64 }).notNull().unique(),
-  partnerKeyHash: text('partner_key_hash').notNull(),
-  scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
-  consentUrlTemplate: text('consent_url_template'),
-  brandingMetadata: jsonb('branding_metadata').$type<Record<string, unknown>>().default({}),
+  settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
   createdAt,
   updatedAt,
 });
-
-// ───────────────────────────── Orgs / Users ──────────────────────────
-export const orgs = pgTable(
-  'orgs',
-  {
-    id: id('org'),
-    name: text('name').notNull(),
-    slug: varchar('slug', { length: 64 }).notNull().unique(),
-    partnerId: text('partner_id').references(() => partners.id, { onDelete: 'set null' }),
-    settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
-    createdAt,
-    updatedAt,
-  },
-  (t) => ({
-    partnerIdx: index('orgs_partner_idx').on(t.partnerId),
-  }),
-);
 
 // Identity tables managed by BetterAuth (email/password + Google OAuth in M0).
 // Names match BetterAuth's default schema; the auth adapter is wired in
@@ -292,14 +274,14 @@ export const tokens = pgTable(
   }),
 );
 
-// Long-lived admin API keys (and partner keys, scoped via type).
+// Long-lived admin API keys. The cloud build adds a `partner_id` column +
+// `'partner'` value of `type` on top of this schema.
 export const apiKeys = pgTable(
   'api_keys',
   {
     id: id('akey'),
     orgId: text('org_id').references(() => orgs.id, { onDelete: 'cascade' }),
-    partnerId: text('partner_id').references(() => partners.id, { onDelete: 'cascade' }),
-    type: varchar('type', { length: 32 }).notNull(), // 'admin' | 'partner'
+    type: varchar('type', { length: 32 }).notNull(), // 'admin'
     name: text('name').notNull(),
     keyHash: text('key_hash').notNull().unique(),
     keyPrefix: varchar('key_prefix', { length: 16 }).notNull(),
@@ -311,7 +293,6 @@ export const apiKeys = pgTable(
   },
   (t) => ({
     orgIdx: index('api_keys_org_idx').on(t.orgId),
-    partnerIdx: index('api_keys_partner_idx').on(t.partnerId),
     prefixIdx: index('api_keys_prefix_idx').on(t.keyPrefix),
   }),
 );
@@ -1221,7 +1202,6 @@ export const cmsReferences = pgTable(
 
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
-  partners,
   orgs,
   users,
   sessions,

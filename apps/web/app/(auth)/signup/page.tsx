@@ -4,13 +4,13 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { authClient } from '@/lib/auth-client';
-import { GoogleButton } from '@/components/google-button';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { authClient } from '@munin/dashboard-pages';
+import { GoogleButton } from '@munin/ui';
+import { Button } from '@munin/ui';
+import { Input } from '@munin/ui';
+import { Label } from '@munin/ui';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@munin/ui';
+import { Separator } from '@munin/ui';
 
 function safeRedirect(raw: string | null): Route {
   // Only allow same-origin paths starting with `/`. Drop anything else to
@@ -56,7 +56,12 @@ function SignupForm() {
         <CardDescription>Munin — agent-native business apps.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <GoogleButton callbackUrl={redirectTo} label="Sign up with Google" />
+        <GoogleButton
+          label="Sign up with Google"
+          onSignIn={() => {
+            void authClient.signIn.social({ provider: 'google', callbackURL: redirectTo });
+          }}
+        />
 
         <DividerWithLabel label="or" />
 

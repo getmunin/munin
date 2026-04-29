@@ -65,16 +65,18 @@ export class CredentialResolver {
   }
 
   /**
-   * Resolve an admin API key or partner key.
+   * Resolve an admin API key (`mn_admin_*`).
    *
    * Format expected: `<prefix>_<random-base64url>`. The prefix narrows the
    * lookup so we don't hash every key on every request.
+   *
+   * Cloud builds compose this resolver with additional resolvers (e.g.
+   * partner keys); see `@munin-cloud/partner` for the cloud overlay.
    */
   async resolveApiKey(rawKey: string): Promise<ResolvedCredential | null> {
     const keyPrefix = rawKey.slice(0, 8);
     const keyHash = hashSecret(rawKey);
 
-    // Try keys table (admin / partner)
     const apiKeys = await this.db
       .select()
       .from(schema.apiKeys)
@@ -88,55 +90,28 @@ export class CredentialResolver {
       .limit(1);
 
     const row = apiKeys[0];
-    if (row) {
-      const isPartner = row.type === 'partner';
+    if (!row) return null;
 
-      // Partner keys carry a partnerId, no orgId by themselves.
-      // For admin keys, orgId is set.
-      const orgId = row.orgId ?? '';
-      const actor = new ActorIdentity(
-        isPartner ? 'partner' : 'admin_agent',
-        row.id,
-        orgId,
-        row.scopes,
-        ['admin'],
-        undefined,
-        undefined,
-        row.partnerId ?? undefined,
-        row.createdByUserId ?? undefined,
-      );
+    const orgId = row.orgId ?? '';
+    const actor = new ActorIdentity(
+      'admin_agent',
+      row.id,
+      orgId,
+      row.scopes,
+      ['admin'],
+      undefined,
+      undefined,
+      undefined,
+      row.createdByUserId ?? undefined,
+    );
 
-      void this.db
-        .update(schema.apiKeys)
-        .set({ lastUsedAt: new Date() })
-        .where(eq(schema.apiKeys.id, row.id))
-        .catch(() => {});
+    void this.db
+      .update(schema.apiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(schema.apiKeys.id, row.id))
+      .catch(() => {});
 
-      return { actor };
-    }
-
-    // Try partners table directly (raw partner key, separate from apiKeys table for clarity)
-    const partners = await this.db
-      .select()
-      .from(schema.partners)
-      .where(eq(schema.partners.partnerKeyHash, keyHash))
-      .limit(1);
-    const partner = partners[0];
-    if (partner) {
-      const actor = new ActorIdentity(
-        'partner',
-        partner.id,
-        '',
-        partner.scopes,
-        ['admin'],
-        undefined,
-        undefined,
-        partner.id,
-      );
-      return { actor };
-    }
-
-    return null;
+    return { actor };
   }
 
   /**

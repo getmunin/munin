@@ -1,8 +1,17 @@
 {
   "name": "@munin/sdk",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "TypeScript client for the Munin REST API (token minting, end-user lookup, webhooks).",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getmunin/munin.git",
+    "directory": "packages/sdk"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

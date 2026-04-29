@@ -24,9 +24,6 @@ export class AuditLogger {
   async record(input: AuditEventInput): Promise<void> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor?.orgId || (input.target?.type === 'org' ? input.target.id : null);
-    // Partner cross-org operations have no single org_id; skipping these here
-    // keeps audit_log clean. Partners can grow a dedicated partner_audit_log
-    // when there's demand for tracking provisioning activity over time.
     if (!orgId) return;
     try {
       await ctx.db.insert(schema.auditLog).values({

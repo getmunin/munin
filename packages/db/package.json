@@ -1,8 +1,17 @@
 {
   "name": "@munin/db",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
   "license": "MIT",
+  "description": "Munin database: Drizzle schema, migrations, RLS policies.",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getmunin/munin.git",
+    "directory": "packages/db"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

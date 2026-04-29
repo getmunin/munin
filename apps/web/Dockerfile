@@ -14,15 +14,15 @@ COPY packages/types/package.json packages/types/
 COPY packages/tsconfig/package.json packages/tsconfig/
 COPY packages/eslint-config/package.json packages/eslint-config/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @munin/web...
+    pnpm install --frozen-lockfile --filter @getmunin/web...
 
 # ─── build ─────────────────────────────────────────────────────────────
 FROM deps AS build
 COPY tsconfig.base.json turbo.json ./
 COPY packages/ packages/
 COPY apps/web apps/web
-RUN pnpm --filter @munin/sdk build && pnpm --filter @munin/types build
-RUN pnpm --filter @munin/web build
+RUN pnpm --filter @getmunin/sdk build && pnpm --filter @getmunin/types build
+RUN pnpm --filter @getmunin/web build
 
 # ─── runtime ───────────────────────────────────────────────────────────
 FROM base AS runtime

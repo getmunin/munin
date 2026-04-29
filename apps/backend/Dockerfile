@@ -17,14 +17,14 @@ COPY packages/types/package.json packages/types/
 COPY packages/tsconfig/package.json packages/tsconfig/
 COPY packages/eslint-config/package.json packages/eslint-config/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @munin/backend...
+    pnpm install --frozen-lockfile --filter @getmunin/backend...
 
 # ─── build ─────────────────────────────────────────────────────────────
 FROM deps AS build
 COPY tsconfig.base.json turbo.json ./
 COPY packages/ packages/
 COPY apps/backend apps/backend
-RUN pnpm --filter @munin/backend... build
+RUN pnpm --filter @getmunin/backend... build
 
 # ─── runtime ───────────────────────────────────────────────────────────
 FROM base AS runtime

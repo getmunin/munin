@@ -33,7 +33,7 @@ function AcceptInviteInner() {
     if (!session) {
       // Bounce to signup with a redirect back to this page once signed in.
       const redirect = `/accept-invite?token=${encodeURIComponent(token)}`;
-      router.push(`/signup?redirect=${encodeURIComponent(redirect)}` as never);
+      router.push(`/signup?redirect=${encodeURIComponent(redirect)}`);
       return;
     }
     if (status !== 'idle') return;

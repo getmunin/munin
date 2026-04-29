@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, type Type } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner, ModuleRef } from '@nestjs/core';
-import { McpToolRegistry, MCP_TOOL_META, type McpToolMeta } from '@munin/mcp-toolkit';
+import { McpToolRegistry, MCP_TOOL_META, type McpToolMeta } from '@getmunin/mcp-toolkit';
 
 /**
  * Walks every NestJS provider at boot and registers every method that

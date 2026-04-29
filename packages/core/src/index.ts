@@ -1,5 +1,5 @@
 /**
- * @munin/core — framework-agnostic platform services.
+ * @getmunin/core — framework-agnostic platform services.
  *
  * Everything here is plain TypeScript / Drizzle. NestJS-specific wrappers
  * (interceptors, guards, modules) live in apps/backend/src/common/.

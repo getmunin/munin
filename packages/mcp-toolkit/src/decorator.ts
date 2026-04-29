@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { z } from 'zod';
-import type { Audience } from '@munin/core';
+import type { Audience } from '@getmunin/core';
 
 /**
  * Metadata captured by the @McpTool() decorator.

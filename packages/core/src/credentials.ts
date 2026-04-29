@@ -1,5 +1,5 @@
-import type { Db } from '@munin/db';
-import { schema } from '@munin/db';
+import type { Db } from '@getmunin/db';
+import { schema } from '@getmunin/db';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { ActorIdentity, type Audience } from './context.js';
 import { hashSecret } from './crypto.js';

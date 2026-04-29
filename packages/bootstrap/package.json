@@ -1,5 +1,5 @@
 {
-  "name": "@munin/bootstrap",
+  "name": "@getmunin/bootstrap",
   "version": "0.1.0",
   "license": "MIT",
   "description": "Munin bootstrap engine: agent-driven app configuration via Q&A flows.",
@@ -30,15 +30,15 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@munin/core": "workspace:*",
-    "@munin/db": "workspace:*",
-    "@munin/types": "workspace:*",
+    "@getmunin/core": "workspace:*",
+    "@getmunin/db": "workspace:*",
+    "@getmunin/types": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@munin/eslint-config": "workspace:*",
-    "@munin/tsconfig": "workspace:*",
+    "@getmunin/eslint-config": "workspace:*",
+    "@getmunin/tsconfig": "workspace:*",
     "@types/node": "^22.7.0",
     "eslint": "^9.10.0",
     "typescript": "^5.6.0",

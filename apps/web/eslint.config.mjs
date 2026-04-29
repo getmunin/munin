@@ -1,2 +1,2 @@
-import next from '@munin/eslint-config/next';
+import next from '@getmunin/eslint-config/next';
 export default next;

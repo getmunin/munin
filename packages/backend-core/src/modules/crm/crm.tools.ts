@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import { McpTool } from '@munin/mcp-toolkit';
+import { McpTool } from '@getmunin/mcp-toolkit';
 import { ACTIVITY_TYPES, CrmService } from './crm.service.js';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);

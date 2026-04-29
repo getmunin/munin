@@ -1,1 +1,1 @@
-export { AgentsPage as default } from '@munin/dashboard-pages';
+export { AgentsPage as default } from '@getmunin/dashboard-pages';

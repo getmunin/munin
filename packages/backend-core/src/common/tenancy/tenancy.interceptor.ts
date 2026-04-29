@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { Observable, from, switchMap } from 'rxjs';
 import { sql } from 'drizzle-orm';
-import { ActorIdentity, RequestContextStore, type RequestContext } from '@munin/core';
-import type { Db, Tx } from '@munin/db';
+import { ActorIdentity, RequestContextStore, type RequestContext } from '@getmunin/core';
+import type { Db, Tx } from '@getmunin/db';
 import { DB } from '../db/db.module.js';
 import { randomUUID } from 'node:crypto';
 

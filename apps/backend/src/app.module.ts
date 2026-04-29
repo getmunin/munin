@@ -3,7 +3,7 @@ import {
   BACKEND_BASE_CONTROLLERS,
   BACKEND_BASE_PROVIDERS,
   BACKEND_FEATURE_MODULES_NO_AUTH,
-} from '@munin/backend-core';
+} from '@getmunin/backend-core';
 import { AuthModule } from './auth/auth.module.js';
 
 @Module({

@@ -1,12 +1,12 @@
 /**
  * Seed a dev org + admin API key against MUNIN_MIGRATE_URL (or DATABASE_URL).
  *
- *   pnpm --filter @munin/backend exec tsx src/scripts/seed-dev.ts
+ *   pnpm --filter @getmunin/backend exec tsx src/scripts/seed-dev.ts
  *
  * Prints the API key once. Save it; we don't store the plaintext.
  */
-import { createDb, schema } from '@munin/db';
-import { buildApiKey, hashSecret, keyPrefix } from '@munin/core';
+import { createDb, schema } from '@getmunin/db';
+import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { sql } from 'drizzle-orm';
 
 async function main() {

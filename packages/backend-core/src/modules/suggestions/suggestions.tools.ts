@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import { McpTool } from '@munin/mcp-toolkit';
+import { McpTool } from '@getmunin/mcp-toolkit';
 import { APP_SCOPES, STATUSES, SuggestionsService } from './suggestions.service.js';
 
 const AppScopeSchema = z.enum(APP_SCOPES);

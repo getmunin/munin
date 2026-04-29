@@ -1,8 +1,8 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
-import { schema } from '@munin/db';
-import { chunkDocument, contentHash, getCurrentContext } from '@munin/core';
-import type { ActorIdentity } from '@munin/core';
+import { schema } from '@getmunin/db';
+import { chunkDocument, contentHash, getCurrentContext } from '@getmunin/core';
+import type { ActorIdentity } from '@getmunin/core';
 import { EmbeddingProviderHolder } from './embedding.provider.js';
 import { QuotasService } from '../../common/quotas/quotas.service.js';
 

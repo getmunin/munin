@@ -5,8 +5,8 @@ import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { buildApiKey, hashSecret, keyPrefix, randomToken } from '@munin/core';
-import { createDb, runMigrations, schema } from '@munin/db';
+import { buildApiKey, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
+import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module.js';
 

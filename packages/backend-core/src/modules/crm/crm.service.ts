@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { schema } from '@munin/db';
+import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
-import { getCurrentContext } from '@munin/core';
+import { getCurrentContext } from '@getmunin/core';
 
 export class CrmInvalidError extends Error {
   readonly code = 'crm_invalid';

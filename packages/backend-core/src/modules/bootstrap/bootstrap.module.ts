@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { BootstrapRunner } from '@munin/bootstrap';
+import { BootstrapRunner } from '@getmunin/bootstrap';
 import { BootstrapTools } from './bootstrap.tools.js';
 import { BootstrapRegistry } from './bootstrap.registry.js';
 import { kbBootstrap } from '../kb/kb.bootstrap.js';

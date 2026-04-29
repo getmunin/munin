@@ -1,1 +1,1 @@
-export { SuggestionsPage as default } from '@munin/dashboard-pages';
+export { SuggestionsPage as default } from '@getmunin/dashboard-pages';

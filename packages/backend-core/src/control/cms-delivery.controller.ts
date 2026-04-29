@@ -10,7 +10,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { schema, type Db } from '@munin/db';
+import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { DB } from '../common/db/db.module.js';
 import { CmsSearchService } from '../modules/cms/cms.search.js';

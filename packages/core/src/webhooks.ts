@@ -1,4 +1,4 @@
-import { schema } from '@munin/db';
+import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from './context.js';
 import { signHmac } from './crypto.js';

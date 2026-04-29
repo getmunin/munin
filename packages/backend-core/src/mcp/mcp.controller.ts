@@ -11,8 +11,8 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { AuditLogger, getCurrentContext, type Audience } from '@munin/core';
-import { createMcpServer } from '@munin/mcp-toolkit';
+import { AuditLogger, getCurrentContext, type Audience } from '@getmunin/core';
+import { createMcpServer } from '@getmunin/mcp-toolkit';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';

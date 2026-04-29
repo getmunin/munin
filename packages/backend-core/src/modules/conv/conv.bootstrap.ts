@@ -1,7 +1,7 @@
-import { schema } from '@munin/db';
+import { schema } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
-import { getCurrentContext } from '@munin/core';
-import { BootstrapRunner, defineStep } from '@munin/bootstrap';
+import { getCurrentContext } from '@getmunin/core';
+import { BootstrapRunner, defineStep } from '@getmunin/bootstrap';
 import { z } from 'zod';
 
 const FirstChannelSchema = z.object({

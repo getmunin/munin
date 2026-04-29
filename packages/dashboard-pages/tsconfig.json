@@ -1,5 +1,5 @@
 {
-  "extends": "@munin/tsconfig/react-library.json",
+  "extends": "@getmunin/tsconfig/react-library.json",
   "compilerOptions": {
     "rootDir": "./src"
   },

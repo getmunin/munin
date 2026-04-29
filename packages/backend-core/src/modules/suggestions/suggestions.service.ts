@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { schema } from '@munin/db';
+import { schema } from '@getmunin/db';
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
-import { getCurrentContext } from '@munin/core';
+import { getCurrentContext } from '@getmunin/core';
 
 const APP_SCOPES = ['kb', 'conv', 'crm', 'core'] as const;
 const STATUSES = ['open', 'planned', 'in_progress', 'done', 'wontfix', 'duplicate'] as const;

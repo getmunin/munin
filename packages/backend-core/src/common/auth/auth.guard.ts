@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { CredentialResolver, type ResolvedCredential } from '@munin/core';
-import type { Db } from '@munin/db';
+import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
+import type { Db } from '@getmunin/db';
 import { DB } from '../db/db.module.js';
 import { Reflector } from '@nestjs/core';
 

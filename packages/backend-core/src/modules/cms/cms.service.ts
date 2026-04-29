@@ -4,14 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { schema } from '@munin/db';
+import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
 import {
   contentHash,
   getCurrentContext,
   WebhookDispatcher,
   type AssetStorage,
-} from '@munin/core';
+} from '@getmunin/core';
 import { QuotasService } from '../../common/quotas/quotas.service.js';
 import { STORAGE } from '../../common/storage/storage.token.js';
 import {

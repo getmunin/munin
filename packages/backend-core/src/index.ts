@@ -1,5 +1,5 @@
 /**
- * `@munin/backend-core` — shared Nest building blocks for both OSS
+ * `@getmunin/backend-core` — shared Nest building blocks for both OSS
  * (`apps/backend`) and cloud (`apps/backend-cloud`). Auth modules are
  * intentionally NOT included here; each edition wires its own.
  */

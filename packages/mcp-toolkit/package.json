@@ -1,5 +1,5 @@
 {
-  "name": "@munin/mcp-toolkit",
+  "name": "@getmunin/mcp-toolkit",
   "version": "0.1.0",
   "license": "MIT",
   "description": "Decorators + registry that turn NestJS providers into MCP tools.",
@@ -31,14 +31,14 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@munin/core": "workspace:*",
-    "@munin/types": "workspace:*",
+    "@getmunin/core": "workspace:*",
+    "@getmunin/types": "workspace:*",
     "reflect-metadata": "^0.2.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@munin/eslint-config": "workspace:*",
-    "@munin/tsconfig": "workspace:*",
+    "@getmunin/eslint-config": "workspace:*",
+    "@getmunin/tsconfig": "workspace:*",
     "@types/node": "^22.7.0",
     "eslint": "^9.10.0",
     "typescript": "^5.6.0",

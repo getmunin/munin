@@ -19,7 +19,7 @@
     "format:check": "prettier --check .",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm -r --filter '@munin/*' --filter '!@munin/eslint-config' --filter '!@munin/tsconfig' --filter '!@munin/backend' --filter '!@munin/web' build && changeset publish"
+    "release": "pnpm -r --filter '@getmunin/*' --filter '!@getmunin/eslint-config' --filter '!@getmunin/tsconfig' --filter '!@getmunin/backend' --filter '!@getmunin/web' build && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",

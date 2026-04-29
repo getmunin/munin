@@ -1,7 +1,7 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { schema, type Db } from '@munin/db';
+import { schema, type Db } from '@getmunin/db';
 import { and, eq, lte, sql } from 'drizzle-orm';
-import { WebhookDispatcher, ActorIdentity, withContext, type RequestContext } from '@munin/core';
+import { WebhookDispatcher, ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../../common/db/db.module.js';
 

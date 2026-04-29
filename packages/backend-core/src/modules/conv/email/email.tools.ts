@@ -1,9 +1,9 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
-import { McpTool } from '@munin/mcp-toolkit';
-import { schema, type Db } from '@munin/db';
+import { McpTool } from '@getmunin/mcp-toolkit';
+import { schema, type Db } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
-import { getCurrentContext } from '@munin/core';
+import { getCurrentContext } from '@getmunin/core';
 import { createTransport } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 import { DB } from '../../../common/db/db.module.js';

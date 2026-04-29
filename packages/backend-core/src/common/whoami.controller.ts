@@ -1,5 +1,5 @@
 import { Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
-import { getCurrentContext, type ActorIdentity } from '@munin/core';
+import { getCurrentContext, type ActorIdentity } from '@getmunin/core';
 import { AuthGuard } from './auth/auth.guard.js';
 import { TenancyInterceptor } from './tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from './audit/audit.interceptor.js';

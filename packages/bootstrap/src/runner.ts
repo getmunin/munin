@@ -1,6 +1,6 @@
-import { schema } from '@munin/db';
+import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
-import { getCurrentContext } from '@munin/core';
+import { getCurrentContext } from '@getmunin/core';
 import type { BootstrapStep, BootstrapStepCtx } from './step.js';
 
 export interface BootstrapStatus {

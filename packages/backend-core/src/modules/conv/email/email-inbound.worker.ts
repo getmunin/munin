@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { schema, type Db } from '@munin/db';
+import { schema, type Db } from '@getmunin/db';
 // `Db` is the constructor-injected type (DB token); workers receive the
 // pool, transactions get the narrower `Tx` type from drizzle automatically.
 import { and, eq, sql } from 'drizzle-orm';
@@ -8,7 +8,7 @@ import {
   WebhookDispatcher,
   withContext,
   type RequestContext,
-} from '@munin/core';
+} from '@getmunin/core';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, type ParsedMail, type AddressObject } from 'mailparser';
 import { randomUUID } from 'node:crypto';

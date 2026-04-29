@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { ActorIdentity, withContext, type RequestContext } from '@munin/core';
-import { createDb, runMigrations, schema } from '@munin/db';
+import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
+import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { crmBootstrap } from './crm.bootstrap.js';

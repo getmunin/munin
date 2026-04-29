@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { createApp } from '@munin/backend-core';
+import { createApp } from '@getmunin/backend-core';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {

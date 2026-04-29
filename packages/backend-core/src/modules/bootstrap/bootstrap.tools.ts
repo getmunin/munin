@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import { McpTool } from '@munin/mcp-toolkit';
+import { McpTool } from '@getmunin/mcp-toolkit';
 import { BootstrapRegistry } from './bootstrap.registry.js';
 
 const StatusInput = z.object({

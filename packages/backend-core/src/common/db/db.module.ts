@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { createDb, type Db } from '@munin/db';
+import { createDb, type Db } from '@getmunin/db';
 
 export const DB = Symbol('Db');
 

@@ -10,7 +10,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { LocalFsStorage, type AssetStorage } from '@munin/core';
+import { LocalFsStorage, type AssetStorage } from '@getmunin/core';
 import type { Request, Response } from 'express';
 
 import { STORAGE } from './storage.token.js';

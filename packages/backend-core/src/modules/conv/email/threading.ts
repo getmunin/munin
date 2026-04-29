@@ -1,4 +1,4 @@
-import { schema, type Db, type Tx } from '@munin/db';
+import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, desc, eq, gte, ilike, inArray } from 'drizzle-orm';
 import {
   extractPlusAddressedConvId,

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createDb, type Db } from '@munin/db';
+import { createDb, type Db } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import {
   hashSecret,

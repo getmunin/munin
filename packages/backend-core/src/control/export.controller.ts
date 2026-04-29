@@ -1,7 +1,7 @@
 import { Controller, Get, Header, UseGuards, UseInterceptors } from '@nestjs/common';
-import { schema } from '@munin/db';
+import { schema } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
-import { getCurrentContext } from '@munin/core';
+import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';

@@ -4,14 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { schema, type Db, type Tx } from '@munin/db';
+import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import {
   decryptSecretSql,
   encryptSecretSql,
   getCurrentContext,
   setEncryptionKeySql,
-} from '@munin/core';
+} from '@getmunin/core';
 import { z } from 'zod';
 
 const REDACTED_PASSWORD = '••••';

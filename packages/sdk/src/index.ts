@@ -1,5 +1,5 @@
 /**
- * @munin/sdk — typed client for the Munin REST API.
+ * @getmunin/sdk — typed client for the Munin REST API.
  *
  * Used by an org's backend (server-to-server, holding an admin API key) to
  * mint delegated end-user tokens, look up end-users, fetch the pre-fetch

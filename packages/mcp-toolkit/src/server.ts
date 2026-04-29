@@ -1,6 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import type { AuditLogger, ActorIdentity, Audience } from '@munin/core';
+import type { AuditLogger, ActorIdentity, Audience } from '@getmunin/core';
 import type { McpToolRegistry } from './registry.js';
 
 export interface CreateMcpServerOptions {

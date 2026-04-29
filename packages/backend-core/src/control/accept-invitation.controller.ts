@@ -13,8 +13,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { CredentialResolver } from '@munin/core';
-import type { Db } from '@munin/db';
+import { CredentialResolver } from '@getmunin/core';
+import type { Db } from '@getmunin/db';
 import { DB } from '../common/db/db.module.js';
 import { InvitationsService } from './invitations.service.js';
 

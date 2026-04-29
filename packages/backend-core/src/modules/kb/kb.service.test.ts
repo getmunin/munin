@@ -4,8 +4,8 @@ import {
   StubEmbeddingProvider,
   withContext,
   type RequestContext,
-} from '@munin/core';
-import { createDb, runMigrations, schema } from '@munin/db';
+} from '@getmunin/core';
+import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { KbService, KbConflictError, KbNotFoundError, KbInvalidError } from './kb.service.js';

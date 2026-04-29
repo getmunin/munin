@@ -5,7 +5,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { Observable, catchError, tap, throwError } from 'rxjs';
-import { AuditLogger, getCurrentContext } from '@munin/core';
+import { AuditLogger, getCurrentContext } from '@getmunin/core';
 
 /**
  * Records every controller invocation as an audit row. Runs INSIDE the

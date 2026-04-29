@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Button } from '@munin/ui';
+import { Button } from '@getmunin/ui';
 
 export default function HomePage() {
   return (

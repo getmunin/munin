@@ -1,5 +1,5 @@
 {
-  "extends": "@munin/tsconfig/nextjs.json",
+  "extends": "@getmunin/tsconfig/nextjs.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {

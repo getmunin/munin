@@ -1,1 +1,1 @@
-export { AcceptInvitePage as default } from '@munin/dashboard-pages';
+export { AcceptInvitePage as default } from '@getmunin/dashboard-pages';

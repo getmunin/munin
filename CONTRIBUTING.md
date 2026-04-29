@@ -10,7 +10,7 @@ Prerequisites: Node 24 LTS (use `.nvmrc`), pnpm 10, Docker.
 nvm use
 pnpm install
 docker compose up -d postgres
-pnpm --filter @munin/db migrate
+pnpm --filter @getmunin/db migrate
 pnpm dev
 ```
 

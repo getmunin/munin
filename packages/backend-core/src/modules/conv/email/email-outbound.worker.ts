@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { schema, type Db } from '@munin/db';
+import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNotNull, lte, lt, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
@@ -7,7 +7,7 @@ import {
   withContext,
   type Mailer,
   type RequestContext,
-} from '@munin/core';
+} from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { createTransport, type Transporter } from 'nodemailer';
 import { DB } from '../../../common/db/db.module.js';

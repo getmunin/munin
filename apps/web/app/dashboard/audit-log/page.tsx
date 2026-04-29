@@ -1,1 +1,1 @@
-export { AuditLogPage as default } from '@munin/dashboard-pages';
+export { AuditLogPage as default } from '@getmunin/dashboard-pages';

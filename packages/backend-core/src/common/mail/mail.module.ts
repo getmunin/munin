@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { readMailerFromEnv, type Mailer } from '@munin/core';
+import { readMailerFromEnv, type Mailer } from '@getmunin/core';
 
 export const MAILER = Symbol('Mailer');
 

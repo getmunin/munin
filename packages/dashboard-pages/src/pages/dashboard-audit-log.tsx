@@ -3,16 +3,16 @@
 import { useEffect, useState } from 'react';
 import { ScrollText } from 'lucide-react';
 import { api, ApiError } from '../api';
-import { Button } from '@munin/ui';
-import { Input } from '@munin/ui';
-import { Label } from '@munin/ui';
+import { Button } from '@getmunin/ui';
+import { Input } from '@getmunin/ui';
+import { Label } from '@getmunin/ui';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@munin/ui';
+} from '@getmunin/ui';
 
 interface AuditDto {
   id: string;

@@ -23,13 +23,13 @@ importers:
 
   apps/backend:
     dependencies:
-      '@munin/backend-core':
+      '@getmunin/backend-core':
         specifier: workspace:*
         version: link:../../packages/backend-core
-      '@munin/core':
+      '@getmunin/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@munin/db':
+      '@getmunin/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@nestjs/common':
@@ -57,10 +57,10 @@ importers:
         specifier: ^7.8.1
         version: 7.8.2
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@nestjs/cli':
@@ -102,16 +102,16 @@ importers:
       '@base-ui/react':
         specifier: ^1.4.1
         version: 1.4.1(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      '@munin/dashboard-pages':
+      '@getmunin/dashboard-pages':
         specifier: workspace:*
         version: link:../../packages/dashboard-pages
-      '@munin/sdk':
+      '@getmunin/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      '@munin/types':
+      '@getmunin/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@munin/ui':
+      '@getmunin/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       better-auth:
@@ -154,10 +154,10 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/node':
@@ -190,24 +190,24 @@ importers:
 
   packages/backend-core:
     dependencies:
+      '@getmunin/bootstrap':
+        specifier: workspace:*
+        version: link:../bootstrap
+      '@getmunin/core':
+        specifier: workspace:*
+        version: link:../core
+      '@getmunin/db':
+        specifier: workspace:*
+        version: link:../db
+      '@getmunin/mcp-toolkit':
+        specifier: workspace:*
+        version: link:../mcp-toolkit
+      '@getmunin/types':
+        specifier: workspace:*
+        version: link:../types
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
-      '@munin/bootstrap':
-        specifier: workspace:*
-        version: link:../bootstrap
-      '@munin/core':
-        specifier: workspace:*
-        version: link:../core
-      '@munin/db':
-        specifier: workspace:*
-        version: link:../db
-      '@munin/mcp-toolkit':
-        specifier: workspace:*
-        version: link:../mcp-toolkit
-      '@munin/types':
-        specifier: workspace:*
-        version: link:../types
       '@nestjs/common':
         specifier: ^10.4.0
         version: 10.4.22(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -248,10 +248,10 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/express':
@@ -278,13 +278,13 @@ importers:
 
   packages/bootstrap:
     dependencies:
-      '@munin/core':
+      '@getmunin/core':
         specifier: workspace:*
         version: link:../core
-      '@munin/db':
+      '@getmunin/db':
         specifier: workspace:*
         version: link:../db
-      '@munin/types':
+      '@getmunin/types':
         specifier: workspace:*
         version: link:../types
       drizzle-orm:
@@ -294,10 +294,10 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -315,10 +315,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@munin/db':
+      '@getmunin/db':
         specifier: workspace:*
         version: link:../db
-      '@munin/types':
+      '@getmunin/types':
         specifier: workspace:*
         version: link:../types
       drizzle-orm:
@@ -328,10 +328,10 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -349,7 +349,7 @@ importers:
 
   packages/dashboard-pages:
     dependencies:
-      '@munin/ui':
+      '@getmunin/ui':
         specifier: workspace:*
         version: link:../ui
       better-auth:
@@ -365,10 +365,10 @@ importers:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/react':
@@ -389,7 +389,7 @@ importers:
 
   packages/db:
     dependencies:
-      '@munin/types':
+      '@getmunin/types':
         specifier: workspace:*
         version: link:../types
       drizzle-orm:
@@ -399,10 +399,10 @@ importers:
         specifier: ^3.4.5
         version: 3.4.9
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -444,15 +444,15 @@ importers:
 
   packages/mcp-toolkit:
     dependencies:
+      '@getmunin/core':
+        specifier: workspace:*
+        version: link:../core
+      '@getmunin/types':
+        specifier: workspace:*
+        version: link:../types
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
-      '@munin/core':
-        specifier: workspace:*
-        version: link:../core
-      '@munin/types':
-        specifier: workspace:*
-        version: link:../types
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -460,10 +460,10 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -485,10 +485,10 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/node':
@@ -512,10 +512,10 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       eslint:
@@ -558,10 +558,10 @@ importers:
         specifier: ^3.5.0
         version: 3.5.0
     devDependencies:
-      '@munin/eslint-config':
+      '@getmunin/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@munin/tsconfig':
+      '@getmunin/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/react':

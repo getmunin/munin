@@ -1,1 +1,1 @@
-export { default } from '@munin/eslint-config';
+export { default } from '@getmunin/eslint-config';

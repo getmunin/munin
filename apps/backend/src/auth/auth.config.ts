@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { schema, type Db } from '@munin/db';
-import type { Mailer } from '@munin/core';
+import { schema, type Db } from '@getmunin/db';
+import type { Mailer } from '@getmunin/core';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 
 export type MuninAuth = ReturnType<typeof createMuninAuth>;

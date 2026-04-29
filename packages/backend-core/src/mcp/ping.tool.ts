@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import { McpTool } from '@munin/mcp-toolkit';
-import { getCurrentContext } from '@munin/core';
+import { McpTool } from '@getmunin/mcp-toolkit';
+import { getCurrentContext } from '@getmunin/core';
 
 const PingInput = z.object({
   message: z.string().optional(),

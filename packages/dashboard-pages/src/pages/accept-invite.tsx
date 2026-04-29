@@ -6,14 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle2, MailQuestion } from 'lucide-react';
 import { authClient } from '../auth-client';
 import { api, ApiError } from '../api';
-import { Button } from '@munin/ui';
+import { Button } from '@getmunin/ui';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@munin/ui';
+} from '@getmunin/ui';
 
 function AcceptInviteInner() {
   const router = useRouter();

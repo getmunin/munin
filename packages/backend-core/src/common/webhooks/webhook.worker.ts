@@ -1,7 +1,7 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { schema, type Db } from '@munin/db';
+import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull, lt, lte } from 'drizzle-orm';
-import { WebhookDispatcher } from '@munin/core';
+import { WebhookDispatcher } from '@getmunin/core';
 import { DB } from '../db/db.module.js';
 
 const POLL_INTERVAL_MS = Number(process.env.MUNIN_WEBHOOK_POLL_MS ?? 5000);

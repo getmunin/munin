@@ -4,13 +4,13 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { authClient } from '@munin/dashboard-pages';
-import { GoogleButton } from '@munin/ui';
-import { Button } from '@munin/ui';
-import { Input } from '@munin/ui';
-import { Label } from '@munin/ui';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@munin/ui';
-import { Separator } from '@munin/ui';
+import { authClient } from '@getmunin/dashboard-pages';
+import { GoogleButton } from '@getmunin/ui';
+import { Button } from '@getmunin/ui';
+import { Input } from '@getmunin/ui';
+import { Label } from '@getmunin/ui';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getmunin/ui';
+import { Separator } from '@getmunin/ui';
 
 function safeRedirect(raw: string | null): Route {
   // Only allow same-origin paths starting with `/`. Drop anything else to

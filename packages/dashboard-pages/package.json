@@ -1,5 +1,5 @@
 {
-  "name": "@munin/dashboard-pages",
+  "name": "@getmunin/dashboard-pages",
   "version": "0.1.0",
   "license": "MIT",
   "description": "Munin dashboard page components shared between OSS and cloud Next apps.",
@@ -24,7 +24,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@munin/ui": "workspace:*",
+    "@getmunin/ui": "workspace:*",
     "better-auth": "^1.6.9",
     "lucide-react": "^1.11.0"
   },
@@ -34,8 +34,8 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@munin/eslint-config": "workspace:*",
-    "@munin/tsconfig": "workspace:*",
+    "@getmunin/eslint-config": "workspace:*",
+    "@getmunin/tsconfig": "workspace:*",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.10.0",

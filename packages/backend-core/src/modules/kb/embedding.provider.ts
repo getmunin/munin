@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { readEmbeddingProviderFromEnv, type EmbeddingProvider } from '@munin/core';
+import { readEmbeddingProviderFromEnv, type EmbeddingProvider } from '@getmunin/core';
 
 export const EMBEDDING_PROVIDER = Symbol('EmbeddingProvider');
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Audience } from '@munin/core';
+import type { Audience } from '@getmunin/core';
 import type { McpToolMeta } from './decorator.js';
 
 export interface RegisteredMcpTool {

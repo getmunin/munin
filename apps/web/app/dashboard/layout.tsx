@@ -16,13 +16,13 @@ import {
   Users,
   UsersRound,
 } from 'lucide-react';
-import { authClient } from '@munin/dashboard-pages';
-import { Button } from '@munin/ui';
+import { authClient } from '@getmunin/dashboard-pages';
+import { Button } from '@getmunin/ui';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from '@munin/ui';
+} from '@getmunin/ui';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,8 +31,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@munin/ui';
-import { cn } from '@munin/ui';
+} from '@getmunin/ui';
+import { cn } from '@getmunin/ui';
 
 type NavItem = { href: Route; label: string; icon: React.ComponentType<{ className?: string }> };
 

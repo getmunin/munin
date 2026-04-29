@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { Db, Tx } from '@munin/db';
+import type { Db, Tx } from '@getmunin/db';
 
 /**
  * Who is performing an action; stamped into every audit row. The `'partner'`

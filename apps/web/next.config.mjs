@@ -6,7 +6,7 @@ const nextConfig = {
     typedRoutes: true,
   },
   // Workspace packages can be transpiled if needed:
-  transpilePackages: ['@munin/dashboard-pages', '@munin/sdk', '@munin/types', '@munin/ui'],
+  transpilePackages: ['@getmunin/dashboard-pages', '@getmunin/sdk', '@getmunin/types', '@getmunin/ui'],
 };
 
 export default nextConfig;

@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { Bot, Code2, KeyRound } from 'lucide-react';
-import { Button } from '@munin/ui';
+import { Button } from '@getmunin/ui';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@munin/ui';
+} from '@getmunin/ui';
 
 export function DashboardPage() {
   return (

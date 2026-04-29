@@ -35,13 +35,13 @@ jobs:
           node-version: '24'
           cache: pnpm
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@munin'
+          scope: '@getmunin'
 
       - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Build publishable packages
-        run: pnpm -r --filter '@munin/core' --filter '@munin/db' --filter '@munin/types' --filter '@munin/sdk' --filter '@munin/mcp-toolkit' --filter '@munin/bootstrap' --filter '@munin/backend-core' build
+        run: pnpm -r --filter '@getmunin/core' --filter '@getmunin/db' --filter '@getmunin/types' --filter '@getmunin/sdk' --filter '@getmunin/mcp-toolkit' --filter '@getmunin/bootstrap' --filter '@getmunin/backend-core' build
 
       - name: Create release PR or publish
         uses: changesets/action@v1

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import { McpTool } from '@munin/mcp-toolkit';
+import { McpTool } from '@getmunin/mcp-toolkit';
 import { CmsService, ENTRY_STATUSES } from './cms.service.js';
 import { CmsSearchService } from './cms.search.js';
 import { FIELD_TYPES, type FieldDef } from './cms.fields.js';

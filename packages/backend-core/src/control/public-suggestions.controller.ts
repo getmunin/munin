@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { schema, type Db } from '@munin/db';
+import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq } from 'drizzle-orm';
 import { Inject } from '@nestjs/common';
 import { DB } from '../common/db/db.module.js';

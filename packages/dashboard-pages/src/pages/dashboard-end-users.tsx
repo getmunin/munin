@@ -3,14 +3,14 @@
 import { useEffect, useState } from 'react';
 import { Users } from 'lucide-react';
 import { api, ApiError } from '../api';
-import { Button } from '@munin/ui';
+import { Button } from '@getmunin/ui';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@munin/ui';
+} from '@getmunin/ui';
 
 interface EndUserDto {
   id: string;

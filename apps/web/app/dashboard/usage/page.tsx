@@ -1,1 +1,1 @@
-export { UsagePage as default } from '@munin/dashboard-pages';
+export { UsagePage as default } from '@getmunin/dashboard-pages';

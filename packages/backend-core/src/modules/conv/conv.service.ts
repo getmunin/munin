@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { schema } from '@munin/db';
+import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, isNotNull, or, sql, type SQL } from 'drizzle-orm';
-import { getCurrentContext, WebhookDispatcher } from '@munin/core';
+import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 
 export class ConvInvalidError extends Error {
   readonly code = 'conv_invalid';

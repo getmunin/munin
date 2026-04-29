@@ -1,5 +1,5 @@
 {
-  "name": "@munin/db",
+  "name": "@getmunin/db",
   "version": "0.1.0",
   "license": "MIT",
   "description": "Munin database: Drizzle schema, migrations, RLS policies.",
@@ -37,13 +37,13 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@munin/types": "workspace:*",
+    "@getmunin/types": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
-    "@munin/eslint-config": "workspace:*",
-    "@munin/tsconfig": "workspace:*",
+    "@getmunin/eslint-config": "workspace:*",
+    "@getmunin/tsconfig": "workspace:*",
     "@types/node": "^22.7.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.10.0",

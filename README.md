@@ -49,7 +49,7 @@ The same `mcp.getmunin.com` URL serves two distinct callers, audience-aware:
 - **Admin agents** (Claude Desktop, Cursor, internal automation) — OAuth-authorized by you. Full tool surface.
 - **End-user agents** (your voice AI, web chatbot, mobile app helper) — short-lived delegated tokens minted server-side from your backend, scoped to one of your end-users. Only self-service tools (read your own contact, send a message in your own ticket).
 
-See `apps/backend/src/control/delegated-token.controller.ts` for the token-mint API. The `@munin/sdk` Node client wraps it.
+See `apps/backend/src/control/delegated-token.controller.ts` for the token-mint API. The `@getmunin/sdk` Node client wraps it.
 
 ## Community ideas
 

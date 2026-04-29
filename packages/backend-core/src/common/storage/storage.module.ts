@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { readAssetStorageFromEnv, type AssetStorage } from '@munin/core';
+import { readAssetStorageFromEnv, type AssetStorage } from '@getmunin/core';
 import { StaticAssetsController } from './static-assets.controller.js';
 import { STORAGE } from './storage.token.js';
 

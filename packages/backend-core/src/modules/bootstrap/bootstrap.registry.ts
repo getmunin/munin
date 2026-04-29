@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { BootstrapRunner } from '@munin/bootstrap';
+import type { BootstrapRunner } from '@getmunin/bootstrap';
 
 @Injectable()
 export class BootstrapRegistry {

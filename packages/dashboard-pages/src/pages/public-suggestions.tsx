@@ -1,14 +1,14 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Lightbulb } from 'lucide-react';
-import { Button } from '@munin/ui';
+import { Button } from '@getmunin/ui';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@munin/ui';
+} from '@getmunin/ui';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 

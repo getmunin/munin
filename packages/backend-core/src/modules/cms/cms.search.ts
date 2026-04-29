@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL, and, eq } from 'drizzle-orm';
-import { getCurrentContext } from '@munin/core';
-import type { Db, Tx } from '@munin/db';
-import { schema } from '@munin/db';
+import { getCurrentContext } from '@getmunin/core';
+import type { Db, Tx } from '@getmunin/db';
+import { schema } from '@getmunin/db';
 import { DB } from '../../common/db/db.module.js';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.js';
 import { CmsService, type EntryStatus } from './cms.service.js';

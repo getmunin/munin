@@ -9,8 +9,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@munin/ui';
-import { cn } from '@munin/ui';
+} from '@getmunin/ui';
+import { cn } from '@getmunin/ui';
 
 interface UsageDto {
   minute: { used: number; limit: number; resetAt: string };

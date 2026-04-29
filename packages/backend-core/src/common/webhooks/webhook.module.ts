@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { WebhookDispatcher } from '@munin/core';
+import { WebhookDispatcher } from '@getmunin/core';
 import { WebhookWorker } from './webhook.worker.js';
 
 @Global()

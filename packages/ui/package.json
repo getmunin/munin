@@ -1,5 +1,5 @@
 {
-  "name": "@munin/ui",
+  "name": "@getmunin/ui",
   "version": "0.1.0",
   "license": "MIT",
   "description": "Munin design-system primitives (shadcn-style) shared between OSS and cloud Next apps.",
@@ -37,8 +37,8 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@munin/eslint-config": "workspace:*",
-    "@munin/tsconfig": "workspace:*",
+    "@getmunin/eslint-config": "workspace:*",
+    "@getmunin/tsconfig": "workspace:*",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.10.0",

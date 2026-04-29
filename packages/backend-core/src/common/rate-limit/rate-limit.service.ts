@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { schema } from '@munin/db';
+import { schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
-import { getCurrentContext } from '@munin/core';
+import { getCurrentContext } from '@getmunin/core';
 
 export class RateLimitExceededError extends Error {
   readonly code = 'rate_limited';

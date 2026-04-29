@@ -1,1 +1,1 @@
-export { ApiKeysPage as default } from '@munin/dashboard-pages';
+export { ApiKeysPage as default } from '@getmunin/dashboard-pages';

@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication, NestApplicationOptions, Type } from '@nestjs/common';
-import { LocalFsStorage, type AssetStorage } from '@munin/core';
+import { LocalFsStorage, type AssetStorage } from '@getmunin/core';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';

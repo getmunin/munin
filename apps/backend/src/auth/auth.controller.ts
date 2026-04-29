@@ -1,14 +1,14 @@
 import { All, Controller, Inject, Req, Res } from '@nestjs/common';
 import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
-import type { Db } from '@munin/db';
-import { readMailerFromEnv } from '@munin/core';
+import type { Db } from '@getmunin/db';
+import { readMailerFromEnv } from '@getmunin/core';
 import {
   DB,
   handleAuthRequest,
   readGoogleProviderFromEnv,
   readTrustedOriginsFromEnv,
   requireAuthSecret,
-} from '@munin/backend-core';
+} from '@getmunin/backend-core';
 import {
   createMuninAuth,
   readAllowedEmailDomainsFromEnv,

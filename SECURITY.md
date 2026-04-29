@@ -11,7 +11,7 @@ We aim to acknowledge within 72 hours and provide a remediation timeline within 
 In scope:
 - Munin backend (NestJS app, MCP server, OAuth server, REST API)
 - Munin web (Next.js dashboard/landing)
-- Munin packages (`@munin/*`)
+- Munin packages (`@getmunin/*`)
 - Default Docker compose self-host configuration
 
 Out of scope:

@@ -7,14 +7,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { schema, type Db } from '@munin/db';
+import { schema, type Db } from '@getmunin/db';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import {
   getCurrentContext,
   hashSecret,
   randomToken,
   type Mailer,
-} from '@munin/core';
+} from '@getmunin/core';
 import { DB } from '../common/db/db.module.js';
 import { MAILER } from '../common/mail/mail.module.js';
 

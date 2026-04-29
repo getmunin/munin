@@ -8,6 +8,13 @@
       "when": 1777466217704,
       "tag": "0000_luxuriant_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777497821869,
+      "tag": "0001_channel_adapter_seam",
+      "breakpoints": true
     }
   ]
 }

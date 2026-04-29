@@ -10,8 +10,9 @@ import type { StubMailer } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.js';
-import { EmailInboundWorker, type ImapFetcher } from './email-inbound.worker.js';
-import { EmailOutboundWorker } from './email-outbound.worker.js';
+import { EmailAdapter, type ImapFetcher } from './email-adapter.js';
+import { InboundPollWorker } from '../channels/inbound-poll.worker.js';
+import { OutboundDeliveryWorker } from '../channels/outbound-delivery.worker.js';
 import { MAILER } from '../../../common/mail/mail.module.js';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -54,8 +55,9 @@ class StubImapFetcher implements ImapFetcher {
   let db: ReturnType<typeof createDb>;
   let orgId: string;
   let adminKey: string;
-  let inboundWorker: EmailInboundWorker;
-  let outboundWorker: EmailOutboundWorker;
+  let inboundWorker: InboundPollWorker;
+  let outboundWorker: OutboundDeliveryWorker;
+  let emailAdapter: EmailAdapter;
   let mailer: StubMailer;
   let fetcher: StubImapFetcher;
 
@@ -99,11 +101,12 @@ class StubImapFetcher implements ImapFetcher {
     if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
     baseUrl = `http://127.0.0.1:${address.port}`;
 
-    inboundWorker = app.get(EmailInboundWorker);
-    outboundWorker = app.get(EmailOutboundWorker);
+    inboundWorker = app.get(InboundPollWorker);
+    outboundWorker = app.get(OutboundDeliveryWorker);
+    emailAdapter = app.get(EmailAdapter);
     mailer = app.get<StubMailer>(MAILER);
     fetcher = new StubImapFetcher();
-    inboundWorker.setFetcher(fetcher);
+    emailAdapter.setFetcher(fetcher);
   });
 
   afterAll(async () => {

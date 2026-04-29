@@ -1,5 +1,19 @@
 # @getmunin/mcp-toolkit
 
+## 0.3.1
+
+### Patch Changes
+
+- fe8fd21: TenancyInterceptor: bypass RLS for `actor.type === 'partner'`.
+
+  Partner actors (cloud-only) operate across multiple orgs they
+  provisioned. Their controllers filter manually by `partner_id`. OSS
+  never produces `'partner'` actors, so this branch is dead code there.
+
+- Updated dependencies [fe8fd21]
+  - @getmunin/core@0.3.1
+  - @getmunin/types@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes

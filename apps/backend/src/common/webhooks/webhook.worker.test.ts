@@ -124,7 +124,7 @@ interface ReceivedRequest {
 
     // Set up a chat channel so end-user start_conversation can pick one up.
     const [channel] = await db
-      .insert(schema.deskChannels)
+      .insert(schema.convChannels)
       .values({ orgId, type: 'chat', name: 'Web' })
       .returning();
     // Provision an end-user + token, then start a conversation through the
@@ -140,7 +140,7 @@ interface ReceivedRequest {
     // admin REST → MCP path. We'll just use the desk admin tool over MCP.
     // For simplicity here, do the inserts directly + create the events row.
     const [conv] = await db
-      .insert(schema.deskConversations)
+      .insert(schema.convConversations)
       .values({
         orgId,
         displayId: 1,

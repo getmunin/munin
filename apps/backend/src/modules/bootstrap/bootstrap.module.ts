@@ -3,7 +3,7 @@ import { BootstrapRunner } from '@munin/bootstrap';
 import { BootstrapTools } from './bootstrap.tools.js';
 import { BootstrapRegistry } from './bootstrap.registry.js';
 import { kbBootstrap } from '../kb/kb.bootstrap.js';
-import { deskBootstrap } from '../desk/desk.bootstrap.js';
+import { convBootstrap } from '../conv/conv.bootstrap.js';
 import { crmBootstrap } from '../crm/crm.bootstrap.js';
 import { cmsBootstrap } from '../cms/cms.bootstrap.js';
 
@@ -19,7 +19,7 @@ import { cmsBootstrap } from '../cms/cms.bootstrap.js';
       provide: BootstrapRegistry,
       useFactory: (): BootstrapRegistry => {
         const reg = new BootstrapRegistry();
-        const runners: BootstrapRunner[] = [kbBootstrap, deskBootstrap, crmBootstrap, cmsBootstrap];
+        const runners: BootstrapRunner[] = [kbBootstrap, convBootstrap, crmBootstrap, cmsBootstrap];
         for (const r of runners) reg.add(r);
         return reg;
       },

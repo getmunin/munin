@@ -13,9 +13,9 @@ import { AppModule } from '../../app.module.js';
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run helpdesk integration tests.';
+  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run conv integration tests.';
 
-(skipReason ? describe.skip : describe)('Helpdesk integration: end-user + admin flow', () => {
+(skipReason ? describe.skip : describe)('Conversations integration: end-user + admin flow', () => {
   let app: INestApplication;
   let baseUrl: string;
   let db: ReturnType<typeof createDb>;
@@ -41,7 +41,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Helpdesk IT Org', slug: `desk-it-${ts}` })
+      .values({ name: 'Conv IT Org', slug: `conv-it-${ts}` })
       .returning();
     orgId = org!.id;
 
@@ -49,7 +49,7 @@ const skipReason = TEST_URL
     await db.insert(schema.apiKeys).values({
       orgId,
       type: 'admin',
-      name: 'desk-it-admin',
+      name: 'conv-it-admin',
       keyHash: hashSecret(adminKey),
       keyPrefix: keyPrefix(adminKey),
       scopes: ['*'],
@@ -69,7 +69,7 @@ const skipReason = TEST_URL
       orgId,
       type: 'delegated_end_user',
       tokenHash: hashSecret(endUserToken),
-      scopes: ['desk:read', 'desk:write'],
+      scopes: ['conv:read', 'conv:write'],
       audiences: ['self_service'],
       endUserId: eu1!.id,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
@@ -79,7 +79,7 @@ const skipReason = TEST_URL
       orgId,
       type: 'delegated_end_user',
       tokenHash: hashSecret(otherEndUserToken),
-      scopes: ['desk:read', 'desk:write'],
+      scopes: ['conv:read', 'conv:write'],
       audiences: ['self_service'],
       endUserId: eu2!.id,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
@@ -119,7 +119,7 @@ const skipReason = TEST_URL
     const channel = await withClient(adminKey, async (c) => {
       return parseToolResult<{ id: string }>(
         await c.callTool({
-          name: 'desk_create_channel',
+          name: 'conv_create_channel',
           arguments: { type: 'chat', name: 'Web chat' },
         }),
       );
@@ -128,14 +128,14 @@ const skipReason = TEST_URL
     const startedConv = await withClient(endUserToken, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
-      expect(names).toContain('desk_start_conversation');
-      expect(names).toContain('desk_list_my_conversations');
-      expect(names).not.toContain('desk_create_channel');
-      expect(names).not.toContain('desk_change_status');
+      expect(names).toContain('conv_start_conversation');
+      expect(names).toContain('conv_list_my_conversations');
+      expect(names).not.toContain('conv_create_channel');
+      expect(names).not.toContain('conv_change_status');
 
       return parseToolResult<{ id: string; displayId: number; messages: { body: string }[] }>(
         await c.callTool({
-          name: 'desk_start_conversation',
+          name: 'conv_start_conversation',
           arguments: { body: 'Hi — my account is locked, can you help?' },
         }),
       );
@@ -147,13 +147,13 @@ const skipReason = TEST_URL
 
     const adminReply = await withClient(adminKey, async (c) => {
       const list = parseToolResult<Array<{ id: string }>>(
-        await c.callTool({ name: 'desk_list_conversations', arguments: {} }),
+        await c.callTool({ name: 'conv_list_conversations', arguments: {} }),
       );
       expect(list.find((row) => row.id === startedConv.id)).toBeTruthy();
 
       // Drop a private internal note (should NOT appear in end-user's view).
       await c.callTool({
-        name: 'desk_send_message',
+        name: 'conv_send_message',
         arguments: {
           conversationId: startedConv.id,
           body: 'TODO: confirm caller via 2FA before unlocking.',
@@ -163,7 +163,7 @@ const skipReason = TEST_URL
       // Then a public reply (should appear).
       return parseToolResult<{ id: string; body: string; internal: boolean }>(
         await c.callTool({
-          name: 'desk_send_message',
+          name: 'conv_send_message',
           arguments: {
             conversationId: startedConv.id,
             body: 'Hi Alice, I\'ve unlocked your account.',
@@ -176,7 +176,7 @@ const skipReason = TEST_URL
     await withClient(endUserToken, async (c) => {
       const detail = parseToolResult<{ messages: { body: string; internal: boolean }[] }>(
         await c.callTool({
-          name: 'desk_get_my_conversation',
+          name: 'conv_get_my_conversation',
           arguments: { id: startedConv.id },
         }),
       );
@@ -190,7 +190,7 @@ const skipReason = TEST_URL
     // Cross-end-user isolation: Bob can't see Alice's conversation.
     await withClient(otherEndUserToken, async (c) => {
       const list = parseToolResult<Array<{ id: string }>>(
-        await c.callTool({ name: 'desk_list_my_conversations', arguments: {} }),
+        await c.callTool({ name: 'conv_list_my_conversations', arguments: {} }),
       );
       expect(list.find((row) => row.id === startedConv.id)).toBeFalsy();
     });
@@ -201,7 +201,7 @@ const skipReason = TEST_URL
   it('admin can change status to closed; subsequent listings respect the filter', async () => {
     await withClient(endUserToken, async (c) => {
       await c.callTool({
-        name: 'desk_start_conversation',
+        name: 'conv_start_conversation',
         arguments: { body: 'How do I export my data?' },
       });
     });
@@ -209,20 +209,20 @@ const skipReason = TEST_URL
     await withClient(adminKey, async (c) => {
       const list = parseToolResult<Array<{ id: string; status: string }>>(
         await c.callTool({
-          name: 'desk_list_conversations',
+          name: 'conv_list_conversations',
           arguments: { status: 'open' },
         }),
       );
       const conv = list[0]!;
 
       await c.callTool({
-        name: 'desk_change_status',
+        name: 'conv_change_status',
         arguments: { id: conv.id, status: 'closed' },
       });
 
       const stillOpen = parseToolResult<Array<{ id: string }>>(
         await c.callTool({
-          name: 'desk_list_conversations',
+          name: 'conv_list_conversations',
           arguments: { status: 'open' },
         }),
       );
@@ -230,7 +230,7 @@ const skipReason = TEST_URL
 
       const closed = parseToolResult<Array<{ id: string; status: string }>>(
         await c.callTool({
-          name: 'desk_list_conversations',
+          name: 'conv_list_conversations',
           arguments: { status: 'closed' },
         }),
       );

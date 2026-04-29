@@ -62,7 +62,7 @@ const welcomeDoc = defineStep({
         '- What does "done" look like for our most common requests?',
         '- Where do customers hit the most friction today?',
         '',
-        'Replace this with your real content. Agents will pull it into KB search and helpdesk replies.',
+        'Replace this with your real content. Agents will pull it into KB search and customer replies.',
       ].join('\n');
     const actor = ctx.actor!;
     const tag = actor.type === 'user' ? 'user' : 'agent';

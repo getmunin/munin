@@ -814,8 +814,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.desk_channels": {
-      "name": "desk_channels",
+    "public.conv_channels": {
+      "name": "conv_channels",
       "schema": "",
       "columns": {
         "id": {
@@ -872,8 +872,8 @@
         }
       },
       "indexes": {
-        "desk_channels_org_idx": {
-          "name": "desk_channels_org_idx",
+        "conv_channels_org_idx": {
+          "name": "conv_channels_org_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -887,8 +887,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_channels_type_idx": {
-          "name": "desk_channels_type_idx",
+        "conv_channels_type_idx": {
+          "name": "conv_channels_type_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -910,9 +910,9 @@
         }
       },
       "foreignKeys": {
-        "desk_channels_org_id_orgs_id_fk": {
-          "name": "desk_channels_org_id_orgs_id_fk",
-          "tableFrom": "desk_channels",
+        "conv_channels_org_id_orgs_id_fk": {
+          "name": "conv_channels_org_id_orgs_id_fk",
+          "tableFrom": "conv_channels",
           "tableTo": "orgs",
           "columnsFrom": [
             "org_id"
@@ -930,8 +930,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.desk_contacts": {
-      "name": "desk_contacts",
+    "public.conv_contacts": {
+      "name": "conv_contacts",
       "schema": "",
       "columns": {
         "id": {
@@ -993,8 +993,8 @@
         }
       },
       "indexes": {
-        "desk_contacts_org_idx": {
-          "name": "desk_contacts_org_idx",
+        "conv_contacts_org_idx": {
+          "name": "conv_contacts_org_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -1008,8 +1008,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_contacts_email_idx": {
-          "name": "desk_contacts_email_idx",
+        "conv_contacts_email_idx": {
+          "name": "conv_contacts_email_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -1029,8 +1029,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_contacts_end_user_idx": {
-          "name": "desk_contacts_end_user_idx",
+        "conv_contacts_end_user_idx": {
+          "name": "conv_contacts_end_user_idx",
           "columns": [
             {
               "expression": "end_user_id",
@@ -1046,9 +1046,9 @@
         }
       },
       "foreignKeys": {
-        "desk_contacts_org_id_orgs_id_fk": {
-          "name": "desk_contacts_org_id_orgs_id_fk",
-          "tableFrom": "desk_contacts",
+        "conv_contacts_org_id_orgs_id_fk": {
+          "name": "conv_contacts_org_id_orgs_id_fk",
+          "tableFrom": "conv_contacts",
           "tableTo": "orgs",
           "columnsFrom": [
             "org_id"
@@ -1059,9 +1059,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "desk_contacts_end_user_id_end_users_id_fk": {
-          "name": "desk_contacts_end_user_id_end_users_id_fk",
-          "tableFrom": "desk_contacts",
+        "conv_contacts_end_user_id_end_users_id_fk": {
+          "name": "conv_contacts_end_user_id_end_users_id_fk",
+          "tableFrom": "conv_contacts",
           "tableTo": "end_users",
           "columnsFrom": [
             "end_user_id"
@@ -1079,8 +1079,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.desk_conversations": {
-      "name": "desk_conversations",
+    "public.conv_conversations": {
+      "name": "conv_conversations",
       "schema": "",
       "columns": {
         "id": {
@@ -1179,8 +1179,8 @@
         }
       },
       "indexes": {
-        "desk_conversations_org_idx": {
-          "name": "desk_conversations_org_idx",
+        "conv_conversations_org_idx": {
+          "name": "conv_conversations_org_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -1194,8 +1194,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_conversations_status_idx": {
-          "name": "desk_conversations_status_idx",
+        "conv_conversations_status_idx": {
+          "name": "conv_conversations_status_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -1215,8 +1215,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_conversations_end_user_idx": {
-          "name": "desk_conversations_end_user_idx",
+        "conv_conversations_end_user_idx": {
+          "name": "conv_conversations_end_user_idx",
           "columns": [
             {
               "expression": "end_user_id",
@@ -1230,8 +1230,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_conversations_contact_idx": {
-          "name": "desk_conversations_contact_idx",
+        "conv_conversations_contact_idx": {
+          "name": "conv_conversations_contact_idx",
           "columns": [
             {
               "expression": "contact_id",
@@ -1245,8 +1245,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_conversations_display_uq": {
-          "name": "desk_conversations_display_uq",
+        "conv_conversations_display_uq": {
+          "name": "conv_conversations_display_uq",
           "columns": [
             {
               "expression": "org_id",
@@ -1266,8 +1266,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_conversations_last_msg_idx": {
-          "name": "desk_conversations_last_msg_idx",
+        "conv_conversations_last_msg_idx": {
+          "name": "conv_conversations_last_msg_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -1289,9 +1289,9 @@
         }
       },
       "foreignKeys": {
-        "desk_conversations_org_id_orgs_id_fk": {
-          "name": "desk_conversations_org_id_orgs_id_fk",
-          "tableFrom": "desk_conversations",
+        "conv_conversations_org_id_orgs_id_fk": {
+          "name": "conv_conversations_org_id_orgs_id_fk",
+          "tableFrom": "conv_conversations",
           "tableTo": "orgs",
           "columnsFrom": [
             "org_id"
@@ -1302,10 +1302,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "desk_conversations_channel_id_desk_channels_id_fk": {
-          "name": "desk_conversations_channel_id_desk_channels_id_fk",
-          "tableFrom": "desk_conversations",
-          "tableTo": "desk_channels",
+        "conv_conversations_channel_id_conv_channels_id_fk": {
+          "name": "conv_conversations_channel_id_conv_channels_id_fk",
+          "tableFrom": "conv_conversations",
+          "tableTo": "conv_channels",
           "columnsFrom": [
             "channel_id"
           ],
@@ -1315,10 +1315,10 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "desk_conversations_contact_id_desk_contacts_id_fk": {
-          "name": "desk_conversations_contact_id_desk_contacts_id_fk",
-          "tableFrom": "desk_conversations",
-          "tableTo": "desk_contacts",
+        "conv_conversations_contact_id_conv_contacts_id_fk": {
+          "name": "conv_conversations_contact_id_conv_contacts_id_fk",
+          "tableFrom": "conv_conversations",
+          "tableTo": "conv_contacts",
           "columnsFrom": [
             "contact_id"
           ],
@@ -1328,9 +1328,9 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "desk_conversations_end_user_id_end_users_id_fk": {
-          "name": "desk_conversations_end_user_id_end_users_id_fk",
-          "tableFrom": "desk_conversations",
+        "conv_conversations_end_user_id_end_users_id_fk": {
+          "name": "conv_conversations_end_user_id_end_users_id_fk",
+          "tableFrom": "conv_conversations",
           "tableTo": "end_users",
           "columnsFrom": [
             "end_user_id"
@@ -1341,10 +1341,10 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "desk_conversations_topic_id_desk_topics_id_fk": {
-          "name": "desk_conversations_topic_id_desk_topics_id_fk",
-          "tableFrom": "desk_conversations",
-          "tableTo": "desk_topics",
+        "conv_conversations_topic_id_conv_topics_id_fk": {
+          "name": "conv_conversations_topic_id_conv_topics_id_fk",
+          "tableFrom": "conv_conversations",
+          "tableTo": "conv_topics",
           "columnsFrom": [
             "topic_id"
           ],
@@ -1354,9 +1354,9 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "desk_conversations_assignee_user_id_users_id_fk": {
-          "name": "desk_conversations_assignee_user_id_users_id_fk",
-          "tableFrom": "desk_conversations",
+        "conv_conversations_assignee_user_id_users_id_fk": {
+          "name": "conv_conversations_assignee_user_id_users_id_fk",
+          "tableFrom": "conv_conversations",
           "tableTo": "users",
           "columnsFrom": [
             "assignee_user_id"
@@ -1374,8 +1374,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.desk_messages": {
-      "name": "desk_messages",
+    "public.conv_messages": {
+      "name": "conv_messages",
       "schema": "",
       "columns": {
         "id": {
@@ -1456,8 +1456,8 @@
         }
       },
       "indexes": {
-        "desk_messages_conv_idx": {
-          "name": "desk_messages_conv_idx",
+        "conv_messages_conv_idx": {
+          "name": "conv_messages_conv_idx",
           "columns": [
             {
               "expression": "conversation_id",
@@ -1477,8 +1477,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_messages_org_idx": {
-          "name": "desk_messages_org_idx",
+        "conv_messages_org_idx": {
+          "name": "conv_messages_org_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -1494,9 +1494,9 @@
         }
       },
       "foreignKeys": {
-        "desk_messages_org_id_orgs_id_fk": {
-          "name": "desk_messages_org_id_orgs_id_fk",
-          "tableFrom": "desk_messages",
+        "conv_messages_org_id_orgs_id_fk": {
+          "name": "conv_messages_org_id_orgs_id_fk",
+          "tableFrom": "conv_messages",
           "tableTo": "orgs",
           "columnsFrom": [
             "org_id"
@@ -1507,10 +1507,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "desk_messages_conversation_id_desk_conversations_id_fk": {
-          "name": "desk_messages_conversation_id_desk_conversations_id_fk",
-          "tableFrom": "desk_messages",
-          "tableTo": "desk_conversations",
+        "conv_messages_conversation_id_conv_conversations_id_fk": {
+          "name": "conv_messages_conversation_id_conv_conversations_id_fk",
+          "tableFrom": "conv_messages",
+          "tableTo": "conv_conversations",
           "columnsFrom": [
             "conversation_id"
           ],
@@ -1527,8 +1527,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.desk_topics": {
-      "name": "desk_topics",
+    "public.conv_topics": {
+      "name": "conv_topics",
       "schema": "",
       "columns": {
         "id": {
@@ -1577,8 +1577,8 @@
         }
       },
       "indexes": {
-        "desk_topics_org_idx": {
-          "name": "desk_topics_org_idx",
+        "conv_topics_org_idx": {
+          "name": "conv_topics_org_idx",
           "columns": [
             {
               "expression": "org_id",
@@ -1592,8 +1592,8 @@
           "method": "btree",
           "with": {}
         },
-        "desk_topics_org_slug_uq": {
-          "name": "desk_topics_org_slug_uq",
+        "conv_topics_org_slug_uq": {
+          "name": "conv_topics_org_slug_uq",
           "columns": [
             {
               "expression": "org_id",
@@ -1615,9 +1615,9 @@
         }
       },
       "foreignKeys": {
-        "desk_topics_org_id_orgs_id_fk": {
-          "name": "desk_topics_org_id_orgs_id_fk",
-          "tableFrom": "desk_topics",
+        "conv_topics_org_id_orgs_id_fk": {
+          "name": "conv_topics_org_id_orgs_id_fk",
+          "tableFrom": "conv_topics",
           "tableTo": "orgs",
           "columnsFrom": [
             "org_id"

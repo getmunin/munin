@@ -29,7 +29,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   const folder = migrationsFolder ?? resolve(here, '..', 'drizzle');
   const rlsPath = resolve(here, 'rls.sql');
   const kbPath = resolve(here, 'kb.sql');
-  const deskPath = resolve(here, 'desk.sql');
+  const convPath = resolve(here, 'conv.sql');
   const crmPath = resolve(here, 'crm.sql');
   const cmsPath = resolve(here, 'cms.sql');
 
@@ -49,7 +49,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   //    multi-statement scripts.
   await client.unsafe(readFileSync(rlsPath, 'utf8'));
   await client.unsafe(readFileSync(kbPath, 'utf8'));
-  await client.unsafe(readFileSync(deskPath, 'utf8'));
+  await client.unsafe(readFileSync(convPath, 'utf8'));
   await client.unsafe(readFileSync(crmPath, 'utf8'));
   await client.unsafe(readFileSync(cmsPath, 'utf8'));
 

@@ -591,13 +591,19 @@ export const kbDocumentVersions = pgTable(
   }),
 );
 
-// ───────────────────────── Helpdesk (M3) ─────────────────────────────
-// Channels: where customers reach the org. v0.4 ships email + a built-in
-// "chat" channel for self-service conversations; voice / sms come later.
-export const deskChannels = pgTable(
-  'desk_channels',
+// ───────────────────────── Conversations (M3) ────────────────────────
+// Multi-channel customer communications — both inbound (support / chat /
+// inbound email) and outbound (proactive outreach by phone, email, SMS,
+// or AI agent). Replaces what was originally scoped as "Helpdesk" since
+// the same primitives serve outreach equally well.
+
+// Channels: where customers reach the org and where the org reaches out
+// from. v0.4 ships email + a built-in "chat" channel for self-service;
+// voice / sms come later.
+export const convChannels = pgTable(
+  'conv_channels',
   {
-    id: id('dch'),
+    id: id('cch'),
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
@@ -610,17 +616,17 @@ export const deskChannels = pgTable(
     updatedAt,
   },
   (t) => ({
-    orgIdx: index('desk_channels_org_idx').on(t.orgId),
-    typeIdx: index('desk_channels_type_idx').on(t.orgId, t.type),
+    orgIdx: index('conv_channels_org_idx').on(t.orgId),
+    typeIdx: index('conv_channels_type_idx').on(t.orgId, t.type),
   }),
 );
 
-// Topics: lightweight categorization (Billing, Support, Refunds…). Slug-unique
-// per org so agents can address them in conversation.
-export const deskTopics = pgTable(
-  'desk_topics',
+// Topics: lightweight categorization (Billing, Support, Refunds, Outreach…).
+// Slug-unique per org so agents can address them in conversation.
+export const convTopics = pgTable(
+  'conv_topics',
   {
-    id: id('dtp'),
+    id: id('ctp'),
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
@@ -631,19 +637,20 @@ export const deskTopics = pgTable(
     updatedAt,
   },
   (t) => ({
-    orgIdx: index('desk_topics_org_idx').on(t.orgId),
-    slugUq: uniqueIndex('desk_topics_org_slug_uq').on(t.orgId, t.slug),
+    orgIdx: index('conv_topics_org_idx').on(t.orgId),
+    slugUq: uniqueIndex('conv_topics_org_slug_uq').on(t.orgId, t.slug),
   }),
 );
 
-// Contacts: helpdesk-specific view of a person. Links to EndUser when one
-// exists (so the same human in CRM, helpdesk, and KB-self-service is visibly
-// the same entity). For pre-EndUser flows (anonymous contact form, etc.)
-// the FK is nullable so contacts can land first.
-export const deskContacts = pgTable(
-  'desk_contacts',
+// Contacts: conversation-specific view of a person. Links to EndUser when
+// one exists (so the same human in CRM, conversations, and KB-self-service
+// is visibly the same entity). For pre-EndUser flows (anonymous contact
+// form, cold outreach to an unknown email, etc.) the FK is nullable so
+// contacts can land first.
+export const convContacts = pgTable(
+  'conv_contacts',
   {
-    id: id('dct'),
+    id: id('ctc'),
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
@@ -656,33 +663,34 @@ export const deskContacts = pgTable(
     updatedAt,
   },
   (t) => ({
-    orgIdx: index('desk_contacts_org_idx').on(t.orgId),
-    emailIdx: index('desk_contacts_email_idx').on(t.orgId, t.email),
-    endUserIdx: index('desk_contacts_end_user_idx').on(t.endUserId),
+    orgIdx: index('conv_contacts_org_idx').on(t.orgId),
+    emailIdx: index('conv_contacts_email_idx').on(t.orgId, t.email),
+    endUserIdx: index('conv_contacts_end_user_idx').on(t.endUserId),
   }),
 );
 
-// Conversations: the unit of work (vs the legacy "ticket"). Spans multiple
-// channels in principle; in v0.4 a conversation is bound to one channel at
-// creation but threading rules (M3+) can span channels via the same contact.
+// Conversations: the unit of work — a threaded exchange with one contact,
+// inbound or outbound. Spans multiple channels in principle; in v0.4 a
+// conversation is bound to one channel at creation but threading rules
+// (M3+) can span channels via the same contact.
 //
-// `display_id` is per-org via a CTE-and-coalesce on insert (postgres SEQUENCE
-// per org would be cleaner; for v0.4 we MAX() + 1 inside a transaction —
-// fine at our scale and simpler than CREATE SEQUENCE per-org plumbing).
-export const deskConversations = pgTable(
-  'desk_conversations',
+// `display_id` is per-org, allocated via the conv_next_display_id helper
+// in conv.sql. The unique (org_id, display_id) index detects races; the
+// service retries on conflict.
+export const convConversations = pgTable(
+  'conv_conversations',
   {
-    id: id('dcv'),
+    id: id('ccv'),
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
     displayId: integer('display_id').notNull(),
     channelId: text('channel_id')
       .notNull()
-      .references(() => deskChannels.id, { onDelete: 'restrict' }),
-    contactId: text('contact_id').references(() => deskContacts.id, { onDelete: 'set null' }),
+      .references(() => convChannels.id, { onDelete: 'restrict' }),
+    contactId: text('contact_id').references(() => convContacts.id, { onDelete: 'set null' }),
     endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
-    topicId: text('topic_id').references(() => deskTopics.id, { onDelete: 'set null' }),
+    topicId: text('topic_id').references(() => convTopics.id, { onDelete: 'set null' }),
     assigneeUserId: text('assignee_user_id').references(() => users.id, { onDelete: 'set null' }),
     subject: text('subject'),
     status: varchar('status', { length: 16 }).notNull().default('open'),
@@ -694,28 +702,28 @@ export const deskConversations = pgTable(
     updatedAt,
   },
   (t) => ({
-    orgIdx: index('desk_conversations_org_idx').on(t.orgId),
-    statusIdx: index('desk_conversations_status_idx').on(t.orgId, t.status),
-    endUserIdx: index('desk_conversations_end_user_idx').on(t.endUserId),
-    contactIdx: index('desk_conversations_contact_idx').on(t.contactId),
-    displayIdUq: uniqueIndex('desk_conversations_display_uq').on(t.orgId, t.displayId),
-    lastMsgIdx: index('desk_conversations_last_msg_idx').on(t.orgId, t.lastMessageAt),
+    orgIdx: index('conv_conversations_org_idx').on(t.orgId),
+    statusIdx: index('conv_conversations_status_idx').on(t.orgId, t.status),
+    endUserIdx: index('conv_conversations_end_user_idx').on(t.endUserId),
+    contactIdx: index('conv_conversations_contact_idx').on(t.contactId),
+    displayIdUq: uniqueIndex('conv_conversations_display_uq').on(t.orgId, t.displayId),
+    lastMsgIdx: index('conv_conversations_last_msg_idx').on(t.orgId, t.lastMessageAt),
   }),
 );
 
 // Messages: posts inside a conversation. `internal=true` is staff-only
 // (agent draft, side-comment); end-user audience never sees them. Author
 // tags `(author_type, author_id)` so audit trails can name who said what.
-export const deskMessages = pgTable(
-  'desk_messages',
+export const convMessages = pgTable(
+  'conv_messages',
   {
-    id: id('dms'),
+    id: id('cvm'),
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
     conversationId: text('conversation_id')
       .notNull()
-      .references(() => deskConversations.id, { onDelete: 'cascade' }),
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
     authorType: varchar('author_type', { length: 16 }).notNull(),
     // 'user' | 'agent' | 'end_user' | 'system'
     authorId: text('author_id').notNull(),
@@ -728,8 +736,8 @@ export const deskMessages = pgTable(
     createdAt,
   },
   (t) => ({
-    conversationIdx: index('desk_messages_conv_idx').on(t.conversationId, t.createdAt),
-    orgIdx: index('desk_messages_org_idx').on(t.orgId),
+    conversationIdx: index('conv_messages_conv_idx').on(t.conversationId, t.createdAt),
+    orgIdx: index('conv_messages_org_idx').on(t.orgId),
   }),
 );
 
@@ -1150,11 +1158,11 @@ export const allTables = {
   kbDocuments,
   kbDocumentChunks,
   kbDocumentVersions,
-  deskChannels,
-  deskTopics,
-  deskContacts,
-  deskConversations,
-  deskMessages,
+  convChannels,
+  convTopics,
+  convContacts,
+  convConversations,
+  convMessages,
   crmCompanies,
   crmContacts,
   crmPipelines,

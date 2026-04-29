@@ -20,7 +20,7 @@ export class BootstrapTools {
   @McpTool({
     name: 'bootstrap_status',
     description:
-      'Read the conversational config progress for one Munin app (kb / desk / crm / ...). Returns the next step to ask the user about, or `completed: true` when all steps are done.',
+      'Read the conversational config progress for one Munin app (kb / conv / crm / ...). Returns the next step to ask the user about, or `completed: true` when all steps are done.',
     audiences: ['admin'],
     scopes: [],
     input: StatusInput,

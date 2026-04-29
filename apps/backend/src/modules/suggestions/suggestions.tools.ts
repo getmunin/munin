@@ -42,7 +42,7 @@ export class SuggestionsTools {
   @McpTool({
     name: 'suggestion_search',
     description:
-      'Search existing suggestions before creating one. Matches against title and body, ranked by votes. Filter by app (kb / desk / crm / core) or status.',
+      'Search existing suggestions before creating one. Matches against title and body, ranked by votes. Filter by app (kb / conv / crm / core) or status.',
     audiences: ['admin'],
     scopes: [],
     input: SearchInput,
@@ -77,7 +77,7 @@ export class SuggestionsTools {
   @McpTool({
     name: 'suggestion_create',
     description:
-      'Create a new product-feedback suggestion. Search first to avoid duplicates. Tag the relevant app via `appScope` (kb / desk / crm / core).',
+      'Create a new product-feedback suggestion. Search first to avoid duplicates. Tag the relevant app via `appScope` (kb / conv / crm / core).',
     audiences: ['admin'],
     scopes: [],
     input: CreateInput,

@@ -28,12 +28,12 @@ const DEFAULT_TOPICS: { name: string; slug: string }[] = [
 const firstChannel = defineStep({
   id: 'first_channel',
   prompt:
-    'Pick the type and display name for your first helpdesk channel. The default is a "chat" channel — fine for AI-driven self-service. Suggestion: { "type": "chat", "name": "Web chat" }.',
+    'Pick the type and display name for your first conversations channel. The default is a "chat" channel — fine for AI-driven self-service. Suggestion: { "type": "chat", "name": "Web chat" }.',
   schema: FirstChannelSchema,
   shouldRun: async ({ orgId }) => !(await orgHasAnyChannel(orgId)),
   apply: async (value, { orgId }) => {
     const ctx = getCurrentContext();
-    await ctx.db.insert(schema.deskChannels).values({
+    await ctx.db.insert(schema.convChannels).values({
       orgId,
       type: value.type,
       name: value.name,
@@ -54,7 +54,7 @@ const seedTopics = defineStep({
     const topics = value.topics?.length ? value.topics : DEFAULT_TOPICS;
     for (const t of topics) {
       await ctx.db
-        .insert(schema.deskTopics)
+        .insert(schema.convTopics)
         .values({ orgId, name: t.name, slug: t.slug })
         .onConflictDoNothing();
     }
@@ -64,9 +64,9 @@ const seedTopics = defineStep({
 async function orgHasAnyChannel(orgId: string): Promise<boolean> {
   const ctx = getCurrentContext();
   const rows = await ctx.db
-    .select({ id: schema.deskChannels.id })
-    .from(schema.deskChannels)
-    .where(eq(schema.deskChannels.orgId, orgId))
+    .select({ id: schema.convChannels.id })
+    .from(schema.convChannels)
+    .where(eq(schema.convChannels.orgId, orgId))
     .limit(1);
   return rows.length > 0;
 }
@@ -74,11 +74,11 @@ async function orgHasAnyChannel(orgId: string): Promise<boolean> {
 async function orgHasAnyTopic(orgId: string): Promise<boolean> {
   const ctx = getCurrentContext();
   const rows = await ctx.db
-    .select({ id: schema.deskTopics.id })
-    .from(schema.deskTopics)
-    .where(eq(schema.deskTopics.orgId, orgId))
+    .select({ id: schema.convTopics.id })
+    .from(schema.convTopics)
+    .where(eq(schema.convTopics.orgId, orgId))
     .limit(1);
   return rows.length > 0;
 }
 
-export const deskBootstrap = new BootstrapRunner('desk', [firstChannel, seedTopics]);
+export const convBootstrap = new BootstrapRunner('conv', [firstChannel, seedTopics]);

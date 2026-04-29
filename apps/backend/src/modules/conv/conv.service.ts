@@ -3,10 +3,10 @@ import { schema } from '@munin/db';
 import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@munin/core';
 
-export class DeskInvalidError extends Error {
-  readonly code = 'desk_invalid';
+export class ConvInvalidError extends Error {
+  readonly code = 'conv_invalid';
   constructor(message: string) {
-    super(`desk_invalid: ${message}`);
+    super(`conv_invalid: ${message}`);
   }
 }
 
@@ -63,7 +63,7 @@ export interface ConversationDetail extends ConversationSummary {
 }
 
 @Injectable()
-export class DeskService {
+export class ConvService {
   constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
 
   // ─── Channels ───────────────────────────────────────────────────────────
@@ -72,8 +72,8 @@ export class DeskService {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select()
-      .from(schema.deskChannels)
-      .orderBy(asc(schema.deskChannels.name));
+      .from(schema.convChannels)
+      .orderBy(asc(schema.convChannels.name));
     return rows.map(toChannelDto);
   }
 
@@ -85,7 +85,7 @@ export class DeskService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const [row] = await ctx.db
-      .insert(schema.deskChannels)
+      .insert(schema.convChannels)
       .values({
         orgId: actor.orgId,
         type: input.type,
@@ -98,13 +98,13 @@ export class DeskService {
 
   async firstActiveChannel(typeHint?: ChannelType): Promise<ChannelDto | null> {
     const ctx = getCurrentContext();
-    const filters: SQL[] = [eq(schema.deskChannels.active, true)];
-    if (typeHint) filters.push(eq(schema.deskChannels.type, typeHint));
+    const filters: SQL[] = [eq(schema.convChannels.active, true)];
+    if (typeHint) filters.push(eq(schema.convChannels.type, typeHint));
     const rows = await ctx.db
       .select()
-      .from(schema.deskChannels)
+      .from(schema.convChannels)
       .where(and(...filters))
-      .orderBy(asc(schema.deskChannels.createdAt))
+      .orderBy(asc(schema.convChannels.createdAt))
       .limit(1);
     return rows[0] ? toChannelDto(rows[0]) : null;
   }
@@ -115,8 +115,8 @@ export class DeskService {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select()
-      .from(schema.deskTopics)
-      .orderBy(asc(schema.deskTopics.name));
+      .from(schema.convTopics)
+      .orderBy(asc(schema.convTopics.name));
     return rows.map(toTopicDto);
   }
 
@@ -128,10 +128,10 @@ export class DeskService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     if (!isValidSlug(input.slug)) {
-      throw new DeskInvalidError('slug must be lowercase letters, digits and hyphens (1-64 chars)');
+      throw new ConvInvalidError('slug must be lowercase letters, digits and hyphens (1-64 chars)');
     }
     const [row] = await ctx.db
-      .insert(schema.deskTopics)
+      .insert(schema.convTopics)
       .values({
         orgId: actor.orgId,
         name: input.name,
@@ -154,16 +154,16 @@ export class DeskService {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
     const filters: SQL[] = [];
-    if (input.status) filters.push(eq(schema.deskConversations.status, input.status));
-    if (input.assigneeUserId) filters.push(eq(schema.deskConversations.assigneeUserId, input.assigneeUserId));
-    if (input.topicId) filters.push(eq(schema.deskConversations.topicId, input.topicId));
-    if (input.endUserId) filters.push(eq(schema.deskConversations.endUserId, input.endUserId));
+    if (input.status) filters.push(eq(schema.convConversations.status, input.status));
+    if (input.assigneeUserId) filters.push(eq(schema.convConversations.assigneeUserId, input.assigneeUserId));
+    if (input.topicId) filters.push(eq(schema.convConversations.topicId, input.topicId));
+    if (input.endUserId) filters.push(eq(schema.convConversations.endUserId, input.endUserId));
 
     const rows = await ctx.db
       .select()
-      .from(schema.deskConversations)
+      .from(schema.convConversations)
       .where(filters.length === 0 ? undefined : and(...filters))
-      .orderBy(desc(schema.deskConversations.lastMessageAt), desc(schema.deskConversations.createdAt))
+      .orderBy(desc(schema.convConversations.lastMessageAt), desc(schema.convConversations.createdAt))
       .limit(limit);
     return rows.map(toConversationSummary);
   }
@@ -172,17 +172,17 @@ export class DeskService {
     const ctx = getCurrentContext();
     const conversations = await ctx.db
       .select()
-      .from(schema.deskConversations)
-      .where(eq(schema.deskConversations.id, id))
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, id))
       .limit(1);
     const conv = conversations[0];
-    if (!conv) throw new NotFoundException(`desk_not_found: conversation ${id}`);
+    if (!conv) throw new NotFoundException(`conv_not_found: conversation ${id}`);
 
     const messages = await ctx.db
       .select()
-      .from(schema.deskMessages)
-      .where(eq(schema.deskMessages.conversationId, id))
-      .orderBy(asc(schema.deskMessages.createdAt));
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, id))
+      .orderBy(asc(schema.convMessages.createdAt));
 
     return {
       ...toConversationSummary(conv),
@@ -203,13 +203,13 @@ export class DeskService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const channelRows = await ctx.db
-      .select({ id: schema.deskChannels.id, active: schema.deskChannels.active })
-      .from(schema.deskChannels)
-      .where(eq(schema.deskChannels.id, input.channelId))
+      .select({ id: schema.convChannels.id, active: schema.convChannels.active })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, input.channelId))
       .limit(1);
-    if (!channelRows[0]) throw new NotFoundException(`desk_not_found: channel ${input.channelId}`);
+    if (!channelRows[0]) throw new NotFoundException(`conv_not_found: channel ${input.channelId}`);
     if (!channelRows[0].active) {
-      throw new DeskInvalidError(`channel ${input.channelId} is not active`);
+      throw new ConvInvalidError(`channel ${input.channelId} is not active`);
     }
 
     const conv = await this.insertConversationWithRetry({
@@ -222,7 +222,7 @@ export class DeskService {
     });
 
     const [firstMsg] = await ctx.db
-      .insert(schema.deskMessages)
+      .insert(schema.convMessages)
       .values({
         orgId: actor.orgId,
         conversationId: conv.id,
@@ -233,9 +233,9 @@ export class DeskService {
       })
       .returning();
     await ctx.db
-      .update(schema.deskConversations)
+      .update(schema.convConversations)
       .set({ lastMessageAt: new Date() })
-      .where(eq(schema.deskConversations.id, conv.id));
+      .where(eq(schema.convConversations.id, conv.id));
 
     await this.webhooks.emit({
       type: 'conversation.created',
@@ -268,14 +268,14 @@ export class DeskService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const conv = await ctx.db
-      .select({ id: schema.deskConversations.id })
-      .from(schema.deskConversations)
-      .where(eq(schema.deskConversations.id, input.conversationId))
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, input.conversationId))
       .limit(1);
-    if (!conv[0]) throw new NotFoundException(`desk_not_found: conversation ${input.conversationId}`);
+    if (!conv[0]) throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
 
     const [row] = await ctx.db
-      .insert(schema.deskMessages)
+      .insert(schema.convMessages)
       .values({
         orgId: actor.orgId,
         conversationId: input.conversationId,
@@ -287,9 +287,9 @@ export class DeskService {
       })
       .returning();
     await ctx.db
-      .update(schema.deskConversations)
+      .update(schema.convConversations)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.deskConversations.id, input.conversationId));
+      .where(eq(schema.convConversations.id, input.conversationId));
 
     if (!row!.internal) {
       await this.webhooks.emit({
@@ -314,11 +314,11 @@ export class DeskService {
   }): Promise<ConversationSummary> {
     const ctx = getCurrentContext();
     const result = await ctx.db
-      .update(schema.deskConversations)
+      .update(schema.convConversations)
       .set({ assigneeUserId: input.assigneeUserId, updatedAt: new Date() })
-      .where(eq(schema.deskConversations.id, input.id))
+      .where(eq(schema.convConversations.id, input.id))
       .returning();
-    if (!result[0]) throw new NotFoundException(`desk_not_found: conversation ${input.id}`);
+    if (!result[0]) throw new NotFoundException(`conv_not_found: conversation ${input.id}`);
     await this.webhooks.emit({
       type: 'conversation.assigned',
       payload: { conversationId: input.id, assigneeUserId: input.assigneeUserId },
@@ -333,18 +333,18 @@ export class DeskService {
   }): Promise<ConversationSummary> {
     const ctx = getCurrentContext();
     if (input.status === 'snoozed' && !input.snoozeUntil) {
-      throw new DeskInvalidError('snoozeUntil is required when status is "snoozed"');
+      throw new ConvInvalidError('snoozeUntil is required when status is "snoozed"');
     }
     const result = await ctx.db
-      .update(schema.deskConversations)
+      .update(schema.convConversations)
       .set({
         status: input.status,
         snoozeUntil: input.snoozeUntil ? new Date(input.snoozeUntil) : null,
         updatedAt: new Date(),
       })
-      .where(eq(schema.deskConversations.id, input.id))
+      .where(eq(schema.convConversations.id, input.id))
       .returning();
-    if (!result[0]) throw new NotFoundException(`desk_not_found: conversation ${input.id}`);
+    if (!result[0]) throw new NotFoundException(`conv_not_found: conversation ${input.id}`);
     await this.webhooks.emit({
       type: 'conversation.status_changed',
       payload: { conversationId: input.id, status: input.status },
@@ -359,9 +359,9 @@ export class DeskService {
     if (!trimmed) return [];
     const rows = await ctx.db
       .select()
-      .from(schema.deskMessages)
-      .where(or(ilike(schema.deskMessages.body, `%${trimmed}%`)))
-      .orderBy(desc(schema.deskMessages.createdAt))
+      .from(schema.convMessages)
+      .where(or(ilike(schema.convMessages.body, `%${trimmed}%`)))
+      .orderBy(desc(schema.convMessages.createdAt))
       .limit(limit);
     return rows.map(toMessageDto);
   }
@@ -379,33 +379,33 @@ export class DeskService {
     endUserId: string | null;
     topicId: string | null;
     subject: string | null;
-  }): Promise<typeof schema.deskConversations.$inferSelect> {
+  }): Promise<typeof schema.convConversations.$inferSelect> {
     const ctx = getCurrentContext();
     let lastErr: unknown = null;
     for (let attempt = 0; attempt < 5; attempt++) {
       const nextRows = await ctx.db.execute<{ next: number } & Record<string, unknown>>(
-        sql`SELECT desk_next_display_id(${values.orgId}) AS next`,
+        sql`SELECT conv_next_display_id(${values.orgId}) AS next`,
       );
       const displayId = nextRows[0]!.next + attempt;
       try {
         const [row] = await ctx.db
-          .insert(schema.deskConversations)
+          .insert(schema.convConversations)
           .values({ ...values, displayId, status: 'open' })
           .returning();
         return row!;
       } catch (err) {
         lastErr = err;
         const msg = err instanceof Error ? err.message : String(err);
-        if (!/desk_conversations_display_uq|duplicate key/i.test(msg)) throw err;
+        if (!/conv_conversations_display_uq|duplicate key/i.test(msg)) throw err;
       }
     }
-    throw new Error(`desk_conversations: failed to allocate display_id after retries: ${String(lastErr)}`);
+    throw new Error(`conv_conversations: failed to allocate display_id after retries: ${String(lastErr)}`);
   }
 }
 
 // ─── DTO mappers / helpers ─────────────────────────────────────────────────
 
-function toChannelDto(row: typeof schema.deskChannels.$inferSelect): ChannelDto {
+function toChannelDto(row: typeof schema.convChannels.$inferSelect): ChannelDto {
   return {
     id: row.id,
     type: row.type as ChannelType,
@@ -416,12 +416,12 @@ function toChannelDto(row: typeof schema.deskChannels.$inferSelect): ChannelDto 
   };
 }
 
-function toTopicDto(row: typeof schema.deskTopics.$inferSelect): TopicDto {
+function toTopicDto(row: typeof schema.convTopics.$inferSelect): TopicDto {
   return { id: row.id, name: row.name, slug: row.slug, color: row.color };
 }
 
 function toConversationSummary(
-  row: typeof schema.deskConversations.$inferSelect,
+  row: typeof schema.convConversations.$inferSelect,
 ): ConversationSummary {
   return {
     id: row.id,
@@ -439,7 +439,7 @@ function toConversationSummary(
   };
 }
 
-function toMessageDto(row: typeof schema.deskMessages.$inferSelect): MessageDto {
+function toMessageDto(row: typeof schema.convMessages.$inferSelect): MessageDto {
   return {
     id: row.id,
     conversationId: row.conversationId,

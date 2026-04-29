@@ -1,4 +1,4 @@
-CREATE TABLE "desk_channels" (
+CREATE TABLE "conv_channels" (
 	"id" text PRIMARY KEY NOT NULL,
 	"org_id" text NOT NULL,
 	"type" varchar(16) NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE "desk_channels" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "desk_contacts" (
+CREATE TABLE "conv_contacts" (
 	"id" text PRIMARY KEY NOT NULL,
 	"org_id" text NOT NULL,
 	"end_user_id" text,
@@ -21,7 +21,7 @@ CREATE TABLE "desk_contacts" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "desk_conversations" (
+CREATE TABLE "conv_conversations" (
 	"id" text PRIMARY KEY NOT NULL,
 	"org_id" text NOT NULL,
 	"display_id" integer NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE "desk_conversations" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "desk_messages" (
+CREATE TABLE "conv_messages" (
 	"id" text PRIMARY KEY NOT NULL,
 	"org_id" text NOT NULL,
 	"conversation_id" text NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE "desk_messages" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "desk_topics" (
+CREATE TABLE "conv_topics" (
 	"id" text PRIMARY KEY NOT NULL,
 	"org_id" text NOT NULL,
 	"name" text NOT NULL,
@@ -64,30 +64,30 @@ CREATE TABLE "desk_topics" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "desk_channels" ADD CONSTRAINT "desk_channels_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_contacts" ADD CONSTRAINT "desk_contacts_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_contacts" ADD CONSTRAINT "desk_contacts_end_user_id_end_users_id_fk" FOREIGN KEY ("end_user_id") REFERENCES "public"."end_users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_conversations" ADD CONSTRAINT "desk_conversations_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_conversations" ADD CONSTRAINT "desk_conversations_channel_id_desk_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."desk_channels"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_conversations" ADD CONSTRAINT "desk_conversations_contact_id_desk_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."desk_contacts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_conversations" ADD CONSTRAINT "desk_conversations_end_user_id_end_users_id_fk" FOREIGN KEY ("end_user_id") REFERENCES "public"."end_users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_conversations" ADD CONSTRAINT "desk_conversations_topic_id_desk_topics_id_fk" FOREIGN KEY ("topic_id") REFERENCES "public"."desk_topics"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_conversations" ADD CONSTRAINT "desk_conversations_assignee_user_id_users_id_fk" FOREIGN KEY ("assignee_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_messages" ADD CONSTRAINT "desk_messages_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_messages" ADD CONSTRAINT "desk_messages_conversation_id_desk_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."desk_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "desk_topics" ADD CONSTRAINT "desk_topics_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "desk_channels_org_idx" ON "desk_channels" USING btree ("org_id");--> statement-breakpoint
-CREATE INDEX "desk_channels_type_idx" ON "desk_channels" USING btree ("org_id","type");--> statement-breakpoint
-CREATE INDEX "desk_contacts_org_idx" ON "desk_contacts" USING btree ("org_id");--> statement-breakpoint
-CREATE INDEX "desk_contacts_email_idx" ON "desk_contacts" USING btree ("org_id","email");--> statement-breakpoint
-CREATE INDEX "desk_contacts_end_user_idx" ON "desk_contacts" USING btree ("end_user_id");--> statement-breakpoint
-CREATE INDEX "desk_conversations_org_idx" ON "desk_conversations" USING btree ("org_id");--> statement-breakpoint
-CREATE INDEX "desk_conversations_status_idx" ON "desk_conversations" USING btree ("org_id","status");--> statement-breakpoint
-CREATE INDEX "desk_conversations_end_user_idx" ON "desk_conversations" USING btree ("end_user_id");--> statement-breakpoint
-CREATE INDEX "desk_conversations_contact_idx" ON "desk_conversations" USING btree ("contact_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "desk_conversations_display_uq" ON "desk_conversations" USING btree ("org_id","display_id");--> statement-breakpoint
-CREATE INDEX "desk_conversations_last_msg_idx" ON "desk_conversations" USING btree ("org_id","last_message_at");--> statement-breakpoint
-CREATE INDEX "desk_messages_conv_idx" ON "desk_messages" USING btree ("conversation_id","created_at");--> statement-breakpoint
-CREATE INDEX "desk_messages_org_idx" ON "desk_messages" USING btree ("org_id");--> statement-breakpoint
-CREATE INDEX "desk_topics_org_idx" ON "desk_topics" USING btree ("org_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "desk_topics_org_slug_uq" ON "desk_topics" USING btree ("org_id","slug");
+ALTER TABLE "conv_channels" ADD CONSTRAINT "conv_channels_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_contacts" ADD CONSTRAINT "conv_contacts_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_contacts" ADD CONSTRAINT "conv_contacts_end_user_id_end_users_id_fk" FOREIGN KEY ("end_user_id") REFERENCES "public"."end_users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_conversations" ADD CONSTRAINT "conv_conversations_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_conversations" ADD CONSTRAINT "conv_conversations_channel_id_conv_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."conv_channels"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_conversations" ADD CONSTRAINT "conv_conversations_contact_id_conv_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."conv_contacts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_conversations" ADD CONSTRAINT "conv_conversations_end_user_id_end_users_id_fk" FOREIGN KEY ("end_user_id") REFERENCES "public"."end_users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_conversations" ADD CONSTRAINT "conv_conversations_topic_id_conv_topics_id_fk" FOREIGN KEY ("topic_id") REFERENCES "public"."conv_topics"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_conversations" ADD CONSTRAINT "conv_conversations_assignee_user_id_users_id_fk" FOREIGN KEY ("assignee_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_messages" ADD CONSTRAINT "conv_messages_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_messages" ADD CONSTRAINT "conv_messages_conversation_id_conv_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."conv_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "conv_topics" ADD CONSTRAINT "conv_topics_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "conv_channels_org_idx" ON "conv_channels" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX "conv_channels_type_idx" ON "conv_channels" USING btree ("org_id","type");--> statement-breakpoint
+CREATE INDEX "conv_contacts_org_idx" ON "conv_contacts" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX "conv_contacts_email_idx" ON "conv_contacts" USING btree ("org_id","email");--> statement-breakpoint
+CREATE INDEX "conv_contacts_end_user_idx" ON "conv_contacts" USING btree ("end_user_id");--> statement-breakpoint
+CREATE INDEX "conv_conversations_org_idx" ON "conv_conversations" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX "conv_conversations_status_idx" ON "conv_conversations" USING btree ("org_id","status");--> statement-breakpoint
+CREATE INDEX "conv_conversations_end_user_idx" ON "conv_conversations" USING btree ("end_user_id");--> statement-breakpoint
+CREATE INDEX "conv_conversations_contact_idx" ON "conv_conversations" USING btree ("contact_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "conv_conversations_display_uq" ON "conv_conversations" USING btree ("org_id","display_id");--> statement-breakpoint
+CREATE INDEX "conv_conversations_last_msg_idx" ON "conv_conversations" USING btree ("org_id","last_message_at");--> statement-breakpoint
+CREATE INDEX "conv_messages_conv_idx" ON "conv_messages" USING btree ("conversation_id","created_at");--> statement-breakpoint
+CREATE INDEX "conv_messages_org_idx" ON "conv_messages" USING btree ("org_id");--> statement-breakpoint
+CREATE INDEX "conv_topics_org_idx" ON "conv_topics" USING btree ("org_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "conv_topics_org_slug_uq" ON "conv_topics" USING btree ("org_id","slug");

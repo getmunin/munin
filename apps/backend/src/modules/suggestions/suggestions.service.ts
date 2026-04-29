@@ -3,7 +3,7 @@ import { schema } from '@munin/db';
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@munin/core';
 
-const APP_SCOPES = ['kb', 'desk', 'crm', 'core'] as const;
+const APP_SCOPES = ['kb', 'conv', 'crm', 'core'] as const;
 const STATUSES = ['open', 'planned', 'in_progress', 'done', 'wontfix', 'duplicate'] as const;
 
 export type SuggestionAppScope = (typeof APP_SCOPES)[number];

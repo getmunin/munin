@@ -1,5 +1,5 @@
 -- ============================================================================
--- Munin Helpdesk extras: per-org display-id allocator and RLS policies.
+-- Munin Conversations extras: per-org display-id allocator and RLS policies.
 -- Applied during migrations after Drizzle schema and base RLS.
 -- ============================================================================
 
@@ -12,43 +12,43 @@
 -- block on the unique (org_id, display_id) index and retry at the
 -- application layer. Helpdesk service catches the conflict and retries.
 
-CREATE OR REPLACE FUNCTION desk_next_display_id(p_org_id text) RETURNS integer
+CREATE OR REPLACE FUNCTION conv_next_display_id(p_org_id text) RETURNS integer
   LANGUAGE sql VOLATILE
   AS $$
     SELECT COALESCE(MAX(display_id), 0) + 1
-    FROM desk_conversations
+    FROM conv_conversations
     WHERE org_id = p_org_id;
   $$;
 
 -- ───────────────────────── desk RLS ───────────────────────────────────────
 
-ALTER TABLE desk_channels ENABLE ROW LEVEL SECURITY;
-ALTER TABLE desk_channels FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON desk_channels;
-CREATE POLICY tenant_isolation ON desk_channels
+ALTER TABLE conv_channels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_channels FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_channels;
+CREATE POLICY tenant_isolation ON conv_channels
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
-ALTER TABLE desk_topics ENABLE ROW LEVEL SECURITY;
-ALTER TABLE desk_topics FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON desk_topics;
-CREATE POLICY tenant_isolation ON desk_topics
+ALTER TABLE conv_topics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_topics FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_topics;
+CREATE POLICY tenant_isolation ON conv_topics
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
-ALTER TABLE desk_contacts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE desk_contacts FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON desk_contacts;
-CREATE POLICY tenant_isolation ON desk_contacts
+ALTER TABLE conv_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_contacts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_contacts;
+CREATE POLICY tenant_isolation ON conv_contacts
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
 -- Conversations: end-user audience can ONLY see conversations where
 -- end_user_id matches the GUC. Admin sees all org conversations.
-ALTER TABLE desk_conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE desk_conversations FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON desk_conversations;
-CREATE POLICY tenant_isolation ON desk_conversations
+ALTER TABLE conv_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_conversations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_conversations;
+CREATE POLICY tenant_isolation ON conv_conversations
   USING (
     app_bypass_rls()
     OR (
@@ -68,17 +68,17 @@ CREATE POLICY tenant_isolation ON desk_conversations
 -- messages are additionally hidden from end-user audience even when the
 -- conversation is theirs — that's the "agent draft" / "internal note"
 -- pattern that's never customer-facing.
-ALTER TABLE desk_messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE desk_messages FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON desk_messages;
-CREATE POLICY tenant_isolation ON desk_messages
+ALTER TABLE conv_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_messages FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_messages;
+CREATE POLICY tenant_isolation ON conv_messages
   USING (
     app_bypass_rls()
     OR (
       org_id = app_org_id()
       AND EXISTS (
-        SELECT 1 FROM desk_conversations c
-        WHERE c.id = desk_messages.conversation_id
+        SELECT 1 FROM conv_conversations c
+        WHERE c.id = conv_messages.conversation_id
           AND (app_end_user_id() = '' OR c.end_user_id = app_end_user_id())
       )
       AND (app_end_user_id() = '' OR internal = false)

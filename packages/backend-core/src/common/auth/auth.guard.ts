@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Inject, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../db/db.module.js';
@@ -7,6 +7,16 @@ import { Reflector } from '@nestjs/core';
 /** Decorator used on routes that should be reachable without auth (signup, oauth discovery). */
 export const ALLOW_ANONYMOUS = Symbol('allowAnonymous');
 export const AllowAnonymous = () => Reflect.metadata(ALLOW_ANONYMOUS, true);
+
+/**
+ * Extension point for cloud builds: try additional resolvers when the OSS
+ * resolvers return null. Cloud's `PartnerCredentialResolver` plugs in
+ * here to recognize `mn_part_*` keys.
+ */
+export const ADDITIONAL_CREDENTIAL_RESOLVERS = Symbol('additionalCredentialResolvers');
+export interface AdditionalCredentialResolver {
+  resolve(rawKey: string): Promise<ResolvedCredential | null>;
+}
 
 /**
  * Internal augmentation of the Express request used inside this app.
@@ -22,10 +32,9 @@ export interface AuthenticatedRequest {
  * Resolves the bearer token / API key on the incoming request.
  *
  * - Authorization: Bearer <token>            → resolveBearerToken (OAuth or delegated)
- * - Authorization: Bearer mn_admin_<rand>    → resolveApiKey
- *
- * The same header is used for both — the resolver tries API key first when
- * the value matches the `<prefix>_<rest>` shape, otherwise bearer token.
+ * - Authorization: Bearer mn_<kind>_<rand>   → resolveApiKey, then any registered
+ *                                              additional resolvers (cloud plugs in
+ *                                              partner-key resolution).
  *
  * On success, attaches `request.credential`. Does NOT open a transaction
  * or set the tenancy context — that's the TenancyInterceptor's job.
@@ -34,7 +43,13 @@ export interface AuthenticatedRequest {
 export class AuthGuard implements CanActivate {
   private readonly resolver: CredentialResolver;
 
-  constructor(@Inject(DB) db: Db, private readonly reflector: Reflector) {
+  constructor(
+    @Inject(DB) db: Db,
+    private readonly reflector: Reflector,
+    @Optional()
+    @Inject(ADDITIONAL_CREDENTIAL_RESOLVERS)
+    private readonly additionalResolvers: AdditionalCredentialResolver[] = [],
+  ) {
     this.resolver = new CredentialResolver(db);
   }
 
@@ -51,9 +66,17 @@ export class AuthGuard implements CanActivate {
 
     if (value && value.toLowerCase().startsWith('bearer ')) {
       const raw = value.slice('Bearer '.length).trim();
-      credential = looksLikeApiKey(raw)
-        ? await this.resolver.resolveApiKey(raw)
-        : await this.resolver.resolveBearerToken(raw);
+      if (looksLikeApiKey(raw)) {
+        credential = await this.resolver.resolveApiKey(raw);
+        if (!credential) {
+          for (const extra of this.additionalResolvers) {
+            credential = await extra.resolve(raw);
+            if (credential) break;
+          }
+        }
+      } else {
+        credential = await this.resolver.resolveBearerToken(raw);
+      }
     } else {
       const cookieHeader = request.headers['cookie'];
       const cookieValue = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader;
@@ -94,5 +117,5 @@ function readSessionCookie(cookieHeader: string | undefined): string | null {
 
 /** Munin API keys are `mn_<kind>_<random>`. Anything else is treated as a bearer/OAuth token. */
 function looksLikeApiKey(raw: string): boolean {
-  return /^mn_(admin|dlg)_[A-Za-z0-9_-]+$/.test(raw);
+  return /^mn_[a-z]+_[A-Za-z0-9_-]+$/.test(raw);
 }

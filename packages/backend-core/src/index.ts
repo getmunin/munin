@@ -22,7 +22,14 @@ export {
 } from './auth-env.js';
 
 // Common building blocks
-export { AuthGuard, AllowAnonymous, type AuthenticatedRequest, ALLOW_ANONYMOUS } from './common/auth/auth.guard.js';
+export {
+  AuthGuard,
+  AllowAnonymous,
+  type AuthenticatedRequest,
+  ALLOW_ANONYMOUS,
+  ADDITIONAL_CREDENTIAL_RESOLVERS,
+  type AdditionalCredentialResolver,
+} from './common/auth/auth.guard.js';
 export { TenancyInterceptor } from './common/tenancy/tenancy.interceptor.js';
 export { AuditInterceptor } from './common/audit/audit.interceptor.js';
 export { DB, DbModule } from './common/db/db.module.js';

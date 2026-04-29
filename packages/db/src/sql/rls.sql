@@ -40,7 +40,7 @@ CREATE OR REPLACE FUNCTION app_bypass_rls() RETURNS bool
 --   - allow when bypass_rls is on (admin / migration / job)
 --   - else require org_id matches the GUC
 --
--- For tables that ALSO carry end_user_id (e.g. tokens, future tickets/messages):
+-- For tables that ALSO carry end_user_id (e.g. tokens, conversations, messages):
 --   tenant_and_end_user_isolation policy
 --   - same as above, plus when app_end_user_id is non-empty,
 --     require end_user_id matches

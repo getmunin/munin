@@ -610,8 +610,7 @@ export const kbDocumentVersions = pgTable(
 // ───────────────────────── Conversations (M3) ────────────────────────
 // Multi-channel customer communications — both inbound (support / chat /
 // inbound email) and outbound (proactive outreach by phone, email, SMS,
-// or AI agent). Replaces what was originally scoped as "Helpdesk" since
-// the same primitives serve outreach equally well.
+// or AI agent). Same primitives serve support and outreach equally well.
 
 // Channels: where customers reach the org and where the org reaches out
 // from. v0.4 ships email + a built-in "chat" channel for self-service;

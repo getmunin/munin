@@ -101,7 +101,7 @@ export class ConvAdminTools {
   @McpTool({
     name: 'conv_assign_conversation',
     description:
-      'Assign a conversation to a user (pass user id) or unassign (pass null). Useful for routing escalated tickets.',
+      'Assign a conversation to a user (pass user id) or unassign (pass null). Useful for routing escalated conversations.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: AssignInput,

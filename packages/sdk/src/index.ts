@@ -56,7 +56,7 @@ export interface EndUser {
 
 export interface EndUserContext {
   contact?: Record<string, unknown>;
-  recentTickets?: unknown[];
+  recentConversations?: unknown[];
   recentActivities?: unknown[];
   openDeals?: unknown[];
   suggestedKbArticles?: unknown[];

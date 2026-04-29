@@ -10,7 +10,7 @@
 -- max row would be overkill at our scale; a simple SELECT + INSERT inside
 -- a transaction is monotonic enough — concurrent inserts in the same org
 -- block on the unique (org_id, display_id) index and retry at the
--- application layer. Helpdesk service catches the conflict and retries.
+-- application layer. Conversations service catches the conflict and retries.
 
 CREATE OR REPLACE FUNCTION conv_next_display_id(p_org_id text) RETURNS integer
   LANGUAGE sql VOLATILE

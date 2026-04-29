@@ -10,7 +10,7 @@ export default function HomePage() {
           Agent-native business apps. The AI agent is the UI.
         </p>
         <p className="text-sm text-muted-foreground">
-          Knowledge Base · Helpdesk · CRM — open source, MCP-first.
+          Knowledge Base · Conversations · CRM · CMS — open source, MCP-first.
         </p>
         <div className="flex gap-3 pt-4">
           <Button size="lg" render={<Link href="/signup" />}>

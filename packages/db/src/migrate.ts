@@ -86,9 +86,12 @@ function escapeSqlLiteral(s: string): string {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const url = process.env.DATABASE_URL;
+  // Migrations need owner privileges (CREATE EXTENSION, CREATE ROLE).
+  // Prefer the privileged MUNIN_MIGRATE_URL when present; fall back to
+  // DATABASE_URL for dev where they're often the same.
+  const url = process.env.MUNIN_MIGRATE_URL ?? process.env.DATABASE_URL;
   if (!url) {
-    console.error('DATABASE_URL is required');
+    console.error('MUNIN_MIGRATE_URL or DATABASE_URL is required');
     process.exit(1);
   }
   await runMigrations(url);

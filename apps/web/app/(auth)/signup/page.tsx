@@ -13,9 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getm
 import { Separator } from '@getmunin/ui';
 
 function safeRedirect(raw: string | null): Route {
-  // Only allow same-origin paths starting with `/`. Drop anything else to
-  // sidestep open-redirect mistakes.
   if (raw && raw.startsWith('/') && !raw.startsWith('//')) {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     return raw as Route;
   }
   return '/dashboard';

@@ -17,11 +17,13 @@ import { RateLimitModule } from './common/rate-limit/rate-limit.module.js';
 import { QuotasModule } from './common/quotas/quotas.module.js';
 import { MailModule } from './common/mail/mail.module.js';
 import { WebhookModule } from './common/webhooks/webhook.module.js';
+import { StorageModule } from './common/storage/storage.module.js';
 
 @Module({
   imports: [
     DbModule,
     MailModule,
+    StorageModule,
     WebhookModule,
     RateLimitModule,
     QuotasModule,

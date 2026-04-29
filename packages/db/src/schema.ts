@@ -943,6 +943,186 @@ export const crmRelationships = pgTable(
   }),
 );
 
+// ───────────────────────── CMS (M6) ───────────────────────────────────
+// Headless CMS — schema-on-write: orgs define collections (with custom
+// fields) and store entries as JSON keyed by field name. Public delivery
+// API serves status='published' rows anonymously through a service-role
+// controller; admin MCP tools author drafts, publish, schedule, version.
+
+// Collections: a content type. `fields` is an array of FieldDef objects;
+// the service projects entries' jsonb data through this on read.
+export const cmsCollections = pgTable(
+  'cms_collections',
+  {
+    id: id('cmc'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: varchar('slug', { length: 64 }).notNull(),
+    description: text('description'),
+    fields: jsonb('fields').$type<unknown[]>().notNull().default([]),
+    localized: boolean('localized').notNull().default(false),
+    settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('cms_collections_org_idx').on(t.orgId),
+    slugUq: uniqueIndex('cms_collections_slug_uq').on(t.orgId, t.slug),
+  }),
+);
+
+// Entries: one row per (collection, slug, locale). `data` jsonb stores
+// the user payload keyed by collection field names. `search_text` is a
+// flattened concat of searchable fields (populated by CmsService on
+// every write); `fts` (added in cms.sql) is a generated tsvector over
+// it; `embedding` is the vector for hybrid search.
+export const cmsEntries = pgTable(
+  'cms_entries',
+  {
+    id: id('cme'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    collectionId: text('collection_id')
+      .notNull()
+      .references(() => cmsCollections.id, { onDelete: 'cascade' }),
+    slug: varchar('slug', { length: 200 }).notNull(),
+    locale: varchar('locale', { length: 16 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('draft'),
+    // 'draft' | 'published' | 'scheduled' | 'archived'
+    data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+    version: integer('version').notNull().default(1),
+    contentHash: varchar('content_hash', { length: 64 }).notNull(),
+    searchText: text('search_text').notNull().default(''),
+    embedding: vector('embedding', { dimensions: EMBEDDING_DIMENSIONS }),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdByType: varchar('created_by_type', { length: 16 }).notNull(),
+    createdById: text('created_by_id').notNull(),
+    updatedByType: varchar('updated_by_type', { length: 16 }).notNull(),
+    updatedById: text('updated_by_id').notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('cms_entries_org_idx').on(t.orgId),
+    collectionIdx: index('cms_entries_collection_idx').on(t.collectionId),
+    statusIdx: index('cms_entries_status_idx').on(t.orgId, t.status),
+    deliveryIdx: index('cms_entries_delivery_idx').on(
+      t.orgId,
+      t.collectionId,
+      t.status,
+      t.locale,
+    ),
+    scheduledIdx: index('cms_entries_scheduled_idx').on(t.scheduledAt),
+    slugUq: uniqueIndex('cms_entries_slug_uq').on(t.orgId, t.collectionId, t.slug, t.locale),
+  }),
+);
+
+// Immutable history snapshots — same pattern as kb_document_versions.
+export const cmsEntryVersions = pgTable(
+  'cms_entry_versions',
+  {
+    id: id('cev'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    entryId: text('entry_id')
+      .notNull()
+      .references(() => cmsEntries.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    status: varchar('status', { length: 16 }).notNull(),
+    data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+    createdByType: varchar('created_by_type', { length: 16 }).notNull(),
+    createdById: text('created_by_id').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    versionUq: uniqueIndex('cms_versions_entry_version_uq').on(t.entryId, t.version),
+    orgIdx: index('cms_versions_org_idx').on(t.orgId),
+  }),
+);
+
+// Assets: media library. Storage backend (local|s3) + key + publicly-
+// accessible URL. CmsService mints the storage_key; the actual upload
+// happens out-of-band via a presigned PUT URL (S3) or a POST handler
+// (LocalFs) that backs onto the static-assets controller.
+export const cmsAssets = pgTable(
+  'cms_assets',
+  {
+    id: id('cma'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    mime: text('mime').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull().default(0),
+    storageProvider: varchar('storage_provider', { length: 16 }).notNull(),
+    // 'local' | 's3'
+    storageKey: text('storage_key').notNull(),
+    publicUrl: text('public_url').notNull(),
+    altText: text('alt_text'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    /** Set true once the upload is confirmed; pending rows are GC-eligible. */
+    uploaded: boolean('uploaded').notNull().default(false),
+    createdByType: varchar('created_by_type', { length: 16 }).notNull(),
+    createdById: text('created_by_id').notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('cms_assets_org_idx').on(t.orgId),
+    keyUq: uniqueIndex('cms_assets_key_uq').on(t.storageKey),
+  }),
+);
+
+// Locales: per-org list. is_default flags the org's fallback locale.
+export const cmsLocales = pgTable(
+  'cms_locales',
+  {
+    id: id('cml'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    code: varchar('code', { length: 16 }).notNull(),
+    name: text('name').notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    position: integer('position').notNull().default(0),
+    createdAt,
+  },
+  (t) => ({
+    codeUq: uniqueIndex('cms_locales_code_uq').on(t.orgId, t.code),
+  }),
+);
+
+// References: materialize "entry A links to entry B" edges so "what
+// links to this entry" + ?include=author,company joins are cheap. The
+// service rewrites this whenever an entry's data changes.
+export const cmsReferences = pgTable(
+  'cms_references',
+  {
+    id: id('cmr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    fromEntryId: text('from_entry_id')
+      .notNull()
+      .references(() => cmsEntries.id, { onDelete: 'cascade' }),
+    toEntryId: text('to_entry_id')
+      .notNull()
+      .references(() => cmsEntries.id, { onDelete: 'cascade' }),
+    fieldName: varchar('field_name', { length: 64 }).notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt,
+  },
+  (t) => ({
+    fromIdx: index('cms_references_from_idx').on(t.fromEntryId),
+    toIdx: index('cms_references_to_idx').on(t.toEntryId),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   partners,
@@ -982,6 +1162,12 @@ export const allTables = {
   crmDeals,
   crmActivities,
   crmRelationships,
+  cmsCollections,
+  cmsEntries,
+  cmsEntryVersions,
+  cmsAssets,
+  cmsLocales,
+  cmsReferences,
 };
 
 export type AllTables = typeof allTables;

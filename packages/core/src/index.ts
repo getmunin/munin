@@ -42,3 +42,11 @@ export {
   StubMailer,
   readMailerFromEnv,
 } from './mailer.js';
+export {
+  type AssetStorage,
+  type LocalFsStorageOptions,
+  type S3CompatibleStorageOptions,
+  LocalFsStorage,
+  S3CompatibleStorage,
+  readAssetStorageFromEnv,
+} from './storage.js';

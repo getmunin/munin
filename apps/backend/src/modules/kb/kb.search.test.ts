@@ -95,7 +95,7 @@ const skipReason = TEST_URL
         await tx.execute(sql`SELECT set_config('app.end_user_id', '', true)`);
       }
       const ctx: RequestContext = {
-        db: tx as unknown as typeof appDb,
+        db: tx,
         actor,
         correlationId: randomUUID(),
       };

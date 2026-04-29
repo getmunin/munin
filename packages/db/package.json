@@ -18,9 +18,9 @@
   },
   "files": ["dist", "drizzle"],
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp src/*.sql dist/",
-    "dev": "tsc -p tsconfig.json --watch",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json && mkdir -p dist/sql && cp src/sql/*.sql dist/sql/",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
     "db:generate": "drizzle-kit generate",

@@ -55,7 +55,7 @@ const skipReason = TEST_URL
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
       await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
       const ctx: RequestContext = {
-        db: tx as unknown as typeof appDb,
+        db: tx,
         actor,
         correlationId: randomUUID(),
       };
@@ -97,7 +97,7 @@ const skipReason = TEST_URL
         await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
         await tx.execute(sql`SELECT set_config('app.org_id', ${defaultOrg!.id}, true)`);
         const ctx: RequestContext = {
-          db: tx as unknown as typeof appDb,
+          db: tx,
           actor: defaultActor,
           correlationId: randomUUID(),
         };
@@ -130,7 +130,7 @@ const skipReason = TEST_URL
         await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
         await tx.execute(sql`SELECT set_config('app.org_id', ${otherOrg!.id}, true)`);
         const ctx: RequestContext = {
-          db: tx as unknown as typeof appDb,
+          db: tx,
           actor: otherActor,
           correlationId: randomUUID(),
         };

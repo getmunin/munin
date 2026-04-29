@@ -100,7 +100,7 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
     await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
       const ctx: RequestContext = {
-        db: tx as unknown as Db,
+        db: tx,
         actor,
         correlationId: randomUUID(),
       };

@@ -6,7 +6,7 @@
  * audit, claims, webhooks, suggestions, partners.
  *
  * Tenancy: every org-scoped table carries `org_id` and is governed by RLS.
- * RLS policies live in src/rls.sql (applied during migrations).
+ * RLS policies live in src/sql/rls.sql (applied during migrations).
  */
 import { sql } from 'drizzle-orm';
 import {

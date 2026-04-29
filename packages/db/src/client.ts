@@ -4,6 +4,13 @@ import * as schema from './schema.js';
 
 export type Db = ReturnType<typeof createDb>;
 
+/**
+ * A drizzle transaction handle (the value passed to `db.transaction(tx => …)`).
+ * Has the same query methods as `Db` plus `rollback()`. Helpers that need to
+ * accept either should type their argument as `Db | Tx`.
+ */
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
 export interface CreateDbOptions {
   /**
    * If true, every connection in this pool starts with `app.bypass_rls = 'on'`

@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { Db } from '@munin/db';
+import type { Db, Tx } from '@munin/db';
 
 /** Who is performing an action; stamped into every audit row. */
 export type ActorType = 'user' | 'admin_agent' | 'end_user_agent' | 'partner' | 'system';
@@ -39,8 +39,13 @@ export class ActorIdentity {
  * the request can read it without explicit threading.
  */
 export interface RequestContext {
-  /** Drizzle client bound to the request's transaction. */
-  db: Db;
+  /**
+   * Drizzle client bound to the request's transaction. The transaction-scoped
+   * shape (`Tx`) is the typical value — TenancyInterceptor wraps every
+   * request in `db.transaction(...)`. We accept `Db` too so service-role
+   * background paths (signup, workers) can pass the pool directly.
+   */
+  db: Db | Tx;
   /** Who is calling. Undefined for unauthenticated routes (signup, oauth). */
   actor?: ActorIdentity;
   /** Stable id linking all audit rows + events for this request. */

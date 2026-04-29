@@ -8,7 +8,7 @@ import {
 import { Observable, from, switchMap } from 'rxjs';
 import { sql } from 'drizzle-orm';
 import { ActorIdentity, RequestContextStore, type RequestContext } from '@munin/core';
-import type { Db } from '@munin/db';
+import type { Db, Tx } from '@munin/db';
 import { DB } from '../db/db.module.js';
 import { randomUUID } from 'node:crypto';
 
@@ -17,7 +17,7 @@ interface RequestWithAuth {
   correlationId?: string;
 }
 
-async function applyTenancyGUCs(tx: Db, actor: ActorIdentity): Promise<void> {
+async function applyTenancyGUCs(tx: Db | Tx, actor: ActorIdentity): Promise<void> {
   await applyEncryptionKeyGUC(tx);
   // Partners operate across many orgs they provisioned. Their controllers
   // filter manually by partner_id; explicit bypass-on for the transaction.
@@ -40,7 +40,7 @@ async function applyTenancyGUCs(tx: Db, actor: ActorIdentity): Promise<void> {
  * current_setting. Silently no-ops when MUNIN_ENCRYPTION_KEY is unset —
  * encryption-aware code paths surface a clear error at use time.
  */
-async function applyEncryptionKeyGUC(tx: Db): Promise<void> {
+async function applyEncryptionKeyGUC(tx: Db | Tx): Promise<void> {
   const key = process.env.MUNIN_ENCRYPTION_KEY;
   if (!key) return;
   await tx.execute(sql`SELECT set_config('app.crypt_key', ${key}, true)`);
@@ -76,8 +76,8 @@ export class TenancyInterceptor implements NestInterceptor {
     next: CallHandler,
   ): Promise<unknown> {
     return this.db.transaction(async (tx) => {
-      await applyTenancyGUCs(tx as unknown as Db, actor);
-      const ctx: RequestContext = { db: tx as unknown as Db, actor, correlationId };
+      await applyTenancyGUCs(tx, actor);
+      const ctx: RequestContext = { db: tx, actor, correlationId };
       return RequestContextStore.run(ctx, () => awaitNextHandler(next));
     });
   }

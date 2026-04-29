@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@munin/db';
-import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, isNotNull, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@munin/core';
 
 export class ConvInvalidError extends Error {
@@ -267,12 +267,18 @@ export class ConvService {
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const conv = await ctx.db
-      .select({ id: schema.convConversations.id })
+    const convRows = await ctx.db
+      .select({
+        id: schema.convConversations.id,
+        channelId: schema.convConversations.channelId,
+        channelType: schema.convChannels.type,
+      })
       .from(schema.convConversations)
+      .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
       .where(eq(schema.convConversations.id, input.conversationId))
       .limit(1);
-    if (!conv[0]) throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
+    const conv = convRows[0];
+    if (!conv) throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
 
     const [row] = await ctx.db
       .insert(schema.convMessages)
@@ -304,8 +310,62 @@ export class ConvService {
           internal: false,
         },
       });
+
+      // Enqueue an outbound delivery row for staff-authored messages on
+      // email channels. The email-outbound worker picks these up, builds
+      // the MIME, and ships them via SMTP. End-user-authored messages on
+      // an email channel arrived via the IMAP poller — they're already
+      // outside; no need to send them again.
+      if (
+        conv.channelType === 'email' &&
+        input.authorType !== 'end_user' &&
+        input.authorType !== 'system'
+      ) {
+        await this.enqueueEmailOutbound(row!.id, conv.id, conv.channelId);
+      }
     }
     return toMessageDto(row!);
+  }
+
+  /**
+   * Insert a `conv_message_deliveries` row for a freshly-created outbound
+   * message on an email channel. Stamps `in_reply_to_header` from the
+   * most-recent successful outbound on the same conversation so reply
+   * chains hold. Lives on ConvService rather than EmailService to keep
+   * sendMessage from importing the email module.
+   */
+  private async enqueueEmailOutbound(
+    messageId: string,
+    conversationId: string,
+    channelId: string,
+  ): Promise<void> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const prior = await ctx.db
+      .select({ messageIdHeader: schema.convMessageDeliveries.messageIdHeader })
+      .from(schema.convMessageDeliveries)
+      .innerJoin(
+        schema.convMessages,
+        eq(schema.convMessages.id, schema.convMessageDeliveries.messageId),
+      )
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conversationId),
+          eq(schema.convMessageDeliveries.status, 'sent'),
+          isNotNull(schema.convMessageDeliveries.messageIdHeader),
+        ),
+      )
+      .orderBy(desc(schema.convMessageDeliveries.sentAt))
+      .limit(1);
+    await ctx.db.insert(schema.convMessageDeliveries).values({
+      orgId: actor.orgId,
+      messageId,
+      channelId,
+      status: 'queued',
+      attempt: 0,
+      nextAttemptAt: new Date(),
+      inReplyToHeader: prior[0]?.messageIdHeader ?? null,
+    });
   }
 
   async assignConversation(input: {

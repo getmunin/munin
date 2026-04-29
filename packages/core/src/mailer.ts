@@ -15,6 +15,20 @@ export interface MailMessage {
   /** HTML body. */
   html?: string;
   replyTo?: string;
+  /**
+   * Override the Mailer's default sender for this message. Used by the
+   * email-channel outbound worker so per-channel `from` addresses (e.g.
+   * "Acme Support <support@acme.com>") flow through the same Mailer
+   * instance the rest of the app uses for verify / reset / invite mail.
+   */
+  from?: string;
+  /**
+   * Extra headers to stamp on the outgoing message. The email-channel
+   * worker uses this for `Message-ID`, `In-Reply-To`, `References`.
+   * Mailers that don't support custom headers (e.g. some hosted APIs)
+   * should pass through the ones they can and ignore the rest.
+   */
+  headers?: Record<string, string>;
 }
 
 export interface Mailer {
@@ -58,12 +72,13 @@ export class ResendMailer implements Mailer {
         authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify({
-        from: this.from,
+        from: msg.from ?? this.from,
         to: [msg.to],
         subject: msg.subject,
         text: msg.text,
         html: msg.html,
         reply_to: msg.replyTo,
+        headers: msg.headers,
       }),
     });
     if (!res.ok) {

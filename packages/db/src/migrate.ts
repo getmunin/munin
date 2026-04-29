@@ -14,7 +14,7 @@ const APP_ROLE = 'munin_app';
  * Steps, in order:
  *   1. Ensure required Postgres extensions exist (pgvector, pg_trgm, citext, pgcrypto).
  *   2. Apply Drizzle SQL migrations from packages/db/drizzle/.
- *   3. Apply RLS policies from packages/db/src/rls.sql.
+ *   3. Apply RLS policies from packages/db/src/sql/rls.sql.
  *   4. Ensure a non-superuser application role `munin_app` exists with
  *      CRUD privileges on the public schema. Application traffic should
  *      connect as this role so RLS policies are enforced (Postgres
@@ -27,12 +27,13 @@ const APP_ROLE = 'munin_app';
 export async function runMigrations(connectionString: string, migrationsFolder?: string) {
   const here = dirname(fileURLToPath(import.meta.url));
   const folder = migrationsFolder ?? resolve(here, '..', 'drizzle');
-  const rlsPath = resolve(here, 'rls.sql');
-  const kbPath = resolve(here, 'kb.sql');
-  const convPath = resolve(here, 'conv.sql');
-  const crmPath = resolve(here, 'crm.sql');
-  const cmsPath = resolve(here, 'cms.sql');
-  const emailPath = resolve(here, 'email.sql');
+  const sqlDir = resolve(here, 'sql');
+  const rlsPath = resolve(sqlDir, 'rls.sql');
+  const kbPath = resolve(sqlDir, 'kb.sql');
+  const convPath = resolve(sqlDir, 'conv.sql');
+  const crmPath = resolve(sqlDir, 'crm.sql');
+  const cmsPath = resolve(sqlDir, 'cms.sql');
+  const emailPath = resolve(sqlDir, 'email.sql');
 
   const client = postgres(connectionString, { max: 1 });
   const db = drizzle(client);

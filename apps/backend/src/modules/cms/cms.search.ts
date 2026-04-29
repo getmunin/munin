@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL, and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@munin/core';
-import type { Db } from '@munin/db';
+import type { Db, Tx } from '@munin/db';
 import { schema } from '@munin/db';
 import { DB } from '../../common/db/db.module.js';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.js';
@@ -91,7 +91,7 @@ export class CmsSearchService {
 
     // Public path uses the service-role DB (no request context); admin path
     // uses the tenant-bound transaction Db from the request context.
-    const db: Db = opts?.orgId ? this.serviceDb : getCurrentContext().db;
+    const db: Db | Tx = opts?.orgId ? this.serviceDb : getCurrentContext().db;
 
     const filters: SQL[] = [];
     if (opts?.orgId) {
@@ -169,7 +169,7 @@ export class CmsSearchService {
   }
 
   private async lookupCollection(
-    db: Db,
+    db: Db | Tx,
     orgId: string,
     idOrSlug: string,
   ): Promise<{ id: string } | null> {

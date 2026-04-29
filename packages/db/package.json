@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/db",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "description": "Munin database: Drizzle schema, migrations, RLS policies.",
   "publishConfig": {
@@ -25,7 +25,10 @@
       "default": "./dist/schema.js"
     }
   },
-  "files": ["dist", "drizzle"],
+  "files": [
+    "dist",
+    "drizzle"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && mkdir -p dist/sql && cp src/sql/*.sql dist/sql/",
     "dev": "tsc -p tsconfig.build.json --watch",

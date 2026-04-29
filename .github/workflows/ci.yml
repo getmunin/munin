@@ -49,6 +49,9 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Migrate (creates munin_app role + RLS policies + module SQL)
+        run: pnpm -F @getmunin/db db:migrate
+
       - name: Lint
         run: pnpm lint
 

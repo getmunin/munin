@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import postgres from 'postgres';
-import { runMigrations } from './migrate.js';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL
@@ -15,8 +14,9 @@ const skipReason = TEST_URL
   let orgB: string;
 
   beforeAll(async () => {
-    await runMigrations(TEST_URL!);
-    // Connect as the non-superuser app role so RLS policies actually apply.
+    // Assumes migrations have already been run (locally: `pnpm db:migrate`;
+    // in CI: the workflow's migrate step). The munin_app role must exist.
+    // Connect as the non-superuser app role so RLS policies actually apply —
     // Postgres superusers always bypass RLS regardless of FORCE.
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
     client = postgres(appUrl, { max: 2 });

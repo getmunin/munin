@@ -4,6 +4,7 @@ import { randomToken } from './crypto.js';
  * Munin API-key format: `mn_<kind>_<random>`
  *
  *   kind = 'admin' | 'dlg' (delegated end-user, short-lived)
+ *        | 'widget' (chat-widget channel binding; api_keys.channel_id is set)
  *
  * The `'part'` kind exists in the type union for the cloud build's
  * `@munin-cloud/partner` package, which mints partner keys; OSS does not
@@ -15,7 +16,7 @@ import { randomToken } from './crypto.js';
  * bits of entropy).
  */
 
-export type KeyKind = 'admin' | 'part' | 'dlg';
+export type KeyKind = 'admin' | 'part' | 'dlg' | 'widget';
 
 const PREFIX_LENGTH = 8;
 
@@ -29,5 +30,5 @@ export function keyPrefix(rawKey: string): string {
 }
 
 export function isWellFormedKey(rawKey: string): boolean {
-  return /^mn_(admin|part|dlg)_[A-Za-z0-9_-]+$/.test(rawKey);
+  return /^mn_(admin|part|dlg|widget)_[A-Za-z0-9_-]+$/.test(rawKey);
 }

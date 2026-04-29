@@ -25,6 +25,7 @@ import {
   uniqueIndex,
   varchar,
   vector,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { makeId } from './id.js';
 
@@ -286,6 +287,12 @@ export const apiKeys = pgTable(
     keyHash: text('key_hash').notNull().unique(),
     keyPrefix: varchar('key_prefix', { length: 16 }).notNull(),
     scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+    // Optional channel binding — set on widget keys (mn_widget_*) so the
+    // widget controller can resolve channel from the key. NULL on admin /
+    // agent / delegate / partner keys.
+    channelId: text('channel_id').references((): AnyPgColumn => convChannels.id, {
+      onDelete: 'cascade',
+    }),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     createdByUserId: text('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
@@ -294,6 +301,7 @@ export const apiKeys = pgTable(
   (t) => ({
     orgIdx: index('api_keys_org_idx').on(t.orgId),
     prefixIdx: index('api_keys_prefix_idx').on(t.keyPrefix),
+    channelIdx: index('api_keys_channel_idx').on(t.channelId),
   }),
 );
 
@@ -794,15 +802,15 @@ export const convMessageDeliveries = pgTable(
   }),
 );
 
-// One row per email channel for IMAP poll bookkeeping. `last_uid_seen`
-// is the high-water UID for the configured mailbox; the worker fetches
-// `UID > last_uid_seen` on each tick. RLS inherits from the parent
-// channel via a sub-select policy (channels carry org_id).
-export const convEmailInboundState = pgTable('conv_email_inbound_state', {
+// One row per poll-mode channel for inbound bookkeeping. `cursor` is the
+// adapter-specific high-water mark (email: { lastUid }; future SMS-poll
+// or other adapters use whatever shape they need). RLS inherits from the
+// parent channel via a sub-select policy (channels carry org_id).
+export const convInboundState = pgTable('conv_inbound_state', {
   channelId: text('channel_id')
     .primaryKey()
     .references(() => convChannels.id, { onDelete: 'cascade' }),
-  lastUidSeen: bigint('last_uid_seen', { mode: 'number' }),
+  cursor: jsonb('cursor').$type<Record<string, unknown>>().notNull().default({}),
   lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
   lastError: text('last_error'),
   createdAt,
@@ -1232,7 +1240,7 @@ export const allTables = {
   convConversations,
   convMessages,
   convMessageDeliveries,
-  convEmailInboundState,
+  convInboundState,
   crmCompanies,
   crmContacts,
   crmPipelines,

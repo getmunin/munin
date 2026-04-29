@@ -1,7 +1,7 @@
 -- ============================================================================
--- Munin email-channel extras: RLS policies for outbound delivery state and
--- IMAP inbound state. Applied during migrations after Drizzle schema and
--- the conversations module's RLS.
+-- Munin conv-channel extras: RLS policies for outbound delivery state and
+-- generic inbound poll state. Applied during migrations after Drizzle
+-- schema and the conversations module's RLS.
 --
 -- The pgcrypto extension (used for at-rest encryption of channel SMTP/IMAP
 -- credentials) is enabled by `runMigrations` alongside vector / pg_trgm /
@@ -22,18 +22,18 @@ CREATE POLICY tenant_isolation ON conv_message_deliveries
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
--- IMAP poll bookkeeping carries no org_id of its own; RLS inherits from
+-- Inbound poll bookkeeping carries no org_id of its own; RLS inherits from
 -- the parent channel via a sub-select. Mirrors the webhook_deliveries
 -- pattern in rls.sql.
-ALTER TABLE conv_email_inbound_state ENABLE ROW LEVEL SECURITY;
-ALTER TABLE conv_email_inbound_state FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON conv_email_inbound_state;
-CREATE POLICY tenant_isolation ON conv_email_inbound_state
+ALTER TABLE conv_inbound_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_inbound_state FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_inbound_state;
+CREATE POLICY tenant_isolation ON conv_inbound_state
   USING (
     app_bypass_rls()
     OR EXISTS (
       SELECT 1 FROM conv_channels c
-      WHERE c.id = conv_email_inbound_state.channel_id
+      WHERE c.id = conv_inbound_state.channel_id
         AND c.org_id = app_org_id()
         AND app_end_user_id() = ''
     )
@@ -42,7 +42,7 @@ CREATE POLICY tenant_isolation ON conv_email_inbound_state
     app_bypass_rls()
     OR EXISTS (
       SELECT 1 FROM conv_channels c
-      WHERE c.id = conv_email_inbound_state.channel_id
+      WHERE c.id = conv_inbound_state.channel_id
         AND c.org_id = app_org_id()
     )
   );

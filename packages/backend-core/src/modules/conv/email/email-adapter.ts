@@ -1,40 +1,44 @@
-import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-// `Db` is the constructor-injected type (DB token); workers receive the
-// pool, transactions get the narrower `Tx` type from drizzle automatically.
 import { and, eq, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
   withContext,
+  type Mailer,
   type RequestContext,
 } from '@getmunin/core';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, type ParsedMail, type AddressObject } from 'mailparser';
 import { randomUUID } from 'node:crypto';
+import { createTransport, type Transporter } from 'nodemailer';
 import { DB } from '../../../common/db/db.module.js';
+import { MAILER } from '../../../common/mail/mail.module.js';
 import {
   EmailService,
   jsonbToStored,
   type StoredEmailChannelConfig,
 } from './email.service.js';
-import { stripMessageIdBrackets, parseMessageIdHeader } from './mime.js';
+import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.js';
 import { resolveInbound, type ParsedInboundEmail } from './threading.js';
+import type {
+  ChannelAdapter,
+  ChannelRow,
+  InboundMode,
+  PollTickResult,
+  SendContext,
+  SendResult,
+} from '../channels/adapter.js';
 
 const POLL_INTERVAL_MS = Number(process.env.MUNIN_EMAIL_INBOUND_POLL_MS ?? 60_000);
 const MAX_MESSAGES_PER_TICK = 100;
 
 interface ImapMessageMin {
   uid: number;
-  /** Full RFC-822 source. */
   source: Buffer | string;
 }
 
-/**
- * IMAP fetcher boundary. The real implementation is `ImapFlowFetcher` (lazy
- * import so tests that mock the boundary don't pull in `imapflow`). Tests
- * provide a stub fetcher that returns whatever messages they want to push.
- */
+/** IMAP fetcher boundary. Tests inject a stub; production uses imapflow. */
 export interface ImapFetcher {
   fetchSince(opts: {
     host: string;
@@ -84,89 +88,95 @@ class ImapFlowFetcher implements ImapFetcher {
 }
 
 /**
- * Polls every active email channel's IMAP mailbox and threads new messages
- * into existing conversations (or creates new ones). Mirrors the
- * `WebhookWorker` shape: one Nest provider, OnModuleInit/Destroy lifecycle,
- * `MUNIN_EMAIL_INBOUND_WORKER_DISABLED=1` test lever, public `tick()`.
- *
- * Tests inject a stub `ImapFetcher` via `setFetcher()` to avoid running a
- * real IMAP server in the test harness.
+ * Email adapter — IMAP poll inbound, SMTP/Mailer outbound. Behavior matches
+ * the prior `EmailInboundWorker` + `EmailOutboundWorker.attemptOne` — they
+ * are now thin wrappers over this adapter via `InboundPollWorker` and
+ * `OutboundDeliveryWorker`.
  */
 @Injectable()
-export class EmailInboundWorker implements OnModuleInit, OnModuleDestroy {
-  private timer: NodeJS.Timeout | null = null;
-  private running = false;
-  private disabled =
-    process.env.MUNIN_EMAIL_INBOUND_WORKER_DISABLED === '1' ||
-    process.env.NODE_ENV === 'test';
+export class EmailAdapter implements ChannelAdapter {
+  readonly kind = 'email' as const;
+
   private fetcher: ImapFetcher = new ImapFlowFetcher();
 
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
+    @Inject(MAILER) private readonly mailer: Mailer,
     @Inject(EmailService) private readonly emailService: EmailService,
   ) {}
 
-  onModuleInit(): void {
-    if (this.disabled) return;
-    this.timer = setInterval(() => {
-      void this.tick();
-    }, POLL_INTERVAL_MS);
-  }
-
-  onModuleDestroy(): void {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
-  }
-
-  /** Test-only: swap the IMAP boundary for a stub. */
+  /** Test-only: swap the IMAP boundary. */
   setFetcher(f: ImapFetcher): void {
     this.fetcher = f;
   }
 
-  async tick(): Promise<{ channelsPolled: number; messagesIngested: number }> {
-    if (this.running) return { channelsPolled: 0, messagesIngested: 0 };
-    this.running = true;
-    try {
-      return await this.pollAll();
-    } finally {
-      this.running = false;
+  readonly inbound: InboundMode = {
+    mode: 'poll',
+    intervalMs: POLL_INTERVAL_MS,
+    tick: (channel) => this.pollOne(channel),
+  };
+
+  async send(ctx: SendContext): Promise<SendResult> {
+    const config = jsonbToStored(ctx.channel.config);
+    const recipient = ctx.contact?.email ?? extractToFromMetadata(ctx.message.metadata);
+    if (!recipient) throw new Error('no recipient on conversation contact');
+
+    const built: BuiltMessage = buildOutbound({
+      from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
+      to: recipient,
+      replyTo: this.composeReplyTo(config, ctx.conversation.id),
+      subject: ctx.conversation.subject?.trim() || `Re: ${ctx.conversation.id}`,
+      text: ctx.message.body,
+      html: ctx.message.bodyHtml ?? undefined,
+      messageIdDomain: config.addressing.fromAddress,
+      inReplyTo: ctx.delivery.inReplyToHeader ?? undefined,
+      references: ctx.delivery.inReplyToHeader ? [ctx.delivery.inReplyToHeader] : undefined,
+    });
+
+    if (config.outbound.provider === 'smtp') {
+      const password = await this.db.transaction(async (tx) => {
+        return this.emailService.decryptSmtpPassword(
+          tx,
+          config.outbound.provider === 'smtp' ? config.outbound.encryptedPassword : '',
+        );
+      });
+      const transport: Transporter = createTransport({
+        host: config.outbound.host,
+        port: config.outbound.port,
+        secure: config.outbound.secure,
+        auth: { user: config.outbound.username, pass: password },
+      });
+      await transport.sendMail({
+        envelope: { from: config.addressing.fromAddress, to: recipient },
+        raw: built.raw,
+      });
+      transport.close();
+    } else {
+      // Mailer fallback (Resend / Stub).
+      await this.mailer.send({
+        from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
+        to: recipient,
+        subject: extractSubject(built.raw) ?? 'Munin message',
+        text: extractTextBody(built.raw),
+        replyTo: config.addressing.replyToTemplate ?? undefined,
+        headers: {
+          'Message-ID': `<${built.messageId}>`,
+        },
+      });
     }
+
+    return { providerMessageId: built.messageId };
   }
 
-  private async pollAll(): Promise<{ channelsPolled: number; messagesIngested: number }> {
-    const channels = await this.db
-      .select()
-      .from(schema.convChannels)
-      .where(and(eq(schema.convChannels.type, 'email'), eq(schema.convChannels.active, true)));
+  // ─── inbound poll ───────────────────────────────────────────────────────
 
-    let polled = 0;
-    let ingested = 0;
-    for (const channel of channels) {
-      const config = jsonbToStored(channel.config);
-      if (!config.inbound) continue;
-      try {
-        const n = await this.pollOne(channel, config);
-        ingested += n;
-        polled += 1;
-      } catch (err) {
-        await this.recordChannelError(channel.id, err);
-      }
-    }
-    return { channelsPolled: polled, messagesIngested: ingested };
-  }
+  private async pollOne(channel: ChannelRow): Promise<PollTickResult> {
+    const config = jsonbToStored(channel.config);
+    if (!config.inbound) return { messagesIngested: 0 };
 
-  private async pollOne(
-    channel: typeof schema.convChannels.$inferSelect,
-    config: StoredEmailChannelConfig,
-  ): Promise<number> {
-    const stateRows = await this.db
-      .select()
-      .from(schema.convEmailInboundState)
-      .where(eq(schema.convEmailInboundState.channelId, channel.id))
-      .limit(1);
-    const state = stateRows[0] ?? null;
-    const sinceUid = state?.lastUidSeen ?? null;
+    const cursor = await this.readCursor(channel.id);
+    const sinceUid = typeof cursor.lastUid === 'number' ? cursor.lastUid : null;
 
     const password = await this.db.transaction((tx) =>
       this.emailService.decryptImapPassword(tx, config.inbound!.encryptedPassword),
@@ -184,8 +194,8 @@ export class EmailInboundWorker implements OnModuleInit, OnModuleDestroy {
     });
 
     if (messages.length === 0) {
-      await this.upsertState(channel.id, sinceUid, null);
-      return 0;
+      await this.writeCursor(channel.id, { lastUid: sinceUid ?? null }, null);
+      return { messagesIngested: 0 };
     }
 
     let highWater = sinceUid ?? 0;
@@ -201,28 +211,19 @@ export class EmailInboundWorker implements OnModuleInit, OnModuleDestroy {
       }
       if (msg.uid > highWater) highWater = msg.uid;
     }
-    await this.upsertState(channel.id, highWater, lastError);
-    return ingested;
+    await this.writeCursor(channel.id, { lastUid: highWater }, lastError);
+    return { messagesIngested: ingested, lastError };
   }
 
-  private async ingest(
-    channel: typeof schema.convChannels.$inferSelect,
-    parsed: ParsedInboundEmail,
-  ): Promise<void> {
+  private async ingest(channel: ChannelRow, parsed: ParsedInboundEmail): Promise<void> {
     if (!parsed.fromAddress) return;
     const orgId = channel.orgId;
     const replyDomain = process.env.MUNIN_EMAIL_REPLY_DOMAIN ?? null;
-
     const actor = new ActorIdentity('system', 'email-inbound-worker', orgId, ['*'], ['admin']);
 
     await this.db.transaction(async (tx) => {
-      // Bypass RLS — service-role worker has no JWT-bound org_id GUC.
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-      const ctx: RequestContext = {
-        db: tx,
-        actor,
-        correlationId: randomUUID(),
-      };
+      const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
       await withContext(ctx, async () => {
         const resolution = await resolveInbound(tx, orgId, parsed, replyDomain);
         const contact = await this.emailService.findOrCreateContactByEmail(
@@ -287,37 +288,41 @@ export class EmailInboundWorker implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private async upsertState(
+  private async readCursor(channelId: string): Promise<Record<string, unknown>> {
+    const rows = await this.db
+      .select({ cursor: schema.convInboundState.cursor })
+      .from(schema.convInboundState)
+      .where(eq(schema.convInboundState.channelId, channelId))
+      .limit(1);
+    return rows[0]?.cursor ?? {};
+  }
+
+  private async writeCursor(
     channelId: string,
-    lastUid: number | null,
+    cursor: Record<string, unknown>,
     lastError: string | null,
   ): Promise<void> {
     await this.db
-      .insert(schema.convEmailInboundState)
-      .values({
-        channelId,
-        lastUidSeen: lastUid ?? null,
-        lastPolledAt: new Date(),
-        lastError,
-      })
+      .insert(schema.convInboundState)
+      .values({ channelId, cursor, lastPolledAt: new Date(), lastError })
       .onConflictDoUpdate({
-        target: schema.convEmailInboundState.channelId,
-        set: {
-          lastUidSeen: lastUid ?? null,
-          lastPolledAt: new Date(),
-          lastError,
-          updatedAt: new Date(),
-        },
+        target: schema.convInboundState.channelId,
+        set: { cursor, lastPolledAt: new Date(), lastError, updatedAt: new Date() },
       });
   }
 
-  private async recordChannelError(channelId: string, err: unknown): Promise<void> {
-    const message = err instanceof Error ? err.message : String(err);
-    await this.upsertState(channelId, null, message);
+  private composeReplyTo(config: StoredEmailChannelConfig, conversationId: string): string | undefined {
+    if (config.addressing.replyToTemplate) {
+      return config.addressing.replyToTemplate.replace('{conversationId}', conversationId);
+    }
+    const replyDomain = process.env.MUNIN_EMAIL_REPLY_DOMAIN;
+    if (!replyDomain) return undefined;
+    const local = config.addressing.fromAddress.split('@')[0] ?? 'support';
+    return `${local}+conv-${conversationId}@${replyDomain}`;
   }
 }
 
-// ─── parsing ───────────────────────────────────────────────────────────────
+// ─── helpers ────────────────────────────────────────────────────────────────
 
 export async function parseMessage(source: Buffer | string): Promise<ParsedInboundEmail> {
   const parsed: ParsedMail = await simpleParser(source);
@@ -362,4 +367,26 @@ function collectAddresses(field: AddressObject | AddressObject[] | undefined): s
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function composeFrom(name: string | undefined, address: string): string {
+  if (!name) return address;
+  const clean = name.replace(/[",\r\n]/g, '').trim();
+  return `${clean} <${address}>`;
+}
+
+function extractToFromMetadata(metadata: Record<string, unknown>): string | null {
+  const v = (metadata as { recipient?: unknown }).recipient;
+  return typeof v === 'string' ? v : null;
+}
+
+function extractSubject(raw: string): string | null {
+  const m = raw.match(/^Subject:\s*(.+)$/m);
+  return m?.[1]?.trim() ?? null;
+}
+
+function extractTextBody(raw: string): string {
+  const split = raw.indexOf('\r\n\r\n');
+  if (split < 0) return '';
+  return raw.slice(split + 4);
 }

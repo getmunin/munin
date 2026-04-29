@@ -10,11 +10,19 @@ export class QuotaExceededError extends Error {
   }
 }
 
-export type QuotaResource = 'kb_documents' | 'kb_spaces';
+export type QuotaResource =
+  | 'kb_documents'
+  | 'kb_spaces'
+  | 'cms_collections'
+  | 'cms_entries'
+  | 'cms_assets';
 
 const FREE_TIER_QUOTAS: Record<QuotaResource, number> = {
   kb_documents: 10_000,
   kb_spaces: 100,
+  cms_collections: 50,
+  cms_entries: 10_000,
+  cms_assets: 1_000,
 };
 
 interface OrgSettings {
@@ -24,6 +32,9 @@ interface OrgSettings {
 const TABLE_FOR: Record<QuotaResource, string> = {
   kb_documents: 'kb_documents',
   kb_spaces: 'kb_spaces',
+  cms_collections: 'cms_collections',
+  cms_entries: 'cms_entries',
+  cms_assets: 'cms_assets',
 };
 
 /**

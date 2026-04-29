@@ -13,6 +13,7 @@ import { BootstrapModule } from './modules/bootstrap/bootstrap.module.js';
 import { SuggestionsModule } from './modules/suggestions/suggestions.module.js';
 import { DeskModule } from './modules/desk/desk.module.js';
 import { CrmModule } from './modules/crm/crm.module.js';
+import { CmsModule } from './modules/cms/cms.module.js';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module.js';
 import { QuotasModule } from './common/quotas/quotas.module.js';
 import { MailModule } from './common/mail/mail.module.js';
@@ -35,6 +36,7 @@ import { StorageModule } from './common/storage/storage.module.js';
     SuggestionsModule,
     DeskModule,
     CrmModule,
+    CmsModule,
   ],
   controllers: [HealthController, WhoamiController],
   providers: [AuthGuard, TenancyInterceptor, AuditInterceptor],

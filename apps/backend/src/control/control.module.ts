@@ -13,6 +13,8 @@ import { SuggestionsModule } from '../modules/suggestions/suggestions.module.js'
 import { ExportController } from './export.controller.js';
 import { WebhooksController } from './webhooks.controller.js';
 import { PublicSuggestionsController } from './public-suggestions.controller.js';
+import { CmsDeliveryController } from './cms-delivery.controller.js';
+import { CmsModule } from '../modules/cms/cms.module.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -24,7 +26,7 @@ import { PublicSuggestionsController } from './public-suggestions.controller.js'
  * that's the privilege boundary.
  */
 @Module({
-  imports: [SuggestionsModule],
+  imports: [SuggestionsModule, CmsModule],
   controllers: [
     ApiKeysController,
     EndUsersController,
@@ -38,6 +40,7 @@ import { PublicSuggestionsController } from './public-suggestions.controller.js'
     ExportController,
     WebhooksController,
     PublicSuggestionsController,
+    CmsDeliveryController,
   ],
   providers: [PartnersService],
 })

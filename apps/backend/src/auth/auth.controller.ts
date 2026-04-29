@@ -35,7 +35,7 @@ export class AuthController {
     });
   }
 
-  @All(':rest(.*)')
+  @All('*rest')
   async handle(@Req() req: ExpressRequest, @Res() res: ExpressResponse): Promise<void> {
     await handleAuthRequest(this.auth, req, res);
   }

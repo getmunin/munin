@@ -1,5 +1,22 @@
 # @getmunin/backend-core
 
+## 0.4.0
+
+### Minor Changes
+
+- 9ef40a4: Upgrade NestJS to v11 (was v10). Patches GHSA-36xv-jgw5-4q75 (SSE field
+  injection). Consumers of `@getmunin/backend-core` must upgrade their own
+  `@nestjs/*` deps to `^11.x` and `express` to `^5.x`. Wildcard route paths
+  must use the new path-to-regexp v8 syntax (e.g. `*splat` instead of `:rest(.*)`).
+
+### Patch Changes
+
+- @getmunin/core@0.4.0
+- @getmunin/db@0.4.0
+- @getmunin/types@0.4.0
+- @getmunin/mcp-toolkit@0.4.0
+- @getmunin/bootstrap@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes

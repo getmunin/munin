@@ -1,5 +1,13 @@
 # @getmunin/bootstrap
 
+## 0.4.0
+
+### Patch Changes
+
+- @getmunin/core@0.4.0
+- @getmunin/db@0.4.0
+- @getmunin/types@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes

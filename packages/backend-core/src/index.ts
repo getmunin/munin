@@ -43,7 +43,6 @@ export { McpModule } from './mcp/mcp.module.js';
 export { ControlModule } from './control/control.module.js';
 export { KbModule } from './modules/kb/kb.module.js';
 export { BootstrapModule } from './modules/bootstrap/bootstrap.module.js';
-export { SuggestionsModule } from './modules/suggestions/suggestions.module.js';
 export { ConvModule } from './modules/conv/conv.module.js';
 export { CrmModule } from './modules/crm/crm.module.js';
 export { CmsModule } from './modules/cms/cms.module.js';

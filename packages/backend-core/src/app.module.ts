@@ -9,7 +9,6 @@ import { McpModule } from './mcp/mcp.module.js';
 import { ControlModule } from './control/control.module.js';
 import { KbModule } from './modules/kb/kb.module.js';
 import { BootstrapModule } from './modules/bootstrap/bootstrap.module.js';
-import { SuggestionsModule } from './modules/suggestions/suggestions.module.js';
 import { ConvModule } from './modules/conv/conv.module.js';
 import { CrmModule } from './modules/crm/crm.module.js';
 import { CmsModule } from './modules/cms/cms.module.js';
@@ -35,7 +34,6 @@ export const BACKEND_FEATURE_MODULES_NO_AUTH = [
   ControlModule,
   KbModule,
   BootstrapModule,
-  SuggestionsModule,
   ConvModule,
   CrmModule,
   CmsModule,

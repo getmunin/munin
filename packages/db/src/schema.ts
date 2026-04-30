@@ -442,51 +442,6 @@ export const bootstrapState = pgTable(
   }),
 );
 
-// ───────────────────────────── Suggestions / votes ───────────────────
-export const suggestions = pgTable(
-  'suggestions',
-  {
-    id: id('sug'),
-    orgId: text('org_id')
-      .notNull()
-      .references(() => orgs.id, { onDelete: 'cascade' }),
-    title: text('title').notNull(),
-    body: text('body').notNull(),
-    appScope: varchar('app_scope', { length: 32 }),
-    status: varchar('status', { length: 16 }).notNull().default('open'),
-    // 'open' | 'planned' | 'in_progress' | 'done' | 'wontfix' | 'duplicate'
-    createdByType: varchar('created_by_type', { length: 16 }).notNull(),
-    // 'agent' | 'user'
-    createdById: text('created_by_id').notNull(),
-    voteCount: integer('vote_count').notNull().default(0),
-    public: boolean('public').notNull().default(false),
-    duplicateOfId: text('duplicate_of_id'),
-    createdAt,
-    updatedAt,
-  },
-  (t) => ({
-    orgIdx: index('suggestions_org_idx').on(t.orgId),
-    statusIdx: index('suggestions_status_idx').on(t.status),
-    publicIdx: index('suggestions_public_idx').on(t.public, t.voteCount),
-  }),
-);
-
-export const votes = pgTable(
-  'votes',
-  {
-    suggestionId: text('suggestion_id')
-      .notNull()
-      .references(() => suggestions.id, { onDelete: 'cascade' }),
-    voterType: varchar('voter_type', { length: 16 }).notNull(),
-    voterId: text('voter_id').notNull(),
-    comment: text('comment'),
-    createdAt,
-  },
-  (t) => ({
-    pk: primaryKey({ columns: [t.suggestionId, t.voterType, t.voterId] }),
-  }),
-);
-
 // ───────────────────────────── Rate limits ──────────────────────────
 // Token-bucket / sliding-window counters per org per token-type.
 // Postgres-only impl for v0.4; Redis later if hot.
@@ -1227,8 +1182,6 @@ export const allTables = {
   webhooks,
   webhookDeliveries,
   bootstrapState,
-  suggestions,
-  votes,
   rateLimitCounters,
   kbSpaces,
   kbDocuments,

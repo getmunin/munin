@@ -14,7 +14,6 @@ interface ExportPayload {
   kbSpaces: unknown[];
   kbDocuments: unknown[];
   kbDocumentVersions: unknown[];
-  suggestions: unknown[];
 }
 
 /**
@@ -34,7 +33,7 @@ export class ExportController {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
 
-    const [org, endUsers, agents, kbSpaces, kbDocuments, kbDocumentVersions, suggestions] =
+    const [org, endUsers, agents, kbSpaces, kbDocuments, kbDocumentVersions] =
       await Promise.all([
         ctx.db.select().from(schema.orgs).where(eq(schema.orgs.id, actor.orgId)).limit(1),
         ctx.db.select().from(schema.endUsers).where(eq(schema.endUsers.orgId, actor.orgId)),
@@ -58,7 +57,6 @@ export class ExportController {
           .select()
           .from(schema.kbDocumentVersions)
           .where(eq(schema.kbDocumentVersions.orgId, actor.orgId)),
-        ctx.db.select().from(schema.suggestions).where(eq(schema.suggestions.orgId, actor.orgId)),
       ]);
 
     return {
@@ -69,7 +67,6 @@ export class ExportController {
       kbSpaces,
       kbDocuments,
       kbDocumentVersions,
-      suggestions,
     };
   }
 }

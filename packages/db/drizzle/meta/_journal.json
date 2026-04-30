@@ -15,6 +15,13 @@
       "when": 1777497821869,
       "tag": "0001_channel_adapter_seam",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777534883413,
+      "tag": "0002_drop_suggestions",
+      "breakpoints": true
     }
   ]
 }

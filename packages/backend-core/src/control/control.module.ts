@@ -6,11 +6,8 @@ import { TokensController } from './tokens.controller.js';
 import { OrgsController } from './orgs.controller.js';
 import { AuditLogController } from './audit-log.controller.js';
 import { UsageController } from './usage.controller.js';
-import { SuggestionsAdminController } from './suggestions.controller.js';
-import { SuggestionsModule } from '../modules/suggestions/suggestions.module.js';
 import { ExportController } from './export.controller.js';
 import { WebhooksController } from './webhooks.controller.js';
-import { PublicSuggestionsController } from './public-suggestions.controller.js';
 import { CmsDeliveryController } from './cms-delivery.controller.js';
 import { CmsModule } from '../modules/cms/cms.module.js';
 import { InvitationsController } from './invitations.controller.js';
@@ -28,7 +25,7 @@ import { MembershipsController } from './memberships.controller.js';
  * permitted on these endpoints — that's the privilege boundary.
  */
 @Module({
-  imports: [SuggestionsModule, CmsModule],
+  imports: [CmsModule],
   controllers: [
     ApiKeysController,
     EndUsersController,
@@ -37,10 +34,8 @@ import { MembershipsController } from './memberships.controller.js';
     OrgsController,
     AuditLogController,
     UsageController,
-    SuggestionsAdminController,
     ExportController,
     WebhooksController,
-    PublicSuggestionsController,
     CmsDeliveryController,
     InvitationsController,
     AcceptInvitationController,

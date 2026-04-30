@@ -38,11 +38,14 @@ interface CreateResult extends ChannelDto {
 export class WidgetAdminTools {
   @McpTool({
     name: 'conv_widget_create_channel',
+    title: 'Create chat-widget channel',
     description:
       'Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /api/conv/widget/messages from the external agent.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   async createChannel(args: z.infer<typeof CreateInput>): Promise<CreateResult> {
     const ctx = getCurrentContext();
@@ -89,11 +92,14 @@ export class WidgetAdminTools {
 
   @McpTool({
     name: 'conv_widget_update_channel',
+    title: 'Update chat-widget channel',
     description:
       'Update a chat-widget channel\'s displayName / originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: UpdateInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   async updateChannel(args: z.infer<typeof UpdateInput>): Promise<ChannelDto> {
     const ctx = getCurrentContext();
@@ -140,11 +146,14 @@ export class WidgetAdminTools {
 
   @McpTool({
     name: 'conv_widget_rotate_key',
+    title: 'Rotate widget API key',
     description:
       'Revoke any active widget keys bound to this channel and mint a fresh `mn_widget_*` key. Returns the new plaintext key once. Existing inflight requests using the old key keep working until revocation lands.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: RotateInput,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   async rotateKey(args: z.infer<typeof RotateInput>): Promise<{ widgetKey: string }> {
     const ctx = getCurrentContext();

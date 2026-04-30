@@ -19,11 +19,14 @@ export class BootstrapTools {
 
   @McpTool({
     name: 'bootstrap_status',
+    title: 'Read bootstrap progress',
     description:
       'Read the conversational config progress for one Munin app (kb / conv / crm / ...). Returns the next step to ask the user about, or `completed: true` when all steps are done.',
     audiences: ['admin'],
     scopes: [],
     input: StatusInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   async status(args: z.infer<typeof StatusInput>) {
     const runner = this.registry.get(args.app);
@@ -37,11 +40,14 @@ export class BootstrapTools {
 
   @McpTool({
     name: 'bootstrap_answer',
+    title: 'Submit bootstrap answer',
     description:
       'Submit the user\'s answer to a bootstrap step. The runner validates `value`, applies side effects (e.g. creates a space), and returns the updated status.',
     audiences: ['admin'],
     scopes: [],
     input: AnswerInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   async answer(args: z.infer<typeof AnswerInput>) {
     const runner = this.registry.get(args.app);

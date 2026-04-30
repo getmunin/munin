@@ -61,7 +61,7 @@ export class WidgetAdminTools {
         orgId: actor.orgId,
         type: 'chat',
         name: args.name,
-        config: config as unknown as Record<string, unknown>,
+        config: config,
       })
       .returning();
 
@@ -125,7 +125,7 @@ export class WidgetAdminTools {
 
     const [updated] = await ctx.db
       .update(schema.convChannels)
-      .set({ config: next as unknown as Record<string, unknown>, updatedAt: new Date() })
+      .set({ config: next, updatedAt: new Date() })
       .where(eq(schema.convChannels.id, args.channelId))
       .returning();
 

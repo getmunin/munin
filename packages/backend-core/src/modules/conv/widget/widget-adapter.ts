@@ -18,7 +18,7 @@ export class WidgetAdapter implements ChannelAdapter {
 
   readonly inbound: InboundMode = { mode: 'push' };
 
-  async send(_ctx: SendContext): Promise<SendResult> {
-    return { providerMessageId: null };
+  send(_ctx: SendContext): Promise<SendResult> {
+    return Promise.resolve({ providerMessageId: null });
   }
 }

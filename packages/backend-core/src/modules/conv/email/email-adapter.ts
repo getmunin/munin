@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -183,12 +183,12 @@ export class EmailAdapter implements ChannelAdapter {
     );
 
     const messages = await this.fetcher.fetchSince({
-      host: config.inbound!.host,
-      port: config.inbound!.port,
-      secure: config.inbound!.secure,
-      username: config.inbound!.username,
+      host: config.inbound.host,
+      port: config.inbound.port,
+      secure: config.inbound.secure,
+      username: config.inbound.username,
       password,
-      mailbox: config.inbound!.mailbox ?? 'INBOX',
+      mailbox: config.inbound.mailbox ?? 'INBOX',
       sinceUid,
       limit: MAX_MESSAGES_PER_TICK,
     });

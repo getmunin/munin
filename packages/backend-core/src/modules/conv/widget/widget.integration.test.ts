@@ -179,8 +179,8 @@ const skipReason = TEST_URL
     expect(messages).toHaveLength(2);
     expect(messages.map((m) => m.authorType).sort()).toEqual(['agent', 'end_user']);
     const first = messages.find((m) => m.authorType === 'end_user')!;
-    expect((first.metadata as Record<string, unknown>).sessionId).toBe(sessionId);
-    expect((first.metadata as Record<string, unknown>).providerMessageId).toBe('evt_1');
+    expect((first.metadata).sessionId).toBe(sessionId);
+    expect((first.metadata).providerMessageId).toBe('evt_1');
   });
 
   it('is idempotent on providerMessageId', async () => {

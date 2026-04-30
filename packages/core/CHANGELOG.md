@@ -1,5 +1,13 @@
 # @getmunin/core
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [1aaaa24]
+  - @getmunin/db@0.6.0
+  - @getmunin/types@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

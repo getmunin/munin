@@ -1,0 +1,309 @@
+{
+  "metadata": {
+    "title": "Munin — agent-native forretningsapper",
+    "description": "Open source headless forretningsapp-suite (kunnskapsbase, samtaler, CRM, CMS) der AI-agenten er brukergrensesnittet."
+  },
+  "common": {
+    "loading": "Laster…",
+    "or": "eller",
+    "signOut": "Logg ut",
+    "revoke": "Tilbakekall",
+    "save": "Lagre",
+    "cancel": "Avbryt",
+    "create": "Opprett",
+    "delete": "Slett",
+    "edit": "Rediger",
+    "close": "Lukk",
+    "back": "Tilbake",
+    "unknownError": "Ukjent feil.",
+    "networkError": "Nettverksfeil — er API-et tilgjengelig?"
+  },
+  "locale": {
+    "label": "Språk",
+    "en": "English",
+    "nb": "Norsk"
+  },
+  "home": {
+    "title": "Munin",
+    "tagline": "Agent-native forretningsapper. AI-agenten er brukergrensesnittet.",
+    "subtitle": "Kunnskapsbase · Samtaler · CRM · CMS — open source, MCP-først.",
+    "getStarted": "Kom i gang",
+    "signIn": "Logg inn"
+  },
+  "auth": {
+    "signIn": {
+      "title": "Logg inn",
+      "subtitle": "Velkommen tilbake til Munin.",
+      "googleButton": "Logg inn med Google",
+      "submit": "Logg inn",
+      "submitting": "Logger inn…",
+      "noAccount": "Ny her?",
+      "createAccount": "Opprett konto",
+      "failed": "Innlogging mislyktes"
+    },
+    "signUp": {
+      "title": "Opprett konto",
+      "subtitle": "Munin — agent-native forretningsapper.",
+      "invitationSubtitle": "Du aksepterer en invitasjon for {email}.",
+      "googleButton": "Registrer deg med Google",
+      "submit": "Opprett konto",
+      "submitting": "Oppretter konto…",
+      "haveAccount": "Har du allerede konto?",
+      "signInLink": "Logg inn",
+      "failed": "Registrering mislyktes",
+      "invitationInvalid": "Denne invitasjonen er ikke lenger gyldig (tilbakekalt eller utløpt).",
+      "invitationLookupFailed": "Kunne ikke slå opp invitasjonen."
+    },
+    "fields": {
+      "name": "Navn",
+      "email": "E-post",
+      "password": "Passord"
+    }
+  },
+  "nav": {
+    "overview": "Oversikt",
+    "team": "Team",
+    "agents": "Tilkoblede agenter",
+    "apiKeys": "API-nøkler",
+    "endUsers": "Sluttbrukere",
+    "usage": "Bruk",
+    "auditLog": "Hendelseslogg",
+    "dataExport": "Dataeksport",
+    "runbooks": "Veiledninger",
+    "suggestions": "Forslag",
+    "partnerAccess": "Partnertilgang"
+  },
+  "dashboard": {
+    "overview": {
+      "title": "Velkommen til Munin",
+      "subtitle": "Koble til AI-agenten din eller bygg en serverside-integrasjon.",
+      "connectCard": {
+        "title": "Koble til AI-agenten din",
+        "description": "Legg denne URL-en inn i Claude Desktop, Cursor eller en annen MCP-klient.",
+        "consentNote": "Du ser et samtykkebilde her når en agent kobler seg til."
+      },
+      "buildCard": {
+        "title": "Bygg en serverside-integrasjon",
+        "description": "Tale-AI, web-chatbot eller mobilapp? Generer korte sluttbruker-tokens fra serveren.",
+        "cta": "Administrer API-nøkler"
+      }
+    },
+    "agents": {
+      "title": "Tilkoblede agenter",
+      "subtitle": "Alle OAuth-autoriserte agenter og sluttbruker-tokens utstedt for denne organisasjonen. Tilbakekall et aktivt token for å gjøre videre MCP-kall ugyldige umiddelbart.",
+      "emptyTitle": "Ingen tilkoblede agenter ennå",
+      "emptyBody": "Legg MCP-URL-en inn i Claude Desktop, Cursor eller kjøretiden din, og fullfør samtykket — utstedte tokens vises her.",
+      "noScopes": "ingen scopes",
+      "issued": "Utstedt {when}",
+      "lastUsed": "Sist brukt {when}",
+      "expires": "Utløper {when}",
+      "revoke": "Tilbakekall",
+      "status": {
+        "active": "aktiv",
+        "revoked": "tilbakekalt",
+        "expired": "utløpt"
+      },
+      "types": {
+        "oauth_access": "OAuth-tilgangstoken",
+        "oauth_refresh": "OAuth-fornyelsestoken",
+        "delegated_end_user": "Delegert sluttbruker-token",
+        "guest": "Gjeste-token"
+      },
+      "errors": {
+        "load": "Kunne ikke laste tilkoblede agenter.",
+        "revoke": "Kunne ikke tilbakekalle token."
+      }
+    },
+    "apiKeys": {
+      "title": "API-nøkler",
+      "subtitle": "Langlivede administratornøkler for integrasjoner fra server til server og programmatiske administratoragenter. Selvhostere og CI bruker disse også. Behandle dem som passord.",
+      "createTitle": "Opprett en ny nøkkel",
+      "createDescription": "Klartekstverdien vises ÉN GANG, umiddelbart etter opprettelse. Kopier den nå og oppbevar den i passordhåndtereren din.",
+      "nameLabel": "Navn",
+      "namePlaceholder": "f.eks. produksjon-backend",
+      "create": "Opprett nøkkel",
+      "creating": "Oppretter…",
+      "revoke": "Tilbakekall",
+      "rowMeta": "<code>{prefix}…</code> · opprettet {created}",
+      "rowMetaWithLast": "<code>{prefix}…</code> · opprettet {created} · sist brukt {lastUsed}",
+      "emptyTitle": "Ingen API-nøkler ennå",
+      "emptyBody": "Opprett din første nøkkel over for å komme i gang.",
+      "createdTitle": "Nøkkel opprettet — kopier den nå",
+      "createdDescription": "Munin lagrer bare hashen. Vi kan ikke vise deg denne nøkkelen igjen.",
+      "copy": "Kopier",
+      "copied": "Kopiert",
+      "savedIt": "Jeg har lagret den",
+      "errors": {
+        "load": "Kunne ikke laste API-nøkler.",
+        "create": "Kunne ikke opprette API-nøkkel.",
+        "revoke": "Kunne ikke tilbakekalle API-nøkkel."
+      }
+    },
+    "team": {
+      "title": "Team",
+      "subtitle": "Medlemmer og ventende invitasjoner for denne organisasjonen. Eiere kan invitere andre, endre roller og fjerne medlemmer; medlemmer kan bruke appene, men kan ikke administrere tilgang.",
+      "inviteTitle": "Inviter et teammedlem",
+      "inviteDescription": "De får en e-post med en lenke for å akseptere. Lenken utløper om 7 dager.",
+      "emailLabel": "E-post",
+      "emailPlaceholder": "kollega@eksempel.no",
+      "roleLabel": "Rolle",
+      "roleMember": "Medlem",
+      "roleOwner": "Eier",
+      "roleMemberLower": "medlem",
+      "roleOwnerLower": "eier",
+      "sendInvite": "Send invitasjon",
+      "sending": "Sender…",
+      "manualShareTitle": "E-post er ikke konfigurert — del denne lenken manuelt",
+      "manualShareBody": "Ingen e-postleverandør er satt opp på denne Munin-installasjonen, så vi sendte ikke e-post. Send lenken under til <recipient>{email}</recipient> selv, eller sett <code>MUNIN_MAIL_PROVIDER</code> (f.eks. <code>resend</code>) og start på nytt slik at fremtidige invitasjoner sendes automatisk.",
+      "manualShareValid": "Gyldig i 7 dager.",
+      "copyLink": "Kopier lenke",
+      "copied": "Kopiert",
+      "done": "Ferdig",
+      "close": "Lukk",
+      "membersTitle": "Medlemmer",
+      "membersTitleCount": "Medlemmer ({count})",
+      "membersTableName": "Navn",
+      "membersTableEmail": "E-post",
+      "membersTableRole": "Rolle",
+      "membersTableJoined": "Ble med",
+      "remove": "Fjern",
+      "removeConfirm": "Vil du fjerne dette medlemmet? De mister tilgang til organisasjonen umiddelbart.",
+      "invitesTitle": "Ventende invitasjoner",
+      "invitesTitleCount": "Ventende invitasjoner ({count})",
+      "invitesEmptyTitle": "Ingen ventende invitasjoner",
+      "invitesEmptyBody": "Bruk skjemaet over for å invitere noen — de vises her til de aksepterer.",
+      "inviteRow": "{role} · invitert {created} · utløper {expires}",
+      "revoke": "Tilbakekall",
+      "errors": {
+        "load": "Kunne ikke laste team.",
+        "invite": "Kunne ikke sende invitasjon.",
+        "revokeInvite": "Kunne ikke tilbakekalle invitasjon.",
+        "remove": "Kunne ikke fjerne medlem.",
+        "changeRole": "Kunne ikke endre rolle."
+      }
+    },
+    "endUsers": {
+      "title": "Sluttbrukere",
+      "subtitle": "Personer som de kundevendte agentene dine handler på vegne av. Opprettet på serversiden via SDK-en eller <code>/api/end-users/lookup</code>; aldri stol på agent-input.",
+      "emptyTitle": "Ingen sluttbrukere ennå",
+      "emptyBody": "Generer ditt første delegerte sluttbrukertoken via <code>POST /api/delegated-token</code> med en administratornøkkel fra backend-en din, og den tilsvarende EndUser vises her.",
+      "tableName": "Navn",
+      "tableExternalId": "Ekstern id",
+      "tableContact": "Kontakt",
+      "tableCreated": "Opprettet",
+      "revokeActive": "Tilbakekall aktive tokens",
+      "revoking": "Tilbakekaller…",
+      "noTokensRevoked": "Ingen aktive tokens å tilbakekalle for denne sluttbrukeren.",
+      "errors": {
+        "load": "Kunne ikke laste sluttbrukere.",
+        "revoke": "Kunne ikke tilbakekalle tokens."
+      }
+    },
+    "usage": {
+      "title": "Bruk",
+      "subtitle": "MCP-verktøykall som telles mot grensene i abonnementet ditt. Tellerne nullstilles ved starten av hvert vindu.",
+      "perMinute": "Per minutt",
+      "perDay": "Per dag",
+      "summary": "{used} av {limit} verktøykall — nullstilles {resetIn}.",
+      "percentUsed": "{pct}% brukt",
+      "resetNow": "nå",
+      "resetMinutes": "om {minutes}m",
+      "resetHours": "om {hours}t",
+      "errors": {
+        "load": "Kunne ikke laste bruksdata."
+      }
+    },
+    "auditLog": {
+      "title": "Hendelseslogg",
+      "subtitle": "Alle verktøykall og endringer i kontrollplanet, nyeste først. Filtrer etter verktøy, aktørtype eller korrelasjons-id for å isolere én forespørselskjede.",
+      "filterTitle": "Filter",
+      "filterDescription": "La feltene stå tomme for å matche alle verdier.",
+      "filterTool": "Verktøy",
+      "filterActorType": "Aktørtype",
+      "filterCorrelationId": "Korrelasjons-id",
+      "apply": "Bruk",
+      "loadMore": "Last flere",
+      "emptyTitle": "Ingen hendelser ennå",
+      "emptyBody": "Verktøykall og kontrollplanskriving vises her. Koble til en agent og prøv et verktøy.",
+      "tableTime": "Tid",
+      "tableActor": "Aktør",
+      "tableToolMethod": "Verktøy / metode",
+      "tableResult": "Resultat",
+      "tableCorrelation": "Korrelasjon",
+      "errors": {
+        "load": "Kunne ikke laste hendelseslogg."
+      }
+    },
+    "export": {
+      "title": "Dataeksport",
+      "subtitle": "Last ned en komplett JSON-dump av domenedataene til organisasjonen — kunnskapsbase, sluttbrukere og konfigurasjon. Bruk dette til å migrere til en selvhostet Munin eller for å beholde en frakoblet kopi.",
+      "cardTitle": "Eksporter nå",
+      "cardDescription": "Inkluderer: organisasjon, sluttbrukere, agenter og KB-områder / dokumenter / versjoner. Ekskluderer: tokens, API-nøkler og hendelsesloggen (dette er driftsdata som ikke kan gjenopprettes fra en eksport).",
+      "download": "Last ned eksport",
+      "preparing": "Forbereder…",
+      "errors": {
+        "export": "Kunne ikke generere eksport."
+      }
+    },
+    "orgSwitcher": {
+      "loading": "Laster organisasjoner…",
+      "yourOrgs": "Dine organisasjoner",
+      "switching": " · bytter…",
+      "errors": {
+        "load": "Kunne ikke laste organisasjoner.",
+        "switch": "Kunne ikke bytte organisasjon."
+      }
+    }
+  },
+  "acceptInvite": {
+    "pendingTitle": "Aksepterer invitasjonen…",
+    "pendingBody": "Et øyeblikk.",
+    "acceptedTitle": "Invitasjon akseptert",
+    "acceptedBody": "Du er nå medlem av organisasjonen.",
+    "goToDashboard": "Gå til dashbord",
+    "errorTitle": "Kunne ikke akseptere invitasjonen",
+    "signOutAndRetry": "Logg ut og prøv igjen",
+    "backToDashboard": "Tilbake til dashbord",
+    "missingToken": "Mangler invitasjonstoken.",
+    "errors": {
+      "lookup": "Kunne ikke slå opp invitasjonen.",
+      "accept": "Kunne ikke akseptere invitasjonen.",
+      "expired": "Denne invitasjonen er ikke lenger gyldig (tilbakekalt eller utløpt)."
+    }
+  },
+  "errors": {
+    "SIGNUP_NOT_ALLOWED": "Registrering er begrenset på denne Munin-installasjonen. Be en administrator om å invitere deg.",
+    "SIGNUP_DOMAIN_NOT_ALLOWED": "E-postdomenet ditt er ikke på listen, og det finnes ingen ventende invitasjon for denne adressen. Be en administrator om å invitere deg.",
+    "SIGNUP_INVITE_ONLY": "Registrering er kun ved invitasjon på denne Munin-installasjonen. Be en administrator om å sende en invitasjon.",
+    "INVITATION_NOT_FOUND": "Invitasjon ikke funnet.",
+    "INVITATION_EXPIRED": "Denne invitasjonen er utløpt.",
+    "INVITATION_REVOKED": "Denne invitasjonen er tilbakekalt.",
+    "INVITATION_EMAIL_MISMATCH": "Denne invitasjonen er for en annen e-postadresse.",
+    "UNAUTHORIZED": "Du må logge inn for å gjøre det.",
+    "INVALID_CREDENTIAL": "Ugyldig eller utløpt legitimasjon.",
+    "FORBIDDEN": "Du har ikke tilgang til å gjøre det.",
+    "NOT_FOUND": "Ikke funnet.",
+    "BAD_REQUEST": "Ugyldig forespørsel.",
+    "RATE_LIMITED": "For mange forespørsler. Vennligst senk farten og prøv igjen.",
+    "QUOTA_EXCEEDED": "Du har nådd en kvotegrense. Oppgrader eller vent til den nullstilles.",
+    "CONFLICT": "Det er i konflikt med eksisterende data.",
+    "VALIDATION_ERROR": "Dataene du sendte inn validerte ikke.",
+    "WEBHOOK_DISABLED": "Denne webhooken er deaktivert.",
+    "INVALID_SIGNED_URL": "Ugyldig eller utløpt signert URL.",
+    "KB_INVALID": "Kunnskapsbase-oppføringen er ugyldig.",
+    "KB_NOT_FOUND": "Kunnskapsbase-oppføringen finnes ikke.",
+    "KB_CONFLICT": "Kunnskapsbase-konflikt (versjonskollisjon?).",
+    "CRM_INVALID": "CRM-oppføringen er ugyldig.",
+    "CMS_INVALID": "CMS-oppføringen er ugyldig.",
+    "CMS_CONFLICT": "CMS-konflikt (versjonskollisjon?).",
+    "CONV_INVALID": "Samtaleoppføringen er ugyldig.",
+    "FEEDBACK_RATE_LIMIT": "For mange forslag opprettet siste time. Prøv igjen senere.",
+    "FEEDBACK_NOT_FOUND": "Forslaget ble ikke funnet."
+  },
+  "ui": {
+    "googleButton": {
+      "signIn": "Logg inn med Google",
+      "signUp": "Registrer deg med Google"
+    }
+  }
+}

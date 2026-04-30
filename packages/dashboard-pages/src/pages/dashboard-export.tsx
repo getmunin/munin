@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { Download } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ApiError } from '../api';
+import { useTranslateError } from '../i18n/translate-error';
 import { Button } from '@getmunin/ui';
 import {
   Card,
@@ -15,6 +17,8 @@ import {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export function ExportPage() {
+  const t = useTranslations('dashboard.export');
+  const translate = useTranslateError();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +41,7 @@ export function ExportPage() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not generate export.');
+      setError(translate(err) || t('errors.export'));
     } finally {
       setLoading(false);
     }
@@ -46,12 +50,8 @@ export function ExportPage() {
   return (
     <>
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Data export</h1>
-        <p className="text-sm text-muted-foreground">
-          Download a complete JSON dump of your org&apos;s domain data — knowledge base, end-users,
-          and configuration. Use this to migrate to a self-hosted Munin or to keep an
-          offline copy.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
       {error && (
@@ -62,17 +62,13 @@ export function ExportPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Export now</CardTitle>
-          <CardDescription>
-            Includes: organization, end-users, agents, and KB spaces / documents / versions.
-            Excludes: tokens, API keys, and the audit log (those are operational data
-            you can&apos;t restore from an export).
-          </CardDescription>
+          <CardTitle>{t('cardTitle')}</CardTitle>
+          <CardDescription>{t('cardDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <Button onClick={() => void download()} disabled={loading}>
             <Download className="size-4" />
-            {loading ? 'Preparing…' : 'Download export'}
+            {loading ? t('preparing') : t('download')}
           </Button>
         </CardContent>
       </Card>

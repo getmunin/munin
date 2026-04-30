@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { authClient } from '@getmunin/dashboard-pages';
 import { GoogleButton } from '@getmunin/ui';
 import { Button } from '@getmunin/ui';
@@ -10,6 +11,7 @@ import { Input } from '@getmunin/ui';
 import { Label } from '@getmunin/ui';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getmunin/ui';
 import { Separator } from '@getmunin/ui';
+import { useTranslateError } from '@/lib/translate-error';
 
 function safeRedirect(raw: string | null): string {
   if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
@@ -17,6 +19,11 @@ function safeRedirect(raw: string | null): string {
 }
 
 function LoginForm() {
+  const t = useTranslations('auth.signIn');
+  const tFields = useTranslations('auth.fields');
+  const tCommon = useTranslations('common');
+  const tUi = useTranslations('ui.googleButton');
+  const translateError = useTranslateError();
   const router = useRouter();
   const params = useSearchParams();
   const redirectRaw = params.get('redirect');
@@ -37,13 +44,13 @@ function LoginForm() {
     try {
       const result = await authClient.signIn.email({ email, password });
       if (result.error) {
-        setError(result.error.message ?? 'Sign-in failed');
+        setError(translateError(result.error, 'unknownError') || t('failed'));
         return;
       }
       await refetch();
       router.push(redirectTo);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error — is the API reachable?');
+      setError(translateError(err) || tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
@@ -52,17 +59,18 @@ function LoginForm() {
   return (
     <Card className="border-0 shadow-none sm:border sm:shadow-sm">
       <CardHeader>
-        <CardTitle className="text-2xl">Sign in</CardTitle>
-        <CardDescription>Welcome back to Munin.</CardDescription>
+        <CardTitle className="text-2xl">{t('title')}</CardTitle>
+        <CardDescription>{t('subtitle')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <GoogleButton
+          label={tUi('signIn')}
           onSignIn={() => {
             void authClient.signIn.social({ provider: 'google', callbackURL: redirectTo });
           }}
         />
 
-        <DividerWithLabel label="or" />
+        <DividerWithLabel label={tCommon('or')} />
 
         <form
           onSubmit={(event) => {
@@ -71,7 +79,7 @@ function LoginForm() {
           className="space-y-4"
         >
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{tFields('email')}</Label>
             <Input
               id="email"
               type="email"
@@ -82,7 +90,7 @@ function LoginForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{tFields('password')}</Label>
             <Input
               id="password"
               type="password"
@@ -94,14 +102,14 @@ function LoginForm() {
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? 'Signing in…' : 'Sign in'}
+            {submitting ? t('submitting') : t('submit')}
           </Button>
         </form>
 
         <p className="pt-2 text-sm text-muted-foreground">
-          New here?{' '}
+          {t('noAccount')}{' '}
           <Link href={signupHref} className="font-medium text-foreground underline">
-            Create an account
+            {t('createAccount')}
           </Link>
         </p>
       </CardContent>

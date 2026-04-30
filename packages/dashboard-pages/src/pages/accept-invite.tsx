@@ -4,8 +4,10 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle2, MailQuestion } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { authClient } from '../auth-client';
-import { api, ApiError } from '../api';
+import { api } from '../api';
+import { useTranslateError } from '../i18n/translate-error';
 import { Button } from '@getmunin/ui';
 import {
   Card,
@@ -16,6 +18,9 @@ import {
 } from '@getmunin/ui';
 
 function AcceptInviteInner() {
+  const t = useTranslations('acceptInvite');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token');
@@ -27,7 +32,7 @@ function AcceptInviteInner() {
     if (sessionLoading) return;
     if (!token) {
       setStatus('error');
-      setMessage('Missing invitation token.');
+      setMessage(t('missingToken'));
       return;
     }
     if (!session) {
@@ -46,10 +51,10 @@ function AcceptInviteInner() {
         setStatus('accepted');
       } catch (err) {
         setStatus('error');
-        setMessage(err instanceof ApiError ? err.message : 'Could not accept invitation.');
+        setMessage(translate(err) || t('errors.accept'));
       }
     })();
-  }, [sessionLoading, session, token, router, status]);
+  }, [sessionLoading, session, token, router, status, t, translate]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
@@ -58,13 +63,13 @@ function AcceptInviteInner() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="size-5 text-emerald-700" />
-              <CardTitle>Invitation accepted</CardTitle>
+              <CardTitle>{t('acceptedTitle')}</CardTitle>
             </div>
-            <CardDescription>You&apos;re now a member of the org.</CardDescription>
+            <CardDescription>{t('acceptedBody')}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button render={<Link href="/dashboard" />} className="w-full">
-              Go to dashboard
+              {t('goToDashboard')}
             </Button>
           </CardContent>
         </Card>
@@ -73,10 +78,10 @@ function AcceptInviteInner() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <MailQuestion className="size-5 text-destructive" />
-              <CardTitle>Couldn&apos;t accept the invitation</CardTitle>
+              <CardTitle>{t('errorTitle')}</CardTitle>
             </div>
             <CardDescription className="whitespace-pre-wrap">
-              {message ?? 'Unknown error.'}
+              {message ?? tCommon('unknownError')}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
@@ -95,19 +100,19 @@ function AcceptInviteInner() {
                   })();
                 }}
               >
-                Sign out and try again
+                {t('signOutAndRetry')}
               </Button>
             )}
             <Button variant="outline" render={<Link href="/dashboard" />} className="w-full">
-              Back to dashboard
+              {t('backToDashboard')}
             </Button>
           </CardContent>
         </Card>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Accepting your invitation…</CardTitle>
-            <CardDescription>One moment.</CardDescription>
+            <CardTitle>{t('pendingTitle')}</CardTitle>
+            <CardDescription>{t('pendingBody')}</CardDescription>
           </CardHeader>
         </Card>
       )}

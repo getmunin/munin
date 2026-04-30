@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { Activity } from 'lucide-react';
-import { api, ApiError } from '../api';
+import { useTranslations } from 'next-intl';
+import { api } from '../api';
+import { useTranslateError } from '../i18n/translate-error';
 import {
   Card,
   CardContent,
@@ -18,6 +20,8 @@ interface UsageDto {
 }
 
 export function UsagePage() {
+  const t = useTranslations('dashboard.usage');
+  const translate = useTranslateError();
   const [usage, setUsage] = useState<UsageDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +35,7 @@ export function UsagePage() {
           setError(null);
         }
       } catch (err) {
-        if (active) setError(err instanceof ApiError ? err.message : 'Could not load usage.');
+        if (active) setError(translate(err) || t('errors.load'));
       }
     }
     void load();
@@ -40,16 +44,13 @@ export function UsagePage() {
       active = false;
       clearInterval(id);
     };
-  }, []);
+  }, [t, translate]);
 
   return (
     <>
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Usage</h1>
-        <p className="text-sm text-muted-foreground">
-          MCP tool calls counted against your tier limits. Counters reset at the start of each
-          window.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
       {error && (
@@ -60,8 +61,8 @@ export function UsagePage() {
 
       {usage && (
         <div className="grid gap-4 md:grid-cols-2">
-          <UsageCard label="Per minute" data={usage.minute} />
-          <UsageCard label="Per day" data={usage.day} />
+          <UsageCard label={t('perMinute')} data={usage.minute} />
+          <UsageCard label={t('perDay')} data={usage.day} />
         </div>
       )}
     </>
@@ -75,6 +76,7 @@ function UsageCard({
   label: string;
   data: { used: number; limit: number; resetAt: string };
 }) {
+  const t = useTranslations('dashboard.usage');
   const pct = data.limit === 0 ? 0 : Math.min(100, Math.round((data.used / data.limit) * 100));
   const tone = pct >= 90 ? 'bg-destructive' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500';
   return (
@@ -85,24 +87,28 @@ function UsageCard({
           <CardTitle className="text-base">{label}</CardTitle>
         </div>
         <CardDescription>
-          {data.used} of {data.limit} tool calls — resets {formatResetIn(data.resetAt)}.
+          {t('summary', {
+            used: data.used,
+            limit: data.limit,
+            resetIn: formatResetIn(data.resetAt, t),
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-2 overflow-hidden rounded-full bg-muted">
           <div className={cn('h-full transition-all', tone)} style={{ width: `${pct}%` }} />
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">{pct}% used</p>
+        <p className="mt-2 text-xs text-muted-foreground">{t('percentUsed', { pct })}</p>
       </CardContent>
     </Card>
   );
 }
 
-function formatResetIn(iso: string): string {
+function formatResetIn(iso: string, t: ReturnType<typeof useTranslations<'dashboard.usage'>>): string {
   const ms = new Date(iso).getTime() - Date.now();
-  if (ms < 0) return 'now';
+  if (ms < 0) return t('resetNow');
   const minutes = Math.round(ms / 60_000);
-  if (minutes < 60) return `in ${minutes}m`;
+  if (minutes < 60) return t('resetMinutes', { minutes });
   const hours = Math.round(minutes / 60);
-  return `in ${hours}h`;
+  return t('resetHours', { hours });
 }

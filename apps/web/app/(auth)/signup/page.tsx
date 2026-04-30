@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { api, ApiError, authClient } from '@getmunin/dashboard-pages';
 import { GoogleButton } from '@getmunin/ui';
 import { Button } from '@getmunin/ui';
@@ -10,6 +11,7 @@ import { Input } from '@getmunin/ui';
 import { Label } from '@getmunin/ui';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getmunin/ui';
 import { Separator } from '@getmunin/ui';
+import { useTranslateError } from '@/lib/translate-error';
 
 function safeRedirect(raw: string | null): string {
   if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
@@ -28,6 +30,11 @@ function extractInviteToken(redirectRaw: string | null): string | null {
 }
 
 function SignupForm() {
+  const t = useTranslations('auth.signUp');
+  const tFields = useTranslations('auth.fields');
+  const tCommon = useTranslations('common');
+  const tUi = useTranslations('ui.googleButton');
+  const translateError = useTranslateError();
   const router = useRouter();
   const params = useSearchParams();
   const redirectRaw = params.get('redirect');
@@ -53,13 +60,11 @@ function SignupForm() {
         setEmail(result.email);
       } catch (err) {
         setInviteError(
-          err instanceof ApiError
-            ? 'This invitation is no longer valid (revoked or expired).'
-            : 'Could not look up the invitation.',
+          err instanceof ApiError ? t('invitationInvalid') : t('invitationLookupFailed'),
         );
       }
     })();
-  }, [inviteToken]);
+  }, [inviteToken, t]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -68,13 +73,13 @@ function SignupForm() {
     try {
       const result = await authClient.signUp.email({ email, password, name });
       if (result.error) {
-        setError(result.error.message ?? 'Signup failed');
+        setError(translateError(result.error) || t('failed'));
         return;
       }
       await refetch();
       router.push(redirectTo);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error — is the API reachable?');
+      setError(translateError(err) || tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
@@ -83,25 +88,21 @@ function SignupForm() {
   return (
     <Card className="border-0 shadow-none sm:border sm:shadow-sm">
       <CardHeader>
-        <CardTitle className="text-2xl">Create your account</CardTitle>
+        <CardTitle className="text-2xl">{t('title')}</CardTitle>
         <CardDescription>
-          {inviteEmail
-            ? `You're accepting an invitation for ${inviteEmail}.`
-            : 'Munin — agent-native business apps.'}
+          {inviteEmail ? t('invitationSubtitle', { email: inviteEmail }) : t('subtitle')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {inviteError && (
-          <p className="text-sm text-destructive">{inviteError}</p>
-        )}
+        {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
         <GoogleButton
-          label="Sign up with Google"
+          label={tUi('signUp')}
           onSignIn={() => {
             void authClient.signIn.social({ provider: 'google', callbackURL: redirectTo });
           }}
         />
 
-        <DividerWithLabel label="or" />
+        <DividerWithLabel label={tCommon('or')} />
 
         <form
           onSubmit={(event) => {
@@ -110,7 +111,7 @@ function SignupForm() {
           className="space-y-4"
         >
           <div className="space-y-2">
-            <Label htmlFor="name">Your name</Label>
+            <Label htmlFor="name">{tFields('name')}</Label>
             <Input
               id="name"
               type="text"
@@ -121,7 +122,7 @@ function SignupForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{tFields('email')}</Label>
             <Input
               id="email"
               type="email"
@@ -133,7 +134,7 @@ function SignupForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{tFields('password')}</Label>
             <Input
               id="password"
               type="password"
@@ -145,17 +146,17 @@ function SignupForm() {
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? 'Creating account…' : 'Create account'}
+            {submitting ? t('submitting') : t('submit')}
           </Button>
         </form>
 
         <p className="pt-2 text-sm text-muted-foreground">
-          Already have an account?{' '}
+          {t('haveAccount')}{' '}
           <Link
             href={redirectRaw ? `/login?redirect=${encodeURIComponent(redirectRaw)}` : '/login'}
             className="font-medium text-foreground underline"
           >
-            Sign in
+            {t('signInLink')}
           </Link>
         </p>
       </CardContent>

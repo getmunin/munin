@@ -1,10 +1,8 @@
 /**
  * Transactional email abstraction.
  *
- * Pluggable so self-hosters can pick Resend, Scaleway Transactional Email,
- * Postmark, SES, or a local SMTP. Munin's hosted deployment will run on
- * Scaleway TX Email (EU sovereignty); the OSS image defaults to Resend
- * since that's the lowest-friction option for OSS users.
+ * Pluggable so self-hosters can pick Resend, Postmark, SES, or a local
+ * SMTP. Defaults to Resend since that's the lowest-friction option.
  */
 
 export interface MailMessage {

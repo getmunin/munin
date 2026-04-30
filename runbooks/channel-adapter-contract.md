@@ -19,7 +19,7 @@ type InboundMode =
   | { mode: 'push' };                     // adapter exposes its own controller
 ```
 
-Adapters are Nest providers registered via the multi-injection token `CHANNEL_ADAPTERS`. The `ConvModule` factory composes the array; future cloud-only adapters can plug in via the same `ADDITIONAL_*` extension pattern used for partner credentials.
+Adapters are Nest providers registered via the multi-injection token `CHANNEL_ADAPTERS`. The `ConvModule` factory composes the array; downstream packages can extend it via the same `ADDITIONAL_*` extension pattern used for credential resolvers.
 
 ## Choose the right inbound mode
 

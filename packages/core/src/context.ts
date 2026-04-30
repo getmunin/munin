@@ -3,8 +3,8 @@ import type { Db, Tx } from '@getmunin/db';
 
 /**
  * Who is performing an action; stamped into every audit row. The `'partner'`
- * variant is reserved for cloud overlays (`@munin-cloud/partner`); OSS code
- * paths never produce it.
+ * variant is reserved for downstream packages that mint partner-style
+ * credentials; OSS code paths never produce it.
  */
 export type ActorType = 'user' | 'admin_agent' | 'end_user_agent' | 'partner' | 'system';
 
@@ -25,7 +25,7 @@ export class ActorIdentity {
     public readonly audiences: readonly Audience[],
     public readonly endUserId?: string,
     public readonly tokenId?: string,
-    /** Reserved for cloud overlays (`@munin-cloud/partner`); OSS leaves undefined. */
+    /** Reserved for downstream packages that recognize partner credentials. */
     public readonly partnerId?: string,
     public readonly userId?: string,
   ) {}

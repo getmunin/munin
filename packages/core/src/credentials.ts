@@ -70,8 +70,8 @@ export class CredentialResolver {
    * Format expected: `<prefix>_<random-base64url>`. The prefix narrows the
    * lookup so we don't hash every key on every request.
    *
-   * Cloud builds compose this resolver with additional resolvers (e.g.
-   * partner keys); see `@munin-cloud/partner` for the cloud overlay.
+   * Downstream builds can compose this resolver with additional
+   * resolvers (see `ADDITIONAL_CREDENTIAL_RESOLVERS` in backend-core).
    */
   async resolveApiKey(rawKey: string): Promise<ResolvedCredential | null> {
     const keyPrefix = rawKey.slice(0, 8);

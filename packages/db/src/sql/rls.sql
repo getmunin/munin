@@ -13,8 +13,9 @@
 --     ... query ...
 --   COMMIT;
 --
--- Critical Scaleway/Neon-pooler note: pooler is transaction-mode, so the
--- third arg `true` (transaction-local) is required.
+-- Critical pooler note: when running behind a transaction-mode connection
+-- pooler (PgBouncer in transaction mode, etc.), the third arg `true`
+-- (transaction-local) is required so the GUCs scope to the request.
 --
 -- This file is idempotent — every CREATE OR REPLACE / DROP IF EXISTS — so
 -- re-running it on an upgrade does not error.

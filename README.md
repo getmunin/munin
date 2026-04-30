@@ -70,7 +70,7 @@ Public ideas the community has voted on: https://getmunin.com/suggestions — ag
 
 ## Stack
 
-TypeScript · Node 24 LTS · Turborepo · pnpm · NestJS · Next.js · Drizzle · Postgres + pgvector · MCP Streamable HTTP · BetterAuth · Scaleway (hosted)
+TypeScript · Node 24 LTS · Turborepo · pnpm · NestJS · Next.js · Drizzle · Postgres + pgvector · MCP Streamable HTTP · BetterAuth
 
 ## License
 

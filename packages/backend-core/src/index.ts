@@ -1,7 +1,7 @@
 /**
- * `@getmunin/backend-core` — shared Nest building blocks for both OSS
- * (`apps/backend`) and cloud (`apps/backend-cloud`). Auth modules are
- * intentionally NOT included here; each edition wires its own.
+ * `@getmunin/backend-core` — reusable Nest building blocks for any Munin
+ * backend (OSS `apps/backend` or downstream apps). Auth modules are
+ * intentionally NOT included here; each consumer wires its own.
  */
 export {
   BACKEND_FEATURE_MODULES_NO_AUTH,

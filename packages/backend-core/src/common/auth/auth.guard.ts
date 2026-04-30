@@ -9,9 +9,9 @@ export const ALLOW_ANONYMOUS = Symbol('allowAnonymous');
 export const AllowAnonymous = () => Reflect.metadata(ALLOW_ANONYMOUS, true);
 
 /**
- * Extension point for cloud builds: try additional resolvers when the OSS
- * resolvers return null. Cloud's `PartnerCredentialResolver` plugs in
- * here to recognize `mn_part_*` keys.
+ * Extension point: try additional resolvers when the built-in resolver
+ * returns null. Downstream packages plug in here to recognize their own
+ * key kinds (e.g. partner credentials) without modifying core code.
  */
 export const ADDITIONAL_CREDENTIAL_RESOLVERS = Symbol('additionalCredentialResolvers');
 export interface AdditionalCredentialResolver {

@@ -1,5 +1,20 @@
 # @getmunin/backend-core
 
+## 0.8.0
+
+### Minor Changes
+
+- 26d3007: Add public REST endpoint `/api/public/runbooks` (list) + `/api/public/runbooks/:module/:slug` (read) so a marketing site can render runbooks server-side. Honors a `public: true|false` field in runbook frontmatter (default true). The same audience-filtered MCP `resources/list` + `resources/read` paths are unchanged. Also fixes runbook URI derivation so files inside `<module>/runbooks/*.md` produce `runbook://<module>/<slug>` (not `runbook://runbooks/<slug>`).
+
+### Patch Changes
+
+- Updated dependencies [26d3007]
+  - @getmunin/mcp-toolkit@0.8.0
+  - @getmunin/core@0.8.0
+  - @getmunin/db@0.8.0
+  - @getmunin/types@0.8.0
+  - @getmunin/bootstrap@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

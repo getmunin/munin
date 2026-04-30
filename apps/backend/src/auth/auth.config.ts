@@ -4,6 +4,7 @@ import { APIError } from 'better-auth/api';
 import { schema, type Db } from '@getmunin/db';
 import type { Mailer } from '@getmunin/core';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { resetPasswordEmail, verifyEmailEmail } from './email-templates.js';
 
 export type MuninAuth = ReturnType<typeof createMuninAuth>;
 
@@ -56,17 +57,11 @@ export function createMuninAuth({
       autoSignIn: true,
       sendResetPassword: mailer
         ? async ({ user, url }: { user: { email: string }; url: string }) => {
+            const tpl = resetPasswordEmail(url);
             await mailer.send({
               to: user.email,
-              subject: 'Reset your Munin password',
-              text: [
-                'You asked to reset your Munin password.',
-                '',
-                `Click the link below to set a new one (valid for 1 hour):`,
-                url,
-                '',
-                "If you didn't request this, you can ignore this email.",
-              ].join('\n'),
+              subject: tpl.subject,
+              text: tpl.text,
             });
           }
         : undefined,
@@ -74,17 +69,11 @@ export function createMuninAuth({
     emailVerification: mailer
       ? {
           sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
+            const tpl = verifyEmailEmail(url);
             await mailer.send({
               to: user.email,
-              subject: 'Verify your Munin email',
-              text: [
-                `Welcome to Munin.`,
-                '',
-                'Confirm your email so we know we can reach you:',
-                url,
-                '',
-                `If you didn't sign up, ignore this email.`,
-              ].join('\n'),
+              subject: tpl.subject,
+              text: tpl.text,
             });
           },
           sendOnSignUp: true,
@@ -155,13 +144,17 @@ async function assertSignupAllowed(
     .limit(1);
   if (invite[0]) return;
 
-  const reason =
-    allowedEmailDomains.length > 0
-      ? `Signup is restricted. Your email domain (${domain || 'unknown'}) isn't on the allowlist, and there's no pending invitation for ${email}. Ask an admin to invite you.`
-      : `Signup is invite-only on this Munin instance. Ask an admin to send you an invitation for ${email}.`;
+  if (allowedEmailDomains.length > 0) {
+    throw new APIError('FORBIDDEN', {
+      code: 'SIGNUP_DOMAIN_NOT_ALLOWED',
+      message: `Signup is restricted. Your email domain (${domain || 'unknown'}) isn't on the allowlist, and there's no pending invitation for ${email}. Ask an admin to invite you.`,
+      details: { email, domain },
+    });
+  }
   throw new APIError('FORBIDDEN', {
-    code: 'SIGNUP_NOT_ALLOWED',
-    message: reason,
+    code: 'SIGNUP_INVITE_ONLY',
+    message: `Signup is invite-only on this Munin instance. Ask an admin to send you an invitation for ${email}.`,
+    details: { email },
   });
 }
 

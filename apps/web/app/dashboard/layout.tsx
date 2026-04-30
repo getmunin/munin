@@ -15,6 +15,7 @@ import {
   Users,
   UsersRound,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { authClient } from '@getmunin/dashboard-pages';
 import { Button } from '@getmunin/ui';
 import {
@@ -32,23 +33,30 @@ import {
   DropdownMenuTrigger,
 } from '@getmunin/ui';
 import { cn } from '@getmunin/ui';
+import { LocaleSwitcher } from '@/components/locale-switcher';
 
-type NavItem = { href: Route; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavItem = {
+  href: Route;
+  labelKey: 'overview' | 'team' | 'agents' | 'apiKeys' | 'endUsers' | 'usage' | 'auditLog' | 'dataExport';
+  icon: React.ComponentType<{ className?: string }>;
+};
 
 const NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { href: '/dashboard/team', label: 'Team', icon: UsersRound },
-  { href: '/dashboard/agents', label: 'Connected agents', icon: Bot },
-  { href: '/dashboard/api-keys', label: 'API keys', icon: KeyRound },
-  { href: '/dashboard/end-users', label: 'End-users', icon: Users },
-  { href: '/dashboard/usage', label: 'Usage', icon: Activity },
-  { href: '/dashboard/audit-log', label: 'Audit log', icon: ScrollText },
-  { href: '/dashboard/export', label: 'Data export', icon: Download },
+  { href: '/dashboard', labelKey: 'overview', icon: LayoutDashboard },
+  { href: '/dashboard/team', labelKey: 'team', icon: UsersRound },
+  { href: '/dashboard/agents', labelKey: 'agents', icon: Bot },
+  { href: '/dashboard/api-keys', labelKey: 'apiKeys', icon: KeyRound },
+  { href: '/dashboard/end-users', labelKey: 'endUsers', icon: Users },
+  { href: '/dashboard/usage', labelKey: 'usage', icon: Activity },
+  { href: '/dashboard/audit-log', labelKey: 'auditLog', icon: ScrollText },
+  { href: '/dashboard/export', labelKey: 'dataExport', icon: Download },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const tNav = useTranslations('nav');
+  const tCommon = useTranslations('common');
   const { data: session, isPending } = authClient.useSession();
 
   useEffect(() => {
@@ -56,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [isPending, session, router]);
 
   if (isPending || !session) {
-    return <p className="p-8 text-sm text-muted-foreground">Loading…</p>;
+    return <p className="p-8 text-sm text-muted-foreground">{tCommon('loading')}</p>;
   }
 
   return (
@@ -66,17 +74,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
             Munin
           </Link>
-          <UserMenu
-            email={session.user.email}
-            name={session.user.name ?? session.user.email}
-            image={session.user.image ?? null}
-            onSignOut={() => {
-              void (async () => {
-                await authClient.signOut();
-                router.push('/login');
-              })();
-            }}
-          />
+          <div className="flex items-center gap-3">
+            <LocaleSwitcher />
+            <UserMenu
+              email={session.user.email}
+              name={session.user.name ?? session.user.email}
+              image={session.user.image ?? null}
+              signOutLabel={tCommon('signOut')}
+              onSignOut={() => {
+                void (async () => {
+                  await authClient.signOut();
+                  router.push('/login');
+                })();
+              }}
+            />
+          </div>
         </div>
       </header>
 
@@ -100,7 +112,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     )}
                   >
                     <item.icon className="size-4" />
-                    {item.label}
+                    {tNav(item.labelKey)}
                   </Link>
                 </li>
               );
@@ -117,10 +129,11 @@ interface UserMenuProps {
   email: string;
   name: string;
   image: string | null;
+  signOutLabel: string;
   onSignOut: () => void;
 }
 
-function UserMenu({ email, name, image, onSignOut }: UserMenuProps) {
+function UserMenu({ email, name, image, signOutLabel, onSignOut }: UserMenuProps) {
   const initials = name
     .split(' ')
     .map((part) => part[0]?.toUpperCase() ?? '')
@@ -147,7 +160,7 @@ function UserMenu({ email, name, image, onSignOut }: UserMenuProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onSignOut}>
           <LogOut className="size-4" />
-          Sign out
+          {signOutLabel}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

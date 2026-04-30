@@ -49,7 +49,7 @@ export function ExportPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Data export</h1>
         <p className="text-sm text-muted-foreground">
           Download a complete JSON dump of your org&apos;s domain data — knowledge base, end-users,
-          suggestions, and configuration. Use this to migrate to a self-hosted Munin or to keep an
+          and configuration. Use this to migrate to a self-hosted Munin or to keep an
           offline copy.
         </p>
       </header>
@@ -64,8 +64,8 @@ export function ExportPage() {
         <CardHeader>
           <CardTitle>Export now</CardTitle>
           <CardDescription>
-            Includes: organization, end-users, agents, KB spaces / documents / versions, and
-            suggestions. Excludes: tokens, API keys, and the audit log (those are operational data
+            Includes: organization, end-users, agents, and KB spaces / documents / versions.
+            Excludes: tokens, API keys, and the audit log (those are operational data
             you can&apos;t restore from an export).
           </CardDescription>
         </CardHeader>

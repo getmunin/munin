@@ -171,33 +171,6 @@ CREATE POLICY tenant_isolation ON bootstrap_state
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
--- ───────────────────────── suggestions / votes ─────────────────────────────
--- Suggestions are dual-mode: org-private rows visible only to that org;
--- public rows visible across orgs (read-only). Bypass always passes.
-ALTER TABLE suggestions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE suggestions FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON suggestions;
-CREATE POLICY tenant_isolation ON suggestions
-  USING (
-    app_bypass_rls()
-    OR org_id = app_org_id()
-    OR public = true
-  )
-  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
-
-ALTER TABLE votes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE votes FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON votes;
-CREATE POLICY tenant_isolation ON votes
-  USING (
-    app_bypass_rls()
-    OR EXISTS (
-      SELECT 1 FROM suggestions s
-      WHERE s.id = votes.suggestion_id
-        AND (s.org_id = app_org_id() OR s.public = true)
-    )
-  );
-
 -- ───────────────────────── rate_limit_counters ─────────────────────────────
 ALTER TABLE rate_limit_counters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rate_limit_counters FORCE ROW LEVEL SECURITY;

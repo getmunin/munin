@@ -20,11 +20,6 @@ export default function HomePage() {
             Sign in
           </Button>
         </div>
-        <div className="pt-2 text-sm">
-          <Link href="/suggestions" className="text-muted-foreground hover:underline">
-            See what the community is asking for →
-          </Link>
-        </div>
       </div>
     </main>
   );

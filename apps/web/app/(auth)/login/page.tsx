@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@getmunin/dashboard-pages';
 import { GoogleButton } from '@getmunin/ui';
@@ -11,8 +11,20 @@ import { Label } from '@getmunin/ui';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getmunin/ui';
 import { Separator } from '@getmunin/ui';
 
-export default function LoginPage() {
+function safeRedirect(raw: string | null): string {
+  if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  return '/dashboard';
+}
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const redirectRaw = params.get('redirect');
+  const redirectTo = safeRedirect(redirectRaw);
+  const signupHref = redirectRaw
+    ? `/signup?redirect=${encodeURIComponent(redirectRaw)}`
+    : '/signup';
+  const { refetch } = authClient.useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +40,8 @@ export default function LoginPage() {
         setError(result.error.message ?? 'Sign-in failed');
         return;
       }
-      router.push('/dashboard');
+      await refetch();
+      router.push(redirectTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error — is the API reachable?');
     } finally {
@@ -45,7 +58,7 @@ export default function LoginPage() {
       <CardContent className="space-y-4">
         <GoogleButton
           onSignIn={() => {
-            void authClient.signIn.social({ provider: 'google', callbackURL: '/dashboard' });
+            void authClient.signIn.social({ provider: 'google', callbackURL: redirectTo });
           }}
         />
 
@@ -87,12 +100,20 @@ export default function LoginPage() {
 
         <p className="pt-2 text-sm text-muted-foreground">
           New here?{' '}
-          <Link href="/signup" className="font-medium text-foreground underline">
+          <Link href={signupHref} className="font-medium text-foreground underline">
             Create an account
           </Link>
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
 

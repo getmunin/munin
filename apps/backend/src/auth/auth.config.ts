@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { APIError } from 'better-auth/api';
 import { schema, type Db } from '@getmunin/db';
 import type { Mailer } from '@getmunin/core';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
@@ -154,7 +155,14 @@ async function assertSignupAllowed(
     .limit(1);
   if (invite[0]) return;
 
-  throw new Error('signup_not_allowed');
+  const reason =
+    allowedEmailDomains.length > 0
+      ? `Signup is restricted. Your email domain (${domain || 'unknown'}) isn't on the allowlist, and there's no pending invitation for ${email}. Ask an admin to invite you.`
+      : `Signup is invite-only on this Munin instance. Ask an admin to send you an invitation for ${email}.`;
+  throw new APIError('FORBIDDEN', {
+    code: 'SIGNUP_NOT_ALLOWED',
+    message: reason,
+  });
 }
 
 const SINGLETON_ORG_SLUG = 'munin';

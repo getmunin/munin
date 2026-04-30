@@ -35,9 +35,9 @@ export interface InvitationDto {
 }
 
 export interface CreatedInvitation extends InvitationDto {
-  /** Returned only at creation time. The plaintext token. */
   token: string;
   acceptUrl: string;
+  mailerConfigured: boolean;
 }
 
 @Injectable()
@@ -106,7 +106,12 @@ export class InvitationsService {
     const acceptUrl = await this.buildAcceptUrl(token);
     await this.sendInviteEmail(email, acceptUrl, actor.orgId);
 
-    return { ...toDto(row!), token, acceptUrl };
+    return {
+      ...toDto(row!),
+      token,
+      acceptUrl,
+      mailerConfigured: this.mailer.name !== 'stub',
+    };
   }
 
   async listPending(): Promise<InvitationDto[]> {
@@ -150,6 +155,26 @@ export class InvitationsService {
    * matching the supplied token's hash against an unaccepted, unrevoked,
    * unexpired row.
    */
+  async lookupByToken(token: string): Promise<{ email: string; role: string; expiresAt: string } | null> {
+    if (!token) return null;
+    const tokenHash = hashSecret(token);
+    const rows = await this.serviceDb
+      .select({
+        email: schema.orgInvitations.email,
+        role: schema.orgInvitations.role,
+        expiresAt: schema.orgInvitations.expiresAt,
+        acceptedAt: schema.orgInvitations.acceptedAt,
+        revokedAt: schema.orgInvitations.revokedAt,
+      })
+      .from(schema.orgInvitations)
+      .where(eq(schema.orgInvitations.tokenHash, tokenHash))
+      .limit(1);
+    const inv = rows[0];
+    if (!inv) return null;
+    if (inv.acceptedAt || inv.revokedAt || inv.expiresAt.getTime() < Date.now()) return null;
+    return { email: inv.email, role: inv.role, expiresAt: inv.expiresAt.toISOString() };
+  }
+
   async accept(input: { token: string; userId: string }): Promise<{ orgId: string; role: string }> {
     if (!input.token || !input.userId) {
       throw new BadRequestException('token and userId required');
@@ -161,25 +186,23 @@ export class InvitationsService {
       .where(eq(schema.orgInvitations.tokenHash, tokenHash))
       .limit(1);
     const invitation = rows[0];
-    if (!invitation) throw new NotFoundException('invitation_not_found');
-    if (invitation.acceptedAt) throw new ConflictException('invitation_already_accepted');
-    if (invitation.revokedAt) throw new GoneException('invitation_revoked');
+    if (!invitation) throw new NotFoundException('Invitation not found.');
+    if (invitation.acceptedAt) {
+      throw new ConflictException('This invitation has already been accepted.');
+    }
+    if (invitation.revokedAt) {
+      throw new GoneException('This invitation has been revoked.');
+    }
     if (invitation.expiresAt.getTime() < Date.now()) {
-      throw new GoneException('invitation_expired');
+      throw new GoneException('This invitation has expired.');
     }
 
-    // Verify the accepting user's email matches the invite (defense against
-    // someone clicking another person's link).
     const userRows = await this.serviceDb
-      .select({ email: schema.users.email })
+      .select({ id: schema.users.id })
       .from(schema.users)
       .where(eq(schema.users.id, input.userId))
       .limit(1);
-    const user = userRows[0];
-    if (!user) throw new NotFoundException('user_not_found');
-    if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
-      throw new ForbiddenException('invitation_email_mismatch');
-    }
+    if (!userRows[0]) throw new NotFoundException('Signed-in user not found.');
 
     await this.serviceDb.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);

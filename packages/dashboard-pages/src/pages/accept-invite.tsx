@@ -31,9 +31,8 @@ function AcceptInviteInner() {
       return;
     }
     if (!session) {
-      // Bounce to signup with a redirect back to this page once signed in.
       const redirect = `/accept-invite?token=${encodeURIComponent(token)}`;
-      router.push(`/signup?redirect=${encodeURIComponent(redirect)}`);
+      router.push(`/login?redirect=${encodeURIComponent(redirect)}`);
       return;
     }
     if (status !== 'idle') return;
@@ -80,7 +79,25 @@ function AcceptInviteInner() {
               {message ?? 'Unknown error.'}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-2">
+            {session && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  void (async () => {
+                    await authClient.signOut();
+                    if (token) {
+                      router.push(`/accept-invite?token=${encodeURIComponent(token)}`);
+                    } else {
+                      router.push('/login');
+                    }
+                  })();
+                }}
+              >
+                Sign out and try again
+              </Button>
+            )}
             <Button variant="outline" render={<Link href="/dashboard" />} className="w-full">
               Back to dashboard
             </Button>

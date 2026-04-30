@@ -111,8 +111,8 @@ const skipReason = TEST_URL
       expect(names).toContain('kb_create_document');
       expect(names).toContain('kb_search');
       expect(names).toContain('bootstrap_status');
-      expect(names).toContain('suggestion_create');
       expect(names).toContain('ping');
+      expect(names).not.toContain('suggestion_create');
 
       const ping = await c.callTool({ name: 'ping', arguments: { message: 'hi' } });
       expect(JSON.stringify(ping)).toContain('hi');

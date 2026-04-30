@@ -3,13 +3,10 @@
  *
  * Domain modules (kb, desk, crm) will add their own tables in later milestones,
  * but everything in this file is shared infrastructure: tenancy, identity,
- * audit, claims, webhooks, suggestions.
+ * audit, claims, webhooks.
  *
  * Tenancy: every org-scoped table carries `org_id` and is governed by RLS.
  * RLS policies live in src/sql/rls.sql (applied during migrations).
- *
- * The cloud build layers a `partners` table and `partner_id` columns on
- * top of this schema via `@munin-cloud/partner`; OSS does not ship them.
  */
 import { sql } from 'drizzle-orm';
 import {
@@ -275,8 +272,7 @@ export const tokens = pgTable(
   }),
 );
 
-// Long-lived admin API keys. The cloud build adds a `partner_id` column +
-// `'partner'` value of `type` on top of this schema.
+// Long-lived admin API keys.
 export const apiKeys = pgTable(
   'api_keys',
   {

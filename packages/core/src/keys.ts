@@ -6,9 +6,9 @@ import { randomToken } from './crypto.js';
  *   kind = 'admin' | 'dlg' (delegated end-user, short-lived)
  *        | 'widget' (chat-widget channel binding; api_keys.channel_id is set)
  *
- * The `'part'` kind exists in the type union for the cloud build's
- * `@munin-cloud/partner` package, which mints partner keys; OSS does not
- * produce or accept them.
+ * The `'part'` kind exists in the type union for downstream packages
+ * that mint partner-style credentials; OSS does not produce or accept
+ * them.
  *
  * The first 8 chars of the key (`mn_admin`, `mn_dlg__`) are the "prefix"
  * we index by — narrows the row lookup in resolveApiKey before we compute

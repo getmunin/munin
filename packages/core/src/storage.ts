@@ -4,15 +4,14 @@ import { createHash, createHmac } from 'node:crypto';
 
 /**
  * Asset storage abstraction. Pluggable so self-hosters can run on local
- * filesystem (default — works inside `docker compose up`) and hosted /
- * production deployments use any S3-compatible service (Scaleway Object
- * Storage, AWS S3, Cloudflare R2, MinIO).
+ * filesystem (default — works inside `docker compose up`) and production
+ * deployments use any S3-compatible service (AWS S3, Cloudflare R2, MinIO).
  *
  * The abstraction is *thin* on purpose: callers ask for a presigned-upload
  * pair (upload URL + public URL) and either delete keys or look up public
  * URLs. Image transforms / resizing are explicitly out of scope; if you
- * need them, sit a CDN with image-transform features (Scaleway Edge
- * Services, Cloudflare Images, Imgix) in front of the storage bucket.
+ * need them, sit a CDN with image-transform features (Cloudflare Images,
+ * Imgix, …) in front of the storage bucket.
  */
 export interface AssetStorage {
   /** Provider identifier persisted on cms_assets.storage_provider. */
@@ -160,9 +159,9 @@ const DEFAULT_S3_UPLOAD_TTL_SECONDS = 15 * 60;
 
 /**
  * S3-compatible storage. Builds presigned PUT URLs using AWS SigV4 — the
- * same protocol Scaleway Object Storage, AWS S3, Cloudflare R2, and MinIO
- * all speak. Implemented inline (no `@aws-sdk/*` dep) so the package stays
- * lightweight; SigV4 is well-documented and stable.
+ * same protocol AWS S3, Cloudflare R2, and MinIO all speak. Implemented
+ * inline (no `@aws-sdk/*` dep) so the package stays lightweight; SigV4 is
+ * well-documented and stable.
  *
  * Uploaders PUT to `uploadUrl` with the file body and `Content-Type`
  * matching `mime`; reads use `publicUrl`.

@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- 1aaaa24: Move suggestions feature out of OSS to a cloud-only Munin-vendor roadmap.
+- 1aaaa24: Move suggestions feature out of OSS to a private feature board.
 
   The `suggestions` feature was structured as a Canny-clone but its `appScope`
   enum (`kb | conv | crm | core`) was hardcoded to Munin's own modules — the
@@ -23,8 +23,7 @@
   - Removed five MCP tools (`suggestion_*`) from the OSS surface.
   - Removed `suggestions` from the data-export bundle.
 
-  The replacement lives in the cloud overlay (`@munin-cloud/feedback` plus
-  `@munin-cloud/dashboard-feedback`). Voting is now per-org instead of
+  The replacement lives in a downstream package. Voting is now per-org instead of
   per-actor — one vote per `(suggestion_id, org_id)` so multiple
   users/agents in the same customer org collectively contribute one vote.
   The five MCP tool names are unchanged; admins/agents keep calling
@@ -57,7 +56,7 @@
 
 - fe8fd21: TenancyInterceptor: bypass RLS for `actor.type === 'partner'`.
 
-  Partner actors (cloud-only) operate across multiple orgs they
+  Partner actors (in a downstream package) operate across multiple orgs they
   provisioned. Their controllers filter manually by `partner_id`. OSS
   never produces `'partner'` actors, so this branch is dead code there.
 
@@ -72,12 +71,12 @@
 
   `AuthGuard` now accepts an optional injected `AdditionalCredentialResolver[]`
   via the `ADDITIONAL_CREDENTIAL_RESOLVERS` token. When OSS's `resolveApiKey`
-  returns null, each additional resolver gets a shot at the raw key. Cloud
-  (`@munin-cloud/partner`) plugs in `PartnerCredentialResolver` here to
-  recognize `mn_part_*` keys without touching OSS code.
+  returns null, each additional resolver gets a shot at the raw key.
+  Downstream packages plug in via this token to recognize their own key
+  kinds without touching OSS code.
 
   `looksLikeApiKey` regex broadened from `mn_(admin|dlg)_*` to `mn_[a-z]+_*`
-  so non-OSS kinds (like `mn_part_*`) reach the resolver chain.
+  so additional kinds reach the resolver chain.
 
 ### Patch Changes
 

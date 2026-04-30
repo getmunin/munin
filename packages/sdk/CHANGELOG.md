@@ -12,7 +12,7 @@
 
 - fe8fd21: TenancyInterceptor: bypass RLS for `actor.type === 'partner'`.
 
-  Partner actors (cloud-only) operate across multiple orgs they
+  Partner actors (in a downstream package) operate across multiple orgs they
   provisioned. Their controllers filter manually by `partner_id`. OSS
   never produces `'partner'` actors, so this branch is dead code there.
 
@@ -24,12 +24,12 @@
 
   `AuthGuard` now accepts an optional injected `AdditionalCredentialResolver[]`
   via the `ADDITIONAL_CREDENTIAL_RESOLVERS` token. When OSS's `resolveApiKey`
-  returns null, each additional resolver gets a shot at the raw key. Cloud
-  (`@munin-cloud/partner`) plugs in `PartnerCredentialResolver` here to
-  recognize `mn_part_*` keys without touching OSS code.
+  returns null, each additional resolver gets a shot at the raw key.
+  Downstream packages plug in via this token to recognize their own key
+  kinds without touching OSS code.
 
   `looksLikeApiKey` regex broadened from `mn_(admin|dlg)_*` to `mn_[a-z]+_*`
-  so non-OSS kinds (like `mn_part_*`) reach the resolver chain.
+  so additional kinds reach the resolver chain.
 
 ## 0.2.0
 

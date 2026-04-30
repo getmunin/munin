@@ -15,5 +15,5 @@ In scope:
 - Default Docker compose self-host configuration
 
 Out of scope:
-- Third-party services (BetterAuth, Scaleway, etc.) — report to those vendors
+- Third-party services and your hosting provider — report to those vendors directly
 - Customer-side AI runners and integrations

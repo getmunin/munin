@@ -1,6 +1,5 @@
--- Suggestions feature was relocated to the cloud overlay (`@munin-cloud/feedback`).
--- Drop the OSS tables. Cloud creates `cloud_suggestions` + `cloud_suggestion_votes`
--- via CLOUD_FEEDBACK_DDL during cloud bootstrap.
+-- Drop the suggestions / votes tables. The feature is no longer part of
+-- Munin's open-source surface.
 
 DROP TABLE IF EXISTS votes CASCADE;
 --> statement-breakpoint

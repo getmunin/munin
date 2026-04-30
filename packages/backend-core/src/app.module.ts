@@ -19,9 +19,9 @@ import { WebhookModule } from './common/webhooks/webhook.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
 
 /**
- * Feature modules shared between OSS and cloud builds. Each edition
- * composes these with its own AuthModule (single-tenant for OSS,
- * multi-tenant for cloud) plus any edition-specific modules.
+ * Feature modules. Composed with an AuthModule downstream — auth is
+ * intentionally NOT included here so consumers can wire single-tenant
+ * (OSS), multi-tenant, or any custom auth flow.
  */
 export const BACKEND_FEATURE_MODULES_NO_AUTH = [
   DbModule,
@@ -45,9 +45,9 @@ export const BACKEND_BASE_PROVIDERS = [AuthGuard, TenancyInterceptor, AuditInter
 /**
  * Test-only AppModule: composes the feature modules without an Auth
  * module. Integration tests in this package seed via direct DB access and
- * authenticate via API keys, so they don't need BetterAuth wired up. OSS
- * (`apps/backend`) and cloud (`apps/backend-cloud`) compose their own
- * AppModule with the appropriate AuthModule for production.
+ * authenticate via API keys, so they don't need BetterAuth wired up.
+ * Production apps (e.g. `apps/backend`) compose their own AppModule with
+ * an appropriate AuthModule.
  */
 @Module({
   imports: BACKEND_FEATURE_MODULES_NO_AUTH,

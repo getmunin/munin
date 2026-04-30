@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
-import { api, ApiError } from '../api';
+import { useFormatter, useTranslations } from 'next-intl';
+import { api } from '../api';
+import { useTranslateError } from '../i18n/translate-error';
 import { Button } from '@getmunin/ui';
 import { Input } from '@getmunin/ui';
 import { Label } from '@getmunin/ui';
@@ -33,6 +35,10 @@ interface CreatedApiKey {
 }
 
 export function ApiKeysPage() {
+  const t = useTranslations('dashboard.apiKeys');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const format = useFormatter();
   const [keys, setKeys] = useState<ApiKeySummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -45,7 +51,7 @@ export function ApiKeysPage() {
       const list = await api<ApiKeySummary[]>('/api/api-keys');
       setKeys(list);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load API keys.');
+      setError(translate(err) || t('errors.load'));
     }
   }
 
@@ -66,7 +72,7 @@ export function ApiKeysPage() {
       setName('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create API key.');
+      setError(translate(err) || t('errors.create'));
     } finally {
       setCreating(false);
     }
@@ -77,27 +83,21 @@ export function ApiKeysPage() {
       await api(`/api/api-keys/${id}`, { method: 'DELETE' });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not revoke API key.');
+      setError(translate(err) || t('errors.revoke'));
     }
   }
 
   return (
     <>
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">API keys</h1>
-        <p className="text-sm text-muted-foreground">
-          Long-lived admin keys for server-to-server integrations and programmatic admin agents.
-          Self-hosters and CI use these too. Treat them like passwords.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Create a new key</CardTitle>
-          <CardDescription>
-            The plaintext value is shown ONCE, immediately after creation. Copy it now and store it
-            in your secret manager.
-          </CardDescription>
+          <CardTitle className="text-base">{t('createTitle')}</CardTitle>
+          <CardDescription>{t('createDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -107,18 +107,18 @@ export function ApiKeysPage() {
             }}
           >
             <div className="flex-1 space-y-1">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t('nameLabel')}</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. production-backend"
+                placeholder={t('namePlaceholder')}
                 required
               />
             </div>
             <Button type="submit" disabled={creating}>
               <Plus className="size-4" />
-              {creating ? 'Creating…' : 'Create key'}
+              {creating ? t('creating') : t('create')}
             </Button>
           </form>
         </CardContent>
@@ -133,49 +133,59 @@ export function ApiKeysPage() {
       )}
 
       {keys === null ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
       ) : keys.length === 0 ? (
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <KeyRound className="size-5 text-muted-foreground" />
-              <CardTitle>No API keys yet</CardTitle>
+              <CardTitle>{t('emptyTitle')}</CardTitle>
             </div>
-            <CardDescription>Create your first key above to get started.</CardDescription>
+            <CardDescription>{t('emptyBody')}</CardDescription>
           </CardHeader>
         </Card>
       ) : (
         <ul className="space-y-2">
-          {keys.map((k) => (
-            <li
-              key={k.id}
-              className="flex items-center justify-between gap-4 rounded-lg border bg-background px-4 py-3"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{k.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-mono">{k.prefix}…</span> · created{' '}
-                  {new Date(k.createdAt).toLocaleDateString()}
-                  {k.lastUsedAt && (
-                    <>
-                      {' · last used '}
-                      {new Date(k.lastUsedAt).toLocaleString()}
-                    </>
-                  )}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  void revoke(k.id);
-                }}
+          {keys.map((k) => {
+            const createdLabel = format.dateTime(new Date(k.createdAt), { dateStyle: 'medium' });
+            const lastUsedLabel = k.lastUsedAt
+              ? format.dateTime(new Date(k.lastUsedAt), { dateStyle: 'medium', timeStyle: 'short' })
+              : null;
+            return (
+              <li
+                key={k.id}
+                className="flex items-center justify-between gap-4 rounded-lg border bg-background px-4 py-3"
               >
-                <Trash2 className="size-4" />
-                Revoke
-              </Button>
-            </li>
-          ))}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{k.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {lastUsedLabel
+                      ? t.rich('rowMetaWithLast', {
+                          prefix: k.prefix,
+                          created: createdLabel,
+                          lastUsed: lastUsedLabel,
+                          code: (chunks) => <span className="font-mono">{chunks}</span>,
+                        })
+                      : t.rich('rowMeta', {
+                          prefix: k.prefix,
+                          created: createdLabel,
+                          code: (chunks) => <span className="font-mono">{chunks}</span>,
+                        })}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    void revoke(k.id);
+                  }}
+                >
+                  <Trash2 className="size-4" />
+                  {t('revoke')}
+                </Button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </>
@@ -189,6 +199,7 @@ function NewKeyCallout({
   created: CreatedApiKey;
   onDismiss: () => void;
 }) {
+  const t = useTranslations('dashboard.apiKeys');
   const [copied, setCopied] = useState(false);
   function copy() {
     void navigator.clipboard.writeText(created.key).then(() => {
@@ -199,10 +210,8 @@ function NewKeyCallout({
   return (
     <Card className="border-emerald-200 bg-emerald-50">
       <CardHeader>
-        <CardTitle className="text-base">Key created — copy it now</CardTitle>
-        <CardDescription>
-          Munin only stores the hash. We can&apos;t show you this key again.
-        </CardDescription>
+        <CardTitle className="text-base">{t('createdTitle')}</CardTitle>
+        <CardDescription>{t('createdDescription')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center gap-2">
@@ -211,11 +220,11 @@ function NewKeyCallout({
           </code>
           <Button variant="outline" size="sm" onClick={copy}>
             <Copy className="size-4" />
-            {copied ? 'Copied' : 'Copy'}
+            {copied ? t('copied') : t('copy')}
           </Button>
         </div>
         <Button variant="ghost" size="sm" onClick={onDismiss}>
-          I&apos;ve saved it
+          {t('savedIt')}
         </Button>
       </CardContent>
     </Card>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Bot, Code2, KeyRound } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@getmunin/ui';
 import {
   Card,
@@ -10,13 +11,12 @@ import {
 } from '@getmunin/ui';
 
 export function DashboardPage() {
+  const t = useTranslations('dashboard.overview');
   return (
     <>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome to Munin</h1>
-        <p className="text-sm text-muted-foreground">
-          Connect your AI agent or build a server-side integration.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -24,19 +24,15 @@ export function DashboardPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Bot className="size-5 text-muted-foreground" />
-              <CardTitle>Connect your AI agent</CardTitle>
+              <CardTitle>{t('connectCard.title')}</CardTitle>
             </div>
-            <CardDescription>
-              Add this URL to Claude Desktop, Cursor, or any MCP client.
-            </CardDescription>
+            <CardDescription>{t('connectCard.description')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <code className="block rounded-md border bg-muted px-3 py-2 font-mono text-sm">
               https://mcp.getmunin.com
             </code>
-            <p className="text-xs text-muted-foreground">
-              You&apos;ll see a consent screen here when an agent connects.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('connectCard.consentNote')}</p>
           </CardContent>
         </Card>
 
@@ -44,16 +40,14 @@ export function DashboardPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Code2 className="size-5 text-muted-foreground" />
-              <CardTitle>Build a server integration</CardTitle>
+              <CardTitle>{t('buildCard.title')}</CardTitle>
             </div>
-            <CardDescription>
-              Voice AI, web chatbot, or mobile app? Mint short-lived end-user tokens server-side.
-            </CardDescription>
+            <CardDescription>{t('buildCard.description')}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button className="w-full" render={<Link href="/dashboard/api-keys" />}>
               <KeyRound className="size-4" />
-              Manage API keys
+              {t('buildCard.cta')}
             </Button>
           </CardContent>
         </Card>

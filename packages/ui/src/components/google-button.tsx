@@ -3,15 +3,11 @@
 import { Button } from './button';
 
 export interface GoogleButtonProps {
-  label?: string;
+  label: string;
   onSignIn: () => void;
 }
 
-/**
- * Presentational Google sign-in button. The auth client (BetterAuth, etc.)
- * is supplied by the consumer via `onSignIn` so this component stays UI-only.
- */
-export function GoogleButton({ label = 'Continue with Google', onSignIn }: GoogleButtonProps) {
+export function GoogleButton({ label, onSignIn }: GoogleButtonProps) {
   return (
     <Button type="button" variant="outline" className="w-full" onClick={onSignIn}>
       <GoogleLogo />

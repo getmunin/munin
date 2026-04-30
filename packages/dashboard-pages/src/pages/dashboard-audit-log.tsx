@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { ScrollText } from 'lucide-react';
-import { api, ApiError } from '../api';
+import { useFormatter, useTranslations } from 'next-intl';
+import { api } from '../api';
+import { useTranslateError } from '../i18n/translate-error';
 import { Button } from '@getmunin/ui';
 import { Input } from '@getmunin/ui';
 import { Label } from '@getmunin/ui';
@@ -32,6 +34,9 @@ interface AuditPage {
 }
 
 export function AuditLogPage() {
+  const t = useTranslations('dashboard.auditLog');
+  const translate = useTranslateError();
+  const format = useFormatter();
   const [items, setItems] = useState<AuditDto[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [exhausted, setExhausted] = useState(false);
@@ -55,29 +60,25 @@ export function AuditLogPage() {
       setCursor(page.nextCursor);
       setExhausted(page.nextCursor === null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load audit log.');
+      setError(translate(err) || t('errors.load'));
     }
   }
 
   useEffect(() => {
     void load(true);
-
   }, []);
 
   return (
     <>
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
-        <p className="text-sm text-muted-foreground">
-          Every tool call and control-plane mutation, newest first. Filter by tool, actor type, or
-          correlation id to isolate one request chain.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Filter</CardTitle>
-          <CardDescription>Leave blank to match all values.</CardDescription>
+          <CardTitle className="text-base">{t('filterTitle')}</CardTitle>
+          <CardDescription>{t('filterDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -90,7 +91,7 @@ export function AuditLogPage() {
             }}
           >
             <div className="space-y-1">
-              <Label htmlFor="tool">Tool</Label>
+              <Label htmlFor="tool">{t('filterTool')}</Label>
               <Input
                 id="tool"
                 value={filters.tool}
@@ -99,7 +100,7 @@ export function AuditLogPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="actorType">Actor type</Label>
+              <Label htmlFor="actorType">{t('filterActorType')}</Label>
               <Input
                 id="actorType"
                 value={filters.actorType}
@@ -108,7 +109,7 @@ export function AuditLogPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="correlationId">Correlation id</Label>
+              <Label htmlFor="correlationId">{t('filterCorrelationId')}</Label>
               <Input
                 id="correlationId"
                 value={filters.correlationId}
@@ -118,7 +119,7 @@ export function AuditLogPage() {
             </div>
             <div className="flex items-end">
               <Button type="submit" className="w-full">
-                Apply
+                {t('apply')}
               </Button>
             </div>
           </form>
@@ -136,11 +137,9 @@ export function AuditLogPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <ScrollText className="size-5 text-muted-foreground" />
-              <CardTitle>No audit rows yet</CardTitle>
+              <CardTitle>{t('emptyTitle')}</CardTitle>
             </div>
-            <CardDescription>
-              Tool calls and control-plane writes appear here. Connect an agent and try a tool.
-            </CardDescription>
+            <CardDescription>{t('emptyBody')}</CardDescription>
           </CardHeader>
         </Card>
       ) : (
@@ -148,17 +147,22 @@ export function AuditLogPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/40">
               <tr className="text-left text-xs font-medium uppercase text-muted-foreground">
-                <th className="px-3 py-2">Time</th>
-                <th className="px-3 py-2">Actor</th>
-                <th className="px-3 py-2">Tool / method</th>
-                <th className="px-3 py-2">Result</th>
-                <th className="px-3 py-2">Correlation</th>
+                <th className="px-3 py-2">{t('tableTime')}</th>
+                <th className="px-3 py-2">{t('tableActor')}</th>
+                <th className="px-3 py-2">{t('tableToolMethod')}</th>
+                <th className="px-3 py-2">{t('tableResult')}</th>
+                <th className="px-3 py-2">{t('tableCorrelation')}</th>
               </tr>
             </thead>
             <tbody>
               {items.map((row) => (
                 <tr key={row.id} className="border-t">
-                  <td className="px-3 py-2 text-xs">{new Date(row.createdAt).toLocaleString()}</td>
+                  <td className="px-3 py-2 text-xs">
+                    {format.dateTime(new Date(row.createdAt), {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </td>
                   <td className="px-3 py-2 text-xs font-mono">{row.actorType}</td>
                   <td className="px-3 py-2 text-xs font-mono">{row.tool ?? row.method ?? '—'}</td>
                   <td className="px-3 py-2">
@@ -187,7 +191,7 @@ export function AuditLogPage() {
       {!exhausted && items.length > 0 && (
         <div className="flex justify-center">
           <Button variant="outline" onClick={() => void load(false)}>
-            Load more
+            {t('loadMore')}
           </Button>
         </div>
       )}

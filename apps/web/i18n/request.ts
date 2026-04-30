@@ -21,6 +21,6 @@ export default getRequestConfig(async () => {
   const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value;
   const fromHeader = negotiateFromHeader((await headers()).get('accept-language'));
   const locale: Locale = isLocale(cookieLocale) ? cookieLocale : fromHeader;
-  const messages = (await import(`../messages/${locale}.json`)).default;
-  return { locale, messages };
+  const mod = (await import(`../messages/${locale}.json`)) as { default: Record<string, unknown> };
+  return { locale, messages: mod.default };
 });

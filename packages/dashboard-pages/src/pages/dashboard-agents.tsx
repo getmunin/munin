@@ -128,7 +128,7 @@ function TokenCard({ token, onRevoke }: { token: TokenDto; onRevoke: () => void 
                 : 'rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'
             }
           >
-            {t(`status.${status}` as 'status.active' | 'status.revoked' | 'status.expired')}
+            {t(`status.${status}`)}
           </span>
         </div>
       </CardHeader>

@@ -7,6 +7,7 @@ export interface RegisteredRunbook {
   audiences: readonly Audience[];
   mimeType: string;
   content: string;
+  public: boolean;
 }
 
 export class RunbookRegistry {
@@ -23,6 +24,10 @@ export class RunbookRegistry {
     const all = Array.from(this.byUri.values());
     if (!audience) return all;
     return all.filter((r) => r.audiences.includes(audience));
+  }
+
+  listPublic(): RegisteredRunbook[] {
+    return Array.from(this.byUri.values()).filter((r) => r.public);
   }
 
   get(uri: string): RegisteredRunbook | undefined {

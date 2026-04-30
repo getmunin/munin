@@ -45,15 +45,15 @@ describe('loadRunbooks', () => {
     const found = loadRunbooks([{ root }]);
     const uris = found.map((r) => r.uri).sort();
     expect(uris).toEqual([
+      'runbook://conv/email-setup',
+      'runbook://crm/onboarding',
       'runbook://kb/self-service-only',
-      'runbook://runbooks/email-setup',
-      'runbook://runbooks/onboarding',
     ]);
   });
 
   it('parses frontmatter (title, description, audiences)', () => {
     const found = loadRunbooks([{ root }]);
-    const email = found.find((r) => r.uri === 'runbook://runbooks/email-setup')!;
+    const email = found.find((r) => r.uri === 'runbook://conv/email-setup')!;
     expect(email.name).toBe('Email channel setup');
     expect(email.description).toBe('Configure email.');
     expect(email.audiences).toEqual(['admin']);
@@ -65,7 +65,7 @@ describe('loadRunbooks', () => {
     const found = loadRunbooks([{ root }]);
     const single = found.find((r) => r.uri === 'runbook://kb/self-service-only')!;
     expect(single.audiences).toEqual(['self_service']);
-    const multi = found.find((r) => r.uri === 'runbook://runbooks/onboarding')!;
+    const multi = found.find((r) => r.uri === 'runbook://crm/onboarding')!;
     expect(multi.audiences).toEqual(['admin', 'self_service']);
   });
 

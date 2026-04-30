@@ -1,5 +1,15 @@
 # @getmunin/backend-core
 
+## 0.9.0
+
+### Patch Changes
+
+- @getmunin/core@0.9.0
+- @getmunin/db@0.9.0
+- @getmunin/types@0.9.0
+- @getmunin/mcp-toolkit@0.9.0
+- @getmunin/bootstrap@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes

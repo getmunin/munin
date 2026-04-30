@@ -34,11 +34,14 @@ export class EmailAdminTools {
 
   @McpTool({
     name: 'conv_email_setup_channel',
+    title: 'Set up email channel',
     description:
       "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetupInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   async setupChannel(args: z.infer<typeof SetupInput>) {
     if (args.channelId) {
@@ -53,11 +56,14 @@ export class EmailAdminTools {
 
   @McpTool({
     name: 'conv_email_test_channel',
+    title: 'Test email channel credentials',
     description:
       'Test an email channel\'s stored credentials. Attempts an SMTP connect (and an IMAP connect if inbound is configured) without sending or fetching anything. Returns `{ smtp: "ok" | error, imap: "ok" | error | "not configured" }`.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: TestInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   async testChannel(args: z.infer<typeof TestInput>): Promise<{
     smtp: string;

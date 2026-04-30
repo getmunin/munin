@@ -71,10 +71,13 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_list_spaces',
+    title: 'List KB spaces',
     description: 'List knowledge-base spaces in your org.',
     audiences: ['admin'],
     scopes: ['kb:read'],
     input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   listSpaces() {
     return this.kb.listSpaces();
@@ -82,11 +85,14 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_create_space',
+    title: 'Create KB space',
     description:
       'Create a new knowledge-base space. Slug must be unique within your org and only contain lowercase letters, digits and hyphens.',
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: CreateSpaceInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   createSpace(args: z.infer<typeof CreateSpaceInput>) {
     return this.kb.createSpace(args);
@@ -94,11 +100,14 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_list_documents',
+    title: 'List KB documents',
     description:
       'List knowledge-base documents in your org, newest-updated first. Optionally filter by space or tag.',
     audiences: ['admin'],
     scopes: ['kb:read'],
     input: ListDocumentsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   listDocuments(args: z.infer<typeof ListDocumentsInput>) {
     return this.kb.listDocuments(args);
@@ -106,11 +115,14 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_get_document',
+    title: 'Read KB document',
     description:
       'Read one knowledge-base document, including its full body, tags, and current version. End-user agents see only documents marked `public`.',
     audiences: ['admin', 'self_service'],
     scopes: ['kb:read'],
     input: GetDocumentInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   getDocument(args: z.infer<typeof GetDocumentInput>) {
     return this.kb.getDocument(args.id);
@@ -118,11 +130,14 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_search',
+    title: 'Search knowledge base',
     description:
       'Search the knowledge base by natural-language query. Combines full-text search and vector similarity for the best of both. End-user agents see only documents marked `public`.',
     audiences: ['admin', 'self_service'],
     scopes: ['kb:read'],
     input: SearchInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   search(args: z.infer<typeof SearchInput>) {
     return this.searchService.search(args);
@@ -130,11 +145,14 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_create_document',
+    title: 'Create KB document',
     description:
       'Create a knowledge-base document inside a space. Body should be markdown. Set `public: true` to expose it to end-user agents.',
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: CreateDocumentInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   createDocument(args: z.infer<typeof CreateDocumentInput>) {
     return this.kb.createDocument(args);
@@ -142,11 +160,14 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_update_document',
+    title: 'Update KB document',
     description:
       'Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed.',
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: UpdateDocumentInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   updateDocument(args: z.infer<typeof UpdateDocumentInput>) {
     return this.kb.updateDocument(args);
@@ -154,11 +175,14 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_delete_document',
+    title: 'Delete KB document',
     description:
       'Delete a knowledge-base document. Pass `ifVersion` for optimistic concurrency. Cascades to chunks and versions.',
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: DeleteDocumentInput,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   deleteDocument(args: z.infer<typeof DeleteDocumentInput>) {
     return this.kb.deleteDocument(args);
@@ -166,10 +190,13 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_list_versions',
+    title: 'List KB document versions',
     description: 'List all prior versions of a knowledge-base document, newest first.',
     audiences: ['admin'],
     scopes: ['kb:read'],
     input: ListVersionsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   listVersions(args: z.infer<typeof ListVersionsInput>) {
     return this.kb.listVersions(args.documentId);
@@ -177,11 +204,14 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_restore_version',
+    title: 'Restore KB document version',
     description:
       'Roll a document back to an earlier version. Creates a new current version with that historical content.',
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: RestoreVersionInput,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   restoreVersion(args: z.infer<typeof RestoreVersionInput>) {
     return this.kb.restoreVersion(args);

@@ -26,11 +26,14 @@ export class CrmSelfServiceTools {
 
   @McpTool({
     name: 'crm_get_my_contact',
+    title: 'Read my CRM contact',
     description:
       'Read the CRM contact linked to the calling end-user. RLS restricts visibility to that single row.',
     audiences: ['self_service'],
     scopes: ['crm:read'],
     input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   getMyContact() {
     return this.crm.getMyContact();
@@ -38,11 +41,14 @@ export class CrmSelfServiceTools {
 
   @McpTool({
     name: 'crm_update_my_contact',
+    title: 'Update my CRM contact',
     description:
       'Update the calling end-user\'s own contact record. Only basic personal fields (name, phone, address) are editable from this surface — tags, ownership, custom fields, and AI fields are admin-only.',
     audiences: ['self_service'],
     scopes: ['crm:write'],
     input: UpdateMyContactInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   async updateMyContact(args: z.infer<typeof UpdateMyContactInput>) {
     const own = await this.crm.getMyContact();
@@ -51,11 +57,14 @@ export class CrmSelfServiceTools {
 
   @McpTool({
     name: 'crm_log_activity_self',
+    title: 'Log activity as end-user',
     description:
       'Record an activity attributed to the calling end-user agent (e.g. a voice agent logging "spoke with customer for 4m, follow-up needed"). Auto-scoped to the end-user\'s own CRM contact when one exists.',
     audiences: ['self_service'],
     scopes: ['crm:write'],
     input: LogActivitySelfInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   async logActivitySelf(args: z.infer<typeof LogActivitySelfInput>) {
     const ctx = getCurrentContext();

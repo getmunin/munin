@@ -305,5 +305,19 @@
       "signIn": "Logg inn med Google",
       "signUp": "Registrer deg med Google"
     }
+  },
+  "footer": {
+    "privacy": "Personvern",
+    "terms": "Vilkår"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Personvernerklæring — Munin",
+      "description": "Hvordan getmunin.com behandler personopplysninger."
+    },
+    "terms": {
+      "title": "Bruksvilkår — Munin",
+      "description": "Vilkår for bruk av getmunin.com og Munin-prosjektet."
+    }
   }
 }

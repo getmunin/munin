@@ -59,11 +59,14 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_list_conversations',
+    title: 'List conversations',
     description:
       'List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, or topic.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: ListConversationsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   listConversations(args: z.infer<typeof ListConversationsInput>) {
     return this.conv.listConversations(args);
@@ -71,10 +74,13 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_get_conversation',
+    title: 'Read conversation',
     description: 'Read one conversation including every public + internal message.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: GetConversationInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   getConversation(args: z.infer<typeof GetConversationInput>) {
     return this.conv.getConversation(args.id);
@@ -82,11 +88,14 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_send_message',
+    title: 'Send message in conversation',
     description:
       'Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SendMessageInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   sendMessage(args: z.infer<typeof SendMessageInput>) {
     const ctx = getCurrentContext();
@@ -100,11 +109,14 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_assign_conversation',
+    title: 'Assign conversation',
     description:
       'Assign a conversation to a user (pass user id) or unassign (pass null). Useful for routing escalated conversations.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: AssignInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   assign(args: z.infer<typeof AssignInput>) {
     return this.conv.assignConversation(args);
@@ -112,11 +124,14 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_change_status',
+    title: 'Change conversation status',
     description:
       'Change a conversation\'s status. `snoozeUntil` (ISO 8601) is required when status is "snoozed".',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: ChangeStatusInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   changeStatus(args: z.infer<typeof ChangeStatusInput>) {
     return this.conv.changeStatus(args);
@@ -124,11 +139,14 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_search_messages',
+    title: 'Search conversation messages',
     description:
       'Substring search over message bodies. Returns the matching messages newest first; use conv_get_conversation to load surrounding context.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: SearchInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   search(args: z.infer<typeof SearchInput>) {
     return this.conv.searchMessages(args);
@@ -136,10 +154,13 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_list_channels',
-    description: 'List conversation channels (email, voice, chat, sms) configured for your org.',
+    title: 'List conversation channels',
+    description: 'List conversation channels configured for your org. Currently shipping adapters: email and chat (widget). The `voice` and `sms` channel types are reserved for upcoming adapters.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   listChannels() {
     return this.conv.listChannels();
@@ -147,11 +168,14 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_create_channel',
+    title: 'Create conversation channel',
     description:
-      'Add a new conversation channel. Type is one of email / voice / chat / sms. Channel-specific configuration goes in `config`.',
+      'Add a new conversation channel. Currently shipping adapters: `email` and `chat` (widget). Channel-specific configuration goes in `config`. The `voice` and `sms` channel types are reserved and not yet wired to an adapter.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateChannelInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   createChannel(args: z.infer<typeof CreateChannelInput>) {
     return this.conv.createChannel(args);
@@ -159,10 +183,13 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_list_topics',
+    title: 'List conversation topics',
     description: 'List conversation topics (Billing, Support, Refunds, …) for your org.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   listTopics() {
     return this.conv.listTopics();
@@ -170,10 +197,13 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_create_topic',
+    title: 'Create conversation topic',
     description: 'Add a new conversation topic. Slug must be lowercase letters, digits, hyphens.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateTopicInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   createTopic(args: z.infer<typeof CreateTopicInput>) {
     return this.conv.createTopic(args);

@@ -19,10 +19,13 @@ const PingInput = z.object({
 export class PingMcpTool {
   @McpTool({
     name: 'ping',
+    title: 'Ping the MCP server',
     description: 'Verify the MCP pipe; echoes a message and returns the resolved org and actor type.',
     audiences: ['admin', 'self_service'],
     scopes: [],
     input: PingInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   ping(args: z.infer<typeof PingInput>) {
     const ctx = getCurrentContext();

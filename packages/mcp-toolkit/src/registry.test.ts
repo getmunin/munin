@@ -53,4 +53,25 @@ describe('McpToolRegistry', () => {
       required: ['msg'],
     });
   });
+
+  it('preserves directory annotations (title, readOnlyHint, destructiveHint)', () => {
+    const r = new McpToolRegistry();
+    r.register(
+      {
+        name: 'thing_delete',
+        title: 'Delete a thing',
+        description: 'Delete a thing.',
+        audiences: ['admin'],
+        scopes: [],
+        input: z.object({ id: z.string() }),
+        readOnlyHint: false,
+        destructiveHint: true,
+      },
+      () => 'ok',
+    );
+    const tool = r.get('thing_delete')!;
+    expect(tool.meta.title).toBe('Delete a thing');
+    expect(tool.meta.readOnlyHint).toBe(false);
+    expect(tool.meta.destructiveHint).toBe(true);
+  });
 });

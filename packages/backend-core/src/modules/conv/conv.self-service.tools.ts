@@ -28,11 +28,14 @@ export class ConvSelfServiceTools {
 
   @McpTool({
     name: 'conv_start_conversation',
+    title: 'Start conversation as end-user',
     description:
       'Start a new conversation as the end-user. The platform picks the best channel for you based on `channelHint` (defaults to "chat"). Returns the new conversation with the first message attached.',
     audiences: ['self_service'],
     scopes: ['conv:write'],
     input: StartConversationInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   async startConversation(args: z.infer<typeof StartConversationInput>) {
     const ctx = getCurrentContext();
@@ -60,11 +63,14 @@ export class ConvSelfServiceTools {
 
   @McpTool({
     name: 'conv_list_my_conversations',
+    title: 'List my conversations',
     description:
       'List the calling end-user\'s conversations. RLS enforces that only the caller\'s own conversations are returned, regardless of filters.',
     audiences: ['self_service'],
     scopes: ['conv:read'],
     input: ListMyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   async listMy(args: z.infer<typeof ListMyInput>) {
     const ctx = getCurrentContext();
@@ -78,11 +84,14 @@ export class ConvSelfServiceTools {
 
   @McpTool({
     name: 'conv_get_my_conversation',
+    title: 'Read my conversation',
     description:
       'Read one of the calling end-user\'s conversations. RLS hides internal staff messages — only public messages are returned.',
     audiences: ['self_service'],
     scopes: ['conv:read'],
     input: GetMyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   getMy(args: z.infer<typeof GetMyInput>) {
     return this.conv.getConversation(args.id);
@@ -90,11 +99,14 @@ export class ConvSelfServiceTools {
 
   @McpTool({
     name: 'conv_send_message_in_my_conversation',
+    title: 'Send message in my conversation',
     description:
       'Append a public message to one of the calling end-user\'s conversations. End-users cannot post internal notes.',
     audiences: ['self_service'],
     scopes: ['conv:write'],
     input: SendMyMessageInput,
+    readOnlyHint: false,
+    destructiveHint: false,
   })
   sendMyMessage(args: z.infer<typeof SendMyMessageInput>) {
     const ctx = getCurrentContext();

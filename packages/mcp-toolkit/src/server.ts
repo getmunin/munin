@@ -1,7 +1,13 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ListToolsRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import type { AuditLogger, ActorIdentity, Audience } from '@getmunin/core';
 import type { McpToolRegistry } from './registry.js';
+import type { RunbookRegistry } from './runbook-registry.js';
 
 export interface CreateMcpServerOptions {
   registry: McpToolRegistry;
@@ -16,6 +22,8 @@ export interface CreateMcpServerOptions {
    */
   rateLimit?: (toolName: string) => Promise<void> | void;
   serverInfo?: { name: string; version: string };
+  runbooks?: RunbookRegistry;
+  instructions?: string;
 }
 
 /**
@@ -27,10 +35,13 @@ export interface CreateMcpServerOptions {
  * is correct.
  */
 export function createMcpServer(opts: CreateMcpServerOptions): Server {
-  const { registry, audience, actor, audit, rateLimit } = opts;
+  const { registry, audience, actor, audit, rateLimit, runbooks, instructions } = opts;
   const info = opts.serverInfo ?? { name: 'munin', version: process.env.MUNIN_VERSION ?? '0.4.0' };
 
-  const server = new Server(info, { capabilities: { tools: {} } });
+  const server = new Server(info, {
+    capabilities: { tools: {}, ...(runbooks ? { resources: {} } : {}) },
+    instructions,
+  });
 
   // tools/list — visible-to-this-audience subset.
   server.setRequestHandler(ListToolsRequestSchema, () => ({
@@ -93,6 +104,37 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
       return errorResult(message);
     }
   });
+
+  if (runbooks) {
+    server.setRequestHandler(ListResourcesRequestSchema, () => ({
+      resources: runbooks.list(audience).map((r) => ({
+        uri: r.uri,
+        name: r.name,
+        description: r.description,
+        mimeType: r.mimeType,
+        annotations: { audience: ['assistant'] as const, priority: 0.9 },
+      })),
+    }));
+
+    server.setRequestHandler(ReadResourceRequestSchema, (req) => {
+      const rb = runbooks.get(req.params.uri);
+      if (!rb) {
+        throw new Error(`Unknown resource: ${req.params.uri}`);
+      }
+      if (!rb.audiences.includes(audience)) {
+        throw new Error(`Resource ${rb.uri} is not available for this caller`);
+      }
+      return {
+        contents: [
+          {
+            uri: rb.uri,
+            mimeType: rb.mimeType,
+            text: rb.content,
+          },
+        ],
+      };
+    });
+  }
 
   return server;
 }

@@ -166,6 +166,37 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('admin sees runbooks via resources/list and can read them', async () => {
+    await withClient(adminKey, async (c) => {
+      const { resources } = await c.listResources();
+      const uris = resources.map((r) => r.uri);
+      expect(uris).toContain('runbook://runbooks/email-channel-setup');
+      expect(uris).toContain('runbook://runbooks/customer-onboarding');
+
+      const read = await c.readResource({ uri: 'runbook://runbooks/email-channel-setup' });
+      const first = read.contents[0];
+      expect(first?.mimeType).toBe('text/markdown');
+      const text = first && 'text' in first ? first.text : '';
+      expect(text).toContain('Email channel setup');
+    });
+  });
+
+  it('end-user agent does not see admin-only runbooks', async () => {
+    await withClient(endUserToken, async (c) => {
+      const { resources } = await c.listResources();
+      const uris = resources.map((r) => r.uri);
+      expect(uris).not.toContain('runbook://runbooks/email-channel-setup');
+    });
+  });
+
+  it('reading an unknown resource URI errors', async () => {
+    await withClient(adminKey, async (c) => {
+      await expect(c.readResource({ uri: 'runbook://does/not-exist' })).rejects.toThrow(
+        /Unknown resource/,
+      );
+    });
+  });
+
   it('scope gating: an admin key without kb:write cannot call kb_create_document', async () => {
     const limitedKey = buildApiKey('admin');
     await db.insert(schema.apiKeys).values({

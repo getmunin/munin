@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { schema, type Db, type Tx } from '@getmunin/db';
+import { schema, type Tx } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { WebhookDispatcher, getCurrentContext } from '@getmunin/core';
 import { WidgetChannelConfig } from './widget.types.js';

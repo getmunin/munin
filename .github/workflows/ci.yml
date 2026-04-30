@@ -45,7 +45,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Changesets compares against the previous tagged release; needs full history.
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
@@ -75,10 +74,6 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # Release runs only on direct pushes to main (i.e. when a feature PR or a
-      # changeset-release PR has just merged). On a feature merge with a pending
-      # changeset, this opens (or updates) `chore: release packages`. On the
-      # release PR's own merge, this publishes to GitHub Packages.
       - name: Release (Changesets)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: changesets/action@v1

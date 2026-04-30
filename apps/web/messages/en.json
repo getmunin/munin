@@ -305,5 +305,19 @@
       "signIn": "Sign in with Google",
       "signUp": "Sign up with Google"
     }
+  },
+  "footer": {
+    "privacy": "Privacy",
+    "terms": "Terms"
+  },
+  "legal": {
+    "privacy": {
+      "title": "Privacy Policy — Munin",
+      "description": "How getmunin.com handles personal data."
+    },
+    "terms": {
+      "title": "Terms of Use — Munin",
+      "description": "Terms governing use of getmunin.com and the Munin open-source project."
+    }
   }
 }

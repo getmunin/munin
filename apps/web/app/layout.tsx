@@ -4,6 +4,7 @@ import { Geist } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages, getTranslations } from 'next-intl/server';
 import { cn } from '@getmunin/ui';
+import { Footer } from '../components/Footer';
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -20,9 +21,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const messages = await getMessages();
   return (
     <html lang={locale} className={cn('font-sans', geist.variable)}>
-      <body>
+      <body className="flex min-h-screen flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>
-          {children}
+          <div className="flex-1">{children}</div>
+          <Footer />
         </NextIntlClientProvider>
       </body>
     </html>

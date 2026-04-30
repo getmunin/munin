@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Building2, Check, ChevronDown } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import {
   Button,
   DropdownMenu,
@@ -11,7 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@getmunin/ui';
-import { api, ApiError } from '../api';
+import { api } from '../api';
+import { useTranslateError } from '../i18n/translate-error';
 
 interface MembershipDto {
   orgId: string;
@@ -21,13 +23,9 @@ interface MembershipDto {
   isDefault: boolean;
 }
 
-/**
- * Cross-org switcher for the dashboard header. Lists every org the
- * caller is a member of via `GET /api/orgs/me/memberships`; selecting one
- * flips `is_default` server-side and reloads so the next request picks up
- * the new active org via the session-cookie credential resolver.
- */
 export function OrgSwitcher() {
+  const t = useTranslations('dashboard.orgSwitcher');
+  const translate = useTranslateError();
   const [memberships, setMemberships] = useState<MembershipDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [switching, setSwitching] = useState<string | null>(null);
@@ -35,16 +33,14 @@ export function OrgSwitcher() {
   useEffect(() => {
     void api<MembershipDto[]>('/api/orgs/me/memberships')
       .then(setMemberships)
-      .catch((err: unknown) =>
-        setError(err instanceof ApiError ? err.message : 'Could not load orgs.'),
-      );
-  }, []);
+      .catch((err: unknown) => setError(translate(err) || t('errors.load')));
+  }, [t, translate]);
 
   if (error) {
     return <span className="text-xs text-destructive">{error}</span>;
   }
   if (!memberships) {
-    return <span className="text-xs text-muted-foreground">Loading orgs…</span>;
+    return <span className="text-xs text-muted-foreground">{t('loading')}</span>;
   }
   if (memberships.length === 0) {
     return null;
@@ -60,10 +56,9 @@ export function OrgSwitcher() {
         method: 'PATCH',
         body: JSON.stringify({ orgId }),
       });
-      // Hard reload so server-side session resolution picks up the new active org.
       window.location.reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not switch org.');
+      setError(translate(err) || t('errors.switch'));
       setSwitching(null);
     }
   }
@@ -78,7 +73,7 @@ export function OrgSwitcher() {
         <ChevronDown className="size-3.5 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">Your orgs</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">{t('yourOrgs')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {memberships.map((m) => (
           <DropdownMenuItem
@@ -90,7 +85,8 @@ export function OrgSwitcher() {
             <div className="flex flex-col">
               <span className="text-sm">{m.name}</span>
               <span className="text-xs text-muted-foreground">
-                {m.role}{switching === m.orgId ? ' · switching…' : ''}
+                {m.role}
+                {switching === m.orgId ? t('switching') : ''}
               </span>
             </div>
             {m.orgId === active.orgId && <Check className="size-4 text-muted-foreground" />}

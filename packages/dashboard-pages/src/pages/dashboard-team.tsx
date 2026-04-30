@@ -2,7 +2,9 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { Copy, Mail, MailX, Trash2, UserPlus, Users, X } from 'lucide-react';
-import { api, ApiError } from '../api';
+import { useFormatter, useTranslations } from 'next-intl';
+import { api } from '../api';
+import { useTranslateError } from '../i18n/translate-error';
 import { Button } from '@getmunin/ui';
 import { Input } from '@getmunin/ui';
 import { Label } from '@getmunin/ui';
@@ -43,6 +45,10 @@ interface PendingShare {
 }
 
 export function TeamPage() {
+  const t = useTranslations('dashboard.team');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const format = useFormatter();
   const [members, setMembers] = useState<MemberDto[] | null>(null);
   const [invites, setInvites] = useState<InvitationDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +68,7 @@ export function TeamPage() {
       setMembers(m);
       setInvites(i);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load team.');
+      setError(translate(err) || t('errors.load'));
     }
   }
 
@@ -89,7 +95,7 @@ export function TeamPage() {
       }
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not send invite.');
+      setError(translate(err) || t('errors.invite'));
     } finally {
       setSubmitting(false);
     }
@@ -109,17 +115,17 @@ export function TeamPage() {
       await api(`/api/orgs/me/invitations/${id}`, { method: 'DELETE' });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not revoke invite.');
+      setError(translate(err) || t('errors.revokeInvite'));
     }
   }
 
   async function removeMember(userId: string) {
-    if (!confirm('Remove this member? They lose access to the org immediately.')) return;
+    if (!confirm(t('removeConfirm'))) return;
     try {
       await api(`/api/orgs/me/members/${userId}`, { method: 'DELETE' });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not remove member.');
+      setError(translate(err) || t('errors.remove'));
     }
   }
 
@@ -131,18 +137,15 @@ export function TeamPage() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not change role.');
+      setError(translate(err) || t('errors.changeRole'));
     }
   }
 
   return (
     <>
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
-        <p className="text-sm text-muted-foreground">
-          Members and pending invitations for this org. Owners can invite others, change roles,
-          and remove members; members can use the apps but can&apos;t manage access.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
       {error && (
@@ -155,11 +158,9 @@ export function TeamPage() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <UserPlus className="size-5 text-muted-foreground" />
-            <CardTitle className="text-base">Invite a teammate</CardTitle>
+            <CardTitle className="text-base">{t('inviteTitle')}</CardTitle>
           </div>
-          <CardDescription>
-            They&apos;ll get an email with a link to accept. The link expires in 7 days.
-          </CardDescription>
+          <CardDescription>{t('inviteDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -169,31 +170,31 @@ export function TeamPage() {
             }}
           >
             <div className="flex-1 space-y-1">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('emailLabel')}</Label>
               <Input
                 id="email"
                 type="email"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="teammate@example.com"
+                placeholder={t('emailPlaceholder')}
                 required
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="role">Role</Label>
+              <Label htmlFor="role">{t('roleLabel')}</Label>
               <select
                 id="role"
                 className="h-9 rounded-md border bg-background px-3 text-sm"
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as 'owner' | 'member')}
               >
-                <option value="member">Member</option>
-                <option value="owner">Owner</option>
+                <option value="member">{t('roleMember')}</option>
+                <option value="owner">{t('roleOwner')}</option>
               </select>
             </div>
             <Button type="submit" disabled={submitting}>
               <Mail className="size-4" />
-              {submitting ? 'Sending…' : 'Send invite'}
+              {submitting ? t('sending') : t('sendInvite')}
             </Button>
           </form>
         </CardContent>
@@ -201,6 +202,7 @@ export function TeamPage() {
 
       <ManualShareDialog
         open={pendingShare !== null}
+        closeLabel={t('close')}
         onClose={() => {
           setPendingShare(null);
           setLinkCopied(false);
@@ -210,25 +212,22 @@ export function TeamPage() {
           <>
             <div className="flex items-center gap-2">
               <MailX className="size-5 text-amber-600" />
-              <h2 className="text-base font-semibold">
-                Email isn&apos;t configured — share this link manually
-              </h2>
+              <h2 className="text-base font-semibold">{t('manualShareTitle')}</h2>
             </div>
             <p className="text-sm text-muted-foreground">
-              No email provider is set up on this Munin instance, so we didn&apos;t send an
-              email. Send the link below to{' '}
-              <span className="font-medium text-foreground">{pendingShare.email}</span>{' '}
-              yourself, or set{' '}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">MUNIN_MAIL_PROVIDER</code>{' '}
-              (e.g.{' '}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">resend</code>)
-              and restart so future invites mail automatically.
+              {t.rich('manualShareBody', {
+                email: pendingShare.email,
+                recipient: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
+                code: (chunks) => (
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{chunks}</code>
+                ),
+              })}
             </p>
             <code className="block break-all rounded-md border bg-muted/40 px-3 py-2 font-mono text-xs">
               {pendingShare.acceptUrl}
             </code>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Valid for 7 days.</span>
+              <span className="text-xs text-muted-foreground">{t('manualShareValid')}</span>
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
@@ -238,7 +237,7 @@ export function TeamPage() {
                   }}
                 >
                   <Copy className="size-4" />
-                  {linkCopied ? 'Copied' : 'Copy link'}
+                  {linkCopied ? t('copied') : t('copyLink')}
                 </Button>
                 <Button
                   size="sm"
@@ -247,7 +246,7 @@ export function TeamPage() {
                     setLinkCopied(false);
                   }}
                 >
-                  Done
+                  {t('done')}
                 </Button>
               </div>
             </div>
@@ -257,19 +256,19 @@ export function TeamPage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">
-          Members {members && `(${members.length})`}
+          {members ? t('membersTitleCount', { count: members.length }) : t('membersTitle')}
         </h2>
         {members === null ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
         ) : (
           <div className="overflow-hidden rounded-lg border bg-background">
             <table className="w-full text-sm">
               <thead className="bg-muted/40">
                 <tr className="text-left text-xs font-medium uppercase text-muted-foreground">
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Email</th>
-                  <th className="px-3 py-2">Role</th>
-                  <th className="px-3 py-2">Joined</th>
+                  <th className="px-3 py-2">{t('membersTableName')}</th>
+                  <th className="px-3 py-2">{t('membersTableEmail')}</th>
+                  <th className="px-3 py-2">{t('membersTableRole')}</th>
+                  <th className="px-3 py-2">{t('membersTableJoined')}</th>
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
@@ -286,12 +285,12 @@ export function TeamPage() {
                           void changeRole(m.userId, e.target.value as 'owner' | 'member');
                         }}
                       >
-                        <option value="member">member</option>
-                        <option value="owner">owner</option>
+                        <option value="member">{t('roleMemberLower')}</option>
+                        <option value="owner">{t('roleOwnerLower')}</option>
                       </select>
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {new Date(m.joinedAt).toLocaleDateString()}
+                      {format.dateTime(new Date(m.joinedAt), { dateStyle: 'medium' })}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <Button
@@ -302,7 +301,7 @@ export function TeamPage() {
                         }}
                       >
                         <Trash2 className="size-4" />
-                        Remove
+                        {t('remove')}
                       </Button>
                     </td>
                   </tr>
@@ -315,20 +314,18 @@ export function TeamPage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">
-          Pending invitations {invites && `(${invites.length})`}
+          {invites ? t('invitesTitleCount', { count: invites.length }) : t('invitesTitle')}
         </h2>
         {invites === null ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
         ) : invites.length === 0 ? (
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Users className="size-5 text-muted-foreground" />
-                <CardTitle>No pending invitations</CardTitle>
+                <CardTitle>{t('invitesEmptyTitle')}</CardTitle>
               </div>
-              <CardDescription>
-                Use the form above to invite someone — they&apos;ll appear here until accepted.
-              </CardDescription>
+              <CardDescription>{t('invitesEmptyBody')}</CardDescription>
             </CardHeader>
           </Card>
         ) : (
@@ -341,8 +338,11 @@ export function TeamPage() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    {inv.role} · invited {new Date(inv.createdAt).toLocaleDateString()} · expires{' '}
-                    {new Date(inv.expiresAt).toLocaleDateString()}
+                    {t('inviteRow', {
+                      role: inv.role,
+                      created: format.dateTime(new Date(inv.createdAt), { dateStyle: 'medium' }),
+                      expires: format.dateTime(new Date(inv.expiresAt), { dateStyle: 'medium' }),
+                    })}
                   </p>
                 </div>
                 <Button
@@ -353,7 +353,7 @@ export function TeamPage() {
                   }}
                 >
                   <Trash2 className="size-4" />
-                  Revoke
+                  {t('revoke')}
                 </Button>
               </li>
             ))}
@@ -366,10 +366,12 @@ export function TeamPage() {
 
 function ManualShareDialog({
   open,
+  closeLabel,
   onClose,
   children,
 }: {
   open: boolean;
+  closeLabel: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -403,7 +405,7 @@ function ManualShareDialog({
           type="button"
           className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={closeLabel}
         >
           <X className="size-4" />
         </button>

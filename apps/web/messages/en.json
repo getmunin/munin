@@ -1,0 +1,309 @@
+{
+  "metadata": {
+    "title": "Munin — agent-native business apps",
+    "description": "Open-source headless business app suite (Knowledge Base, Conversations, CRM, CMS) where the AI agent is the UI."
+  },
+  "common": {
+    "loading": "Loading…",
+    "or": "or",
+    "signOut": "Sign out",
+    "revoke": "Revoke",
+    "save": "Save",
+    "cancel": "Cancel",
+    "create": "Create",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "unknownError": "Unknown error.",
+    "networkError": "Network error — is the API reachable?"
+  },
+  "locale": {
+    "label": "Language",
+    "en": "English",
+    "nb": "Norsk"
+  },
+  "home": {
+    "title": "Munin",
+    "tagline": "Agent-native business apps. The AI agent is the UI.",
+    "subtitle": "Knowledge Base · Conversations · CRM · CMS — open source, MCP-first.",
+    "getStarted": "Get started",
+    "signIn": "Sign in"
+  },
+  "auth": {
+    "signIn": {
+      "title": "Sign in",
+      "subtitle": "Welcome back to Munin.",
+      "googleButton": "Sign in with Google",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "noAccount": "New here?",
+      "createAccount": "Create an account",
+      "failed": "Sign-in failed"
+    },
+    "signUp": {
+      "title": "Create your account",
+      "subtitle": "Munin — agent-native business apps.",
+      "invitationSubtitle": "You're accepting an invitation for {email}.",
+      "googleButton": "Sign up with Google",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "haveAccount": "Already have an account?",
+      "signInLink": "Sign in",
+      "failed": "Signup failed",
+      "invitationInvalid": "This invitation is no longer valid (revoked or expired).",
+      "invitationLookupFailed": "Could not look up the invitation."
+    },
+    "fields": {
+      "name": "Your name",
+      "email": "Email",
+      "password": "Password"
+    }
+  },
+  "nav": {
+    "overview": "Overview",
+    "team": "Team",
+    "agents": "Connected agents",
+    "apiKeys": "API keys",
+    "endUsers": "End-users",
+    "usage": "Usage",
+    "auditLog": "Audit log",
+    "dataExport": "Data export",
+    "runbooks": "Runbooks",
+    "suggestions": "Suggestions",
+    "partnerAccess": "Partner access"
+  },
+  "dashboard": {
+    "overview": {
+      "title": "Welcome to Munin",
+      "subtitle": "Connect your AI agent or build a server-side integration.",
+      "connectCard": {
+        "title": "Connect your AI agent",
+        "description": "Add this URL to Claude Desktop, Cursor, or any MCP client.",
+        "consentNote": "You'll see a consent screen here when an agent connects."
+      },
+      "buildCard": {
+        "title": "Build a server integration",
+        "description": "Voice AI, web chatbot, or mobile app? Mint short-lived end-user tokens server-side.",
+        "cta": "Manage API keys"
+      }
+    },
+    "agents": {
+      "title": "Connected agents",
+      "subtitle": "Every OAuth-authorized agent and end-user token issued for this org. Revoke any active token to immediately invalidate further MCP calls.",
+      "emptyTitle": "No connected agents yet",
+      "emptyBody": "Add the MCP URL to Claude Desktop, Cursor, or your runtime, then complete consent — issued tokens will appear here.",
+      "noScopes": "no scopes",
+      "issued": "Issued {when}",
+      "lastUsed": "Last used {when}",
+      "expires": "Expires {when}",
+      "revoke": "Revoke",
+      "status": {
+        "active": "active",
+        "revoked": "revoked",
+        "expired": "expired"
+      },
+      "types": {
+        "oauth_access": "OAuth access token",
+        "oauth_refresh": "OAuth refresh token",
+        "delegated_end_user": "Delegated end-user token",
+        "guest": "Guest token"
+      },
+      "errors": {
+        "load": "Could not load connected agents.",
+        "revoke": "Could not revoke token."
+      }
+    },
+    "apiKeys": {
+      "title": "API keys",
+      "subtitle": "Long-lived admin keys for server-to-server integrations and programmatic admin agents. Self-hosters and CI use these too. Treat them like passwords.",
+      "createTitle": "Create a new key",
+      "createDescription": "The plaintext value is shown ONCE, immediately after creation. Copy it now and store it in your secret manager.",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. production-backend",
+      "create": "Create key",
+      "creating": "Creating…",
+      "revoke": "Revoke",
+      "rowMeta": "<code>{prefix}…</code> · created {created}",
+      "rowMetaWithLast": "<code>{prefix}…</code> · created {created} · last used {lastUsed}",
+      "emptyTitle": "No API keys yet",
+      "emptyBody": "Create your first key above to get started.",
+      "createdTitle": "Key created — copy it now",
+      "createdDescription": "Munin only stores the hash. We can't show you this key again.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "savedIt": "I've saved it",
+      "errors": {
+        "load": "Could not load API keys.",
+        "create": "Could not create API key.",
+        "revoke": "Could not revoke API key."
+      }
+    },
+    "team": {
+      "title": "Team",
+      "subtitle": "Members and pending invitations for this org. Owners can invite others, change roles, and remove members; members can use the apps but can't manage access.",
+      "inviteTitle": "Invite a teammate",
+      "inviteDescription": "They'll get an email with a link to accept. The link expires in 7 days.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "teammate@example.com",
+      "roleLabel": "Role",
+      "roleMember": "Member",
+      "roleOwner": "Owner",
+      "roleMemberLower": "member",
+      "roleOwnerLower": "owner",
+      "sendInvite": "Send invite",
+      "sending": "Sending…",
+      "manualShareTitle": "Email isn't configured — share this link manually",
+      "manualShareBody": "No email provider is set up on this Munin instance, so we didn't send an email. Send the link below to <recipient>{email}</recipient> yourself, or set <code>MUNIN_MAIL_PROVIDER</code> (e.g. <code>resend</code>) and restart so future invites mail automatically.",
+      "manualShareValid": "Valid for 7 days.",
+      "copyLink": "Copy link",
+      "copied": "Copied",
+      "done": "Done",
+      "close": "Close",
+      "membersTitle": "Members",
+      "membersTitleCount": "Members ({count})",
+      "membersTableName": "Name",
+      "membersTableEmail": "Email",
+      "membersTableRole": "Role",
+      "membersTableJoined": "Joined",
+      "remove": "Remove",
+      "removeConfirm": "Remove this member? They lose access to the org immediately.",
+      "invitesTitle": "Pending invitations",
+      "invitesTitleCount": "Pending invitations ({count})",
+      "invitesEmptyTitle": "No pending invitations",
+      "invitesEmptyBody": "Use the form above to invite someone — they'll appear here until accepted.",
+      "inviteRow": "{role} · invited {created} · expires {expires}",
+      "revoke": "Revoke",
+      "errors": {
+        "load": "Could not load team.",
+        "invite": "Could not send invite.",
+        "revokeInvite": "Could not revoke invite.",
+        "remove": "Could not remove member.",
+        "changeRole": "Could not change role."
+      }
+    },
+    "endUsers": {
+      "title": "End-users",
+      "subtitle": "People your customer-facing agents act on behalf of. Created server-side via the SDK or <code>/api/end-users/lookup</code>; never trusted from agent input.",
+      "emptyTitle": "No end-users yet",
+      "emptyBody": "Mint your first delegated end-user token via <code>POST /api/delegated-token</code> with an admin key from your backend, and the corresponding EndUser will appear here.",
+      "tableName": "Name",
+      "tableExternalId": "External id",
+      "tableContact": "Contact",
+      "tableCreated": "Created",
+      "revokeActive": "Revoke active tokens",
+      "revoking": "Revoking…",
+      "noTokensRevoked": "No active tokens to revoke for this end-user.",
+      "errors": {
+        "load": "Could not load end-users.",
+        "revoke": "Could not revoke tokens."
+      }
+    },
+    "usage": {
+      "title": "Usage",
+      "subtitle": "MCP tool calls counted against your tier limits. Counters reset at the start of each window.",
+      "perMinute": "Per minute",
+      "perDay": "Per day",
+      "summary": "{used} of {limit} tool calls — resets {resetIn}.",
+      "percentUsed": "{pct}% used",
+      "resetNow": "now",
+      "resetMinutes": "in {minutes}m",
+      "resetHours": "in {hours}h",
+      "errors": {
+        "load": "Could not load usage."
+      }
+    },
+    "auditLog": {
+      "title": "Audit log",
+      "subtitle": "Every tool call and control-plane mutation, newest first. Filter by tool, actor type, or correlation id to isolate one request chain.",
+      "filterTitle": "Filter",
+      "filterDescription": "Leave blank to match all values.",
+      "filterTool": "Tool",
+      "filterActorType": "Actor type",
+      "filterCorrelationId": "Correlation id",
+      "apply": "Apply",
+      "loadMore": "Load more",
+      "emptyTitle": "No audit rows yet",
+      "emptyBody": "Tool calls and control-plane writes appear here. Connect an agent and try a tool.",
+      "tableTime": "Time",
+      "tableActor": "Actor",
+      "tableToolMethod": "Tool / method",
+      "tableResult": "Result",
+      "tableCorrelation": "Correlation",
+      "errors": {
+        "load": "Could not load audit log."
+      }
+    },
+    "export": {
+      "title": "Data export",
+      "subtitle": "Download a complete JSON dump of your org's domain data — knowledge base, end-users, and configuration. Use this to migrate to a self-hosted Munin or to keep an offline copy.",
+      "cardTitle": "Export now",
+      "cardDescription": "Includes: organization, end-users, agents, and KB spaces / documents / versions. Excludes: tokens, API keys, and the audit log (those are operational data you can't restore from an export).",
+      "download": "Download export",
+      "preparing": "Preparing…",
+      "errors": {
+        "export": "Could not generate export."
+      }
+    },
+    "orgSwitcher": {
+      "loading": "Loading orgs…",
+      "yourOrgs": "Your orgs",
+      "switching": " · switching…",
+      "errors": {
+        "load": "Could not load orgs.",
+        "switch": "Could not switch org."
+      }
+    }
+  },
+  "acceptInvite": {
+    "pendingTitle": "Accepting your invitation…",
+    "pendingBody": "One moment.",
+    "acceptedTitle": "Invitation accepted",
+    "acceptedBody": "You're now a member of the org.",
+    "goToDashboard": "Go to dashboard",
+    "errorTitle": "Couldn't accept the invitation",
+    "signOutAndRetry": "Sign out and try again",
+    "backToDashboard": "Back to dashboard",
+    "missingToken": "Missing invitation token.",
+    "errors": {
+      "lookup": "Could not look up the invitation.",
+      "accept": "Could not accept invitation.",
+      "expired": "This invitation is no longer valid (revoked or expired)."
+    }
+  },
+  "errors": {
+    "SIGNUP_NOT_ALLOWED": "Signup is restricted on this Munin instance. Ask an admin to invite you.",
+    "SIGNUP_DOMAIN_NOT_ALLOWED": "Your email domain isn't on the allowlist, and there's no pending invitation for this address. Ask an admin to invite you.",
+    "SIGNUP_INVITE_ONLY": "Signup is invite-only on this Munin instance. Ask an admin to send you an invitation.",
+    "INVITATION_NOT_FOUND": "Invitation not found.",
+    "INVITATION_EXPIRED": "This invitation has expired.",
+    "INVITATION_REVOKED": "This invitation has been revoked.",
+    "INVITATION_EMAIL_MISMATCH": "This invitation is for a different email address.",
+    "UNAUTHORIZED": "You need to sign in to do that.",
+    "INVALID_CREDENTIAL": "Invalid or expired credential.",
+    "FORBIDDEN": "You don't have permission to do that.",
+    "NOT_FOUND": "Not found.",
+    "BAD_REQUEST": "Invalid request.",
+    "RATE_LIMITED": "Too many requests. Please slow down and try again.",
+    "QUOTA_EXCEEDED": "You've hit a quota limit. Upgrade or wait for it to reset.",
+    "CONFLICT": "That conflicts with existing data.",
+    "VALIDATION_ERROR": "The data you submitted didn't validate.",
+    "WEBHOOK_DISABLED": "This webhook is disabled.",
+    "INVALID_SIGNED_URL": "Invalid or expired signed URL.",
+    "KB_INVALID": "Knowledge base entry is invalid.",
+    "KB_NOT_FOUND": "Knowledge base entry not found.",
+    "KB_CONFLICT": "Knowledge base conflict (version mismatch?).",
+    "CRM_INVALID": "CRM entry is invalid.",
+    "CMS_INVALID": "CMS entry is invalid.",
+    "CMS_CONFLICT": "CMS conflict (version mismatch?).",
+    "CONV_INVALID": "Conversation entry is invalid.",
+    "FEEDBACK_RATE_LIMIT": "Too many suggestions created in the last hour. Try again later.",
+    "FEEDBACK_NOT_FOUND": "Suggestion not found."
+  },
+  "ui": {
+    "googleButton": {
+      "signIn": "Sign in with Google",
+      "signUp": "Sign up with Google"
+    }
+  }
+}

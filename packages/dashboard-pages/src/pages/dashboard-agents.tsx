@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { Bot, Trash2 } from 'lucide-react';
-import { api, ApiError } from '../api';
+import { useFormatter, useLocale, useTranslations } from 'next-intl';
+import { api } from '../api';
+import { useTranslateError } from '../i18n/translate-error';
 import { Button } from '@getmunin/ui';
 import {
   Card,
@@ -25,6 +27,9 @@ interface TokenDto {
 }
 
 export function AgentsPage() {
+  const t = useTranslations('dashboard.agents');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
   const [tokens, setTokens] = useState<TokenDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +39,7 @@ export function AgentsPage() {
       const list = await api<TokenDto[]>('/api/tokens');
       setTokens(list);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load connected agents.');
+      setError(translate(err) || t('errors.load'));
     }
   }
 
@@ -47,18 +52,15 @@ export function AgentsPage() {
       await api(`/api/tokens/${id}/revoke`, { method: 'POST' });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not revoke token.');
+      setError(translate(err) || t('errors.revoke'));
     }
   }
 
   return (
     <>
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Connected agents</h1>
-        <p className="text-sm text-muted-foreground">
-          Every OAuth-authorized agent and end-user token issued for this org. Revoke any active
-          token to immediately invalidate further MCP calls.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
       {error && (
@@ -68,18 +70,15 @@ export function AgentsPage() {
       )}
 
       {tokens === null ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
       ) : tokens.length === 0 ? (
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Bot className="size-5 text-muted-foreground" />
-              <CardTitle>No connected agents yet</CardTitle>
+              <CardTitle>{t('emptyTitle')}</CardTitle>
             </div>
-            <CardDescription>
-              Add the MCP URL to Claude Desktop, Cursor, or your runtime, then complete consent —
-              issued tokens will appear here.
-            </CardDescription>
+            <CardDescription>{t('emptyBody')}</CardDescription>
           </CardHeader>
         </Card>
       ) : (
@@ -100,17 +99,26 @@ export function AgentsPage() {
 }
 
 function TokenCard({ token, onRevoke }: { token: TokenDto; onRevoke: () => void }) {
+  const t = useTranslations('dashboard.agents');
+  const format = useFormatter();
+  const locale = useLocale();
   const isRevoked = token.revokedAt !== null;
   const isExpired = token.expiresAt !== null && new Date(token.expiresAt) < new Date();
-  const status = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
+  const status: 'active' | 'revoked' | 'expired' = isRevoked
+    ? 'revoked'
+    : isExpired
+      ? 'expired'
+      : 'active';
+  const fmt = (iso: string) => format.dateTime(new Date(iso), { dateStyle: 'medium', timeStyle: 'short' });
+  const typeLabel = labelForType(token.type, t);
   return (
     <Card>
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <CardTitle className="text-base">{labelForType(token.type)}</CardTitle>
+            <CardTitle className="text-base">{typeLabel}</CardTitle>
             <CardDescription>
-              {token.audiences.join(', ') || '—'} · {token.scopes.join(' ') || 'no scopes'}
+              {token.audiences.join(', ') || '—'} · {token.scopes.join(' ') || t('noScopes')}
             </CardDescription>
           </div>
           <span
@@ -120,20 +128,20 @@ function TokenCard({ token, onRevoke }: { token: TokenDto; onRevoke: () => void 
                 : 'rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'
             }
           >
-            {status}
+            {t(`status.${status}` as 'status.active' | 'status.revoked' | 'status.expired')}
           </span>
         </div>
       </CardHeader>
       <CardContent className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
-        <div className="space-y-0.5">
-          <div>Issued {fmt(token.createdAt)}</div>
-          {token.lastUsedAt && <div>Last used {fmt(token.lastUsedAt)}</div>}
-          {token.expiresAt && <div>Expires {fmt(token.expiresAt)}</div>}
+        <div className="space-y-0.5" lang={locale}>
+          <div>{t('issued', { when: fmt(token.createdAt) })}</div>
+          {token.lastUsedAt && <div>{t('lastUsed', { when: fmt(token.lastUsedAt) })}</div>}
+          {token.expiresAt && <div>{t('expires', { when: fmt(token.expiresAt) })}</div>}
         </div>
         {!isRevoked && (
           <Button variant="outline" size="sm" onClick={() => onRevoke()}>
             <Trash2 className="size-4" />
-            Revoke
+            {t('revoke')}
           </Button>
         )}
       </CardContent>
@@ -141,14 +149,10 @@ function TokenCard({ token, onRevoke }: { token: TokenDto; onRevoke: () => void 
   );
 }
 
-function labelForType(type: string): string {
-  if (type === 'oauth_access') return 'OAuth access token';
-  if (type === 'oauth_refresh') return 'OAuth refresh token';
-  if (type === 'delegated_end_user') return 'Delegated end-user token';
-  if (type === 'guest') return 'Guest token';
+function labelForType(type: string, t: ReturnType<typeof useTranslations<'dashboard.agents'>>): string {
+  if (type === 'oauth_access') return t('types.oauth_access');
+  if (type === 'oauth_refresh') return t('types.oauth_refresh');
+  if (type === 'delegated_end_user') return t('types.delegated_end_user');
+  if (type === 'guest') return t('types.guest');
   return type;
-}
-
-function fmt(iso: string): string {
-  return new Date(iso).toLocaleString();
 }

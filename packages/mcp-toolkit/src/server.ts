@@ -49,6 +49,11 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
       name: t.meta.name,
       description: t.meta.description,
       inputSchema: t.inputJsonSchema as Record<string, unknown>,
+      annotations: {
+        title: t.meta.title ?? t.meta.name,
+        readOnlyHint: t.meta.readOnlyHint ?? false,
+        destructiveHint: t.meta.destructiveHint ?? false,
+      },
     })),
   }));
 

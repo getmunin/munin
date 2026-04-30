@@ -114,6 +114,19 @@ const skipReason = TEST_URL
       expect(names).toContain('ping');
       expect(names).not.toContain('suggestion_create');
 
+      for (const t of tools) {
+        expect(t.annotations, `tool ${t.name} missing annotations`).toBeDefined();
+        expect(t.annotations!.title, `tool ${t.name} missing title`).toBeTruthy();
+        expect(typeof t.annotations!.readOnlyHint).toBe('boolean');
+        expect(typeof t.annotations!.destructiveHint).toBe('boolean');
+      }
+      const kbDelete = tools.find((t) => t.name === 'kb_delete_document')!;
+      expect(kbDelete.annotations!.readOnlyHint).toBe(false);
+      expect(kbDelete.annotations!.destructiveHint).toBe(true);
+      const kbSearch = tools.find((t) => t.name === 'kb_search')!;
+      expect(kbSearch.annotations!.readOnlyHint).toBe(true);
+      expect(kbSearch.annotations!.destructiveHint).toBe(false);
+
       const ping = await c.callTool({ name: 'ping', arguments: { message: 'hi' } });
       expect(JSON.stringify(ping)).toContain('hi');
 

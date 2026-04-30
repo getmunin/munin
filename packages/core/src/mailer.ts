@@ -108,6 +108,12 @@ export class StubMailer implements Mailer {
 
   send(msg: MailMessage): Promise<void> {
     this.outbox.push({ ...msg, sentAt: new Date() });
+    if (process.env.NODE_ENV !== 'test') {
+      const to = Array.isArray(msg.to) ? msg.to.join(', ') : msg.to;
+      const body = (msg.text ?? '').slice(0, 600);
+      // eslint-disable-next-line no-console
+      console.log(`\n[mail:stub] to=${to}\n           subject=${msg.subject}\n${body}\n`);
+    }
     return Promise.resolve();
   }
 

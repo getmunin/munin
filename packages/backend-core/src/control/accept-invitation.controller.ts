@@ -3,15 +3,19 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   HttpCode,
   Inject,
+  NotFoundException,
   Post,
+  Query,
   Req,
   type CanActivate,
   type ExecutionContext,
   Injectable,
   UseGuards,
 } from '@nestjs/common';
+import { AllowAnonymous } from '../common/auth/auth.guard.js';
 import { z } from 'zod';
 import { CredentialResolver } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
@@ -63,12 +67,21 @@ class SessionOnlyGuard implements CanActivate {
  * route them.
  */
 @Controller('api/invitations')
-@UseGuards(SessionOnlyGuard)
 export class AcceptInvitationController {
   constructor(@Inject(InvitationsService) private readonly invites: InvitationsService) {}
 
+  @Get('lookup')
+  @AllowAnonymous()
+  async lookup(@Query('token') token?: string) {
+    if (!token) throw new BadRequestException('token_required');
+    const found = await this.invites.lookupByToken(token);
+    if (!found) throw new NotFoundException('invitation_not_found_or_expired');
+    return found;
+  }
+
   @Post('accept')
   @HttpCode(200)
+  @UseGuards(SessionOnlyGuard)
   async accept(@Body() body: unknown, @Req() req: AcceptRequest) {
     const parsed = AcceptDto.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.message);

@@ -1,10 +1,9 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import type { Route } from 'next';
-import { authClient } from '@getmunin/dashboard-pages';
+import { api, ApiError, authClient } from '@getmunin/dashboard-pages';
 import { GoogleButton } from '@getmunin/ui';
 import { Button } from '@getmunin/ui';
 import { Input } from '@getmunin/ui';
@@ -12,23 +11,55 @@ import { Label } from '@getmunin/ui';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getmunin/ui';
 import { Separator } from '@getmunin/ui';
 
-function safeRedirect(raw: string | null): Route {
-  if (raw && raw.startsWith('/') && !raw.startsWith('//')) {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-    return raw as Route;
-  }
+function safeRedirect(raw: string | null): string {
+  if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
   return '/dashboard';
+}
+
+function extractInviteToken(redirectRaw: string | null): string | null {
+  if (!redirectRaw) return null;
+  if (!redirectRaw.startsWith('/accept-invite')) return null;
+  try {
+    const url = new URL(redirectRaw, 'http://placeholder');
+    return url.searchParams.get('token');
+  } catch {
+    return null;
+  }
 }
 
 function SignupForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const redirectTo = safeRedirect(params.get('redirect'));
+  const redirectRaw = params.get('redirect');
+  const redirectTo = safeRedirect(redirectRaw);
+  const inviteToken = extractInviteToken(redirectRaw);
+  const { refetch } = authClient.useSession();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    void (async () => {
+      try {
+        const result = await api<{ email: string }>(
+          `/api/invitations/lookup?token=${encodeURIComponent(inviteToken)}`,
+        );
+        setInviteEmail(result.email);
+        setEmail(result.email);
+      } catch (err) {
+        setInviteError(
+          err instanceof ApiError
+            ? 'This invitation is no longer valid (revoked or expired).'
+            : 'Could not look up the invitation.',
+        );
+      }
+    })();
+  }, [inviteToken]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -40,6 +71,7 @@ function SignupForm() {
         setError(result.error.message ?? 'Signup failed');
         return;
       }
+      await refetch();
       router.push(redirectTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error — is the API reachable?');
@@ -52,9 +84,16 @@ function SignupForm() {
     <Card className="border-0 shadow-none sm:border sm:shadow-sm">
       <CardHeader>
         <CardTitle className="text-2xl">Create your account</CardTitle>
-        <CardDescription>Munin — agent-native business apps.</CardDescription>
+        <CardDescription>
+          {inviteEmail
+            ? `You're accepting an invitation for ${inviteEmail}.`
+            : 'Munin — agent-native business apps.'}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {inviteError && (
+          <p className="text-sm text-destructive">{inviteError}</p>
+        )}
         <GoogleButton
           label="Sign up with Google"
           onSignIn={() => {
@@ -88,6 +127,7 @@ function SignupForm() {
               type="email"
               autoComplete="email"
               required
+              readOnly={inviteEmail !== null}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -111,7 +151,10 @@ function SignupForm() {
 
         <p className="pt-2 text-sm text-muted-foreground">
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-foreground underline">
+          <Link
+            href={redirectRaw ? `/login?redirect=${encodeURIComponent(redirectRaw)}` : '/login'}
+            className="font-medium text-foreground underline"
+          >
             Sign in
           </Link>
         </p>

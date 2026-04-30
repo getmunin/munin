@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Mail, Trash2, UserPlus, Users } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Copy, Mail, MailX, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { api, ApiError } from '../api';
 import { Button } from '@getmunin/ui';
 import { Input } from '@getmunin/ui';
@@ -31,6 +31,17 @@ interface InvitationDto {
   createdAt: string;
 }
 
+interface CreatedInvitationDto extends InvitationDto {
+  token: string;
+  acceptUrl: string;
+  mailerConfigured: boolean;
+}
+
+interface PendingShare {
+  email: string;
+  acceptUrl: string;
+}
+
 export function TeamPage() {
   const [members, setMembers] = useState<MemberDto[] | null>(null);
   const [invites, setInvites] = useState<InvitationDto[] | null>(null);
@@ -38,6 +49,8 @@ export function TeamPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'owner' | 'member'>('member');
   const [submitting, setSubmitting] = useState(false);
+  const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   async function load() {
     try {
@@ -62,17 +75,32 @@ export function TeamPage() {
     if (!inviteEmail.trim()) return;
     setSubmitting(true);
     setError(null);
+    setLinkCopied(false);
     try {
-      await api('/api/orgs/me/invitations', {
+      const created = await api<CreatedInvitationDto>('/api/orgs/me/invitations', {
         method: 'POST',
         body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
       });
       setInviteEmail('');
+      if (!created.mailerConfigured) {
+        setPendingShare({ email: created.email, acceptUrl: created.acceptUrl });
+      } else {
+        setPendingShare(null);
+      }
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not send invite.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function copyAcceptUrl(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+    } catch {
+      setLinkCopied(false);
     }
   }
 
@@ -170,6 +198,62 @@ export function TeamPage() {
           </form>
         </CardContent>
       </Card>
+
+      <ManualShareDialog
+        open={pendingShare !== null}
+        onClose={() => {
+          setPendingShare(null);
+          setLinkCopied(false);
+        }}
+      >
+        {pendingShare && (
+          <>
+            <div className="flex items-center gap-2">
+              <MailX className="size-5 text-amber-600" />
+              <h2 className="text-base font-semibold">
+                Email isn&apos;t configured — share this link manually
+              </h2>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              No email provider is set up on this Munin instance, so we didn&apos;t send an
+              email. Send the link below to{' '}
+              <span className="font-medium text-foreground">{pendingShare.email}</span>{' '}
+              yourself, or set{' '}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">MUNIN_MAIL_PROVIDER</code>{' '}
+              (e.g.{' '}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">resend</code>)
+              and restart so future invites mail automatically.
+            </p>
+            <code className="block break-all rounded-md border bg-muted/40 px-3 py-2 font-mono text-xs">
+              {pendingShare.acceptUrl}
+            </code>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Valid for 7 days.</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    void copyAcceptUrl(pendingShare.acceptUrl);
+                  }}
+                >
+                  <Copy className="size-4" />
+                  {linkCopied ? 'Copied' : 'Copy link'}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setPendingShare(null);
+                    setLinkCopied(false);
+                  }}
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </ManualShareDialog>
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">
@@ -277,5 +361,54 @@ export function TeamPage() {
         )}
       </section>
     </>
+  );
+}
+
+function ManualShareDialog({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-lg space-y-4 rounded-lg border bg-background p-6 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          <X className="size-4" />
+        </button>
+        {children}
+      </div>
+    </div>
   );
 }

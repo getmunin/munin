@@ -25,8 +25,23 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new ApiError(res.status, text || `${res.status} ${res.statusText}`);
+    throw new ApiError(res.status, parseErrorMessage(text) || `${res.status} ${res.statusText}`);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+function parseErrorMessage(body: string): string | null {
+  if (!body) return null;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as Record<string, unknown>;
+      if (typeof obj.message === 'string') return obj.message;
+      if (typeof obj.error === 'string') return obj.error;
+    }
+  } catch {
+    // not JSON
+  }
+  return body;
 }

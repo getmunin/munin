@@ -55,13 +55,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Auto-merge the release PR once CI passes. The PR contains exactly one
+      # Auto-merge the release PR. The PR contains exactly one mechanical
       # `chore: release` commit (version bumps + CHANGELOGs derived from the
       # changesets that were already reviewed at feature merge time), so the
       # second-review step adds no value. --rebase lands that single commit
       # verbatim on main with no extra merge commit.
-      - name: Enable auto-merge on release PR
+      #
+      # We skip --auto because GitHub's auto-merge feature is paywalled for
+      # private repos on the free plan. This merges immediately, before the
+      # Release CI run on the PR's commit completes — but that CI run is
+      # functionally identical to the Release run that fires once main moves
+      # to the new commit, so we lose no signal.
+      - name: Merge release PR
         if: steps.changesets.outputs.pullRequestNumber != ''
-        run: gh pr merge ${{ steps.changesets.outputs.pullRequestNumber }} --auto --rebase
+        run: gh pr merge ${{ steps.changesets.outputs.pullRequestNumber }} --rebase
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

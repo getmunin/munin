@@ -170,10 +170,10 @@ const skipReason = TEST_URL
     await withClient(adminKey, async (c) => {
       const { resources } = await c.listResources();
       const uris = resources.map((r) => r.uri);
-      expect(uris).toContain('runbook://runbooks/email-channel-setup');
-      expect(uris).toContain('runbook://runbooks/customer-onboarding');
+      expect(uris).toContain('runbook://conv/email-channel-setup');
+      expect(uris).toContain('runbook://crm/customer-onboarding');
 
-      const read = await c.readResource({ uri: 'runbook://runbooks/email-channel-setup' });
+      const read = await c.readResource({ uri: 'runbook://conv/email-channel-setup' });
       const first = read.contents[0];
       expect(first?.mimeType).toBe('text/markdown');
       const text = first && 'text' in first ? first.text : '';
@@ -185,7 +185,7 @@ const skipReason = TEST_URL
     await withClient(endUserToken, async (c) => {
       const { resources } = await c.listResources();
       const uris = resources.map((r) => r.uri);
-      expect(uris).not.toContain('runbook://runbooks/email-channel-setup');
+      expect(uris).not.toContain('runbook://conv/email-channel-setup');
     });
   });
 

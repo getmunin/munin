@@ -10,6 +10,8 @@ import { ExportController } from './export.controller.js';
 import { WebhooksController } from './webhooks.controller.js';
 import { CmsDeliveryController } from './cms-delivery.controller.js';
 import { CmsModule } from '../modules/cms/cms.module.js';
+import { McpModule } from '../mcp/mcp.module.js';
+import { PublicRunbooksController } from './public-runbooks.controller.js';
 import { InvitationsController } from './invitations.controller.js';
 import { AcceptInvitationController } from './accept-invitation.controller.js';
 import { InvitationsService } from './invitations.service.js';
@@ -25,7 +27,7 @@ import { MembershipsController } from './memberships.controller.js';
  * permitted on these endpoints — that's the privilege boundary.
  */
 @Module({
-  imports: [CmsModule],
+  imports: [CmsModule, McpModule],
   controllers: [
     ApiKeysController,
     EndUsersController,
@@ -41,6 +43,7 @@ import { MembershipsController } from './memberships.controller.js';
     AcceptInvitationController,
     MembersController,
     MembershipsController,
+    PublicRunbooksController,
   ],
   providers: [InvitationsService],
 })

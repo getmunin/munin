@@ -90,15 +90,15 @@ function parseRunbook(file: string, src: RunbookSource): RegisteredRunbook | nul
     audiences,
     mimeType: typeof fm.mimeType === 'string' ? fm.mimeType : 'text/markdown',
     content: body.trimStart(),
+    public: fm.public === undefined ? true : fm.public !== false && fm.public !== 'false',
   };
 }
 
 function deriveModule(file: string, src: RunbookSource): string {
   if (src.namespace) return src.namespace;
   const rel = relative(src.root, file);
-  const parts = rel.split(sep);
-  if (parts.length >= 2) return parts[parts.length - 2]!;
-  return 'core';
+  const parts = rel.split(sep).slice(0, -1).filter((p) => p !== 'runbooks');
+  return parts[parts.length - 1] ?? 'core';
 }
 
 function parseFrontmatter(text: string): Record<string, unknown> {

@@ -7,7 +7,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { AuditLogger, ActorIdentity, Audience } from '@getmunin/core';
 import type { McpToolRegistry } from './registry.js';
-import type { RunbookRegistry } from './runbook-registry.js';
+import type { SkillRegistry } from './skill-registry.js';
 
 export interface CreateMcpServerOptions {
   registry: McpToolRegistry;
@@ -22,7 +22,7 @@ export interface CreateMcpServerOptions {
    */
   rateLimit?: (toolName: string) => Promise<void> | void;
   serverInfo?: { name: string; version: string };
-  runbooks?: RunbookRegistry;
+  skills?: SkillRegistry;
   instructions?: string;
 }
 
@@ -35,11 +35,11 @@ export interface CreateMcpServerOptions {
  * is correct.
  */
 export function createMcpServer(opts: CreateMcpServerOptions): Server {
-  const { registry, audience, actor, audit, rateLimit, runbooks, instructions } = opts;
+  const { registry, audience, actor, audit, rateLimit, skills, instructions } = opts;
   const info = opts.serverInfo ?? { name: 'munin', version: process.env.MUNIN_VERSION ?? '0.4.0' };
 
   const server = new Server(info, {
-    capabilities: { tools: {}, ...(runbooks ? { resources: {} } : {}) },
+    capabilities: { tools: {}, ...(skills ? { resources: {} } : {}) },
     instructions,
   });
 
@@ -110,31 +110,31 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
     }
   });
 
-  if (runbooks) {
+  if (skills) {
     server.setRequestHandler(ListResourcesRequestSchema, () => ({
-      resources: runbooks.list(audience).map((r) => ({
-        uri: r.uri,
-        name: r.name,
-        description: r.description,
-        mimeType: r.mimeType,
+      resources: skills.list(audience).map((s) => ({
+        uri: s.uri,
+        name: s.name,
+        description: s.description,
+        mimeType: s.mimeType,
         annotations: { audience: ['assistant'] as const, priority: 0.9 },
       })),
     }));
 
     server.setRequestHandler(ReadResourceRequestSchema, (req) => {
-      const rb = runbooks.get(req.params.uri);
-      if (!rb) {
+      const skill = skills.get(req.params.uri);
+      if (!skill) {
         throw new Error(`Unknown resource: ${req.params.uri}`);
       }
-      if (!rb.audiences.includes(audience)) {
-        throw new Error(`Resource ${rb.uri} is not available for this caller`);
+      if (!skill.audiences.includes(audience)) {
+        throw new Error(`Resource ${skill.uri} is not available for this caller`);
       }
       return {
         contents: [
           {
-            uri: rb.uri,
-            mimeType: rb.mimeType,
-            text: rb.content,
+            uri: skill.uri,
+            mimeType: skill.mimeType,
+            text: skill.content,
           },
         ],
       };

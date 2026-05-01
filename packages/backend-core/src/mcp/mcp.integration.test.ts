@@ -179,14 +179,14 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
-  it('admin sees runbooks via resources/list and can read them', async () => {
+  it('admin sees skills via resources/list and can read them', async () => {
     await withClient(adminKey, async (c) => {
       const { resources } = await c.listResources();
       const uris = resources.map((r) => r.uri);
-      expect(uris).toContain('runbook://conv/email-channel-setup');
-      expect(uris).toContain('runbook://crm/customer-onboarding');
+      expect(uris).toContain('skill://conv/email-channel-setup');
+      expect(uris).toContain('skill://crm/customer-onboarding');
 
-      const read = await c.readResource({ uri: 'runbook://conv/email-channel-setup' });
+      const read = await c.readResource({ uri: 'skill://conv/email-channel-setup' });
       const first = read.contents[0];
       expect(first?.mimeType).toBe('text/markdown');
       const text = first && 'text' in first ? first.text : '';
@@ -194,17 +194,17 @@ const skipReason = TEST_URL
     });
   });
 
-  it('end-user agent does not see admin-only runbooks', async () => {
+  it('end-user agent does not see admin-only skills', async () => {
     await withClient(endUserToken, async (c) => {
       const { resources } = await c.listResources();
       const uris = resources.map((r) => r.uri);
-      expect(uris).not.toContain('runbook://conv/email-channel-setup');
+      expect(uris).not.toContain('skill://conv/email-channel-setup');
     });
   });
 
   it('reading an unknown resource URI errors', async () => {
     await withClient(adminKey, async (c) => {
-      await expect(c.readResource({ uri: 'runbook://does/not-exist' })).rejects.toThrow(
+      await expect(c.readResource({ uri: 'skill://does/not-exist' })).rejects.toThrow(
         /Unknown resource/,
       );
     });

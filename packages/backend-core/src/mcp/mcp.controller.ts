@@ -17,7 +17,7 @@ import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import { McpRegistryService } from './mcp.registry.js';
-import { McpRunbookRegistryService } from './mcp.runbook-registry.service.js';
+import { McpSkillRegistryService } from './mcp.skill-registry.service.js';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service.js';
 
 /**
@@ -39,7 +39,7 @@ export class McpController {
 
   constructor(
     @Inject(McpRegistryService) private readonly registry: McpRegistryService,
-    @Inject(McpRunbookRegistryService) private readonly runbooks: McpRunbookRegistryService,
+    @Inject(McpSkillRegistryService) private readonly skills: McpSkillRegistryService,
     @Inject(RateLimitService) private readonly rateLimit: RateLimitService,
   ) {}
 
@@ -72,8 +72,8 @@ export class McpController {
       actor,
       audit: this.audit,
       rateLimit: () => this.rateLimit.consume(),
-      runbooks: this.runbooks,
-      instructions: this.runbooks.instructions(),
+      skills: this.skills,
+      instructions: this.skills.instructions(),
     });
 
     const transport = new StreamableHTTPServerTransport({

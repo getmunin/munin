@@ -60,6 +60,5 @@ Mostly mechanical once you've picked an inbound mode.
 
 ## Related
 
-- `runbooks/widget-integration.md` — the chat-widget adapter from the customer's perspective.
 - `packages/backend-core/src/modules/conv/email/email-adapter.ts` — reference implementation for `poll` + outbound SMTP.
 - `packages/backend-core/src/modules/conv/widget/` — reference implementation for `push`.

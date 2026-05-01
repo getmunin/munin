@@ -1,20 +1,20 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { RunbookRegistry } from '@getmunin/mcp-toolkit';
+import { SkillRegistry } from '@getmunin/mcp-toolkit';
 import type { Audience } from '@getmunin/core';
-import { loadRunbooks, type RunbookSource } from './runbook-loader.js';
+import { loadSkills, type SkillSource } from './skill-loader.js';
 
 @Injectable()
-export class McpRunbookRegistryService extends RunbookRegistry implements OnModuleInit {
+export class McpSkillRegistryService extends SkillRegistry implements OnModuleInit {
   private cachedInstructions: string | null = null;
 
   onModuleInit(): void {
     const here = dirname(fileURLToPath(import.meta.url));
     const modulesRoot = join(here, '..', 'modules');
-    const sources: RunbookSource[] = [{ root: modulesRoot }];
-    for (const rb of loadRunbooks(sources)) {
-      this.register(rb);
+    const sources: SkillSource[] = [{ root: modulesRoot }];
+    for (const skill of loadSkills(sources)) {
+      this.register(skill);
     }
     this.cachedInstructions = buildInstructions(this.list('admin'));
   }
@@ -24,8 +24,8 @@ export class McpRunbookRegistryService extends RunbookRegistry implements OnModu
   }
 }
 
-function buildInstructions(adminRunbooks: ReadonlyArray<{ uri: string; name: string }>): string {
-  const featured = adminRunbooks.slice(0, 6);
+function buildInstructions(adminSkills: ReadonlyArray<{ uri: string; name: string }>): string {
+  const featured = adminSkills.slice(0, 6);
   const lines = [
     'Munin: agent-native business apps. You have ~80 tools across these modules:',
     '  • Knowledge Base (kb_*)        — articles, search, versions',
@@ -34,13 +34,14 @@ function buildInstructions(adminRunbooks: ReadonlyArray<{ uri: string; name: str
     '  • CMS (cms_*)                  — collections, entries, assets, locales',
     '  • Org & access                 — api_keys, end_users, invitations, members, memberships',
     '',
-    'Multi-step workflows have detailed runbooks. Call `resources/list` to discover',
-    'them (URIs use the `runbook://` scheme), then `resources/read` to fetch one.',
+    'Multi-step workflows have detailed skills. Call `resources/list` to discover',
+    'them (URIs use the `skill://` scheme), then `resources/read` to fetch one.',
+    'Cross-module workflows live under `skill://playbooks/*`.',
   ];
   if (featured.length > 0) {
     lines.push('', 'Frequently relevant for admin agents:');
-    for (const rb of featured) {
-      lines.push(`  • ${rb.uri}  — ${rb.name}`);
+    for (const skill of featured) {
+      lines.push(`  • ${skill.uri}  — ${skill.name}`);
     }
   }
   return lines.join('\n');

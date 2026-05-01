@@ -1,5 +1,11 @@
 # @getmunin/mcp-toolkit
 
+## Unreleased
+
+### Major Changes
+
+- **BREAKING:** Rename `RunbookRegistry` → `SkillRegistry` and `RegisteredRunbook` → `RegisteredSkill`. The `createMcpServer` option `runbooks` is renamed to `skills`. No backwards-compat exports — consumers must update import names and option keys.
+
 ## 0.9.0
 
 ### Patch Changes

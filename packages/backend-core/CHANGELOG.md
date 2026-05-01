@@ -1,5 +1,11 @@
 # @getmunin/backend-core
 
+## Unreleased
+
+### Major Changes
+
+- **BREAKING:** Rename "runbooks" → "skills" across the MCP layer, public REST API, and dashboard. The MCP resource URI scheme changes from `runbook://<module>/<slug>` to `skill://<module>/<slug>`. The public REST mirror moves from `/api/public/runbooks{,/:module/:slug}` to `/api/public/skills{,/:module/:slug}`. The Nest providers `McpRunbookRegistryService` / `PublicRunbooksController` are renamed to `McpSkillRegistryService` / `PublicSkillsController`; `mcp-toolkit` exports `SkillRegistry` / `RegisteredSkill` in place of the runbook-named equivalents and the `createMcpServer` option `runbooks` is now `skills`. Per-module markdown directories move from `modules/<m>/runbooks/*.md` to `modules/<m>/skills/*.md`. A new top-level `modules/playbooks/skills/*.md` namespace is introduced for cross-module workflows; agents can find them at `skill://playbooks/<slug>`. No backwards-compat shims — clients must update URI prefixes and REST paths atomically.
+
 ## 0.9.0
 
 ### Patch Changes

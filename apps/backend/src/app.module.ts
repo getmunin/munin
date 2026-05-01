@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import {
   BACKEND_BASE_CONTROLLERS,
   BACKEND_BASE_PROVIDERS,
@@ -7,8 +9,8 @@ import {
 import { AuthModule } from './auth/auth.module.js';
 
 @Module({
-  imports: [...BACKEND_FEATURE_MODULES_NO_AUTH, AuthModule],
+  imports: [SentryModule.forRoot(), ...BACKEND_FEATURE_MODULES_NO_AUTH, AuthModule],
   controllers: BACKEND_BASE_CONTROLLERS,
-  providers: BACKEND_BASE_PROVIDERS,
+  providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }, ...BACKEND_BASE_PROVIDERS],
 })
 export class AppModule {}

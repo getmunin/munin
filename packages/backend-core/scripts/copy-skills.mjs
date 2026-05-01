@@ -16,7 +16,7 @@ for (const file of walk(srcRoot)) {
   copied += 1;
 }
 // eslint-disable-next-line no-console
-console.log(`copied ${copied} runbook(s) into dist/`);
+console.log(`copied ${copied} skill(s) into dist/`);
 
 function walk(root) {
   const out = [];

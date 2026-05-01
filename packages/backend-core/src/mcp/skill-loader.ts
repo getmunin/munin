@@ -1,13 +1,13 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, basename, relative, sep } from 'node:path';
-import type { RegisteredRunbook } from '@getmunin/mcp-toolkit';
+import type { RegisteredSkill } from '@getmunin/mcp-toolkit';
 import type { Audience } from '@getmunin/core';
 
-export interface RunbookSource {
+export interface SkillSource {
   /** Absolute path to a directory tree to scan for `*.md` files. */
   root: string;
   /**
-   * Top-level URI namespace for runbooks under this root. Files inside
+   * Top-level URI namespace for skills under this root. Files inside
    * subdirectories use the subdirectory name as the module segment.
    * If omitted, the namespace is derived from the immediate parent
    * directory name of each file (one level up from the markdown file).
@@ -17,19 +17,19 @@ export interface RunbookSource {
 
 const FRONTMATTER_RE = /^---\s*\n([\s\S]*?)\n---\s*\n?/;
 
-export function loadRunbooks(sources: RunbookSource[]): RegisteredRunbook[] {
-  const out: RegisteredRunbook[] = [];
+export function loadSkills(sources: SkillSource[]): RegisteredSkill[] {
+  const out: RegisteredSkill[] = [];
   const seen = new Set<string>();
   for (const src of sources) {
     if (!exists(src.root)) continue;
     for (const file of walkMarkdown(src.root)) {
-      const rb = parseRunbook(file, src);
-      if (!rb) continue;
-      if (seen.has(rb.uri)) {
-        throw new Error(`Duplicate runbook URI: ${rb.uri} (from ${file})`);
+      const skill = parseSkill(file, src);
+      if (!skill) continue;
+      if (seen.has(skill.uri)) {
+        throw new Error(`Duplicate skill URI: ${skill.uri} (from ${file})`);
       }
-      seen.add(rb.uri);
-      out.push(rb);
+      seen.add(skill.uri);
+      out.push(skill);
     }
   }
   return out;
@@ -73,7 +73,7 @@ function walkMarkdown(root: string): string[] {
   return found.sort();
 }
 
-function parseRunbook(file: string, src: RunbookSource): RegisteredRunbook | null {
+function parseSkill(file: string, src: SkillSource): RegisteredSkill | null {
   const raw = readFileSync(file, 'utf8');
   const match = FRONTMATTER_RE.exec(raw);
   if (!match) return null;
@@ -81,7 +81,7 @@ function parseRunbook(file: string, src: RunbookSource): RegisteredRunbook | nul
   const body = raw.slice(match[0].length);
   const slug = basename(file, '.md');
   const moduleSegment = deriveModule(file, src);
-  const uri = `runbook://${moduleSegment}/${slug}`;
+  const uri = `skill://${moduleSegment}/${slug}`;
   const audiences = normalizeAudiences(fm.audiences ?? fm.audience);
   return {
     uri,
@@ -94,10 +94,10 @@ function parseRunbook(file: string, src: RunbookSource): RegisteredRunbook | nul
   };
 }
 
-function deriveModule(file: string, src: RunbookSource): string {
+function deriveModule(file: string, src: SkillSource): string {
   if (src.namespace) return src.namespace;
   const rel = relative(src.root, file);
-  const parts = rel.split(sep).slice(0, -1).filter((p) => p !== 'runbooks');
+  const parts = rel.split(sep).slice(0, -1).filter((p) => p !== 'skills');
   return parts[parts.length - 1] ?? 'core';
 }
 

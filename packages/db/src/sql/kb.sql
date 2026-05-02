@@ -36,11 +36,11 @@ CREATE INDEX IF NOT EXISTS kb_chunks_embedding_hnsw_idx
   ON kb_document_chunks USING hnsw (embedding vector_cosine_ops);
 
 -- ───────────────────────── KB RLS policies ─────────────────────────────────
--- All KB tables are org-scoped. Documents have an additional `public` flag
+-- All KB tables are org-scoped. Documents have an `audiences` jsonb array
 -- consulted by self-service callers (when app.end_user_id is set, only
--- public docs are visible). Chunks/versions inherit visibility from their
--- parent document — a tighter sub-policy avoids leaking embedding text via
--- direct chunk reads.
+-- docs whose audiences include 'self_service' are visible). Chunks/versions
+-- inherit visibility from their parent document — a tighter sub-policy
+-- avoids leaking embedding text via direct chunk reads.
 
 ALTER TABLE kb_spaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kb_spaces FORCE ROW LEVEL SECURITY;
@@ -57,7 +57,7 @@ CREATE POLICY tenant_isolation ON kb_documents
     app_bypass_rls()
     OR (
       org_id = app_org_id()
-      AND (app_end_user_id() = '' OR public = true)
+      AND (app_end_user_id() = '' OR audiences @> '["self_service"]'::jsonb)
     )
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
@@ -75,7 +75,7 @@ CREATE POLICY tenant_isolation ON kb_document_chunks
         OR EXISTS (
           SELECT 1 FROM kb_documents d
           WHERE d.id = kb_document_chunks.document_id
-            AND d.public = true
+            AND d.audiences @> '["self_service"]'::jsonb
         )
       )
     )

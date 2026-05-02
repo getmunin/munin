@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import { getCurrentContext } from '@getmunin/core';
+import { getCurrentContext, type Audience } from '@getmunin/core';
 import { EmbeddingProviderHolder } from './embedding.provider.js';
 
 export interface SearchHit {
@@ -8,7 +8,7 @@ export interface SearchHit {
   spaceId: string;
   title: string;
   excerpt: string;
-  public: boolean;
+  audiences: Audience[];
   score: number;
   source: 'fts' | 'vector' | 'both';
 }
@@ -29,7 +29,7 @@ type FtsRow = {
   document_id: string;
   space_id: string;
   title: string;
-  public: boolean;
+  audiences: Audience[];
   excerpt: string;
   rank: number;
   rn: number;
@@ -39,7 +39,7 @@ type VectorRow = {
   document_id: string;
   space_id: string;
   title: string;
-  public: boolean;
+  audiences: Audience[];
   excerpt: string;
   similarity: number;
   rn: number;
@@ -56,7 +56,8 @@ export class KbSearchService {
    * chunk embeddings. Per-source ranks are combined via Reciprocal Rank Fusion
    * (RRF, k=60) so each source contributes monotonic, scale-free votes.
    *
-   * RLS enforces tenancy + the public-only filter for self-service callers.
+   * RLS enforces tenancy + the audiences filter for self-service callers
+   * (only docs whose audiences include 'self_service' surface to end-users).
    * Caller-passed filters (spaceId) are also AND'd in the SQL.
    */
   async search(input: SearchInput): Promise<SearchHit[]> {
@@ -72,7 +73,7 @@ export class KbSearchService {
           d.id            AS document_id,
           d.space_id      AS space_id,
           d.title         AS title,
-          d.public        AS public,
+          d.audiences     AS audiences,
           ts_headline('english', left(d.body, 600), q.tsq,
             'StartSel=,StopSel=,MaxWords=40,MinWords=15,ShortWord=3') AS excerpt,
           ts_rank_cd(d.fts, q.tsq) AS rank,
@@ -95,7 +96,7 @@ export class KbSearchService {
               d.id            AS document_id,
               d.space_id      AS space_id,
               d.title         AS title,
-              d.public        AS public,
+              d.audiences     AS audiences,
               left(c.content, 400) AS excerpt,
               1 - (c.embedding <=> ${formatVector(queryVec)}::vector) AS similarity,
               ROW_NUMBER() OVER (
@@ -108,7 +109,7 @@ export class KbSearchService {
               ${input.spaceId ? sql`AND d.space_id = ${input.spaceId}` : sql``}
           )
           SELECT
-            document_id, space_id, title, public, excerpt, similarity,
+            document_id, space_id, title, audiences, excerpt, similarity,
             ROW_NUMBER() OVER (ORDER BY similarity DESC) AS rn
           FROM ranked
           WHERE chunk_rn = 1
@@ -143,7 +144,7 @@ function reciprocalRankFuse(
         spaceId: row.space_id,
         title: row.title,
         excerpt: row.excerpt,
-        public: row.public,
+        audiences: row.audiences,
       },
       ftsScore: score,
       vectorScore: 0,
@@ -164,7 +165,7 @@ function reciprocalRankFuse(
           spaceId: row.space_id,
           title: row.title,
           excerpt: row.excerpt,
-          public: row.public,
+          audiences: row.audiences,
         },
         ftsScore: 0,
         vectorScore: score,

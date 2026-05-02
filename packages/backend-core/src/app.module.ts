@@ -13,6 +13,7 @@ import { ConvModule } from './modules/conv/conv.module.js';
 import { CrmModule } from './modules/crm/crm.module.js';
 import { CmsModule } from './modules/cms/cms.module.js';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module.js';
+import { PublicThrottleModule } from './common/rate-limit/public-throttle.module.js';
 import { QuotasModule } from './common/quotas/quotas.module.js';
 import { MailModule } from './common/mail/mail.module.js';
 import { WebhookModule } from './common/webhooks/webhook.module.js';
@@ -29,6 +30,7 @@ export const BACKEND_FEATURE_MODULES_NO_AUTH = [
   StorageModule,
   WebhookModule,
   RateLimitModule,
+  PublicThrottleModule,
   QuotasModule,
   McpModule,
   ControlModule,

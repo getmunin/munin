@@ -34,6 +34,26 @@ describe('loadSkills', () => {
       join(root, 'kb', 'self-service-only.md'),
       `---\ntitle: KB self-service\ndescription: For end users.\naudience: self_service\n---\n\nbody\n`,
     );
+    writeFileSync(
+      join(root, 'kb', 'no-title.md'),
+      `---\ndescription: A skill without a title.\naudiences: [admin]\n---\n\nbody\n`,
+    );
+    writeFileSync(
+      join(root, 'kb', 'empty-audiences.md'),
+      `---\ntitle: Empty audiences\ndescription: No audiences declared.\naudiences: []\n---\n\nbody\n`,
+    );
+    writeFileSync(
+      join(root, 'kb', 'unknown-audience.md'),
+      `---\ntitle: Unknown audience\ndescription: Audience value is not in the enum.\naudiences: [robots]\n---\n\nbody\n`,
+    );
+    writeFileSync(
+      join(root, 'kb', 'internal-only.md'),
+      `---\ntitle: Internal only\ndescription: Not exposed publicly.\naudiences: [admin]\npublic: false\n---\n\nbody\n`,
+    );
+    writeFileSync(
+      join(root, 'kb', 'malformed-frontmatter.md'),
+      `---\ntitle Without colon line\ndescription: still parsed\naudiences: [admin]\n---\n\nbody\n`,
+    );
   });
 
   afterAll(() => {
@@ -52,7 +72,12 @@ describe('loadSkills', () => {
     expect(uris).toEqual([
       'skill://conv/email-setup',
       'skill://crm/onboarding',
+      'skill://kb/empty-audiences',
+      'skill://kb/internal-only',
+      'skill://kb/malformed-frontmatter',
+      'skill://kb/no-title',
       'skill://kb/self-service-only',
+      'skill://kb/unknown-audience',
       'skill://playbooks/customer-acquisition',
     ]);
   });
@@ -82,5 +107,45 @@ describe('loadSkills', () => {
   it('returns empty when root does not exist', () => {
     const found = loadSkills([{ root: '/tmp/does-not-exist-skill-fixture' }]);
     expect(found).toEqual([]);
+  });
+
+  it('falls back to slug when frontmatter omits title', () => {
+    const found = loadSkills([{ root }]);
+    const noTitle = found.find((s) => s.uri === 'skill://kb/no-title')!;
+    expect(noTitle).toBeDefined();
+    expect(noTitle.name).toBe('no-title');
+    expect(noTitle.description).toBe('A skill without a title.');
+  });
+
+  it('defaults audiences to [admin] when the array is empty', () => {
+    const found = loadSkills([{ root }]);
+    const empty = found.find((s) => s.uri === 'skill://kb/empty-audiences')!;
+    expect(empty).toBeDefined();
+    expect(empty.audiences).toEqual(['admin']);
+  });
+
+  it('defaults audiences to [admin] when only unknown values are listed', () => {
+    const found = loadSkills([{ root }]);
+    const unknown = found.find((s) => s.uri === 'skill://kb/unknown-audience')!;
+    expect(unknown).toBeDefined();
+    expect(unknown.audiences).toEqual(['admin']);
+  });
+
+  it('honours `public: false` and excludes from listPublic semantics', () => {
+    const found = loadSkills([{ root }]);
+    const internal = found.find((s) => s.uri === 'skill://kb/internal-only')!;
+    expect(internal).toBeDefined();
+    expect(internal.public).toBe(false);
+    const defaultPublic = found.find((s) => s.uri === 'skill://kb/self-service-only')!;
+    expect(defaultPublic.public).toBe(true);
+  });
+
+  it('skips malformed frontmatter lines without crashing the file', () => {
+    const found = loadSkills([{ root }]);
+    const malformed = found.find((s) => s.uri === 'skill://kb/malformed-frontmatter')!;
+    expect(malformed).toBeDefined();
+    expect(malformed.name).toBe('malformed-frontmatter');
+    expect(malformed.description).toBe('still parsed');
+    expect(malformed.audiences).toEqual(['admin']);
   });
 });

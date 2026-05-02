@@ -77,7 +77,7 @@ For each chunk:
 }
 ```
 
-Default `public: false` unless the source is explicitly a public help center. Embeddings are generated server-side asynchronously — you don't wait, but search results for new docs become accurate within ~5 seconds.
+Default `audiences: ['admin']` unless the source is explicitly customer-facing material. End-user agents only see docs whose `audiences` includes `'self_service'`. Embeddings are generated server-side asynchronously — you don't wait, but search results for new docs become accurate within ~5 seconds.
 
 Pace: a few documents per second is fine. If you're importing thousands of rows, throttle to leave room for other traffic.
 
@@ -94,7 +94,7 @@ Then count: search by the import-tag prefix and confirm the count matches your s
 ## What NOT to do
 
 - **Don't ignore `kb_create_document` errors.** Title-too-long and empty-body errors are common in CSV exports; logging them per-row lets you fix the source data and re-run.
-- **Don't import as `public: true` by default.** It exposes content via the self-service search audience. Only flip on for explicitly public knowledge.
+- **Don't import with `audiences: ['admin', 'self_service']` by default.** That exposes content to end-user agents via `kb_search`. Only include `'self_service'` for explicitly customer-facing knowledge.
 - **Don't import the same source twice without the import-tag idempotency key.** Duplicate articles dilute search quality and confuse end-users.
 - **Don't set hundreds of identical tags across the import.** Tags are filterable; that means each tag is part of someone's mental model. Use tags as facets, not as labels.
 

@@ -26,15 +26,22 @@
     {
       "idx": 3,
       "version": "7",
-      "when": 1777600000000,
-      "tag": "0003_conv_handover_state",
+      "when": 1777680000000,
+      "tag": "0003_kb_audiences",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
-      "when": 1777600100000,
-      "tag": "0004_events_notify_trigger",
+      "when": 1777681000000,
+      "tag": "0004_conv_handover_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777681100000,
+      "tag": "0005_events_notify_trigger",
       "breakpoints": true
     }
   ]

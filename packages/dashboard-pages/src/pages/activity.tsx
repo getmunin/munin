@@ -70,7 +70,7 @@ export function ActivityPage() {
 
   useEffect(() => {
     void refresh();
-    const t = setInterval(refresh, POLL_MS);
+    const t = setInterval(() => void refresh(), POLL_MS);
     return () => clearInterval(t);
   }, [refresh]);
 

@@ -2,15 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, MessageSquare, ShieldCheck, Unplug } from 'lucide-react';
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  Input,
-  Label,
-  Separator,
-} from '@getmunin/ui';
+import { Badge, Button, Card, CardContent, Label, Separator } from '@getmunin/ui';
 import { api, ApiError } from '../api';
 import { useRealtime, type SubscriptionChannel } from '../realtime';
 
@@ -49,7 +41,7 @@ interface MessageDto {
 
 interface ConversationDetail extends ConversationSummary {
   messages: MessageDto[];
-  claim: { userId: string; expiresAt: string } | null;
+  claim: { holderType: 'user' | 'agent'; holderId: string; expiresAt: string } | null;
 }
 
 interface ActivityDto {
@@ -240,17 +232,17 @@ export function ConversationsPage() {
         onSelect={setSelectedId}
         error={error}
         hasMore={nextCursor !== null}
-        onLoadMore={loadMore}
+        onLoadMore={() => void loadMore()}
       />
       <DetailPane
         detail={detail}
         reply={reply}
         setReply={setReply}
         pending={pending}
-        onSend={send}
-        onTakeOver={takeOver}
-        onRelease={release}
-        onClose={close}
+        onSend={() => void send()}
+        onTakeOver={() => void takeOver()}
+        onRelease={() => void release()}
+        onClose={() => void close()}
       />
     </div>
   );
@@ -535,7 +527,7 @@ function ActivitySidebar({
       }
     };
     void tick();
-    const t = setInterval(tick, POLL_MS);
+    const t = setInterval(() => void tick(), POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(t);

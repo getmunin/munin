@@ -40,3 +40,38 @@ export { Input } from './components/input';
 export { Label } from './components/label';
 export { Separator } from './components/separator';
 export { Toaster } from './components/sonner';
+export { Badge, badgeVariants, type BadgeProps } from './components/badge';
+export {
+  Dialog,
+  DialogTrigger,
+  DialogPortal,
+  DialogClose,
+  DialogBackdrop,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from './components/dialog';
+export {
+  Sheet,
+  SheetTrigger,
+  SheetClose,
+  SheetPortal,
+  SheetBackdrop,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from './components/sheet';
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableCaption,
+} from './components/table';
+export { Tabs, TabsList, TabsTrigger, TabsPanel } from './components/tabs';

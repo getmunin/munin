@@ -8,8 +8,10 @@ import {
   Query,
   Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { DB } from '../common/db/db.module.js';
@@ -30,6 +32,7 @@ import { projectData, type FieldDef } from '../modules/cms/cms.fields.js';
  * `org_id` and `status='published'` so cross-org leakage is impossible.
  */
 @Controller('api/cms/v1')
+@UseGuards(ThrottlerGuard)
 export class CmsDeliveryController {
   constructor(
     @Inject(DB) private readonly db: Db,

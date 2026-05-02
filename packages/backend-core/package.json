@@ -41,6 +41,7 @@
     "@nestjs/common": "^11.1.19",
     "@nestjs/core": "^11.1.19",
     "@nestjs/platform-express": "^11.1.19",
+    "@nestjs/throttler": "^6.0.0",
     "better-auth": "^1.1.0",
     "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",

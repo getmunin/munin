@@ -321,7 +321,7 @@ const skipReason = TEST_URL
     void flagged;
   }, 30_000);
 
-  it('end-user agent can flag its own conversation via conv_request_handover (self-service)', async () => {
+  it('end-user agent can flag its own conversation via conv_request_handover_in_my_conversation (self-service)', async () => {
     const conv = await withClient(endUserToken, async (c) =>
       parseToolResult<{ id: string }>(
         await c.callTool({
@@ -333,10 +333,10 @@ const skipReason = TEST_URL
 
     await withClient(endUserToken, async (c) => {
       const { tools } = await c.listTools();
-      expect(tools.map((t) => t.name)).toContain('conv_request_handover');
+      expect(tools.map((t) => t.name)).toContain('conv_request_handover_in_my_conversation');
       const result = parseToolResult<{ needsHumanAttention: boolean }>(
         await c.callTool({
-          name: 'conv_request_handover',
+          name: 'conv_request_handover_in_my_conversation',
           arguments: { conversationId: conv.id, reason: 'contract terms need review' },
         }),
       );

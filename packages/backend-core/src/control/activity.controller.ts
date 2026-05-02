@@ -113,9 +113,11 @@ function encodeCursor(c: Cursor): string {
 
 function decodeCursor(raw: string): Cursor | null {
   try {
-    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString());
-    if (typeof parsed?.createdAt !== 'string' || typeof parsed?.id !== 'string') return null;
-    return parsed as Cursor;
+    const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString());
+    if (!parsed || typeof parsed !== 'object') return null;
+    const candidate = parsed as { createdAt?: unknown; id?: unknown };
+    if (typeof candidate.createdAt !== 'string' || typeof candidate.id !== 'string') return null;
+    return { createdAt: candidate.createdAt, id: candidate.id };
   } catch {
     return null;
   }

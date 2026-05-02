@@ -91,7 +91,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     try {
       credential = await this.authenticate(req);
     } catch (err) {
-      this.logger.debug(`upgrade auth failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.debug(`upgrade auth failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (!credential) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -103,8 +103,9 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       socket.destroy();
       return;
     }
+    const resolvedCredential = credential;
     this.wss.handleUpgrade(req, socket, head, (ws) => {
-      this.handleConnection(ws, credential!);
+      this.handleConnection(ws, resolvedCredential);
     });
   }
 
@@ -131,7 +132,12 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     ws.on('message', (data) => {
       let msg: ClientMessage | null = null;
       try {
-        msg = JSON.parse(data.toString()) as ClientMessage;
+        const text = Buffer.isBuffer(data)
+          ? data.toString('utf8')
+          : Array.isArray(data)
+            ? Buffer.concat(data).toString('utf8')
+            : Buffer.from(data).toString('utf8');
+        msg = JSON.parse(text) as ClientMessage;
       } catch {
         return;
       }
@@ -156,8 +162,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   private async authenticate(req: IncomingMessage): Promise<ResolvedCredential | null> {
-    const auth = req.headers['authorization'];
-    const value = Array.isArray(auth) ? auth[0] : auth;
+    const value = readHeader(req, 'authorization');
     if (value && value.toLowerCase().startsWith('bearer ')) {
       const raw = value.slice('Bearer '.length).trim();
       if (looksLikeApiKey(raw)) {
@@ -172,8 +177,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       }
       return this.resolver.resolveBearerToken(raw);
     }
-    const cookie = req.headers['cookie'];
-    const cookieValue = Array.isArray(cookie) ? cookie[0] : cookie;
+    const cookieValue = readHeader(req, 'cookie');
     const sessionToken = readSessionCookie(cookieValue);
     if (sessionToken) {
       return this.resolver.resolveSessionToken(sessionToken);
@@ -186,6 +190,13 @@ const SESSION_COOKIE_NAMES = [
   'better-auth.session_token',
   '__Secure-better-auth.session_token',
 ];
+
+function readHeader(req: IncomingMessage, name: string): string | undefined {
+  const headers = req.headers as Record<string, string | string[] | undefined>;
+  const raw = headers[name];
+  if (Array.isArray(raw)) return raw[0];
+  return raw;
+}
 
 function readSessionCookie(cookieHeader: string | undefined): string | null {
   if (!cookieHeader) return null;

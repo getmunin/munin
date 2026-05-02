@@ -218,10 +218,12 @@ function encodeListCursor(c: { lastMessageAt: string | null; id: string }): stri
 
 function decodeListCursor(raw: string): { lastMessageAt: string | null; id: string } | undefined {
   try {
-    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString());
-    if (typeof parsed?.id !== 'string') return undefined;
-    if (parsed.lastMessageAt !== null && typeof parsed.lastMessageAt !== 'string') return undefined;
-    return { lastMessageAt: parsed.lastMessageAt, id: parsed.id };
+    const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString());
+    if (!parsed || typeof parsed !== 'object') return undefined;
+    const candidate = parsed as { id?: unknown; lastMessageAt?: unknown };
+    if (typeof candidate.id !== 'string') return undefined;
+    if (candidate.lastMessageAt !== null && typeof candidate.lastMessageAt !== 'string') return undefined;
+    return { lastMessageAt: candidate.lastMessageAt, id: candidate.id };
   } catch {
     return undefined;
   }

@@ -54,15 +54,19 @@ export class DbListenerService implements OnModuleInit, OnModuleDestroy {
     try {
       row = JSON.parse(raw) as EventRow;
     } catch (err) {
-      this.logger.warn(`malformed NOTIFY payload: ${err instanceof Error ? err.message : err}`);
+      this.logger.warn(`malformed NOTIFY payload: ${describe(err)}`);
       return;
     }
     for (const handler of this.handlers) {
       try {
         handler(row);
       } catch (err) {
-        this.logger.warn(`handler error: ${err instanceof Error ? err.message : err}`);
+        this.logger.warn(`handler error: ${describe(err)}`);
       }
     }
   }
+}
+
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

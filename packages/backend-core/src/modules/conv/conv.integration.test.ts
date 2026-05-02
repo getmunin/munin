@@ -237,6 +237,149 @@ const skipReason = TEST_URL
       expect(closed.find((row) => row.id === conv.id && row.status === 'closed')).toBeTruthy();
     });
   }, 30_000);
+
+  it('admin agent requests handover; flag is set, internal note appears, idempotent, then user reply clears it', async () => {
+    const conv = await withClient(endUserToken, async (c) =>
+      parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'conv_start_conversation',
+          arguments: { body: 'Can I get a partial refund for last month?' },
+        }),
+      ),
+    );
+
+    type Summary = {
+      id: string;
+      needsHumanAttention: boolean;
+      needsHumanAttentionAt: string | null;
+    };
+    type Detail = Summary & { messages: Array<{ body: string; internal: boolean; authorType: string }> };
+
+    const flagged = await withClient(adminKey, async (c) => {
+      const result = parseToolResult<Summary>(
+        await c.callTool({
+          name: 'conv_request_handover',
+          arguments: { conversationId: conv.id, reason: 'refund outside policy' },
+        }),
+      );
+      expect(result.needsHumanAttention).toBe(true);
+      expect(result.needsHumanAttentionAt).not.toBeNull();
+
+      const second = parseToolResult<Summary>(
+        await c.callTool({
+          name: 'conv_request_handover',
+          arguments: { conversationId: conv.id },
+        }),
+      );
+      expect(second.needsHumanAttention).toBe(true);
+      expect(second.needsHumanAttentionAt).toBe(result.needsHumanAttentionAt);
+
+      const detail = parseToolResult<Detail>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      const systemNotes = detail.messages.filter(
+        (m) => m.authorType === 'system' && /handover/i.test(m.body),
+      );
+      expect(systemNotes).toHaveLength(1);
+      expect(systemNotes[0]!.internal).toBe(true);
+      expect(systemNotes[0]!.body).toMatch(/refund outside policy/);
+      return result;
+    });
+
+    await withClient(endUserToken, async (c) => {
+      const detail = parseToolResult<Detail>(
+        await c.callTool({
+          name: 'conv_get_my_conversation',
+          arguments: { id: conv.id },
+        }),
+      );
+      const systemNotes = detail.messages.filter((m) => m.authorType === 'system');
+      expect(systemNotes).toHaveLength(0);
+    });
+
+    await withClient(adminKey, async (c) => {
+      const list = parseToolResult<Summary[]>(
+        await c.callTool({ name: 'conv_list_conversations', arguments: {} }),
+      );
+      const idx = list.findIndex((row) => row.id === conv.id);
+      const earlier = list.slice(0, idx);
+      expect(earlier.every((row) => row.needsHumanAttention)).toBe(true);
+    });
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_send_message',
+        arguments: { conversationId: conv.id, body: 'Got it — processing the partial refund now.' },
+      });
+      const detail = parseToolResult<Detail>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      expect(detail.needsHumanAttention).toBe(false);
+      expect(detail.needsHumanAttentionAt).toBeNull();
+    });
+
+    void flagged;
+  }, 30_000);
+
+  it('end-user agent can flag its own conversation via conv_request_handover (self-service)', async () => {
+    const conv = await withClient(endUserToken, async (c) =>
+      parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'conv_start_conversation',
+          arguments: { body: 'I need to talk to a human about my contract.' },
+        }),
+      ),
+    );
+
+    await withClient(endUserToken, async (c) => {
+      const { tools } = await c.listTools();
+      expect(tools.map((t) => t.name)).toContain('conv_request_handover');
+      const result = parseToolResult<{ needsHumanAttention: boolean }>(
+        await c.callTool({
+          name: 'conv_request_handover',
+          arguments: { conversationId: conv.id, reason: 'contract terms need review' },
+        }),
+      );
+      expect(result.needsHumanAttention).toBe(true);
+    });
+
+    await withClient(adminKey, async (c) => {
+      const list = parseToolResult<Array<{ id: string; needsHumanAttention: boolean }>>(
+        await c.callTool({
+          name: 'conv_list_conversations',
+          arguments: { needsHumanAttention: true },
+        }),
+      );
+      expect(list.find((row) => row.id === conv.id)?.needsHumanAttention).toBe(true);
+    });
+  }, 30_000);
+
+  it('changeStatus to closed clears needsHumanAttention', async () => {
+    const conv = await withClient(endUserToken, async (c) =>
+      parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'conv_start_conversation',
+          arguments: { body: 'My invoice has the wrong VAT.' },
+        }),
+      ),
+    );
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: { conversationId: conv.id, reason: 'tax question' },
+      });
+      await c.callTool({
+        name: 'conv_change_status',
+        arguments: { id: conv.id, status: 'closed' },
+      });
+      const detail = parseToolResult<{ needsHumanAttention: boolean; needsHumanAttentionAt: string | null }>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      expect(detail.needsHumanAttention).toBe(false);
+      expect(detail.needsHumanAttentionAt).toBeNull();
+    });
+  }, 30_000);
 });
 
 function parseToolResult<T>(result: unknown): T {

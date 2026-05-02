@@ -10,6 +10,7 @@ import { ExportController } from './export.controller.js';
 import { WebhooksController } from './webhooks.controller.js';
 import { CmsDeliveryController } from './cms-delivery.controller.js';
 import { CmsModule } from '../modules/cms/cms.module.js';
+import { ConvModule } from '../modules/conv/conv.module.js';
 import { McpModule } from '../mcp/mcp.module.js';
 import { PublicSkillsController } from './public-skills.controller.js';
 import { InvitationsController } from './invitations.controller.js';
@@ -17,6 +18,8 @@ import { AcceptInvitationController } from './accept-invitation.controller.js';
 import { InvitationsService } from './invitations.service.js';
 import { MembersController } from './members.controller.js';
 import { MembershipsController } from './memberships.controller.js';
+import { ConversationsController } from './conversations.controller.js';
+import { ActivityController } from './activity.controller.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -27,7 +30,7 @@ import { MembershipsController } from './memberships.controller.js';
  * permitted on these endpoints — that's the privilege boundary.
  */
 @Module({
-  imports: [CmsModule, McpModule],
+  imports: [CmsModule, ConvModule, McpModule],
   controllers: [
     ApiKeysController,
     EndUsersController,
@@ -44,6 +47,8 @@ import { MembershipsController } from './memberships.controller.js';
     MembersController,
     MembershipsController,
     PublicSkillsController,
+    ConversationsController,
+    ActivityController,
   ],
   providers: [InvitationsService],
 })

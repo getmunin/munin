@@ -137,7 +137,7 @@ const skipReason = TEST_URL
         spaceId,
         title: 'Internal runbook',
         body: 'Do not share this with customers.',
-        public: false,
+        audiences: ['admin'],
       }),
     );
     await runAs(admin, () =>
@@ -145,7 +145,7 @@ const skipReason = TEST_URL
         spaceId,
         title: 'Public help article',
         body: 'How to reset your password.',
-        public: true,
+        audiences: ['admin', 'self_service'],
       }),
     );
     const hits = await runAs(endUser, () => search.search({ query: 'password reset' }));

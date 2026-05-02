@@ -406,7 +406,7 @@ const skipReason = TEST_URL
             spaceId,
             title: 'Public FAQ',
             body: 'Public answer about widgets.',
-            public: true,
+            audiences: ['admin', 'self_service'],
           },
         }),
       );
@@ -419,7 +419,7 @@ const skipReason = TEST_URL
             spaceId,
             title: 'Private widgets',
             body: 'Internal widget secrets.',
-            public: false,
+            audiences: ['admin'],
           },
         }),
       );

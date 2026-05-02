@@ -27,15 +27,16 @@ const skipReason = TEST_URL
 class StubStorage implements AssetStorage {
   readonly provider = 'local' as const;
   readonly deletes: string[] = [];
-  async presignedUpload(opts: { key: string; mime: string; sizeBytes: number }) {
-    return {
+  presignedUpload(opts: { key: string; mime: string; sizeBytes: number }) {
+    return Promise.resolve({
       uploadUrl: `https://upload.test/${opts.key}`,
       publicUrl: `https://cdn.test/${opts.key}`,
       expiresAt: new Date(Date.now() + 60_000),
-    };
+    });
   }
-  async delete(key: string): Promise<void> {
+  delete(key: string): Promise<void> {
     this.deletes.push(key);
+    return Promise.resolve();
   }
   publicUrlFor(key: string): string {
     return `https://cdn.test/${key}`;

@@ -23,6 +23,7 @@ const skipReason = TEST_URL
   let orgBId: string;
   let adminKeyA: string;
   let adminKeyB: string;
+  let adminUserAId: string;
   let endUserToken: string;
 
   beforeAll(async () => {
@@ -51,6 +52,16 @@ const skipReason = TEST_URL
       .returning();
     orgBId = orgB!.id;
 
+    const [adminUserA] = await db
+      .insert(schema.users)
+      .values({ email: `convctrl-a-${ts}@example.com`, name: 'Admin A' })
+      .returning();
+    const [adminUserB] = await db
+      .insert(schema.users)
+      .values({ email: `convctrl-b-${ts}@example.com`, name: 'Admin B' })
+      .returning();
+    adminUserAId = adminUserA!.id;
+
     adminKeyA = buildApiKey('admin');
     await db.insert(schema.apiKeys).values({
       orgId: orgAId,
@@ -59,6 +70,7 @@ const skipReason = TEST_URL
       keyHash: hashSecret(adminKeyA),
       keyPrefix: keyPrefix(adminKeyA),
       scopes: ['*'],
+      createdByUserId: adminUserA!.id,
     });
     adminKeyB = buildApiKey('admin');
     await db.insert(schema.apiKeys).values({
@@ -68,6 +80,7 @@ const skipReason = TEST_URL
       keyHash: hashSecret(adminKeyB),
       keyPrefix: keyPrefix(adminKeyB),
       scopes: ['*'],
+      createdByUserId: adminUserB!.id,
     });
 
     const [eu] = await db
@@ -182,7 +195,8 @@ const skipReason = TEST_URL
     );
     expect(claim.status).toBe(200);
     expect(claim.body.expiresAt).toBeTruthy();
-    expect(claim.body.holderType).toBe('agent');
+    expect(claim.body.holderType).toBe('user');
+    expect(claim.body.holderId).toBe(adminUserAId);
 
     const detailWithClaim = await rest<{ claim: { holderId: string } | null }>(
       adminKeyA,

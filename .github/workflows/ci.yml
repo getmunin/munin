@@ -41,6 +41,12 @@ jobs:
       TEST_DATABASE_URL: postgres://munin:munin@localhost:5432/munin
       MUNIN_MIGRATE_URL: postgres://munin:munin@localhost:5432/munin
       DATABASE_URL: postgres://munin_app:munin_app@localhost:5432/munin
+      MUNIN_AUTH_SECRET: ci-test-secret-not-for-production
+      MUNIN_KEY_PEPPER: ci-test-pepper-not-for-production
+      MUNIN_EMBEDDING_PROVIDER: stub
+      MUNIN_MAIL_PROVIDER: stub
+      MUNIN_WEBHOOK_WORKER_DISABLED: '1'
+      MUNIN_CMS_SCHEDULE_WORKER_DISABLED: '1'
 
     steps:
       - uses: actions/checkout@v4
@@ -85,3 +91,52 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  e2e:
+    name: e2e (playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@getmunin'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build internal packages the web app depends on
+        run: pnpm --filter '@getmunin/dashboard-pages' --filter '@getmunin/sdk' --filter '@getmunin/types' --filter '@getmunin/ui' build
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('apps/web/package.json', 'pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @getmunin/web exec playwright install --with-deps chromium
+
+      - name: Install browser deps (cache hit path)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @getmunin/web exec playwright install-deps chromium
+
+      - name: Run Playwright tests
+        run: pnpm --filter @getmunin/web e2e
+
+      - name: Upload trace artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          retention-days: 7

@@ -83,12 +83,12 @@ export class ConversationClaimsService {
     return toConversationClaim(row!);
   }
 
-  async release(input: { conversationId: string }): Promise<void> {
+  async release(input: { conversationId: string; force?: boolean }): Promise<void> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const existing = await this.findActiveClaim(input.conversationId);
     if (!existing) return;
-    if (existing.userId !== actor.id && actor.type !== 'user') {
+    if (!input.force && existing.userId !== actor.id) {
       throw new ClaimedByOtherError(existing.userId!);
     }
     await ctx.db.delete(schema.claims).where(eq(schema.claims.id, existing.id));

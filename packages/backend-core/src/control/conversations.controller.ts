@@ -83,22 +83,28 @@ export class ConversationsController {
     @Query('assigneeUserId') assigneeUserId?: string,
     @Query('topicId') topicId?: string,
     @Query('needsHumanAttention') needsHumanAttention?: string,
+    @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ): Promise<ConversationListResponse> {
     const parsedStatus = status ? StatusSchema.safeParse(status) : null;
     if (parsedStatus && !parsedStatus.success) {
       throw new BadRequestException(`invalid status: ${status}`);
     }
-    const items = await translate(() =>
-      this.conv.listConversations({
+    const decodedCursor = cursor ? decodeListCursor(cursor) : undefined;
+    const page = await translate(() =>
+      this.conv.listConversationsPage({
         status: parsedStatus?.success ? parsedStatus.data : undefined,
         assigneeUserId,
         topicId,
         needsHumanAttention: parseBool(needsHumanAttention),
         limit: parseLimit(limit),
+        cursor: decodedCursor,
       }),
     );
-    return { items, nextCursor: null };
+    return {
+      items: page.items,
+      nextCursor: page.nextCursor ? encodeListCursor(page.nextCursor) : null,
+    };
   }
 
   @Get(':id')
@@ -204,4 +210,19 @@ function parseLimit(value: string | undefined): number | undefined {
   const n = value ? Number.parseInt(value, 10) : NaN;
   if (!Number.isFinite(n) || n <= 0) return undefined;
   return Math.min(n, 200);
+}
+
+function encodeListCursor(c: { lastMessageAt: string | null; id: string }): string {
+  return Buffer.from(JSON.stringify(c)).toString('base64url');
+}
+
+function decodeListCursor(raw: string): { lastMessageAt: string | null; id: string } | undefined {
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString());
+    if (typeof parsed?.id !== 'string') return undefined;
+    if (parsed.lastMessageAt !== null && typeof parsed.lastMessageAt !== 'string') return undefined;
+    return { lastMessageAt: parsed.lastMessageAt, id: parsed.id };
+  } catch {
+    return undefined;
+  }
 }

@@ -165,6 +165,19 @@ export class ConvService {
     needsHumanAttention?: boolean;
     limit?: number;
   }): Promise<ConversationSummary[]> {
+    const page = await this.listConversationsPage({ ...input });
+    return page.items;
+  }
+
+  async listConversationsPage(input: {
+    status?: ConversationStatus;
+    assigneeUserId?: string;
+    topicId?: string;
+    endUserId?: string;
+    needsHumanAttention?: boolean;
+    limit?: number;
+    cursor?: { lastMessageAt: string | null; id: string };
+  }): Promise<{ items: ConversationSummary[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
     const filters: SQL[] = [];
@@ -174,6 +187,16 @@ export class ConvService {
     if (input.endUserId) filters.push(eq(schema.convConversations.endUserId, input.endUserId));
     if (input.needsHumanAttention !== undefined) {
       filters.push(eq(schema.convConversations.needsHumanAttention, input.needsHumanAttention));
+    }
+    if (input.cursor) {
+      const { lastMessageAt, id } = input.cursor;
+      if (lastMessageAt === null) {
+        filters.push(sql`${schema.convConversations.id} < ${id} AND ${schema.convConversations.lastMessageAt} IS NULL`);
+      } else {
+        filters.push(
+          sql`(${schema.convConversations.lastMessageAt}, ${schema.convConversations.id}) < (${new Date(lastMessageAt)}, ${id})`,
+        );
+      }
     }
 
     const rows = await ctx.db
@@ -185,8 +208,13 @@ export class ConvService {
         desc(schema.convConversations.lastMessageAt),
         desc(schema.convConversations.createdAt),
       )
-      .limit(limit);
-    return rows.map(toConversationSummary);
+      .limit(limit + 1);
+
+    const items = rows.slice(0, limit).map(toConversationSummary);
+    const last = items[items.length - 1];
+    const nextCursor =
+      rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
+    return { items, nextCursor };
   }
 
   async getConversation(id: string): Promise<ConversationDetail> {

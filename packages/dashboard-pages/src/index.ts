@@ -11,3 +11,10 @@ export { ExportPage } from './pages/dashboard-export';
 export { DashboardPage } from './pages/dashboard-overview';
 export { TeamPage } from './pages/dashboard-team';
 export { UsagePage } from './pages/dashboard-usage';
+export { ConversationsPage } from './pages/conversations';
+export { ActivityPage } from './pages/activity';
+export {
+  useRealtime,
+  type RealtimeEventRow,
+  type SubscriptionChannel,
+} from './realtime';

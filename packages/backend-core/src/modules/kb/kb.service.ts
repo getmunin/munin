@@ -2,9 +2,23 @@ import { Injectable, Inject } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { chunkDocument, contentHash, getCurrentContext } from '@getmunin/core';
-import type { ActorIdentity } from '@getmunin/core';
+import type { ActorIdentity, Audience } from '@getmunin/core';
 import { EmbeddingProviderHolder } from './embedding.provider.js';
 import { QuotasService } from '../../common/quotas/quotas.service.js';
+
+const AUDIENCES: readonly Audience[] = ['admin', 'self_service'];
+
+function normaliseAudiences(input: readonly string[] | undefined, fallback: readonly Audience[] = ['admin']): Audience[] {
+  if (!input) return [...fallback];
+  const dedup = new Set<Audience>();
+  for (const v of input) {
+    if ((AUDIENCES as readonly string[]).includes(v)) dedup.add(v as Audience);
+  }
+  if (dedup.size === 0) {
+    throw new KbInvalidError(`audiences must be a non-empty subset of ${AUDIENCES.join(', ')}`);
+  }
+  return Array.from(dedup);
+}
 
 export class KbConflictError extends Error {
   readonly code = 'kb_version_conflict';
@@ -43,7 +57,7 @@ export interface DocumentDto {
   spaceId: string;
   title: string;
   body: string;
-  public: boolean;
+  audiences: Audience[];
   version: number;
   tags: string[];
   createdAt: string;
@@ -54,7 +68,7 @@ export interface DocumentSummary {
   id: string;
   spaceId: string;
   title: string;
-  public: boolean;
+  audiences: Audience[];
   version: number;
   tags: string[];
   updatedAt: string;
@@ -66,7 +80,7 @@ export interface VersionDto {
   version: number;
   title: string;
   body: string;
-  public: boolean;
+  audiences: Audience[];
   tags: string[];
   createdAt: string;
 }
@@ -139,7 +153,7 @@ export class KbService {
         id: schema.kbDocuments.id,
         spaceId: schema.kbDocuments.spaceId,
         title: schema.kbDocuments.title,
-        public: schema.kbDocuments.public,
+        audiences: schema.kbDocuments.audiences,
         version: schema.kbDocuments.version,
         tags: schema.kbDocuments.tags,
         updatedAt: schema.kbDocuments.updatedAt,
@@ -152,7 +166,7 @@ export class KbService {
       id: r.id,
       spaceId: r.spaceId,
       title: r.title,
-      public: r.public,
+      audiences: r.audiences,
       version: r.version,
       tags: r.tags,
       updatedAt: r.updatedAt.toISOString(),
@@ -175,13 +189,14 @@ export class KbService {
     spaceId: string;
     title: string;
     body: string;
-    public?: boolean;
+    audiences?: readonly string[];
     tags?: string[];
   }): Promise<DocumentDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     await this.assertSpaceExists(input.spaceId);
     await this.quotas.assertCanAdd('kb_documents');
+    const audiences = normaliseAudiences(input.audiences);
     const hash = contentHash(input.title, input.body);
     const [doc] = await ctx.db
       .insert(schema.kbDocuments)
@@ -190,7 +205,7 @@ export class KbService {
         spaceId: input.spaceId,
         title: input.title,
         body: input.body,
-        public: input.public ?? false,
+        audiences,
         version: 1,
         contentHash: hash,
         tags: input.tags ?? [],
@@ -207,7 +222,7 @@ export class KbService {
     ifVersion: number;
     title?: string;
     body?: string;
-    public?: boolean;
+    audiences?: readonly string[];
     tags?: string[];
   }): Promise<DocumentDto> {
     const ctx = getCurrentContext();
@@ -218,7 +233,9 @@ export class KbService {
     }
     const newTitle = input.title ?? existing.title;
     const newBody = input.body ?? existing.body;
-    const newPublic = input.public ?? existing.public;
+    const newAudiences = input.audiences === undefined
+      ? existing.audiences
+      : normaliseAudiences(input.audiences);
     const newTags = input.tags ?? existing.tags;
     const newHash = contentHash(newTitle, newBody);
     const contentChanged = newHash !== existing.contentHash;
@@ -228,7 +245,7 @@ export class KbService {
       .set({
         title: newTitle,
         body: newBody,
-        public: newPublic,
+        audiences: newAudiences,
         tags: newTags,
         contentHash: newHash,
         version: existing.version + 1,
@@ -298,7 +315,7 @@ export class KbService {
       .set({
         title: snap.title,
         body: snap.body,
-        public: snap.public,
+        audiences: snap.audiences,
         tags: snap.tags,
         contentHash: newHash,
         version: existing.version + 1,
@@ -357,7 +374,7 @@ export class KbService {
       version: doc.version,
       title: doc.title,
       body: doc.body,
-      public: doc.public,
+      audiences: doc.audiences,
       tags: doc.tags,
       createdByType: actorTypeToCreatorTag(actor),
       createdById: actor.id,
@@ -411,7 +428,7 @@ function toDocumentDto(row: typeof schema.kbDocuments.$inferSelect): DocumentDto
     spaceId: row.spaceId,
     title: row.title,
     body: row.body,
-    public: row.public,
+    audiences: row.audiences,
     version: row.version,
     tags: row.tags,
     createdAt: row.createdAt.toISOString(),
@@ -426,7 +443,7 @@ function toVersionDto(row: typeof schema.kbDocumentVersions.$inferSelect): Versi
     version: row.version,
     title: row.title,
     body: row.body,
-    public: row.public,
+    audiences: row.audiences,
     tags: row.tags,
     createdAt: row.createdAt.toISOString(),
   };

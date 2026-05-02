@@ -74,7 +74,7 @@ Or skip:
 }
 ```
 
-If you create one, the doc will be in the first space, default `public: false`. The body is markdown; chunking and tagging guidance lives in `skill://kb/import-from-google-docs`.
+If you create one, the doc will be in the first space, default `audiences: ['admin']` (admin-only). The body is markdown; chunking and tagging guidance lives in `skill://kb/import-from-google-docs`.
 
 ## Step 4 — confirm
 

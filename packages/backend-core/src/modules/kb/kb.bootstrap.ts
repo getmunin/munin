@@ -71,7 +71,7 @@ const welcomeDoc = defineStep({
       spaceId: space.id,
       title,
       body,
-      public: false,
+      audiences: ['admin'],
       version: 1,
       contentHash: 'bootstrap',
       tags: [],

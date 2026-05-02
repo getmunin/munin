@@ -51,7 +51,7 @@ When in doubt, fewer larger articles beat many tiny ones. A retrieval that retur
 
 - `body` is markdown. Headings, lists, code blocks all preserved for the rendered view.
 - `tags` are a flat string array. Don't overuse — 3–5 high-signal tags > 20 weak ones.
-- `public: true` exposes the article via the public delivery API; default false keeps it admin/agent-only.
+- `audiences` is an array of `'admin'` and / or `'self_service'`. Default `['admin']` keeps the doc admin-only; include `'self_service'` to surface it via `kb_search` for end-user agents.
 
 ## Step 4 — embeddings
 

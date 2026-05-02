@@ -494,7 +494,10 @@ export const kbDocuments = pgTable(
       .references(() => kbSpaces.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     body: text('body').notNull(),
-    public: boolean('public').notNull().default(false),
+    audiences: jsonb('audiences')
+      .$type<('admin' | 'self_service')[]>()
+      .notNull()
+      .default(['admin']),
     version: integer('version').notNull().default(1),
     contentHash: varchar('content_hash', { length: 64 }).notNull(),
     tags: jsonb('tags').$type<string[]>().notNull().default([]),
@@ -509,7 +512,7 @@ export const kbDocuments = pgTable(
   (t) => ({
     orgIdx: index('kb_documents_org_idx').on(t.orgId),
     spaceIdx: index('kb_documents_space_idx').on(t.spaceId),
-    publicIdx: index('kb_documents_public_idx').on(t.orgId, t.public),
+    audiencesIdx: index('kb_documents_audiences_idx').using('gin', t.audiences),
   }),
 );
 
@@ -554,7 +557,10 @@ export const kbDocumentVersions = pgTable(
     version: integer('version').notNull(),
     title: text('title').notNull(),
     body: text('body').notNull(),
-    public: boolean('public').notNull(),
+    audiences: jsonb('audiences')
+      .$type<('admin' | 'self_service')[]>()
+      .notNull()
+      .default(['admin']),
     tags: jsonb('tags').$type<string[]>().notNull().default([]),
     createdByType: varchar('created_by_type', { length: 16 }).notNull(),
     createdById: text('created_by_id').notNull(),

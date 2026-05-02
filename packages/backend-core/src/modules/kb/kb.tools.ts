@@ -22,11 +22,14 @@ const GetDocumentInput = z.object({
   id: z.string(),
 });
 
+const AudienceSchema = z.enum(['admin', 'self_service']);
+const AudiencesSchema = z.array(AudienceSchema).min(1);
+
 const CreateDocumentInput = z.object({
   spaceId: z.string(),
   title: z.string().min(1).max(300),
   body: z.string().min(1),
-  public: z.boolean().optional(),
+  audiences: AudiencesSchema.optional(),
   tags: TagsSchema.optional(),
 });
 
@@ -35,7 +38,7 @@ const UpdateDocumentInput = z.object({
   ifVersion: z.number().int().nonnegative(),
   title: z.string().min(1).max(300).optional(),
   body: z.string().min(1).optional(),
-  public: z.boolean().optional(),
+  audiences: AudiencesSchema.optional(),
   tags: TagsSchema.optional(),
 });
 
@@ -117,7 +120,7 @@ export class KbAdminTools {
     name: 'kb_get_document',
     title: 'Read KB document',
     description:
-      'Read one knowledge-base document, including its full body, tags, and current version. End-user agents see only documents marked `public`.',
+      "Read one knowledge-base document, including its full body, tags, and current version. End-user agents see only documents whose `audiences` includes `'self_service'`.",
     audiences: ['admin', 'self_service'],
     scopes: ['kb:read'],
     input: GetDocumentInput,
@@ -132,7 +135,7 @@ export class KbAdminTools {
     name: 'kb_search',
     title: 'Search knowledge base',
     description:
-      'Search the knowledge base by natural-language query. Combines full-text search and vector similarity for the best of both. End-user agents see only documents marked `public`.',
+      "Search the knowledge base by natural-language query. Combines full-text search and vector similarity for the best of both. End-user agents see only documents whose `audiences` includes `'self_service'`.",
     audiences: ['admin', 'self_service'],
     scopes: ['kb:read'],
     input: SearchInput,
@@ -147,7 +150,7 @@ export class KbAdminTools {
     name: 'kb_create_document',
     title: 'Create KB document',
     description:
-      'Create a knowledge-base document inside a space. Body should be markdown. Set `public: true` to expose it to end-user agents.',
+      "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only).",
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: CreateDocumentInput,

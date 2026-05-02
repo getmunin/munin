@@ -115,6 +115,16 @@ export class ConversationClaimsService {
     return claim !== null;
   }
 
+  async isHeldByOther(conversationId: string): Promise<boolean> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const claim = await this.findActiveClaim(conversationId);
+    if (!claim) return false;
+    const claimer = resolveClaimer(actor);
+    if (!claimer) return true;
+    return holderIdOf(claim) !== claimer.id;
+  }
+
   async getActiveClaim(conversationId: string): Promise<ConversationClaim | null> {
     const claim = await this.findActiveClaim(conversationId);
     return claim ? toConversationClaim(claim) : null;
@@ -148,15 +158,6 @@ interface ResolvedClaimer {
   id: string;
 }
 
-/**
- * Map an actor to a (user_id | agent_id) tuple suitable for the claims
- * table. Prefers user_id when the actor has an associated human (cookie
- * sessions, oauth tokens minted on behalf of a user, api keys with
- * createdByUserId). Falls back to agent_id only for OAuth-issued agent
- * tokens whose `actor.id` is itself the agent row's id. Plain api keys
- * with no associated user (CI / automation that never recorded an
- * owner) cannot claim and the caller should report a clear error.
- */
 function resolveClaimer(actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>): ResolvedClaimer | null {
   if (actor.type === 'user') return { type: 'user', id: actor.id };
   if (actor.userId) return { type: 'user', id: actor.userId };

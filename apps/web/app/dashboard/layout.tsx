@@ -11,6 +11,8 @@ import {
   KeyRound,
   LayoutDashboard,
   LogOut,
+  MessageCircle,
+  Newspaper,
   ScrollText,
   Users,
   UsersRound,
@@ -37,12 +39,24 @@ import { LocaleSwitcher } from '@/components/locale-switcher';
 
 type NavItem = {
   href: Route;
-  labelKey: 'overview' | 'team' | 'agents' | 'apiKeys' | 'endUsers' | 'usage' | 'auditLog' | 'dataExport';
+  labelKey:
+    | 'overview'
+    | 'team'
+    | 'agents'
+    | 'apiKeys'
+    | 'endUsers'
+    | 'usage'
+    | 'auditLog'
+    | 'dataExport'
+    | 'conversations'
+    | 'activity';
   icon: React.ComponentType<{ className?: string }>;
 };
 
 const NAV: NavItem[] = [
   { href: '/dashboard', labelKey: 'overview', icon: LayoutDashboard },
+  { href: '/dashboard/conversations', labelKey: 'conversations', icon: MessageCircle },
+  { href: '/dashboard/activity', labelKey: 'activity', icon: Newspaper },
   { href: '/dashboard/team', labelKey: 'team', icon: UsersRound },
   { href: '/dashboard/agents', labelKey: 'agents', icon: Bot },
   { href: '/dashboard/api-keys', labelKey: 'apiKeys', icon: KeyRound },

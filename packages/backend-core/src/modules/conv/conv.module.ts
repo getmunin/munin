@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConvService } from './conv.service.js';
+import { ConversationClaimsService } from './conv.claims.service.js';
 import { ConvAdminTools } from './conv.tools.js';
 import { ConvSelfServiceTools } from './conv.self-service.tools.js';
 import { EmailService } from './email/email.service.js';
@@ -17,6 +18,7 @@ import { WidgetAdminTools } from './widget/widget.tools.js';
   controllers: [WidgetController],
   providers: [
     ConvService,
+    ConversationClaimsService,
     ConvAdminTools,
     ConvSelfServiceTools,
     EmailService,
@@ -35,6 +37,7 @@ import { WidgetAdminTools } from './widget/widget.tools.js';
   ],
   exports: [
     ConvService,
+    ConversationClaimsService,
     EmailService,
     EmailAdapter,
     WidgetAdapter,

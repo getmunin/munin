@@ -1,0 +1,262 @@
+import 'reflect-metadata';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { NestFactory } from '@nestjs/core';
+import type { INestApplication } from '@nestjs/common';
+import type { AddressInfo } from 'node:net';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { buildApiKey, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
+import { createDb, runMigrations, schema } from '@getmunin/db';
+import { sql } from 'drizzle-orm';
+import { AppModule } from '../app.module.js';
+
+const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const skipReason = TEST_URL
+  ? null
+  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run conversations REST integration tests.';
+
+(skipReason ? describe.skip : describe)('Conversations REST controller', () => {
+  let app: INestApplication;
+  let baseUrl: string;
+  let db: ReturnType<typeof createDb>;
+  let orgAId: string;
+  let orgBId: string;
+  let adminKeyA: string;
+  let adminKeyB: string;
+  let endUserToken: string;
+
+  beforeAll(async () => {
+    process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod-it-must-be-32-chars';
+    process.env.MUNIN_KEY_PEPPER ??= 'test-pepper';
+    process.env.MUNIN_EMBEDDING_PROVIDER = 'stub';
+    process.env.MUNIN_MAIL_PROVIDER = 'stub';
+    process.env.MUNIN_WEBHOOK_WORKER_DISABLED = '1';
+
+    await runMigrations(TEST_URL!);
+    const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
+    process.env.DATABASE_URL = appUrl;
+
+    db = createDb(TEST_URL!, { serviceRole: true });
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+
+    const ts = Date.now();
+    const [orgA] = await db
+      .insert(schema.orgs)
+      .values({ name: 'ConvCtrl Org A', slug: `convctrl-a-${ts}` })
+      .returning();
+    orgAId = orgA!.id;
+    const [orgB] = await db
+      .insert(schema.orgs)
+      .values({ name: 'ConvCtrl Org B', slug: `convctrl-b-${ts}` })
+      .returning();
+    orgBId = orgB!.id;
+
+    adminKeyA = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId: orgAId,
+      type: 'admin',
+      name: 'a',
+      keyHash: hashSecret(adminKeyA),
+      keyPrefix: keyPrefix(adminKeyA),
+      scopes: ['*'],
+    });
+    adminKeyB = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId: orgBId,
+      type: 'admin',
+      name: 'b',
+      keyHash: hashSecret(adminKeyB),
+      keyPrefix: keyPrefix(adminKeyB),
+      scopes: ['*'],
+    });
+
+    const [eu] = await db
+      .insert(schema.endUsers)
+      .values({ orgId: orgAId, externalId: 'eu-1', name: 'Caller' })
+      .returning();
+    endUserToken = randomToken(32);
+    await db.insert(schema.tokens).values({
+      orgId: orgAId,
+      type: 'delegated_end_user',
+      tokenHash: hashSecret(endUserToken),
+      scopes: ['conv:read', 'conv:write'],
+      audiences: ['self_service'],
+      endUserId: eu!.id,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    app = await NestFactory.create(AppModule, { logger: false });
+    await app.listen(0, '127.0.0.1');
+    const server = app.getHttpServer() as { address(): AddressInfo | string | null };
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
+    baseUrl = `http://127.0.0.1:${address.port}`;
+
+    await withClient(adminKeyA, async (c) => {
+      await c.callTool({
+        name: 'conv_create_channel',
+        arguments: { type: 'chat', name: 'Web chat' },
+      });
+    });
+  });
+
+  afterAll(async () => {
+    if (app) await app.close();
+    if (db) {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.delete(schema.orgs).where(sql`id IN (${orgAId}, ${orgBId})`);
+    }
+  });
+
+  async function withClient<T>(token: string, fn: (c: Client) => Promise<T>): Promise<T> {
+    const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
+      requestInit: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const c = new Client({ name: 'rest-it', version: '0.0.0' });
+    await c.connect(transport);
+    try {
+      return await fn(c);
+    } finally {
+      await transport.close();
+      await c.close();
+    }
+  }
+
+  async function rest<T>(
+    token: string,
+    method: 'GET' | 'POST',
+    path: string,
+    body?: unknown,
+  ): Promise<{ status: number; body: T }> {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    const parsed = text ? (JSON.parse(text) as T) : (undefined as unknown as T);
+    return { status: res.status, body: parsed };
+  }
+
+  it('full handover loop: list → take-over → agent reply rejected → human reply releases flag → release claim', async () => {
+    const started = await withClient(endUserToken, async (c) =>
+      parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'conv_start_conversation',
+          arguments: { body: 'Need help with my plan.' },
+        }),
+      ),
+    );
+
+    await withClient(adminKeyA, async (c) => {
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: { conversationId: started.id, reason: 'plan change' },
+      });
+    });
+
+    const list = await rest<{ items: Array<{ id: string; needsHumanAttention: boolean }> }>(
+      adminKeyA,
+      'GET',
+      '/api/conversations',
+    );
+    expect(list.status).toBe(200);
+    const flagged = list.body.items.find((c) => c.id === started.id);
+    expect(flagged?.needsHumanAttention).toBe(true);
+
+    const detail = await rest<{ id: string; claim: { holderId: string } | null }>(
+      adminKeyA,
+      'GET',
+      `/api/conversations/${started.id}`,
+    );
+    expect(detail.body.claim).toBeNull();
+
+    const claim = await rest<{ holderType: string; holderId: string; expiresAt: string }>(
+      adminKeyA,
+      'POST',
+      `/api/conversations/${started.id}/take-over`,
+      {},
+    );
+    expect(claim.status).toBe(200);
+    expect(claim.body.expiresAt).toBeTruthy();
+    expect(claim.body.holderType).toBe('agent');
+
+    const detailWithClaim = await rest<{ claim: { holderId: string } | null }>(
+      adminKeyA,
+      'GET',
+      `/api/conversations/${started.id}`,
+    );
+    expect(detailWithClaim.body.claim).not.toBeNull();
+
+    await withClient(endUserToken, async (c) => {
+      const reply = await c.callTool({
+        name: 'conv_send_message_in_my_conversation',
+        arguments: { conversationId: started.id, body: 'still there?' },
+      });
+      const text = (reply as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? '';
+      expect(text.toLowerCase()).toMatch(/handover_active|handover|taken over/);
+    });
+
+    const humanReply = await rest<{ id: string }>(
+      adminKeyA,
+      'POST',
+      `/api/conversations/${started.id}/messages`,
+      { body: 'Switching you now.' },
+    );
+    expect(humanReply.status).toBe(201);
+
+    const afterReply = await rest<{ needsHumanAttention: boolean }>(
+      adminKeyA,
+      'GET',
+      `/api/conversations/${started.id}`,
+    );
+    expect(afterReply.body.needsHumanAttention).toBe(false);
+
+    const released = await rest<{ released: boolean }>(
+      adminKeyA,
+      'POST',
+      `/api/conversations/${started.id}/release`,
+      {},
+    );
+    expect(released.body.released).toBe(true);
+  }, 30_000);
+
+  it('tenancy isolation: orgB cannot see orgA conversations or activity', async () => {
+    const list = await rest<{ items: Array<{ id: string }> }>(
+      adminKeyB,
+      'GET',
+      '/api/conversations',
+    );
+    expect(list.status).toBe(200);
+    expect(list.body.items).toEqual([]);
+
+    const activity = await rest<{ items: Array<{ id: string; type: string }> }>(
+      adminKeyB,
+      'GET',
+      '/api/activity',
+    );
+    expect(activity.status).toBe(200);
+    expect(activity.body.items).toEqual([]);
+  });
+
+  it('activity feed returns conversation events for orgA', async () => {
+    const activity = await rest<{ items: Array<{ type: string; payload: Record<string, unknown> }> }>(
+      adminKeyA,
+      'GET',
+      '/api/activity?types=conversation.created,conversation.handover_requested',
+    );
+    expect(activity.status).toBe(200);
+    const types = activity.body.items.map((e) => e.type);
+    expect(types).toContain('conversation.created');
+    expect(types).toContain('conversation.handover_requested');
+  });
+});
+
+function parseToolResult<T>(result: unknown): T {
+  const r = result as { content?: Array<{ type: string; text?: string }> };
+  const text = r.content?.[0]?.text ?? '';
+  return JSON.parse(text) as T;
+}

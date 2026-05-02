@@ -115,7 +115,23 @@ const skipReason = TEST_URL
     }
   }
 
-  it('admin sets up channel; end-user starts a conversation; admin replies; end-user sees the reply', async () => {
+  async function rest<T>(
+    token: string,
+    method: 'GET' | 'POST',
+    path: string,
+    body?: unknown,
+  ): Promise<{ status: number; body: T }> {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    const parsed = text ? (JSON.parse(text) as T) : (undefined as unknown as T);
+    return { status: res.status, body: parsed };
+  }
+
+  it('admin sets up channel; end-user starts a conversation via REST; admin replies; end-user sees the reply', async () => {
     const channel = await withClient(adminKey, async (c) => {
       return parseToolResult<{ id: string }>(
         await c.callTool({
@@ -125,21 +141,26 @@ const skipReason = TEST_URL
       );
     });
 
-    const startedConv = await withClient(endUserToken, async (c) => {
+    await withClient(endUserToken, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
-      expect(names).toContain('conv_start_conversation');
-      expect(names).toContain('conv_list_my_conversations');
+      expect(names).toContain('conv_request_handover_in_my_conversation');
+      expect(names).not.toContain('conv_start_conversation');
+      expect(names).not.toContain('conv_list_my_conversations');
+      expect(names).not.toContain('conv_get_my_conversation');
+      expect(names).not.toContain('conv_send_message_in_my_conversation');
       expect(names).not.toContain('conv_create_channel');
       expect(names).not.toContain('conv_change_status');
-
-      return parseToolResult<{ id: string; displayId: number; messages: { body: string }[] }>(
-        await c.callTool({
-          name: 'conv_start_conversation',
-          arguments: { body: 'Hi — my account is locked, can you help?' },
-        }),
-      );
     });
+
+    const startResp = await rest<{ id: string; displayId: number; messages: { body: string }[] }>(
+      endUserToken,
+      'POST',
+      '/api/end-user/conversations',
+      { body: 'Hi — my account is locked, can you help?' },
+    );
+    expect(startResp.status).toBe(201);
+    const startedConv = startResp.body;
 
     expect(startedConv.displayId).toBeGreaterThan(0);
     expect(startedConv.messages).toHaveLength(1);
@@ -173,37 +194,40 @@ const skipReason = TEST_URL
     });
     expect(adminReply.internal).toBe(false);
 
-    await withClient(endUserToken, async (c) => {
-      const detail = parseToolResult<{ messages: { body: string; internal: boolean }[] }>(
-        await c.callTool({
-          name: 'conv_get_my_conversation',
-          arguments: { id: startedConv.id },
-        }),
-      );
-      const bodies = detail.messages.map((m) => m.body);
-      expect(bodies).toContain('Hi Alice, I\'ve unlocked your account.');
-      // Internal note is filtered by RLS — never visible to end-users.
-      expect(bodies.find((b) => /2FA/.test(b))).toBeUndefined();
-      expect(detail.messages.every((m) => m.internal === false)).toBe(true);
-    });
+    const detailResp = await rest<{ messages: { body: string; internal: boolean }[] }>(
+      endUserToken,
+      'GET',
+      `/api/end-user/conversations/${startedConv.id}`,
+    );
+    expect(detailResp.status).toBe(200);
+    const detail = detailResp.body;
+    const bodies = detail.messages.map((m) => m.body);
+    expect(bodies).toContain('Hi Alice, I\'ve unlocked your account.');
+    // Internal note is filtered by RLS — never visible to end-users.
+    expect(bodies.find((b) => /2FA/.test(b))).toBeUndefined();
+    expect(detail.messages.every((m) => m.internal === false)).toBe(true);
 
     // Cross-end-user isolation: Bob can't see Alice's conversation.
-    await withClient(otherEndUserToken, async (c) => {
-      const list = parseToolResult<Array<{ id: string }>>(
-        await c.callTool({ name: 'conv_list_my_conversations', arguments: {} }),
-      );
-      expect(list.find((row) => row.id === startedConv.id)).toBeFalsy();
-    });
+    const otherList = await rest<{ items: Array<{ id: string }> }>(
+      otherEndUserToken,
+      'GET',
+      '/api/end-user/conversations',
+    );
+    expect(otherList.body.items.find((row) => row.id === startedConv.id)).toBeFalsy();
+
+    const otherGet = await rest<{ message?: string }>(
+      otherEndUserToken,
+      'GET',
+      `/api/end-user/conversations/${startedConv.id}`,
+    );
+    expect(otherGet.status).toBe(404);
 
     void channel;
   }, 30_000);
 
   it('admin can change status to closed; subsequent listings respect the filter', async () => {
-    await withClient(endUserToken, async (c) => {
-      await c.callTool({
-        name: 'conv_start_conversation',
-        arguments: { body: 'How do I export my data?' },
-      });
+    await rest(endUserToken, 'POST', '/api/end-user/conversations', {
+      body: 'How do I export my data?',
     });
 
     await withClient(adminKey, async (c) => {
@@ -235,6 +259,134 @@ const skipReason = TEST_URL
         }),
       );
       expect(closed.find((row) => row.id === conv.id && row.status === 'closed')).toBeTruthy();
+    });
+  }, 30_000);
+
+  it('admin agent requests handover; flag is set, internal note appears, idempotent, then user reply clears it', async () => {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/api/end-user/conversations', {
+      body: 'Can I get a partial refund for last month?',
+    });
+    const conv = startResp.body;
+
+    type Summary = {
+      id: string;
+      needsHumanAttention: boolean;
+      needsHumanAttentionAt: string | null;
+    };
+    type Detail = Summary & { messages: Array<{ body: string; internal: boolean; authorType: string }> };
+
+    const flagged = await withClient(adminKey, async (c) => {
+      const result = parseToolResult<Summary>(
+        await c.callTool({
+          name: 'conv_request_handover',
+          arguments: { conversationId: conv.id, reason: 'refund outside policy' },
+        }),
+      );
+      expect(result.needsHumanAttention).toBe(true);
+      expect(result.needsHumanAttentionAt).not.toBeNull();
+
+      const second = parseToolResult<Summary>(
+        await c.callTool({
+          name: 'conv_request_handover',
+          arguments: { conversationId: conv.id },
+        }),
+      );
+      expect(second.needsHumanAttention).toBe(true);
+      expect(second.needsHumanAttentionAt).toBe(result.needsHumanAttentionAt);
+
+      const detail = parseToolResult<Detail>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      const systemNotes = detail.messages.filter(
+        (m) => m.authorType === 'system' && /handover/i.test(m.body),
+      );
+      expect(systemNotes).toHaveLength(1);
+      expect(systemNotes[0]!.internal).toBe(true);
+      expect(systemNotes[0]!.body).toMatch(/refund outside policy/);
+      return result;
+    });
+
+    const endUserDetail = await rest<Detail>(
+      endUserToken,
+      'GET',
+      `/api/end-user/conversations/${conv.id}`,
+    );
+    const systemNotes = endUserDetail.body.messages.filter((m) => m.authorType === 'system');
+    expect(systemNotes).toHaveLength(0);
+
+    await withClient(adminKey, async (c) => {
+      const list = parseToolResult<Summary[]>(
+        await c.callTool({ name: 'conv_list_conversations', arguments: {} }),
+      );
+      const idx = list.findIndex((row) => row.id === conv.id);
+      const earlier = list.slice(0, idx);
+      expect(earlier.every((row) => row.needsHumanAttention)).toBe(true);
+    });
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_send_message',
+        arguments: { conversationId: conv.id, body: 'Got it — processing the partial refund now.' },
+      });
+      const detail = parseToolResult<Detail>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      expect(detail.needsHumanAttention).toBe(false);
+      expect(detail.needsHumanAttentionAt).toBeNull();
+    });
+
+    void flagged;
+  }, 30_000);
+
+  it('end-user agent can flag its own conversation via conv_request_handover_in_my_conversation (self-service)', async () => {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/api/end-user/conversations', {
+      body: 'I need to talk to a human about my contract.',
+    });
+    const conv = startResp.body;
+
+    await withClient(endUserToken, async (c) => {
+      const { tools } = await c.listTools();
+      expect(tools.map((t) => t.name)).toContain('conv_request_handover_in_my_conversation');
+      const result = parseToolResult<{ needsHumanAttention: boolean }>(
+        await c.callTool({
+          name: 'conv_request_handover_in_my_conversation',
+          arguments: { conversationId: conv.id, reason: 'contract terms need review' },
+        }),
+      );
+      expect(result.needsHumanAttention).toBe(true);
+    });
+
+    await withClient(adminKey, async (c) => {
+      const list = parseToolResult<Array<{ id: string; needsHumanAttention: boolean }>>(
+        await c.callTool({
+          name: 'conv_list_conversations',
+          arguments: { needsHumanAttention: true },
+        }),
+      );
+      expect(list.find((row) => row.id === conv.id)?.needsHumanAttention).toBe(true);
+    });
+  }, 30_000);
+
+  it('changeStatus to closed clears needsHumanAttention', async () => {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/api/end-user/conversations', {
+      body: 'My invoice has the wrong VAT.',
+    });
+    const conv = startResp.body;
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: { conversationId: conv.id, reason: 'tax question' },
+      });
+      await c.callTool({
+        name: 'conv_change_status',
+        arguments: { id: conv.id, status: 'closed' },
+      });
+      const detail = parseToolResult<{ needsHumanAttention: boolean; needsHumanAttentionAt: string | null }>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      expect(detail.needsHumanAttention).toBe(false);
+      expect(detail.needsHumanAttentionAt).toBeNull();
     });
   }, 30_000);
 });

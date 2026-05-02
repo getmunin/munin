@@ -69,6 +69,8 @@
     "usage": "Usage",
     "auditLog": "Audit log",
     "dataExport": "Data export",
+    "conversations": "Conversations",
+    "activity": "Activity",
     "skills": "Skills",
     "suggestions": "Suggestions",
     "partnerAccess": "Partner access"

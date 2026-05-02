@@ -18,6 +18,7 @@ import { QuotasModule } from './common/quotas/quotas.module.js';
 import { MailModule } from './common/mail/mail.module.js';
 import { WebhookModule } from './common/webhooks/webhook.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
 
 /**
  * Feature modules. Composed with an AuthModule downstream — auth is
@@ -39,6 +40,7 @@ export const BACKEND_FEATURE_MODULES_NO_AUTH = [
   ConvModule,
   CrmModule,
   CmsModule,
+  RealtimeModule,
 ];
 
 export const BACKEND_BASE_CONTROLLERS = [HealthController, WhoamiController];

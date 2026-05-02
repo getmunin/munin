@@ -34,6 +34,11 @@ const ChangeStatusInput = z.object({
   snoozeUntil: z.string().datetime().optional(),
 });
 
+const RequestHandoverInput = z.object({
+  conversationId: z.string(),
+  reason: z.string().max(500).optional(),
+});
+
 const SearchInput = z.object({
   query: z.string().min(1).max(300),
   limit: z.number().int().positive().max(100).optional(),
@@ -135,6 +140,21 @@ export class ConvAdminTools {
   })
   changeStatus(args: z.infer<typeof ChangeStatusInput>) {
     return this.conv.changeStatus(args);
+  }
+
+  @McpTool({
+    name: 'conv_request_handover',
+    title: 'Request handover to a human',
+    description:
+      'Flag a conversation as needing human attention. Use this when you have reached the limit of what you can resolve autonomously — billing decisions, refunds outside policy, sensitive complaints, anything where a human teammate should step in. Appends an internal system note (visible only to staff) recording your stated `reason`, sets the conversation\'s "needs human attention" flag (which pins it to the top of the dashboard\'s Conversations page), and emits `conversation.handover_requested`. Idempotent — calling again on an already-flagged conversation is a no-op. The flag clears automatically once a human teammate replies or closes the conversation.',
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: RequestHandoverInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  requestHandover(args: z.infer<typeof RequestHandoverInput>) {
+    return this.conv.requestHandover(args);
   }
 
   @McpTool({

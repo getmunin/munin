@@ -65,27 +65,50 @@ export function ConversationsPage() {
     status: Status | '';
   }>({ needsHumanAttention: false, status: '' });
   const [items, setItems] = useState<ConversationSummary[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [reply, setReply] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const loadList = useCallback(async () => {
-    try {
+  const buildListParams = useCallback(
+    (cursor: string | null) => {
       const params = new URLSearchParams();
       if (filters.needsHumanAttention) params.set('needsHumanAttention', 'true');
       if (filters.status) params.set('status', filters.status);
-      const page = await api<{ items: ConversationSummary[] }>(
-        `/api/conversations?${params.toString()}`,
+      if (cursor) params.set('cursor', cursor);
+      return params;
+    },
+    [filters],
+  );
+
+  const loadList = useCallback(async () => {
+    try {
+      const page = await api<{ items: ConversationSummary[]; nextCursor: string | null }>(
+        `/api/conversations?${buildListParams(null).toString()}`,
       );
       setItems(page.items);
+      setNextCursor(page.nextCursor);
       setError(null);
       if (selectedId === null && page.items[0]) setSelectedId(page.items[0].id);
     } catch (err) {
       setError(messageOf(err));
     }
-  }, [filters, selectedId]);
+  }, [buildListParams, selectedId]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor) return;
+    try {
+      const page = await api<{ items: ConversationSummary[]; nextCursor: string | null }>(
+        `/api/conversations?${buildListParams(nextCursor).toString()}`,
+      );
+      setItems((prev) => [...prev, ...page.items]);
+      setNextCursor(page.nextCursor);
+    } catch (err) {
+      setError(messageOf(err));
+    }
+  }, [buildListParams, nextCursor]);
 
   const loadDetail = useCallback(async (id: string) => {
     try {
@@ -216,6 +239,8 @@ export function ConversationsPage() {
         selectedId={selectedId}
         onSelect={setSelectedId}
         error={error}
+        hasMore={nextCursor !== null}
+        onLoadMore={loadMore}
       />
       <DetailPane
         detail={detail}
@@ -292,11 +317,15 @@ function ListPane({
   selectedId,
   onSelect,
   error,
+  hasMore,
+  onLoadMore,
 }: {
   items: ConversationSummary[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   error: string | null;
+  hasMore: boolean;
+  onLoadMore: () => void;
 }) {
   return (
     <div className="flex w-80 shrink-0 flex-col gap-2 overflow-hidden rounded-lg border bg-background">
@@ -340,6 +369,13 @@ function ListPane({
             No conversations match these filters.
           </li>
         )}
+        {hasMore && (
+          <li className="px-3 py-2">
+            <Button variant="outline" size="sm" className="w-full" onClick={onLoadMore}>
+              Load more
+            </Button>
+          </li>
+        )}
       </ul>
     </div>
   );
@@ -372,7 +408,6 @@ function DetailPane({
     );
   }
 
-  const visibleMessages = detail.messages.filter((m) => !m.internal || m.authorType === 'system');
   const claimed = detail.claim !== null;
 
   return (
@@ -413,7 +448,7 @@ function DetailPane({
           </div>
         </header>
         <CardContent className="flex h-full flex-col gap-2 overflow-y-auto p-4">
-          {visibleMessages.map((m) => (
+          {detail.messages.map((m) => (
             <MessageBubble key={m.id} message={m} />
           ))}
         </CardContent>
@@ -445,6 +480,18 @@ function MessageBubble({ message }: { message: MessageDto }) {
     return (
       <div className="self-center rounded-md bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
         {message.body}
+      </div>
+    );
+  }
+  if (message.internal) {
+    return (
+      <div
+        className={`max-w-[80%] self-${isOutbound ? 'end' : 'start'} rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-500/30 dark:bg-amber-500/10`}
+      >
+        <div className="mb-0.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-200">
+          <AlertCircle className="size-3" /> internal · {message.authorType}
+        </div>
+        <div className="whitespace-pre-wrap">{message.body}</div>
       </div>
     );
   }

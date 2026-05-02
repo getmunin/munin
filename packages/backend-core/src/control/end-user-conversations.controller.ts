@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   ForbiddenException,
   Get,
@@ -19,6 +20,7 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import {
   ConvInvalidError,
   ConvService,
+  HandoverActiveError,
   STATUSES,
   type ConversationDetail,
   type ConversationSummary,
@@ -137,6 +139,7 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (err) {
     if (err instanceof ConvInvalidError) throw new BadRequestException(err.message);
+    if (err instanceof HandoverActiveError) throw new ConflictException(err.message);
     throw err;
   }
 }

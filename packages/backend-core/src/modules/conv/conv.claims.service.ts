@@ -33,8 +33,9 @@ export class ConversationClaimsService {
   }): Promise<ConversationClaim> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (actor.type !== 'user' && actor.type !== 'admin_agent') {
-      throw new Error('claim_requires_admin_actor');
+    const claimer = resolveClaimer(actor);
+    if (!claimer) {
+      throw new Error('claim_requires_user_or_agent_actor');
     }
 
     const convRows = await ctx.db
@@ -50,7 +51,7 @@ export class ConversationClaimsService {
     const expiresAt = new Date(Date.now() + ttlMs);
 
     const existing = await this.findActiveClaim(input.conversationId);
-    if (existing && holderIdOf(existing) !== actor.id) {
+    if (existing && holderIdOf(existing) !== claimer.id) {
       throw new ClaimedByOtherError(holderIdOf(existing));
     }
 
@@ -63,15 +64,14 @@ export class ConversationClaimsService {
       return toConversationClaim(refreshed!);
     }
 
-    const isUser = actor.type === 'user';
     const [row] = await ctx.db
       .insert(schema.claims)
       .values({
         orgId: actor.orgId,
         entityType: ENTITY_TYPE,
         entityId: input.conversationId,
-        userId: isUser ? actor.id : null,
-        agentId: isUser ? null : actor.id,
+        userId: claimer.type === 'user' ? claimer.id : null,
+        agentId: claimer.type === 'agent' ? claimer.id : null,
         expiresAt,
       })
       .returning();
@@ -80,8 +80,8 @@ export class ConversationClaimsService {
       type: 'conversation.taken_over',
       payload: {
         conversationId: input.conversationId,
-        holderType: isUser ? 'user' : 'agent',
-        holderId: actor.id,
+        holderType: claimer.type,
+        holderId: claimer.id,
         expiresAt: expiresAt.toISOString(),
       },
     });
@@ -95,7 +95,8 @@ export class ConversationClaimsService {
     const existing = await this.findActiveClaim(input.conversationId);
     if (!existing) return;
     const heldBy = holderIdOf(existing);
-    if (!input.force && heldBy !== actor.id) {
+    const claimer = resolveClaimer(actor);
+    if (!input.force && (!claimer || heldBy !== claimer.id)) {
       throw new ClaimedByOtherError(heldBy);
     }
     await ctx.db.delete(schema.claims).where(eq(schema.claims.id, existing.id));
@@ -112,6 +113,16 @@ export class ConversationClaimsService {
   async isClaimed(conversationId: string): Promise<boolean> {
     const claim = await this.findActiveClaim(conversationId);
     return claim !== null;
+  }
+
+  async isHeldByOther(conversationId: string): Promise<boolean> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const claim = await this.findActiveClaim(conversationId);
+    if (!claim) return false;
+    const claimer = resolveClaimer(actor);
+    if (!claimer) return true;
+    return holderIdOf(claim) !== claimer.id;
   }
 
   async getActiveClaim(conversationId: string): Promise<ConversationClaim | null> {
@@ -140,6 +151,20 @@ export class ConversationClaimsService {
 
 function holderIdOf(row: typeof schema.claims.$inferSelect): string {
   return (row.userId ?? row.agentId)!;
+}
+
+interface ResolvedClaimer {
+  type: 'user' | 'agent';
+  id: string;
+}
+
+function resolveClaimer(actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>): ResolvedClaimer | null {
+  if (actor.type === 'user') return { type: 'user', id: actor.id };
+  if (actor.userId) return { type: 'user', id: actor.userId };
+  if (actor.type === 'admin_agent' && actor.id.startsWith('agt_')) {
+    return { type: 'agent', id: actor.id };
+  }
+  return null;
 }
 
 function toConversationClaim(row: typeof schema.claims.$inferSelect): ConversationClaim {

@@ -330,7 +330,7 @@ export class ConvService {
     if (!conv) throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
 
     const isAgentWrite = actor.type === 'end_user_agent' || input.authorType === 'agent';
-    if (isAgentWrite && (await this.claims.isClaimed(input.conversationId))) {
+    if (isAgentWrite && (await this.claims.isHeldByOther(input.conversationId))) {
       throw new HandoverActiveError(input.conversationId);
     }
 

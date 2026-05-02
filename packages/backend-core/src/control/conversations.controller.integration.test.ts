@@ -23,6 +23,7 @@ const skipReason = TEST_URL
   let orgBId: string;
   let adminKeyA: string;
   let adminKeyB: string;
+  let adminUserAId: string;
   let endUserToken: string;
 
   beforeAll(async () => {
@@ -51,6 +52,16 @@ const skipReason = TEST_URL
       .returning();
     orgBId = orgB!.id;
 
+    const [adminUserA] = await db
+      .insert(schema.users)
+      .values({ email: `convctrl-a-${ts}@example.com`, name: 'Admin A' })
+      .returning();
+    const [adminUserB] = await db
+      .insert(schema.users)
+      .values({ email: `convctrl-b-${ts}@example.com`, name: 'Admin B' })
+      .returning();
+    adminUserAId = adminUserA!.id;
+
     adminKeyA = buildApiKey('admin');
     await db.insert(schema.apiKeys).values({
       orgId: orgAId,
@@ -59,6 +70,7 @@ const skipReason = TEST_URL
       keyHash: hashSecret(adminKeyA),
       keyPrefix: keyPrefix(adminKeyA),
       scopes: ['*'],
+      createdByUserId: adminUserA!.id,
     });
     adminKeyB = buildApiKey('admin');
     await db.insert(schema.apiKeys).values({
@@ -68,6 +80,7 @@ const skipReason = TEST_URL
       keyHash: hashSecret(adminKeyB),
       keyPrefix: keyPrefix(adminKeyB),
       scopes: ['*'],
+      createdByUserId: adminUserB!.id,
     });
 
     const [eu] = await db
@@ -142,14 +155,14 @@ const skipReason = TEST_URL
   }
 
   it('full handover loop: list → take-over → agent reply rejected → human reply releases flag → release claim', async () => {
-    const started = await withClient(endUserToken, async (c) =>
-      parseToolResult<{ id: string }>(
-        await c.callTool({
-          name: 'conv_start_conversation',
-          arguments: { body: 'Need help with my plan.' },
-        }),
-      ),
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/api/end-user/conversations',
+      { body: 'Need help with my plan.' },
     );
+    expect(startResp.status).toBe(201);
+    const started = startResp.body;
 
     await withClient(adminKeyA, async (c) => {
       await c.callTool({
@@ -182,7 +195,8 @@ const skipReason = TEST_URL
     );
     expect(claim.status).toBe(200);
     expect(claim.body.expiresAt).toBeTruthy();
-    expect(claim.body.holderType).toBe('agent');
+    expect(claim.body.holderType).toBe('user');
+    expect(claim.body.holderId).toBe(adminUserAId);
 
     const detailWithClaim = await rest<{ claim: { holderId: string } | null }>(
       adminKeyA,
@@ -191,14 +205,13 @@ const skipReason = TEST_URL
     );
     expect(detailWithClaim.body.claim).not.toBeNull();
 
-    await withClient(endUserToken, async (c) => {
-      const reply = await c.callTool({
-        name: 'conv_send_message_in_my_conversation',
-        arguments: { conversationId: started.id, body: 'still there?' },
-      });
-      const text = (reply as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? '';
-      expect(text.toLowerCase()).toMatch(/handover_active|handover|taken over/);
-    });
+    const blockedReply = await rest<{ message?: string; error?: string }>(
+      endUserToken,
+      'POST',
+      `/api/end-user/conversations/${started.id}/messages`,
+      { body: 'still there?' },
+    );
+    expect(blockedReply.status).toBe(409);
 
     const humanReply = await rest<{ id: string }>(
       adminKeyA,
@@ -254,9 +267,3 @@ const skipReason = TEST_URL
     expect(types).toContain('conversation.handover_requested');
   });
 });
-
-function parseToolResult<T>(result: unknown): T {
-  const r = result as { content?: Array<{ type: string; text?: string }> };
-  const text = r.content?.[0]?.text ?? '';
-  return JSON.parse(text) as T;
-}

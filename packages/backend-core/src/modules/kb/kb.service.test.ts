@@ -99,7 +99,7 @@ const skipReason = TEST_URL
       }),
     );
     expect(doc.version).toBe(1);
-    expect(doc.public).toBe(false);
+    expect(doc.audiences).toEqual(['admin']);
 
     const versions = await run(() => svc.listVersions(doc.id));
     expect(versions).toHaveLength(1);
@@ -136,7 +136,7 @@ const skipReason = TEST_URL
       sql`SELECT id FROM kb_document_chunks WHERE document_id = ${doc.id} ORDER BY chunk_index LIMIT 1`,
     );
     const firstChunkId = firstRows[0]!.id;
-    await run(() => svc.updateDocument({ id: doc.id, ifVersion: 1, public: true }));
+    await run(() => svc.updateDocument({ id: doc.id, ifVersion: 1, audiences: ['admin', 'self_service'] }));
     const secondRows = await db.execute<{ id: string }>(
       sql`SELECT id FROM kb_document_chunks WHERE document_id = ${doc.id} ORDER BY chunk_index LIMIT 1`,
     );

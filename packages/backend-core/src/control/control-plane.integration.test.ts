@@ -120,11 +120,11 @@ interface OrgFixture {
     };
   }
 
-  function authHeaders(key: string): HeadersInit {
+  function authHeaders(key: string): Record<string, string> {
     return { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
   }
 
-  function cookieHeaders(token: string): HeadersInit {
+  function cookieHeaders(token: string): Record<string, string> {
     return {
       Cookie: `better-auth.session_token=${token}.placeholder-sig`,
       'Content-Type': 'application/json',

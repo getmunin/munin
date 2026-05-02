@@ -350,7 +350,7 @@ export const events = pgTable(
 );
 
 // ───────────────────────────── Claims ────────────────────────────────
-// Soft locks: "agent X is working on entity Y for the next N minutes."
+// Soft locks: "actor X is working on entity Y for the next N minutes."
 export const claims = pgTable(
   'claims',
   {
@@ -360,9 +360,8 @@ export const claims = pgTable(
       .references(() => orgs.id, { onDelete: 'cascade' }),
     entityType: text('entity_type').notNull(),
     entityId: text('entity_id').notNull(),
-    agentId: text('agent_id')
-      .notNull()
-      .references(() => agents.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id').references(() => agents.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
     createdAt,
@@ -370,6 +369,7 @@ export const claims = pgTable(
   (t) => ({
     entityIdx: index('claims_entity_idx').on(t.orgId, t.entityType, t.entityId),
     expiresIdx: index('claims_expires_idx').on(t.expiresAt),
+    userIdx: index('claims_user_idx').on(t.userId),
   }),
 );
 
@@ -677,6 +677,8 @@ export const convConversations = pgTable(
     // 'open' | 'snoozed' | 'closed' | 'spam'
     snoozeUntil: timestamp('snooze_until', { withTimezone: true }),
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
+    needsHumanAttention: boolean('needs_human_attention').notNull().default(false),
+    needsHumanAttentionAt: timestamp('needs_human_attention_at', { withTimezone: true }),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
     updatedAt,
@@ -688,6 +690,9 @@ export const convConversations = pgTable(
     contactIdx: index('conv_conversations_contact_idx').on(t.contactId),
     displayIdUq: uniqueIndex('conv_conversations_display_uq').on(t.orgId, t.displayId),
     lastMsgIdx: index('conv_conversations_last_msg_idx').on(t.orgId, t.lastMessageAt),
+    needsAttentionIdx: index('conv_conversations_needs_attention_idx')
+      .on(t.orgId, t.needsHumanAttentionAt)
+      .where(sql`needs_human_attention = true`),
   }),
 );
 

@@ -2,11 +2,19 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, isNotNull, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import { ConversationClaimsService } from './conv.claims.service.js';
 
 export class ConvInvalidError extends Error {
   readonly code = 'conv_invalid';
   constructor(message: string) {
     super(`conv_invalid: ${message}`);
+  }
+}
+
+export class HandoverActiveError extends Error {
+  readonly code = 'handover_active';
+  constructor(public readonly conversationId: string) {
+    super(`handover_active: a human has taken over conversation ${conversationId}`);
   }
 }
 
@@ -54,6 +62,8 @@ export interface ConversationSummary {
   assigneeUserId: string | null;
   subject: string | null;
   lastMessageAt: string | null;
+  needsHumanAttention: boolean;
+  needsHumanAttentionAt: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -64,7 +74,10 @@ export interface ConversationDetail extends ConversationSummary {
 
 @Injectable()
 export class ConvService {
-  constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
+  constructor(
+    @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
+    @Inject(ConversationClaimsService) private readonly claims: ConversationClaimsService,
+  ) {}
 
   // ─── Channels ───────────────────────────────────────────────────────────
 
@@ -149,8 +162,22 @@ export class ConvService {
     assigneeUserId?: string;
     topicId?: string;
     endUserId?: string;
+    needsHumanAttention?: boolean;
     limit?: number;
   }): Promise<ConversationSummary[]> {
+    const page = await this.listConversationsPage({ ...input });
+    return page.items;
+  }
+
+  async listConversationsPage(input: {
+    status?: ConversationStatus;
+    assigneeUserId?: string;
+    topicId?: string;
+    endUserId?: string;
+    needsHumanAttention?: boolean;
+    limit?: number;
+    cursor?: { lastMessageAt: string | null; id: string };
+  }): Promise<{ items: ConversationSummary[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
     const filters: SQL[] = [];
@@ -158,14 +185,36 @@ export class ConvService {
     if (input.assigneeUserId) filters.push(eq(schema.convConversations.assigneeUserId, input.assigneeUserId));
     if (input.topicId) filters.push(eq(schema.convConversations.topicId, input.topicId));
     if (input.endUserId) filters.push(eq(schema.convConversations.endUserId, input.endUserId));
+    if (input.needsHumanAttention !== undefined) {
+      filters.push(eq(schema.convConversations.needsHumanAttention, input.needsHumanAttention));
+    }
+    if (input.cursor) {
+      const { lastMessageAt, id } = input.cursor;
+      if (lastMessageAt === null) {
+        filters.push(sql`${schema.convConversations.id} < ${id} AND ${schema.convConversations.lastMessageAt} IS NULL`);
+      } else {
+        filters.push(
+          sql`(${schema.convConversations.lastMessageAt}, ${schema.convConversations.id}) < (${new Date(lastMessageAt)}, ${id})`,
+        );
+      }
+    }
 
     const rows = await ctx.db
       .select()
       .from(schema.convConversations)
       .where(filters.length === 0 ? undefined : and(...filters))
-      .orderBy(desc(schema.convConversations.lastMessageAt), desc(schema.convConversations.createdAt))
-      .limit(limit);
-    return rows.map(toConversationSummary);
+      .orderBy(
+        desc(schema.convConversations.needsHumanAttention),
+        desc(schema.convConversations.lastMessageAt),
+        desc(schema.convConversations.createdAt),
+      )
+      .limit(limit + 1);
+
+    const items = rows.slice(0, limit).map(toConversationSummary);
+    const last = items[items.length - 1];
+    const nextCursor =
+      rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
+    return { items, nextCursor };
   }
 
   async getConversation(id: string): Promise<ConversationDetail> {
@@ -280,6 +329,11 @@ export class ConvService {
     const conv = convRows[0];
     if (!conv) throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
 
+    const isAgentWrite = actor.type === 'end_user_agent' || input.authorType === 'agent';
+    if (isAgentWrite && (await this.claims.isClaimed(input.conversationId))) {
+      throw new HandoverActiveError(input.conversationId);
+    }
+
     const [row] = await ctx.db
       .insert(schema.convMessages)
       .values({
@@ -292,9 +346,17 @@ export class ConvService {
         inReplyToId: input.inReplyToId ?? null,
       })
       .returning();
+    const clearAttention =
+      (input.authorType === 'user' || input.authorType === 'agent') && !input.internal;
     await ctx.db
       .update(schema.convConversations)
-      .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+      .set({
+        lastMessageAt: new Date(),
+        updatedAt: new Date(),
+        ...(clearAttention
+          ? { needsHumanAttention: false, needsHumanAttentionAt: null }
+          : {}),
+      })
       .where(eq(schema.convConversations.id, input.conversationId));
 
     if (!row!.internal) {
@@ -395,12 +457,16 @@ export class ConvService {
     if (input.status === 'snoozed' && !input.snoozeUntil) {
       throw new ConvInvalidError('snoozeUntil is required when status is "snoozed"');
     }
+    const clearAttention = input.status === 'closed';
     const result = await ctx.db
       .update(schema.convConversations)
       .set({
         status: input.status,
         snoozeUntil: input.snoozeUntil ? new Date(input.snoozeUntil) : null,
         updatedAt: new Date(),
+        ...(clearAttention
+          ? { needsHumanAttention: false, needsHumanAttentionAt: null }
+          : {}),
       })
       .where(eq(schema.convConversations.id, input.id))
       .returning();
@@ -410,6 +476,61 @@ export class ConvService {
       payload: { conversationId: input.id, status: input.status },
     });
     return toConversationSummary(result[0]);
+  }
+
+  async requestHandover(input: {
+    conversationId: string;
+    reason?: string;
+  }): Promise<ConversationSummary> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const convRows = await ctx.db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .limit(1);
+    const existing = convRows[0];
+    if (!existing) {
+      throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
+    }
+
+    if (existing.needsHumanAttention) {
+      return toConversationSummary(existing);
+    }
+
+    const now = new Date();
+    const reason = input.reason?.trim();
+    const body = reason ? `Agent requested handover: ${reason}` : 'Agent requested handover.';
+
+    await ctx.db.insert(schema.convMessages).values({
+      orgId: actor.orgId,
+      conversationId: input.conversationId,
+      authorType: 'system',
+      authorId: actor.id,
+      body,
+      internal: true,
+    });
+
+    const [updated] = await ctx.db
+      .update(schema.convConversations)
+      .set({
+        needsHumanAttention: true,
+        needsHumanAttentionAt: now,
+        lastMessageAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .returning();
+
+    await this.webhooks.emit({
+      type: 'conversation.handover_requested',
+      payload: {
+        conversationId: input.conversationId,
+        reason: reason ?? null,
+      },
+    });
+
+    return toConversationSummary(updated!);
   }
 
   async searchMessages(input: { query: string; limit?: number }): Promise<MessageDto[]> {
@@ -494,6 +615,8 @@ function toConversationSummary(
     assigneeUserId: row.assigneeUserId,
     subject: row.subject,
     lastMessageAt: row.lastMessageAt?.toISOString() ?? null,
+    needsHumanAttention: row.needsHumanAttention,
+    needsHumanAttentionAt: row.needsHumanAttentionAt?.toISOString() ?? null,
     updatedAt: row.updatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };

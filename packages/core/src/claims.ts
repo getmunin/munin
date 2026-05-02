@@ -1,5 +1,5 @@
 import { schema } from '@getmunin/db';
-import { and, eq, gt, lt, sql } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, lt, sql } from 'drizzle-orm';
 import { getCurrentContext } from './context.js';
 
 export interface ClaimResult {
@@ -44,7 +44,9 @@ export class ClaimManager {
         ),
       );
 
-    // Existing live claim?
+    // Existing live claim? Only agent-held rows participate here; rows
+    // held by a user (the human take-over flow) live in the same table
+    // but have a different lifecycle and shouldn't block agent claims.
     const existing = await ctx.db
       .select()
       .from(schema.claims)
@@ -54,6 +56,7 @@ export class ClaimManager {
           eq(schema.claims.entityType, entityType),
           eq(schema.claims.entityId, entityId),
           gt(schema.claims.expiresAt, new Date()),
+          isNotNull(schema.claims.agentId),
         ),
       )
       .limit(1);
@@ -62,7 +65,7 @@ export class ClaimManager {
     if (live && live.agentId !== agentId) {
       return {
         acquired: false,
-        holder: { agentId: live.agentId, expiresAt: live.expiresAt },
+        holder: { agentId: live.agentId!, expiresAt: live.expiresAt },
       };
     }
 

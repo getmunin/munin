@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { SkillRegistry, type RegisteredSkill } from '@getmunin/mcp-toolkit';
@@ -45,6 +46,7 @@ const INTERNAL_SKILL: RegisteredSkill = {
 };
 
 @Module({
+  imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 1000 }])],
   controllers: [PublicSkillsController],
   providers: [
     {
@@ -66,7 +68,7 @@ describe('PublicSkillsController', () => {
   let baseUrl: string;
 
   beforeAll(async () => {
-    app = await NestFactory.create(TestModule, { logger: false });
+    app = await NestFactory.create(TestModule, { logger: false, abortOnError: false });
     await app.listen(0, '127.0.0.1');
     const server = app.getHttpServer() as { address(): AddressInfo | string | null };
     const address = server.address();

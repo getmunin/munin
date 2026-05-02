@@ -45,7 +45,7 @@ export class ExportController {
             spaceId: schema.kbDocuments.spaceId,
             title: schema.kbDocuments.title,
             body: schema.kbDocuments.body,
-            public: schema.kbDocuments.public,
+            audiences: schema.kbDocuments.audiences,
             version: schema.kbDocuments.version,
             tags: schema.kbDocuments.tags,
             createdAt: schema.kbDocuments.createdAt,

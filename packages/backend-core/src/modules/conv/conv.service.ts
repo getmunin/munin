@@ -346,7 +346,8 @@ export class ConvService {
         inReplyToId: input.inReplyToId ?? null,
       })
       .returning();
-    const clearAttention = input.authorType === 'user' && !input.internal;
+    const clearAttention =
+      (input.authorType === 'user' || input.authorType === 'agent') && !input.internal;
     await ctx.db
       .update(schema.convConversations)
       .set({

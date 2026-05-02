@@ -167,14 +167,14 @@ const skipReason = TEST_URL
     const flagged = list.body.items.find((c) => c.id === started.id);
     expect(flagged?.needsHumanAttention).toBe(true);
 
-    const detail = await rest<{ id: string; claim: { userId: string } | null }>(
+    const detail = await rest<{ id: string; claim: { holderId: string } | null }>(
       adminKeyA,
       'GET',
       `/api/conversations/${started.id}`,
     );
     expect(detail.body.claim).toBeNull();
 
-    const claim = await rest<{ userId: string; expiresAt: string }>(
+    const claim = await rest<{ holderType: string; holderId: string; expiresAt: string }>(
       adminKeyA,
       'POST',
       `/api/conversations/${started.id}/take-over`,
@@ -182,8 +182,9 @@ const skipReason = TEST_URL
     );
     expect(claim.status).toBe(200);
     expect(claim.body.expiresAt).toBeTruthy();
+    expect(claim.body.holderType).toBe('agent');
 
-    const detailWithClaim = await rest<{ claim: { userId: string } | null }>(
+    const detailWithClaim = await rest<{ claim: { holderId: string } | null }>(
       adminKeyA,
       'GET',
       `/api/conversations/${started.id}`,

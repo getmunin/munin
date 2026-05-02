@@ -65,7 +65,7 @@ interface ConversationListResponse {
 }
 
 interface ConversationDetailResponse extends ConversationDetail {
-  claim: { userId: string; expiresAt: string } | null;
+  claim: { holderType: 'user' | 'agent'; holderId: string; expiresAt: string } | null;
 }
 
 @Controller('api/conversations')
@@ -113,7 +113,9 @@ export class ConversationsController {
     const claim = await this.claims.getActiveClaim(id);
     return {
       ...detail,
-      claim: claim ? { userId: claim.userId, expiresAt: claim.expiresAt } : null,
+      claim: claim
+        ? { holderType: claim.holderType, holderId: claim.holderId, expiresAt: claim.expiresAt }
+        : null,
     };
   }
 
@@ -159,12 +161,12 @@ export class ConversationsController {
   async takeOver(
     @Param('id') id: string,
     @Body() body: unknown,
-  ): Promise<{ userId: string; expiresAt: string }> {
+  ): Promise<{ holderType: 'user' | 'agent'; holderId: string; expiresAt: string }> {
     const parsed = TakeOverBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     const ttlMs = parsed.data.ttlMinutes ? parsed.data.ttlMinutes * 60_000 : undefined;
     const claim = await translate(() => this.claims.claim({ conversationId: id, ttlMs }));
-    return { userId: claim.userId, expiresAt: claim.expiresAt };
+    return { holderType: claim.holderType, holderId: claim.holderId, expiresAt: claim.expiresAt };
   }
 
   @Post(':id/release')

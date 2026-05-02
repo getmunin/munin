@@ -8,14 +8,17 @@ const DEFAULT_TTL_MS = 30 * 60 * 1000;
 
 export class ClaimedByOtherError extends Error {
   readonly code = 'claim_held_by_other';
-  constructor(public readonly userId: string) {
-    super(`claim_held_by_other: conversation already claimed by ${userId}`);
+  constructor(public readonly holderId: string) {
+    super(`claim_held_by_other: conversation already claimed by ${holderId}`);
   }
 }
 
+export type ClaimHolderType = 'user' | 'agent';
+
 export interface ConversationClaim {
   conversationId: string;
-  userId: string;
+  holderType: ClaimHolderType;
+  holderId: string;
   expiresAt: string;
   createdAt: string;
 }
@@ -30,8 +33,8 @@ export class ConversationClaimsService {
   }): Promise<ConversationClaim> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (actor.type !== 'user') {
-      throw new Error('claim_requires_user_actor');
+    if (actor.type !== 'user' && actor.type !== 'admin_agent') {
+      throw new Error('claim_requires_admin_actor');
     }
 
     const convRows = await ctx.db
@@ -47,8 +50,8 @@ export class ConversationClaimsService {
     const expiresAt = new Date(Date.now() + ttlMs);
 
     const existing = await this.findActiveClaim(input.conversationId);
-    if (existing && existing.userId !== actor.id) {
-      throw new ClaimedByOtherError(existing.userId!);
+    if (existing && holderIdOf(existing) !== actor.id) {
+      throw new ClaimedByOtherError(holderIdOf(existing));
     }
 
     if (existing) {
@@ -60,13 +63,15 @@ export class ConversationClaimsService {
       return toConversationClaim(refreshed!);
     }
 
+    const isUser = actor.type === 'user';
     const [row] = await ctx.db
       .insert(schema.claims)
       .values({
         orgId: actor.orgId,
         entityType: ENTITY_TYPE,
         entityId: input.conversationId,
-        userId: actor.id,
+        userId: isUser ? actor.id : null,
+        agentId: isUser ? null : actor.id,
         expiresAt,
       })
       .returning();
@@ -75,7 +80,8 @@ export class ConversationClaimsService {
       type: 'conversation.taken_over',
       payload: {
         conversationId: input.conversationId,
-        userId: actor.id,
+        holderType: isUser ? 'user' : 'agent',
+        holderId: actor.id,
         expiresAt: expiresAt.toISOString(),
       },
     });
@@ -88,15 +94,17 @@ export class ConversationClaimsService {
     const actor = ctx.actor!;
     const existing = await this.findActiveClaim(input.conversationId);
     if (!existing) return;
-    if (!input.force && existing.userId !== actor.id) {
-      throw new ClaimedByOtherError(existing.userId!);
+    const heldBy = holderIdOf(existing);
+    if (!input.force && heldBy !== actor.id) {
+      throw new ClaimedByOtherError(heldBy);
     }
     await ctx.db.delete(schema.claims).where(eq(schema.claims.id, existing.id));
     await this.webhooks.emit({
       type: 'conversation.released',
       payload: {
         conversationId: input.conversationId,
-        userId: existing.userId,
+        holderType: existing.userId ? 'user' : 'agent',
+        holderId: heldBy,
       },
     });
   }
@@ -130,10 +138,15 @@ export class ConversationClaimsService {
   }
 }
 
+function holderIdOf(row: typeof schema.claims.$inferSelect): string {
+  return (row.userId ?? row.agentId)!;
+}
+
 function toConversationClaim(row: typeof schema.claims.$inferSelect): ConversationClaim {
   return {
     conversationId: row.entityId,
-    userId: row.userId!,
+    holderType: row.userId ? 'user' : 'agent',
+    holderId: holderIdOf(row),
     expiresAt: row.expiresAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };

@@ -38,6 +38,11 @@ Thumbs.db
 # coverage
 coverage/
 
+# playwright
+test-results/
+playwright-report/
+.playwright/
+
 # drizzle
 drizzle/meta/
 

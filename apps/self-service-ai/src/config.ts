@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { defaultPromptsDir } from '@getmunin/agent-runtime';
 
 const ConfigSchema = z.object({
   muninBaseUrl: z.string().url(),
@@ -43,7 +44,3 @@ function parseIntOr(raw: string | undefined, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function defaultPromptsDir(): string {
-  const here = new URL('.', import.meta.url).pathname;
-  return new URL('../prompts/', `file://${here}`).pathname;
-}

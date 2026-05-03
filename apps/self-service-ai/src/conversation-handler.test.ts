@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { createConversationHandler, type OpenedMcp } from './conversation-handler.js';
 import type { SidecarConfig } from './config.js';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.js';
-import type { PromptResolver } from './prompt-resolver.js';
-import type { McpToolResult, Provider, ProviderResponse } from '@getmunin/agent-runtime';
+import type {
+  McpToolResult,
+  PromptResolver,
+  Provider,
+  ProviderResponse,
+} from '@getmunin/agent-runtime';
 
 const baseConfig: SidecarConfig = {
   muninBaseUrl: 'http://munin',

@@ -5,6 +5,8 @@ import type { ConversationDetail, MuninRestClient } from './munin-rest.js';
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 const HANDOVER_TOOL_NAME = 'conv_request_handover_in_my_conversation';
+/** Re-mint when the cached token has less than this much TTL remaining. */
+const TOKEN_REFRESH_MARGIN_MS = 60_000;
 
 export interface OpenedMcp extends McpToolHandle {
   close(): Promise<void>;
@@ -51,6 +53,21 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
   };
   const scheduler = deps.scheduler ?? defaultScheduler;
   const inFlight = new Map<string, InFlight>();
+  const tokenCache = new Map<string, { accessToken: string; expiresAtMs: number }>();
+
+  async function getDelegatedToken(endUserId: string): Promise<string> {
+    const now = Date.now();
+    const cached = tokenCache.get(endUserId);
+    if (cached && cached.expiresAtMs - now > TOKEN_REFRESH_MARGIN_MS) {
+      return cached.accessToken;
+    }
+    const minted = await deps.rest.mintDelegatedToken(endUserId);
+    tokenCache.set(endUserId, {
+      accessToken: minted.accessToken,
+      expiresAtMs: Date.parse(minted.expiresAt),
+    });
+    return minted.accessToken;
+  }
 
   function shouldRespond(detail: ConversationDetail): boolean {
     if (detail.status !== 'open') {
@@ -91,8 +108,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
       if (signal.aborted) return;
-      const token = await deps.rest.mintDelegatedToken(endUserId);
-      const mcp = await deps.openMcp({ delegatedToken: token.accessToken });
+      const accessToken = await getDelegatedToken(endUserId);
+      const mcp = await deps.openMcp({ delegatedToken: accessToken });
       try {
         const reply = await runAgent({
           config: {
@@ -149,8 +166,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
   }
 
   async function requestHandover(conversationId: string, endUserId: string): Promise<void> {
-    const token = await deps.rest.mintDelegatedToken(endUserId);
-    const mcp = await deps.openMcp({ delegatedToken: token.accessToken });
+    const accessToken = await getDelegatedToken(endUserId);
+    const mcp = await deps.openMcp({ delegatedToken: accessToken });
     try {
       await mcp.callTool(HANDOVER_TOOL_NAME, { conversationId });
     } finally {

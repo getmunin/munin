@@ -1,7 +1,12 @@
-import { runAgent, type ConversationMessage, type McpToolHandle, type Provider } from '@getmunin/agent-runtime';
+import {
+  runAgent,
+  type ConversationMessage,
+  type McpToolHandle,
+  type PromptResolver,
+  type Provider,
+} from '@getmunin/agent-runtime';
 import type { SidecarConfig } from './config.js';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.js';
-import type { PromptResolver } from './prompt-resolver.js';
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;

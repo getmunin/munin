@@ -1,10 +1,16 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { resolve, basename, extname } from 'node:path';
-import type { McpToolHandle, McpToolResult } from '@getmunin/agent-runtime';
+import { resolve, basename, extname, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { McpToolHandle, McpToolResult } from './types.js';
 
 export const PROMPT_SPACE_SLUG = 'agent-runtime';
 export const SYSTEM_PROMPT_SLUG = 'system-prompt';
 export const CHANNEL_PROMPT_PREFIX = 'channel-';
+
+export function defaultPromptsDir(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  return resolve(here, '..', 'prompts');
+}
 
 export interface PromptResolver {
   system(): string;

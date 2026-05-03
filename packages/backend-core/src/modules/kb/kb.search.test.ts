@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   ActorIdentity,
   StubEmbeddingProvider,
+  WebhookDispatcher,
   withContext,
   type RequestContext,
 } from '@getmunin/core';
@@ -63,7 +64,7 @@ const skipReason = TEST_URL
         return new StubEmbeddingProvider();
       }
     })();
-    kb = new KbService(holder, new QuotasService());
+    kb = new KbService(holder, new QuotasService(), new WebhookDispatcher());
     search = new KbSearchService(holder);
   });
 

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   ActorIdentity,
   StubEmbeddingProvider,
+  WebhookDispatcher,
   withContext,
   type RequestContext,
 } from '@getmunin/core';
@@ -43,7 +44,7 @@ const skipReason = TEST_URL
         return new StubEmbeddingProvider();
       }
     })();
-    svc = new KbService(holder, new QuotasService());
+    svc = new KbService(holder, new QuotasService(), new WebhookDispatcher());
   });
 
   afterAll(async () => {
@@ -187,5 +188,76 @@ const skipReason = TEST_URL
     ).rejects.toThrow(KbConflictError);
     await run(() => svc.deleteDocument({ id: doc.id, ifVersion: 1 }));
     await expect(run(() => svc.getDocument(doc.id))).rejects.toThrow(KbNotFoundError);
+  });
+
+  it('round-trips a slug through createDocument and getDocumentBySlug', async () => {
+    const space = await run(() =>
+      svc.createSpace({ name: 'Agent runtime', slug: 'agent-runtime' }),
+    );
+    const doc = await run(() =>
+      svc.createDocument({
+        spaceId: space.id,
+        slug: 'system-prompt',
+        title: 'System prompt',
+        body: 'You are a helpful assistant.',
+      }),
+    );
+    expect(doc.slug).toBe('system-prompt');
+
+    const found = await run(() => svc.getDocumentBySlug('agent-runtime', 'system-prompt'));
+    expect(found?.id).toBe(doc.id);
+    expect(found?.body).toBe('You are a helpful assistant.');
+
+    const missing = await run(() => svc.getDocumentBySlug('agent-runtime', 'nope'));
+    expect(missing).toBeNull();
+  });
+
+  it('rejects a duplicate (space, slug) pair', async () => {
+    const space = await run(() => svc.createSpace({ name: 'A', slug: 'agent-runtime' }));
+    await run(() =>
+      svc.createDocument({
+        spaceId: space.id,
+        slug: 'system-prompt',
+        title: 'First',
+        body: 'B',
+      }),
+    );
+    await expect(
+      run(() =>
+        svc.createDocument({
+          spaceId: space.id,
+          slug: 'system-prompt',
+          title: 'Second',
+          body: 'B',
+        }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('rejects an invalid slug shape', async () => {
+    const space = await run(() => svc.createSpace({ name: 'A', slug: 'agent-runtime' }));
+    await expect(
+      run(() =>
+        svc.createDocument({
+          spaceId: space.id,
+          slug: 'BAD slug!',
+          title: 'T',
+          body: 'B',
+        }),
+      ),
+    ).rejects.toThrow(KbInvalidError);
+  });
+
+  it('allows multiple un-slugged docs in the same space (partial unique index)', async () => {
+    const space = await run(() => svc.createSpace({ name: 'A', slug: 'docs' }));
+    const a = await run(() =>
+      svc.createDocument({ spaceId: space.id, title: 'A', body: 'a' }),
+    );
+    const b = await run(() =>
+      svc.createDocument({ spaceId: space.id, title: 'B', body: 'b' }),
+    );
+    expect(a.slug).toBeNull();
+    expect(b.slug).toBeNull();
+    expect(a.id).not.toBe(b.id);
   });
 });

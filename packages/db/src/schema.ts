@@ -492,6 +492,7 @@ export const kbDocuments = pgTable(
     spaceId: text('space_id')
       .notNull()
       .references(() => kbSpaces.id, { onDelete: 'cascade' }),
+    slug: varchar('slug', { length: 64 }),
     title: text('title').notNull(),
     body: text('body').notNull(),
     audiences: jsonb('audiences')
@@ -513,6 +514,9 @@ export const kbDocuments = pgTable(
     orgIdx: index('kb_documents_org_idx').on(t.orgId),
     spaceIdx: index('kb_documents_space_idx').on(t.spaceId),
     audiencesIdx: index('kb_documents_audiences_idx').using('gin', t.audiences),
+    spaceSlugUq: uniqueIndex('kb_documents_space_slug_uq')
+      .on(t.spaceId, t.slug)
+      .where(sql`slug IS NOT NULL`),
   }),
 );
 

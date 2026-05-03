@@ -5,6 +5,7 @@ import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { assertOwnerOrAdmin } from './role-guard.js';
 
 interface ExportPayload {
   exportedAt: string;
@@ -32,6 +33,7 @@ export class ExportController {
   async export(): Promise<ExportPayload> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
 
     const [org, endUsers, agents, kbSpaces, kbDocuments, kbDocumentVersions] =
       await Promise.all([

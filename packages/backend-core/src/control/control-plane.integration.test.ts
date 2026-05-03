@@ -586,6 +586,108 @@ interface OrgFixture {
     });
   });
 
+  // ─── role gating: member vs admin via user session cookies ──────────
+
+  describe('settings endpoints role gating (user session)', () => {
+    let memberCookie: Record<string, string>;
+    let adminCookie: Record<string, string>;
+
+    beforeAll(async () => {
+      const memberSlug = `cp-a-member-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      const adminSlug = `cp-a-admin-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      const [member] = await db
+        .insert(schema.users)
+        .values({ email: `${memberSlug}@example.com`, name: 'Member User' })
+        .returning();
+      const [admin] = await db
+        .insert(schema.users)
+        .values({ email: `${adminSlug}@example.com`, name: 'Admin User' })
+        .returning();
+      await db
+        .insert(schema.orgMembers)
+        .values({ orgId: orgA.id, userId: member!.id, role: 'member' });
+      await db
+        .insert(schema.orgMembers)
+        .values({ orgId: orgA.id, userId: admin!.id, role: 'admin' });
+
+      const memberToken = randomToken(32);
+      const adminToken = randomToken(32);
+      await db.insert(schema.sessions).values([
+        {
+          userId: member!.id,
+          token: memberToken,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+        {
+          userId: admin!.id,
+          token: adminToken,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      ]);
+      memberCookie = cookieHeaders(memberToken);
+      adminCookie = cookieHeaders(adminToken);
+    });
+
+    const READ_ENDPOINTS = [
+      ['/api/api-keys', 'GET'],
+      ['/api/audit-log', 'GET'],
+      ['/api/usage', 'GET'],
+      ['/api/export', 'GET'],
+      ['/api/end-users', 'GET'],
+      ['/api/tokens', 'GET'],
+      ['/api/orgs/me/members', 'GET'],
+      ['/api/orgs/me/invitations', 'GET'],
+    ] as const;
+
+    for (const [path] of READ_ENDPOINTS) {
+      it(`member role is forbidden from GET ${path}`, async () => {
+        const res = await fetch(`${baseUrl}${path}`, { headers: memberCookie });
+        expect(res.status).toBe(403);
+      });
+
+      it(`admin role can GET ${path}`, async () => {
+        const res = await fetch(`${baseUrl}${path}`, { headers: adminCookie });
+        expect(res.status).toBe(200);
+      });
+    }
+
+    it('member cannot create API keys (403)', async () => {
+      const res = await fetch(`${baseUrl}/api/api-keys`, {
+        method: 'POST',
+        headers: memberCookie,
+        body: JSON.stringify({ name: 'member-attempt', scopes: [] }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('admin can create API keys (201)', async () => {
+      const res = await fetch(`${baseUrl}/api/api-keys`, {
+        method: 'POST',
+        headers: adminCookie,
+        body: JSON.stringify({ name: `admin-${Date.now()}`, scopes: [] }),
+      });
+      expect(res.status).toBe(201);
+    });
+
+    it('admin cannot invite members (owner-only) — 403', async () => {
+      const res = await fetch(`${baseUrl}/api/orgs/me/invitations`, {
+        method: 'POST',
+        headers: adminCookie,
+        body: JSON.stringify({ email: `admin-cannot-invite-${Date.now()}@example.com` }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('admin cannot change another member\'s role (owner-only) — 403', async () => {
+      const res = await fetch(`${baseUrl}/api/orgs/me/members/${orgA.userId}`, {
+        method: 'PATCH',
+        headers: adminCookie,
+        body: JSON.stringify({ role: 'member' }),
+      });
+      expect(res.status).toBe(403);
+    });
+  });
+
   // ─── cms-delivery (anonymous) ────────────────────────────────────────
 
   describe('GET /api/cms/v1/:orgSlug/...', () => {

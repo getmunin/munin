@@ -7,11 +7,19 @@ export interface MessageReceivedEvent {
   endUserId?: string;
 }
 
+export interface KbDocumentChangedEvent {
+  type: 'created' | 'updated' | 'deleted';
+  spaceId: string;
+  documentId: string;
+  slug: string | null;
+  version?: number;
+}
+
 export interface RealtimeClientOptions {
   baseUrl: string;
   adminApiKey: string;
   onMessageReceived: (event: MessageReceivedEvent) => void;
-  /** Optional logger; defaults to console. */
+  onKbDocumentChanged?: (event: KbDocumentChangedEvent) => void;
   logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void };
 }
 
@@ -90,18 +98,43 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
           event?: { type?: string; payload?: Record<string, unknown> };
         };
         if (msg.type !== 'event' || !msg.event) return;
-        if (msg.event.type !== 'conversation.message.received') return;
+        const eventType = msg.event.type ?? '';
         const payload = msg.event.payload ?? {};
-        const conversationId = payload['conversationId'];
-        const messageId = payload['messageId'];
-        const authorType = payload['authorType'];
-        if (typeof conversationId !== 'string' || typeof messageId !== 'string') return;
-        opts.onMessageReceived({
-          conversationId,
-          messageId,
-          authorType: typeof authorType === 'string' ? (authorType as MessageReceivedEvent['authorType']) : 'end_user',
-          endUserId: typeof payload['endUserId'] === 'string' ? payload['endUserId'] : undefined,
-        });
+
+        if (eventType === 'conversation.message.received') {
+          const conversationId = payload['conversationId'];
+          const messageId = payload['messageId'];
+          const authorType = payload['authorType'];
+          if (typeof conversationId !== 'string' || typeof messageId !== 'string') return;
+          opts.onMessageReceived({
+            conversationId,
+            messageId,
+            authorType:
+              typeof authorType === 'string'
+                ? (authorType as MessageReceivedEvent['authorType'])
+                : 'end_user',
+            endUserId: typeof payload['endUserId'] === 'string' ? payload['endUserId'] : undefined,
+          });
+          return;
+        }
+
+        if (
+          opts.onKbDocumentChanged &&
+          (eventType === 'kb.document.created' ||
+            eventType === 'kb.document.updated' ||
+            eventType === 'kb.document.deleted')
+        ) {
+          const spaceId = payload['spaceId'];
+          const documentId = payload['documentId'];
+          if (typeof spaceId !== 'string' || typeof documentId !== 'string') return;
+          opts.onKbDocumentChanged({
+            type: eventType.split('.').pop() as 'created' | 'updated' | 'deleted',
+            spaceId,
+            documentId,
+            slug: typeof payload['slug'] === 'string' ? payload['slug'] : null,
+            version: typeof payload['version'] === 'number' ? payload['version'] : undefined,
+          });
+        }
       } catch (err) {
         log.warn(`failed to parse event: ${err instanceof Error ? err.message : String(err)}`);
       }

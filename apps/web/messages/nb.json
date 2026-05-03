@@ -255,6 +255,14 @@
         "load": "Kunne ikke laste organisasjoner.",
         "switch": "Kunne ikke bytte organisasjon."
       }
+    },
+    "profile": {
+      "title": "Rediger detaljene dine",
+      "subtitle": "Oppdater navnet som vises på kontoen din.",
+      "nameLabel": "Navn",
+      "emailLabel": "E-post",
+      "saving": "Lagrer…",
+      "editAria": "Rediger kontodetaljer"
     }
   },
   "acceptInvite": {

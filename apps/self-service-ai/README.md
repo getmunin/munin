@@ -49,7 +49,7 @@ Prompt documents are stored in munin's knowledge base (KB space `agent-runtime`,
 
 To customize prompts after deploy: edit the KB documents through the dashboard or via MCP (`kb_update_document`). Changes propagate live. The on-disk Markdown is only consulted on first boot, when seeding into a fresh KB space.
 
-> **No voice prompt by default.** Munin's voice support today is post-call transcript ingestion only — there's no live reply path. When real-time voice lands, a `prompts/channels/voice.md` will ship with it.
+> **No voice prompt, ever.** This sidecar is not a voice runner and won't become one. Live voice needs sub-second turn-taking, barge-in, and streaming TTS — those constraints belong in a dedicated voice agent runner, not in a generic sidecar that talks to the LLM over batched HTTP. Munin's current voice support is post-call transcript ingestion only; if a `voice` channel does reach this runner, it falls through to `channel-default`.
 
 ## When you'd run this
 

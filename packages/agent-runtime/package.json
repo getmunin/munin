@@ -3,7 +3,10 @@
   "version": "0.0.1",
   "license": "MIT",
   "description": "LLM agent loop — given a config, conversation history, and an MCP tool handle, produce a reply.",
-  "private": true,
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/getmunin/munin.git",

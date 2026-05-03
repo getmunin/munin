@@ -19,7 +19,7 @@ import { InvitationsService } from './invitations.service.js';
 
 const CreateInviteDto = z.object({
   email: z.string().email(),
-  role: z.enum(['owner', 'member']).optional(),
+  role: z.enum(['owner', 'admin', 'member']).optional(),
 });
 
 @Controller('api/orgs/me/invitations')

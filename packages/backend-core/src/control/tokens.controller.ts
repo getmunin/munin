@@ -14,6 +14,7 @@ import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { assertOwnerOrAdmin } from './role-guard.js';
 
 interface TokenDto {
   id: string;
@@ -36,6 +37,7 @@ export class TokensController {
   async list(): Promise<TokenDto[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const rows = await ctx.db
       .select()
       .from(schema.tokens)
@@ -49,6 +51,7 @@ export class TokensController {
   async revoke(@Param('id') id: string): Promise<void> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const result = await ctx.db
       .update(schema.tokens)
       .set({ revokedAt: new Date() })

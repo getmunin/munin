@@ -62,6 +62,7 @@
   },
   "nav": {
     "overview": "Oversikt",
+    "settings": "Innstillinger",
     "team": "Team",
     "agents": "Tilkoblede agenter",
     "apiKeys": "API-nøkler",
@@ -70,7 +71,7 @@
     "auditLog": "Hendelseslogg",
     "dataExport": "Dataeksport",
     "conversations": "Samtaler",
-    "activity": "Aktivitet",
+    "activity": "Aktivitetslogg",
     "skills": "Ferdigheter",
     "suggestions": "Forslag",
     "partnerAccess": "Partnertilgang"
@@ -150,8 +151,10 @@
       "emailPlaceholder": "kollega@eksempel.no",
       "roleLabel": "Rolle",
       "roleMember": "Medlem",
+      "roleAdmin": "Admin",
       "roleOwner": "Eier",
       "roleMemberLower": "medlem",
+      "roleAdminLower": "admin",
       "roleOwnerLower": "eier",
       "sendInvite": "Send invitasjon",
       "sending": "Sender…",
@@ -263,6 +266,13 @@
       "emailLabel": "E-post",
       "saving": "Lagrer…",
       "editAria": "Rediger kontodetaljer"
+    },
+    "settings": {
+      "groups": {
+        "workspace": "Arbeidsområde",
+        "access": "Tilgang og integrasjoner",
+        "monitoring": "Overvåking"
+      }
     }
   },
   "acceptInvite": {

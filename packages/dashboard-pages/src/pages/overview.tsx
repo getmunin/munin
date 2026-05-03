@@ -45,7 +45,7 @@ export function DashboardPage() {
             <CardDescription>{t('buildCard.description')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" render={<Link href="/dashboard/api-keys" />}>
+            <Button className="w-full" render={<Link href="/dashboard/settings/api-keys" />}>
               <KeyRound className="size-4" />
               {t('buildCard.cta')}
             </Button>

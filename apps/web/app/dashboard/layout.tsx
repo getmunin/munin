@@ -5,21 +5,14 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import {
-  Activity,
-  Bot,
-  Download,
-  KeyRound,
-  LayoutDashboard,
   Loader2,
   LogOut,
   MessageCircle,
   Newspaper,
-  ScrollText,
-  Users,
-  UsersRound,
+  Settings,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { authClient } from '@getmunin/dashboard-pages';
+import { authClient, isOwnerOrAdmin, useActiveRole } from '@getmunin/dashboard-pages';
 import { Button } from '@getmunin/ui';
 import {
   Avatar,
@@ -47,33 +40,19 @@ import { Label } from '@getmunin/ui';
 import { cn } from '@getmunin/ui';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 
-type NavItem = {
+type NavLabelKey = 'conversations' | 'activity' | 'settings';
+
+interface NavItem {
   href: Route;
-  labelKey:
-    | 'overview'
-    | 'team'
-    | 'agents'
-    | 'apiKeys'
-    | 'endUsers'
-    | 'usage'
-    | 'auditLog'
-    | 'dataExport'
-    | 'conversations'
-    | 'activity';
+  labelKey: NavLabelKey;
   icon: React.ComponentType<{ className?: string }>;
-};
+  ownerOrAdminOnly?: boolean;
+}
 
 const NAV: NavItem[] = [
-  { href: '/dashboard', labelKey: 'overview', icon: LayoutDashboard },
   { href: '/dashboard/conversations', labelKey: 'conversations', icon: MessageCircle },
   { href: '/dashboard/activity', labelKey: 'activity', icon: Newspaper },
-  { href: '/dashboard/team', labelKey: 'team', icon: UsersRound },
-  { href: '/dashboard/agents', labelKey: 'agents', icon: Bot },
-  { href: '/dashboard/api-keys', labelKey: 'apiKeys', icon: KeyRound },
-  { href: '/dashboard/end-users', labelKey: 'endUsers', icon: Users },
-  { href: '/dashboard/usage', labelKey: 'usage', icon: Activity },
-  { href: '/dashboard/audit-log', labelKey: 'auditLog', icon: ScrollText },
-  { href: '/dashboard/export', labelKey: 'dataExport', icon: Download },
+  { href: '/dashboard/settings', labelKey: 'settings', icon: Settings, ownerOrAdminOnly: true },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -82,6 +61,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const tNav = useTranslations('nav');
   const tCommon = useTranslations('common');
   const { data: session, isPending } = authClient.useSession();
+  const { role } = useActiveRole();
+  const visibleNav = NAV.filter((item) => !item.ownerOrAdminOnly || isOwnerOrAdmin(role));
 
   useEffect(() => {
     if (!isPending && !session) router.push('/login');
@@ -123,11 +104,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="mx-auto flex max-w-6xl gap-8 px-6 py-8">
         <nav className="hidden w-56 shrink-0 md:block">
           <ul className="space-y-1">
-            {NAV.map((item) => {
-              const active =
-                item.href === '/dashboard'
-                  ? pathname === '/dashboard'
-                  : pathname.startsWith(item.href);
+            {visibleNav.map((item) => {
+              const active = pathname.startsWith(item.href);
               return (
                 <li key={item.href}>
                   <Link

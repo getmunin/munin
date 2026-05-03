@@ -16,6 +16,8 @@ import {
   CardTitle,
 } from '@getmunin/ui';
 
+type MemberRole = 'owner' | 'admin' | 'member';
+
 interface MemberDto {
   userId: string;
   email: string;
@@ -53,7 +55,7 @@ export function TeamPage() {
   const [invites, setInvites] = useState<InvitationDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'owner' | 'member'>('member');
+  const [inviteRole, setInviteRole] = useState<MemberRole>('member');
   const [submitting, setSubmitting] = useState(false);
   const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -129,7 +131,7 @@ export function TeamPage() {
     }
   }
 
-  async function changeRole(userId: string, role: 'owner' | 'member') {
+  async function changeRole(userId: string, role: MemberRole) {
     try {
       await api(`/api/orgs/me/members/${userId}`, {
         method: 'PATCH',
@@ -186,9 +188,10 @@ export function TeamPage() {
                 id="role"
                 className="h-9 rounded-md border bg-background px-3 text-sm"
                 value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as 'owner' | 'member')}
+                onChange={(e) => setInviteRole(e.target.value as MemberRole)}
               >
                 <option value="member">{t('roleMember')}</option>
+                <option value="admin">{t('roleAdmin')}</option>
                 <option value="owner">{t('roleOwner')}</option>
               </select>
             </div>
@@ -282,10 +285,11 @@ export function TeamPage() {
                         className="h-8 rounded-md border bg-background px-2 text-xs"
                         value={m.role}
                         onChange={(e) => {
-                          void changeRole(m.userId, e.target.value as 'owner' | 'member');
+                          void changeRole(m.userId, e.target.value as MemberRole);
                         }}
                       >
                         <option value="member">{t('roleMemberLower')}</option>
+                        <option value="admin">{t('roleAdminLower')}</option>
                         <option value="owner">{t('roleOwnerLower')}</option>
                       </select>
                     </td>

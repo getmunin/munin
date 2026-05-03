@@ -4,7 +4,6 @@ import {
   ConflictException,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   NotFoundException,
@@ -20,9 +19,10 @@ import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { assertOwner, assertOwnerOrAdmin } from './role-guard.js';
 
 const PatchMemberDto = z.object({
-  role: z.enum(['owner', 'member']),
+  role: z.enum(['owner', 'admin', 'member']),
 });
 
 interface MemberDto {
@@ -42,6 +42,7 @@ export class MembersController {
   async list(): Promise<MemberDto[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const rows = await ctx.db
       .select({
         userId: schema.orgMembers.userId,
@@ -137,17 +138,5 @@ export class MembersController {
       .where(
         and(eq(schema.orgMembers.orgId, actor.orgId), eq(schema.orgMembers.userId, userId)),
       );
-  }
-}
-
-async function assertOwner(orgId: string, userId: string): Promise<void> {
-  const ctx = getCurrentContext();
-  const rows = await ctx.db
-    .select({ role: schema.orgMembers.role })
-    .from(schema.orgMembers)
-    .where(and(eq(schema.orgMembers.orgId, orgId), eq(schema.orgMembers.userId, userId)))
-    .limit(1);
-  if (rows[0]?.role !== 'owner') {
-    throw new ForbiddenException('only org owners can manage members');
   }
 }

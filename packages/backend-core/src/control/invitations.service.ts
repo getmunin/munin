@@ -17,9 +17,9 @@ import {
 } from '@getmunin/core';
 import { DB } from '../common/db/db.module.js';
 import { MAILER } from '../common/mail/mail.module.js';
+import { assertOwner, assertOwnerOrAdmin, VALID_ROLES } from './role-guard.js';
 
 const INVITE_TTL_DAYS = 7;
-const VALID_ROLES = new Set(['owner', 'member']);
 
 export interface InvitationDto {
   id: string;
@@ -54,7 +54,7 @@ export class InvitationsService {
     if (actor.type !== 'user') {
       throw new ForbiddenException('only signed-in users can create invitations');
     }
-    await this.assertOwner(actor.orgId, actor.userId ?? actor.id);
+    await assertOwner(actor.orgId, actor.userId ?? actor.id);
 
     const role = input.role ?? 'member';
     if (!VALID_ROLES.has(role)) {
@@ -116,6 +116,8 @@ export class InvitationsService {
 
   async listPending(): Promise<InvitationDto[]> {
     const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const rows = await ctx.db
       .select()
       .from(schema.orgInvitations)
@@ -133,7 +135,7 @@ export class InvitationsService {
   async revoke(invitationId: string): Promise<{ revoked: true }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await this.assertOwner(actor.orgId, actor.userId ?? actor.id);
+    await assertOwner(actor.orgId, actor.userId ?? actor.id);
     const result = await ctx.db
       .update(schema.orgInvitations)
       .set({ revokedAt: new Date() })
@@ -224,18 +226,6 @@ export class InvitationsService {
   }
 
   // ─── helpers ─────────────────────────────────────────────────────────
-
-  private async assertOwner(orgId: string, userId: string): Promise<void> {
-    const ctx = getCurrentContext();
-    const rows = await ctx.db
-      .select({ role: schema.orgMembers.role })
-      .from(schema.orgMembers)
-      .where(and(eq(schema.orgMembers.orgId, orgId), eq(schema.orgMembers.userId, userId)))
-      .limit(1);
-    if (rows[0]?.role !== 'owner') {
-      throw new ForbiddenException('only org owners can manage invitations and members');
-    }
-  }
 
   private buildAcceptUrl(token: string): Promise<string> {
     const webBase = (process.env.MUNIN_WEB_URL ?? 'http://localhost:3000').replace(/\/+$/, '');

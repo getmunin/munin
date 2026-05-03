@@ -62,6 +62,7 @@
   },
   "nav": {
     "overview": "Overview",
+    "settings": "Settings",
     "team": "Team",
     "agents": "Connected agents",
     "apiKeys": "API keys",
@@ -70,7 +71,7 @@
     "auditLog": "Audit log",
     "dataExport": "Data export",
     "conversations": "Conversations",
-    "activity": "Activity",
+    "activity": "Activity log",
     "skills": "Skills",
     "suggestions": "Suggestions",
     "partnerAccess": "Partner access"
@@ -150,8 +151,10 @@
       "emailPlaceholder": "teammate@example.com",
       "roleLabel": "Role",
       "roleMember": "Member",
+      "roleAdmin": "Admin",
       "roleOwner": "Owner",
       "roleMemberLower": "member",
+      "roleAdminLower": "admin",
       "roleOwnerLower": "owner",
       "sendInvite": "Send invite",
       "sending": "Sending…",
@@ -263,6 +266,13 @@
       "emailLabel": "Email",
       "saving": "Saving…",
       "editAria": "Edit your account details"
+    },
+    "settings": {
+      "groups": {
+        "workspace": "Workspace",
+        "access": "Access & integrations",
+        "monitoring": "Monitoring"
+      }
     }
   },
   "acceptInvite": {

@@ -255,6 +255,14 @@
         "load": "Could not load orgs.",
         "switch": "Could not switch org."
       }
+    },
+    "profile": {
+      "title": "Edit your details",
+      "subtitle": "Update the name shown on your account.",
+      "nameLabel": "Name",
+      "emailLabel": "Email",
+      "saving": "Saving…",
+      "editAria": "Edit your account details"
     }
   },
   "acceptInvite": {

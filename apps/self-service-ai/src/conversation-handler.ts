@@ -1,4 +1,5 @@
 import { runAgent, type ConversationMessage, type McpToolHandle, type Provider } from '@getmunin/agent-runtime';
+import { resolveChannelDescriptor } from './channel-prompt.js';
 import type { SidecarConfig } from './config.js';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.js';
 
@@ -104,6 +105,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
 
     const history = deps.rest.toRuntimeHistory(detail);
     const endUserId = detail.endUserId!;
+    const channelDescriptor = resolveChannelDescriptor(detail.channelType, deps.config.channelPrompts);
+    const systemPrompt = channelDescriptor
+      ? `${deps.config.systemPrompt}\n\n${channelDescriptor}`
+      : deps.config.systemPrompt;
 
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
@@ -118,8 +123,9 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
               apiKey: deps.config.providerApiKey,
             },
             model: deps.config.model,
-            systemPrompt: deps.config.systemPrompt,
+            systemPrompt,
             maxToolIterations: deps.config.maxToolIterations,
+            maxHistoryChars: deps.config.maxHistoryChars,
           },
           history,
           mcp,

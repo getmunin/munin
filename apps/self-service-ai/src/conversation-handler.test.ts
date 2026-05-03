@@ -13,6 +13,8 @@ const baseConfig: SidecarConfig = {
   systemPrompt: 'sys',
   debounceMs: 0,
   maxToolIterations: 4,
+  maxHistoryChars: 32_000,
+  channelPrompts: {},
 };
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} };
@@ -311,5 +313,74 @@ describe('createConversationHandler', () => {
     await handlerWithProvider.flush();
 
     expect(getConvMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('appends the built-in email channel descriptor to the system prompt', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ channelType: 'email' })),
+      ),
+    });
+    const captured: string[] = [];
+    const stubProvider: Provider = ({ messages }) => {
+      const sys = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '');
+      captured.push(...sys);
+      return Promise.resolve({
+        message: { role: 'assistant', content: 'ok' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    };
+
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    const composed = captured[0] ?? '';
+    expect(composed).toContain('sys');
+    expect(composed).toContain('email');
+    expect(composed).toMatch(/greeting|signoff|signoff/i);
+  });
+
+  it('uses an env override over the built-in default when supplied', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ channelType: 'email' })),
+      ),
+    });
+    const captured: string[] = [];
+    const stubProvider: Provider = ({ messages }) => {
+      const sys = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '');
+      captured.push(...sys);
+      return Promise.resolve({
+        message: { role: 'assistant', content: 'ok' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    };
+
+    const handler = createConversationHandler({
+      config: { ...baseConfig, channelPrompts: { email: 'CUSTOM_EMAIL_OVERRIDE' } },
+      rest,
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    const composed = captured[0] ?? '';
+    expect(composed).toContain('CUSTOM_EMAIL_OVERRIDE');
+    expect(composed).not.toMatch(/greeting/i);
   });
 });

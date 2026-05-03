@@ -56,6 +56,13 @@ export interface ConversationSummary {
   displayId: number;
   status: ConversationStatus;
   channelId: string;
+  /**
+   * The channel kind (e.g. 'email' | 'chat' | 'sms' | 'voice'). Populated by
+   * endpoints that JOIN conv_channels — currently only `GET /api/conversations/:id`.
+   * Other endpoints omit the field rather than fabricating a value; consumers that
+   * need it should call the detail endpoint.
+   */
+  channelType?: string;
   endUserId: string | null;
   contactId: string | null;
   topicId: string | null;
@@ -210,7 +217,7 @@ export class ConvService {
       )
       .limit(limit + 1);
 
-    const items = rows.slice(0, limit).map(toConversationSummary);
+    const items = rows.slice(0, limit).map((row) => toConversationSummary(row));
     const last = items[items.length - 1];
     const nextCursor =
       rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
@@ -220,12 +227,16 @@ export class ConvService {
   async getConversation(id: string): Promise<ConversationDetail> {
     const ctx = getCurrentContext();
     const conversations = await ctx.db
-      .select()
+      .select({
+        conv: schema.convConversations,
+        channelType: schema.convChannels.type,
+      })
       .from(schema.convConversations)
+      .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
       .where(eq(schema.convConversations.id, id))
       .limit(1);
-    const conv = conversations[0];
-    if (!conv) throw new NotFoundException(`conv_not_found: conversation ${id}`);
+    const row = conversations[0];
+    if (!row) throw new NotFoundException(`conv_not_found: conversation ${id}`);
 
     const messages = await ctx.db
       .select()
@@ -234,7 +245,7 @@ export class ConvService {
       .orderBy(asc(schema.convMessages.createdAt));
 
     return {
-      ...toConversationSummary(conv),
+      ...toConversationSummary(row.conv, row.channelType),
       messages: messages.map(toMessageDto),
     };
   }
@@ -603,12 +614,14 @@ function toTopicDto(row: typeof schema.convTopics.$inferSelect): TopicDto {
 
 function toConversationSummary(
   row: typeof schema.convConversations.$inferSelect,
+  channelType?: string,
 ): ConversationSummary {
   return {
     id: row.id,
     displayId: row.displayId,
     status: row.status as ConversationStatus,
     channelId: row.channelId,
+    ...(channelType ? { channelType } : {}),
     endUserId: row.endUserId,
     contactId: row.contactId,
     topicId: row.topicId,

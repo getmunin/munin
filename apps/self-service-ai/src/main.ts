@@ -2,7 +2,7 @@ import { loadConfigFromEnv } from './config.js';
 import { createConversationHandler } from './conversation-handler.js';
 import { createMuninRestClient } from './munin-rest.js';
 import { openMcpClient } from './mcp-client.js';
-import { createPromptResolver } from './prompt-resolver.js';
+import { createPromptResolver } from '@getmunin/agent-runtime';
 import { createRealtimeClient } from './realtime.js';
 
 async function main(): Promise<void> {

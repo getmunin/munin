@@ -35,7 +35,7 @@ The sidecar holds two credentials by design:
 Prompt documents are stored in munin's knowledge base (KB space `agent-runtime`, audience `admin`). On first boot the sidecar:
 
 1. Ensures the `agent-runtime` space exists (creates it if not).
-2. For each Markdown file shipped under `apps/self-service-ai/prompts/`, ensures a KB document exists at the matching slug. Existing docs are left alone — operator edits take precedence over shipped defaults.
+2. For each Markdown file shipped with the `@getmunin/agent-runtime` package (`packages/agent-runtime/prompts/`), ensures a KB document exists at the matching slug. Existing docs are left alone — operator edits take precedence over shipped defaults.
 3. Caches the document bodies in memory.
 4. Subscribes to `kb.document.updated` events; when a prompt doc changes, refreshes its cached body within seconds. No restart needed.
 
@@ -96,7 +96,7 @@ On provider errors the sidecar retries with exponential backoff (3 attempts). If
 
 ## Architecture
 
-This sidecar consumes the shared `@getmunin/agent-runtime` kernel (`packages/agent-runtime/`), which holds the LLM ↔ tool-call loop and provider abstraction. The kernel is pure: given a config, conversation history, and an MCP tool handle, it returns a reply. The sidecar wires up the I/O — realtime subscription, REST calls, MCP client lifecycle, retries, and the KB-backed prompt store.
+This sidecar consumes the shared `@getmunin/agent-runtime` kernel (`packages/agent-runtime/`), which holds the LLM ↔ tool-call loop, provider abstraction, and the KB-backed prompt resolver (with built-in default prompts). The kernel is pure: given a config, conversation history, and an MCP tool handle, it returns a reply. The sidecar wires up the I/O — realtime subscription, REST calls, MCP client lifecycle, and retries.
 
 The same kernel will back the multi-tenant cloud addon when that lands; per-org config storage and inference billing are the only things layered on top.
 

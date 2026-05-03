@@ -8,7 +8,7 @@ import {
   SYSTEM_PROMPT_SLUG,
   createPromptResolver,
 } from './prompt-resolver.js';
-import type { McpTool, McpToolHandle, McpToolResult } from '@getmunin/agent-runtime';
+import type { McpTool, McpToolHandle, McpToolResult } from './types.js';
 
 interface ToolCall {
   name: string;

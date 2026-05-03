@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
+import { WebSocket } from 'ws';
 import { buildApiKey, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
@@ -685,6 +686,58 @@ interface OrgFixture {
         body: JSON.stringify({ role: 'member' }),
       });
       expect(res.status).toBe(403);
+    });
+  });
+
+  // ─── realtime gateway (websocket auth) ──────────────────────────────
+
+  describe('GET /api/realtime (websocket)', () => {
+    function wsUrl(): string {
+      return baseUrl.replace(/^http/, 'ws') + '/api/realtime';
+    }
+
+    function awaitOpen(ws: WebSocket): Promise<{ subprotocol: string }> {
+      return new Promise((resolve, reject) => {
+        const onError = (err: Error): void => {
+          ws.removeAllListeners();
+          reject(err);
+        };
+        ws.once('open', () => {
+          ws.removeListener('error', onError);
+          resolve({ subprotocol: ws.protocol });
+        });
+        ws.once('error', onError);
+        ws.once('unexpected-response', (_req, res) => {
+          ws.removeAllListeners();
+          reject(new Error(`unexpected ${res.statusCode}`));
+        });
+      });
+    }
+
+    it('accepts the admin API key via Authorization header (existing path)', async () => {
+      const ws = new WebSocket(wsUrl(), {
+        headers: { authorization: `Bearer ${orgA.adminKey}` },
+      });
+      const result = await awaitOpen(ws);
+      expect(result.subprotocol).toBe('');
+      ws.close();
+    });
+
+    it('accepts the admin API key via Sec-WebSocket-Protocol (browser path)', async () => {
+      const ws = new WebSocket(wsUrl(), ['bearer', orgA.adminKey]);
+      const result = await awaitOpen(ws);
+      expect(result.subprotocol).toBe('bearer');
+      ws.close();
+    });
+
+    it('rejects bogus subprotocol token with 401', async () => {
+      const ws = new WebSocket(wsUrl(), ['bearer', 'mn_admin_obviouslyfake']);
+      await expect(awaitOpen(ws)).rejects.toThrow(/401/);
+    });
+
+    it('rejects upgrade with no credentials (401)', async () => {
+      const ws = new WebSocket(wsUrl());
+      await expect(awaitOpen(ws)).rejects.toThrow(/401/);
     });
   });
 

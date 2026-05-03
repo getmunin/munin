@@ -1,12 +1,11 @@
 import { runAgent, type ConversationMessage, type McpToolHandle, type Provider } from '@getmunin/agent-runtime';
-import { resolveChannelDescriptor } from './channel-prompt.js';
 import type { SidecarConfig } from './config.js';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.js';
+import type { PromptResolver } from './prompt-resolver.js';
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 const HANDOVER_TOOL_NAME = 'conv_request_handover_in_my_conversation';
-/** Re-mint when the cached token has less than this much TTL remaining. */
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
 
 export interface OpenedMcp extends McpToolHandle {
@@ -16,17 +15,16 @@ export interface OpenedMcp extends McpToolHandle {
 export interface ConversationHandlerDeps {
   config: SidecarConfig;
   rest: MuninRestClient;
+  prompts: PromptResolver;
   openMcp: (opts: { delegatedToken: string }) => Promise<OpenedMcp>;
   logger?: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
     error: (msg: string) => void;
   };
-  /** Test seam — defaults to setTimeout-based scheduler. */
   scheduler?: {
     delay: (ms: number, signal: AbortSignal) => Promise<void>;
   };
-  /** Test seam — defaults to OpenAI-compatible provider. */
   provider?: Provider;
 }
 
@@ -105,10 +103,13 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
 
     const history = deps.rest.toRuntimeHistory(detail);
     const endUserId = detail.endUserId!;
-    const channelDescriptor = resolveChannelDescriptor(detail.channelType, deps.config.channelPrompts);
+    const baseSystem = deps.prompts.system();
+    const channelDescriptor = detail.channelType
+      ? deps.prompts.channel(detail.channelType)
+      : '';
     const systemPrompt = channelDescriptor
-      ? `${deps.config.systemPrompt}\n\n${channelDescriptor}`
-      : deps.config.systemPrompt;
+      ? `${baseSystem}\n\n${channelDescriptor}`
+      : baseSystem;
 
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {

@@ -1,4 +1,4 @@
-export { runAgent } from './runtime.js';
+export { runAgent, compactHistory } from './runtime.js';
 export { openAiCompatibleProvider, ProviderError } from './providers/openai-compatible.js';
 export { createStubProvider, type StubProviderHandle, type StubScript } from './providers/stub.js';
 export { mcpToolsToChatTools, flattenToolResult } from './mcp-tool-translation.js';

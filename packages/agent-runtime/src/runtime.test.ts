@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runAgent } from './runtime.js';
+import { compactHistory, runAgent } from './runtime.js';
 import { createStubProvider } from './providers/stub.js';
 import type {
   AgentConfig,
@@ -188,5 +188,103 @@ describe('runAgent', () => {
     expect(sent[3]?.role).toBe('user');
     expect(sent[3]?.name).toBe('staff');
     expect(sent[4]).toMatchObject({ role: 'user', content: 'second user msg' });
+  });
+});
+
+describe('compactHistory', () => {
+  it('returns the input unchanged when total chars are within budget', () => {
+    const history: ConversationMessage[] = [
+      { authorType: 'end_user', body: 'hi' },
+      { authorType: 'agent', body: 'hello' },
+    ];
+    const result = compactHistory(history, 100);
+    expect(result.history).toEqual(history);
+    expect(result.truncated).toBe(0);
+  });
+
+  it('drops oldest messages first until under budget', () => {
+    const history: ConversationMessage[] = [
+      { authorType: 'end_user', body: 'a'.repeat(50) },
+      { authorType: 'agent', body: 'b'.repeat(50) },
+      { authorType: 'end_user', body: 'c'.repeat(50) },
+    ];
+    const result = compactHistory(history, 75);
+    expect(result.truncated).toBe(2);
+    expect(result.history).toHaveLength(1);
+    expect(result.history[0]?.body).toBe('c'.repeat(50));
+  });
+
+  it('drops everything when even the most recent message is over budget', () => {
+    const history: ConversationMessage[] = [
+      { authorType: 'end_user', body: 'a'.repeat(200) },
+    ];
+    const result = compactHistory(history, 50);
+    expect(result.history).toEqual([]);
+    expect(result.truncated).toBe(1);
+  });
+});
+
+describe('runAgent history compaction', () => {
+  it('forwards full history when under maxHistoryChars', async () => {
+    const { provider, calls } = createStubProvider({
+      responses: [
+        {
+          message: { role: 'assistant', content: 'ok' },
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          finishReason: 'stop',
+        },
+      ],
+    });
+    const mcp: McpToolHandle = {
+      listTools: vi.fn(() => Promise.resolve([])),
+      callTool: vi.fn(() => Promise.resolve({ content: [] })),
+    };
+    await runAgent({
+      config: { ...baseConfig, maxHistoryChars: 1000 },
+      history: [
+        { authorType: 'end_user', body: 'first' },
+        { authorType: 'agent', body: 'second' },
+        { authorType: 'end_user', body: 'third' },
+      ],
+      mcp,
+      provider,
+    });
+    const sent = calls[0]?.messages ?? [];
+    // [system prompt, user, assistant, user]
+    expect(sent).toHaveLength(4);
+    expect(sent[0]?.role).toBe('system');
+    expect(sent.find((m) => m.content?.toString().startsWith('[Note:'))).toBeUndefined();
+  });
+
+  it('drops oldest messages and inserts a system notice when over budget', async () => {
+    const { provider, calls } = createStubProvider({
+      responses: [
+        {
+          message: { role: 'assistant', content: 'ok' },
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          finishReason: 'stop',
+        },
+      ],
+    });
+    const mcp: McpToolHandle = {
+      listTools: vi.fn(() => Promise.resolve([])),
+      callTool: vi.fn(() => Promise.resolve({ content: [] })),
+    };
+    await runAgent({
+      config: { ...baseConfig, maxHistoryChars: 60 },
+      history: [
+        { authorType: 'end_user', body: 'oldest message about thing A'.padEnd(40, '.') },
+        { authorType: 'agent', body: 'older response about thing A'.padEnd(40, '.') },
+        { authorType: 'end_user', body: 'most recent question'.padEnd(40, '.') },
+      ],
+      mcp,
+      provider,
+    });
+    const sent = calls[0]?.messages ?? [];
+    expect(sent[0]?.role).toBe('system');
+    expect(sent[1]?.role).toBe('system');
+    expect(sent[1]?.content).toMatch(/^\[Note: \d+ earlier message/);
+    // Only the newest message survives (40 chars fits in 60).
+    expect(sent.filter((m) => m.role === 'user' || m.role === 'assistant')).toHaveLength(1);
   });
 });

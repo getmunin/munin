@@ -180,12 +180,17 @@ const skipReason = TEST_URL
     const flagged = list.body.items.find((c) => c.id === started.id);
     expect(flagged?.needsHumanAttention).toBe(true);
 
-    const detail = await rest<{ id: string; claim: { holderId: string } | null }>(
+    const detail = await rest<{
+      id: string;
+      claim: { holderId: string } | null;
+      channelType?: string;
+    }>(
       adminKeyA,
       'GET',
       `/api/conversations/${started.id}`,
     );
     expect(detail.body.claim).toBeNull();
+    expect(detail.body.channelType).toBe('chat');
 
     const claim = await rest<{ holderType: string; holderId: string; expiresAt: string }>(
       adminKeyA,

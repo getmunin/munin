@@ -3,6 +3,7 @@ import type { ConversationMessage } from '@getmunin/agent-runtime';
 export interface ConversationDetail {
   id: string;
   status: 'open' | 'snoozed' | 'closed' | 'spam';
+  channelType?: string;
   endUserId: string | null;
   assigneeUserId: string | null;
   messages: Array<{

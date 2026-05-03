@@ -18,6 +18,7 @@ export interface AgentConfig {
   maxToolIterations?: number;
   maxTokens?: number;
   temperature?: number;
+  maxHistoryChars?: number;
 }
 
 export interface McpTool {

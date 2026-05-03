@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createConversationHandler, type OpenedMcp } from './conversation-handler.js';
 import type { SidecarConfig } from './config.js';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.js';
+import type { PromptResolver } from './prompt-resolver.js';
 import type { McpToolResult, Provider, ProviderResponse } from '@getmunin/agent-runtime';
 
 const baseConfig: SidecarConfig = {
@@ -10,12 +11,23 @@ const baseConfig: SidecarConfig = {
   providerBaseUrl: 'http://provider',
   providerApiKey: 'sk-test',
   model: 'test-model',
-  systemPrompt: 'sys',
   debounceMs: 0,
   maxToolIterations: 4,
   maxHistoryChars: 32_000,
-  channelPrompts: {},
+  promptsDir: '/tmp/prompts',
 };
+
+function buildPrompts(overrides: Partial<{ system: string; channels: Record<string, string> }> = {}): PromptResolver {
+  const channels = overrides.channels ?? {};
+  return {
+    system: () => overrides.system ?? 'sys',
+    channel: (kind: string) => channels[kind] ?? channels['default'] ?? '',
+    isPromptDocument: () => false,
+    refresh: () => Promise.resolve(),
+    refreshAll: () => Promise.resolve(),
+    close: () => Promise.resolve(),
+  };
+}
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} };
 
@@ -92,6 +104,7 @@ describe('createConversationHandler', () => {
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
+      prompts: buildPrompts(),
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
@@ -111,6 +124,7 @@ describe('createConversationHandler', () => {
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
+      prompts: buildPrompts(),
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
@@ -129,6 +143,7 @@ describe('createConversationHandler', () => {
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
+      prompts: buildPrompts(),
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
@@ -168,6 +183,7 @@ describe('createConversationHandler', () => {
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
+      prompts: buildPrompts(),
       openMcp: () => {
         runCount += 1;
         if (runCount <= 3) {
@@ -211,6 +227,7 @@ describe('createConversationHandler', () => {
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
+      prompts: buildPrompts(),
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
@@ -253,6 +270,7 @@ describe('createConversationHandler', () => {
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
+      prompts: buildPrompts(),
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
@@ -298,6 +316,7 @@ describe('createConversationHandler', () => {
     const handlerWithProvider = createConversationHandler({
       config: baseConfig,
       rest,
+      prompts: buildPrompts(),
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: collectingScheduler,
@@ -315,7 +334,7 @@ describe('createConversationHandler', () => {
     expect(getConvMock).toHaveBeenCalledTimes(1);
   });
 
-  it('appends the built-in email channel descriptor to the system prompt', async () => {
+  it('appends the resolver-provided channel descriptor to the system prompt', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() =>
         Promise.resolve(buildConversation({ channelType: 'email' })),
@@ -335,6 +354,10 @@ describe('createConversationHandler', () => {
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
+      prompts: buildPrompts({
+        system: 'BASE_SYSTEM',
+        channels: { email: 'EMAIL_DESCRIPTOR' },
+      }),
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
@@ -345,15 +368,14 @@ describe('createConversationHandler', () => {
     await handler.flush();
 
     const composed = captured[0] ?? '';
-    expect(composed).toContain('sys');
-    expect(composed).toContain('email');
-    expect(composed).toMatch(/greeting|signoff|signoff/i);
+    expect(composed).toContain('BASE_SYSTEM');
+    expect(composed).toContain('EMAIL_DESCRIPTOR');
   });
 
-  it('uses an env override over the built-in default when supplied', async () => {
+  it('uses just the system prompt when the channel resolver returns empty', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() =>
-        Promise.resolve(buildConversation({ channelType: 'email' })),
+        Promise.resolve(buildConversation({ channelType: 'unknown-kind' })),
       ),
     });
     const captured: string[] = [];
@@ -368,8 +390,9 @@ describe('createConversationHandler', () => {
     };
 
     const handler = createConversationHandler({
-      config: { ...baseConfig, channelPrompts: { email: 'CUSTOM_EMAIL_OVERRIDE' } },
+      config: baseConfig,
       rest,
+      prompts: buildPrompts({ system: 'JUST_BASE' }),
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
@@ -379,8 +402,6 @@ describe('createConversationHandler', () => {
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
 
-    const composed = captured[0] ?? '';
-    expect(composed).toContain('CUSTOM_EMAIL_OVERRIDE');
-    expect(composed).not.toMatch(/greeting/i);
+    expect(captured[0]).toBe('JUST_BASE');
   });
 });

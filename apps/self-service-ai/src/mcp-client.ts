@@ -4,7 +4,8 @@ import type { McpTool, McpToolHandle, McpToolResult } from '@getmunin/agent-runt
 
 export interface OpenMcpClientOptions {
   baseUrl: string;
-  delegatedToken: string;
+  bearerToken: string;
+  clientName?: string;
 }
 
 export interface OpenedMcpClient extends McpToolHandle {
@@ -16,12 +17,12 @@ export async function openMcpClient(opts: OpenMcpClientOptions): Promise<OpenedM
   const transport = new StreamableHTTPClientTransport(url, {
     requestInit: {
       headers: {
-        authorization: `Bearer ${opts.delegatedToken}`,
+        authorization: `Bearer ${opts.bearerToken}`,
       },
     },
   });
   const client = new Client(
-    { name: 'munin-self-service-ai', version: '0.0.1' },
+    { name: opts.clientName ?? 'munin-self-service-ai', version: '0.0.1' },
     { capabilities: {} },
   );
   await client.connect(transport);

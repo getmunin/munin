@@ -28,6 +28,7 @@ FROM base AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /repo/apps/self-service-ai/dist ./dist
+COPY --from=build /repo/apps/self-service-ai/prompts ./prompts
 COPY --from=build /repo/apps/self-service-ai/package.json ./
 COPY --from=build /repo/node_modules ./node_modules
 CMD ["node", "dist/main.js"]

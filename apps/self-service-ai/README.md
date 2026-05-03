@@ -7,25 +7,49 @@ Optional sidecar service that turns end-user messages on a self-hosted Munin int
             │           munin backend                    │
             │  /api/realtime  /api/conversations  /mcp   │
             └────────────────────────────────────────────┘
-                 ▲           ▲              ▲
-   admin Bearer  │           │POST reply    │delegated end-user token
-                 │           │              │(audience='self_service')
-                 │           │              │
-            ┌────┴───────────┴──────────────┴────────────┐
+                 ▲          ▲          ▲          ▲
+                 │          │          │          │
+   admin Bearer  │ events   │ REST     │ admin    │ delegated
+   (subscribe)   │          │ history  │ MCP      │ end-user MCP
+                 │          │ + reply  │ (prompts │ (per turn,
+                 │          │          │  seed +  │  audience=
+                 │          │          │  read)   │  self_service)
+                 │          │          │          │
+            ┌────┴──────────┴──────────┴──────────┴──────┐
             │             self-service-ai                │
-            │                                            │
-            │  on conversation.message.received:         │
-            │   1. mint delegated token                  │
-            │   2. open /mcp client as end-user          │
-            │   3. fetch conversation history (REST)     │
-            │   4. runAgent() — tool-using LLM loop      │
-            │   5. POST reply via admin REST             │
+            │  PromptResolver — seeds + caches prompts   │
+            │                   from KB                   │
+            │  ConversationHandler — runs LLM + tools     │
+            │  RealtimeClient — subscribes for both       │
+            │     conversation.message.received and       │
+            │     kb.document.* events                    │
             └────────────────────────────────────────────┘
 ```
 
 The sidecar holds two credentials by design:
-- **Admin API key** — subscribes to the realtime gateway, fetches conversation history, posts the agent's reply (so it lands as `authorType: 'agent'`).
-- **Per-conversation delegated end-user token** — used to authenticate the MCP connection, so the LLM only sees what *that end-user* is allowed to see (audience-filtered KB, their own CRM record, only their own conversation handover).
+- **Admin API key** — subscribes to the realtime gateway, reads + seeds prompt KB documents through an admin-scoped MCP client, fetches conversation history via REST, and posts the agent's reply (so it lands as `authorType: 'agent'`).
+- **Per-conversation delegated end-user token** — used to authenticate the per-turn MCP connection, so the LLM only sees what *that end-user* is allowed to see (audience-filtered KB, their own CRM record, only their own conversation handover).
+
+## Prompts live in the KB
+
+Prompt documents are stored in munin's knowledge base (KB space `agent-runtime`, audience `admin`). On first boot the sidecar:
+
+1. Ensures the `agent-runtime` space exists (creates it if not).
+2. For each Markdown file shipped under `apps/self-service-ai/prompts/`, ensures a KB document exists at the matching slug. Existing docs are left alone — operator edits take precedence over shipped defaults.
+3. Caches the document bodies in memory.
+4. Subscribes to `kb.document.updated` events; when a prompt doc changes, refreshes its cached body within seconds. No restart needed.
+
+| File on disk | KB slug (in `agent-runtime` space) |
+|---|---|
+| `prompts/system.md` | `system-prompt` |
+| `prompts/channels/email.md` | `channel-email` |
+| `prompts/channels/chat.md` | `channel-chat` |
+| `prompts/channels/sms.md` | `channel-sms` |
+| `prompts/channels/default.md` | `channel-default` |
+
+To customize prompts after deploy: edit the KB documents through the dashboard or via MCP (`kb_update_document`). Changes propagate live. The on-disk Markdown is only consulted on first boot, when seeding into a fresh KB space.
+
+> **No voice prompt by default.** Munin's voice support today is post-call transcript ingestion only — there's no live reply path. When real-time voice lands, a `prompts/channels/voice.md` will ship with it.
 
 ## When you'd run this
 
@@ -54,9 +78,10 @@ pnpm --filter @getmunin/self-service-ai dev
 | `SELF_SERVICE_AI_PROVIDER_BASE_URL` | no | `https://openrouter.ai/api/v1` |
 | `SELF_SERVICE_AI_PROVIDER_API_KEY` | yes | — |
 | `SELF_SERVICE_AI_MODEL` | no | `anthropic/claude-haiku-4.5` |
-| `SELF_SERVICE_AI_SYSTEM_PROMPT` | no | sensible default; override per deployment |
 | `SELF_SERVICE_AI_DEBOUNCE_MS` | no | `500` |
 | `SELF_SERVICE_AI_MAX_TOOL_ITERATIONS` | no | `8` |
+| `SELF_SERVICE_AI_MAX_HISTORY_CHARS` | no | `32000` |
+| `SELF_SERVICE_AI_PROMPTS_DIR` | no | shipped `prompts/` next to `dist/` |
 
 ## Behavior
 
@@ -71,7 +96,7 @@ On provider errors the sidecar retries with exponential backoff (3 attempts). If
 
 ## Architecture
 
-This sidecar consumes the shared `@getmunin/agent-runtime` kernel (`packages/agent-runtime/`), which holds the LLM ↔ tool-call loop and provider abstraction. The kernel is pure: given a config, conversation history, and an MCP tool handle, it returns a reply. The sidecar wires up the I/O — realtime subscription, REST calls, MCP client lifecycle, retries.
+This sidecar consumes the shared `@getmunin/agent-runtime` kernel (`packages/agent-runtime/`), which holds the LLM ↔ tool-call loop and provider abstraction. The kernel is pure: given a config, conversation history, and an MCP tool handle, it returns a reply. The sidecar wires up the I/O — realtime subscription, REST calls, MCP client lifecycle, retries, and the KB-backed prompt store.
 
 The same kernel will back the multi-tenant cloud addon when that lands; per-org config storage and inference billing are the only things layered on top.
 
@@ -79,5 +104,5 @@ The same kernel will back the multi-tenant cloud addon when that lands; per-org 
 
 - Multi-tenant deployments — this is the single-tenant OSS sidecar. Cloud has its own runner.
 - Streaming partial replies. Final text only; the widget already polls.
-- Per-conversation prompt overrides. One global system prompt per deployment.
+- Per-conversation prompt overrides. One global system + channel prompt set per deployment.
 - Inference rate-limiting. The provider's own limits apply.

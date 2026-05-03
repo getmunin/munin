@@ -1,7 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
-import { chunkDocument, contentHash, getCurrentContext } from '@getmunin/core';
+import { chunkDocument, contentHash, getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import type { ActorIdentity, Audience } from '@getmunin/core';
 import { EmbeddingProviderHolder } from './embedding.provider.js';
 import { QuotasService } from '../../common/quotas/quotas.service.js';
@@ -55,6 +55,7 @@ export interface SpaceDto {
 export interface DocumentDto {
   id: string;
   spaceId: string;
+  slug: string | null;
   title: string;
   body: string;
   audiences: Audience[];
@@ -90,6 +91,7 @@ export class KbService {
   constructor(
     @Inject(EmbeddingProviderHolder) private readonly embeddings: EmbeddingProviderHolder,
     @Inject(QuotasService) private readonly quotas: QuotasService,
+    @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
   ) {}
 
   // ─── Spaces ─────────────────────────────────────────────────────────────
@@ -191,11 +193,15 @@ export class KbService {
     body: string;
     audiences?: readonly string[];
     tags?: string[];
+    slug?: string;
   }): Promise<DocumentDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     await this.assertSpaceExists(input.spaceId);
     await this.quotas.assertCanAdd('kb_documents');
+    if (input.slug !== undefined && !isValidSlug(input.slug)) {
+      throw new KbInvalidError(`slug must match [a-z0-9][a-z0-9-]{0,63}`);
+    }
     const audiences = normaliseAudiences(input.audiences);
     const hash = contentHash(input.title, input.body);
     const [doc] = await ctx.db
@@ -203,6 +209,7 @@ export class KbService {
       .values({
         orgId: actor.orgId,
         spaceId: input.spaceId,
+        slug: input.slug ?? null,
         title: input.title,
         body: input.body,
         audiences,
@@ -214,7 +221,31 @@ export class KbService {
       .returning();
     await this.snapshotVersion(doc!, actor);
     await this.regenerateChunks(doc!);
+    await this.webhooks.emit({
+      type: 'kb.document.created',
+      payload: {
+        spaceId: doc!.spaceId,
+        documentId: doc!.id,
+        slug: doc!.slug,
+        version: doc!.version,
+      },
+    });
     return toDocumentDto(doc!);
+  }
+
+  async getDocumentBySlug(
+    spaceSlug: string,
+    docSlug: string,
+  ): Promise<DocumentDto | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ doc: schema.kbDocuments })
+      .from(schema.kbDocuments)
+      .innerJoin(schema.kbSpaces, eq(schema.kbSpaces.id, schema.kbDocuments.spaceId))
+      .where(and(eq(schema.kbSpaces.slug, spaceSlug), eq(schema.kbDocuments.slug, docSlug)))
+      .limit(1);
+    const row = rows[0];
+    return row ? toDocumentDto(row.doc) : null;
   }
 
   async updateDocument(input: {
@@ -259,6 +290,15 @@ export class KbService {
     if (contentChanged) {
       await this.regenerateChunks(updated!);
     }
+    await this.webhooks.emit({
+      type: 'kb.document.updated',
+      payload: {
+        spaceId: updated!.spaceId,
+        documentId: updated!.id,
+        slug: updated!.slug,
+        version: updated!.version,
+      },
+    });
     return toDocumentDto(updated!);
   }
 
@@ -269,6 +309,14 @@ export class KbService {
       throw new KbConflictError(existing.version, input.ifVersion);
     }
     await ctx.db.delete(schema.kbDocuments).where(eq(schema.kbDocuments.id, input.id));
+    await this.webhooks.emit({
+      type: 'kb.document.deleted',
+      payload: {
+        spaceId: existing.spaceId,
+        documentId: existing.id,
+        slug: existing.slug,
+      },
+    });
     return { deleted: true };
   }
 
@@ -326,6 +374,15 @@ export class KbService {
       .returning();
     await this.snapshotVersion(updated!, actor);
     await this.regenerateChunks(updated!);
+    await this.webhooks.emit({
+      type: 'kb.document.updated',
+      payload: {
+        spaceId: updated!.spaceId,
+        documentId: updated!.id,
+        slug: updated!.slug,
+        version: updated!.version,
+      },
+    });
     return toDocumentDto(updated!);
   }
 
@@ -426,6 +483,7 @@ function toDocumentDto(row: typeof schema.kbDocuments.$inferSelect): DocumentDto
   return {
     id: row.id,
     spaceId: row.spaceId,
+    slug: row.slug,
     title: row.title,
     body: row.body,
     audiences: row.audiences,

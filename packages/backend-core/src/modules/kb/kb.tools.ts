@@ -22,6 +22,11 @@ const GetDocumentInput = z.object({
   id: z.string(),
 });
 
+const GetDocumentBySlugInput = z.object({
+  spaceSlug: z.string().min(1).max(64),
+  slug: z.string().min(1).max(64),
+});
+
 const AudienceSchema = z.enum(['admin', 'self_service']);
 const AudiencesSchema = z.array(AudienceSchema).min(1);
 
@@ -31,6 +36,7 @@ const CreateDocumentInput = z.object({
   body: z.string().min(1),
   audiences: AudiencesSchema.optional(),
   tags: TagsSchema.optional(),
+  slug: z.string().min(1).max(64).optional(),
 });
 
 const UpdateDocumentInput = z.object({
@@ -129,6 +135,21 @@ export class KbAdminTools {
   })
   getDocument(args: z.infer<typeof GetDocumentInput>) {
     return this.kb.getDocument(args.id);
+  }
+
+  @McpTool({
+    name: 'kb_get_document_by_slug',
+    title: 'Read KB document by slug',
+    description:
+      "Read a knowledge-base document by its space slug and document slug — used when a stable identifier (e.g. 'agent-runtime/system-prompt') is needed instead of the document UUID. Returns null when the document does not exist.",
+    audiences: ['admin'],
+    scopes: ['kb:read'],
+    input: GetDocumentBySlugInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getDocumentBySlug(args: z.infer<typeof GetDocumentBySlugInput>) {
+    return this.kb.getDocumentBySlug(args.spaceSlug, args.slug);
   }
 
   @McpTool({

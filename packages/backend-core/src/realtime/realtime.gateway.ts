@@ -59,7 +59,18 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       return;
     }
 
-    this.wss = new WebSocketServer({ noServer: true });
+    this.wss = new WebSocketServer({
+      noServer: true,
+      // Browsers can't set arbitrary HTTP headers on a WebSocket upgrade, so
+      // browser callers pass the bearer token via Sec-WebSocket-Protocol:
+      //   ['bearer', '<token>']  →  send 'bearer' back so the handshake
+      // completes. Native (Node ws) callers set the Authorization header and
+      // don't offer any subprotocol, so we just decline negotiation.
+      handleProtocols: (protocols) => {
+        if (protocols.has('bearer')) return 'bearer';
+        return false;
+      },
+    });
     const listener = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
       if (!req.url || !req.url.startsWith(PATH)) return;
       void this.handleUpgrade(req, socket, head);
@@ -162,20 +173,13 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   private async authenticate(req: IncomingMessage): Promise<ResolvedCredential | null> {
-    const value = readHeader(req, 'authorization');
-    if (value && value.toLowerCase().startsWith('bearer ')) {
-      const raw = value.slice('Bearer '.length).trim();
-      if (looksLikeApiKey(raw)) {
-        let credential = await this.resolver.resolveApiKey(raw);
-        if (!credential) {
-          for (const extra of this.additionalResolvers) {
-            credential = await extra.resolve(raw);
-            if (credential) break;
-          }
-        }
-        return credential;
-      }
-      return this.resolver.resolveBearerToken(raw);
+    const headerToken = readBearerToken(readHeader(req, 'authorization'));
+    if (headerToken) {
+      return this.resolveToken(headerToken);
+    }
+    const subprotocolToken = readBearerSubprotocol(readHeader(req, 'sec-websocket-protocol'));
+    if (subprotocolToken) {
+      return this.resolveToken(subprotocolToken);
     }
     const cookieValue = readHeader(req, 'cookie');
     const sessionToken = readSessionCookie(cookieValue);
@@ -183,6 +187,20 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       return this.resolver.resolveSessionToken(sessionToken);
     }
     return null;
+  }
+
+  private async resolveToken(raw: string): Promise<ResolvedCredential | null> {
+    if (looksLikeApiKey(raw)) {
+      let credential = await this.resolver.resolveApiKey(raw);
+      if (!credential) {
+        for (const extra of this.additionalResolvers) {
+          credential = await extra.resolve(raw);
+          if (credential) break;
+        }
+      }
+      return credential;
+    }
+    return this.resolver.resolveBearerToken(raw);
   }
 }
 
@@ -196,6 +214,32 @@ function readHeader(req: IncomingMessage, name: string): string | undefined {
   const raw = headers[name];
   if (Array.isArray(raw)) return raw[0];
   return raw;
+}
+
+function readBearerToken(value: string | undefined): string | null {
+  if (!value || !value.toLowerCase().startsWith('bearer ')) return null;
+  const raw = value.slice('Bearer '.length).trim();
+  return raw.length > 0 ? raw : null;
+}
+
+/**
+ * Browser WebSocket clients pass the bearer token as the second value in
+ * `Sec-WebSocket-Protocol: bearer, <token>`. The header may concatenate
+ * multiple `Sec-WebSocket-Protocol` lines into a single comma-separated
+ * value; we only honor the first `bearer + token` pair we find.
+ */
+export function readBearerSubprotocol(value: string | undefined): string | null {
+  if (!value) return null;
+  const parts = value
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    if (parts[i]?.toLowerCase() === 'bearer') {
+      return parts[i + 1] ?? null;
+    }
+  }
+  return null;
 }
 
 function readSessionCookie(cookieHeader: string | undefined): string | null {

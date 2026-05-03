@@ -5,6 +5,7 @@ import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { assertOwnerOrAdmin } from './role-guard.js';
 
 interface AuditDto {
   id: string;
@@ -41,6 +42,7 @@ export class AuditLogController {
   ): Promise<{ items: AuditDto[]; nextCursor: string | null }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const take = clampLimit(limit, PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX);
 
     const filters: SQL[] = [eq(schema.auditLog.orgId, actor.orgId)];

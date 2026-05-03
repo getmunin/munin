@@ -1,6 +1,7 @@
 export { api, ApiError } from './api';
 export { authClient } from './auth-client';
 export { OrgSwitcher } from './components/org-switcher';
+export { useActiveRole, isOwnerOrAdmin, type OrgRole } from './auth/use-active-role';
 
 export { AcceptInvitePage } from './pages/accept-invite';
 export { AgentsPage } from './pages/agents';

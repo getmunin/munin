@@ -18,6 +18,13 @@ export interface AgentConfig {
   maxToolIterations?: number;
   maxTokens?: number;
   temperature?: number;
+  /**
+   * Soft cap on conversation-history bytes sent to the LLM, measured in
+   * characters of message body (~4× safety margin against token counts).
+   * Oldest turns drop first; a system notice replaces them so the model
+   * knows context was elided. Defaults to 32_000.
+   */
+  maxHistoryChars?: number;
 }
 
 export interface McpTool {

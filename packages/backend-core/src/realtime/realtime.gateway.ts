@@ -34,6 +34,11 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private upgradeListener: ((req: IncomingMessage, socket: Duplex, head: Buffer) => void) | null =
     null;
   private readonly resolver: CredentialResolver;
+  private readonly selfServiceSubscribersByOrg = new Map<string, Set<WebSocket>>();
+
+  selfServiceSubscriberCount(orgId: string): number {
+    return this.selfServiceSubscribersByOrg.get(orgId)?.size ?? 0;
+  }
 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
@@ -91,6 +96,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       );
       this.wss = null;
     }
+    this.selfServiceSubscribersByOrg.clear();
   }
 
   private async handleUpgrade(
@@ -123,6 +129,25 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private handleConnection(ws: WebSocket, credential: ResolvedCredential): void {
     const actor = credential.actor;
     const subscriptions = new Set<string>();
+    const isSelfServiceAgent =
+      actor.type !== 'end_user_agent' &&
+      Array.isArray(actor.audiences) &&
+      actor.audiences.includes('self_service');
+    if (isSelfServiceAgent) {
+      let set = this.selfServiceSubscribersByOrg.get(actor.orgId);
+      if (!set) {
+        set = new Set();
+        this.selfServiceSubscribersByOrg.set(actor.orgId, set);
+      }
+      set.add(ws);
+    }
+    const removeSelfServiceSubscriber = () => {
+      if (!isSelfServiceAgent) return;
+      const set = this.selfServiceSubscribersByOrg.get(actor.orgId);
+      if (!set) return;
+      set.delete(ws);
+      if (set.size === 0) this.selfServiceSubscribersByOrg.delete(actor.orgId);
+    };
 
     const unsubscribe = this.listener.subscribe((event) => {
       if (event.org_id !== actor.orgId) return;
@@ -164,9 +189,11 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
     ws.on('close', () => {
       unsubscribe();
+      removeSelfServiceSubscriber();
     });
     ws.on('error', () => {
       unsubscribe();
+      removeSelfServiceSubscriber();
     });
 
     ws.send(JSON.stringify({ type: 'ready', orgId: actor.orgId }));

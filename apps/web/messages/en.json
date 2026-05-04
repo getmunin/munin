@@ -92,6 +92,13 @@
         "cta": "Manage API keys"
       }
     },
+    "agentStatus": {
+      "title": "Self-service agent",
+      "connected": "{count, plural, one {1 agent connected} other {# agents connected}} — replies to end-user messages will be handled automatically.",
+      "notConnected": "No self-service agent connected. End-user messages will sit until a human replies from the dashboard or an agent runner is connected.",
+      "staleNotConnected": "No self-service agent connected, and there are unanswered end-user messages. Reply from the dashboard or connect an agent runner.",
+      "hint": "Connect an agent: run @getmunin/agent-runtime against this Munin's MCP, or use the cloud product's auto-replier."
+    },
     "needsAttention": {
       "title": "Needs attention",
       "allClear": "All caught up.",

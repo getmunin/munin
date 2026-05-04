@@ -93,12 +93,13 @@ export class CredentialResolver {
     if (!row) return null;
 
     const orgId = row.orgId ?? '';
+    const audiences = (row.audiences as Audience[] | null | undefined) ?? ['admin'];
     const actor = new ActorIdentity(
       'admin_agent',
       row.id,
       orgId,
       row.scopes,
-      ['admin'],
+      audiences,
       undefined,
       undefined,
       undefined,

@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/mcp-toolkit",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "license": "MIT",
   "description": "Decorators + registry that turn NestJS providers into MCP tools.",
   "publishConfig": {

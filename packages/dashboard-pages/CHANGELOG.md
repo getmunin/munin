@@ -1,5 +1,11 @@
 # @getmunin/dashboard-pages
 
+## 0.18.0
+
+### Patch Changes
+
+- @getmunin/ui@0.18.0
+
 ## 0.17.0
 
 ### Minor Changes

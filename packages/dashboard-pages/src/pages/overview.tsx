@@ -17,6 +17,7 @@ import { api } from '../api';
 interface BacklogDto {
   conversationsNeedingAttention: number;
   kbCurationPending: number;
+  crmMergeProposalsPending: number;
 }
 
 export function DashboardPage() {
@@ -34,7 +35,8 @@ export function DashboardPage() {
   const allClear =
     backlog !== null &&
     backlog.conversationsNeedingAttention === 0 &&
-    backlog.kbCurationPending === 0;
+    backlog.kbCurationPending === 0 &&
+    backlog.crmMergeProposalsPending === 0;
 
   return (
     <>
@@ -87,6 +89,20 @@ export function DashboardPage() {
                     <p className="mt-1 text-xs text-muted-foreground">
                       {tBacklog('kbCurationHint')}
                     </p>
+                  </li>
+                )}
+                {backlog.crmMergeProposalsPending > 0 && (
+                  <li className="flex items-center justify-between gap-3">
+                    <span>
+                      <strong className="font-medium">{backlog.crmMergeProposalsPending}</strong>{' '}
+                      {tBacklog('crmMergeProposalsLabel')}
+                    </span>
+                    <Link
+                      href="/dashboard/crm-merge-proposals"
+                      className="text-xs text-muted-foreground hover:underline"
+                    >
+                      {tBacklog('openMergeProposals')}
+                    </Link>
                   </li>
                 )}
               </ul>

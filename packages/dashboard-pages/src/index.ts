@@ -14,6 +14,7 @@ export { TeamPage } from './pages/team';
 export { UsagePage } from './pages/usage';
 export { ConversationsPage } from './pages/conversations';
 export { ActivityPage } from './pages/activity';
+export { CrmMergeProposalsPage } from './pages/crm-merge-proposals';
 export {
   useRealtime,
   type RealtimeEventRow,

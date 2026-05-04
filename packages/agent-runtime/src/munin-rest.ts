@@ -32,7 +32,12 @@ export interface ConversationTopic {
 
 export interface MuninRestClient {
   getConversation(id: string): Promise<ConversationDetail>;
-  postAgentMessage(conversationId: string, body: string): Promise<void>;
+  postAgentMessage(
+    conversationId: string,
+    body: string,
+    opts?: { preserveAttention?: boolean },
+  ): Promise<void>;
+  postInternalNote(conversationId: string, body: string): Promise<void>;
   mintDelegatedToken(endUserId: string, ttlSeconds?: number): Promise<DelegatedToken>;
   toRuntimeHistory(detail: ConversationDetail): ConversationMessage[];
   changeStatus(conversationId: string, status: ConversationStatus, snoozeUntil?: string): Promise<void>;
@@ -71,10 +76,23 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     async getConversation(id: string): Promise<ConversationDetail> {
       return call<ConversationDetail>(`/api/conversations/${encodeURIComponent(id)}`);
     },
-    async postAgentMessage(conversationId: string, body: string): Promise<void> {
+    async postAgentMessage(
+      conversationId: string,
+      body: string,
+      opts: { preserveAttention?: boolean } = {},
+    ): Promise<void> {
       await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({
+          body,
+          ...(opts.preserveAttention ? { preserveAttention: true } : {}),
+        }),
+      });
+    },
+    async postInternalNote(conversationId: string, body: string): Promise<void> {
+      await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ body, internal: true }),
       });
     },
     async mintDelegatedToken(endUserId: string, ttlSeconds = 600): Promise<DelegatedToken> {
@@ -83,6 +101,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
         body: JSON.stringify({
           endUserId,
           audiences: ['self_service'],
+          scopes: ['conv:read', 'conv:write', 'kb:read', 'crm:read'],
           ttlSeconds,
         }),
       });

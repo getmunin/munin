@@ -356,6 +356,7 @@ export class ConvService {
     inReplyToId?: string;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
+    preserveAttention?: boolean;
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -391,7 +392,9 @@ export class ConvService {
       })
       .returning();
     const clearAttention =
-      (input.authorType === 'user' || input.authorType === 'agent') && !input.internal;
+      (input.authorType === 'user' || input.authorType === 'agent') &&
+      !input.internal &&
+      !input.preserveAttention;
     await ctx.db
       .update(schema.convConversations)
       .set({
@@ -536,6 +539,7 @@ export class ConvService {
   async requestHandover(input: {
     conversationId: string;
     reason?: string;
+    postSystemNote?: boolean;
   }): Promise<ConversationSummary> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -555,16 +559,17 @@ export class ConvService {
 
     const now = new Date();
     const reason = input.reason?.trim();
-    const body = reason ? `Agent requested handover: ${reason}` : 'Agent requested handover.';
-
-    await ctx.db.insert(schema.convMessages).values({
-      orgId: actor.orgId,
-      conversationId: input.conversationId,
-      authorType: 'system',
-      authorId: actor.id,
-      body,
-      internal: true,
-    });
+    if (input.postSystemNote !== false) {
+      const body = reason ? `Agent requested handover: ${reason}` : 'Agent requested handover.';
+      await ctx.db.insert(schema.convMessages).values({
+        orgId: actor.orgId,
+        conversationId: input.conversationId,
+        authorType: 'system',
+        authorId: actor.id,
+        body,
+        internal: true,
+      });
+    }
 
     const [updated] = await ctx.db
       .update(schema.convConversations)

@@ -1,5 +1,8 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Bot, Code2, KeyRound } from 'lucide-react';
+import { AlertCircle, Bot, CheckCircle2, Code2, KeyRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@getmunin/ui';
 import {
@@ -9,15 +12,88 @@ import {
   CardHeader,
   CardTitle,
 } from '@getmunin/ui';
+import { api } from '../api';
+
+interface BacklogDto {
+  conversationsNeedingAttention: number;
+  kbCurationPending: number;
+}
 
 export function DashboardPage() {
   const t = useTranslations('dashboard.overview');
+  const tBacklog = useTranslations('dashboard.needsAttention');
+
+  const [backlog, setBacklog] = useState<BacklogDto | null>(null);
+
+  useEffect(() => {
+    void api<BacklogDto>('/api/overview/backlog')
+      .then(setBacklog)
+      .catch(() => setBacklog(null));
+  }, []);
+
+  const allClear =
+    backlog !== null &&
+    backlog.conversationsNeedingAttention === 0 &&
+    backlog.kbCurationPending === 0;
+
   return (
     <>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
       </div>
+
+      {backlog !== null && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              {allClear ? (
+                <CheckCircle2 className="size-5 text-muted-foreground" />
+              ) : (
+                <AlertCircle className="size-5 text-amber-600 dark:text-amber-400" />
+              )}
+              <CardTitle>{tBacklog('title')}</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {allClear ? (
+              <p className="text-muted-foreground">{tBacklog('allClear')}</p>
+            ) : (
+              <ul className="space-y-2">
+                {backlog.conversationsNeedingAttention > 0 && (
+                  <li className="flex items-center justify-between gap-3">
+                    <span>
+                      <strong className="font-medium">
+                        {backlog.conversationsNeedingAttention}
+                      </strong>{' '}
+                      {tBacklog('conversationsLabel')}
+                    </span>
+                    <Link
+                      href="/dashboard/conversations"
+                      className="text-xs text-muted-foreground hover:underline"
+                    >
+                      {tBacklog('openConversations')}
+                    </Link>
+                  </li>
+                )}
+                {backlog.kbCurationPending > 0 && (
+                  <li>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>
+                        <strong className="font-medium">{backlog.kbCurationPending}</strong>{' '}
+                        {tBacklog('kbCurationLabel')}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {tBacklog('kbCurationHint')}
+                    </p>
+                  </li>
+                )}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

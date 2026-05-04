@@ -91,6 +91,14 @@
         "cta": "Administrer API-nøkler"
       }
     },
+    "needsAttention": {
+      "title": "Trenger oppmerksomhet",
+      "allClear": "Alt er ajour.",
+      "conversationsLabel": "samtaler som venter på overlevering",
+      "openConversations": "Åpne samtaler →",
+      "kbCurationLabel": "kunnskapsbase-kandidater venter på gjennomgang",
+      "kbCurationHint": "Åpne admin-agenten din og be den gjøre en kurateringsrunde – den bruker skill://kb/curation."
+    },
     "agents": {
       "title": "Tilkoblede agenter",
       "subtitle": "Alle OAuth-autoriserte agenter og sluttbruker-tokens utstedt for denne organisasjonen. Tilbakekall et aktivt token for å gjøre videre MCP-kall ugyldige umiddelbart.",

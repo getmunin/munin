@@ -53,6 +53,10 @@ const HandoverBody = z
   })
   .partial();
 
+const TopicBody = z.object({
+  topicId: z.string().nullable(),
+});
+
 const TakeOverBody = z
   .object({
     ttlMinutes: z.number().int().positive().max(240).optional(),
@@ -105,6 +109,11 @@ export class ConversationsController {
       items: page.items,
       nextCursor: page.nextCursor ? encodeListCursor(page.nextCursor) : null,
     };
+  }
+
+  @Get('topics')
+  async listTopics(): Promise<Array<{ id: string; slug: string; name: string; color: string | null }>> {
+    return translate(() => this.conv.listTopics());
   }
 
   @Get(':id')
@@ -186,6 +195,19 @@ export class ConversationsController {
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return translate(() =>
       this.conv.requestHandover({ conversationId: id, reason: parsed.data.reason }),
+    );
+  }
+
+  @Post(':id/topic')
+  @HttpCode(200)
+  async setTopic(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<ConversationSummary> {
+    const parsed = TopicBody.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(() =>
+      this.conv.setTopic({ conversationId: id, topicId: parsed.data.topicId }),
     );
   }
 }

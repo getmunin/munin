@@ -19,10 +19,18 @@ export {
   type IncomingMessage,
   type OpenedMcp,
 } from './conversation-handler.js';
-export { auditReply, type AuditReplyArgs, type AuditVerdict } from './audit.js';
+export {
+  auditConversation,
+  type AuditAction,
+  type AuditConversationArgs,
+  type AuditTopic,
+  type AuditVerdict,
+} from './audit.js';
 export {
   createMuninRestClient,
   type ConversationDetail,
+  type ConversationStatus,
+  type ConversationTopic,
   type CreateMuninRestClientOptions,
   type DelegatedToken,
   type MuninRestClient,

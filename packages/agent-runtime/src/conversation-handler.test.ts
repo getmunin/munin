@@ -79,6 +79,9 @@ function buildRest(overrides: Partial<MuninRestClient> = {}): MuninRestClient {
       detail.messages
         .filter((m) => !m.internal)
         .map((m) => ({ authorType: m.authorType, body: m.body, createdAt: m.createdAt })),
+    changeStatus: vi.fn(() => Promise.resolve()),
+    setTopic: vi.fn(() => Promise.resolve()),
+    listTopics: vi.fn(() => Promise.resolve([])),
     ...overrides,
   };
 }

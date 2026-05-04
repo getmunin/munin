@@ -162,6 +162,38 @@ export class ConvService {
     return toTopicDto(row!);
   }
 
+  async setTopic(input: {
+    conversationId: string;
+    topicId: string | null;
+  }): Promise<ConversationSummary> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (input.topicId !== null) {
+      const topicRows = await ctx.db
+        .select({ id: schema.convTopics.id })
+        .from(schema.convTopics)
+        .where(
+          and(
+            eq(schema.convTopics.id, input.topicId),
+            eq(schema.convTopics.orgId, actor.orgId),
+          ),
+        )
+        .limit(1);
+      if (!topicRows[0]) {
+        throw new NotFoundException(`conv_topic_not_found: ${input.topicId}`);
+      }
+    }
+    const [updated] = await ctx.db
+      .update(schema.convConversations)
+      .set({ topicId: input.topicId, updatedAt: new Date() })
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .returning();
+    if (!updated) {
+      throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
+    }
+    return toConversationSummary(updated);
+  }
+
   // ─── Conversations ──────────────────────────────────────────────────────
 
   async listConversations(input: {

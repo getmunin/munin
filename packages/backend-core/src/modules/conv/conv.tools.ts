@@ -56,6 +56,11 @@ const CreateTopicInput = z.object({
   color: z.string().max(16).optional(),
 });
 
+const SetTopicInput = z.object({
+  conversationId: z.string(),
+  topicId: z.string().nullable(),
+});
+
 const EmptyInput = z.object({});
 
 @Injectable()
@@ -227,5 +232,20 @@ export class ConvAdminTools {
   })
   createTopic(args: z.infer<typeof CreateTopicInput>) {
     return this.conv.createTopic(args);
+  }
+
+  @McpTool({
+    name: 'conv_set_topic',
+    title: 'Set or clear a conversation topic',
+    description:
+      'Tag a conversation with one of the org\'s existing topics, or pass `topicId: null` to clear the topic. Use `conv_list_topics` first to see what topics exist; topics must be pre-created via `conv_create_topic`.',
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: SetTopicInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  setTopic(args: z.infer<typeof SetTopicInput>) {
+    return this.conv.setTopic(args);
   }
 }

@@ -332,6 +332,7 @@ export class ConvService {
         id: schema.convConversations.id,
         channelId: schema.convConversations.channelId,
         channelType: schema.convChannels.type,
+        needsHumanAttention: schema.convConversations.needsHumanAttention,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
@@ -383,6 +384,17 @@ export class ConvService {
           internal: false,
         },
       });
+
+      if (clearAttention && conv.needsHumanAttention) {
+        await this.webhooks.emit({
+          type: 'conversation.handover_resolved',
+          payload: {
+            conversationId: input.conversationId,
+            messageId: row!.id,
+            authorType: input.authorType,
+          },
+        });
+      }
 
       // Enqueue an outbound delivery row for staff-authored messages on
       // email channels. The email-outbound worker picks these up, builds

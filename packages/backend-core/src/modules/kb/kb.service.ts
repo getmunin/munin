@@ -320,6 +320,88 @@ export class KbService {
     return { deleted: true };
   }
 
+  // ─── Curation ───────────────────────────────────────────────────────────
+
+  async proposeCurationCandidate(input: {
+    subject: string;
+    draftBody: string;
+    sourceConversationId?: string;
+    sourceMessageIds?: string[];
+    proposedTargetSpaceSlug?: string;
+  }): Promise<DocumentDto> {
+    const space = await this.ensureCurationInboxSpace();
+    return this.createDocument({
+      spaceId: space.id,
+      title: input.subject,
+      body: appendCandidateFooter(input.draftBody, {
+        sourceConversationId: input.sourceConversationId,
+        proposedTargetSpaceSlug: input.proposedTargetSpaceSlug,
+      }),
+      audiences: ['admin'],
+      tags: dedupeTags([
+        'curation',
+        'candidate',
+        ...(input.sourceConversationId ? [`source:${input.sourceConversationId}`] : []),
+        ...(input.proposedTargetSpaceSlug ? [`target:${input.proposedTargetSpaceSlug}`] : []),
+      ]),
+    });
+  }
+
+  async publishCurationCandidate(input: {
+    candidateDocumentId: string;
+    targetSpaceSlug: string;
+    audiences?: readonly string[];
+  }): Promise<DocumentDto> {
+    const ctx = getCurrentContext();
+    const candidate = await this.loadForUpdate(input.candidateDocumentId);
+    if (!candidate.tags.includes('candidate')) {
+      throw new KbInvalidError(
+        `document ${input.candidateDocumentId} is not a curation candidate (missing 'candidate' tag)`,
+      );
+    }
+    const targetSpaceRows = await ctx.db
+      .select()
+      .from(schema.kbSpaces)
+      .where(eq(schema.kbSpaces.slug, input.targetSpaceSlug))
+      .limit(1);
+    const targetSpace = targetSpaceRows[0];
+    if (!targetSpace) {
+      throw new KbNotFoundError('space', input.targetSpaceSlug);
+    }
+    const audiences = input.audiences
+      ? normaliseAudiences(input.audiences)
+      : (['admin', 'self_service'] as Audience[]);
+    const carriedTags = candidate.tags.filter(
+      (t) => t !== 'curation' && t !== 'candidate' && !t.startsWith('source:') && !t.startsWith('target:'),
+    );
+    const published = await this.createDocument({
+      spaceId: targetSpace.id,
+      title: candidate.title,
+      body: candidate.body,
+      audiences,
+      tags: carriedTags,
+    });
+    await this.deleteDocument({ id: candidate.id, ifVersion: candidate.version });
+    return published;
+  }
+
+  private async ensureCurationInboxSpace(): Promise<SpaceDto> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select()
+      .from(schema.kbSpaces)
+      .where(eq(schema.kbSpaces.slug, CURATION_INBOX_SLUG))
+      .limit(1);
+    const existing = rows[0];
+    if (existing) return toSpaceDto(existing);
+    return this.createSpace({
+      name: 'Curation inbox',
+      slug: CURATION_INBOX_SLUG,
+      description:
+        'Drafted KB-document candidates from resolved-handover conversations. Review with kb_list_documents tag=candidate, then promote with kb_publish_curation_candidate.',
+    });
+  }
+
   // ─── Versions ───────────────────────────────────────────────────────────
 
   async listVersions(documentId: string): Promise<VersionDto[]> {
@@ -536,4 +618,26 @@ function isValidSlug(slug: string): boolean {
 function clampLimit(value: number | undefined, fallback: number, max: number): number {
   if (value === undefined || value <= 0) return fallback;
   return Math.min(value, max);
+}
+
+export const CURATION_INBOX_SLUG = 'kb-curation-inbox';
+
+function appendCandidateFooter(
+  body: string,
+  refs: { sourceConversationId?: string; proposedTargetSpaceSlug?: string },
+): string {
+  const lines: string[] = [];
+  if (refs.sourceConversationId) {
+    lines.push(`Source conversation: ${refs.sourceConversationId}`);
+  }
+  if (refs.proposedTargetSpaceSlug) {
+    lines.push(`Proposed target space: ${refs.proposedTargetSpaceSlug}`);
+  }
+  if (lines.length === 0) return body;
+  const trimmed = body.replace(/\s+$/, '');
+  return `${trimmed}\n\n---\n${lines.map((l) => `*${l}*`).join('\n')}\n`;
+}
+
+function dedupeTags(tags: string[]): string[] {
+  return Array.from(new Set(tags));
 }

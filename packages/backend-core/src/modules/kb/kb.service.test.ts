@@ -9,7 +9,7 @@ import {
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { KbService, KbConflictError, KbNotFoundError, KbInvalidError } from './kb.service.js';
+import { CURATION_INBOX_SLUG, KbService, KbConflictError, KbNotFoundError, KbInvalidError } from './kb.service.js';
 import { EmbeddingProviderHolder } from './embedding.provider.js';
 import { QuotaExceededError, QuotasService } from '../../common/quotas/quotas.service.js';
 
@@ -259,5 +259,96 @@ const skipReason = TEST_URL
     expect(a.slug).toBeNull();
     expect(b.slug).toBeNull();
     expect(a.id).not.toBe(b.id);
+  });
+
+  describe('curation', () => {
+    it('proposes a candidate, lazy-creating the inbox space on first call', async () => {
+      const before = await run(() => svc.listSpaces());
+      expect(before.find((s) => s.slug === CURATION_INBOX_SLUG)).toBeUndefined();
+
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Weekend hours',
+          draftBody: '# When are you open on weekends?\n\nWe open 10–16 Sat, 12–16 Sun.',
+          sourceConversationId: 'ccv_test',
+          proposedTargetSpaceSlug: 'support-faq',
+        }),
+      );
+      expect(candidate.title).toBe('Weekend hours');
+      expect(candidate.audiences).toEqual(['admin']);
+      expect(candidate.tags).toEqual(
+        expect.arrayContaining(['curation', 'candidate', 'source:ccv_test', 'target:support-faq']),
+      );
+      expect(candidate.body).toContain('Source conversation: ccv_test');
+      expect(candidate.body).toContain('Proposed target space: support-faq');
+
+      const after = await run(() => svc.listSpaces());
+      expect(after.find((s) => s.slug === CURATION_INBOX_SLUG)).toBeDefined();
+
+      // A second proposal reuses the same inbox space.
+      const second = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Refunds policy',
+          draftBody: 'Refunds within 14 days for unused items.',
+        }),
+      );
+      expect(second.spaceId).toBe(candidate.spaceId);
+    });
+
+    it('publishes a candidate into a target space, removing it from the inbox', async () => {
+      await run(() => svc.createSpace({ name: 'Support FAQ', slug: 'support-faq' }));
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'How to reset password',
+          draftBody: 'Click the reset link in the welcome email.',
+          proposedTargetSpaceSlug: 'support-faq',
+        }),
+      );
+      const published = await run(() =>
+        svc.publishCurationCandidate({
+          candidateDocumentId: candidate.id,
+          targetSpaceSlug: 'support-faq',
+        }),
+      );
+      expect(published.audiences).toEqual(['admin', 'self_service']);
+      expect(published.tags).not.toEqual(expect.arrayContaining(['candidate', 'curation']));
+      expect(published.title).toBe('How to reset password');
+
+      // The candidate doc is gone from the inbox.
+      await expect(run(() => svc.getDocument(candidate.id))).rejects.toThrow(KbNotFoundError);
+    });
+
+    it('rejects publishing a non-candidate document', async () => {
+      const space = await run(() => svc.createSpace({ name: 'Plain', slug: 'plain' }));
+      const doc = await run(() =>
+        svc.createDocument({ spaceId: space.id, title: 'Plain', body: 'body' }),
+      );
+      await run(() => svc.createSpace({ name: 'Target', slug: 'target' }));
+      await expect(
+        run(() =>
+          svc.publishCurationCandidate({
+            candidateDocumentId: doc.id,
+            targetSpaceSlug: 'target',
+          }),
+        ),
+      ).rejects.toThrow(KbInvalidError);
+    });
+
+    it('rejects publishing to a non-existent target space', async () => {
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Q',
+          draftBody: 'A',
+        }),
+      );
+      await expect(
+        run(() =>
+          svc.publishCurationCandidate({
+            candidateDocumentId: candidate.id,
+            targetSpaceSlug: 'does-not-exist',
+          }),
+        ),
+      ).rejects.toThrow(KbNotFoundError);
+    });
   });
 });

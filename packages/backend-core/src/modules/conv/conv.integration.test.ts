@@ -367,6 +367,59 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('emits conversation.handover_resolved exactly once when admin reply clears the flag', async () => {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/api/end-user/conversations', {
+      body: 'Need help with my booking — flight got cancelled.',
+    });
+    const conv = startResp.body;
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: { conversationId: conv.id, reason: 'cancellation policy' },
+      });
+    });
+
+    type EventRow = { type: string; payload: { conversationId?: string; authorType?: string } };
+    const beforeReply = (await db.execute(
+      sql`SELECT type, payload FROM events WHERE org_id = ${orgId} AND type = 'conversation.handover_resolved' AND payload->>'conversationId' = ${conv.id}`,
+    )) as unknown as EventRow[];
+    expect(beforeReply).toHaveLength(0);
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_send_message',
+        arguments: { conversationId: conv.id, body: "We'll rebook you on the next flight." },
+      });
+    });
+
+    // The MCP transport's HTTP response can land before postgres-js has
+    // surfaced the just-committed transaction to other pool sessions; give
+    // the read-side a brief moment in the parallel-test case.
+    await new Promise((r) => setTimeout(r, 100));
+
+    const afterReply = (await db.execute(
+      sql`SELECT type, payload FROM events WHERE org_id = ${orgId} AND type = 'conversation.handover_resolved' AND payload->>'conversationId' = ${conv.id} ORDER BY created_at DESC`,
+    )) as unknown as EventRow[];
+    expect(afterReply).toHaveLength(1);
+    expect(afterReply[0]!.payload.conversationId).toBe(conv.id);
+    expect(afterReply[0]!.payload.authorType).toBe('agent');
+
+    // A second admin message on the same conversation should NOT re-emit the
+    // event; the flag is already cleared.
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_send_message',
+        arguments: { conversationId: conv.id, body: 'Anything else I can help with?' },
+      });
+    });
+
+    const stillOne = (await db.execute(
+      sql`SELECT count(*)::int AS n FROM events WHERE org_id = ${orgId} AND type = 'conversation.handover_resolved' AND payload->>'conversationId' = ${conv.id}`,
+    )) as unknown as Array<{ n: number }>;
+    expect(stillOne[0]!.n).toBe(1);
+  }, 30_000);
+
   it('changeStatus to closed clears needsHumanAttention', async () => {
     const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/api/end-user/conversations', {
       body: 'My invoice has the wrong VAT.',

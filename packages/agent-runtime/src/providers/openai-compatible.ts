@@ -31,6 +31,9 @@ export const openAiCompatibleProvider: Provider = async ({
   }
   if (typeof config.maxTokens === 'number') body.max_tokens = config.maxTokens;
   if (typeof config.temperature === 'number') body.temperature = config.temperature;
+  if (config.responseFormat === 'json_object') {
+    body.response_format = { type: 'json_object' };
+  }
 
   const res = await fetch(url, {
     method: 'POST',

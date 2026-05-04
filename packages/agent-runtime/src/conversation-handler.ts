@@ -1,12 +1,20 @@
-import {
-  runAgent,
-  type ConversationMessage,
-  type McpToolHandle,
-  type PromptResolver,
-  type Provider,
-} from '@getmunin/agent-runtime';
-import type { SidecarConfig } from './config.js';
+import { runAgent } from './runtime.js';
+import type {
+  ConversationMessage,
+  McpToolHandle,
+  Provider,
+} from './types.js';
+import type { PromptResolver } from './prompt-resolver.js';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.js';
+
+export interface HandlerConfig {
+  providerBaseUrl: string;
+  providerApiKey: string;
+  model: string;
+  maxToolIterations: number;
+  maxHistoryChars: number;
+  debounceMs: number;
+}
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
@@ -18,7 +26,7 @@ export interface OpenedMcp extends McpToolHandle {
 }
 
 export interface ConversationHandlerDeps {
-  config: SidecarConfig;
+  config: HandlerConfig;
   rest: MuninRestClient;
   prompts: PromptResolver;
   openMcp: (opts: { delegatedToken: string }) => Promise<OpenedMcp>;

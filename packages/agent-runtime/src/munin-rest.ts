@@ -1,4 +1,4 @@
-import type { ConversationMessage } from '@getmunin/agent-runtime';
+import type { ConversationMessage } from './types.js';
 
 export interface ConversationDetail {
   id: string;

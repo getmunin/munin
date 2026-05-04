@@ -96,7 +96,7 @@ On provider errors the sidecar retries with exponential backoff (3 attempts). If
 
 ## Architecture
 
-This sidecar consumes the shared `@getmunin/agent-runtime` kernel (`packages/agent-runtime/`), which holds the LLM ↔ tool-call loop, provider abstraction, and the KB-backed prompt resolver (with built-in default prompts). The kernel is pure: given a config, conversation history, and an MCP tool handle, it returns a reply. The sidecar wires up the I/O — realtime subscription, REST calls, MCP client lifecycle, and retries.
+This sidecar consumes the shared `@getmunin/agent-runtime` package, which holds everything the runner needs: the LLM ↔ tool-call loop, the provider abstraction, the KB-backed prompt resolver (with built-in default prompts), the conversation handler (debounce + retry + handover), and the I/O clients (`createMuninRestClient`, `createRealtimeClient`, `openMcpClient`). The sidecar itself is just env-loading + wiring + lifecycle.
 
 The same kernel will back the multi-tenant cloud addon when that lands; per-org config storage and inference billing are the only things layered on top.
 

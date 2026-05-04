@@ -101,6 +101,40 @@ export interface ActivityDto {
   createdAt: string;
 }
 
+export const MERGE_CONFIDENCES = ['high', 'medium'] as const;
+export type MergeConfidence = (typeof MERGE_CONFIDENCES)[number];
+
+export const MERGE_STATUSES = ['pending', 'applied', 'dismissed'] as const;
+export type MergeStatus = (typeof MERGE_STATUSES)[number];
+
+export interface MergeProposalContactSummary {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  companyId: string | null;
+  endUserId: string | null;
+}
+
+export interface MergeProposalDto {
+  id: string;
+  contactA: MergeProposalContactSummary;
+  contactB: MergeProposalContactSummary;
+  confidence: MergeConfidence;
+  evidence: Record<string, unknown>;
+  recommendedKeeperId: string;
+  recommendedPatch: Record<string, unknown>;
+  status: MergeStatus;
+  dismissReason: string | null;
+  proposedByActorType: string;
+  proposedByActorId: string;
+  decidedByActorType: string | null;
+  decidedByActorId: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 @Injectable()
 export class CrmService {
   // ─── Contacts ───────────────────────────────────────────────────────────
@@ -569,6 +603,248 @@ export class CrmService {
       .limit(limit);
     return rows.map(toContactDto);
   }
+
+  // ─── Merge proposals ────────────────────────────────────────────────────
+
+  async proposeMerge(input: {
+    contactAId: string;
+    contactBId: string;
+    confidence: MergeConfidence;
+    evidence: Record<string, unknown>;
+    recommendedKeeperId: string;
+    recommendedPatch?: Record<string, unknown>;
+  }): Promise<MergeProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (input.contactAId === input.contactBId) {
+      throw new CrmInvalidError('cannot propose a merge between a contact and itself');
+    }
+    const [a, b] = canonicalizePair(input.contactAId, input.contactBId);
+    const contacts = await ctx.db
+      .select()
+      .from(schema.crmContacts)
+      .where(or(eq(schema.crmContacts.id, a), eq(schema.crmContacts.id, b)));
+    const contactA = contacts.find((r) => r.id === a);
+    const contactB = contacts.find((r) => r.id === b);
+    if (!contactA) throw new NotFoundException(`crm_not_found: contact ${a}`);
+    if (!contactB) throw new NotFoundException(`crm_not_found: contact ${b}`);
+    if (input.recommendedKeeperId !== a && input.recommendedKeeperId !== b) {
+      throw new CrmInvalidError('recommendedKeeperId must be one of the two contacts');
+    }
+
+    const existingPending = await ctx.db
+      .select()
+      .from(schema.crmMergeProposals)
+      .where(
+        and(
+          eq(schema.crmMergeProposals.contactAId, a),
+          eq(schema.crmMergeProposals.contactBId, b),
+          eq(schema.crmMergeProposals.status, 'pending'),
+        ),
+      )
+      .limit(1);
+
+    if (existingPending[0]) {
+      const [updated] = await ctx.db
+        .update(schema.crmMergeProposals)
+        .set({
+          confidence: input.confidence,
+          evidence: input.evidence,
+          recommendedKeeperId: input.recommendedKeeperId,
+          recommendedPatch: input.recommendedPatch ?? {},
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.crmMergeProposals.id, existingPending[0].id))
+        .returning();
+      return toMergeProposalDto(updated!, contactA, contactB);
+    }
+
+    const [row] = await ctx.db
+      .insert(schema.crmMergeProposals)
+      .values({
+        orgId: actor.orgId,
+        contactAId: a,
+        contactBId: b,
+        confidence: input.confidence,
+        evidence: input.evidence,
+        recommendedKeeperId: input.recommendedKeeperId,
+        recommendedPatch: input.recommendedPatch ?? {},
+        status: 'pending',
+        proposedByActorType: actor.type === 'user' ? 'user' : 'agent',
+        proposedByActorId: actor.id,
+      })
+      .returning();
+    return toMergeProposalDto(row!, contactA, contactB);
+  }
+
+  async listMergeProposals(input: {
+    status?: MergeStatus;
+    limit?: number;
+  }): Promise<MergeProposalDto[]> {
+    const ctx = getCurrentContext();
+    const limit = clampLimit(input.limit, 50, 200);
+    const status = input.status ?? 'pending';
+    const proposals = await ctx.db
+      .select()
+      .from(schema.crmMergeProposals)
+      .where(eq(schema.crmMergeProposals.status, status))
+      .orderBy(desc(schema.crmMergeProposals.createdAt))
+      .limit(limit);
+    if (proposals.length === 0) return [];
+    const ids = new Set<string>();
+    for (const p of proposals) {
+      ids.add(p.contactAId);
+      ids.add(p.contactBId);
+    }
+    const contactRows = await ctx.db
+      .select()
+      .from(schema.crmContacts)
+      .where(or(...Array.from(ids).map((id) => eq(schema.crmContacts.id, id))));
+    const byId = new Map(contactRows.map((r) => [r.id, r]));
+    return proposals.map((p) => {
+      const a = byId.get(p.contactAId);
+      const b = byId.get(p.contactBId);
+      if (!a || !b) {
+        throw new CrmInvalidError(`merge proposal ${p.id} references missing contact`);
+      }
+      return toMergeProposalDto(p, a, b);
+    });
+  }
+
+  async getMergeProposal(id: string): Promise<MergeProposalDto> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select()
+      .from(schema.crmMergeProposals)
+      .where(eq(schema.crmMergeProposals.id, id))
+      .limit(1);
+    if (!rows[0]) throw new NotFoundException(`crm_not_found: merge proposal ${id}`);
+    const proposal = rows[0];
+    const contacts = await ctx.db
+      .select()
+      .from(schema.crmContacts)
+      .where(or(eq(schema.crmContacts.id, proposal.contactAId), eq(schema.crmContacts.id, proposal.contactBId)));
+    const a = contacts.find((r) => r.id === proposal.contactAId);
+    const b = contacts.find((r) => r.id === proposal.contactBId);
+    if (!a || !b) {
+      throw new CrmInvalidError(`merge proposal ${id} references missing contact`);
+    }
+    return toMergeProposalDto(proposal, a, b);
+  }
+
+  async applyMergeProposal(input: { id: string }): Promise<MergeProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select()
+      .from(schema.crmMergeProposals)
+      .where(eq(schema.crmMergeProposals.id, input.id))
+      .limit(1);
+    const proposal = rows[0];
+    if (!proposal) throw new NotFoundException(`crm_not_found: merge proposal ${input.id}`);
+    if (proposal.status !== 'pending') {
+      throw new CrmInvalidError(`merge proposal ${input.id} is ${proposal.status}, not pending`);
+    }
+    const keeperId = proposal.recommendedKeeperId;
+    const duplicateId = keeperId === proposal.contactAId ? proposal.contactBId : proposal.contactAId;
+    const contactRows = await ctx.db
+      .select()
+      .from(schema.crmContacts)
+      .where(or(eq(schema.crmContacts.id, keeperId), eq(schema.crmContacts.id, duplicateId)));
+    const keeperRow = contactRows.find((r) => r.id === keeperId);
+    const duplicateRow = contactRows.find((r) => r.id === duplicateId);
+    if (!keeperRow || !duplicateRow) {
+      throw new CrmInvalidError(`merge proposal ${input.id} references missing contact`);
+    }
+
+    const patch = proposal.recommendedPatch ?? {};
+    const keeperUpdates: Record<string, unknown> = { updatedAt: new Date() };
+    for (const [k, v] of Object.entries(patch)) {
+      if (v !== undefined) keeperUpdates[k] = v;
+    }
+    if (Object.keys(keeperUpdates).length > 1) {
+      await ctx.db
+        .update(schema.crmContacts)
+        .set(keeperUpdates)
+        .where(eq(schema.crmContacts.id, keeperId));
+    }
+
+    const archiveTag = `dedup-archived-${archiveMonth(new Date())}`;
+    const dupTags = duplicateRow.tags.includes(archiveTag)
+      ? duplicateRow.tags
+      : [...duplicateRow.tags, archiveTag];
+    const dupCustomFields = {
+      ...duplicateRow.customFields,
+      mergedInto: keeperId,
+      mergedAt: new Date().toISOString(),
+    };
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({
+        tags: dupTags,
+        customFields: dupCustomFields,
+        doNotContact: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.crmContacts.id, duplicateId));
+
+    const [updatedProposal] = await ctx.db
+      .update(schema.crmMergeProposals)
+      .set({
+        status: 'applied',
+        decidedByActorType: actor.type === 'user' ? 'user' : 'agent',
+        decidedByActorId: actor.id,
+        decidedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.crmMergeProposals.id, input.id))
+      .returning();
+
+    const refreshed = await ctx.db
+      .select()
+      .from(schema.crmContacts)
+      .where(or(eq(schema.crmContacts.id, keeperId), eq(schema.crmContacts.id, duplicateId)));
+    const a = refreshed.find((r) => r.id === proposal.contactAId);
+    const b = refreshed.find((r) => r.id === proposal.contactBId);
+    return toMergeProposalDto(updatedProposal!, a!, b!);
+  }
+
+  async dismissMergeProposal(input: { id: string; reason?: string }): Promise<MergeProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select()
+      .from(schema.crmMergeProposals)
+      .where(eq(schema.crmMergeProposals.id, input.id))
+      .limit(1);
+    const proposal = rows[0];
+    if (!proposal) throw new NotFoundException(`crm_not_found: merge proposal ${input.id}`);
+    if (proposal.status !== 'pending') {
+      throw new CrmInvalidError(`merge proposal ${input.id} is ${proposal.status}, not pending`);
+    }
+    const [updated] = await ctx.db
+      .update(schema.crmMergeProposals)
+      .set({
+        status: 'dismissed',
+        dismissReason: input.reason ?? null,
+        decidedByActorType: actor.type === 'user' ? 'user' : 'agent',
+        decidedByActorId: actor.id,
+        decidedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.crmMergeProposals.id, input.id))
+      .returning();
+    const contactRows = await ctx.db
+      .select()
+      .from(schema.crmContacts)
+      .where(or(eq(schema.crmContacts.id, proposal.contactAId), eq(schema.crmContacts.id, proposal.contactBId)));
+    const a = contactRows.find((r) => r.id === proposal.contactAId);
+    const b = contactRows.find((r) => r.id === proposal.contactBId);
+    if (!a || !b) {
+      throw new CrmInvalidError(`merge proposal ${input.id} references missing contact`);
+    }
+    return toMergeProposalDto(updated!, a, b);
+  }
 }
 
 // ─── DTO mappers / helpers ─────────────────────────────────────────────────
@@ -650,6 +926,52 @@ function toActivityDto(row: typeof schema.crmActivities.$inferSelect): ActivityD
     completedAt: row.completedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function toContactSummary(row: typeof schema.crmContacts.$inferSelect): MergeProposalContactSummary {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    companyId: row.companyId,
+    endUserId: row.endUserId,
+  };
+}
+
+function toMergeProposalDto(
+  row: typeof schema.crmMergeProposals.$inferSelect,
+  contactA: typeof schema.crmContacts.$inferSelect,
+  contactB: typeof schema.crmContacts.$inferSelect,
+): MergeProposalDto {
+  return {
+    id: row.id,
+    contactA: toContactSummary(contactA),
+    contactB: toContactSummary(contactB),
+    confidence: row.confidence as MergeConfidence,
+    evidence: row.evidence,
+    recommendedKeeperId: row.recommendedKeeperId,
+    recommendedPatch: row.recommendedPatch,
+    status: row.status as MergeStatus,
+    dismissReason: row.dismissReason,
+    proposedByActorType: row.proposedByActorType,
+    proposedByActorId: row.proposedByActorId,
+    decidedByActorType: row.decidedByActorType,
+    decidedByActorId: row.decidedByActorId,
+    decidedAt: row.decidedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function canonicalizePair(a: string, b: string): [string, string] {
+  return a < b ? [a, b] : [b, a];
+}
+
+function archiveMonth(d: Date): string {
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}`;
 }
 
 function isValidSlug(slug: string): boolean {

@@ -10,6 +10,7 @@ import { CURATION_INBOX_SLUG } from '../modules/kb/kb.service.js';
 export interface OverviewBacklog {
   conversationsNeedingAttention: number;
   kbCurationPending: number;
+  crmMergeProposalsPending: number;
 }
 
 @Controller('api/overview')
@@ -35,9 +36,15 @@ export class OverviewController {
         ),
       );
 
+    const [crmMergeRow] = await ctx.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.crmMergeProposals)
+      .where(eq(schema.crmMergeProposals.status, 'pending'));
+
     return {
       conversationsNeedingAttention: convCountRow?.n ?? 0,
       kbCurationPending: kbCountRow?.n ?? 0,
+      crmMergeProposalsPending: crmMergeRow?.n ?? 0,
     };
   }
 }

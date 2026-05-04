@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { ACTIVITY_TYPES, CrmService } from './crm.service.js';
+import { ACTIVITY_TYPES, CrmService, MERGE_CONFIDENCES, MERGE_STATUSES } from './crm.service.js';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 const ActivityType = z.enum(ACTIVITY_TYPES);
@@ -136,6 +136,32 @@ const SetAiSummaryInput = z.object({
 });
 
 const EmptyInput = z.object({});
+
+const MergeConfidenceSchema = z.enum(MERGE_CONFIDENCES);
+const MergeStatusSchema = z.enum(MERGE_STATUSES);
+
+const ProposeMergeInput = z.object({
+  contactAId: z.string().min(1).max(64),
+  contactBId: z.string().min(1).max(64),
+  confidence: MergeConfidenceSchema,
+  evidence: z.record(z.string(), z.unknown()),
+  recommendedKeeperId: z.string().min(1).max(64),
+  recommendedPatch: z.record(z.string(), z.unknown()).optional(),
+});
+
+const ListMergeProposalsInput = z.object({
+  status: MergeStatusSchema.optional(),
+  limit: z.number().int().positive().max(200).optional(),
+});
+
+const ApplyMergeProposalInput = z.object({
+  id: z.string().min(1).max(64),
+});
+
+const DismissMergeProposalInput = z.object({
+  id: z.string().min(1).max(64),
+  reason: z.string().max(500).optional(),
+});
 
 @Injectable()
 export class CrmAdminTools {
@@ -396,5 +422,67 @@ export class CrmAdminTools {
   })
   setAiSummary(args: z.infer<typeof SetAiSummaryInput>) {
     return this.crm.setAiSummary(args);
+  }
+
+  // Merge proposals ─────────────────────────────────────────────────────
+
+  @McpTool({
+    name: 'crm_propose_merge_candidate',
+    title: 'Propose a CRM merge candidate',
+    description:
+      'File a structured proposal that two contacts are the same person. Pass `confidence` ("high" | "medium"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM hygiene curator runs this on a periodic cadence; see `skill://crm/hygiene`.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: ProposeMergeInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  proposeMergeCandidate(args: z.infer<typeof ProposeMergeInput>) {
+    return this.crm.proposeMerge(args);
+  }
+
+  @McpTool({
+    name: 'crm_list_merge_proposals',
+    title: 'List CRM merge proposals',
+    description:
+      'List CRM merge proposals, defaulting to `status: "pending"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: "dismissed"` once per curator pass to skip pairs the operator has already rejected.',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: ListMergeProposalsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listMergeProposals(args: z.infer<typeof ListMergeProposalsInput>) {
+    return this.crm.listMergeProposals(args);
+  }
+
+  @McpTool({
+    name: 'crm_apply_merge_proposal',
+    title: 'Apply a CRM merge proposal',
+    description:
+      "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), and marks the proposal `applied`. Activities and deals stay on whichever contactId they were originally logged under — that's a documented v1 limitation. Throws if the proposal is not in `pending` status.",
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: ApplyMergeProposalInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  applyMergeProposal(args: z.infer<typeof ApplyMergeProposalInput>) {
+    return this.crm.applyMergeProposal(args);
+  }
+
+  @McpTool({
+    name: 'crm_dismiss_merge_proposal',
+    title: 'Dismiss a CRM merge proposal',
+    description:
+      'Mark a pending merge proposal as dismissed (the operator decided these are not the same person). The next CRM hygiene curator pass queries dismissed proposals and skips refiling the same pair. Optional `reason` is stored for audit. Throws if the proposal is not in `pending` status.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: DismissMergeProposalInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  dismissMergeProposal(args: z.infer<typeof DismissMergeProposalInput>) {
+    return this.crm.dismissMergeProposal(args);
   }
 }

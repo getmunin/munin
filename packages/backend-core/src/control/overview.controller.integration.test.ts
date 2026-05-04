@@ -88,6 +88,7 @@ const skipReason = TEST_URL
   async function getBacklog(adminKey: string): Promise<{
     conversationsNeedingAttention: number;
     kbCurationPending: number;
+    crmMergeProposalsPending: number;
   }> {
     const res = await fetch(`${baseUrl}/api/overview/backlog`, {
       headers: { authorization: `Bearer ${adminKey}` },
@@ -96,6 +97,7 @@ const skipReason = TEST_URL
     return (await res.json()) as {
       conversationsNeedingAttention: number;
       kbCurationPending: number;
+      crmMergeProposalsPending: number;
     };
   }
 
@@ -118,6 +120,7 @@ const skipReason = TEST_URL
     expect(backlog).toEqual({
       conversationsNeedingAttention: 0,
       kbCurationPending: 0,
+      crmMergeProposalsPending: 0,
     });
   });
 
@@ -174,5 +177,61 @@ const skipReason = TEST_URL
 
     const b = await getBacklog(adminKeyB);
     expect(b.kbCurationPending).toBe(1);
+  });
+
+  it('counts pending CRM merge proposals scoped to caller org and ignores applied/dismissed', async () => {
+    await withClient(adminKeyA, async (c) => {
+      const a = (await c.callTool({
+        name: 'crm_create_contact',
+        arguments: { name: 'A', email: 'merge@a.org' },
+      })) as { content: Array<{ text: string }> };
+      const b = (await c.callTool({
+        name: 'crm_create_contact',
+        arguments: { name: 'B', email: 'merge@a.org' },
+      })) as { content: Array<{ text: string }> };
+      const aId = (JSON.parse(a.content[0]!.text) as { id: string }).id;
+      const bId = (JSON.parse(b.content[0]!.text) as { id: string }).id;
+      await c.callTool({
+        name: 'crm_propose_merge_candidate',
+        arguments: {
+          contactAId: aId,
+          contactBId: bId,
+          confidence: 'high',
+          evidence: { sameEmail: 'merge@a.org' },
+          recommendedKeeperId: aId,
+        },
+      });
+      const c2 = (await c.callTool({
+        name: 'crm_create_contact',
+        arguments: { name: 'C', email: 'other@a.org' },
+      })) as { content: Array<{ text: string }> };
+      const d2 = (await c.callTool({
+        name: 'crm_create_contact',
+        arguments: { name: 'D', email: 'other@a.org' },
+      })) as { content: Array<{ text: string }> };
+      const cId = (JSON.parse(c2.content[0]!.text) as { id: string }).id;
+      const dId = (JSON.parse(d2.content[0]!.text) as { id: string }).id;
+      const dismissed = (await c.callTool({
+        name: 'crm_propose_merge_candidate',
+        arguments: {
+          contactAId: cId,
+          contactBId: dId,
+          confidence: 'medium',
+          evidence: {},
+          recommendedKeeperId: cId,
+        },
+      })) as { content: Array<{ text: string }> };
+      const dismissedId = (JSON.parse(dismissed.content[0]!.text) as { id: string }).id;
+      await c.callTool({
+        name: 'crm_dismiss_merge_proposal',
+        arguments: { id: dismissedId, reason: 'shared inbox' },
+      });
+    });
+
+    const a = await getBacklog(adminKeyA);
+    expect(a.crmMergeProposalsPending).toBe(1);
+
+    const b = await getBacklog(adminKeyB);
+    expect(b.crmMergeProposalsPending).toBe(0);
   });
 });

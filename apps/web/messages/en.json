@@ -72,6 +72,7 @@
     "dataExport": "Data export",
     "conversations": "Conversations",
     "activity": "Activity log",
+    "crmMergeProposals": "CRM merges",
     "skills": "Skills",
     "suggestions": "Suggestions",
     "partnerAccess": "Partner access"
@@ -97,7 +98,34 @@
       "conversationsLabel": "conversations needing handover",
       "openConversations": "Open conversations →",
       "kbCurationLabel": "KB curation candidates pending review",
-      "kbCurationHint": "Open your connected admin agent and ask it to do a curation pass — it'll use skill://kb/curation."
+      "kbCurationHint": "Open your connected admin agent and ask it to do a curation pass — it'll use skill://kb/curation.",
+      "crmMergeProposalsLabel": "CRM merge proposals pending review",
+      "openMergeProposals": "Review merges →"
+    },
+    "crmMergeProposals": {
+      "title": "CRM merge proposals",
+      "subtitle": "Pending duplicate-contact merges proposed by the CRM hygiene curator. Apply to atomically copy the recommended patch onto the keeper, reassign activities and deals, and archive the duplicate. Dismiss to record that the pair is not the same person.",
+      "loading": "Loading…",
+      "empty": "No pending merge proposals.",
+      "hint": "The CRM hygiene curator runs weekly and re-files proposals if it finds the same suspect pair again — dismissing one prevents that.",
+      "keeperLabel": "Keeper",
+      "duplicateLabel": "Duplicate",
+      "evidenceToggle": "Show evidence",
+      "patchToggle": "Show recommended patch",
+      "applyButton": "Apply merge",
+      "dismissButton": "Dismiss",
+      "dismissPrompt": "Reason for dismissing? (optional)",
+      "working": "Working…",
+      "proposedAt": "Proposed {date}",
+      "confidence": {
+        "high": "High confidence",
+        "medium": "Medium confidence"
+      },
+      "errors": {
+        "load": "Failed to load merge proposals.",
+        "apply": "Failed to apply merge.",
+        "dismiss": "Failed to dismiss merge."
+      }
     },
     "agents": {
       "title": "Connected agents",

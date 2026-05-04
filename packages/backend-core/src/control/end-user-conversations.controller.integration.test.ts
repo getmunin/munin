@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { buildApiKey, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
+import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../app.module.js';
@@ -62,7 +62,7 @@ const skipReason = TEST_URL
       .values({ orgId, externalId: 'eu-bob', name: 'Bob' })
       .returning();
 
-    aliceToken = randomToken(32);
+    aliceToken = buildApiKey('dlg');
     await db.insert(schema.tokens).values({
       orgId,
       type: 'delegated_end_user',
@@ -72,7 +72,7 @@ const skipReason = TEST_URL
       endUserId: alice!.id,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
-    bobToken = randomToken(32);
+    bobToken = buildApiKey('dlg');
     await db.insert(schema.tokens).values({
       orgId,
       type: 'delegated_end_user',

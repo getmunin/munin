@@ -190,6 +190,9 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   private async resolveToken(raw: string): Promise<ResolvedCredential | null> {
+    if (raw.startsWith('mn_dlg_')) {
+      return this.resolver.resolveBearerToken(raw);
+    }
     if (looksLikeApiKey(raw)) {
       let credential = await this.resolver.resolveApiKey(raw);
       if (!credential) {

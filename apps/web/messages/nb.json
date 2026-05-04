@@ -92,6 +92,13 @@
         "cta": "Administrer API-nøkler"
       }
     },
+    "agentStatus": {
+      "title": "Selvbetjeningsagent",
+      "connected": "{count, plural, one {1 agent tilkoblet} other {# agenter tilkoblet}} — sluttbrukermeldinger får automatiske svar.",
+      "notConnected": "Ingen selvbetjeningsagent tilkoblet. Sluttbrukermeldinger blir liggende til et menneske svarer fra dashbordet eller en agent-runner kobles til.",
+      "staleNotConnected": "Ingen selvbetjeningsagent tilkoblet, og det finnes ubesvarte sluttbrukermeldinger. Svar fra dashbordet eller koble til en agent-runner.",
+      "hint": "Koble til en agent: kjør @getmunin/agent-runtime mot dette Munin-instansens MCP, eller bruk skytjenesten."
+    },
     "needsAttention": {
       "title": "Trenger oppmerksomhet",
       "allClear": "Alt er ajour.",

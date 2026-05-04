@@ -4,6 +4,6 @@ import { RealtimeGateway } from './realtime.gateway.js';
 
 @Module({
   providers: [DbListenerService, RealtimeGateway],
-  exports: [DbListenerService],
+  exports: [DbListenerService, RealtimeGateway],
 })
 export class RealtimeModule {}

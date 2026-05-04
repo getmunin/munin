@@ -20,16 +20,32 @@ interface BacklogDto {
   crmMergeProposalsPending: number;
 }
 
+interface AgentStatusDto {
+  selfServiceAgentSubscriberCount: number;
+  lastInboundEndUserMessageAt: string | null;
+  lastAgentMessageAt: string | null;
+}
+
 export function DashboardPage() {
   const t = useTranslations('dashboard.overview');
   const tBacklog = useTranslations('dashboard.needsAttention');
+  const tAgent = useTranslations('dashboard.agentStatus');
 
   const [backlog, setBacklog] = useState<BacklogDto | null>(null);
+  const [agentStatus, setAgentStatus] = useState<AgentStatusDto | null>(null);
 
   useEffect(() => {
     void api<BacklogDto>('/api/overview/backlog')
       .then(setBacklog)
       .catch(() => setBacklog(null));
+    const loadStatus = () => {
+      void api<AgentStatusDto>('/api/overview/agent-status')
+        .then(setAgentStatus)
+        .catch(() => setAgentStatus(null));
+    };
+    loadStatus();
+    const id = setInterval(loadStatus, 15_000);
+    return () => clearInterval(id);
   }, []);
 
   const allClear =
@@ -111,6 +127,8 @@ export function DashboardPage() {
         </Card>
       )}
 
+      {agentStatus !== null && <AgentStatusCard status={agentStatus} t={tAgent} />}
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -145,5 +163,50 @@ export function DashboardPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+function AgentStatusCard({
+  status,
+  t,
+}: {
+  status: AgentStatusDto;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const connected = status.selfServiceAgentSubscriberCount > 0;
+  const lastInbound = status.lastInboundEndUserMessageAt
+    ? new Date(status.lastInboundEndUserMessageAt)
+    : null;
+  const lastAgent = status.lastAgentMessageAt ? new Date(status.lastAgentMessageAt) : null;
+  const inboundAheadOfAgent =
+    lastInbound !== null && (lastAgent === null || lastInbound > lastAgent);
+  const stale = !connected && inboundAheadOfAgent;
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          {connected ? (
+            <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400" />
+          ) : stale ? (
+            <AlertCircle className="size-5 text-amber-600 dark:text-amber-400" />
+          ) : (
+            <Bot className="size-5 text-muted-foreground" />
+          )}
+          <CardTitle>{t('title')}</CardTitle>
+        </div>
+        <CardDescription>
+          {connected
+            ? t('connected', { count: status.selfServiceAgentSubscriberCount })
+            : stale
+              ? t('staleNotConnected')
+              : t('notConnected')}
+        </CardDescription>
+      </CardHeader>
+      {!connected && (
+        <CardContent>
+          <p className="text-xs text-muted-foreground">{t('hint')}</p>
+        </CardContent>
+      )}
+    </Card>
   );
 }

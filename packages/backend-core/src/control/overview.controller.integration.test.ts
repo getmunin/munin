@@ -124,6 +124,21 @@ const skipReason = TEST_URL
     });
   });
 
+  it('agent-status reports zero subscribers when nothing is connected', async () => {
+    const res = await fetch(`${baseUrl}/api/overview/agent-status`, {
+      headers: { authorization: `Bearer ${adminKeyA}` },
+    });
+    expect(res.ok).toBe(true);
+    const body = (await res.json()) as {
+      selfServiceAgentSubscriberCount: number;
+      lastInboundEndUserMessageAt: string | null;
+      lastAgentMessageAt: string | null;
+    };
+    expect(body.selfServiceAgentSubscriberCount).toBe(0);
+    expect(body.lastInboundEndUserMessageAt).toBeNull();
+    expect(body.lastAgentMessageAt).toBeNull();
+  });
+
   it('counts conversations needing attention scoped to caller org', async () => {
     // Seed channels + conversations directly (service-role).
     const [chanA] = await db

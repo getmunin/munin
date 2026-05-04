@@ -283,6 +283,7 @@ export const apiKeys = pgTable(
     keyHash: text('key_hash').notNull().unique(),
     keyPrefix: varchar('key_prefix', { length: 16 }).notNull(),
     scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+    audiences: jsonb('audiences').$type<string[]>().notNull().default(['admin']),
     // Optional channel binding — set on widget keys (mn_widget_*) so the
     // widget controller can resolve channel from the key. NULL on admin /
     // agent / delegate / partner keys.

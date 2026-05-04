@@ -21,6 +21,7 @@ import { MembershipsController } from './memberships.controller.js';
 import { ConversationsController } from './conversations.controller.js';
 import { ActivityController } from './activity.controller.js';
 import { EndUserConversationsController } from './end-user-conversations.controller.js';
+import { OverviewController } from './overview.controller.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -51,6 +52,7 @@ import { EndUserConversationsController } from './end-user-conversations.control
     ConversationsController,
     ActivityController,
     EndUserConversationsController,
+    OverviewController,
   ],
   providers: [InvitationsService],
 })

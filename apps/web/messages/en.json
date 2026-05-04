@@ -91,6 +91,14 @@
         "cta": "Manage API keys"
       }
     },
+    "needsAttention": {
+      "title": "Needs attention",
+      "allClear": "All caught up.",
+      "conversationsLabel": "conversations needing handover",
+      "openConversations": "Open conversations →",
+      "kbCurationLabel": "KB curation candidates pending review",
+      "kbCurationHint": "Open your connected admin agent and ask it to do a curation pass — it'll use skill://kb/curation."
+    },
     "agents": {
       "title": "Connected agents",
       "subtitle": "Every OAuth-authorized agent and end-user token issued for this org. Revoke any active token to immediately invalidate further MCP calls.",

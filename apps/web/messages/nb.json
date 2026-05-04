@@ -72,6 +72,7 @@
     "dataExport": "Dataeksport",
     "conversations": "Samtaler",
     "activity": "Aktivitetslogg",
+    "crmMergeProposals": "CRM-sammenslåinger",
     "skills": "Ferdigheter",
     "suggestions": "Forslag",
     "partnerAccess": "Partnertilgang"
@@ -97,7 +98,34 @@
       "conversationsLabel": "samtaler som venter på overlevering",
       "openConversations": "Åpne samtaler →",
       "kbCurationLabel": "kunnskapsbase-kandidater venter på gjennomgang",
-      "kbCurationHint": "Åpne admin-agenten din og be den gjøre en kurateringsrunde – den bruker skill://kb/curation."
+      "kbCurationHint": "Åpne admin-agenten din og be den gjøre en kurateringsrunde – den bruker skill://kb/curation.",
+      "crmMergeProposalsLabel": "CRM-sammenslåinger venter på gjennomgang",
+      "openMergeProposals": "Gjennomgå sammenslåinger →"
+    },
+    "crmMergeProposals": {
+      "title": "CRM-sammenslåinger",
+      "subtitle": "Forslag om å slå sammen duplikate kontakter, foreslått av CRM-hygienekuratoren. \"Slå sammen\" kopierer den anbefalte oppdateringen til keeperen, overfører aktiviteter og avtaler, og arkiverer duplikatet — alt i én transaksjon. \"Avvis\" registrerer at paret ikke er samme person.",
+      "loading": "Laster …",
+      "empty": "Ingen ventende sammenslåingsforslag.",
+      "hint": "CRM-hygienekuratoren kjører ukentlig og foreslår samme par på nytt hvis det fremdeles ser duplikat ut — å avvise hindrer det.",
+      "keeperLabel": "Keeper",
+      "duplicateLabel": "Duplikat",
+      "evidenceToggle": "Vis grunnlag",
+      "patchToggle": "Vis foreslått oppdatering",
+      "applyButton": "Slå sammen",
+      "dismissButton": "Avvis",
+      "dismissPrompt": "Begrunnelse for avvisning? (valgfritt)",
+      "working": "Arbeider …",
+      "proposedAt": "Foreslått {date}",
+      "confidence": {
+        "high": "Høy tiltro",
+        "medium": "Middels tiltro"
+      },
+      "errors": {
+        "load": "Klarte ikke laste sammenslåingsforslag.",
+        "apply": "Klarte ikke slå sammen.",
+        "dismiss": "Klarte ikke avvise."
+      }
     },
     "agents": {
       "title": "Tilkoblede agenter",

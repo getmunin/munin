@@ -88,6 +88,7 @@ const skipReason = TEST_URL
   async function getBacklog(adminKey: string): Promise<{
     conversationsNeedingAttention: number;
     kbCurationPending: number;
+    crmMergeProposalsPending: number;
   }> {
     const res = await fetch(`${baseUrl}/api/overview/backlog`, {
       headers: { authorization: `Bearer ${adminKey}` },
@@ -96,6 +97,7 @@ const skipReason = TEST_URL
     return (await res.json()) as {
       conversationsNeedingAttention: number;
       kbCurationPending: number;
+      crmMergeProposalsPending: number;
     };
   }
 

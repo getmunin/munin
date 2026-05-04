@@ -68,6 +68,7 @@ function buildRest(overrides: Partial<MuninRestClient> = {}): MuninRestClient {
   return {
     getConversation: vi.fn(() => Promise.resolve(buildConversation())),
     postAgentMessage: vi.fn(() => Promise.resolve()),
+    postInternalNote: vi.fn(() => Promise.resolve()),
     mintDelegatedToken: vi.fn(() =>
       Promise.resolve({
         accessToken: 'mn_eu_test',
@@ -405,6 +406,6 @@ describe('createConversationHandler', () => {
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
 
-    expect(captured[0]).toBe('JUST_BASE');
+    expect(captured[0]).toMatch(/^JUST_BASE\n\n\[Conversation context\]/);
   });
 });

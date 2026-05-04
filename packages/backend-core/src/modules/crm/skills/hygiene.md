@@ -114,7 +114,7 @@ After the curator's pass, the operator (human or admin agent acting on their aut
 
 For each pending proposal, the operator either:
 
-- **Applies it:** `crm_apply_merge_proposal({ id })`. Atomically copies `recommendedPatch` onto the keeper, archives the duplicate (tag `dedup-archived-YYYY-MM` + `customFields.mergedInto: <keeperId>` + `doNotContact: true`), marks the proposal `applied`. Activities and deals stay on whichever contactId they were originally logged under — see "Future work" below.
+- **Applies it:** `crm_apply_merge_proposal({ id })`. In a single transaction: copies `recommendedPatch` onto the keeper; reassigns the duplicate's `crm_activities`, `crm_deals` (primary contact), and `crm_relationships` (contact-typed `from_id` / `to_id`) onto the keeper; transfers the duplicate's `endUserId` to the keeper if the keeper had none; archives the duplicate (`dedup-archived-YYYY-MM` tag + `customFields.mergedInto: <keeperId>` + `doNotContact: true`, `endUserId` cleared); marks the proposal `applied`.
 - **Dismisses it:** `crm_dismiss_merge_proposal({ id, reason })`. Records the rejection so the next curator pass skips this pair.
 
 The dashboard "Needs attention" backlog card surfaces the count of pending proposals via `/api/overview/backlog`.
@@ -129,9 +129,7 @@ The dashboard "Needs attention" backlog card surfaces the count of pending propo
 
 ## Future work
 
-- Atomic activity / deal / endUser-link reassignment in `crm_apply_merge_proposal`. Today the apply step archives the duplicate but leaves activities pointing at it; the keeper's history is incomplete until that's fixed. v2 adds a foreign-key sweep inside the same transaction.
 - Auto-apply for high-confidence proposals where the keeper is unambiguous and `recommendedPatch` is empty (a pure consolidation with no field choices). Gated behind an explicit org-level toggle.
-- Proposal-event webhooks (`crm.merge_proposal.proposed/applied/dismissed`) so the dashboard review queue updates without polling.
 
 ## Related
 

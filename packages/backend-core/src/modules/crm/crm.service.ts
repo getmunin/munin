@@ -1,7 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
-import { getCurrentContext } from '@getmunin/core';
+import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 
 export class CrmInvalidError extends Error {
   readonly code = 'crm_invalid';
@@ -137,6 +137,10 @@ export interface MergeProposalDto {
 
 @Injectable()
 export class CrmService {
+  constructor(
+    @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
+  ) {}
+
   // ─── Contacts ───────────────────────────────────────────────────────────
 
   async listContacts(input: {
@@ -656,7 +660,9 @@ export class CrmService {
         })
         .where(eq(schema.crmMergeProposals.id, existingPending[0].id))
         .returning();
-      return toMergeProposalDto(updated!, contactA, contactB);
+      const dto = toMergeProposalDto(updated!, contactA, contactB);
+      await this.emitMergeEvent('crm.merge_proposal.proposed', dto);
+      return dto;
     }
 
     const [row] = await ctx.db
@@ -674,7 +680,9 @@ export class CrmService {
         proposedByActorId: actor.id,
       })
       .returning();
-    return toMergeProposalDto(row!, contactA, contactB);
+    const dto = toMergeProposalDto(row!, contactA, contactB);
+    await this.emitMergeEvent('crm.merge_proposal.proposed', dto);
+    return dto;
   }
 
   async listMergeProposals(input: {
@@ -762,12 +770,44 @@ export class CrmService {
     for (const [k, v] of Object.entries(patch)) {
       if (v !== undefined) keeperUpdates[k] = v;
     }
+    if (!keeperRow.endUserId && duplicateRow.endUserId) {
+      keeperUpdates['endUserId'] = duplicateRow.endUserId;
+    }
     if (Object.keys(keeperUpdates).length > 1) {
       await ctx.db
         .update(schema.crmContacts)
         .set(keeperUpdates)
         .where(eq(schema.crmContacts.id, keeperId));
     }
+
+    await ctx.db
+      .update(schema.crmActivities)
+      .set({ contactId: keeperId })
+      .where(eq(schema.crmActivities.contactId, duplicateId));
+
+    await ctx.db
+      .update(schema.crmDeals)
+      .set({ primaryContactId: keeperId, updatedAt: new Date() })
+      .where(eq(schema.crmDeals.primaryContactId, duplicateId));
+
+    await ctx.db
+      .update(schema.crmRelationships)
+      .set({ fromId: keeperId })
+      .where(
+        and(
+          eq(schema.crmRelationships.fromType, 'contact'),
+          eq(schema.crmRelationships.fromId, duplicateId),
+        ),
+      );
+    await ctx.db
+      .update(schema.crmRelationships)
+      .set({ toId: keeperId })
+      .where(
+        and(
+          eq(schema.crmRelationships.toType, 'contact'),
+          eq(schema.crmRelationships.toId, duplicateId),
+        ),
+      );
 
     const archiveTag = `dedup-archived-${archiveMonth(new Date())}`;
     const dupTags = duplicateRow.tags.includes(archiveTag)
@@ -778,14 +818,18 @@ export class CrmService {
       mergedInto: keeperId,
       mergedAt: new Date().toISOString(),
     };
+    const dupUpdates: Record<string, unknown> = {
+      tags: dupTags,
+      customFields: dupCustomFields,
+      doNotContact: true,
+      updatedAt: new Date(),
+    };
+    if (duplicateRow.endUserId) {
+      dupUpdates['endUserId'] = null;
+    }
     await ctx.db
       .update(schema.crmContacts)
-      .set({
-        tags: dupTags,
-        customFields: dupCustomFields,
-        doNotContact: true,
-        updatedAt: new Date(),
-      })
+      .set(dupUpdates)
       .where(eq(schema.crmContacts.id, duplicateId));
 
     const [updatedProposal] = await ctx.db
@@ -806,7 +850,9 @@ export class CrmService {
       .where(or(eq(schema.crmContacts.id, keeperId), eq(schema.crmContacts.id, duplicateId)));
     const a = refreshed.find((r) => r.id === proposal.contactAId);
     const b = refreshed.find((r) => r.id === proposal.contactBId);
-    return toMergeProposalDto(updatedProposal!, a!, b!);
+    const dto = toMergeProposalDto(updatedProposal!, a!, b!);
+    await this.emitMergeEvent('crm.merge_proposal.applied', dto);
+    return dto;
   }
 
   async dismissMergeProposal(input: { id: string; reason?: string }): Promise<MergeProposalDto> {
@@ -843,7 +889,29 @@ export class CrmService {
     if (!a || !b) {
       throw new CrmInvalidError(`merge proposal ${input.id} references missing contact`);
     }
-    return toMergeProposalDto(updated!, a, b);
+    const dto = toMergeProposalDto(updated!, a, b);
+    await this.emitMergeEvent('crm.merge_proposal.dismissed', dto);
+    return dto;
+  }
+
+  private async emitMergeEvent(
+    type: 'crm.merge_proposal.proposed' | 'crm.merge_proposal.applied' | 'crm.merge_proposal.dismissed',
+    proposal: MergeProposalDto,
+  ): Promise<void> {
+    await this.webhooks.emit({
+      type,
+      payload: {
+        id: proposal.id,
+        contactAId: proposal.contactA.id,
+        contactBId: proposal.contactB.id,
+        recommendedKeeperId: proposal.recommendedKeeperId,
+        confidence: proposal.confidence,
+        status: proposal.status,
+        decidedByActorType: proposal.decidedByActorType,
+        decidedByActorId: proposal.decidedByActorId,
+        decidedAt: proposal.decidedAt,
+      },
+    });
   }
 }
 

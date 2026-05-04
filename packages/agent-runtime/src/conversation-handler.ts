@@ -1,3 +1,4 @@
+import { auditReply } from './audit.js';
 import { runAgent } from './runtime.js';
 import type {
   ConversationMessage,
@@ -14,6 +15,8 @@ export interface HandlerConfig {
   maxToolIterations: number;
   maxHistoryChars: number;
   debounceMs: number;
+  auditEnabled?: boolean;
+  auditModel?: string;
 }
 
 const MAX_RETRIES = 3;
@@ -148,6 +151,13 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         });
 
         if (reply.body.trim().length > 0) {
+          await maybeForceHandover({
+            conversationId,
+            reply,
+            history,
+            mcp,
+            log,
+          });
           await deps.rest.postAgentMessage(conversationId, reply.body);
           log.info(
             `${conversationId} replied (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,
@@ -183,6 +193,52 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         `${conversationId} handover request failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     });
+  }
+
+  async function maybeForceHandover(args: {
+    conversationId: string;
+    reply: { body: string; toolCalls: { name: string }[] };
+    history: ConversationMessage[];
+    mcp: McpToolHandle;
+    log: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
+  }): Promise<void> {
+    if (deps.config.auditEnabled === false) return;
+    if (
+      args.reply.toolCalls.some((t) => t.name === HANDOVER_TOOL_NAME)
+    ) {
+      return;
+    }
+    const lastUser = [...args.history].reverse().find(
+      (m) => m.authorType === 'user' || m.authorType === 'end_user',
+    );
+    if (!lastUser) return;
+    const verdict = await auditReply({
+      provider: {
+        baseUrl: deps.config.providerBaseUrl,
+        apiKey: deps.config.providerApiKey,
+      },
+      model: deps.config.auditModel ?? deps.config.model,
+      question: lastUser.body,
+      reply: args.reply.body,
+      toolNames: args.reply.toolCalls.map((t) => t.name),
+      providerImpl: deps.provider,
+    });
+    if (!verdict.handover) return;
+    args.log.warn(
+      `${args.conversationId} audit force-handover (${verdict.reason || 'no reason'})`,
+    );
+    try {
+      await args.mcp.callTool(HANDOVER_TOOL_NAME, {
+        conversationId: args.conversationId,
+        reason: verdict.reason || 'audit detected deferral without handover call',
+      });
+    } catch (err) {
+      args.log.error(
+        `${args.conversationId} audit handover call failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   async function requestHandover(conversationId: string, endUserId: string): Promise<void> {

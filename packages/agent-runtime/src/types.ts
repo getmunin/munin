@@ -19,6 +19,7 @@ export interface AgentConfig {
   maxTokens?: number;
   temperature?: number;
   maxHistoryChars?: number;
+  responseFormat?: 'json_object';
 }
 
 export interface McpTool {

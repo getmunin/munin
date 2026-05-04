@@ -19,6 +19,7 @@ export {
   type IncomingMessage,
   type OpenedMcp,
 } from './conversation-handler.js';
+export { auditReply, type AuditReplyArgs, type AuditVerdict } from './audit.js';
 export {
   createMuninRestClient,
   type ConversationDetail,

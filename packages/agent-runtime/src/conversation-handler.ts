@@ -123,9 +123,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const channelDescriptor = detail.channelType
       ? deps.prompts.channel(detail.channelType)
       : '';
+    const conversationContext = `\n\n[Conversation context]\nYou are replying in conversationId: ${conversationId}. Pass this exact value to any tool that asks for \`conversationId\` — never substitute placeholders like "current" or "this".`;
     const systemPrompt = channelDescriptor
-      ? `${baseSystem}\n\n${channelDescriptor}`
-      : baseSystem;
+      ? `${baseSystem}\n\n${channelDescriptor}${conversationContext}`
+      : `${baseSystem}${conversationContext}`;
 
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
@@ -151,17 +152,36 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         });
 
         if (reply.body.trim().length > 0) {
-          await runAuditPass({
+          const llmHandoverCall = reply.toolCalls.find((t) => t.name === HANDOVER_TOOL_NAME);
+          const llmHandoverReason =
+            (llmHandoverCall?.args as { reason?: string } | undefined)?.reason;
+          const auditHandoverReason = await runAuditPass({
             conversationId,
             reply,
             history,
             mcp,
             log,
           });
-          await deps.rest.postAgentMessage(conversationId, reply.body);
+          const handoverReason = llmHandoverReason ?? auditHandoverReason;
+          const handoverThisTurn = handoverReason !== null && handoverReason !== undefined;
+          await deps.rest.postAgentMessage(conversationId, reply.body, {
+            preserveAttention: handoverThisTurn,
+          });
           log.info(
             `${conversationId} replied (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,
           );
+          if (handoverThisTurn) {
+            const noteBody = handoverReason
+              ? `Agent requested handover: ${handoverReason}`
+              : 'Agent requested handover.';
+            await deps.rest
+              .postInternalNote(conversationId, noteBody)
+              .catch((err) =>
+                log.warn(
+                  `${conversationId} failed to post handover note: ${err instanceof Error ? err.message : String(err)}`,
+                ),
+              );
+          }
           return;
         }
         log.warn(`${conversationId} produced empty body (finishReason=${reply.finishReason})`);
@@ -201,12 +221,12 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     history: ConversationMessage[];
     mcp: McpToolHandle;
     log: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
-  }): Promise<void> {
-    if (deps.config.auditEnabled === false) return;
+  }): Promise<string | null> {
+    if (deps.config.auditEnabled === false) return null;
     const lastUser = [...args.history].reverse().find(
       (m) => m.authorType === 'user' || m.authorType === 'end_user',
     );
-    if (!lastUser) return;
+    if (!lastUser) return null;
 
     const topics = await deps.rest
       .listTopics()
@@ -229,10 +249,15 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const agentCalledHandover = args.reply.toolCalls.some(
       (t) => t.name === HANDOVER_TOOL_NAME,
     );
+    let dispatchedHandoverReason: string | null = null;
     for (const action of verdict.actions) {
       if (action.type === 'request_handover' && agentCalledHandover) continue;
       await dispatchAuditAction(args.conversationId, action, args.mcp, topics, args.log);
+      if (action.type === 'request_handover') {
+        dispatchedHandoverReason = action.reason ?? '';
+      }
     }
+    return dispatchedHandoverReason;
   }
 
   async function dispatchAuditAction(
@@ -291,7 +316,13 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const accessToken = await getDelegatedToken(endUserId);
     const mcp = await deps.openMcp({ delegatedToken: accessToken });
     try {
-      await mcp.callTool(HANDOVER_TOOL_NAME, { conversationId });
+      await mcp.callTool(HANDOVER_TOOL_NAME, {
+        conversationId,
+        reason: 'agent retries exhausted',
+      });
+      await deps.rest
+        .postInternalNote(conversationId, 'Agent requested handover: agent retries exhausted')
+        .catch(() => undefined);
     } finally {
       await mcp.close().catch(() => undefined);
     }

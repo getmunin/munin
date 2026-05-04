@@ -81,13 +81,14 @@ export async function auditConversation(args: AuditConversationArgs): Promise<Au
   ];
 
   let response;
+  const wantsJsonObject = !/anthropic\.com/i.test(args.provider.baseUrl);
   try {
     response = await provider({
       config: {
         provider: args.provider,
         model: args.model,
         systemPrompt,
-        responseFormat: 'json_object',
+        responseFormat: wantsJsonObject ? 'json_object' : undefined,
       },
       messages,
       tools: [],

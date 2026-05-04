@@ -36,6 +36,7 @@ const ReplyBody = z.object({
   body: z.string().min(1).max(50_000),
   internal: z.boolean().optional(),
   inReplyToId: z.string().optional(),
+  preserveAttention: z.boolean().optional(),
 });
 
 const AssignBody = z.object({
@@ -141,6 +142,7 @@ export class ConversationsController {
         body: parsed.data.body,
         internal: parsed.data.internal,
         inReplyToId: parsed.data.inReplyToId,
+        preserveAttention: parsed.data.preserveAttention,
         authorType: actor.type === 'user' ? 'user' : 'agent',
         authorId: actor.id,
       }),

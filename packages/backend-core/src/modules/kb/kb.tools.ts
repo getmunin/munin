@@ -69,6 +69,20 @@ const SearchInput = z.object({
   limit: z.number().int().positive().max(50).optional(),
 });
 
+const ProposeCurationCandidateInput = z.object({
+  subject: z.string().min(1).max(300),
+  draftBody: z.string().min(1),
+  sourceConversationId: z.string().min(1).max(64).optional(),
+  sourceMessageIds: z.array(z.string().min(1).max(64)).max(32).optional(),
+  proposedTargetSpaceSlug: z.string().min(1).max(64).optional(),
+});
+
+const PublishCurationCandidateInput = z.object({
+  candidateDocumentId: z.string().min(1),
+  targetSpaceSlug: z.string().min(1).max(64),
+  audiences: AudiencesSchema.optional(),
+});
+
 const EmptyInput = z.object({});
 
 @Injectable()
@@ -224,6 +238,36 @@ export class KbAdminTools {
   })
   listVersions(args: z.infer<typeof ListVersionsInput>) {
     return this.kb.listVersions(args.documentId);
+  }
+
+  @McpTool({
+    name: 'kb_propose_curation_candidate',
+    title: 'Propose KB curation candidate',
+    description:
+      "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/curation` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`.",
+    audiences: ['admin'],
+    scopes: ['kb:write'],
+    input: ProposeCurationCandidateInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  proposeCurationCandidate(args: z.infer<typeof ProposeCurationCandidateInput>) {
+    return this.kb.proposeCurationCandidate(args);
+  }
+
+  @McpTool({
+    name: 'kb_publish_curation_candidate',
+    title: 'Publish KB curation candidate',
+    description:
+      "Promote a reviewed curation candidate into a target KB space. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the `curation`/`candidate` tags, and removes the candidate from the inbox. The target space must already exist.",
+    audiences: ['admin'],
+    scopes: ['kb:write'],
+    input: PublishCurationCandidateInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  publishCurationCandidate(args: z.infer<typeof PublishCurationCandidateInput>) {
+    return this.kb.publishCurationCandidate(args);
   }
 
   @McpTool({

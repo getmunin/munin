@@ -21,11 +21,23 @@ export interface DelegatedToken {
   expiresAt: string;
 }
 
+export type ConversationStatus = 'open' | 'snoozed' | 'closed' | 'spam';
+
+export interface ConversationTopic {
+  id: string;
+  slug: string;
+  name: string;
+  color?: string | null;
+}
+
 export interface MuninRestClient {
   getConversation(id: string): Promise<ConversationDetail>;
   postAgentMessage(conversationId: string, body: string): Promise<void>;
   mintDelegatedToken(endUserId: string, ttlSeconds?: number): Promise<DelegatedToken>;
   toRuntimeHistory(detail: ConversationDetail): ConversationMessage[];
+  changeStatus(conversationId: string, status: ConversationStatus, snoozeUntil?: string): Promise<void>;
+  setTopic(conversationId: string, topicId: string | null): Promise<void>;
+  listTopics(): Promise<ConversationTopic[]>;
 }
 
 export interface CreateMuninRestClientOptions {
@@ -83,6 +95,27 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
           body: m.body,
           createdAt: m.createdAt,
         }));
+    },
+    async changeStatus(
+      conversationId: string,
+      status: ConversationStatus,
+      snoozeUntil?: string,
+    ): Promise<void> {
+      const body: Record<string, unknown> = { status };
+      if (snoozeUntil) body.snoozeUntil = snoozeUntil;
+      await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/status`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    },
+    async setTopic(conversationId: string, topicId: string | null): Promise<void> {
+      await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/topic`, {
+        method: 'POST',
+        body: JSON.stringify({ topicId }),
+      });
+    },
+    async listTopics(): Promise<ConversationTopic[]> {
+      return call<ConversationTopic[]>(`/api/conversations/topics`);
     },
   };
 }

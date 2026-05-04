@@ -12,8 +12,17 @@
 -- block on the unique (org_id, display_id) index and retry at the
 -- application layer. Conversations service catches the conflict and retries.
 
+-- SECURITY DEFINER + the org_id arg means the per-org sequence is computed
+-- against ALL conversations in the org, not just rows visible to the caller's
+-- RLS context. End-user-delegated calls would otherwise see only their own
+-- conversations and re-pick display_id values already taken by other
+-- end-users — colliding with conv_conversations_display_uq. Postgres aborts
+-- the transaction after the first conflict, so the application-layer retry
+-- can't recover. SECURITY DEFINER keeps the unique-sequence invariant correct
+-- regardless of the caller's tenancy context.
 CREATE OR REPLACE FUNCTION conv_next_display_id(p_org_id text) RETURNS integer
-  LANGUAGE sql VOLATILE
+  LANGUAGE sql VOLATILE SECURITY DEFINER
+  SET search_path = pg_catalog, public
   AS $$
     SELECT COALESCE(MAX(display_id), 0) + 1
     FROM conv_conversations

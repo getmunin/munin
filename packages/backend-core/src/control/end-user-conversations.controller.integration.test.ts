@@ -209,6 +209,25 @@ const skipReason = TEST_URL
     expect(bobReply.status).toBe(404);
   }, 30_000);
 
+  it('a second end-user can start a conversation after the first (display_id sequence is org-wide, not RLS-filtered)', async () => {
+    const aliceStart = await rest<{ id: string; displayId: number }>(
+      aliceToken,
+      'POST',
+      '/api/end-user/conversations',
+      { body: 'first conversation' },
+    );
+    expect(aliceStart.status).toBe(201);
+
+    const bobStart = await rest<{ id: string; displayId: number }>(
+      bobToken,
+      'POST',
+      '/api/end-user/conversations',
+      { body: 'second conversation, different end-user' },
+    );
+    expect(bobStart.status).toBe(201);
+    expect(bobStart.body.displayId).toBeGreaterThan(aliceStart.body.displayId);
+  }, 30_000);
+
   it('POST /messages always stores authorType=end_user, ignoring any client field', async () => {
     const start = await rest<{ id: string }>(
       aliceToken,

@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { McpTool, McpToolHandle, McpToolResult } from '@getmunin/agent-runtime';
+import type { McpTool, McpToolHandle, McpToolResult } from './types.js';
 
 export interface OpenMcpClientOptions {
   baseUrl: string;

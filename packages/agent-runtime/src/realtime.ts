@@ -23,7 +23,7 @@ export interface RealtimeClientOptions {
   logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void };
 }
 
-interface RealtimeClient {
+export interface RealtimeClient {
   start(): void;
   stop(): Promise<void>;
 }

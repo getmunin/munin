@@ -1,9 +1,11 @@
+import {
+  createConversationHandler,
+  createMuninRestClient,
+  createPromptResolver,
+  createRealtimeClient,
+  openMcpClient,
+} from '@getmunin/agent-runtime';
 import { loadConfigFromEnv } from './config.js';
-import { createConversationHandler } from './conversation-handler.js';
-import { createMuninRestClient } from './munin-rest.js';
-import { openMcpClient } from './mcp-client.js';
-import { createPromptResolver } from '@getmunin/agent-runtime';
-import { createRealtimeClient } from './realtime.js';
 
 async function main(): Promise<void> {
   const config = loadConfigFromEnv();

@@ -11,6 +11,33 @@ export {
   type CreatePromptResolverOptions,
   type PromptResolver,
 } from './prompt-resolver.js';
+export {
+  createConversationHandler,
+  type ConversationHandler,
+  type ConversationHandlerDeps,
+  type HandlerConfig,
+  type IncomingMessage,
+  type OpenedMcp,
+} from './conversation-handler.js';
+export {
+  createMuninRestClient,
+  type ConversationDetail,
+  type CreateMuninRestClientOptions,
+  type DelegatedToken,
+  type MuninRestClient,
+} from './munin-rest.js';
+export {
+  openMcpClient,
+  type OpenMcpClientOptions,
+  type OpenedMcpClient,
+} from './mcp-client.js';
+export {
+  createRealtimeClient,
+  type KbDocumentChangedEvent,
+  type MessageReceivedEvent,
+  type RealtimeClient,
+  type RealtimeClientOptions,
+} from './realtime.js';
 export type {
   AgentConfig,
   AgentReply,

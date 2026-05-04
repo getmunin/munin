@@ -57,6 +57,13 @@
       "when": 1777681300000,
       "tag": "0007_crm_merge_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777681400000,
+      "tag": "0008_api_keys_audiences",
+      "breakpoints": true
     }
   ]
 }

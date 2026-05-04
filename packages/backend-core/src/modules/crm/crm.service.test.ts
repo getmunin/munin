@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
+import { ActorIdentity, withContext, WebhookDispatcher, type RequestContext } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -38,7 +38,7 @@ const skipReason = TEST_URL
     endUserId = eu!.id;
     actor = new ActorIdentity('admin_agent', 'agt_crm_test', orgId, ['*'], ['admin']);
 
-    svc = new CrmService();
+    svc = new CrmService(new WebhookDispatcher());
   });
 
   afterAll(async () => {
@@ -497,6 +497,132 @@ const skipReason = TEST_URL
       expect(refreshedDup.tags.some((t) => t.startsWith('dedup-archived-'))).toBe(true);
       expect(refreshedDup.customFields.mergedInto).toBe(keeper.id);
       expect(refreshedDup.doNotContact).toBe(true);
+    });
+
+    it('applyMergeProposal reassigns activities, deals, and contact-typed relationships from duplicate to keeper', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
+      const dup = await run(() => svc.createContact({ name: 'Dup', email: 'k@y' }));
+      const other = await run(() => svc.createContact({ name: 'Other', email: 'o@y' }));
+
+      await run(() =>
+        svc.logActivity({ type: 'note', subject: 'on dup', contactId: dup.id }),
+      );
+      const pipeline = await run(() =>
+        svc.createPipeline({ name: 'p', slug: 'p1', stages: [{ name: 's' }] }),
+      );
+      const deal = await run(() =>
+        svc.createDeal({ name: 'd', pipelineId: pipeline.id, primaryContactId: dup.id }),
+      );
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.insert(schema.crmRelationships).values({
+        orgId,
+        fromType: 'contact',
+        fromId: dup.id,
+        toType: 'contact',
+        toId: other.id,
+        role: 'introduced_by',
+      });
+      await db.insert(schema.crmRelationships).values({
+        orgId,
+        fromType: 'contact',
+        fromId: other.id,
+        toType: 'contact',
+        toId: dup.id,
+        role: 'reports_to',
+      });
+
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: keeper.id,
+        }),
+      );
+      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+
+      const keeperActivities = await run(() =>
+        svc.listActivities({ contactId: keeper.id, limit: 50 }),
+      );
+      expect(keeperActivities.find((a) => a.subject === 'on dup')).toBeDefined();
+      const dupActivities = await run(() =>
+        svc.listActivities({ contactId: dup.id, limit: 50 }),
+      );
+      expect(dupActivities).toHaveLength(0);
+
+      const refreshedDeals = await db
+        .select()
+        .from(schema.crmDeals)
+        .where(eq(schema.crmDeals.id, deal.id));
+      expect(refreshedDeals[0]?.primaryContactId).toBe(keeper.id);
+
+      const rels = await db
+        .select()
+        .from(schema.crmRelationships)
+        .where(eq(schema.crmRelationships.orgId, orgId));
+      const rewritten = rels.filter(
+        (r) =>
+          (r.fromType === 'contact' && r.fromId === keeper.id) ||
+          (r.toType === 'contact' && r.toId === keeper.id),
+      );
+      expect(rewritten.length).toBe(2);
+      const stillOnDup = rels.filter(
+        (r) =>
+          (r.fromType === 'contact' && r.fromId === dup.id) ||
+          (r.toType === 'contact' && r.toId === dup.id),
+      );
+      expect(stillOnDup).toHaveLength(0);
+    });
+
+    it('applyMergeProposal transfers endUserId to keeper when keeper has none and clears duplicate', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
+      const dup = await run(() =>
+        svc.createContact({ name: 'Dup', email: 'k@y', endUserId }),
+      );
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: keeper.id,
+        }),
+      );
+      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      const refreshedKeeper = await run(() => svc.getContact(keeper.id));
+      const refreshedDup = await run(() => svc.getContact(dup.id));
+      expect(refreshedKeeper.endUserId).toBe(endUserId);
+      expect(refreshedDup.endUserId).toBeNull();
+    });
+
+    it('applyMergeProposal preserves keeper endUserId when both contacts have one (clears duplicate only)', async () => {
+      const otherEu = await db
+        .insert(schema.endUsers)
+        .values({ orgId, externalId: `eu-other-${Date.now()}`, name: 'Other EU' })
+        .returning();
+      const otherEuId = otherEu[0]!.id;
+      const keeper = await run(() =>
+        svc.createContact({ name: 'Keeper', email: 'k@y', endUserId }),
+      );
+      const dup = await run(() =>
+        svc.createContact({ name: 'Dup', email: 'k@y', endUserId: otherEuId }),
+      );
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: keeper.id,
+        }),
+      );
+      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      const refreshedKeeper = await run(() => svc.getContact(keeper.id));
+      const refreshedDup = await run(() => svc.getContact(dup.id));
+      expect(refreshedKeeper.endUserId).toBe(endUserId);
+      expect(refreshedDup.endUserId).toBeNull();
     });
 
     it('applyMergeProposal rejects non-pending proposals', async () => {

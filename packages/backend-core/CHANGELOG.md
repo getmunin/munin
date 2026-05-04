@@ -1,5 +1,16 @@
 # @getmunin/backend-core
 
+## 0.16.1
+
+### Patch Changes
+
+- Updated dependencies [cd2ba29]
+  - @getmunin/db@0.16.1
+  - @getmunin/bootstrap@0.16.1
+  - @getmunin/core@0.16.1
+  - @getmunin/mcp-toolkit@0.16.1
+  - @getmunin/types@0.16.1
+
 ## 0.16.0
 
 ### Minor Changes

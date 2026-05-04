@@ -1,5 +1,36 @@
 # @getmunin/backend-core
 
+## 0.13.0
+
+### Minor Changes
+
+- a61dd11: Add a "Needs attention" backlog card to the dashboard overview, plus a
+  small `/api/overview/backlog` aggregator that returns counts of items
+  across modules waiting on human or admin-agent attention.
+
+  The card is a _signal_, not a CRUD surface — it tells the operator
+  what to attend to (open conversations needing handover, KB curation
+  candidates pending review) but the actual work still happens through
+  the connected admin agent. This keeps the dashboard on-thesis ("the
+  agent is the UI") while still giving operators a single place to see
+  the backlog grow and shrink.
+
+  Today the card surfaces:
+  - conversations with `needsHumanAttention = true`
+  - KB documents in the `kb-curation-inbox` space tagged `candidate`
+
+  Future modules (CRM dirty-data, CMS stale-content, …) can extend the
+  endpoint shape without controller refactoring — it returns a flat
+  `{ key: count }` object.
+
+### Patch Changes
+
+- @getmunin/core@0.13.0
+- @getmunin/db@0.13.0
+- @getmunin/types@0.13.0
+- @getmunin/mcp-toolkit@0.13.0
+- @getmunin/bootstrap@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes

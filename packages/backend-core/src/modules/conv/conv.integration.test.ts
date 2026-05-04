@@ -5,7 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { buildApiKey, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
+import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module.js';
@@ -64,7 +64,7 @@ const skipReason = TEST_URL
       .values({ orgId, externalId: 'eu-2', name: 'Bob' })
       .returning();
 
-    endUserToken = randomToken(32);
+    endUserToken = buildApiKey('dlg');
     await db.insert(schema.tokens).values({
       orgId,
       type: 'delegated_end_user',
@@ -74,7 +74,7 @@ const skipReason = TEST_URL
       endUserId: eu1!.id,
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
-    otherEndUserToken = randomToken(32);
+    otherEndUserToken = buildApiKey('dlg');
     await db.insert(schema.tokens).values({
       orgId,
       type: 'delegated_end_user',

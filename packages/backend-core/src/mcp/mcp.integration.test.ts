@@ -5,7 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { buildApiKey, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
+import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../app.module.js';
@@ -60,7 +60,7 @@ const skipReason = TEST_URL
       .insert(schema.endUsers)
       .values({ orgId, externalId: 'eu-1', name: 'EU One' })
       .returning();
-    endUserToken = randomToken(32);
+    endUserToken = buildApiKey('dlg');
     await db.insert(schema.tokens).values({
       orgId,
       type: 'delegated_end_user',
@@ -348,7 +348,7 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('expired bearer token is rejected at connect (401)', async () => {
-    const expired = randomToken(32);
+    const expired = buildApiKey('dlg');
     await db.insert(schema.tokens).values({
       orgId,
       type: 'delegated_end_user',
@@ -366,7 +366,7 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('revoked bearer token is rejected at connect (401)', async () => {
-    const revoked = randomToken(32);
+    const revoked = buildApiKey('dlg');
     await db.insert(schema.tokens).values({
       orgId,
       type: 'delegated_end_user',

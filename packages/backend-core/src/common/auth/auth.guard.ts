@@ -66,7 +66,9 @@ export class AuthGuard implements CanActivate {
 
     if (value && value.toLowerCase().startsWith('bearer ')) {
       const raw = value.slice('Bearer '.length).trim();
-      if (looksLikeApiKey(raw)) {
+      if (raw.startsWith('mn_dlg_')) {
+        credential = await this.resolver.resolveBearerToken(raw);
+      } else if (looksLikeApiKey(raw)) {
         credential = await this.resolver.resolveApiKey(raw);
         if (!credential) {
           for (const extra of this.additionalResolvers) {

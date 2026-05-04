@@ -1,4 +1,4 @@
-import { auditReply } from './audit.js';
+import { auditConversation, type AuditAction, type AuditTopic } from './audit.js';
 import { runAgent } from './runtime.js';
 import type {
   ConversationMessage,
@@ -151,7 +151,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         });
 
         if (reply.body.trim().length > 0) {
-          await maybeForceHandover({
+          await runAuditPass({
             conversationId,
             reply,
             history,
@@ -195,7 +195,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     });
   }
 
-  async function maybeForceHandover(args: {
+  async function runAuditPass(args: {
     conversationId: string;
     reply: { body: string; toolCalls: { name: string }[] };
     history: ConversationMessage[];
@@ -203,16 +203,17 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     log: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
   }): Promise<void> {
     if (deps.config.auditEnabled === false) return;
-    if (
-      args.reply.toolCalls.some((t) => t.name === HANDOVER_TOOL_NAME)
-    ) {
-      return;
-    }
     const lastUser = [...args.history].reverse().find(
       (m) => m.authorType === 'user' || m.authorType === 'end_user',
     );
     if (!lastUser) return;
-    const verdict = await auditReply({
+
+    const topics = await deps.rest
+      .listTopics()
+      .catch(() => [] as { id: string; slug: string; name: string }[]);
+    const topicCatalog: AuditTopic[] = topics.map((t) => ({ slug: t.slug, name: t.name }));
+
+    const verdict = await auditConversation({
       provider: {
         baseUrl: deps.config.providerBaseUrl,
         apiKey: deps.config.providerApiKey,
@@ -221,20 +222,65 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       question: lastUser.body,
       reply: args.reply.body,
       toolNames: args.reply.toolCalls.map((t) => t.name),
+      topicCatalog,
       providerImpl: deps.provider,
     });
-    if (!verdict.handover) return;
-    args.log.warn(
-      `${args.conversationId} audit force-handover (${verdict.reason || 'no reason'})`,
+
+    const agentCalledHandover = args.reply.toolCalls.some(
+      (t) => t.name === HANDOVER_TOOL_NAME,
     );
+    for (const action of verdict.actions) {
+      if (action.type === 'request_handover' && agentCalledHandover) continue;
+      await dispatchAuditAction(args.conversationId, action, args.mcp, topics, args.log);
+    }
+  }
+
+  async function dispatchAuditAction(
+    conversationId: string,
+    action: AuditAction,
+    delegatedMcp: McpToolHandle,
+    topics: { id: string; slug: string }[],
+    log: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void },
+  ): Promise<void> {
     try {
-      await args.mcp.callTool(HANDOVER_TOOL_NAME, {
-        conversationId: args.conversationId,
-        reason: verdict.reason || 'audit detected deferral without handover call',
-      });
+      switch (action.type) {
+        case 'request_handover':
+          log.warn(`${conversationId} audit → request_handover (${action.reason})`);
+          await delegatedMcp.callTool(HANDOVER_TOOL_NAME, {
+            conversationId,
+            reason: action.reason || 'audit pass',
+          });
+          break;
+        case 'close_conversation':
+          log.info(`${conversationId} audit → close (${action.reason})`);
+          await deps.rest.changeStatus(conversationId, 'closed');
+          break;
+        case 'snooze_conversation': {
+          const until = new Date(Date.now() + action.untilHours * 3600_000).toISOString();
+          log.info(`${conversationId} audit → snooze ${action.untilHours}h (${action.reason})`);
+          await deps.rest.changeStatus(conversationId, 'snoozed', until);
+          break;
+        }
+        case 'mark_spam':
+          log.warn(`${conversationId} audit → mark_spam (${action.reason})`);
+          await deps.rest.changeStatus(conversationId, 'spam');
+          break;
+        case 'set_topic': {
+          const topicId = topics.find((t) => t.slug === action.topicSlug)?.id;
+          if (!topicId) {
+            log.warn(
+              `${conversationId} audit set_topic: no topic with slug ${action.topicSlug}`,
+            );
+            break;
+          }
+          log.info(`${conversationId} audit → set_topic ${action.topicSlug} (${action.reason})`);
+          await deps.rest.setTopic(conversationId, topicId);
+          break;
+        }
+      }
     } catch (err) {
-      args.log.error(
-        `${args.conversationId} audit handover call failed: ${
+      log.error(
+        `${conversationId} audit ${action.type} failed: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );

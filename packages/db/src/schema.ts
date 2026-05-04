@@ -993,6 +993,52 @@ export const crmRelationships = pgTable(
   }),
 );
 
+// Merge proposals: structured "these two contacts look like the same
+// person, here's the recommended resolution" rows filed by the CRM
+// hygiene curator (or a human spot-checker). Operator reviews via
+// `crm_list_merge_proposals` and resolves with `crm_apply_merge_proposal`
+// or `crm_dismiss_merge_proposal`. Pair canonicalization (sorted ids) +
+// the partial unique index make repeated curator passes idempotent on
+// pending pairs without needing UPSERT semantics in the migration.
+export const crmMergeProposals = pgTable(
+  'crm_merge_proposals',
+  {
+    id: id('cmp'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    contactAId: text('contact_a_id')
+      .notNull()
+      .references(() => crmContacts.id, { onDelete: 'cascade' }),
+    contactBId: text('contact_b_id')
+      .notNull()
+      .references(() => crmContacts.id, { onDelete: 'cascade' }),
+    confidence: varchar('confidence', { length: 8 }).notNull(),
+    // 'high' | 'medium'
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
+    recommendedKeeperId: text('recommended_keeper_id').notNull(),
+    recommendedPatch: jsonb('recommended_patch').$type<Record<string, unknown>>().notNull().default({}),
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    // 'pending' | 'applied' | 'dismissed'
+    dismissReason: text('dismiss_reason'),
+    proposedByActorType: varchar('proposed_by_actor_type', { length: 16 }).notNull(),
+    proposedByActorId: text('proposed_by_actor_id').notNull(),
+    decidedByActorType: varchar('decided_by_actor_type', { length: 16 }),
+    decidedByActorId: text('decided_by_actor_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgStatusIdx: index('crm_merge_proposals_org_status_idx').on(t.orgId, t.status),
+    contactAIdx: index('crm_merge_proposals_contact_a_idx').on(t.contactAId),
+    contactBIdx: index('crm_merge_proposals_contact_b_idx').on(t.contactBId),
+    pendingPairUq: uniqueIndex('crm_merge_proposals_pending_pair_uq')
+      .on(t.orgId, t.contactAId, t.contactBId)
+      .where(sql`status = 'pending'`),
+  }),
+);
+
 // ───────────────────────── CMS (M6) ───────────────────────────────────
 // Headless CMS — schema-on-write: orgs define collections (with custom
 // fields) and store entries as JSON keyed by field name. Public delivery
@@ -1212,6 +1258,7 @@ export const allTables = {
   crmDeals,
   crmActivities,
   crmRelationships,
+  crmMergeProposals,
   cmsCollections,
   cmsEntries,
   cmsEntryVersions,

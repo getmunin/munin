@@ -50,6 +50,13 @@
       "when": 1777681200000,
       "tag": "0006_kb_document_slug",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777681300000,
+      "tag": "0007_crm_merge_proposals",
+      "breakpoints": true
     }
   ]
 }

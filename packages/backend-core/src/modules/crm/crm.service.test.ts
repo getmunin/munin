@@ -50,6 +50,7 @@ const skipReason = TEST_URL
 
   beforeEach(async () => {
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    await db.execute(sql`DELETE FROM crm_merge_proposals WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_activities WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_deals WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_stages WHERE org_id = ${orgId}`);
@@ -372,6 +373,198 @@ const skipReason = TEST_URL
   });
 
   // ─── RLS ─────────────────────────────────────────────────────────────
+
+  describe('merge proposals', () => {
+    it('proposeMerge canonicalizes pair and returns embedded contact summaries', async () => {
+      const a = await run(() => svc.createContact({ name: 'A', email: 'x@y' }));
+      const b = await run(() => svc.createContact({ name: 'B', email: 'x@y' }));
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: b.id,
+          contactBId: a.id,
+          confidence: 'high',
+          evidence: { sameEmail: 'x@y' },
+          recommendedKeeperId: a.id,
+        }),
+      );
+      const [first, second] = a.id < b.id ? [a.id, b.id] : [b.id, a.id];
+      expect(proposal.contactA.id).toBe(first);
+      expect(proposal.contactB.id).toBe(second);
+      expect(proposal.status).toBe('pending');
+      expect(proposal.confidence).toBe('high');
+    });
+
+    it('proposeMerge rejects self-merge', async () => {
+      const c = await run(() => svc.createContact({ name: 'A' }));
+      await expect(
+        run(() =>
+          svc.proposeMerge({
+            contactAId: c.id,
+            contactBId: c.id,
+            confidence: 'high',
+            evidence: {},
+            recommendedKeeperId: c.id,
+          }),
+        ),
+      ).rejects.toThrow(CrmInvalidError);
+    });
+
+    it('proposeMerge rejects keeper that is not in the pair', async () => {
+      const a = await run(() => svc.createContact({ name: 'A' }));
+      const b = await run(() => svc.createContact({ name: 'B' }));
+      const c = await run(() => svc.createContact({ name: 'C' }));
+      await expect(
+        run(() =>
+          svc.proposeMerge({
+            contactAId: a.id,
+            contactBId: b.id,
+            confidence: 'high',
+            evidence: {},
+            recommendedKeeperId: c.id,
+          }),
+        ),
+      ).rejects.toThrow(CrmInvalidError);
+    });
+
+    it('proposeMerge upserts the existing pending row for the same pair', async () => {
+      const a = await run(() => svc.createContact({ name: 'A', email: 'x@y' }));
+      const b = await run(() => svc.createContact({ name: 'B', email: 'x@y' }));
+      const first = await run(() =>
+        svc.proposeMerge({
+          contactAId: a.id,
+          contactBId: b.id,
+          confidence: 'medium',
+          evidence: { sameEmail: 'x@y' },
+          recommendedKeeperId: a.id,
+        }),
+      );
+      const second = await run(() =>
+        svc.proposeMerge({
+          contactAId: b.id,
+          contactBId: a.id,
+          confidence: 'high',
+          evidence: { sameEmail: 'x@y', samePhone: '+47900' },
+          recommendedKeeperId: a.id,
+          recommendedPatch: { tags: ['vip'] },
+        }),
+      );
+      expect(second.id).toBe(first.id);
+      expect(second.confidence).toBe('high');
+      expect(second.evidence).toMatchObject({ samePhone: '+47900' });
+      expect(second.recommendedPatch).toEqual({ tags: ['vip'] });
+      const list = await run(() => svc.listMergeProposals({ status: 'pending' }));
+      expect(list).toHaveLength(1);
+    });
+
+    it('listMergeProposals filters by status', async () => {
+      const a = await run(() => svc.createContact({ name: 'A', email: 'x@y' }));
+      const b = await run(() => svc.createContact({ name: 'B', email: 'x@y' }));
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: a.id,
+          contactBId: b.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: a.id,
+        }),
+      );
+      const pending = await run(() => svc.listMergeProposals({ status: 'pending' }));
+      expect(pending.map((p) => p.id)).toContain(proposal.id);
+      const dismissed = await run(() => svc.listMergeProposals({ status: 'dismissed' }));
+      expect(dismissed).toHaveLength(0);
+    });
+
+    it('applyMergeProposal patches keeper, archives duplicate, marks applied', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y', tags: ['vip'] }));
+      const dup = await run(() => svc.createContact({ name: 'Dup', email: 'k@y', tags: ['lead'] }));
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: { sameEmail: 'k@y' },
+          recommendedKeeperId: keeper.id,
+          recommendedPatch: { title: 'Head of Ops', tags: ['vip', 'lead'] },
+        }),
+      );
+      const applied = await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      expect(applied.status).toBe('applied');
+      expect(applied.decidedAt).not.toBeNull();
+      const refreshedKeeper = await run(() => svc.getContact(keeper.id));
+      expect(refreshedKeeper.title).toBe('Head of Ops');
+      expect(refreshedKeeper.tags).toEqual(['vip', 'lead']);
+      const refreshedDup = await run(() => svc.getContact(dup.id));
+      expect(refreshedDup.tags.some((t) => t.startsWith('dedup-archived-'))).toBe(true);
+      expect(refreshedDup.customFields.mergedInto).toBe(keeper.id);
+      expect(refreshedDup.doNotContact).toBe(true);
+    });
+
+    it('applyMergeProposal rejects non-pending proposals', async () => {
+      const a = await run(() => svc.createContact({ name: 'A', email: 'x@y' }));
+      const b = await run(() => svc.createContact({ name: 'B', email: 'x@y' }));
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: a.id,
+          contactBId: b.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: a.id,
+        }),
+      );
+      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      await expect(run(() => svc.applyMergeProposal({ id: proposal.id }))).rejects.toThrow(
+        CrmInvalidError,
+      );
+    });
+
+    it('dismissMergeProposal records reason and switches status', async () => {
+      const a = await run(() => svc.createContact({ name: 'A', email: 'x@y' }));
+      const b = await run(() => svc.createContact({ name: 'B', email: 'x@y' }));
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: a.id,
+          contactBId: b.id,
+          confidence: 'medium',
+          evidence: {},
+          recommendedKeeperId: a.id,
+        }),
+      );
+      const dismissed = await run(() =>
+        svc.dismissMergeProposal({ id: proposal.id, reason: 'shared inbox' }),
+      );
+      expect(dismissed.status).toBe('dismissed');
+      expect(dismissed.dismissReason).toBe('shared inbox');
+      expect(dismissed.decidedAt).not.toBeNull();
+      const dismissedList = await run(() => svc.listMergeProposals({ status: 'dismissed' }));
+      expect(dismissedList).toHaveLength(1);
+    });
+
+    it('after dismissal a new proposal for the same pair can be filed (and lives alongside the dismissed one)', async () => {
+      const a = await run(() => svc.createContact({ name: 'A', email: 'x@y' }));
+      const b = await run(() => svc.createContact({ name: 'B', email: 'x@y' }));
+      const first = await run(() =>
+        svc.proposeMerge({
+          contactAId: a.id,
+          contactBId: b.id,
+          confidence: 'medium',
+          evidence: {},
+          recommendedKeeperId: a.id,
+        }),
+      );
+      await run(() => svc.dismissMergeProposal({ id: first.id }));
+      const second = await run(() =>
+        svc.proposeMerge({
+          contactAId: a.id,
+          contactBId: b.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: a.id,
+        }),
+      );
+      expect(second.id).not.toBe(first.id);
+      expect(second.status).toBe('pending');
+    });
+  });
 
   describe('RLS', () => {
     it('cross-org isolation: another org cannot see this org\'s contacts', async () => {

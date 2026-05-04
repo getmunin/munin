@@ -98,3 +98,16 @@ CREATE POLICY tenant_isolation ON crm_relationships
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- Merge proposals: org-scoped, admin-only. Self-service tokens never see
+-- proposals (the curator is an admin actor, the operator review flow is
+-- admin/dashboard).
+ALTER TABLE crm_merge_proposals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crm_merge_proposals FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON crm_merge_proposals;
+CREATE POLICY tenant_isolation ON crm_merge_proposals
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

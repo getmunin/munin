@@ -1,4 +1,4 @@
-import type { ChatMessage, Provider, ProviderResponse } from '../types.js';
+import type { ChatMessage, ChatToolDefinition, Provider, ProviderResponse } from '../types.js';
 
 interface OpenAIChoice {
   message: ChatMessage;
@@ -14,6 +14,8 @@ interface OpenAIResponse {
   };
 }
 
+const CACHE_CONTROL = { type: 'ephemeral' } as const;
+
 export const openAiCompatibleProvider: Provider = async ({
   config,
   messages,
@@ -21,12 +23,13 @@ export const openAiCompatibleProvider: Provider = async ({
   abortSignal,
 }) => {
   const url = `${config.provider.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const cacheEnabled = shouldEnablePromptCache(config);
   const body: Record<string, unknown> = {
     model: config.model,
-    messages,
+    messages: cacheEnabled ? withSystemPromptCache(messages) : messages,
   };
   if (tools.length > 0) {
-    body.tools = tools;
+    body.tools = cacheEnabled ? withToolsCache(tools) : tools;
     body.tool_choice = 'auto';
   }
   if (typeof config.maxTokens === 'number') body.max_tokens = config.maxTokens;
@@ -82,4 +85,40 @@ export class ProviderError extends Error {
   ) {
     super(message);
   }
+}
+
+export function shouldEnablePromptCache(config: {
+  provider: { baseUrl: string };
+  model: string;
+  enablePromptCache?: boolean;
+}): boolean {
+  if (config.enablePromptCache === false) return false;
+  if (config.enablePromptCache === true) return true;
+  return isAnthropicCompatibleBackend(config.provider.baseUrl, config.model);
+}
+
+function isAnthropicCompatibleBackend(baseUrl: string, model: string): boolean {
+  if (/api\.anthropic\.com/i.test(baseUrl)) return true;
+  if (/openrouter\.ai/i.test(baseUrl) && /^anthropic\//i.test(model)) return true;
+  return false;
+}
+
+export function withSystemPromptCache(messages: ChatMessage[]): unknown[] {
+  let firstSystemMarked = false;
+  return messages.map((m) => {
+    if (m.role !== 'system' || firstSystemMarked) return m;
+    if (typeof m.content !== 'string' || m.content.length === 0) return m;
+    firstSystemMarked = true;
+    return {
+      ...m,
+      content: [{ type: 'text', text: m.content, cache_control: CACHE_CONTROL }],
+    };
+  });
+}
+
+export function withToolsCache(tools: ChatToolDefinition[]): unknown[] {
+  if (tools.length === 0) return tools;
+  return tools.map((tool, idx) =>
+    idx === tools.length - 1 ? { ...tool, cache_control: CACHE_CONTROL } : tool,
+  );
 }

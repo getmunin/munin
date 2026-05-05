@@ -34,6 +34,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   const crmPath = resolve(sqlDir, 'crm.sql');
   const cmsPath = resolve(sqlDir, 'cms.sql');
   const convChannelsPath = resolve(sqlDir, 'conv-channels.sql');
+  const outreachPath = resolve(sqlDir, 'outreach.sql');
 
   const client = postgres(connectionString, { max: 1 });
   const db = drizzle(client);
@@ -55,6 +56,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   await client.unsafe(readFileSync(crmPath, 'utf8'));
   await client.unsafe(readFileSync(cmsPath, 'utf8'));
   await client.unsafe(readFileSync(convChannelsPath, 'utf8'));
+  await client.unsafe(readFileSync(outreachPath, 'utf8'));
 
   // 4. App role (idempotent). Password defaults to the role name; override
   //    via MUNIN_APP_PASSWORD for non-dev deployments.

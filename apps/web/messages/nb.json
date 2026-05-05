@@ -67,6 +67,7 @@
     "agents": "Tilkoblede agenter",
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
+    "outreach": "Utgående e-post",
     "endUsers": "Sluttbrukere",
     "usage": "Bruk",
     "auditLog": "Hendelseslogg",
@@ -111,11 +112,62 @@
     },
     "review": {
       "title": "Gjennomgang",
-      "subtitle": "KB-forslag og CRM-sammenslåinger fra kuratorene. Godkjenn for å publisere, avvis for å forkaste.",
+      "subtitle": "KB-forslag, CRM-sammenslåinger og utgående e-postutkast fra kuratorene. Godkjenn for å publisere/sende, avvis for å forkaste.",
       "automateHint": "Automatiser hele flyten ved å koble til en <adminAgent>admin-agent</adminAgent>.",
       "tabs": {
         "kb": "KB-forslag",
-        "crm": "CRM-sammenslåinger"
+        "crm": "CRM-sammenslåinger",
+        "outreach": "Utgående utkast"
+      }
+    },
+    "outreach": {
+      "title": "Utgående kampanjer",
+      "subtitle": "Operatørdefinerte e-postkampanjer. Hver aktiverte kampanje produserer kurator-utkast ukentlig; godkjenn hvert utkast fra Gjennomgang før det sendes. Suppresjon og samtykke kontrolleres på nytt ved godkjenning.",
+      "addCampaign": "Ny kampanje",
+      "needsEmailChannel": "Opprett en e-postkanal under Kanaler først — utgående kampanjer sender via din konfigurerte SMTP.",
+      "needsSegment": "Opprett et CRM-segment først — kampanjer målretter et lagret segment med samtykkende kontakter.",
+      "emptyTitle": "Ingen kampanjer ennå",
+      "emptyBody": "En kampanje trenger navn, ett kort avsnitt med brief, et CRM-segment som målgruppe, og en e-postkanal. Nye kampanjer er av som standard; aktiver når du er klar for at kuratoren skal begynne å skrive utkast.",
+      "createTitle": "Ny utgående kampanje",
+      "createDescription": "Utkast sendes ikke automatisk — hver første e-post havner i gjennomgangskøen for menneskelig godkjenning først.",
+      "nameLabel": "Internt navn",
+      "namePlaceholder": "f.eks. q2-onboarding-utreach",
+      "briefLabel": "Brief",
+      "briefHint": "Ett avsnitt på vanlig norsk som beskriver hva du vil si og hvorfor. Kuratoren personaliserer per kontakt og grunner i KB-en din.",
+      "briefPlaceholder": "Vi har akkurat lansert selvbetjent onboarding for B2B-team. Vi vil snakke med ops-ledere i selskaper som nylig hentet kapital, for å lære hvordan de tilnærmer seg dette …",
+      "segmentLabel": "CRM-segment",
+      "channelLabel": "E-postkanal",
+      "ctaLabel": "Valgfri CTA-URL",
+      "create": "Opprett kampanje",
+      "creating": "Oppretter …",
+      "enabled": "Aktiv",
+      "disabled": "Inaktiv",
+      "enable": "Aktiver",
+      "disable": "Deaktiver",
+      "segment": "Segment",
+      "channel": "Kanal",
+      "errors": {
+        "load": "Kunne ikke laste kampanjer.",
+        "create": "Kunne ikke opprette kampanje.",
+        "update": "Kunne ikke oppdatere kampanje."
+      }
+    },
+    "outreachDrafts": {
+      "loading": "Laster …",
+      "emptyTitle": "Ingen utgående utkast venter på gjennomgang",
+      "emptyBody": "Når draft-initial-kuratoren kjører mot en aktivert kampanje, havner utkast her for godkjenning. Godkjenn for å sende via kampanjens e-postkanal; avvis for å forkaste.",
+      "to": "til",
+      "via": "via",
+      "untitled": "(ingen emne)",
+      "approve": "Godkjenn & send",
+      "edit": "Rediger",
+      "editComingSoon": "Inline-redigering kommer snart — foreløpig: avvis og la kuratoren skrive på nytt, eller kjør kampanjen igjen.",
+      "dismiss": "Avvis",
+      "dismissPrompt": "Begrunnelse for avvisning? (valgfritt)",
+      "errors": {
+        "load": "Kunne ikke laste utgående utkast.",
+        "approve": "Kunne ikke godkjenne utkast (kan være blokkert av suppresjon / samtykke).",
+        "dismiss": "Kunne ikke avvise utkast."
       }
     },
     "kbCandidates": {

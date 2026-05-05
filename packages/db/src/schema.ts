@@ -686,6 +686,10 @@ export const convConversations = pgTable(
     needsHumanAttentionAt: timestamp('needs_human_attention_at', { withTimezone: true }),
     runnerHolder: text('runner_holder'),
     runnerLeaseExpiresAt: timestamp('runner_lease_expires_at', { withTimezone: true }),
+    outreachCampaignId: text('outreach_campaign_id').references(
+      (): AnyPgColumn => outreachCampaigns.id,
+      { onDelete: 'set null' },
+    ),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
     updatedAt,
@@ -700,6 +704,7 @@ export const convConversations = pgTable(
     needsAttentionIdx: index('conv_conversations_needs_attention_idx')
       .on(t.orgId, t.needsHumanAttentionAt)
       .where(sql`needs_human_attention = true`),
+    outreachCampaignIdx: index('conv_conversations_outreach_campaign_idx').on(t.outreachCampaignId),
   }),
 );
 
@@ -1299,6 +1304,103 @@ export const curatorJobs = pgTable(
   }),
 );
 
+// ─────────────────────────────── Outreach ────────────────────────────
+// Operator-defined campaigns (segment + brief + email channel + cadence)
+// and the per-contact proposal queue. The contact-extract / hygiene
+// curators pre-populate `crm_contacts`; the outreach curator drafts
+// initials per (campaign, contact) → review → approve → send via the
+// existing email channel. Replies thread into normal conversations
+// (reply attribution via `conv_conversations.outreach_campaign_id`).
+export const outreachCampaigns = pgTable(
+  'outreach_campaigns',
+  {
+    id: id('ocmp'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    brief: text('brief').notNull(),
+    segmentId: text('segment_id')
+      .notNull()
+      .references(() => crmSegments.id, { onDelete: 'restrict' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => convChannels.id, { onDelete: 'restrict' }),
+    cadenceRules: jsonb('cadence_rules')
+      .$type<{
+        maxPerWeekPerContact?: number;
+        quietHoursStart?: string;
+        quietHoursEnd?: string;
+        blackoutDates?: string[];
+      }>()
+      .notNull()
+      .default({}),
+    ctaUrl: text('cta_url'),
+    enabled: boolean('enabled').notNull().default(false),
+    unsubscribeRequired: boolean('unsubscribe_required').notNull().default(true),
+    createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
+    createdByActorId: text('created_by_actor_id').notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('outreach_campaigns_org_idx').on(t.orgId),
+    nameUq: uniqueIndex('outreach_campaigns_org_name_uq').on(t.orgId, t.name),
+    enabledIdx: index('outreach_campaigns_enabled_idx')
+      .on(t.orgId, t.enabled)
+      .where(sql`enabled = true`),
+  }),
+);
+
+export const outreachProposals = pgTable(
+  'outreach_proposals',
+  {
+    id: id('oprp'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => outreachCampaigns.id, { onDelete: 'cascade' }),
+    contactId: text('contact_id')
+      .notNull()
+      .references(() => crmContacts.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id').references(() => convConversations.id, {
+      onDelete: 'set null',
+    }),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    // 'initial' | 'reply'
+    draftSubject: text('draft_subject'),
+    draftBody: text('draft_body').notNull(),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
+    proposedSendAt: timestamp('proposed_send_at', { withTimezone: true }),
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    // 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed'
+    proposedByActorType: varchar('proposed_by_actor_type', { length: 16 }).notNull(),
+    proposedByActorId: text('proposed_by_actor_id').notNull(),
+    decidedByActorType: varchar('decided_by_actor_type', { length: 16 }),
+    decidedByActorId: text('decided_by_actor_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    sentMessageId: text('sent_message_id').references(() => convMessages.id, {
+      onDelete: 'set null',
+    }),
+    failureReason: text('failure_reason'),
+    dismissReason: text('dismiss_reason'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgStatusIdx: index('outreach_proposals_org_status_idx').on(t.orgId, t.status),
+    campaignIdx: index('outreach_proposals_campaign_idx').on(t.campaignId),
+    contactIdx: index('outreach_proposals_contact_idx').on(t.contactId),
+    conversationIdx: index('outreach_proposals_conversation_idx').on(t.conversationId),
+    pendingPairUq: uniqueIndex('outreach_proposals_pending_pair_uq')
+      .on(t.campaignId, t.contactId, t.kind)
+      .where(sql`status = 'pending'`),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   orgs,
@@ -1339,6 +1441,9 @@ export const allTables = {
   crmActivities,
   crmRelationships,
   crmMergeProposals,
+  crmSegments,
+  outreachCampaigns,
+  outreachProposals,
   cmsCollections,
   cmsEntries,
   cmsEntryVersions,

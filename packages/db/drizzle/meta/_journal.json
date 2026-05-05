@@ -85,6 +85,13 @@
       "when": 1777681700000,
       "tag": "0011_crm_segments_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777681800000,
+      "tag": "0012_outreach_campaigns_proposals",
+      "breakpoints": true
     }
   ]
 }

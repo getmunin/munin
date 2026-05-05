@@ -403,8 +403,8 @@ function DetailPane({
   const claimed = detail.claim !== null;
 
   return (
-    <div className="flex flex-1 flex-col gap-3 overflow-hidden">
-      <Card className="flex-1 overflow-hidden">
+    <div className="flex flex-1 flex-col gap-3 overflow-hidden p-px">
+      <Card className="flex-1 gap-0 overflow-hidden py-0">
         <header className="flex items-center justify-between border-b px-4 py-3">
           <div className="flex flex-col gap-0.5">
             <h2 className="font-semibold">
@@ -490,10 +490,16 @@ function MessageBubble({ message }: { message: MessageDto }) {
   return (
     <div
       className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-        isOutbound ? 'self-end bg-primary/10' : 'self-start bg-muted'
+        isOutbound
+          ? 'self-end bg-blue-500 text-white dark:bg-blue-500'
+          : 'self-start bg-muted'
       }`}
     >
-      <div className="mb-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+      <div
+        className={`mb-0.5 text-[10px] uppercase tracking-wide ${
+          isOutbound ? 'text-blue-100' : 'text-muted-foreground'
+        }`}
+      >
         {message.authorType}
       </div>
       <div className="whitespace-pre-wrap">{message.body}</div>
@@ -535,7 +541,7 @@ function ActivitySidebar({
   }, [contactId, conversationId]);
 
   return (
-    <Card className="max-h-64 overflow-hidden">
+    <Card className="max-h-64 gap-0 overflow-hidden py-0">
       <header className="flex items-center justify-between border-b px-3 py-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {contactId ? 'Contact activity' : 'Conversation activity'}

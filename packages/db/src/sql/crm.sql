@@ -111,3 +111,15 @@ CREATE POLICY tenant_isolation ON crm_merge_proposals
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- Segments: org-scoped, admin-only. Self-service tokens never see segments
+-- (segment definitions can encode operator-internal targeting logic).
+ALTER TABLE crm_segments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crm_segments FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON crm_segments;
+CREATE POLICY tenant_isolation ON crm_segments
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity } from 'lucide-react';
 import { Badge, Button, Card, CardContent, Input } from '@getmunin/ui';
 import { api, ApiError } from '../api';
 import { useRealtime, type SubscriptionChannel } from '../realtime';
@@ -82,10 +81,7 @@ export function ActivityPage() {
   return (
     <>
       <header>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Activity className="size-5" />
-          Activity
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Activity log</h1>
         <p className="text-sm text-muted-foreground">
           Org-wide event stream — every conversation message, status change, handover, KB write,
           and CRM update as it happens.

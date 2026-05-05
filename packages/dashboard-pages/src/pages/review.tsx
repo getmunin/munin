@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Bookmark, Users } from 'lucide-react';
+import Link from 'next/link';
+import { Bookmark, Bot, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
   Badge,
@@ -55,9 +56,22 @@ export function ReviewPage() {
 
   return (
     <div className="space-y-6">
-      <header>
+      <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
+        <p className="text-sm text-muted-foreground">
+          {t.rich('automateHint', {
+            adminAgent: (chunks) => (
+              <Link
+                href="/dashboard/settings/agents"
+                className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
+              >
+                <Bot className="size-3.5" />
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
       </header>
 
       <Tabs defaultValue="kb">

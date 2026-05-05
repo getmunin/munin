@@ -112,6 +112,7 @@
     "review": {
       "title": "Gjennomgang",
       "subtitle": "KB-forslag og CRM-sammenslåinger fra kuratorene. Godkjenn for å publisere, avvis for å forkaste.",
+      "automateHint": "Automatiser hele flyten ved å koble til en <adminAgent>admin-agent</adminAgent>.",
       "tabs": {
         "kb": "KB-forslag",
         "crm": "CRM-sammenslåinger"
@@ -122,7 +123,7 @@
       "emptyTitle": "Ingen KB-forslag",
       "emptyBody": "Kuratorene foreslår KB-kandidater fra avsluttede overleveringer og andre signaler. Godkjente kandidater publiseres til valgt rom.",
       "publishTo": "Publiser til:",
-      "noSpacesHint": "Opprett et KB-rom før du godkjenner kandidater. Bruk kb_create_space via admin-agenten eller MCP-klienten din.",
+      "willCreate": "Opprett nytt: {slug}",
       "approve": "Godkjenn",
       "dismiss": "Avvis",
       "dismissConfirm": "Avvise denne kandidaten? Den blir slettet.",
@@ -138,7 +139,8 @@
       "title": "CRM-sammenslåinger",
       "subtitle": "Forslag om å slå sammen duplikate kontakter, foreslått av CRM-hygienekuratoren. \"Slå sammen\" kopierer den anbefalte oppdateringen til keeperen, overfører aktiviteter og avtaler, og arkiverer duplikatet — alt i én transaksjon. \"Avvis\" registrerer at paret ikke er samme person.",
       "loading": "Laster …",
-      "empty": "Ingen ventende sammenslåingsforslag.",
+      "emptyTitle": "Ingen ventende sammenslåingsforslag",
+      "emptyBody": "CRM-hygienekuratoren foreslår sammenslåinger når den finner duplikate kontakter. Godkjenn for å slå sammen keeper + duplikat atomært, eller avvis for å holde dem adskilt.",
       "hint": "CRM-hygienekuratoren kjører ukentlig og foreslår samme par på nytt hvis det fremdeles ser duplikat ut — å avvise hindrer det.",
       "keeperLabel": "Keeper",
       "duplicateLabel": "Duplikat",

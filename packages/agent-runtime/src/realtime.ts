@@ -21,12 +21,21 @@ export interface HandoverResolvedEvent {
   authorType: 'user' | 'agent' | 'end_user' | 'system';
 }
 
+export interface CuratorJobPendingEvent {
+  jobId: string;
+  skillUri: string;
+  dedupeKey: string | null;
+  nextAttemptAt: string;
+}
+
 export interface RealtimeClientOptions {
   baseUrl: string;
   adminApiKey: string;
   onMessageReceived: (event: MessageReceivedEvent) => void;
   onKbDocumentChanged?: (event: KbDocumentChangedEvent) => void;
   onHandoverResolved?: (event: HandoverResolvedEvent) => void;
+  onCuratorJobPending?: (event: CuratorJobPendingEvent) => void;
+  onConnected?: () => void;
   logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void };
 }
 
@@ -86,6 +95,11 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
       log.info('connected');
       attempt = 0;
       socket.send(JSON.stringify({ type: 'subscribe', channel: 'org' }));
+      try {
+        opts.onConnected?.();
+      } catch (err) {
+        log.warn(`onConnected handler threw: ${err instanceof Error ? err.message : String(err)}`);
+      }
       pingTimer = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: 'ping' }));
@@ -137,6 +151,20 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
               typeof authorType === 'string'
                 ? (authorType as HandoverResolvedEvent['authorType'])
                 : 'user',
+          });
+          return;
+        }
+
+        if (opts.onCuratorJobPending && eventType === 'curator_job.pending') {
+          const jobId = payload['jobId'];
+          const skillUri = payload['skillUri'];
+          const nextAttemptAt = payload['nextAttemptAt'];
+          if (typeof jobId !== 'string' || typeof skillUri !== 'string') return;
+          opts.onCuratorJobPending({
+            jobId,
+            skillUri,
+            dedupeKey: typeof payload['dedupeKey'] === 'string' ? payload['dedupeKey'] : null,
+            nextAttemptAt: typeof nextAttemptAt === 'string' ? nextAttemptAt : new Date().toISOString(),
           });
           return;
         }

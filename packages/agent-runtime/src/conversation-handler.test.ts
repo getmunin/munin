@@ -83,6 +83,20 @@ function buildRest(overrides: Partial<MuninRestClient> = {}): MuninRestClient {
     changeStatus: vi.fn(() => Promise.resolve()),
     setTopic: vi.fn(() => Promise.resolve()),
     listTopics: vi.fn(() => Promise.resolve([])),
+    enqueueCuratorJob: vi.fn(() =>
+      Promise.reject(new Error('enqueueCuratorJob not stubbed for this test')),
+    ),
+    claimCuratorJobs: vi.fn(() => Promise.resolve([])),
+    ackCuratorJob: vi.fn(() =>
+      Promise.reject(new Error('ackCuratorJob not stubbed for this test')),
+    ),
+    failCuratorJob: vi.fn(() =>
+      Promise.reject(new Error('failCuratorJob not stubbed for this test')),
+    ),
+    tryAcquireConversation: vi.fn(() =>
+      Promise.resolve({ acquired: true, leaseExpiresAt: new Date(Date.now() + 3600_000).toISOString() }),
+    ),
+    releaseConversationClaim: vi.fn(() => Promise.resolve({ released: true })),
     ...overrides,
   };
 }
@@ -155,6 +169,58 @@ describe('createConversationHandler', () => {
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
     expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('skips when another runner already owns the conversation', async () => {
+    const rest = buildRest();
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const acquireSpy = vi.fn(() =>
+      Promise.resolve({ acquired: false, heldBy: 'runner-other' }),
+    );
+    rest.tryAcquireConversation = acquireSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(acquireSpy).toHaveBeenCalledTimes(1);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('passes sinceMessageId on postAgentMessage so the backend can dedup', async () => {
+    const conversation = buildConversation();
+    const lastMessageId = conversation.messages[conversation.messages.length - 1]!.id;
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(conversation)),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const stubProvider: Provider = () =>
+      Promise.resolve({
+        message: { role: 'assistant', content: 'sure thing' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    const call = postSpy.mock.calls[0] as unknown as [string, string, { sinceMessageId?: string }];
+    expect(call[2]?.sinceMessageId).toBe(lastMessageId);
   });
 
   it('calls handover tool after MAX_RETRIES provider failures', async () => {

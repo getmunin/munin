@@ -39,6 +39,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-munin}:${POSTGRES_PASSWORD:-munin}@postgres:5432/${POSTGRES_DB:-munin}
       MUNIN_PUBLIC_URL: ${MUNIN_PUBLIC_URL:-http://localhost:3001}
       MUNIN_AUTH_SECRET: ${MUNIN_AUTH_SECRET:?set MUNIN_AUTH_SECRET in .env}
+      MUNIN_CURATOR_KB_SWEEP_CRON: ${MUNIN_CURATOR_KB_SWEEP_CRON:-}
+      MUNIN_CURATOR_CRM_HYGIENE_CRON: ${MUNIN_CURATOR_CRM_HYGIENE_CRON:-}
+      MUNIN_CURATOR_CMS_STALE_CRON: ${MUNIN_CURATOR_CMS_STALE_CRON:-}
+      MUNIN_CURATOR_SCHEDULER_DISABLED: ${MUNIN_CURATOR_SCHEDULER_DISABLED:-0}
     ports:
       - "${BACKEND_PORT:-3001}:3001"
 
@@ -56,16 +60,17 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
 
-  # Optional self-service AI sidecar.
-  # Subscribes to conversation events on the local munin instance and posts
-  # AI-driven agent replies. Off by default — start with:
+  # Optional agent sidecar.
+  # Subscribes to conversation events on the local munin instance, posts AI-driven
+  # agent replies, runs KB curation per resolved handover, and runs scheduled
+  # CRM hygiene + CMS stale-content review passes. Off by default — start with:
   #   docker compose --profile ai up
-  # See apps/self-service-ai/.env.example for required variables.
-  self-service-ai:
+  # See apps/agent-sidecar/.env.example for required variables.
+  agent-sidecar:
     profiles: ["ai"]
     build:
       context: ..
-      dockerfile: apps/self-service-ai/Dockerfile
+      dockerfile: apps/agent-sidecar/Dockerfile
     restart: unless-stopped
     depends_on:
       - backend
@@ -73,12 +78,14 @@ services:
       NODE_ENV: production
       MUNIN_BASE_URL: ${MUNIN_BASE_URL:-http://backend:3001}
       MUNIN_ADMIN_API_KEY: ${MUNIN_ADMIN_API_KEY:?set MUNIN_ADMIN_API_KEY in .env}
-      SELF_SERVICE_AI_PROVIDER_BASE_URL: ${SELF_SERVICE_AI_PROVIDER_BASE_URL:-https://openrouter.ai/api/v1}
-      SELF_SERVICE_AI_PROVIDER_API_KEY: ${SELF_SERVICE_AI_PROVIDER_API_KEY:?set SELF_SERVICE_AI_PROVIDER_API_KEY in .env}
-      SELF_SERVICE_AI_MODEL: ${SELF_SERVICE_AI_MODEL:-anthropic/claude-haiku-4.5}
-      SELF_SERVICE_AI_DEBOUNCE_MS: ${SELF_SERVICE_AI_DEBOUNCE_MS:-500}
-      SELF_SERVICE_AI_MAX_TOOL_ITERATIONS: ${SELF_SERVICE_AI_MAX_TOOL_ITERATIONS:-8}
-      SELF_SERVICE_AI_MAX_HISTORY_CHARS: ${SELF_SERVICE_AI_MAX_HISTORY_CHARS:-32000}
+      MUNIN_SIDECAR_PROVIDER_BASE_URL: ${MUNIN_SIDECAR_PROVIDER_BASE_URL:-https://openrouter.ai/api/v1}
+      MUNIN_SIDECAR_PROVIDER_API_KEY: ${MUNIN_SIDECAR_PROVIDER_API_KEY:?set MUNIN_SIDECAR_PROVIDER_API_KEY in .env}
+      MUNIN_SIDECAR_MODEL: ${MUNIN_SIDECAR_MODEL:-anthropic/claude-haiku-4.5}
+      MUNIN_SIDECAR_DEBOUNCE_MS: ${MUNIN_SIDECAR_DEBOUNCE_MS:-500}
+      MUNIN_SIDECAR_MAX_TOOL_ITERATIONS: ${MUNIN_SIDECAR_MAX_TOOL_ITERATIONS:-8}
+      MUNIN_SIDECAR_MAX_HISTORY_CHARS: ${MUNIN_SIDECAR_MAX_HISTORY_CHARS:-32000}
+      MUNIN_SIDECAR_CURATORS_DISABLED: ${MUNIN_SIDECAR_CURATORS_DISABLED:-0}
+      MUNIN_SIDECAR_KB_CURATION_ON_HANDOVER: ${MUNIN_SIDECAR_KB_CURATION_ON_HANDOVER:-1}
 
 volumes:
   munin-pg:

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CuratorModule } from '../curator/curator.module.js';
 import { ConvService } from './conv.service.js';
 import { ConversationClaimsService } from './conv.claims.service.js';
 import { ConvAdminTools } from './conv.tools.js';
@@ -15,6 +16,7 @@ import { WidgetController } from './widget/widget.controller.js';
 import { WidgetAdminTools } from './widget/widget.tools.js';
 
 @Module({
+  imports: [CuratorModule],
   controllers: [WidgetController],
   providers: [
     ConvService,

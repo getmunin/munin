@@ -191,6 +191,19 @@ CREATE POLICY tenant_isolation ON org_invitations
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
+-- ───────────────────────── curator_jobs ───────────────────────────────────
+-- Org-scoped queue rows. Admin-only surface. End-user contexts (which set
+-- app.end_user_id) must NOT see queue rows even though they share the org.
+ALTER TABLE curator_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE curator_jobs FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON curator_jobs;
+CREATE POLICY tenant_isolation ON curator_jobs
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
 -- ───────────────────────── tables intentionally WITHOUT RLS ────────────────
 -- These are accessed only by the service role / migrations:
 --   users          (BetterAuth-managed; tenant scoping via org_members)

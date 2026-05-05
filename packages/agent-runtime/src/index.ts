@@ -28,11 +28,17 @@ export {
 } from './audit.js';
 export {
   createMuninRestClient,
+  type AckCuratorJobInput,
+  type ClaimCuratorJobsInput,
   type ConversationDetail,
   type ConversationStatus,
   type ConversationTopic,
   type CreateMuninRestClientOptions,
+  type CuratorJob,
+  type CuratorJobStatus,
   type DelegatedToken,
+  type EnqueueCuratorJobInput,
+  type FailCuratorJobInput,
   type MuninRestClient,
 } from './munin-rest.js';
 export {
@@ -42,11 +48,13 @@ export {
 } from './mcp-client.js';
 export {
   runSkillPass,
+  withAllowedToolPrefixes,
   type SkillPassOptions,
   type SkillPassResult,
 } from './skill-pass.js';
 export {
   createRealtimeClient,
+  type CuratorJobPendingEvent,
   type HandoverResolvedEvent,
   type KbDocumentChangedEvent,
   type MessageReceivedEvent,

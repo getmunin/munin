@@ -1,9 +1,9 @@
 {
-  "name": "@getmunin/self-service-ai",
+  "name": "@getmunin/agent-sidecar",
   "version": "0.0.1",
   "private": true,
   "license": "MIT",
-  "description": "Optional sidecar that turns end-user messages on a self-hosted Munin into AI-driven agent replies via the self-service MCP surface.",
+  "description": "Optional sidecar for a self-hosted Munin: replies to end-users on the self-service surface, runs KB curation per resolved handover, and runs scheduled CRM hygiene + CMS stale-content review passes.",
   "type": "module",
   "main": "dist/main.js",
   "scripts": {

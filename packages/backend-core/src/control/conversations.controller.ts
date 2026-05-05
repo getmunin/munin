@@ -23,6 +23,7 @@ import {
 import {
   ConvService,
   ConvInvalidError,
+  AgentReplyRaceError,
   HandoverActiveError,
   STATUSES,
   type ConversationDetail,
@@ -37,6 +38,16 @@ const ReplyBody = z.object({
   internal: z.boolean().optional(),
   inReplyToId: z.string().optional(),
   preserveAttention: z.boolean().optional(),
+  sinceMessageId: z.string().optional(),
+});
+
+const AcquireBody = z.object({
+  holder: z.string().min(1).max(128),
+  leaseSeconds: z.number().int().min(30).max(86_400).optional(),
+});
+
+const ReleaseBody = z.object({
+  holder: z.string().min(1).max(128),
 });
 
 const AssignBody = z.object({
@@ -143,9 +154,40 @@ export class ConversationsController {
         internal: parsed.data.internal,
         inReplyToId: parsed.data.inReplyToId,
         preserveAttention: parsed.data.preserveAttention,
+        sinceMessageId: parsed.data.sinceMessageId,
         authorType: actor.type === 'user' ? 'user' : 'agent',
         authorId: actor.id,
       }),
+    );
+  }
+
+  @Post(':id/runner-claim')
+  @HttpCode(200)
+  async runnerClaim(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<{ acquired: boolean; leaseExpiresAt?: string; heldBy?: string | null }> {
+    const parsed = AcquireBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(() =>
+      this.conv.tryAcquireConversation({
+        conversationId: id,
+        holder: parsed.data.holder,
+        leaseSeconds: parsed.data.leaseSeconds ?? 3600,
+      }),
+    );
+  }
+
+  @Post(':id/runner-release')
+  @HttpCode(200)
+  async runnerRelease(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<{ released: boolean }> {
+    const parsed = ReleaseBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(() =>
+      this.conv.releaseConversationClaim({ conversationId: id, holder: parsed.data.holder }),
     );
   }
 
@@ -221,6 +263,7 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
     if (err instanceof ConvInvalidError) throw new BadRequestException(err.message);
     if (err instanceof HandoverActiveError) throw new ConflictException(err.message);
     if (err instanceof ClaimedByOtherError) throw new ConflictException(err.message);
+    if (err instanceof AgentReplyRaceError) throw new ConflictException(err.message);
     throw err;
   }
 }

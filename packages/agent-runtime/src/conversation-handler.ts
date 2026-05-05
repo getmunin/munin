@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { auditConversation, type AuditAction, type AuditTopic } from './audit.js';
 import { runAgent } from './runtime.js';
 import type {
@@ -33,6 +34,8 @@ export interface ConversationHandlerDeps {
   rest: MuninRestClient;
   prompts: PromptResolver;
   openMcp: (opts: { delegatedToken: string }) => Promise<OpenedMcp>;
+  holderId?: string;
+  leaseSeconds?: number;
   logger?: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -69,6 +72,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
   const scheduler = deps.scheduler ?? defaultScheduler;
   const inFlight = new Map<string, InFlight>();
   const tokenCache = new Map<string, { accessToken: string; expiresAtMs: number }>();
+  const holderId = deps.holderId ?? `runner-${randomUUID()}`;
+  const leaseSeconds = deps.leaseSeconds ?? 3600;
 
   async function getDelegatedToken(endUserId: string): Promise<string> {
     const now = Date.now();
@@ -121,7 +126,20 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     if (!shouldRespond(detail)) return;
     if (signal.aborted) return;
 
+    const claim = await deps.rest.tryAcquireConversation({
+      conversationId,
+      holder: holderId,
+      leaseSeconds,
+    });
+    if (!claim.acquired) {
+      log.info(
+        `skip ${conversationId}: owned by another runner (heldBy=${claim.heldBy ?? 'unknown'})`,
+      );
+      return;
+    }
+
     const history = deps.rest.toRuntimeHistory(detail);
+    const sinceMessageId = detail.messages[detail.messages.length - 1]?.id;
     const endUserId = detail.endUserId!;
     const baseSystem = deps.prompts.system();
     const channelDescriptor = detail.channelType
@@ -170,6 +188,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           const handoverThisTurn = handoverReason !== null && handoverReason !== undefined;
           await deps.rest.postAgentMessage(conversationId, reply.body, {
             preserveAttention: handoverThisTurn,
+            sinceMessageId,
           });
           log.info(
             `${conversationId} replied (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,

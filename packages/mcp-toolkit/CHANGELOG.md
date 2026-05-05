@@ -1,5 +1,12 @@
 # @getmunin/mcp-toolkit
 
+## 0.19.0
+
+### Patch Changes
+
+- @getmunin/core@0.19.0
+- @getmunin/types@0.19.0
+
 ## 0.18.0
 
 ### Patch Changes

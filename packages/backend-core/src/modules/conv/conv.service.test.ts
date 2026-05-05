@@ -63,6 +63,7 @@ const skipReason = TEST_URL
   beforeEach(async () => {
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     await db.execute(sql`DELETE FROM conv_message_deliveries WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM curator_jobs WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_messages WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_conversations WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_topics WHERE org_id = ${orgId}`);
@@ -407,6 +408,32 @@ const skipReason = TEST_URL
       const closed = await run(() => svc.changeStatus({ id: conv.id, status: 'closed' }));
       expect(closed.status).toBe('closed');
       expect(await eventTypes()).toContain('conversation.status_changed');
+    });
+
+    it('changeStatus to closed enqueues a CRM contact-extract curator job', async () => {
+      const conv = await seedConv();
+      await run(() => svc.changeStatus({ id: conv.id, status: 'closed' }));
+      const rows = await db.execute<{ skill_uri: string; dedupe_key: string | null }>(
+        sql`SELECT skill_uri, dedupe_key FROM curator_jobs WHERE org_id = ${orgId}`,
+      );
+      const extractJob = rows.find((r) => r.skill_uri === 'skill://crm/contact-extract');
+      expect(extractJob).toBeDefined();
+      expect(extractJob!.dedupe_key).toBe(`crm-contact-extract:conv:${conv.id}`);
+    });
+
+    it('changeStatus to non-closed (e.g. snoozed) does NOT enqueue contact-extract', async () => {
+      const conv = await seedConv();
+      await run(() =>
+        svc.changeStatus({
+          id: conv.id,
+          status: 'snoozed',
+          snoozeUntil: new Date(Date.now() + 60_000).toISOString(),
+        }),
+      );
+      const rows = await db.execute<{ skill_uri: string }>(
+        sql`SELECT skill_uri FROM curator_jobs WHERE org_id = ${orgId}`,
+      );
+      expect(rows.find((r) => r.skill_uri === 'skill://crm/contact-extract')).toBeUndefined();
     });
 
     it('changeStatus snoozed requires snoozeUntil', async () => {

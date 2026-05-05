@@ -14,7 +14,8 @@ import {
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, eq, isNull } from 'drizzle-orm';
-import { buildApiKey, getCurrentContext, hashSecret, keyPrefix } from '@getmunin/core';
+import { buildApiKey, getCurrentContext, hashSecret, keyPrefix, WebhookDispatcher } from '@getmunin/core';
+import { Inject } from '@nestjs/common';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
@@ -48,6 +49,8 @@ interface ApiKeySummary {
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ApiKeysController {
+  constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
+
   @Post()
   @HttpCode(201)
   async create(@Body() body: unknown): Promise<CreatedApiKey> {
@@ -78,6 +81,16 @@ export class ApiKeysController {
         scopes: schema.apiKeys.scopes,
         createdAt: schema.apiKeys.createdAt,
       });
+
+    await this.webhooks.emit({
+      type: 'api_key.minted',
+      payload: {
+        apiKeyId: row!.id,
+        name: row!.name,
+        prefix: row!.prefix,
+        scopes: row!.scopes,
+      },
+    });
 
     return {
       id: row!.id,
@@ -127,7 +140,11 @@ export class ApiKeysController {
       .update(schema.apiKeys)
       .set({ revokedAt: new Date() })
       .where(and(eq(schema.apiKeys.id, id), eq(schema.apiKeys.orgId, actor.orgId)))
-      .returning({ id: schema.apiKeys.id });
+      .returning({ id: schema.apiKeys.id, prefix: schema.apiKeys.keyPrefix });
     if (result.length === 0) throw new NotFoundException(`API key ${id} not found`);
+    await this.webhooks.emit({
+      type: 'api_key.revoked',
+      payload: { apiKeyId: result[0]!.id, prefix: result[0]!.prefix },
+    });
   }
 }

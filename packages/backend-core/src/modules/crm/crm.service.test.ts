@@ -692,6 +692,136 @@ const skipReason = TEST_URL
     });
   });
 
+  describe('segments + consent', () => {
+    beforeEach(async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.execute(sql`DELETE FROM crm_segments WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM crm_activities WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM crm_contacts WHERE org_id = ${orgId}`);
+    });
+
+    it('creates and lists segments; rejects duplicate names', async () => {
+      const seg = await run(() =>
+        svc.createSegment({ name: 'EU contacts', filter: { tagsAny: ['eu'] } }),
+      );
+      expect(seg.name).toBe('EU contacts');
+      expect(seg.filterDefinition.tagsAny).toEqual(['eu']);
+
+      const list = await run(() => svc.listSegments());
+      expect(list).toHaveLength(1);
+
+      await expect(
+        run(() => svc.createSegment({ name: 'EU contacts', filter: {} })),
+      ).rejects.toThrow();
+    });
+
+    it('setContactConsent stores fields and logs an activity', async () => {
+      const c = await run(() => svc.createContact({ name: 'Bob', email: 'bob@example.com' }));
+      const updated = await run(() =>
+        svc.setContactConsent({
+          contactId: c.id,
+          lawfulBasis: 'legitimate_interest',
+          source: 'imported-2026-q2',
+          evidence: { batch: 'list-2026' },
+        }),
+      );
+      expect(updated.consentLawfulBasis).toBe('legitimate_interest');
+      expect(updated.consentSource).toBe('imported-2026-q2');
+      expect(updated.consentGivenAt).not.toBeNull();
+      const activities = await run(() => svc.listActivities({ contactId: c.id }));
+      expect(activities.some((a) => a.subject === 'Consent recorded')).toBe(true);
+    });
+
+    it('listContactsInSegment excludes suppressed and consent-less contacts', async () => {
+      const seg = await run(() =>
+        svc.createSegment({ name: 'all', filter: { tagsAny: ['target'] } }),
+      );
+      const cWithConsent = await run(() =>
+        svc.createContact({ name: 'Eligible', email: 'e@x.com', tags: ['target'] }),
+      );
+      await run(() =>
+        svc.setContactConsent({
+          contactId: cWithConsent.id,
+          lawfulBasis: 'consent',
+          source: 'web-form',
+        }),
+      );
+      const cNoConsent = await run(() =>
+        svc.createContact({ name: 'NoConsent', email: 'n@x.com', tags: ['target'] }),
+      );
+      const cSuppressed = await run(() =>
+        svc.createContact({ name: 'Suppressed', email: 's@x.com', tags: ['target'] }),
+      );
+      await run(() =>
+        svc.setContactConsent({
+          contactId: cSuppressed.id,
+          lawfulBasis: 'consent',
+          source: 'web-form',
+        }),
+      );
+      await run(() => svc.updateContact({ id: cSuppressed.id, patch: { doNotContact: true } }));
+
+      const audience = await run(() => svc.listContactsInSegment({ id: seg.id }));
+      const ids = audience.map((c) => c.id);
+      expect(ids).toContain(cWithConsent.id);
+      expect(ids).not.toContain(cNoConsent.id);
+      expect(ids).not.toContain(cSuppressed.id);
+    });
+
+    it('listContactsInSegment respects the filter (tagsAll AND companyId)', async () => {
+      const company = await run(() => svc.createCompany({ name: 'Acme' }));
+      const seg = await run(() =>
+        svc.createSegment({
+          name: 'Acme priority',
+          filter: { tagsAll: ['priority', 'enterprise'], companyId: company.id },
+        }),
+      );
+      const matches = await run(() =>
+        svc.createContact({
+          name: 'A',
+          email: 'a@acme.com',
+          tags: ['priority', 'enterprise', 'extra'],
+          companyId: company.id,
+        }),
+      );
+      await run(() =>
+        svc.setContactConsent({ contactId: matches.id, lawfulBasis: 'contract', source: 'crm' }),
+      );
+      const wrongCompany = await run(() =>
+        svc.createContact({
+          name: 'B',
+          email: 'b@elsewhere.com',
+          tags: ['priority', 'enterprise'],
+        }),
+      );
+      await run(() =>
+        svc.setContactConsent({
+          contactId: wrongCompany.id,
+          lawfulBasis: 'contract',
+          source: 'crm',
+        }),
+      );
+      const partialTags = await run(() =>
+        svc.createContact({
+          name: 'C',
+          email: 'c@acme.com',
+          tags: ['priority'],
+          companyId: company.id,
+        }),
+      );
+      await run(() =>
+        svc.setContactConsent({
+          contactId: partialTags.id,
+          lawfulBasis: 'contract',
+          source: 'crm',
+        }),
+      );
+
+      const ids = (await run(() => svc.listContactsInSegment({ id: seg.id }))).map((c) => c.id);
+      expect(ids).toEqual([matches.id]);
+    });
+  });
+
   describe('RLS', () => {
     it('cross-org isolation: another org cannot see this org\'s contacts', async () => {
       const mine = await run(() => svc.createContact({ name: 'MineOnly', email: 'm@x' }));

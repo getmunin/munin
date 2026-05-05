@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CuratorSchedulerService } from './curator-scheduler.service.js';
 

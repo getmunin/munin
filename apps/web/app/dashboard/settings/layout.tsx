@@ -8,10 +8,11 @@ import {
   Activity,
   Bot,
   Download,
+  Gauge,
   KeyRound,
   Loader2,
   MessageSquare,
-  ScrollText,
+  ShieldCheck,
   Users,
   UsersRound,
 } from 'lucide-react';
@@ -28,6 +29,7 @@ type ItemKey =
   | 'agents'
   | 'endUsers'
   | 'usage'
+  | 'activity'
   | 'auditLog'
   | 'dataExport';
 
@@ -62,8 +64,9 @@ const GROUPS: SubNavGroup[] = [
   {
     groupKey: 'monitoring',
     items: [
-      { href: '/dashboard/settings/usage', labelKey: 'usage', icon: Activity },
-      { href: '/dashboard/settings/audit-log', labelKey: 'auditLog', icon: ScrollText },
+      { href: '/dashboard/settings/usage', labelKey: 'usage', icon: Gauge },
+      { href: '/dashboard/settings/activity', labelKey: 'activity', icon: Activity },
+      { href: '/dashboard/settings/audit-log', labelKey: 'auditLog', icon: ShieldCheck },
     ],
   },
 ];

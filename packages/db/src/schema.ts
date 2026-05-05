@@ -842,6 +842,10 @@ export const crmContacts = pgTable(
     doNotContact: boolean('do_not_contact').notNull().default(false),
     unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
     lastContactedAt: timestamp('last_contacted_at', { withTimezone: true }),
+    consentLawfulBasis: varchar('consent_lawful_basis', { length: 32 }),
+    consentGivenAt: timestamp('consent_given_at', { withTimezone: true }),
+    consentSource: text('consent_source'),
+    consentEvidence: jsonb('consent_evidence').$type<Record<string, unknown>>(),
     createdAt,
     updatedAt,
   },
@@ -851,6 +855,36 @@ export const crmContacts = pgTable(
     phoneIdx: index('crm_contacts_phone_idx').on(t.orgId, t.phone),
     endUserIdx: index('crm_contacts_end_user_idx').on(t.endUserId),
     companyIdx: index('crm_contacts_company_idx').on(t.companyId),
+  }),
+);
+
+export const crmSegments = pgTable(
+  'crm_segments',
+  {
+    id: id('cseg'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    filterDefinition: jsonb('filter_definition')
+      .$type<{
+        tagsAny?: string[];
+        tagsAll?: string[];
+        companyId?: string;
+        searchQuery?: string;
+        contactedSince?: string;
+      }>()
+      .notNull()
+      .default({}),
+    createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
+    createdByActorId: text('created_by_actor_id').notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('crm_segments_org_idx').on(t.orgId),
+    nameUq: uniqueIndex('crm_segments_org_name_uq').on(t.orgId, t.name),
   }),
 );
 

@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Inject,
   NotFoundException,
   Param,
   Post,
@@ -14,7 +15,7 @@ import {
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { getCurrentContext } from '@getmunin/core';
+import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
@@ -53,6 +54,8 @@ interface EndUserDto {
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class EndUsersController {
+  constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
+
   /**
    * Find or create an EndUser by externalId / email / phone.
    * Returns 200 + the row (whether existing or just-created).
@@ -105,6 +108,12 @@ export class EndUsersController {
         ),
       )
       .returning({ id: schema.tokens.id });
+    if (result.length > 0) {
+      await this.webhooks.emit({
+        type: 'end_user.tokens_revoked',
+        payload: { endUserId: id, revoked: result.length },
+      });
+    }
     return { revoked: result.length };
   }
 
@@ -149,6 +158,14 @@ export class EndUsersController {
         metadata: input.metadata ?? {},
       })
       .returning();
+    await this.webhooks.emit({
+      type: 'end_user.created',
+      payload: {
+        endUserId: created!.id,
+        externalId: created!.externalId,
+        email: created!.email,
+      },
+    });
     return toDto(created!);
   }
 }

@@ -384,9 +384,25 @@ export class KbService {
       .from(schema.kbSpaces)
       .where(eq(schema.kbSpaces.slug, input.targetSpaceSlug))
       .limit(1);
-    const targetSpace = targetSpaceRows[0];
+    let targetSpace = targetSpaceRows[0];
     if (!targetSpace) {
-      throw new KbNotFoundError('space', input.targetSpaceSlug);
+      if (!isValidSlug(input.targetSpaceSlug)) {
+        throw new KbInvalidError(
+          `cannot auto-create space: slug "${input.targetSpaceSlug}" must be lowercase letters, digits and hyphens (1-64 chars)`,
+        );
+      }
+      const created = await this.createSpace({
+        name: humaniseSlug(input.targetSpaceSlug),
+        slug: input.targetSpaceSlug,
+        description: 'Auto-created from KB curation.',
+      });
+      const rows = await ctx.db
+        .select()
+        .from(schema.kbSpaces)
+        .where(eq(schema.kbSpaces.id, created.id))
+        .limit(1);
+      targetSpace = rows[0];
+      if (!targetSpace) throw new KbInvalidError('failed to auto-create target space');
     }
     const audiences = input.audiences
       ? normaliseAudiences(input.audiences)
@@ -633,6 +649,14 @@ function stampUpdater(actor: ActorIdentity): {
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
+}
+
+function humaniseSlug(slug: string): string {
+  return slug
+    .split('-')
+    .filter((p) => p.length > 0)
+    .map((p) => p[0]!.toUpperCase() + p.slice(1))
+    .join(' ');
 }
 
 function clampLimit(value: number | undefined, fallback: number, max: number): number {

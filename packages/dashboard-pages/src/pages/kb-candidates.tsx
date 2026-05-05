@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bookmark, Check, X } from 'lucide-react';
+import { Check, ChevronDown, X } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import {
@@ -112,7 +112,7 @@ export function KbCandidatesTab({ onCountChange }: KbCandidatesTabProps) {
     const override = overrides[candidate.id];
     if (override) return override;
     const proposed = candidate.proposedTargetSpaceSlug;
-    if (proposed && promotableSpaces.some((s) => s.slug === proposed)) return proposed;
+    if (proposed) return proposed;
     const preferred = promotableSpaces.find((s) => s.slug === PREFERRED_TARGET_SLUG);
     return preferred?.slug ?? promotableSpaces[0]?.slug ?? '';
   }
@@ -157,14 +157,6 @@ export function KbCandidatesTab({ onCountChange }: KbCandidatesTabProps) {
 
   return (
     <div className="space-y-4">
-      {candidates.length > 0 && spaces !== null && promotableSpaces.length === 0 && (
-        <Card>
-          <CardContent className="py-4 text-sm text-muted-foreground">
-            {t('noSpacesHint')}
-          </CardContent>
-        </Card>
-      )}
-
       {error && (
         <Card>
           <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
@@ -174,10 +166,7 @@ export function KbCandidatesTab({ onCountChange }: KbCandidatesTabProps) {
       {candidates.length === 0 ? (
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bookmark className="size-5 text-muted-foreground" />
-              <CardTitle>{t('emptyTitle')}</CardTitle>
-            </div>
+            <CardTitle>{t('emptyTitle')}</CardTitle>
             <CardDescription>{t('emptyBody')}</CardDescription>
           </CardHeader>
         </Card>
@@ -237,24 +226,31 @@ export function KbCandidatesTab({ onCountChange }: KbCandidatesTabProps) {
                     <div className="prose prose-sm max-w-none rounded-md border bg-muted/30 p-3 dark:prose-invert">
                       <ReactMarkdown components={MARKDOWN_COMPONENTS}>{body}</ReactMarkdown>
                     </div>
-                    {promotableSpaces.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span>{t('publishTo')}</span>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{t('publishTo')}</span>
+                      <div className="relative inline-block">
                         <select
                           value={targetSlug}
                           onChange={(e) =>
                             setOverrides((prev) => ({ ...prev, [c.id]: e.target.value }))
                           }
-                          className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground"
+                          className="appearance-none rounded-md border border-input bg-background pl-2 pr-7 py-1 text-xs text-foreground"
                         >
+                          {targetSlug &&
+                            !promotableSpaces.some((s) => s.slug === targetSlug) && (
+                              <option value={targetSlug}>
+                                {t('willCreate', { slug: targetSlug })}
+                              </option>
+                            )}
                           {promotableSpaces.map((s) => (
                             <option key={s.id} value={s.slug}>
                               {s.name} ({s.slug})
                             </option>
                           ))}
                         </select>
+                        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                       </div>
-                    )}
+                    </div>
                   </CardContent>
                 )}
               </Card>

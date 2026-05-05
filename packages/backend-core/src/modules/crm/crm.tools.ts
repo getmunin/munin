@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { ACTIVITY_TYPES, CrmService, MERGE_CONFIDENCES, MERGE_STATUSES } from './crm.service.js';
+import {
+  ACTIVITY_TYPES,
+  CONSENT_LAWFUL_BASES,
+  CrmService,
+  MERGE_CONFIDENCES,
+  MERGE_STATUSES,
+} from './crm.service.js';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 const ActivityType = z.enum(ACTIVITY_TYPES);
@@ -161,6 +167,48 @@ const ApplyMergeProposalInput = z.object({
 const DismissMergeProposalInput = z.object({
   id: z.string().min(1).max(64),
   reason: z.string().max(500).optional(),
+});
+
+const SegmentFilterSchema = z.object({
+  tagsAny: z.array(z.string().min(1).max(64)).max(32).optional(),
+  tagsAll: z.array(z.string().min(1).max(64)).max(32).optional(),
+  companyId: z.string().min(1).max(64).optional(),
+  searchQuery: z.string().min(1).max(200).optional(),
+  contactedSince: z.string().datetime().optional(),
+});
+
+const CreateSegmentInput = z.object({
+  name: z.string().min(1).max(120),
+  description: z.string().max(1000).optional(),
+  filter: SegmentFilterSchema,
+});
+
+const UpdateSegmentInput = z.object({
+  id: z.string().min(1).max(64),
+  patch: z
+    .object({
+      name: z.string().min(1).max(120).optional(),
+      description: z.string().max(1000).nullable().optional(),
+      filter: SegmentFilterSchema.optional(),
+    })
+    .refine((p) => Object.keys(p).length > 0, { message: 'patch must contain at least one field' }),
+});
+
+const GetSegmentInput = z.object({ id: z.string().min(1).max(64) });
+
+const DeleteSegmentInput = z.object({ id: z.string().min(1).max(64) });
+
+const ListContactsInSegmentInput = z.object({
+  id: z.string().min(1).max(64),
+  limit: z.number().int().positive().max(500).optional(),
+});
+
+const SetContactConsentInput = z.object({
+  contactId: z.string().min(1).max(64),
+  lawfulBasis: z.enum(CONSENT_LAWFUL_BASES),
+  source: z.string().min(1).max(120),
+  evidence: z.record(z.string(), z.unknown()).optional(),
+  givenAt: z.string().datetime().optional(),
 });
 
 @Injectable()
@@ -484,5 +532,111 @@ export class CrmAdminTools {
   })
   dismissMergeProposal(args: z.infer<typeof DismissMergeProposalInput>) {
     return this.crm.dismissMergeProposal(args);
+  }
+
+  // Segments ────────────────────────────────────────────────────────────
+
+  @McpTool({
+    name: 'crm_list_segments',
+    title: 'List CRM segments',
+    description:
+      'List saved contact segments. A segment is a named CRM filter — used as the audience for outreach campaigns and other targeting workflows. Returns each segment with its filter definition.',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: z.object({}),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listSegments() {
+    return this.crm.listSegments();
+  }
+
+  @McpTool({
+    name: 'crm_get_segment',
+    title: 'Read CRM segment',
+    description: 'Read one segment, including its filter definition.',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: GetSegmentInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getSegment(args: z.infer<typeof GetSegmentInput>) {
+    return this.crm.getSegment(args.id);
+  }
+
+  @McpTool({
+    name: 'crm_create_segment',
+    title: 'Create CRM segment',
+    description:
+      'Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: CreateSegmentInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  createSegment(args: z.infer<typeof CreateSegmentInput>) {
+    return this.crm.createSegment(args);
+  }
+
+  @McpTool({
+    name: 'crm_update_segment',
+    title: 'Update CRM segment',
+    description: 'Patch a segment: rename, edit description, or replace the filter.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: UpdateSegmentInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  updateSegment(args: z.infer<typeof UpdateSegmentInput>) {
+    return this.crm.updateSegment(args);
+  }
+
+  @McpTool({
+    name: 'crm_delete_segment',
+    title: 'Delete CRM segment',
+    description: 'Delete a segment. Outreach campaigns referencing it will fail until reassigned.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: DeleteSegmentInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  deleteSegment(args: z.infer<typeof DeleteSegmentInput>) {
+    return this.crm.deleteSegment(args.id);
+  }
+
+  @McpTool({
+    name: 'crm_list_contacts_in_segment',
+    title: 'List contacts in segment',
+    description:
+      'Resolve a segment to its current contacts. ALWAYS excludes suppressed contacts (do_not_contact OR unsubscribed) AND contacts without a recorded lawful basis (consent_lawful_basis IS NULL). Use this — not crm_list_contacts — to materialize an outreach audience: the suppression and consent floors are non-overridable here.',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: ListContactsInSegmentInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listContactsInSegment(args: z.infer<typeof ListContactsInSegmentInput>) {
+    return this.crm.listContactsInSegment(args);
+  }
+
+  // Consent ─────────────────────────────────────────────────────────────
+
+  @McpTool({
+    name: 'crm_set_contact_consent',
+    title: 'Set contact consent',
+    description:
+      'Record the lawful basis and source for contacting this person. Required before they can appear in any outreach segment. `lawfulBasis` is one of `consent`, `legitimate_interest`, or `contract`. `source` is a short label (e.g. "imported-2026-q2", "web-form-trial-signup", "event-attendee-summit-2025"). Logs a CRM activity for audit.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: SetContactConsentInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  setContactConsent(args: z.infer<typeof SetContactConsentInput>) {
+    return this.crm.setContactConsent(args);
   }
 }

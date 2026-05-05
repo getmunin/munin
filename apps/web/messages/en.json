@@ -112,6 +112,7 @@
     "review": {
       "title": "Review",
       "subtitle": "KB suggestions and CRM merges proposed by curators. Approve to publish, dismiss to discard.",
+      "automateHint": "Fully automate this by connecting an <adminAgent>Admin Agent</adminAgent>.",
       "tabs": {
         "kb": "KB suggestions",
         "crm": "CRM merges"
@@ -122,7 +123,7 @@
       "emptyTitle": "No KB suggestions",
       "emptyBody": "Curators will draft KB candidates from resolved handovers and similar signals. Approved candidates publish to your chosen space.",
       "publishTo": "Publish to:",
-      "noSpacesHint": "Create a KB space first before approving candidates. Use kb_create_space via your admin agent or MCP client.",
+      "willCreate": "Create new: {slug}",
       "approve": "Approve",
       "dismiss": "Dismiss",
       "dismissConfirm": "Dismiss this candidate? It will be deleted.",
@@ -138,7 +139,8 @@
       "title": "CRM merge proposals",
       "subtitle": "Pending duplicate-contact merges proposed by the CRM hygiene curator. Apply to atomically copy the recommended patch onto the keeper, reassign activities and deals, and archive the duplicate. Dismiss to record that the pair is not the same person.",
       "loading": "Loading…",
-      "empty": "No pending merge proposals.",
+      "emptyTitle": "No pending merge proposals",
+      "emptyBody": "The CRM hygiene curator proposes merges when it finds duplicate contacts. Approve to atomically merge keeper + duplicate, or dismiss to keep them separate.",
       "hint": "The CRM hygiene curator runs weekly and re-files proposals if it finds the same suspect pair again — dismissing one prevents that.",
       "keeperLabel": "Keeper",
       "duplicateLabel": "Duplicate",

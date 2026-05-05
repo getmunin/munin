@@ -78,6 +78,13 @@
       "when": 1777681600000,
       "tag": "0010_conv_runner_claim",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777681700000,
+      "tag": "0011_crm_segments_consent",
+      "breakpoints": true
     }
   ]
 }

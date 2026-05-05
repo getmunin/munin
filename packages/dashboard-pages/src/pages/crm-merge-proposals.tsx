@@ -109,10 +109,10 @@ export function CrmMergeProposalsPage() {
 
       {empty && (
         <Card>
-          <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
-            <CheckCircle2 className="size-5" />
-            <span>{t('empty')}</span>
-          </CardContent>
+          <CardHeader>
+            <CardTitle>{t('emptyTitle')}</CardTitle>
+            <CardDescription>{t('emptyBody')}</CardDescription>
+          </CardHeader>
         </Card>
       )}
 

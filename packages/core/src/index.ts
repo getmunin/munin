@@ -32,6 +32,12 @@ export { ClaimManager, type ClaimResult } from './claims.js';
 export { WebhookDispatcher, type WebhookEventInput } from './webhooks.js';
 export { CredentialResolver, type ResolvedCredential } from './credentials.js';
 export {
+  type UnsubscribeTokenPayload,
+  UnsubscribeTokenError,
+  signUnsubscribeToken,
+  verifyUnsubscribeToken,
+} from './outreach-tokens.js';
+export {
   type EmbeddingProvider,
   OpenAIEmbeddingProvider,
   StubEmbeddingProvider,

@@ -344,7 +344,27 @@ const skipReason = TEST_URL
       ).rejects.toThrow(KbInvalidError);
     });
 
-    it('rejects publishing to a non-existent target space', async () => {
+    it('auto-creates the target space if it does not exist, deriving the name from the slug', async () => {
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'When are you open on weekends?',
+          draftBody: 'We open 10–16 Saturdays.',
+        }),
+      );
+      const published = await run(() =>
+        svc.publishCurationCandidate({
+          candidateDocumentId: candidate.id,
+          targetSpaceSlug: 'support-faq',
+        }),
+      );
+      const spaces = await run(() => svc.listSpaces());
+      const created = spaces.find((s) => s.slug === 'support-faq');
+      expect(created).toBeDefined();
+      expect(created!.name).toBe('Support Faq');
+      expect(published.spaceId).toBe(created!.id);
+    });
+
+    it('rejects auto-creation when the slug is malformed', async () => {
       const candidate = await run(() =>
         svc.proposeCurationCandidate({
           subject: 'Q',
@@ -355,10 +375,10 @@ const skipReason = TEST_URL
         run(() =>
           svc.publishCurationCandidate({
             candidateDocumentId: candidate.id,
-            targetSpaceSlug: 'does-not-exist',
+            targetSpaceSlug: 'NOT a slug!',
           }),
         ),
-      ).rejects.toThrow(KbNotFoundError);
+      ).rejects.toThrow(KbInvalidError);
     });
   });
 });

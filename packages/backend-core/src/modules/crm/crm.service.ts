@@ -33,6 +33,30 @@ export interface ContactDto {
   doNotContact: boolean;
   unsubscribedAt: string | null;
   lastContactedAt: string | null;
+  consentLawfulBasis: ConsentLawfulBasis | null;
+  consentGivenAt: string | null;
+  consentSource: string | null;
+  consentEvidence: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const CONSENT_LAWFUL_BASES = ['consent', 'legitimate_interest', 'contract'] as const;
+export type ConsentLawfulBasis = (typeof CONSENT_LAWFUL_BASES)[number];
+
+export interface SegmentFilter {
+  tagsAny?: string[];
+  tagsAll?: string[];
+  companyId?: string;
+  searchQuery?: string;
+  contactedSince?: string;
+}
+
+export interface SegmentDto {
+  id: string;
+  name: string;
+  description: string | null;
+  filterDefinition: SegmentFilter;
   createdAt: string;
   updatedAt: string;
 }
@@ -232,6 +256,14 @@ export class CrmService {
         customFields: input.customFields ?? {},
       })
       .returning();
+    await this.webhooks.emit({
+      type: 'crm.contact.created',
+      payload: {
+        contactId: row!.id,
+        email: row!.email,
+        endUserId: row!.endUserId,
+      },
+    });
     return toContactDto(row!);
   }
 
@@ -294,6 +326,13 @@ export class CrmService {
       .where(eq(schema.crmContacts.id, input.id))
       .returning();
     if (!result[0]) throw new NotFoundException(`crm_not_found: contact ${input.id}`);
+    await this.webhooks.emit({
+      type: 'crm.contact.updated',
+      payload: {
+        contactId: result[0].id,
+        fields: Object.keys(input.patch),
+      },
+    });
     return toContactDto(result[0]);
   }
 
@@ -323,6 +362,177 @@ export class CrmService {
       throw new NotFoundException(`crm_not_found: ${input.entityType} ${input.id}`);
     }
     return { ok: true };
+  }
+
+  async setContactConsent(input: {
+    contactId: string;
+    lawfulBasis: ConsentLawfulBasis;
+    source: string;
+    evidence?: Record<string, unknown>;
+    givenAt?: string;
+  }): Promise<ContactDto> {
+    const ctx = getCurrentContext();
+    if (!CONSENT_LAWFUL_BASES.includes(input.lawfulBasis)) {
+      throw new CrmInvalidError(
+        `lawfulBasis must be one of ${CONSENT_LAWFUL_BASES.join(', ')}`,
+      );
+    }
+    const givenAt = input.givenAt ? new Date(input.givenAt) : new Date();
+    const result = await ctx.db
+      .update(schema.crmContacts)
+      .set({
+        consentLawfulBasis: input.lawfulBasis,
+        consentGivenAt: givenAt,
+        consentSource: input.source,
+        consentEvidence: input.evidence ?? {},
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.crmContacts.id, input.contactId))
+      .returning();
+    if (!result[0]) throw new NotFoundException(`crm_not_found: contact ${input.contactId}`);
+    await this.logActivity({
+      type: 'note',
+      contactId: input.contactId,
+      subject: 'Consent recorded',
+      body: `Lawful basis: ${input.lawfulBasis}; source: ${input.source}`,
+      metadata: { consent: { lawfulBasis: input.lawfulBasis, source: input.source, evidence: input.evidence ?? {} } },
+    });
+    return toContactDto(result[0]);
+  }
+
+  // ─── Segments ───────────────────────────────────────────────────────────
+
+  async listSegments(): Promise<SegmentDto[]> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select()
+      .from(schema.crmSegments)
+      .orderBy(asc(schema.crmSegments.name));
+    return rows.map(toSegmentDto);
+  }
+
+  async getSegment(id: string): Promise<SegmentDto> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select()
+      .from(schema.crmSegments)
+      .where(eq(schema.crmSegments.id, id))
+      .limit(1);
+    if (!rows[0]) throw new NotFoundException(`crm_not_found: segment ${id}`);
+    return toSegmentDto(rows[0]);
+  }
+
+  async createSegment(input: {
+    name: string;
+    description?: string;
+    filter: SegmentFilter;
+  }): Promise<SegmentDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!input.name.trim()) throw new CrmInvalidError('segment name must be non-empty');
+    const filter = normaliseFilter(input.filter);
+    try {
+      const [row] = await ctx.db
+        .insert(schema.crmSegments)
+        .values({
+          orgId: actor.orgId,
+          name: input.name,
+          description: input.description ?? null,
+          filterDefinition: filter,
+          createdByActorType: actor.type,
+          createdByActorId: actor.id,
+        })
+        .returning();
+      return toSegmentDto(row!);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('crm_segments_org_name_uq')) {
+        throw new ConflictException(`crm_conflict: segment with name "${input.name}" already exists`);
+      }
+      throw err;
+    }
+  }
+
+  async updateSegment(input: {
+    id: string;
+    patch: Partial<{ name: string; description: string | null; filter: SegmentFilter }>;
+  }): Promise<SegmentDto> {
+    const ctx = getCurrentContext();
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.patch.name !== undefined) updates.name = input.patch.name;
+    if (input.patch.description !== undefined) updates.description = input.patch.description;
+    if (input.patch.filter !== undefined) updates.filterDefinition = normaliseFilter(input.patch.filter);
+    const result = await ctx.db
+      .update(schema.crmSegments)
+      .set(updates)
+      .where(eq(schema.crmSegments.id, input.id))
+      .returning();
+    if (!result[0]) throw new NotFoundException(`crm_not_found: segment ${input.id}`);
+    return toSegmentDto(result[0]);
+  }
+
+  async deleteSegment(id: string): Promise<{ deleted: true }> {
+    const ctx = getCurrentContext();
+    const result = await ctx.db
+      .delete(schema.crmSegments)
+      .where(eq(schema.crmSegments.id, id))
+      .returning({ id: schema.crmSegments.id });
+    if (!result[0]) throw new NotFoundException(`crm_not_found: segment ${id}`);
+    return { deleted: true };
+  }
+
+  /**
+   * Resolve a segment to the contacts it currently targets.
+   *
+   * Always excludes contacts that are suppressed (`do_not_contact = true` or
+   * `unsubscribed_at IS NOT NULL`) or that have no recorded lawful basis for
+   * outreach (`consent_lawful_basis IS NULL`). These floors are non-overridable
+   * from the public surface — they live here so every caller (operator UI,
+   * curator skill, future automation) inherits the same compliance posture.
+   */
+  async listContactsInSegment(input: { id: string; limit?: number }): Promise<ContactDto[]> {
+    const segment = await this.getSegment(input.id);
+    const limit = clampLimit(input.limit, 100, 500);
+    const ctx = getCurrentContext();
+    const filters: SQL[] = [
+      eq(schema.crmContacts.doNotContact, false),
+      sql`${schema.crmContacts.unsubscribedAt} IS NULL`,
+      sql`${schema.crmContacts.consentLawfulBasis} IS NOT NULL`,
+    ];
+    const f = segment.filterDefinition;
+    if (f.companyId) filters.push(eq(schema.crmContacts.companyId, f.companyId));
+    if (f.tagsAny && f.tagsAny.length > 0) {
+      const anyChecks = f.tagsAny.map(
+        (t) => sql`${schema.crmContacts.tags} @> ${JSON.stringify([t])}::jsonb`,
+      );
+      filters.push(or(...anyChecks)!);
+    }
+    if (f.tagsAll && f.tagsAll.length > 0) {
+      filters.push(sql`${schema.crmContacts.tags} @> ${JSON.stringify(f.tagsAll)}::jsonb`);
+    }
+    if (f.contactedSince) {
+      const since = new Date(f.contactedSince);
+      if (Number.isNaN(since.valueOf())) {
+        throw new CrmInvalidError('filter.contactedSince must be ISO timestamp');
+      }
+      filters.push(sql`(${schema.crmContacts.lastContactedAt} IS NULL OR ${schema.crmContacts.lastContactedAt} < ${since})`);
+    }
+    if (f.searchQuery) {
+      const q = `%${f.searchQuery}%`;
+      filters.push(
+        or(
+          ilike(schema.crmContacts.name, q),
+          ilike(schema.crmContacts.email, q),
+          ilike(schema.crmContacts.title, q),
+        )!,
+      );
+    }
+    const rows = await ctx.db
+      .select()
+      .from(schema.crmContacts)
+      .where(and(...filters))
+      .orderBy(desc(schema.crmContacts.updatedAt))
+      .limit(limit);
+    return rows.map(toContactDto);
   }
 
   // ─── Companies ──────────────────────────────────────────────────────────
@@ -367,6 +577,10 @@ export class CrmService {
         customFields: input.customFields ?? {},
       })
       .returning();
+    await this.webhooks.emit({
+      type: 'crm.company.created',
+      payload: { companyId: row!.id, domain: row!.domain },
+    });
     return toCompanyDto(row!);
   }
 
@@ -495,6 +709,15 @@ export class CrmService {
         expectedCloseAt: input.expectedCloseAt ? new Date(input.expectedCloseAt) : null,
       })
       .returning();
+    await this.webhooks.emit({
+      type: 'crm.deal.created',
+      payload: {
+        dealId: row!.id,
+        pipelineId: row!.pipelineId,
+        stageId: row!.stageId,
+        amountCents: row!.amountCents,
+      },
+    });
     return toDealDto(row!);
   }
 
@@ -519,6 +742,15 @@ export class CrmService {
       .where(eq(schema.crmDeals.id, input.dealId))
       .returning();
     if (!result[0]) throw new NotFoundException(`crm_not_found: deal ${input.dealId}`);
+    await this.webhooks.emit({
+      type: 'crm.deal.stage_changed',
+      payload: {
+        dealId: result[0].id,
+        stageId: input.stageId,
+        winLoss: stage.winLoss,
+        closedAt: result[0].closedAt?.toISOString() ?? null,
+      },
+    });
     return toDealDto(result[0]);
   }
 
@@ -561,6 +793,16 @@ export class CrmService {
         .set({ lastContactedAt: new Date(), updatedAt: new Date() })
         .where(eq(schema.crmContacts.id, input.contactId));
     }
+    await this.webhooks.emit({
+      type: 'crm.activity.logged',
+      payload: {
+        activityId: row!.id,
+        kind: row!.type,
+        contactId: row!.contactId,
+        dealId: row!.dealId,
+        companyId: row!.companyId,
+      },
+    });
     return toActivityDto(row!);
   }
 
@@ -936,6 +1178,21 @@ function toContactDto(row: typeof schema.crmContacts.$inferSelect): ContactDto {
     doNotContact: row.doNotContact,
     unsubscribedAt: row.unsubscribedAt?.toISOString() ?? null,
     lastContactedAt: row.lastContactedAt?.toISOString() ?? null,
+    consentLawfulBasis: (row.consentLawfulBasis as ConsentLawfulBasis | null) ?? null,
+    consentGivenAt: row.consentGivenAt?.toISOString() ?? null,
+    consentSource: row.consentSource,
+    consentEvidence: row.consentEvidence ?? null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function toSegmentDto(row: typeof schema.crmSegments.$inferSelect): SegmentDto {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    filterDefinition: row.filterDefinition,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -1044,6 +1301,16 @@ function archiveMonth(d: Date): string {
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
+}
+
+function normaliseFilter(input: SegmentFilter): SegmentFilter {
+  const out: SegmentFilter = {};
+  if (input.tagsAny && input.tagsAny.length > 0) out.tagsAny = [...input.tagsAny];
+  if (input.tagsAll && input.tagsAll.length > 0) out.tagsAll = [...input.tagsAll];
+  if (input.companyId) out.companyId = input.companyId;
+  if (input.searchQuery && input.searchQuery.trim()) out.searchQuery = input.searchQuery.trim();
+  if (input.contactedSince) out.contactedSince = input.contactedSince;
+  return out;
 }
 
 function clampLimit(value: number | undefined, fallback: number, max: number): number {

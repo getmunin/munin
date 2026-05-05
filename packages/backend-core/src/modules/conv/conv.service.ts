@@ -605,6 +605,20 @@ export class ConvService {
       type: 'conversation.status_changed',
       payload: { conversationId: input.id, status: input.status },
     });
+    if (input.status === 'closed') {
+      await this.curatorJobs.enqueue({
+        skillUri: 'skill://crm/contact-extract',
+        userPrompt:
+          `Run a CRM contact-extraction pass for conversation ${input.id}. ` +
+          `Follow the skill exactly: read the conversation, extract identifying info ` +
+          `from end-user messages, dedupe via crm_find_contact, then either create ` +
+          `(crm_create_contact) or backfill empty fields (crm_update_contact). ` +
+          `Skip silently if nothing identifying was volunteered.`,
+        sourceEventType: 'conversation.status_changed',
+        sourceEventPayload: { conversationId: input.id, status: 'closed' },
+        dedupeKey: `crm-contact-extract:conv:${input.id}`,
+      });
+    }
     return toConversationSummary(result[0]);
   }
 

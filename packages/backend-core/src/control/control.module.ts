@@ -20,6 +20,8 @@ import { KbCandidatesController, KbSpacesController } from './kb-candidates.cont
 import { McpModule } from '../mcp/mcp.module.js';
 import { RealtimeModule } from '../realtime/realtime.module.js';
 import { CrmMergeProposalsController } from './crm-merge-proposals.controller.js';
+import { CrmSegmentsController } from './crm-segments.controller.js';
+import { OutreachUnsubscribeController } from './outreach-unsubscribe.controller.js';
 import { PublicSkillsController } from './public-skills.controller.js';
 import { InvitationsController } from './invitations.controller.js';
 import { AcceptInvitationController } from './accept-invitation.controller.js';
@@ -62,6 +64,8 @@ import { OverviewController } from './overview.controller.js';
     EndUserConversationsController,
     OverviewController,
     CrmMergeProposalsController,
+    CrmSegmentsController,
+    OutreachUnsubscribeController,
     CuratorJobsController,
     ConvChannelsController,
     KbCandidatesController,

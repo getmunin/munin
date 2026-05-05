@@ -20,6 +20,7 @@ export interface AgentConfig {
   temperature?: number;
   maxHistoryChars?: number;
   responseFormat?: 'json_object';
+  enablePromptCache?: boolean;
 }
 
 export interface McpTool {

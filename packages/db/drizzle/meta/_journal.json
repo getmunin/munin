@@ -64,6 +64,20 @@
       "when": 1777681400000,
       "tag": "0008_api_keys_audiences",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777681500000,
+      "tag": "0009_curator_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777681600000,
+      "tag": "0010_conv_runner_claim",
+      "breakpoints": true
     }
   ]
 }

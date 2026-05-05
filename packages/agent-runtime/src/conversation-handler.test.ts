@@ -51,6 +51,7 @@ function buildConversation(overrides: Partial<ConversationDetail> = {}): Convers
     status: 'open',
     endUserId: 'eu_1',
     assigneeUserId: null,
+    claim: null,
     messages: [
       {
         id: 'msg_1',
@@ -169,6 +170,90 @@ describe('createConversationHandler', () => {
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
     expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('skips when a staff member holds an active claim', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            claim: {
+              holderType: 'user',
+              holderId: 'user_42',
+              expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            },
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('does respond when a prior human reply has been released (no active claim)', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            claim: null,
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'when do you open?',
+                createdAt: new Date(Date.now() - 60_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'user',
+                body: 'we open at 10',
+                createdAt: new Date(Date.now() - 30_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_3',
+                authorType: 'end_user',
+                body: 'thanks! do you have parking?',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const stubProvider: Provider = () =>
+      Promise.resolve({
+        message: { role: 'assistant', content: 'yes, free parking out front' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).toHaveBeenCalledTimes(1);
   });
 
   it('skips when another runner already owns the conversation', async () => {

@@ -5,12 +5,12 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import {
+  ClipboardCheck,
   Loader2,
   LogOut,
   MessageCircle,
   Newspaper,
   Settings,
-  Users,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { authClient, isOwnerOrAdmin, useActiveRole } from '@getmunin/dashboard-pages';
@@ -41,7 +41,7 @@ import { Label } from '@getmunin/ui';
 import { cn } from '@getmunin/ui';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 
-type NavLabelKey = 'conversations' | 'activity' | 'crmMergeProposals' | 'settings';
+type NavLabelKey = 'conversations' | 'activity' | 'review' | 'settings';
 
 interface NavItem {
   href: Route;
@@ -53,7 +53,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: '/dashboard/conversations', labelKey: 'conversations', icon: MessageCircle },
   { href: '/dashboard/activity', labelKey: 'activity', icon: Newspaper },
-  { href: '/dashboard/crm-merge-proposals', labelKey: 'crmMergeProposals', icon: Users },
+  { href: '/dashboard/review', labelKey: 'review', icon: ClipboardCheck },
   { href: '/dashboard/settings', labelKey: 'settings', icon: Settings, ownerOrAdminOnly: true },
 ];
 

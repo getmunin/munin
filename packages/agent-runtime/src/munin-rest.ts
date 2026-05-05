@@ -6,6 +6,11 @@ export interface ConversationDetail {
   channelType?: string;
   endUserId: string | null;
   assigneeUserId: string | null;
+  claim: {
+    holderType: 'user' | 'agent';
+    holderId: string;
+    expiresAt: string;
+  } | null;
   messages: Array<{
     id: string;
     authorType: 'user' | 'agent' | 'end_user' | 'system';

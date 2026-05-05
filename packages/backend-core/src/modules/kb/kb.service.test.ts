@@ -279,8 +279,18 @@ const skipReason = TEST_URL
       expect(candidate.tags).toEqual(
         expect.arrayContaining(['curation', 'candidate', 'source:ccv_test', 'target:support-faq']),
       );
-      expect(candidate.body).toContain('Source conversation: ccv_test');
-      expect(candidate.body).toContain('Proposed target space: support-faq');
+      expect(candidate.body).toBe(
+        '# When are you open on weekends?\n\nWe open 10–16 Sat, 12–16 Sun.',
+      );
+
+      const candidates = await run(() => svc.listCurationCandidates());
+      const summary = candidates.find((d) => d.id === candidate.id);
+      expect(summary?.proposedTargetSpaceSlug).toBe('support-faq');
+      expect(summary?.sourceConversationId).toBe('ccv_test');
+
+      const detail = await run(() => svc.getCurationCandidate(candidate.id));
+      expect(detail.proposedTargetSpaceSlug).toBe('support-faq');
+      expect(detail.sourceConversationId).toBe('ccv_test');
 
       const after = await run(() => svc.listSpaces());
       expect(after.find((s) => s.slug === CURATION_INBOX_SLUG)).toBeDefined();

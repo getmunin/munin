@@ -66,13 +66,14 @@
     "team": "Team",
     "agents": "Connected agents",
     "apiKeys": "API keys",
+    "channels": "Channels",
     "endUsers": "End-users",
     "usage": "Usage",
     "auditLog": "Audit log",
     "dataExport": "Data export",
     "conversations": "Conversations",
     "activity": "Activity log",
-    "crmMergeProposals": "CRM merges",
+    "review": "Review",
     "skills": "Skills",
     "suggestions": "Suggestions",
     "partnerAccess": "Partner access"
@@ -104,10 +105,34 @@
       "allClear": "All caught up.",
       "conversationsLabel": "conversations needing handover",
       "openConversations": "Open conversations →",
-      "kbCurationLabel": "KB curation candidates pending review",
-      "kbCurationHint": "Open your connected admin agent and ask it to do a curation pass — it'll use skill://kb/curation.",
-      "crmMergeProposalsLabel": "CRM merge proposals pending review",
-      "openMergeProposals": "Review merges →"
+      "kbCurationLabel": "KB suggestions pending review",
+      "crmMergeProposalsLabel": "CRM merges pending review",
+      "openReview": "Review →"
+    },
+    "review": {
+      "title": "Review",
+      "subtitle": "KB suggestions and CRM merges proposed by curators. Approve to publish, dismiss to discard.",
+      "tabs": {
+        "kb": "KB suggestions",
+        "crm": "CRM merges"
+      }
+    },
+    "kbCandidates": {
+      "loading": "Loading…",
+      "emptyTitle": "No KB suggestions",
+      "emptyBody": "Curators will draft KB candidates from resolved handovers and similar signals. Approved candidates publish to your chosen space.",
+      "publishTo": "Publish to:",
+      "noSpacesHint": "Create a KB space first before approving candidates. Use kb_create_space via your admin agent or MCP client.",
+      "approve": "Approve",
+      "dismiss": "Dismiss",
+      "dismissConfirm": "Dismiss this candidate? It will be deleted.",
+      "sourceConvLink": "From conversation …{id}",
+      "errors": {
+        "load": "Could not load KB candidates.",
+        "approve": "Could not approve candidate.",
+        "dismiss": "Could not dismiss candidate.",
+        "noSpace": "Pick a target space first."
+      }
     },
     "crmMergeProposals": {
       "title": "CRM merge proposals",
@@ -158,6 +183,62 @@
       "errors": {
         "load": "Could not load connected agents.",
         "revoke": "Could not revoke token."
+      }
+    },
+    "channels": {
+      "title": "Channels",
+      "subtitle": "Inbound surfaces where end-users reach you. Today: chat widget and email. Voice via MCP setup tools.",
+      "addChannel": "Add channel",
+      "addWidget": "Chat widget",
+      "addEmail": "Email",
+      "createWidgetTitle": "Add a chat widget channel",
+      "createWidgetDescription": "Mints a `mn_widget_*` API key bound to this channel. The widget loads on the configured origins and posts via /api/conv/widget/messages.",
+      "nameLabel": "Internal name",
+      "namePlaceholder": "e.g. main-site-widget",
+      "displayNameLabel": "Display name",
+      "displayNamePlaceholder": "e.g. Acme Support",
+      "originsLabel": "Origin allowlist",
+      "originsHint": "Comma- or whitespace-separated list of origins (full URLs with scheme + host) that may load the widget. Leave empty to allow any origin.",
+      "createWidget": "Create widget channel",
+      "cancel": "Cancel",
+      "creating": "Creating…",
+      "createdTitle": "Channel created — copy the widget key now",
+      "createdDescription": "Widget key for {name}. We only store the hash; we can't show it again.",
+      "rotateKey": "Rotate key",
+      "rotateConfirm": "Rotate the widget key for {name}? Existing keys will be revoked.",
+      "rotatedTitle": "Key rotated — copy it now",
+      "rotatedDescription": "New widget key for {name}. Update your widget config and dispatch.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "savedIt": "I've saved it",
+      "createdAt": "Created {date}",
+      "inactive": "Inactive",
+      "emptyTitle": "No channels yet",
+      "emptyBody": "Add a chat widget or email channel to start collecting messages.",
+      "test": "Test",
+      "testing": "Testing…",
+      "email": {
+        "createTitle": "Add an email channel",
+        "createDescription": "Bring your own SMTP credentials (and optionally IMAP for inbound replies). Passwords are encrypted server-side; we never show them again.",
+        "fromAddressLabel": "From address",
+        "fromNameLabel": "From name (optional)",
+        "outboundLabel": "Outbound (SMTP)",
+        "inboundLabel": "Inbound (IMAP)",
+        "host": "Host",
+        "port": "Port",
+        "username": "Username",
+        "password": "Password",
+        "secure": "Use TLS",
+        "mailbox": "Mailbox (optional, defaults to INBOX)",
+        "enableInbound": "Enable inbound (poll an IMAP mailbox)",
+        "create": "Create email channel"
+      },
+      "errors": {
+        "load": "Could not load channels.",
+        "create": "Could not create channel.",
+        "createEmail": "Could not create email channel.",
+        "rotate": "Could not rotate key.",
+        "test": "Could not test email credentials."
       }
     },
     "apiKeys": {

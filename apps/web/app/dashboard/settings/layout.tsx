@@ -10,6 +10,7 @@ import {
   Download,
   KeyRound,
   Loader2,
+  MessageSquare,
   ScrollText,
   Users,
   UsersRound,
@@ -22,6 +23,7 @@ type GroupKey = 'workspace' | 'access' | 'monitoring';
 
 type ItemKey =
   | 'team'
+  | 'channels'
   | 'apiKeys'
   | 'agents'
   | 'endUsers'
@@ -45,6 +47,7 @@ const GROUPS: SubNavGroup[] = [
     groupKey: 'workspace',
     items: [
       { href: '/dashboard/settings/team', labelKey: 'team', icon: UsersRound },
+      { href: '/dashboard/settings/channels', labelKey: 'channels', icon: MessageSquare },
       { href: '/dashboard/settings/export', labelKey: 'dataExport', icon: Download },
     ],
   },

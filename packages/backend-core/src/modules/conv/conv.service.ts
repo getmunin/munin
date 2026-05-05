@@ -389,8 +389,7 @@ export class ConvService {
     const conv = convRows[0];
     if (!conv) throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
 
-    const isAgentWrite = actor.type === 'end_user_agent' || input.authorType === 'agent';
-    if (isAgentWrite && (await this.claims.isHeldByOther(input.conversationId))) {
+    if (input.authorType === 'agent' && (await this.claims.isHeldByOther(input.conversationId))) {
       throw new HandoverActiveError(input.conversationId);
     }
 
@@ -444,6 +443,20 @@ export class ConvService {
           : {}),
       })
       .where(eq(schema.convConversations.id, input.conversationId));
+
+    if (
+      actor.type === 'user' &&
+      input.authorType === 'user' &&
+      !input.internal
+    ) {
+      try {
+        await this.claims.claim({ conversationId: input.conversationId });
+      } catch (err) {
+        if (!(err instanceof Error && err.message.includes('claim_held_by_other'))) {
+          throw err;
+        }
+      }
+    }
 
     if (!row!.internal) {
       await this.webhooks.emit({

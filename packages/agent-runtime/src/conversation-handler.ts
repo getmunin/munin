@@ -98,8 +98,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       log.info(`skip ${detail.id}: assigned to staff ${detail.assigneeUserId}`);
       return false;
     }
-    if (detail.messages.some((m) => m.authorType === 'user' && !m.internal)) {
-      log.info(`skip ${detail.id}: human teammate has replied; conv is staffed`);
+    if (detail.claim && detail.claim.holderType === 'user') {
+      log.info(`skip ${detail.id}: claimed by ${detail.claim.holderId} until ${detail.claim.expiresAt}`);
       return false;
     }
     if (!detail.endUserId) {

@@ -8,7 +8,12 @@ audiences: [admin]
 
 The self-service AI agent flags a conversation with `conv_request_handover_in_my_conversation` whenever it can't answer from the KB. A human (or another admin agent) then takes over and replies. That reply is the durable answer, but today it stays trapped in one conversation — the next end-user with the same question hits the same dead-end. Your job in a curation pass is to turn those (question, human-reply) pairs into KB documents so the agent can answer them next time.
 
-This skill walks through one pass. Run it on a cadence the operator picks (weekly, after a launch, before a vacation, …). Don't run it inline per conversation — batching is cheaper and gives you a chance to consolidate.
+This skill walks through one pass. It supports two modes:
+
+- **Per-conversation mode** — the user prompt names a single `conversationId` (e.g. *"Run a KB curation pass for conversation ccv_xxx"*). Skip Step 1 entirely and go straight to `conv_get_conversation(<id>)`. Apply Steps 2–5 to that one conversation only. This is what fires from the agent sidecar on every `conversation.handover_resolved` event — a (question, human-reply) pair just landed and we want to capture the answer in seconds, not next-week.
+- **Batch mode** (no `conversationId` in the prompt) — run Steps 1–6 over the last 7 days of resolved handovers. Used as a weekly safety-net sweep to catch anything missed while the sidecar was offline, and for ad-hoc operator-initiated runs.
+
+Both modes share Steps 2–6 below. Don't refile a candidate that's already in `kb-curation-inbox` for the same source conversation — `kb_propose_curation_candidate` tags candidates with `source:<conversationId>`, so check `kb_list_documents({ tag: "candidate" })` and skip pairs whose source you've already filed.
 
 ## TL;DR
 

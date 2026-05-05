@@ -41,7 +41,13 @@ export {
   type OpenedMcpClient,
 } from './mcp-client.js';
 export {
+  runSkillPass,
+  type SkillPassOptions,
+  type SkillPassResult,
+} from './skill-pass.js';
+export {
   createRealtimeClient,
+  type HandoverResolvedEvent,
   type KbDocumentChangedEvent,
   type MessageReceivedEvent,
   type RealtimeClient,

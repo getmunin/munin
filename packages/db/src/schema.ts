@@ -684,6 +684,8 @@ export const convConversations = pgTable(
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
     needsHumanAttention: boolean('needs_human_attention').notNull().default(false),
     needsHumanAttentionAt: timestamp('needs_human_attention_at', { withTimezone: true }),
+    runnerHolder: text('runner_holder'),
+    runnerLeaseExpiresAt: timestamp('runner_lease_expires_at', { withTimezone: true }),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
     updatedAt,
@@ -1220,6 +1222,49 @@ export const cmsReferences = pgTable(
   }),
 );
 
+// ───────────────────────────── Curator jobs ──────────────────────────
+// Persistent queue for curator skill passes. The agent-sidecar (or any
+// admin-authenticated runner) claims pending rows, runs the skill, and
+// acks/fails. Survives sidecar restarts; provides at-least-once delivery
+// of (skillUri, userPrompt) work that originated from a backend event
+// (handover_resolved → KB curation) or a scheduled sweep enqueue.
+export const curatorJobs = pgTable(
+  'curator_jobs',
+  {
+    id: id('cjob'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    skillUri: text('skill_uri').notNull(),
+    userPrompt: text('user_prompt').notNull(),
+    sourceEventType: text('source_event_type'),
+    sourceEventPayload: jsonb('source_event_payload'),
+    dedupeKey: text('dedupe_key'),
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    leaseHolder: text('lease_holder'),
+    lastError: text('last_error'),
+    lastReplyText: text('last_reply_text'),
+    lastToolCalls: integer('last_tool_calls'),
+    lastTotalTokens: integer('last_total_tokens'),
+    createdAt,
+    updatedAt,
+    doneAt: timestamp('done_at', { withTimezone: true }),
+  },
+  (t) => ({
+    orgStatusIdx: index('curator_jobs_org_status_idx').on(t.orgId, t.status),
+    pendingIdx: index('curator_jobs_pending_idx').on(t.nextAttemptAt),
+    dedupeUq: uniqueIndex('curator_jobs_dedupe_uq')
+      .on(t.orgId, t.dedupeKey)
+      .where(sql`dedupe_key IS NOT NULL AND status = 'pending'`),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   orgs,
@@ -1266,6 +1311,7 @@ export const allTables = {
   cmsAssets,
   cmsLocales,
   cmsReferences,
+  curatorJobs,
 };
 
 export type AllTables = typeof allTables;

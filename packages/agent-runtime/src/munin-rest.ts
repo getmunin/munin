@@ -30,19 +30,84 @@ export interface ConversationTopic {
   color?: string | null;
 }
 
+export type CuratorJobStatus = 'pending' | 'done' | 'failed' | 'dead';
+
+export interface CuratorJob {
+  id: string;
+  orgId: string;
+  skillUri: string;
+  userPrompt: string;
+  sourceEventType: string | null;
+  sourceEventPayload: unknown;
+  dedupeKey: string | null;
+  status: CuratorJobStatus;
+  attempts: number;
+  maxAttempts: number;
+  nextAttemptAt: string;
+  leaseExpiresAt: string | null;
+  leaseHolder: string | null;
+  lastError: string | null;
+  lastReplyText: string | null;
+  lastToolCalls: number | null;
+  lastTotalTokens: number | null;
+  createdAt: string;
+  updatedAt: string;
+  doneAt: string | null;
+}
+
+export interface EnqueueCuratorJobInput {
+  skillUri: string;
+  userPrompt: string;
+  sourceEventType?: string;
+  sourceEventPayload?: unknown;
+  dedupeKey?: string;
+  maxAttempts?: number;
+  delaySeconds?: number;
+}
+
+export interface ClaimCuratorJobsInput {
+  holder: string;
+  limit?: number;
+  leaseSeconds?: number;
+}
+
+export interface AckCuratorJobInput {
+  replyText?: string;
+  toolCalls?: number;
+  totalTokens?: number;
+}
+
+export interface FailCuratorJobInput {
+  error: string;
+  retryable?: boolean;
+}
+
 export interface MuninRestClient {
   getConversation(id: string): Promise<ConversationDetail>;
   postAgentMessage(
     conversationId: string,
     body: string,
-    opts?: { preserveAttention?: boolean },
+    opts?: { preserveAttention?: boolean; sinceMessageId?: string },
   ): Promise<void>;
+  tryAcquireConversation(input: {
+    conversationId: string;
+    holder: string;
+    leaseSeconds?: number;
+  }): Promise<{ acquired: boolean; leaseExpiresAt?: string; heldBy?: string | null }>;
+  releaseConversationClaim(input: {
+    conversationId: string;
+    holder: string;
+  }): Promise<{ released: boolean }>;
   postInternalNote(conversationId: string, body: string): Promise<void>;
   mintDelegatedToken(endUserId: string, ttlSeconds?: number): Promise<DelegatedToken>;
   toRuntimeHistory(detail: ConversationDetail): ConversationMessage[];
   changeStatus(conversationId: string, status: ConversationStatus, snoozeUntil?: string): Promise<void>;
   setTopic(conversationId: string, topicId: string | null): Promise<void>;
   listTopics(): Promise<ConversationTopic[]>;
+  enqueueCuratorJob(input: EnqueueCuratorJobInput): Promise<{ job: CuratorJob; alreadyPending: boolean }>;
+  claimCuratorJobs(input: ClaimCuratorJobsInput): Promise<CuratorJob[]>;
+  ackCuratorJob(id: string, input?: AckCuratorJobInput): Promise<CuratorJob>;
+  failCuratorJob(id: string, input: FailCuratorJobInput): Promise<CuratorJob>;
 }
 
 export interface CreateMuninRestClientOptions {
@@ -79,15 +144,37 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     async postAgentMessage(
       conversationId: string,
       body: string,
-      opts: { preserveAttention?: boolean } = {},
+      opts: { preserveAttention?: boolean; sinceMessageId?: string } = {},
     ): Promise<void> {
       await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
         method: 'POST',
         body: JSON.stringify({
           body,
           ...(opts.preserveAttention ? { preserveAttention: true } : {}),
+          ...(opts.sinceMessageId ? { sinceMessageId: opts.sinceMessageId } : {}),
         }),
       });
+    },
+    async tryAcquireConversation(input): Promise<{ acquired: boolean; leaseExpiresAt?: string; heldBy?: string | null }> {
+      return call<{ acquired: boolean; leaseExpiresAt?: string; heldBy?: string | null }>(
+        `/api/conversations/${encodeURIComponent(input.conversationId)}/runner-claim`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            holder: input.holder,
+            ...(input.leaseSeconds ? { leaseSeconds: input.leaseSeconds } : {}),
+          }),
+        },
+      );
+    },
+    async releaseConversationClaim(input): Promise<{ released: boolean }> {
+      return call<{ released: boolean }>(
+        `/api/conversations/${encodeURIComponent(input.conversationId)}/runner-release`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ holder: input.holder }),
+        },
+      );
     },
     async postInternalNote(conversationId: string, body: string): Promise<void> {
       await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
@@ -138,6 +225,33 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     },
     async listTopics(): Promise<ConversationTopic[]> {
       return call<ConversationTopic[]>(`/api/conversations/topics`);
+    },
+    async enqueueCuratorJob(
+      input: EnqueueCuratorJobInput,
+    ): Promise<{ job: CuratorJob; alreadyPending: boolean }> {
+      return call<{ job: CuratorJob; alreadyPending: boolean }>(`/api/curator/jobs`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+    },
+    async claimCuratorJobs(input: ClaimCuratorJobsInput): Promise<CuratorJob[]> {
+      const result = await call<{ items: CuratorJob[] }>(`/api/curator/jobs/claim`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+      return result.items;
+    },
+    async ackCuratorJob(id: string, input: AckCuratorJobInput = {}): Promise<CuratorJob> {
+      return call<CuratorJob>(`/api/curator/jobs/${encodeURIComponent(id)}/ack`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+    },
+    async failCuratorJob(id: string, input: FailCuratorJobInput): Promise<CuratorJob> {
+      return call<CuratorJob>(`/api/curator/jobs/${encodeURIComponent(id)}/fail`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
     },
   };
 }

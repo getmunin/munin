@@ -1,7 +1,8 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, ilike, isNotNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import { CuratorJobsService } from '../curator/curator-jobs.service.js';
 import { ConversationClaimsService } from './conv.claims.service.js';
 
 export class ConvInvalidError extends Error {
@@ -15,6 +16,18 @@ export class HandoverActiveError extends Error {
   readonly code = 'handover_active';
   constructor(public readonly conversationId: string) {
     super(`handover_active: a human has taken over conversation ${conversationId}`);
+  }
+}
+
+export class AgentReplyRaceError extends Error {
+  readonly code = 'agent_reply_race';
+  constructor(
+    public readonly conversationId: string,
+    public readonly conflictMessageId: string,
+  ) {
+    super(
+      `agent_reply_race: another agent reply (${conflictMessageId}) was posted to conversation ${conversationId} since the caller's sinceMessageId; skipping duplicate`,
+    );
   }
 }
 
@@ -84,6 +97,7 @@ export class ConvService {
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(ConversationClaimsService) private readonly claims: ConversationClaimsService,
+    @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
   ) {}
 
   // ─── Channels ───────────────────────────────────────────────────────────
@@ -357,6 +371,7 @@ export class ConvService {
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
     preserveAttention?: boolean;
+    sinceMessageId?: string;
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -377,6 +392,30 @@ export class ConvService {
     const isAgentWrite = actor.type === 'end_user_agent' || input.authorType === 'agent';
     if (isAgentWrite && (await this.claims.isHeldByOther(input.conversationId))) {
       throw new HandoverActiveError(input.conversationId);
+    }
+
+    if (
+      input.authorType === 'agent' &&
+      !input.internal &&
+      input.sinceMessageId
+    ) {
+      const conflictRows = await ctx.db
+        .select({ id: schema.convMessages.id })
+        .from(schema.convMessages)
+        .where(
+          and(
+            eq(schema.convMessages.conversationId, input.conversationId),
+            eq(schema.convMessages.authorType, 'agent'),
+            eq(schema.convMessages.internal, false),
+            sql`${schema.convMessages.createdAt} > (
+              SELECT created_at FROM conv_messages WHERE id = ${input.sinceMessageId}
+            )`,
+          ),
+        )
+        .limit(1);
+      if (conflictRows[0]) {
+        throw new AgentReplyRaceError(input.conversationId, conflictRows[0].id);
+      }
     }
 
     const [row] = await ctx.db
@@ -428,6 +467,22 @@ export class ConvService {
             messageId: row!.id,
             authorType: input.authorType,
           },
+        });
+        await this.curatorJobs.enqueue({
+          skillUri: 'skill://kb/curation',
+          userPrompt:
+            `Run a KB curation pass for conversation ${input.conversationId}. ` +
+            `Follow the skill exactly. Per-conversation mode: skip the conv_list_conversations ` +
+            `step and go straight to conv_get_conversation(${input.conversationId}). Extract the ` +
+            `(end-user question, human-reply) pair, apply the skip rules, and file via ` +
+            `kb_propose_curation_candidate if it's worth keeping.`,
+          sourceEventType: 'conversation.handover_resolved',
+          sourceEventPayload: {
+            conversationId: input.conversationId,
+            messageId: row!.id,
+            authorType: input.authorType,
+          },
+          dedupeKey: `kb-curation:msg:${row!.id}`,
         });
       }
 
@@ -516,6 +571,7 @@ export class ConvService {
       throw new ConvInvalidError('snoozeUntil is required when status is "snoozed"');
     }
     const clearAttention = input.status === 'closed';
+    const releaseRunner = input.status === 'closed';
     const result = await ctx.db
       .update(schema.convConversations)
       .set({
@@ -524,6 +580,9 @@ export class ConvService {
         updatedAt: new Date(),
         ...(clearAttention
           ? { needsHumanAttention: false, needsHumanAttentionAt: null }
+          : {}),
+        ...(releaseRunner
+          ? { runnerHolder: null, runnerLeaseExpiresAt: null }
           : {}),
       })
       .where(eq(schema.convConversations.id, input.id))
@@ -534,6 +593,72 @@ export class ConvService {
       payload: { conversationId: input.id, status: input.status },
     });
     return toConversationSummary(result[0]);
+  }
+
+  async tryAcquireConversation(input: {
+    conversationId: string;
+    holder: string;
+    leaseSeconds: number;
+  }): Promise<{ acquired: boolean; leaseExpiresAt?: string; heldBy?: string | null }> {
+    const ctx = getCurrentContext();
+    const expiresAt = new Date(Date.now() + Math.max(30, input.leaseSeconds) * 1000);
+    const result = await ctx.db
+      .update(schema.convConversations)
+      .set({
+        runnerHolder: input.holder,
+        runnerLeaseExpiresAt: expiresAt,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.convConversations.id, input.conversationId),
+          or(
+            isNull(schema.convConversations.runnerHolder),
+            eq(schema.convConversations.runnerHolder, input.holder),
+            sql`${schema.convConversations.runnerLeaseExpiresAt} IS NULL OR ${schema.convConversations.runnerLeaseExpiresAt} < now()`,
+          ),
+        ),
+      )
+      .returning({
+        leaseExpiresAt: schema.convConversations.runnerLeaseExpiresAt,
+      });
+
+    if (result[0]) {
+      return {
+        acquired: true,
+        leaseExpiresAt: result[0].leaseExpiresAt?.toISOString(),
+      };
+    }
+
+    const [current] = await ctx.db
+      .select({ runnerHolder: schema.convConversations.runnerHolder })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .limit(1);
+    if (!current) throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
+    return { acquired: false, heldBy: current.runnerHolder };
+  }
+
+  async releaseConversationClaim(input: {
+    conversationId: string;
+    holder: string;
+  }): Promise<{ released: boolean }> {
+    const ctx = getCurrentContext();
+    const result = await ctx.db
+      .update(schema.convConversations)
+      .set({
+        runnerHolder: null,
+        runnerLeaseExpiresAt: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.convConversations.id, input.conversationId),
+          eq(schema.convConversations.runnerHolder, input.holder),
+        ),
+      )
+      .returning({ id: schema.convConversations.id });
+    return { released: result.length > 0 };
   }
 
   async requestHandover(input: {

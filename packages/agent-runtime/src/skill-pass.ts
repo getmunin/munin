@@ -15,6 +15,7 @@ export interface SkillPassOptions {
   maxHistoryChars?: number;
   clientName?: string;
   providerImpl?: Provider;
+  allowedToolPrefixes?: string[];
   logger?: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -74,7 +75,10 @@ export async function runSkillPass(opts: SkillPassOptions): Promise<SkillPassRes
       log.warn(`${opts.skillUri} not available on ${opts.baseUrl}`);
       return { ok: false, skipped: 'skill_missing' };
     }
-    const mcp = adaptToToolHandle(client);
+    const baseHandle = adaptToToolHandle(client);
+    const mcp = opts.allowedToolPrefixes
+      ? withAllowedToolPrefixes(baseHandle, opts.allowedToolPrefixes)
+      : baseHandle;
     try {
       const reply = await runAgent({
         config: {
@@ -140,6 +144,35 @@ function adaptToToolHandle(client: Client): McpToolHandle {
         content: (result.content ?? []) as McpToolResult['content'],
         isError: typeof result.isError === 'boolean' ? result.isError : undefined,
       };
+    },
+  };
+}
+
+export function withAllowedToolPrefixes(
+  handle: McpToolHandle,
+  allowedPrefixes: readonly string[],
+): McpToolHandle {
+  if (allowedPrefixes.length === 0) return handle;
+  const isAllowed = (name: string): boolean =>
+    allowedPrefixes.some((prefix) => name.startsWith(prefix));
+  return {
+    async listTools(): Promise<McpTool[]> {
+      const tools = await handle.listTools();
+      return tools.filter((t) => isAllowed(t.name));
+    },
+    async callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
+      if (!isAllowed(name)) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `tool '${name}' is not in the allow-list for this skill pass`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return handle.callTool(name, args);
     },
   };
 }

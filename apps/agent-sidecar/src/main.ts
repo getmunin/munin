@@ -1,3 +1,5 @@
+import { hostname } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import {
   createConversationHandler,
   createMuninRestClient,
@@ -6,6 +8,7 @@ import {
   openMcpClient,
 } from '@getmunin/agent-runtime';
 import { loadConfigFromEnv } from './config.js';
+import { startCurators } from './curator-loop.js';
 
 async function main(): Promise<void> {
   const config = loadConfigFromEnv();
@@ -17,7 +20,7 @@ async function main(): Promise<void> {
   const adminMcp = await openMcpClient({
     baseUrl: config.muninBaseUrl,
     bearerToken: config.muninAdminApiKey,
-    clientName: 'munin-self-service-ai-admin',
+    clientName: 'munin-agent-sidecar-admin',
   });
 
   const prompts = await createPromptResolver({
@@ -25,18 +28,24 @@ async function main(): Promise<void> {
     mcp: adminMcp,
   });
 
+  const holderId = process.env.MUNIN_SIDECAR_HOLDER_ID ?? `sidecar-${hostname()}-${randomUUID().slice(0, 8)}`;
   const handler = createConversationHandler({
     config,
     rest,
     prompts,
     openMcp: ({ delegatedToken }) =>
       openMcpClient({ baseUrl: config.muninBaseUrl, bearerToken: delegatedToken }),
+    holderId,
   });
+
+  const curators = startCurators({ config, rest });
 
   const realtime = createRealtimeClient({
     baseUrl: config.muninBaseUrl,
     adminApiKey: config.muninAdminApiKey,
     onMessageReceived: (event) => handler.handle(event),
+    onCuratorJobPending: (event) => curators.onCuratorJobPending(event),
+    onConnected: () => curators.onConnected(),
     onKbDocumentChanged: (event) => {
       if (event.type === 'deleted') return;
       if (!event.slug || !prompts.isPromptDocument(event.slug)) return;
@@ -45,13 +54,14 @@ async function main(): Promise<void> {
   });
   realtime.start();
   console.log(
-    `[self-service-ai] connected to ${config.muninBaseUrl}, model=${config.model}, prompts=${config.promptsDir}, debounce=${config.debounceMs}ms`,
+    `[agent-sidecar] connected to ${config.muninBaseUrl}, model=${config.model}, holder=${holderId}, prompts=${config.promptsDir}, debounce=${config.debounceMs}ms, curators=${config.curatorsDisabled ? 'off' : 'on'}`,
   );
 
   const shutdown = async (): Promise<void> => {
-    console.log('[self-service-ai] shutting down…');
+    console.log('[agent-sidecar] shutting down…');
     await realtime.stop();
     await handler.flush();
+    await curators.stop();
     await adminMcp.close().catch(() => undefined);
     process.exit(0);
   };
@@ -60,6 +70,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  console.error('[self-service-ai] fatal:', err);
+  console.error('[agent-sidecar] fatal:', err);
   process.exit(1);
 });

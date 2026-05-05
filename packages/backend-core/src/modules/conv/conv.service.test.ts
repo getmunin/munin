@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { NotFoundException } from '@nestjs/common';
 import { ConvService, ConvInvalidError } from './conv.service.js';
 import { ConversationClaimsService } from './conv.claims.service.js';
+import { CuratorJobsService } from '../curator/curator-jobs.service.js';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL
@@ -45,7 +46,11 @@ const skipReason = TEST_URL
     actor = new ActorIdentity('admin_agent', 'agt_conv_test', orgId, ['*'], ['admin']);
 
     const dispatcher = new WebhookDispatcher();
-    svc = new ConvService(dispatcher, new ConversationClaimsService(dispatcher));
+    svc = new ConvService(
+      dispatcher,
+      new ConversationClaimsService(dispatcher),
+      new CuratorJobsService(dispatcher),
+    );
   });
 
   afterAll(async () => {

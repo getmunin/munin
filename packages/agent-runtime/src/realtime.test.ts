@@ -4,6 +4,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
   createRealtimeClient,
+  type CuratorJobPendingEvent,
   type HandoverResolvedEvent,
   type MessageReceivedEvent,
 } from './realtime.js';
@@ -120,5 +121,34 @@ describe('createRealtimeClient', () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
     await client.stop();
     expect(messages).toHaveLength(0);
+  });
+
+  it('fires onCuratorJobPending on curator_job.pending', async () => {
+    const events: CuratorJobPendingEvent[] = [];
+    const client = createRealtimeClient({
+      baseUrl,
+      adminApiKey: 'mn_admin_test',
+      onMessageReceived: () => {},
+      onCuratorJobPending: (e) => events.push(e),
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    client.start();
+    await waitForConnection();
+    const nextAttemptAt = new Date().toISOString();
+    send('curator_job.pending', {
+      jobId: 'cjob_xyz',
+      skillUri: 'skill://kb/curation',
+      dedupeKey: 'kb-curation:msg:cvm_1',
+      nextAttemptAt,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    await client.stop();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual({
+      jobId: 'cjob_xyz',
+      skillUri: 'skill://kb/curation',
+      dedupeKey: 'kb-curation:msg:cvm_1',
+      nextAttemptAt,
+    });
   });
 });

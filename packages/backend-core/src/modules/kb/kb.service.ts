@@ -65,6 +65,16 @@ export interface DocumentDto {
   updatedAt: string;
 }
 
+export interface CurationCandidateSummary extends DocumentSummary {
+  proposedTargetSpaceSlug: string | null;
+  sourceConversationId: string | null;
+}
+
+export interface CurationCandidateDto extends DocumentDto {
+  proposedTargetSpaceSlug: string | null;
+  sourceConversationId: string | null;
+}
+
 export interface DocumentSummary {
   id: string;
   spaceId: string;
@@ -322,6 +332,19 @@ export class KbService {
 
   // ─── Curation ───────────────────────────────────────────────────────────
 
+  async listCurationCandidates(limit?: number): Promise<CurationCandidateSummary[]> {
+    const items = await this.listDocuments({ tag: 'candidate', limit: limit ?? 200 });
+    return items.map((d) => ({ ...d, ...extractCandidateRefs(d.tags) }));
+  }
+
+  async getCurationCandidate(id: string): Promise<CurationCandidateDto> {
+    const doc = await this.getDocument(id);
+    if (!doc.tags.includes('candidate')) {
+      throw new KbInvalidError(`document ${id} is not a curation candidate`);
+    }
+    return { ...doc, ...extractCandidateRefs(doc.tags) };
+  }
+
   async proposeCurationCandidate(input: {
     subject: string;
     draftBody: string;
@@ -333,10 +356,7 @@ export class KbService {
     return this.createDocument({
       spaceId: space.id,
       title: input.subject,
-      body: appendCandidateFooter(input.draftBody, {
-        sourceConversationId: input.sourceConversationId,
-        proposedTargetSpaceSlug: input.proposedTargetSpaceSlug,
-      }),
+      body: input.draftBody,
       audiences: ['admin'],
       tags: dedupeTags([
         'curation',
@@ -622,20 +642,20 @@ function clampLimit(value: number | undefined, fallback: number, max: number): n
 
 export const CURATION_INBOX_SLUG = 'kb-curation-inbox';
 
-function appendCandidateFooter(
-  body: string,
-  refs: { sourceConversationId?: string; proposedTargetSpaceSlug?: string },
-): string {
-  const lines: string[] = [];
-  if (refs.sourceConversationId) {
-    lines.push(`Source conversation: ${refs.sourceConversationId}`);
+function extractCandidateRefs(tags: string[]): {
+  proposedTargetSpaceSlug: string | null;
+  sourceConversationId: string | null;
+} {
+  let proposedTargetSpaceSlug: string | null = null;
+  let sourceConversationId: string | null = null;
+  for (const t of tags) {
+    if (t.startsWith('target:') && !proposedTargetSpaceSlug) {
+      proposedTargetSpaceSlug = t.slice('target:'.length);
+    } else if (t.startsWith('source:') && !sourceConversationId) {
+      sourceConversationId = t.slice('source:'.length);
+    }
   }
-  if (refs.proposedTargetSpaceSlug) {
-    lines.push(`Proposed target space: ${refs.proposedTargetSpaceSlug}`);
-  }
-  if (lines.length === 0) return body;
-  const trimmed = body.replace(/\s+$/, '');
-  return `${trimmed}\n\n---\n${lines.map((l) => `*${l}*`).join('\n')}\n`;
+  return { proposedTargetSpaceSlug, sourceConversationId };
 }
 
 function dedupeTags(tags: string[]): string[] {

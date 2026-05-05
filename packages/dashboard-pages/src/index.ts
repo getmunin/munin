@@ -7,6 +7,7 @@ export { AcceptInvitePage } from './pages/accept-invite';
 export { AgentsPage } from './pages/agents';
 export { ApiKeysPage } from './pages/api-keys';
 export { AuditLogPage } from './pages/audit-log';
+export { ChannelsPage } from './pages/channels';
 export { EndUsersPage } from './pages/end-users';
 export { ExportPage } from './pages/export';
 export { DashboardPage } from './pages/overview';
@@ -15,6 +16,8 @@ export { UsagePage } from './pages/usage';
 export { ConversationsPage } from './pages/conversations';
 export { ActivityPage } from './pages/activity';
 export { CrmMergeProposalsPage } from './pages/crm-merge-proposals';
+export { ReviewPage } from './pages/review';
+export { KbCandidatesTab } from './pages/kb-candidates';
 export {
   useRealtime,
   type RealtimeEventRow,

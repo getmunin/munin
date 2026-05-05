@@ -12,8 +12,11 @@ import { CmsDeliveryController } from './cms-delivery.controller.js';
 import { CmsModule } from '../modules/cms/cms.module.js';
 import { ConvModule } from '../modules/conv/conv.module.js';
 import { CrmModule } from '../modules/crm/crm.module.js';
+import { KbModule } from '../modules/kb/kb.module.js';
 import { CuratorModule } from '../modules/curator/curator.module.js';
 import { CuratorJobsController } from './curator-jobs.controller.js';
+import { ConvChannelsController } from './conv-channels.controller.js';
+import { KbCandidatesController, KbSpacesController } from './kb-candidates.controller.js';
 import { McpModule } from '../mcp/mcp.module.js';
 import { RealtimeModule } from '../realtime/realtime.module.js';
 import { CrmMergeProposalsController } from './crm-merge-proposals.controller.js';
@@ -37,7 +40,7 @@ import { OverviewController } from './overview.controller.js';
  * permitted on these endpoints — that's the privilege boundary.
  */
 @Module({
-  imports: [CmsModule, ConvModule, CrmModule, CuratorModule, McpModule, RealtimeModule],
+  imports: [CmsModule, ConvModule, CrmModule, CuratorModule, KbModule, McpModule, RealtimeModule],
   controllers: [
     ApiKeysController,
     EndUsersController,
@@ -60,6 +63,9 @@ import { OverviewController } from './overview.controller.js';
     OverviewController,
     CrmMergeProposalsController,
     CuratorJobsController,
+    ConvChannelsController,
+    KbCandidatesController,
+    KbSpacesController,
   ],
   providers: [InvitationsService],
 })

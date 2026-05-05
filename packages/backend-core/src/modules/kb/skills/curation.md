@@ -20,7 +20,7 @@ Both modes share Steps 2–6 below. Don't refile a candidate that's already in `
 1. **List recently-resolved handovers** with `conv_list_conversations`, then narrow to the ones that needed human attention but no longer do.
 2. **Read each conversation's messages** with `conv_get_conversation` and pull out the (end-user question, human-reply) pair.
 3. **Skip duplicates and fluff.** If a candidate is functionally identical to one you've already filed, skip. If the human reply is a one-off ("yes", "ok"), skip.
-4. **Draft each candidate** as a short FAQ-style markdown doc. Include a footer line linking back to the source conversation for traceability.
+4. **Draft each candidate** as a short FAQ-style markdown doc — plain prose, no headings (the `subject` is the title). Pass `sourceConversationId` and `proposedTargetSpaceSlug` as structured fields so the review UI can surface them.
 5. **File each candidate** with `kb_propose_curation_candidate`. They land in the `kb-curation-inbox` KB space (admin audience only — never visible to end-user agents).
 6. **Promote approved candidates** with `kb_publish_curation_candidate` once a human has reviewed them. That moves the doc into the org-facing space and removes the candidate from the inbox.
 
@@ -67,20 +67,25 @@ Treat the *last cluster* of human/agent replies as the canonical answer for that
 
 ## Step 4 — draft the candidate
 
-Keep candidates short, FAQ-shaped, and channel-agnostic. Aim for 100–300 words. Suggested template:
+Keep candidates short, FAQ-shaped, and channel-agnostic. Aim for 100–300 words.
 
-```markdown
-# When can I [thing the user asked about]?
+**Formatting rules — strict:**
 
+- Put the question in the `subject` argument (not in the body). The UI renders `subject` as the candidate title.
+- The body is plain prose. Use **bold** and *italics* sparingly to highlight key terms. Bullet lists are fine for 2–5 short items. Inline `code` is fine for product names, IDs, or commands.
+- **No headings.** Do not use `#`, `##`, or `###` anywhere in the body. The candidate already has a title (the `subject`) — a heading inside the body just duplicates it and looks bad in the review UI.
+- **No JSON-escaping the body.** Pass real markdown with real newlines. Do not stringify the body so it ends up containing literal `\n` characters — the tool argument is already a string; just send the string.
+- No tables, no images, no HTML. KB docs render across channels (chat, email, voice TTS) and rich blocks don't survive every channel.
+
+Suggested shape:
+
+```
 [Direct answer in 1–3 sentences.]
 
 [Optional: 2–4 bullet points of relevant detail.]
-
----
-*Drafted from conversation [conv_xxxxxxxxx](… link …) on YYYY-MM-DD.*
 ```
 
-The trailing footer is the traceability hook — keep it. When a future operator wonders why this doc exists, they can click through to the original conversation.
+You don't need to add a "Drafted from conversation …" footer — the system stores `sourceConversationId` as a structured field and surfaces it in the review UI.
 
 ## Step 5 — file the candidate
 
@@ -89,7 +94,7 @@ The trailing footer is the traceability hook — keep it. When a future operator
   "name": "kb_propose_curation_candidate",
   "arguments": {
     "subject": "Weekend opening hours",
-    "draftBody": "# When are you open on weekends?\n\nWe're open 10–16 on Saturdays …\n\n---\n*Drafted from conversation conv_xxx on 2026-05-04.*",
+    "draftBody": "We're open **10–16 on Saturdays** and 12–16 on Sundays. The downtown branch keeps weekday hours every day.",
     "sourceConversationId": "ccv_…",
     "proposedTargetSpaceSlug": "support-faq"
   }

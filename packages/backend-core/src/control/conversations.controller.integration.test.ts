@@ -210,13 +210,13 @@ const skipReason = TEST_URL
     );
     expect(detailWithClaim.body.claim).not.toBeNull();
 
-    const blockedReply = await rest<{ message?: string; error?: string }>(
+    const endUserFollowUp = await rest<{ message?: string; error?: string }>(
       endUserToken,
       'POST',
       `/api/end-user/conversations/${started.id}/messages`,
       { body: 'still there?' },
     );
-    expect(blockedReply.status).toBe(409);
+    expect(endUserFollowUp.status).toBe(201);
 
     const humanReply = await rest<{ id: string }>(
       adminKeyA,

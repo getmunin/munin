@@ -95,16 +95,17 @@ export function DashboardPage() {
                   </li>
                 )}
                 {backlog.kbCurationPending > 0 && (
-                  <li>
-                    <div className="flex items-center justify-between gap-3">
-                      <span>
-                        <strong className="font-medium">{backlog.kbCurationPending}</strong>{' '}
-                        {tBacklog('kbCurationLabel')}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {tBacklog('kbCurationHint')}
-                    </p>
+                  <li className="flex items-center justify-between gap-3">
+                    <span>
+                      <strong className="font-medium">{backlog.kbCurationPending}</strong>{' '}
+                      {tBacklog('kbCurationLabel')}
+                    </span>
+                    <Link
+                      href="/dashboard/review"
+                      className="text-xs text-muted-foreground hover:underline"
+                    >
+                      {tBacklog('openReview')}
+                    </Link>
                   </li>
                 )}
                 {backlog.crmMergeProposalsPending > 0 && (
@@ -114,10 +115,10 @@ export function DashboardPage() {
                       {tBacklog('crmMergeProposalsLabel')}
                     </span>
                     <Link
-                      href="/dashboard/crm-merge-proposals"
+                      href="/dashboard/review"
                       className="text-xs text-muted-foreground hover:underline"
                     >
-                      {tBacklog('openMergeProposals')}
+                      {tBacklog('openReview')}
                     </Link>
                   </li>
                 )}

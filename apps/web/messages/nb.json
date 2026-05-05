@@ -66,13 +66,14 @@
     "team": "Team",
     "agents": "Tilkoblede agenter",
     "apiKeys": "API-nøkler",
+    "channels": "Kanaler",
     "endUsers": "Sluttbrukere",
     "usage": "Bruk",
     "auditLog": "Hendelseslogg",
     "dataExport": "Dataeksport",
     "conversations": "Samtaler",
     "activity": "Aktivitetslogg",
-    "crmMergeProposals": "CRM-sammenslåinger",
+    "review": "Gjennomgang",
     "skills": "Ferdigheter",
     "suggestions": "Forslag",
     "partnerAccess": "Partnertilgang"
@@ -104,10 +105,34 @@
       "allClear": "Alt er ajour.",
       "conversationsLabel": "samtaler som venter på overlevering",
       "openConversations": "Åpne samtaler →",
-      "kbCurationLabel": "kunnskapsbase-kandidater venter på gjennomgang",
-      "kbCurationHint": "Åpne admin-agenten din og be den gjøre en kurateringsrunde – den bruker skill://kb/curation.",
+      "kbCurationLabel": "KB-forslag venter på gjennomgang",
       "crmMergeProposalsLabel": "CRM-sammenslåinger venter på gjennomgang",
-      "openMergeProposals": "Gjennomgå sammenslåinger →"
+      "openReview": "Gjennomgå →"
+    },
+    "review": {
+      "title": "Gjennomgang",
+      "subtitle": "KB-forslag og CRM-sammenslåinger fra kuratorene. Godkjenn for å publisere, avvis for å forkaste.",
+      "tabs": {
+        "kb": "KB-forslag",
+        "crm": "CRM-sammenslåinger"
+      }
+    },
+    "kbCandidates": {
+      "loading": "Laster …",
+      "emptyTitle": "Ingen KB-forslag",
+      "emptyBody": "Kuratorene foreslår KB-kandidater fra avsluttede overleveringer og andre signaler. Godkjente kandidater publiseres til valgt rom.",
+      "publishTo": "Publiser til:",
+      "noSpacesHint": "Opprett et KB-rom før du godkjenner kandidater. Bruk kb_create_space via admin-agenten eller MCP-klienten din.",
+      "approve": "Godkjenn",
+      "dismiss": "Avvis",
+      "dismissConfirm": "Avvise denne kandidaten? Den blir slettet.",
+      "sourceConvLink": "Fra samtale …{id}",
+      "errors": {
+        "load": "Klarte ikke laste KB-kandidater.",
+        "approve": "Klarte ikke godkjenne kandidat.",
+        "dismiss": "Klarte ikke avvise kandidat.",
+        "noSpace": "Velg et målrom først."
+      }
     },
     "crmMergeProposals": {
       "title": "CRM-sammenslåinger",
@@ -158,6 +183,62 @@
       "errors": {
         "load": "Kunne ikke laste tilkoblede agenter.",
         "revoke": "Kunne ikke tilbakekalle token."
+      }
+    },
+    "channels": {
+      "title": "Kanaler",
+      "subtitle": "Innkommende flater hvor sluttbrukere når deg. I dag: chat-widget og e-post. Tale via MCP-verktøy.",
+      "addChannel": "Legg til kanal",
+      "addWidget": "Chat-widget",
+      "addEmail": "E-post",
+      "createWidgetTitle": "Legg til en chat-widget-kanal",
+      "createWidgetDescription": "Lager en `mn_widget_*` API-nøkkel knyttet til denne kanalen. Widgeten lastes på de konfigurerte opprinnelsene og poster via /api/conv/widget/messages.",
+      "nameLabel": "Internt navn",
+      "namePlaceholder": "f.eks. main-site-widget",
+      "displayNameLabel": "Visningsnavn",
+      "displayNamePlaceholder": "f.eks. Acme Support",
+      "originsLabel": "Liste over godkjente opprinnelser",
+      "originsHint": "Komma- eller mellomroms-separert liste over opprinnelser (full URL med scheme + host) som kan laste widgeten. Tom for å tillate alle opprinnelser.",
+      "createWidget": "Opprett widget-kanal",
+      "cancel": "Avbryt",
+      "creating": "Oppretter…",
+      "createdTitle": "Kanal opprettet — kopier widget-nøkkelen nå",
+      "createdDescription": "Widget-nøkkel for {name}. Vi lagrer kun hashen; vi kan ikke vise den igjen.",
+      "rotateKey": "Roter nøkkel",
+      "rotateConfirm": "Rotere widget-nøkkelen for {name}? Eksisterende nøkler tilbakekalles.",
+      "rotatedTitle": "Nøkkel rotert — kopier den nå",
+      "rotatedDescription": "Ny widget-nøkkel for {name}. Oppdater widget-konfigurasjon og distribuer.",
+      "copy": "Kopier",
+      "copied": "Kopiert",
+      "savedIt": "Jeg har lagret den",
+      "createdAt": "Opprettet {date}",
+      "inactive": "Inaktiv",
+      "emptyTitle": "Ingen kanaler ennå",
+      "emptyBody": "Legg til en chat-widget- eller e-post-kanal for å begynne å motta meldinger.",
+      "test": "Test",
+      "testing": "Tester…",
+      "email": {
+        "createTitle": "Legg til en e-postkanal",
+        "createDescription": "Bruk dine egne SMTP-innstillinger (og valgfritt IMAP for innkommende svar). Passord krypteres server-side; vi viser dem aldri igjen.",
+        "fromAddressLabel": "Fra-adresse",
+        "fromNameLabel": "Fra-navn (valgfritt)",
+        "outboundLabel": "Utgående (SMTP)",
+        "inboundLabel": "Innkommende (IMAP)",
+        "host": "Host",
+        "port": "Port",
+        "username": "Brukernavn",
+        "password": "Passord",
+        "secure": "Bruk TLS",
+        "mailbox": "Postboks (valgfritt, standard INBOX)",
+        "enableInbound": "Aktiver innkommende (poll en IMAP-postboks)",
+        "create": "Opprett e-postkanal"
+      },
+      "errors": {
+        "load": "Kunne ikke laste kanaler.",
+        "create": "Kunne ikke opprette kanal.",
+        "createEmail": "Kunne ikke opprette e-postkanal.",
+        "rotate": "Kunne ikke rotere nøkkel.",
+        "test": "Kunne ikke teste e-postlegitimasjon."
       }
     },
     "apiKeys": {

@@ -96,12 +96,7 @@ export function CrmMergeProposalsPage() {
   const empty = useMemo(() => proposals !== null && proposals.length === 0, [proposals]);
 
   return (
-    <>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
-      </header>
-
+    <div className="space-y-4">
       {error && (
         <Card>
           <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
@@ -211,7 +206,7 @@ export function CrmMergeProposalsPage() {
           {t('hint')}
         </p>
       )}
-    </>
+    </div>
   );
 }
 

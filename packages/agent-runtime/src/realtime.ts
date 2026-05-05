@@ -15,11 +15,18 @@ export interface KbDocumentChangedEvent {
   version?: number;
 }
 
+export interface HandoverResolvedEvent {
+  conversationId: string;
+  messageId: string;
+  authorType: 'user' | 'agent' | 'end_user' | 'system';
+}
+
 export interface RealtimeClientOptions {
   baseUrl: string;
   adminApiKey: string;
   onMessageReceived: (event: MessageReceivedEvent) => void;
   onKbDocumentChanged?: (event: KbDocumentChangedEvent) => void;
+  onHandoverResolved?: (event: HandoverResolvedEvent) => void;
   logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void };
 }
 
@@ -114,6 +121,22 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
                 ? (authorType as MessageReceivedEvent['authorType'])
                 : 'end_user',
             endUserId: typeof payload['endUserId'] === 'string' ? payload['endUserId'] : undefined,
+          });
+          return;
+        }
+
+        if (opts.onHandoverResolved && eventType === 'conversation.handover_resolved') {
+          const conversationId = payload['conversationId'];
+          const messageId = payload['messageId'];
+          const authorType = payload['authorType'];
+          if (typeof conversationId !== 'string' || typeof messageId !== 'string') return;
+          opts.onHandoverResolved({
+            conversationId,
+            messageId,
+            authorType:
+              typeof authorType === 'string'
+                ? (authorType as HandoverResolvedEvent['authorType'])
+                : 'user',
           });
           return;
         }

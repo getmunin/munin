@@ -111,7 +111,10 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
         .filter((m) => !m.internal)
         .map((m) => ({
           authorType: m.authorType,
-          body: m.body,
+          body:
+            m.authorType === 'user'
+              ? `[human teammate] ${m.body}`
+              : m.body,
           createdAt: m.createdAt,
         }));
     },

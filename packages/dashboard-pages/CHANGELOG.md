@@ -1,5 +1,42 @@
 # @getmunin/dashboard-pages
 
+## 0.21.0
+
+### Minor Changes
+
+- 914477f: Channels can now be created and managed from the dashboard.
+
+  **Backend** — new REST controller at `/api/conv/channels`:
+  - `GET /` — list widget + email channels for the org.
+  - `POST /widget` — create a chat-widget channel; mints and returns a one-shot `mn_widget_*` API key bound to the channel and origin allowlist.
+  - `POST /widget/:id` — update name / origin allowlist / display name.
+  - `POST /widget/:id/rotate-key` — revoke prior keys and mint a new one (one-shot return).
+  - `POST /email` — create an email channel with operator-supplied SMTP credentials and optional IMAP for inbound. Passwords are encrypted at rest.
+  - `POST /email/:id/test` — verify SMTP/IMAP credentials before enabling.
+
+  Munin doesn't ship a built-in mailer; email channels require operator-provided SMTP, matching the OSS posture for outbound on every other surface.
+
+  **Dashboard** — new "Channels" entry under Settings with an "Add channel" dropdown (chat widget / email). Each option opens a dedicated dialog. Widget cards expose the bound key on creation and rotation; email cards expose a "Test" button. Norwegian (`nb`) translations included.
+
+- 914477f: Unified Review surface for KB suggestions and CRM merges, with structured-field-driven curation candidates.
+
+  **Dashboard** — replaces the standalone `/dashboard/crm-merge-proposals` page (now redirects) with `/dashboard/review`, a tabbed page combining KB suggestions and CRM merges. Tab counts update live from `kb.*` and `crm.merge_proposal.*` realtime events; the home overview backlog rows for both queues now link into Review. The KB tab renders each candidate's body as markdown (via `react-markdown`, peer dep) inside a `prose` block; `h1`–`h6` are flattened to bold paragraphs so the body never visually competes with the candidate title. Each card has its own "Publish to:" picker pre-selected to the candidate's proposed target space, with a per-card override.
+
+  **Backend — KB candidate DTO** — new structured fields on the curation candidate response:
+  - `proposedTargetSpaceSlug: string | null` — extracted from the candidate's `target:<slug>` tag.
+  - `sourceConversationId: string | null` — extracted from the `source:<id>` tag.
+
+  Two new service methods (`KbService.listCurationCandidates`, `KbService.getCurationCandidate`) return these fields directly so the dashboard never has to regex over body prose. New REST routes at `/api/kb/curation/candidates` (list/get/publish/dismiss) and `/api/kb/spaces` (list) back the new UI. The "Source conversation / Proposed target space" footer that `proposeCurationCandidate` used to splice into the body is gone — the tags carry the same data and the structured fields surface it.
+
+  **KB curation skill prompt** — Step 4 now sets explicit formatting rules for candidate bodies: subject is the title, body is plain prose with bold/italic/inline-code/short bullets allowed, **no `#`/`##`/`###` headings**, no JSON-escaping the body string, no tables/HTML/images. The "Drafted from conversation …" footer example is gone (now redundant with structured fields). This makes review-UI rendering predictable and prevents big duplicate-of-title H1s in the body.
+
+  **UI fix** — `TabsTrigger` previously used `data-[selected]:` for the active-tab styling, but `@base-ui/react` Tabs emit `data-active`. The selected pill never highlighted. Fixed.
+
+### Patch Changes
+
+- Updated dependencies [914477f]
+  - @getmunin/ui@0.21.0
+
 ## 0.20.0
 
 ### Patch Changes

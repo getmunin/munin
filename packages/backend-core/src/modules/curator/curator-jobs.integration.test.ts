@@ -80,7 +80,10 @@ const skipReason = TEST_URL
 
   afterAll(async () => {
     await app?.close();
-    await db?.execute(sql`SELECT 1`);
+    if (db) {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.delete(schema.orgs).where(sql`id IN (${orgId}, ${otherOrgId})`);
+    }
   });
 
   beforeEach(async () => {

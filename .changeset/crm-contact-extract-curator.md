@@ -1,6 +1,5 @@
 ---
 '@getmunin/backend-core': minor
-'@getmunin/agent-sidecar': patch
 ---
 
 CRM contact-extract curator — auto-applied per-conversation contact creation from chat.

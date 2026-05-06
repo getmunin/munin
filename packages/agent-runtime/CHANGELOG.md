@@ -1,5 +1,7 @@
 # @getmunin/agent-runtime
 
+## 0.22.0
+
 ## 0.21.0
 
 ### Minor Changes

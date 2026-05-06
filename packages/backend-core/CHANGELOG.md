@@ -1,5 +1,94 @@
 # @getmunin/backend-core
 
+## 0.22.0
+
+### Minor Changes
+
+- 355856a: CRM contact-extract curator — auto-applied per-conversation contact creation from chat.
+
+  When a conversation is `changeStatus`'d to `closed`, `ConvService` now enqueues a `skill://crm/contact-extract` curator job (dedupe-keyed by conversation id). The skill runs once per closed conversation, reads the thread, extracts identifying info volunteered by the end-user (name, email, phone, title, company), dedupes via `crm_find_contact`, then either `crm_create_contact` (new visitor) or `crm_update_contact` (backfills empty fields only — never overwrites human-curated data) with the conversation's `endUserId` linking the contact back to its participant. Tagged `from-chat` so operators can filter contacts that arrived this way.
+
+  **Auto-apply, not propose.** The data source is the user's own typed message — qualitatively different from KB curation, where the curator drafts new factual claims (LLM hallucination risk → must propose). For contact extraction the agent transcribes what the user said; if it's wrong the operator dismisses via the existing CRM list. No new Review tab, no proposal table.
+
+  **Composes with existing `skill://crm/hygiene`.** The hygiene curator runs weekly across the whole population and proposes merges for any duplicates this per-conversation extraction misses (e.g. visitor gives email in conv #1 and phone in conv #2 with no overlap). Different windows, different scope, complementary.
+
+  **Scope filtering:** the skill skips silently when the conversation has no `endUserId`, when nothing identifying was said, or when the linked contact already has email + phone + name populated.
+
+  Sidecar `toolPrefixesFor()` updated to allow `['conv_', 'crm_']` for the new skill. The cloud's `AgentRunnerService.toolPrefixesFor()` needs the same one-line addition (separate cloud PR after this OSS release).
+
+- 355856a: CRM segments, GDPR consent on contacts, and outreach unsubscribe infrastructure — the foundation for the upcoming outreach feature, but independently useful as compliance work.
+
+  **Schema additions** (`@getmunin/db`)
+  - New `crm_segments` table — saved contact filters with org-scoped uniqueness on `(org_id, name)`. Filter shape: `tagsAny`, `tagsAll`, `companyId`, `searchQuery`, `contactedSince` — all optional, ANDed together. RLS-isolated and admin-only via the existing `app_org_id()` / `app_end_user_id()` policy pattern.
+  - `crm_contacts` gains `consent_lawful_basis` (varchar 32), `consent_given_at` (timestamptz), `consent_source` (text), `consent_evidence` (jsonb). Lawful basis values: `consent | legitimate_interest | contract`.
+
+  **CRM service + MCP tools** (`@getmunin/backend-core`)
+  - New service methods: `createSegment`, `updateSegment`, `getSegment`, `listSegments`, `deleteSegment`, `listContactsInSegment`, `setContactConsent`.
+  - `listContactsInSegment` enforces a non-overridable suppression+consent floor: it always excludes contacts where `do_not_contact = true`, `unsubscribed_at IS NOT NULL`, or `consent_lawful_basis IS NULL`. Use this — not `listContacts` — to materialize an outreach audience; the floor lives in the service layer so every caller (operator UI, curator skill, future automation) inherits the same compliance posture.
+  - New MCP tools (admin audience): `crm_create_segment`, `crm_update_segment`, `crm_list_segments`, `crm_get_segment`, `crm_delete_segment`, `crm_list_contacts_in_segment`, `crm_set_contact_consent`. The consent tool logs a CRM activity row for audit.
+  - `ContactDto` now exposes the consent fields.
+
+  **REST controllers** (`@getmunin/backend-core`)
+  - `GET/POST /api/crm/segments`, `GET/POST/DELETE /api/crm/segments/:id`, `GET /api/crm/segments/:id/contacts` — admin-auth, mirrors the merge-proposals controller shape.
+  - `GET /api/outreach/unsubscribe?token=...` — public (`@AllowAnonymous`), token-resolved. Verifies HMAC, marks `unsubscribed_at` and `do_not_contact = true`, logs an `Unsubscribed` activity row, and returns `{ ok, alreadyUnsubscribed, contactFound }`. Replays as a no-op for already-unsubscribed contacts.
+
+  **HMAC unsubscribe tokens** (`@getmunin/core`)
+  - New `signUnsubscribeToken({orgId, contactId, campaignId})` and `verifyUnsubscribeToken(token)` helpers. Format: `v1.<orgId>.<contactId>.<campaignId>.<issuedAt>.<hmacSig>`. Signed with `MUNIN_KEY_PEPPER` via the existing `signHmac` primitive; constant-time verified. No expiry by design — survives forwarding so a forwarded recipient can also unsubscribe themselves. `UnsubscribeTokenError` thrown on malformed / tampered / wrong-pepper tokens.
+
+- 355856a: Fill in missing webhook / activity-log events across CRM, end-users, and API keys.
+
+  Before: the dashboard's Activity log subtitle promised "every conversation message, status change, handover, KB write, **and CRM update** as it happens", but the CRM service only ever emitted events for merge proposals — `crm_create_contact`, `crm_update_contact`, deal moves, and activity logs all wrote silently. The end-users and API keys controllers similarly emitted nothing — surprising for surfaces a SIEM / audit consumer would specifically want to subscribe to.
+
+  Now emitting:
+  - **CRM** — `crm.contact.created`, `crm.contact.updated`, `crm.company.created`, `crm.deal.created`, `crm.deal.stage_changed` (with `winLoss` + `closedAt` on terminal transitions), `crm.activity.logged`. Existing `crm.merge_proposal.{proposed,applied,dismissed}` unchanged.
+  - **End-users** — `end_user.created` on first-touch find-or-create. `end_user.tokens_revoked` on `/revoke-tokens` (security-relevant).
+  - **API keys** — `api_key.minted` on POST, `api_key.revoked` on DELETE. The kind of event a SIEM webhook subscriber actually wants.
+
+  All events flow through the same `WebhookDispatcher` already used by the conv / kb / cms modules — they land in the `events` table for the dashboard Activity log and ride the existing realtime + webhook delivery path. No new tables, no new routes; just plugging holes.
+
+- ebda56e: Outreach feature, PR2 of 3 — campaigns + initial drafts + send-approve loop.
+
+  The first user-visible piece of outbound: an operator defines a campaign (name + brief + CRM segment + email channel + cadence + CTA), the new `skill://outreach/draft-initial` curator drafts a personalised first-touch email per consenting contact in the segment, the operator reviews each draft on `/dashboard/review` (third tab), and approving sends via the existing email-channel outbound pipeline. Replies thread into normal conversations via the existing RFC 5322 thread-resolution.
+
+  **Schema:**
+  - `outreach_campaigns` — operator-defined campaigns (segment_id → `crm_segments`, channel_id → `conv_channels` (must be email), brief, cadence_rules JSONB, cta_url, enabled, unsubscribe_required). Unique `(org_id, name)`. RLS admin-only.
+  - `outreach_proposals` — drafted email queue with `kind` (`initial` in PR2; `reply` in PR3), nullable `conversation_id` (set when sent), `status` lifecycle (pending → sent / dismissed / failed), evidence JSONB, audit fields. **Unique pending index on (campaign_id, contact_id, kind)** to prevent dup drafts. RLS admin-only.
+  - `conv_conversations` gains `outreach_campaign_id` (nullable FK + index) — sticky once set, used for reply attribution and (in PR3) `agentMode` defaulting.
+  - New `packages/db/src/sql/outreach.sql` with RLS policies, wired into `runMigrations`.
+
+  **Service / MCP / REST** (all in new `@getmunin/backend-core/src/modules/outreach/`):
+  - `OutreachService` — `listCampaigns`/`getCampaign`/`createCampaign`/`updateCampaign`/`listProposals`/`getProposal`/`proposeInitial`/`approveProposal`/`dismissProposal`. `approveProposal` re-checks suppression+consent at decision-time (the contact may have unsubscribed between draft and approval), creates a conversation with `outreach_campaign_id` set, sends via the existing email outbound pipeline, and appends a signed unsubscribe footer to the body server-side so it can't be tampered with at draft-time.
+  - MCP tools (admin audience): `outreach_create_campaign`, `outreach_update_campaign`, `outreach_list_campaigns`, `outreach_get_campaign`, `outreach_list_proposals`, `outreach_propose_initial`.
+  - REST: `GET/POST /api/outreach/campaigns`, `GET/POST /api/outreach/campaigns/:id`, `GET /api/outreach/proposals?status=pending&kind=initial&campaignId=…`, `GET /api/outreach/proposals/:id`, `POST /api/outreach/proposals/:id/approve`, `POST /api/outreach/proposals/:id/dismiss`. The proposals list/get embeds `contact` and `campaign` summaries so the dashboard doesn't need parallel fetches.
+  - Realtime events: `outreach.proposal.created`, `outreach.proposal.sent`, `outreach.proposal.dismissed` (rides existing WebhookDispatcher).
+
+  **Conv-side:** `ConvService.createConversation` now accepts `outreachCampaignId` and enqueues outbound delivery for non-end_user authors on email channels (it previously only did this from `sendMessage`, which broke first-touch sends). All existing flows are unaffected — they don't pass `outreachCampaignId` and their authorType doesn't trigger outbound enqueue.
+
+  **Skill:** `skill://outreach/draft-initial` (markdown, copied into dist by the existing `copy-skills.mjs`). Procedure: list enabled campaigns → materialise audience via `crm_list_contacts_in_segment` (which already enforces the suppression+consent floor) → dedupe via `outreach_list_proposals` → ground in `kb_search` → draft 80–200 word personalised email → file via `outreach_propose_initial`. Strict formatting: no headings, plain prose, no JSON-escaping; the unsubscribe footer is appended at approve-time, not draft-time.
+
+  **Curator scheduling:**
+  - New sweep `curator-outreach-draft-initial` (default cron `'0 0 * * 0'` weekly, env `MUNIN_CURATOR_OUTREACH_INITIAL_CRON`).
+  - Sidecar `toolPrefixesFor` adds `'skill://outreach/draft-initial'` → `['conv_', 'kb_', 'crm_', 'outreach_']`. Cloud `AgentRunnerService.toolPrefixesFor` needs the same one-line addition (separate cloud PR after this OSS release).
+
+  **Dashboard:**
+  - Third tab on `/dashboard/review`: `OutreachDraftsTab` lists pending proposals with markdown body (heading-flatten components shared with KB), Approve / Edit (placeholder; inline editing ships next) / Dismiss buttons. Realtime updates on `outreach.proposal.*` events.
+  - New `/dashboard/settings/outreach` (under Monitoring → Workspace group) — list campaigns, create dialog with name + brief + segment dropdown + channel dropdown + CTA URL, enable/disable toggle. Empty-state nudges the operator if they have no email channels or segments yet.
+  - i18n: `dashboard.outreach.*`, `dashboard.outreachDrafts.*`, `nav.outreach`, `dashboard.review.tabs.outreach` in en + nb.
+
+  **Tests:** 9 new integration tests covering campaign CRUD (including non-email-channel rejection and duplicate-name conflict), `proposeInitial` (dedupe + consent floor), `approveProposal` (success path stamps conv id + delivery row, suppression-race refuses, disabled-campaign refuses), and `dismissProposal`. Existing 306 backend-core tests unchanged. `curator-scheduler.test.ts` updated to expect the new fourth cron job.
+
+  **Out of PR2 scope (lands in PR3):** `agentMode` column + reply-curator skill + draft-on-reply loop. Operators currently get a one-way send; replies land in normal conversations and the AI agent will reply auto-mode by default until PR3 wires `agentMode = 'draft_only'` on outreach-originated conversations.
+
+### Patch Changes
+
+- Updated dependencies [355856a]
+- Updated dependencies [ebda56e]
+  - @getmunin/core@0.22.0
+  - @getmunin/db@0.22.0
+  - @getmunin/bootstrap@0.22.0
+  - @getmunin/mcp-toolkit@0.22.0
+  - @getmunin/types@0.22.0
+
 ## 0.21.0
 
 ### Minor Changes

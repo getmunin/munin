@@ -129,10 +129,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private handleConnection(ws: WebSocket, credential: ResolvedCredential): void {
     const actor = credential.actor;
     const subscriptions = new Set<string>();
-    const isSelfServiceAgent =
-      actor.type !== 'end_user_agent' &&
-      Array.isArray(actor.audiences) &&
-      actor.audiences.includes('self_service');
+    const isSelfServiceAgent = actor.type !== 'end_user_agent';
     if (isSelfServiceAgent) {
       let set = this.selfServiceSubscribersByOrg.get(actor.orgId);
       if (!set) {

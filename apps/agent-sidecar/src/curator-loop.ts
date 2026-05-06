@@ -184,6 +184,7 @@ function toolPrefixesFor(skillUri: string): string[] | undefined {
   if (skillUri === 'skill://crm/hygiene') return ['conv_', 'crm_'];
   if (skillUri === 'skill://crm/contact-extract') return ['conv_', 'crm_'];
   if (skillUri === 'skill://outreach/draft-initial') return ['conv_', 'kb_', 'crm_', 'outreach_'];
+  if (skillUri === 'skill://outreach/draft-reply') return ['conv_', 'kb_', 'crm_', 'outreach_'];
   if (skillUri === 'skill://cms/stale-content-review') return ['cms_'];
   return undefined;
 }

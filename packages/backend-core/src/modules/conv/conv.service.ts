@@ -33,8 +33,10 @@ export class AgentReplyRaceError extends Error {
 
 export const CHANNEL_TYPES = ['email', 'voice', 'chat', 'sms'] as const;
 export const STATUSES = ['open', 'snoozed', 'closed', 'spam'] as const;
+export const AGENT_MODES = ['auto', 'draft_only', 'off'] as const;
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
 export type ConversationStatus = (typeof STATUSES)[number];
+export type AgentMode = (typeof AGENT_MODES)[number];
 
 export interface ChannelDto {
   id: string;
@@ -84,6 +86,8 @@ export interface ConversationSummary {
   lastMessageAt: string | null;
   needsHumanAttention: boolean;
   needsHumanAttentionAt: string | null;
+  agentMode: AgentMode;
+  outreachCampaignId: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -304,6 +308,7 @@ export class ConvService {
     contactId?: string;
     topicId?: string;
     outreachCampaignId?: string;
+    agentMode?: AgentMode;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
   }): Promise<ConversationDetail> {
@@ -332,6 +337,7 @@ export class ConvService {
       topicId: input.topicId ?? null,
       subject: input.subject ?? null,
       outreachCampaignId: input.outreachCampaignId ?? null,
+      agentMode: input.agentMode ?? 'auto',
     });
 
     const [firstMsg] = await ctx.db
@@ -396,6 +402,8 @@ export class ConvService {
         channelId: schema.convConversations.channelId,
         channelType: schema.convChannels.type,
         needsHumanAttention: schema.convConversations.needsHumanAttention,
+        outreachCampaignId: schema.convConversations.outreachCampaignId,
+        agentMode: schema.convConversations.agentMode,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
@@ -486,6 +494,28 @@ export class ConvService {
           internal: false,
         },
       });
+
+      if (
+        input.authorType === 'end_user' &&
+        conv.outreachCampaignId &&
+        conv.agentMode === 'draft_only'
+      ) {
+        await this.curatorJobs.enqueue({
+          skillUri: 'skill://outreach/draft-reply',
+          userPrompt:
+            `Run an outreach reply-draft pass for conversation ${input.conversationId}. ` +
+            `Follow skill://outreach/draft-reply exactly. Read the thread, identify the prospect's ` +
+            `intent on the latest end-user message, and file a draft via outreach_propose_reply. ` +
+            `Do NOT send anything — drafts go to the operator review queue.`,
+          sourceEventType: 'conversation.message.received',
+          sourceEventPayload: {
+            conversationId: input.conversationId,
+            messageId: row!.id,
+            outreachCampaignId: conv.outreachCampaignId,
+          },
+          dedupeKey: `outreach-draft-reply:msg:${row!.id}`,
+        });
+      }
 
       if (clearAttention && conv.needsHumanAttention) {
         await this.webhooks.emit({
@@ -587,6 +617,27 @@ export class ConvService {
       payload: { conversationId: input.id, assigneeUserId: input.assigneeUserId },
     });
     return toConversationSummary(result[0]);
+  }
+
+  async setAgentMode(input: {
+    id: string;
+    mode: AgentMode;
+  }): Promise<ConversationSummary> {
+    if (!AGENT_MODES.includes(input.mode)) {
+      throw new ConvInvalidError(`agentMode must be one of ${AGENT_MODES.join(', ')}`);
+    }
+    const ctx = getCurrentContext();
+    const [updated] = await ctx.db
+      .update(schema.convConversations)
+      .set({ agentMode: input.mode, updatedAt: new Date() })
+      .where(eq(schema.convConversations.id, input.id))
+      .returning();
+    if (!updated) throw new NotFoundException(`conv_not_found: conversation ${input.id}`);
+    await this.webhooks.emit({
+      type: 'conversation.agent_mode_changed',
+      payload: { conversationId: input.id, agentMode: input.mode },
+    });
+    return toConversationSummary(updated);
   }
 
   async changeStatus(input: {
@@ -788,6 +839,7 @@ export class ConvService {
     topicId: string | null;
     subject: string | null;
     outreachCampaignId?: string | null;
+    agentMode?: AgentMode;
   }): Promise<typeof schema.convConversations.$inferSelect> {
     const ctx = getCurrentContext();
     let lastErr: unknown = null;
@@ -847,6 +899,8 @@ function toConversationSummary(
     lastMessageAt: row.lastMessageAt?.toISOString() ?? null,
     needsHumanAttention: row.needsHumanAttention,
     needsHumanAttentionAt: row.needsHumanAttentionAt?.toISOString() ?? null,
+    agentMode: row.agentMode as AgentMode,
+    outreachCampaignId: row.outreachCampaignId,
     updatedAt: row.updatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };

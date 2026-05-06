@@ -92,6 +92,13 @@
       "when": 1777681800000,
       "tag": "0012_outreach_campaigns_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1777681900000,
+      "tag": "0013_conv_agent_mode",
+      "breakpoints": true
     }
   ]
 }

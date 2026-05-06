@@ -690,6 +690,8 @@ export const convConversations = pgTable(
       (): AnyPgColumn => outreachCampaigns.id,
       { onDelete: 'set null' },
     ),
+    agentMode: varchar('agent_mode', { length: 16 }).notNull().default('auto'),
+    // 'auto' | 'draft_only' | 'off'
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
     updatedAt,

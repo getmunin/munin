@@ -67,7 +67,6 @@
     "agents": "Connected agents",
     "apiKeys": "API keys",
     "channels": "Channels",
-    "outreach": "Outreach",
     "endUsers": "End-users",
     "usage": "Usage",
     "auditLog": "Audit log",
@@ -118,38 +117,6 @@
         "kb": "KB suggestions",
         "crm": "CRM merges",
         "outreach": "Outreach drafts"
-      }
-    },
-    "outreach": {
-      "title": "Outreach campaigns",
-      "subtitle": "Operator-defined outbound email campaigns. Each enabled campaign produces curator-drafted initials weekly; approve each draft from the Review surface before it sends. Suppression and consent are re-checked at approve-time.",
-      "addCampaign": "New campaign",
-      "needsEmailChannel": "Create an email channel under Channels first — outreach campaigns send via your configured SMTP.",
-      "needsSegment": "Create a CRM segment first — campaigns target a saved segment of consenting contacts.",
-      "emptyTitle": "No campaigns yet",
-      "emptyBody": "A campaign needs a name, a one-paragraph brief, a CRM segment as audience, and an email channel. New campaigns are off by default; flip Enable when you're ready for the curator to start drafting.",
-      "createTitle": "New outreach campaign",
-      "createDescription": "Drafts won't send automatically — every initial lands in the Review queue for human approval first.",
-      "nameLabel": "Internal name",
-      "namePlaceholder": "e.g. q2-onboarding-reach-out",
-      "briefLabel": "Brief",
-      "briefHint": "One paragraph in plain English describing what you want to say and why. The curator personalises per contact, grounding in your KB.",
-      "briefPlaceholder": "We just shipped self-serve onboarding for B2B teams. We'd like to talk to ops leaders at companies that recently raised, to learn how they're approaching this …",
-      "segmentLabel": "CRM segment",
-      "channelLabel": "Email channel",
-      "ctaLabel": "Optional CTA URL",
-      "create": "Create campaign",
-      "creating": "Creating…",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
-      "enable": "Enable",
-      "disable": "Disable",
-      "segment": "Segment",
-      "channel": "Channel",
-      "errors": {
-        "load": "Could not load campaigns.",
-        "create": "Could not create campaign.",
-        "update": "Could not update campaign."
       }
     },
     "outreachDrafts": {

@@ -303,13 +303,18 @@ export class ConvService {
     endUserId?: string;
     contactId?: string;
     topicId?: string;
+    outreachCampaignId?: string;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
   }): Promise<ConversationDetail> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const channelRows = await ctx.db
-      .select({ id: schema.convChannels.id, active: schema.convChannels.active })
+      .select({
+        id: schema.convChannels.id,
+        active: schema.convChannels.active,
+        type: schema.convChannels.type,
+      })
       .from(schema.convChannels)
       .where(eq(schema.convChannels.id, input.channelId))
       .limit(1);
@@ -317,6 +322,7 @@ export class ConvService {
     if (!channelRows[0].active) {
       throw new ConvInvalidError(`channel ${input.channelId} is not active`);
     }
+    const channelType = channelRows[0].type;
 
     const conv = await this.insertConversationWithRetry({
       orgId: actor.orgId,
@@ -325,6 +331,7 @@ export class ConvService {
       endUserId: input.endUserId ?? null,
       topicId: input.topicId ?? null,
       subject: input.subject ?? null,
+      outreachCampaignId: input.outreachCampaignId ?? null,
     });
 
     const [firstMsg] = await ctx.db
@@ -359,6 +366,14 @@ export class ConvService {
         internal: false,
       },
     });
+
+    if (
+      channelType === 'email' &&
+      input.authorType !== 'end_user' &&
+      input.authorType !== 'system'
+    ) {
+      await this.enqueueEmailOutbound(firstMsg!.id, conv.id, conv.channelId);
+    }
 
     return this.getConversation(conv.id);
   }
@@ -772,6 +787,7 @@ export class ConvService {
     endUserId: string | null;
     topicId: string | null;
     subject: string | null;
+    outreachCampaignId?: string | null;
   }): Promise<typeof schema.convConversations.$inferSelect> {
     const ctx = getCurrentContext();
     let lastErr: unknown = null;

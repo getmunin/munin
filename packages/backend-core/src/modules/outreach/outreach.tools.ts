@@ -1,0 +1,152 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { z } from 'zod';
+import { McpTool } from '@getmunin/mcp-toolkit';
+import { OutreachService, PROPOSAL_KINDS, PROPOSAL_STATUSES } from './outreach.service.js';
+
+const CadenceRulesSchema = z.object({
+  maxPerWeekPerContact: z.number().int().positive().max(7).optional(),
+  quietHoursStart: z.string().regex(/^[0-2]\d:[0-5]\d$/).optional(),
+  quietHoursEnd: z.string().regex(/^[0-2]\d:[0-5]\d$/).optional(),
+  blackoutDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(50).optional(),
+});
+
+const CreateCampaignInput = z.object({
+  name: z.string().min(1).max(120),
+  brief: z.string().min(1).max(5000),
+  segmentId: z.string().min(1).max(64),
+  channelId: z.string().min(1).max(64),
+  cadenceRules: CadenceRulesSchema.optional(),
+  ctaUrl: z.string().url().nullable().optional(),
+  enabled: z.boolean().optional(),
+  unsubscribeRequired: z.boolean().optional(),
+});
+
+const UpdateCampaignInput = z.object({
+  id: z.string().min(1).max(64),
+  patch: z
+    .object({
+      name: z.string().min(1).max(120).optional(),
+      brief: z.string().min(1).max(5000).optional(),
+      segmentId: z.string().min(1).max(64).optional(),
+      channelId: z.string().min(1).max(64).optional(),
+      cadenceRules: CadenceRulesSchema.optional(),
+      ctaUrl: z.string().url().nullable().optional(),
+      enabled: z.boolean().optional(),
+      unsubscribeRequired: z.boolean().optional(),
+    })
+    .refine((p) => Object.keys(p).length > 0, { message: 'patch must contain at least one field' }),
+});
+
+const GetCampaignInput = z.object({ id: z.string().min(1).max(64) });
+
+const ListProposalsInput = z.object({
+  status: z.enum(PROPOSAL_STATUSES).optional(),
+  campaignId: z.string().min(1).max(64).optional(),
+  kind: z.enum(PROPOSAL_KINDS).optional(),
+  contactId: z.string().min(1).max(64).optional(),
+  limit: z.number().int().positive().max(500).optional(),
+});
+
+const ProposeInitialInput = z.object({
+  campaignId: z.string().min(1).max(64),
+  contactId: z.string().min(1).max(64),
+  draftSubject: z.string().min(1).max(300),
+  draftBody: z.string().min(1).max(20_000),
+  evidence: z.record(z.string(), z.unknown()).optional(),
+  proposedSendAt: z.string().datetime().optional(),
+});
+
+const EmptyInput = z.object({});
+
+@Injectable()
+export class OutreachAdminTools {
+  constructor(@Inject(OutreachService) private readonly outreach: OutreachService) {}
+
+  @McpTool({
+    name: 'outreach_list_campaigns',
+    title: 'List outreach campaigns',
+    description:
+      'List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, CTA URL, and the enabled flag. The draft-initial curator only drafts proposals for `enabled = true` campaigns.',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listCampaigns() {
+    return this.outreach.listCampaigns();
+  }
+
+  @McpTool({
+    name: 'outreach_get_campaign',
+    title: 'Read one outreach campaign',
+    description: 'Read a single campaign by id, including brief and cadence rules.',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: GetCampaignInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getCampaign(args: z.infer<typeof GetCampaignInput>) {
+    return this.outreach.getCampaign(args.id);
+  }
+
+  @McpTool({
+    name: 'outreach_create_campaign',
+    title: 'Create outreach campaign',
+    description:
+      'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email channel. New campaigns default `enabled: false` so the curator does not start drafting until you flip it on.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: CreateCampaignInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  createCampaign(args: z.infer<typeof CreateCampaignInput>) {
+    return this.outreach.createCampaign(args);
+  }
+
+  @McpTool({
+    name: 'outreach_update_campaign',
+    title: 'Update outreach campaign',
+    description: 'Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: UpdateCampaignInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  updateCampaign(args: z.infer<typeof UpdateCampaignInput>) {
+    return this.outreach.updateCampaign(args);
+  }
+
+  @McpTool({
+    name: 'outreach_list_proposals',
+    title: 'List outreach proposals',
+    description:
+      'List drafted outreach proposals (initials in PR2; replies in PR3). Defaults to all statuses. The draft-initial curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`.',
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: ListProposalsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listProposals(args: z.infer<typeof ListProposalsInput>) {
+    return this.outreach.listProposals(args);
+  }
+
+  @McpTool({
+    name: 'outreach_propose_initial',
+    title: 'Propose an initial outreach draft',
+    description:
+      'File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) while a pending row exists throws — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: ProposeInitialInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  proposeInitial(args: z.infer<typeof ProposeInitialInput>) {
+    return this.outreach.proposeInitial(args);
+  }
+}

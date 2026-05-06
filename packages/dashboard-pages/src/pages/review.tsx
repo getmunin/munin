@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Bookmark, Bot, Users } from 'lucide-react';
+import { Bookmark, Bot, Mail, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
   Badge,
@@ -13,6 +13,7 @@ import {
 } from '@getmunin/ui';
 import { CrmMergeProposalsPage } from './crm-merge-proposals';
 import { KbCandidatesTab } from './kb-candidates';
+import { OutreachDraftsTab } from './outreach-drafts';
 import { api, ApiError } from '../api';
 import { useRealtime } from '../realtime';
 
@@ -21,21 +22,29 @@ const POLL_MS = 60_000;
 interface CountState {
   kb: number;
   crm: number;
+  outreach: number;
 }
 
 export function ReviewPage() {
   const t = useTranslations('dashboard.review');
-  const [counts, setCounts] = useState<CountState>({ kb: 0, crm: 0 });
+  const [counts, setCounts] = useState<CountState>({ kb: 0, crm: 0, outreach: 0 });
 
   const loadCounts = useCallback(async () => {
     try {
-      const [kbRes, crmRes] = await Promise.all([
+      const [kbRes, crmRes, outreachRes] = await Promise.all([
         api<{ items: unknown[] }>('/api/kb/curation/candidates').catch(() => ({ items: [] })),
         api<{ items: unknown[] }>('/api/crm/merge-proposals?status=pending&limit=200').catch(
           () => ({ items: [] }),
         ),
+        api<{ items: unknown[] }>('/api/outreach/proposals?status=pending&limit=200').catch(
+          () => ({ items: [] }),
+        ),
       ]);
-      setCounts({ kb: kbRes.items.length, crm: crmRes.items.length });
+      setCounts({
+        kb: kbRes.items.length,
+        crm: crmRes.items.length,
+        outreach: outreachRes.items.length,
+      });
     } catch (err) {
       if (err instanceof ApiError) return;
       throw err;
@@ -49,7 +58,11 @@ export function ReviewPage() {
   }, [loadCounts]);
 
   useRealtime([{ channel: 'org' }], (event) => {
-    if (event.type.startsWith('kb.') || event.type.startsWith('crm.merge_proposal.')) {
+    if (
+      event.type.startsWith('kb.') ||
+      event.type.startsWith('crm.merge_proposal.') ||
+      event.type.startsWith('outreach.proposal.')
+    ) {
       void loadCounts();
     }
   });
@@ -86,12 +99,20 @@ export function ReviewPage() {
             {t('tabs.crm')}
             {counts.crm > 0 && <Badge variant="secondary">{counts.crm}</Badge>}
           </TabsTrigger>
+          <TabsTrigger value="outreach" className="gap-2">
+            <Mail className="size-4" />
+            {t('tabs.outreach')}
+            {counts.outreach > 0 && <Badge variant="secondary">{counts.outreach}</Badge>}
+          </TabsTrigger>
         </TabsList>
         <TabsPanel value="kb">
           <KbCandidatesTab onCountChange={(n) => setCounts((c) => ({ ...c, kb: n }))} />
         </TabsPanel>
         <TabsPanel value="crm">
           <CrmMergeProposalsPage />
+        </TabsPanel>
+        <TabsPanel value="outreach">
+          <OutreachDraftsTab onCountChange={(n) => setCounts((c) => ({ ...c, outreach: n }))} />
         </TabsPanel>
       </Tabs>
     </div>

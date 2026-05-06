@@ -98,6 +98,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       log.info(`skip ${detail.id}: assigned to staff ${detail.assigneeUserId}`);
       return false;
     }
+    if (detail.agentMode && detail.agentMode !== 'auto') {
+      log.info(`skip ${detail.id}: agentMode=${detail.agentMode}`);
+      return false;
+    }
     if (detail.claim && detail.claim.holderType === 'user') {
       log.info(`skip ${detail.id}: claimed by ${detail.claim.holderId} until ${detail.claim.expiresAt}`);
       return false;

@@ -158,6 +158,7 @@
       "emptyBody": "Når draft-initial-kuratoren kjører mot en aktivert kampanje, havner utkast her for godkjenning. Godkjenn for å sende via kampanjens e-postkanal; avvis for å forkaste.",
       "to": "til",
       "via": "via",
+      "viewThread": "Vis samtale →",
       "untitled": "(ingen emne)",
       "approve": "Godkjenn & send",
       "edit": "Rediger",

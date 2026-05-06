@@ -56,6 +56,12 @@ const ProposeInitialInput = z.object({
   proposedSendAt: z.string().datetime().optional(),
 });
 
+const ProposeReplyInput = z.object({
+  conversationId: z.string().min(1).max(64),
+  draftBody: z.string().min(1).max(20_000),
+  evidence: z.record(z.string(), z.unknown()).optional(),
+});
+
 const EmptyInput = z.object({});
 
 @Injectable()
@@ -148,5 +154,20 @@ export class OutreachAdminTools {
   })
   proposeInitial(args: z.infer<typeof ProposeInitialInput>) {
     return this.outreach.proposeInitial(args);
+  }
+
+  @McpTool({
+    name: 'outreach_propose_reply',
+    title: 'Propose an outreach reply draft',
+    description:
+      "File a drafted reply to an inbound message on an outreach-originated conversation, for human approval. The conversation must have an `outreachCampaignId` set (it's an outreach conversation) and a CRM contact resolvable by email. Idempotent: re-proposing while a pending reply exists for the same conversation throws — the operator should approve or dismiss the existing one first. Reply approvals send via `conv_send_message` on the existing conversation; no unsubscribe footer is appended (replies thread inside the existing email chain that already carries the unsubscribe link).",
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: ProposeReplyInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  proposeReply(args: z.infer<typeof ProposeReplyInput>) {
+    return this.outreach.proposeReply(args);
   }
 }

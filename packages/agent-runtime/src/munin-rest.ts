@@ -11,6 +11,8 @@ export interface ConversationDetail {
     holderId: string;
     expiresAt: string;
   } | null;
+  agentMode?: 'auto' | 'draft_only' | 'off';
+  outreachCampaignId?: string | null;
   messages: Array<{
     id: string;
     authorType: 'user' | 'agent' | 'end_user' | 'system';

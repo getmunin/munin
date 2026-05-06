@@ -24,6 +24,7 @@ import {
   ConvService,
   ConvInvalidError,
   AgentReplyRaceError,
+  AGENT_MODES,
   HandoverActiveError,
   STATUSES,
   type ConversationDetail,
@@ -32,6 +33,8 @@ import {
 } from '../modules/conv/conv.service.js';
 
 const StatusSchema = z.enum(STATUSES);
+const AgentModeSchema = z.enum(AGENT_MODES);
+const AgentModeBody = z.object({ mode: AgentModeSchema });
 
 const ReplyBody = z.object({
   body: z.string().min(1).max(50_000),
@@ -207,6 +210,17 @@ export class ConversationsController {
     const parsed = StatusBody.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return translate(() => this.conv.changeStatus({ id, ...parsed.data }));
+  }
+
+  @Post(':id/agent-mode')
+  @HttpCode(200)
+  async agentMode(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<ConversationSummary> {
+    const parsed = AgentModeBody.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(() => this.conv.setAgentMode({ id, mode: parsed.data.mode }));
   }
 
   @Post(':id/take-over')

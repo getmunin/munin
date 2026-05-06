@@ -11,7 +11,6 @@ import {
   Gauge,
   KeyRound,
   Loader2,
-  Mail,
   MessageSquare,
   ShieldCheck,
   Users,
@@ -26,7 +25,6 @@ type GroupKey = 'workspace' | 'access' | 'monitoring';
 type ItemKey =
   | 'team'
   | 'channels'
-  | 'outreach'
   | 'apiKeys'
   | 'agents'
   | 'endUsers'
@@ -52,7 +50,6 @@ const GROUPS: SubNavGroup[] = [
     items: [
       { href: '/dashboard/settings/team', labelKey: 'team', icon: UsersRound },
       { href: '/dashboard/settings/channels', labelKey: 'channels', icon: MessageSquare },
-      { href: '/dashboard/settings/outreach', labelKey: 'outreach', icon: Mail },
       { href: '/dashboard/settings/export', labelKey: 'dataExport', icon: Download },
     ],
   },

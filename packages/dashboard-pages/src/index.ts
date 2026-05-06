@@ -19,7 +19,6 @@ export { CrmMergeProposalsPage } from './pages/crm-merge-proposals';
 export { ReviewPage } from './pages/review';
 export { KbCandidatesTab } from './pages/kb-candidates';
 export { OutreachDraftsTab } from './pages/outreach-drafts';
-export { OutreachCampaignsPage } from './pages/outreach-campaigns';
 export {
   useRealtime,
   type RealtimeEventRow,

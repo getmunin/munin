@@ -158,6 +158,7 @@
       "emptyBody": "When the draft-initial curator runs against an enabled campaign, drafts land here for approval. Approve to send via the campaign's email channel; dismiss to discard.",
       "to": "to",
       "via": "via",
+      "viewThread": "View thread →",
       "untitled": "(no subject)",
       "approve": "Approve & send",
       "edit": "Edit",

@@ -66,6 +66,7 @@ const skipReason = TEST_URL
 
   beforeEach(async () => {
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    await db.execute(sql`DELETE FROM curator_jobs WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM outreach_proposals WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM outreach_campaigns WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_message_deliveries WHERE org_id = ${orgId}`);
@@ -73,6 +74,7 @@ const skipReason = TEST_URL
     await db.execute(sql`DELETE FROM conv_conversations WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_contacts WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_channels WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM crm_activities WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_contacts WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_segments WHERE org_id = ${orgId}`);
 
@@ -318,6 +320,114 @@ const skipReason = TEST_URL
           }),
         ),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('approveProposal initial flips conversation to agentMode=draft_only', async () => {
+      const c = await run(() =>
+        svc.createCampaign({ name: 'mode', brief: 'b', segmentId, channelId, enabled: true }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId,
+          draftSubject: 's',
+          draftBody: 'b',
+        }),
+      );
+      const approved = await run(() =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+      );
+      const rows = await db.execute<{ agent_mode: string }>(
+        sql`SELECT agent_mode FROM conv_conversations WHERE id = ${approved.conversationId!}`,
+      );
+      expect(rows[0]!.agent_mode).toBe('draft_only');
+    });
+
+    it('proposeReply files a kind=reply proposal on an outreach conversation', async () => {
+      const c = await run(() =>
+        svc.createCampaign({ name: 'reply-a', brief: 'b', segmentId, channelId, enabled: true }),
+      );
+      const initial = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId,
+          draftSubject: 's',
+          draftBody: 'b',
+        }),
+      );
+      const sent = await run(() =>
+        svc.approveProposal(initial.id, { publicBaseUrl: 'https://test.local' }),
+      );
+      const reply = await run(() =>
+        svc.proposeReply({
+          conversationId: sent.conversationId!,
+          draftBody: 'Thanks for getting back to us — yes, we integrate with Slack.',
+          evidence: { intent: 'question_about_integration' },
+        }),
+      );
+      expect(reply.kind).toBe('reply');
+      expect(reply.status).toBe('pending');
+      expect(reply.conversationId).toBe(sent.conversationId);
+      expect(reply.contactId).toBe(contactId);
+    });
+
+    it('approveProposal reply sends via sendMessage on the existing conversation (no unsubscribe footer)', async () => {
+      const c = await run(() =>
+        svc.createCampaign({ name: 'reply-b', brief: 'b', segmentId, channelId, enabled: true }),
+      );
+      const initial = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId,
+          draftSubject: 's',
+          draftBody: 'b',
+        }),
+      );
+      const sent = await run(() =>
+        svc.approveProposal(initial.id, { publicBaseUrl: 'https://test.local' }),
+      );
+      const reply = await run(() =>
+        svc.proposeReply({
+          conversationId: sent.conversationId!,
+          draftBody: 'Sure — Tuesday works.',
+        }),
+      );
+      const approved = await run(() =>
+        svc.approveProposal(reply.id, { publicBaseUrl: 'https://test.local' }),
+      );
+      expect(approved.status).toBe('sent');
+      expect(approved.conversationId).toBe(sent.conversationId);
+      expect(approved.sentMessageId).toBeTruthy();
+
+      const msgRows = await db.execute<{ body: string }>(
+        sql`SELECT body FROM conv_messages WHERE id = ${approved.sentMessageId!}`,
+      );
+      expect(msgRows[0]!.body).toBe('Sure — Tuesday works.');
+      expect(msgRows[0]!.body).not.toMatch(/Unsubscribe:/);
+    });
+
+    it('proposeReply rejects when the conversation has no outreachCampaignId', async () => {
+      const ch = await run(() =>
+        svc.createCampaign({ name: 'plain', brief: 'b', segmentId, channelId, enabled: true }),
+      );
+      void ch; // not used; we want a bare conversation
+      const [plain] = await db
+        .insert(schema.convConversations)
+        .values({
+          orgId,
+          channelId,
+          displayId: 99999,
+          status: 'open',
+        })
+        .returning();
+      await expect(
+        run(() =>
+          svc.proposeReply({
+            conversationId: plain!.id,
+            draftBody: 'irrelevant',
+          }),
+        ),
+      ).rejects.toThrow(OutreachInvalidError);
     });
 
     it('dismissProposal marks pending→dismissed', async () => {

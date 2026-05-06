@@ -311,6 +311,81 @@ export class OutreachService {
     }
   }
 
+  async proposeReply(input: {
+    conversationId: string;
+    draftBody: string;
+    evidence?: Record<string, unknown>;
+  }): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!input.draftBody.trim()) throw new OutreachInvalidError('draftBody must be non-empty');
+    const conv = await this.conv.getConversation(input.conversationId);
+    if (!conv.outreachCampaignId) {
+      throw new OutreachInvalidError(
+        `conversation ${input.conversationId} is not outreach-originated (no campaign attached)`,
+      );
+    }
+    if (!conv.contactId) {
+      throw new OutreachInvalidError(
+        `conversation ${input.conversationId} has no contact bound — cannot file reply draft`,
+      );
+    }
+    // The conversation's contactId is conv_contacts.id, but the proposal's
+    // contactId is crm_contacts.id. Resolve via email match.
+    const convContactRows = await ctx.db
+      .select({ email: schema.convContacts.email })
+      .from(schema.convContacts)
+      .where(eq(schema.convContacts.id, conv.contactId))
+      .limit(1);
+    const email = convContactRows[0]?.email;
+    if (!email) {
+      throw new OutreachInvalidError(
+        `conv contact ${conv.contactId} has no email — cannot resolve to a CRM contact`,
+      );
+    }
+    const crmContact = await this.crm.findContact({ email });
+    if (!crmContact) {
+      throw new OutreachInvalidError(
+        `no CRM contact found for ${email} on conversation ${input.conversationId}`,
+      );
+    }
+    try {
+      const [row] = await ctx.db
+        .insert(schema.outreachProposals)
+        .values({
+          orgId: actor.orgId,
+          campaignId: conv.outreachCampaignId,
+          contactId: crmContact.id,
+          conversationId: input.conversationId,
+          kind: 'reply',
+          draftBody: input.draftBody,
+          evidence: input.evidence ?? {},
+          status: 'pending',
+          proposedByActorType: actor.type,
+          proposedByActorId: actor.id,
+        })
+        .returning();
+      await this.webhooks.emit({
+        type: 'outreach.proposal.created',
+        payload: {
+          proposalId: row!.id,
+          campaignId: row!.campaignId,
+          contactId: row!.contactId,
+          conversationId: row!.conversationId,
+          kind: row!.kind,
+        },
+      });
+      return toProposalDto(row!);
+    } catch (err) {
+      if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
+        throw new ConflictException(
+          `outreach_conflict: a pending reply proposal already exists for this conversation`,
+        );
+      }
+      throw err;
+    }
+  }
+
   async approveProposal(id: string, opts: { publicBaseUrl: string }): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -318,11 +393,18 @@ export class OutreachService {
     if (proposal.status !== 'pending') {
       throw new OutreachInvalidError(`proposal ${id} is ${proposal.status}, not pending`);
     }
-    if (proposal.kind !== 'initial') {
-      throw new OutreachInvalidError(
-        `proposal ${id} is kind=${proposal.kind}; reply approval ships in PR3`,
-      );
+    if (proposal.kind === 'initial') {
+      return this.approveInitial(proposal, actor, opts);
     }
+    return this.approveReply(proposal, actor);
+  }
+
+  private async approveInitial(
+    proposal: ProposalDto,
+    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+    opts: { publicBaseUrl: string },
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
     const campaign = await this.getCampaign(proposal.campaignId);
     if (!campaign.enabled) {
       throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
@@ -346,9 +428,6 @@ export class OutreachService {
       return this.email.findOrCreateContactByEmail(tx, actor.orgId, contact.email!, contact.name ?? undefined);
     });
 
-    // Compose body: agent-drafted text + campaign CTA + unsubscribe footer.
-    // Footer is appended at approve-time (not draft-time) so the link can't
-    // be tampered with.
     const unsubscribeUrl = buildUnsubscribeUrl({
       publicBaseUrl: opts.publicBaseUrl,
       orgId: actor.orgId,
@@ -362,9 +441,9 @@ export class OutreachService {
       unsubscribeRequired: campaign.unsubscribeRequired,
     });
 
-    // Create conversation + send first message via the existing email
-    // outbound pipeline. createConversation enqueues the delivery row when
-    // channel is email and authorType !== end_user/system.
+    // Create the conversation in `agentMode='draft_only'` so the AI runner
+    // defers on subsequent inbound messages — replies should be drafted by
+    // `skill://outreach/draft-reply` and human-approved, not auto-sent.
     const conversation = await this.conv.createConversation({
       channelId: campaign.channelId,
       body,
@@ -372,6 +451,7 @@ export class OutreachService {
       contactId: convContact.id,
       endUserId: contact.endUserId ?? undefined,
       outreachCampaignId: campaign.id,
+      agentMode: 'draft_only',
       authorType: 'agent',
       authorId: actor.id,
     });
@@ -390,10 +470,9 @@ export class OutreachService {
         decidedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(schema.outreachProposals.id, id))
+      .where(eq(schema.outreachProposals.id, proposal.id))
       .returning();
 
-    // Bump the contact's lastContactedAt so cadence-aware filters notice.
     await ctx.db
       .update(schema.crmContacts)
       .set({ lastContactedAt: new Date(), updatedAt: new Date() })
@@ -402,11 +481,63 @@ export class OutreachService {
     await this.webhooks.emit({
       type: 'outreach.proposal.sent',
       payload: {
-        proposalId: id,
+        proposalId: proposal.id,
         campaignId: campaign.id,
         contactId: contact.id,
         conversationId: conversation.id,
         messageId: firstMessageId,
+      },
+    });
+
+    return toProposalDto(updated!);
+  }
+
+  private async approveReply(
+    proposal: ProposalDto,
+    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    if (!proposal.conversationId) {
+      throw new OutreachInvalidError(
+        `reply proposal ${proposal.id} has no conversationId — cannot send`,
+      );
+    }
+    // No unsubscribe footer on replies — the original initial already
+    // carries the link, and replies thread inside the same conversation.
+    const sent = await this.conv.sendMessage({
+      conversationId: proposal.conversationId,
+      body: proposal.draftBody,
+      authorType: 'agent',
+      authorId: actor.id,
+    });
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'sent',
+        sentMessageId: sent.id,
+        sentAt: new Date(),
+        decidedByActorType: actor.type,
+        decidedByActorId: actor.id,
+        decidedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.crmContacts.id, proposal.contactId));
+
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: proposal.campaignId,
+        contactId: proposal.contactId,
+        conversationId: proposal.conversationId,
+        messageId: sent.id,
       },
     });
 

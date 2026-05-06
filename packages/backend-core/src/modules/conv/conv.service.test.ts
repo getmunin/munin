@@ -64,6 +64,9 @@ const skipReason = TEST_URL
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     await db.execute(sql`DELETE FROM conv_message_deliveries WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM curator_jobs WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM outreach_proposals WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM outreach_campaigns WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM crm_segments WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_messages WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_conversations WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_topics WHERE org_id = ${orgId}`);
@@ -419,6 +422,73 @@ const skipReason = TEST_URL
       const extractJob = rows.find((r) => r.skill_uri === 'skill://crm/contact-extract');
       expect(extractJob).toBeDefined();
       expect(extractJob!.dedupe_key).toBe(`crm-contact-extract:conv:${conv.id}`);
+    });
+
+    it('inbound end_user message on outreach conv (draft_only) enqueues outreach reply-draft', async () => {
+      const ch = await run(() => svc.createChannel({ type: 'email', name: 'outreach-ch' }));
+      const [seg] = await db
+        .insert(schema.crmSegments)
+        .values({
+          orgId,
+          name: 'outreach-seg',
+          filterDefinition: {},
+          createdByActorType: 'admin_agent',
+          createdByActorId: 'test',
+        })
+        .returning();
+      const [camp] = await db
+        .insert(schema.outreachCampaigns)
+        .values({
+          orgId,
+          name: 'outreach-camp',
+          brief: 'test',
+          segmentId: seg!.id,
+          channelId: ch.id,
+          enabled: true,
+          createdByActorType: 'admin_agent',
+          createdByActorId: 'test',
+        })
+        .returning();
+      const conv = await run(() =>
+        svc.createConversation({
+          channelId: ch.id,
+          body: 'first outreach email',
+          authorType: 'agent',
+          authorId: actor.id,
+          outreachCampaignId: camp!.id,
+          agentMode: 'draft_only',
+        }),
+      );
+      // Now an inbound end_user reply lands.
+      await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: 'Tell me more',
+          authorType: 'end_user',
+          authorId: 'eu_test',
+        }),
+      );
+      const rows = await db.execute<{ skill_uri: string; dedupe_key: string | null }>(
+        sql`SELECT skill_uri, dedupe_key FROM curator_jobs WHERE org_id = ${orgId} AND skill_uri = 'skill://outreach/draft-reply'`,
+      );
+      expect(rows.length).toBe(1);
+      expect(rows[0]!.dedupe_key).toMatch(/^outreach-draft-reply:msg:cvm_/);
+    });
+
+    it('inbound on a non-outreach conv does NOT enqueue reply-draft', async () => {
+      const conv = await seedConv();
+      await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: 'hi',
+          authorType: 'end_user',
+          authorId: 'eu_test',
+        }),
+      );
+      const rows = await db.execute<{ skill_uri: string }>(
+        sql`SELECT skill_uri FROM curator_jobs WHERE org_id = ${orgId} AND skill_uri = 'skill://outreach/draft-reply'`,
+      );
+      expect(rows.length).toBe(0);
     });
 
     it('changeStatus to non-closed (e.g. snoozed) does NOT enqueue contact-extract', async () => {

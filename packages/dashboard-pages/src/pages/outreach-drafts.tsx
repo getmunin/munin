@@ -154,7 +154,10 @@ export function OutreachDraftsTab({ onCountChange }: OutreachDraftsTabProps) {
                         {p.draftSubject ?? t('untitled')}
                       </CardTitle>
                       <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline" className="capitalize">
+                        <Badge
+                          variant={p.kind === 'reply' ? 'secondary' : 'outline'}
+                          className="capitalize"
+                        >
                           {p.kind}
                         </Badge>
                         <span>{updatedLabel}</span>
@@ -173,6 +176,14 @@ export function OutreachDraftsTab({ onCountChange }: OutreachDraftsTabProps) {
                               <span className="text-muted-foreground"> ({contact.email})</span>
                             )}
                           </span>
+                        )}
+                        {p.kind === 'reply' && p.conversationId && (
+                          <a
+                            href={`/dashboard/conversations?id=${p.conversationId}`}
+                            className="text-primary underline-offset-2 hover:underline"
+                          >
+                            {t('viewThread')}
+                          </a>
                         )}
                       </p>
                     </div>

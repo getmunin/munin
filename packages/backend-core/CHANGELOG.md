@@ -1,5 +1,18 @@
 # @getmunin/backend-core
 
+## 0.23.2
+
+### Patch Changes
+
+- b9b5968: Fix self-service agent detection in realtime gateway. The dashboard's "agent connected" indicator was checking `actor.audiences.includes('self_service')` — but OSS admin API keys default to `['admin']` only (cloud mints runner keys with both audiences as a flag). Self-hosters running `@getmunin/agent-runtime` against their local Munin saw "no agent connected" even with chat working fine.
+
+  Drop the audience overlay. A live WebSocket subscriber that isn't an end-user-agent token _is_ the runner — there's no other admin caller that opens a sustained WS in OSS (dashboard uses session cookies, control-plane scripts don't subscribe). Removes the OSS/cloud asymmetry. No migration needed; existing keys work immediately.
+  - @getmunin/core@0.23.2
+  - @getmunin/db@0.23.2
+  - @getmunin/types@0.23.2
+  - @getmunin/mcp-toolkit@0.23.2
+  - @getmunin/bootstrap@0.23.2
+
 ## 0.23.1
 
 ### Patch Changes

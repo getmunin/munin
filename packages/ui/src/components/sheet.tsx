@@ -5,16 +5,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "../cn"
 
 const sheetVariants = cva(
-  "fixed z-50 flex flex-col gap-3 bg-background p-6 shadow-lg outline-none transition-transform data-[state=closed]:animate-out data-[state=open]:animate-in",
+  "fixed z-50 flex flex-col bg-paper outline-none transition-transform duration-300 ease-munin dark:bg-card",
   {
     variants: {
       side: {
-        top: "inset-x-0 top-0 border-b border-border data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+        top: "inset-x-0 top-0 border-b border-ink data-[starting-style]:-translate-y-full data-[ending-style]:-translate-y-full dark:border-rule-on-dark",
         bottom:
-          "inset-x-0 bottom-0 border-t border-border data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-        left: "inset-y-0 left-0 h-full w-3/4 max-w-sm border-r border-border data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
+          "inset-x-0 bottom-0 border-t border-ink data-[starting-style]:translate-y-full data-[ending-style]:translate-y-full dark:border-rule-on-dark",
+        left: "inset-y-0 left-0 h-full w-full max-w-[560px] border-r border-ink data-[starting-style]:-translate-x-full data-[ending-style]:-translate-x-full dark:border-rule-on-dark",
         right:
-          "inset-y-0 right-0 h-full w-3/4 max-w-sm border-l border-border data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          "inset-y-0 right-0 h-full w-full max-w-[560px] border-l border-ink data-[starting-style]:translate-x-full data-[ending-style]:translate-x-full dark:border-rule-on-dark",
       },
     },
     defaultVariants: { side: "right" },
@@ -37,7 +37,7 @@ function SheetBackdrop({
     <DialogPrimitive.Backdrop
       data-slot="sheet-backdrop"
       className={cn(
-        "fixed inset-0 z-50 bg-background/60 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+        "fixed inset-0 z-50 bg-ink/40 transition-opacity duration-200 ease-munin opacity-100 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 dark:bg-ink/70",
         className
       )}
       {...props}
@@ -66,7 +66,11 @@ function SheetContent({ side, className, children, ...props }: SheetContentProps
 
 function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div data-slot="sheet-header" className={cn("flex flex-col gap-1", className)} {...props} />
+    <div
+      data-slot="sheet-header"
+      className={cn("flex flex-col gap-2 px-6 py-5 border-b border-rule-soft dark:border-rule-on-dark", className)}
+      {...props}
+    />
   )
 }
 
@@ -77,7 +81,7 @@ function SheetTitle({
   return (
     <DialogPrimitive.Title
       data-slot="sheet-title"
-      className={cn("text-base font-semibold", className)}
+      className={cn("font-serif text-xl leading-tight font-normal tracking-tight", className)}
       {...props}
     />
   )
@@ -90,7 +94,7 @@ function SheetDescription({
   return (
     <DialogPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-sm text-ink-mute", className)}
       {...props}
     />
   )

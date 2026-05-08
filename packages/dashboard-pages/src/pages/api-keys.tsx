@@ -1,19 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import { Button } from '@getmunin/ui';
-import { Input } from '@getmunin/ui';
-import { Label } from '@getmunin/ui';
 import {
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  Hero,
+  Input,
+  Label,
 } from '@getmunin/ui';
 
 interface ApiKeySummary {
@@ -45,7 +46,7 @@ export function ApiKeysPage() {
   const [name, setName] = useState('');
   const [justCreated, setJustCreated] = useState<CreatedApiKey | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setError(null);
       const list = await api<ApiKeySummary[]>('/api/api-keys');
@@ -53,11 +54,11 @@ export function ApiKeysPage() {
     } catch (err) {
       setError(translate(err) || t('errors.load'));
     }
-  }
+  }, [t, translate]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -89,10 +90,7 @@ export function ApiKeysPage() {
 
   return (
     <>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
-      </header>
+      <Hero title={t('title')} lede={t('subtitle')} />
 
       <Card>
         <CardHeader>

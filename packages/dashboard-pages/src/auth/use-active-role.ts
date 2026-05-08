@@ -29,6 +29,9 @@ function fetchActiveRole(): Promise<OrgRole | null> {
     return role;
   });
   cache = { promise, value: undefined };
+  promise.catch(() => {
+    cache = null;
+  });
   return promise;
 }
 

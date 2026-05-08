@@ -1,6 +1,7 @@
 export { api, ApiError } from './api';
 export { authClient } from './auth-client';
 export { OrgSwitcher } from './components/org-switcher';
+export { PageShell, nativeFieldClass } from './components/page-shell';
 export { useActiveRole, isOwnerOrAdmin, type OrgRole } from './auth/use-active-role';
 
 export { AcceptInvitePage } from './pages/accept-invite';
@@ -13,12 +14,8 @@ export { ExportPage } from './pages/export';
 export { DashboardPage } from './pages/overview';
 export { TeamPage } from './pages/team';
 export { UsagePage } from './pages/usage';
-export { ConversationsPage } from './pages/conversations';
+export { InboxPage } from './pages/inbox';
 export { ActivityPage } from './pages/activity';
-export { CrmMergeProposalsPage } from './pages/crm-merge-proposals';
-export { ReviewPage } from './pages/review';
-export { KbCandidatesTab } from './pages/kb-candidates';
-export { OutreachDraftsTab } from './pages/outreach-drafts';
 export {
   useRealtime,
   type RealtimeEventRow,

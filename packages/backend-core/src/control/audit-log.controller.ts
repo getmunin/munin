@@ -17,8 +17,13 @@ interface AuditDto {
   result: string | null;
   error: string | null;
   correlationId: string | null;
+  durationMs: number | null;
+  userAgent: string | null;
+  client: ClientKind;
   createdAt: string;
 }
+
+type ClientKind = 'sdk' | 'cli' | 'mcp' | 'unknown';
 
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;
@@ -39,6 +44,7 @@ export class AuditLogController {
     @Query('tool') tool?: string,
     @Query('actorType') actorType?: string,
     @Query('correlationId') correlationId?: string,
+    @Query('client') client?: string,
   ): Promise<{ items: AuditDto[]; nextCursor: string | null }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -51,15 +57,18 @@ export class AuditLogController {
     if (correlationId) filters.push(eq(schema.auditLog.correlationId, correlationId));
     if (before) filters.push(lt(schema.auditLog.createdAt, new Date(before)));
 
+    const fetchTake = client ? Math.max(take * 4, 200) : take + 1;
     const rows = await ctx.db
       .select()
       .from(schema.auditLog)
       .where(and(...filters))
       .orderBy(desc(schema.auditLog.createdAt))
-      .limit(take + 1);
+      .limit(fetchTake);
 
-    const items = rows.slice(0, take).map(toDto);
-    const nextCursor = rows.length > take ? items[items.length - 1]!.createdAt : null;
+    const all = rows.map(toDto);
+    const filtered = client ? all.filter((r) => r.client === client) : all;
+    const items = filtered.slice(0, take);
+    const nextCursor = filtered.length > take ? items[items.length - 1]!.createdAt : null;
     return { items, nextCursor };
   }
 }
@@ -75,8 +84,24 @@ function toDto(row: typeof schema.auditLog.$inferSelect): AuditDto {
     result: row.result,
     error: row.error,
     correlationId: row.correlationId,
+    durationMs: row.durationMs,
+    userAgent: row.userAgent,
+    client: classifyClient(row.userAgent, row.tool),
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function classifyClient(userAgent: string | null, tool: string | null): ClientKind {
+  if (tool) return 'mcp';
+  if (!userAgent) return 'unknown';
+  const ua = userAgent.toLowerCase();
+  if (ua.includes('@getmunin/agent-runtime') || ua.includes('@getmunin/sdk') || ua.includes('munin')) {
+    return 'sdk';
+  }
+  if (ua.includes('curl') || ua.includes('wget') || ua.includes('httpie') || ua.includes('postman') || ua.includes('insomnia')) {
+    return 'cli';
+  }
+  return 'unknown';
 }
 
 function clampLimit(value: string | undefined, fallback: number, max: number): number {

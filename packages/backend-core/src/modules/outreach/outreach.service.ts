@@ -544,6 +544,38 @@ export class OutreachService {
     return toProposalDto(updated!);
   }
 
+  async updateProposal(input: {
+    id: string;
+    draftSubject?: string | null;
+    draftBody?: string;
+  }): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const proposal = await this.getProposal(input.id);
+    if (proposal.status !== 'pending') {
+      throw new OutreachInvalidError(`proposal ${input.id} is ${proposal.status}, not pending`);
+    }
+    if (input.draftBody !== undefined && input.draftBody.trim().length === 0) {
+      throw new OutreachInvalidError('draftBody cannot be empty');
+    }
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.draftSubject !== undefined) patch.draftSubject = input.draftSubject;
+    if (input.draftBody !== undefined) patch.draftBody = input.draftBody;
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set(patch)
+      .where(eq(schema.outreachProposals.id, input.id))
+      .returning();
+    await this.webhooks.emit({
+      type: 'outreach.proposal.updated',
+      payload: {
+        proposalId: input.id,
+        campaignId: proposal.campaignId,
+        contactId: proposal.contactId,
+      },
+    });
+    return toProposalDto(updated!);
+  }
+
   async dismissProposal(input: { id: string; reason?: string }): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;

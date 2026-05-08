@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, Bot, CheckCircle2, Code2, KeyRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from '@getmunin/ui';
 import { api } from '../api';
+import { useRealtime } from '../realtime';
 
 interface BacklogDto {
   conversationsNeedingAttention: number;
@@ -34,19 +35,32 @@ export function DashboardPage() {
   const [backlog, setBacklog] = useState<BacklogDto | null>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatusDto | null>(null);
 
-  useEffect(() => {
+  const loadBacklog = useCallback(() => {
     void api<BacklogDto>('/api/overview/backlog')
       .then(setBacklog)
       .catch(() => setBacklog(null));
-    const loadStatus = () => {
-      void api<AgentStatusDto>('/api/overview/agent-status')
-        .then(setAgentStatus)
-        .catch(() => setAgentStatus(null));
-    };
-    loadStatus();
-    const id = setInterval(loadStatus, 15_000);
-    return () => clearInterval(id);
   }, []);
+  const loadStatus = useCallback(() => {
+    void api<AgentStatusDto>('/api/overview/agent-status')
+      .then(setAgentStatus)
+      .catch(() => setAgentStatus(null));
+  }, []);
+
+  useEffect(() => {
+    loadBacklog();
+    loadStatus();
+  }, [loadBacklog, loadStatus]);
+
+  useRealtime([{ channel: 'org' }], (event) => {
+    if (
+      event.type.startsWith('conversation.') ||
+      event.type.startsWith('kb.document.') ||
+      event.type.startsWith('crm.merge_proposal.')
+    ) {
+      loadBacklog();
+      loadStatus();
+    }
+  });
 
   const allClear =
     backlog !== null &&
@@ -87,7 +101,7 @@ export function DashboardPage() {
                       {tBacklog('conversationsLabel')}
                     </span>
                     <Link
-                      href="/dashboard/conversations"
+                      href="/dashboard/inbox"
                       className="text-xs text-muted-foreground hover:underline"
                     >
                       {tBacklog('openConversations')}
@@ -101,10 +115,10 @@ export function DashboardPage() {
                       {tBacklog('kbCurationLabel')}
                     </span>
                     <Link
-                      href="/dashboard/review"
+                      href="/dashboard/inbox"
                       className="text-xs text-muted-foreground hover:underline"
                     >
-                      {tBacklog('openReview')}
+                      {tBacklog('openInbox')}
                     </Link>
                   </li>
                 )}
@@ -115,10 +129,10 @@ export function DashboardPage() {
                       {tBacklog('crmMergeProposalsLabel')}
                     </span>
                     <Link
-                      href="/dashboard/review"
+                      href="/dashboard/inbox"
                       className="text-xs text-muted-foreground hover:underline"
                     >
-                      {tBacklog('openReview')}
+                      {tBacklog('openInbox')}
                     </Link>
                   </li>
                 )}

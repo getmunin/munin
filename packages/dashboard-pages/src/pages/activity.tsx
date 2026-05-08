@@ -1,11 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Card, CardContent, Input } from '@getmunin/ui';
+import { Badge, Button, Card, CardContent, Hero, Input } from '@getmunin/ui';
 import { api, ApiError } from '../api';
 import { useRealtime, type SubscriptionChannel } from '../realtime';
-
-const POLL_MS = 30_000;
 
 interface ActivityDto {
   id: string;
@@ -69,8 +67,6 @@ export function ActivityPage() {
 
   useEffect(() => {
     void refresh();
-    const t = setInterval(() => void refresh(), POLL_MS);
-    return () => clearInterval(t);
   }, [refresh]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => [{ channel: 'org' }], []);
@@ -80,13 +76,10 @@ export function ActivityPage() {
 
   return (
     <>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Activity log</h1>
-        <p className="text-sm text-muted-foreground">
-          Org-wide event stream — every conversation message, status change, handover, KB write,
-          and CRM update as it happens.
-        </p>
-      </header>
+      <Hero
+        title="Activity log"
+        lede="Org-wide event stream — every conversation message, status change, handover, KB write, and CRM update as it happens."
+      />
 
       <Card>
         <CardContent className="grid gap-3 py-3 md:grid-cols-3">

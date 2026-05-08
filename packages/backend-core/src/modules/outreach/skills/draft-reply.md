@@ -23,7 +23,7 @@ Replies must answer what the prospect actually said. If they asked a question, a
 4. **Decide intent**: question, decline, ask-for-human, off-topic, low-quality, etc. The right reply differs sharply by intent.
 5. **Ground product claims** with `kb_search` if the prospect asked something factual.
 6. **Draft** a 30–120-word reply that addresses the inbound. Plain prose, no headings, no JSON-escaping. **No unsubscribe footer** — replies thread inside the existing email chain which already carries the original link.
-7. **File** with `outreach_propose_reply({ conversationId, draftBody, evidence })`. The proposal lands `pending`; the operator approves on `/dashboard/review`. Approving sends via `conv_send_message`.
+7. **File** with `outreach_propose_reply({ conversationId, draftBody, evidence })`. The proposal lands `pending`; the operator approves on `/dashboard/inbox`. Approving sends via `conv_send_message`.
 
 ## Step 1 — read the conversation
 
@@ -87,7 +87,7 @@ If the prospect asked something specific that needs a factual answer ("does X in
 
 Behavior:
 
-- The proposal lands in `pending` status, visible to the operator on `/dashboard/review` Outreach tab with a Reply badge.
+- The proposal lands in `pending` status, visible to the operator on `/dashboard/inbox` Outreach tab with a Reply badge.
 - An `outreach.proposal.created` realtime event fires.
 - Approving sends the body verbatim via `conv_send_message` on the same conversation. No unsubscribe footer is added.
 

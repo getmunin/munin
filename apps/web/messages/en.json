@@ -73,7 +73,7 @@
     "dataExport": "Data export",
     "conversations": "Conversations",
     "activity": "Activity log",
-    "review": "Review",
+    "inbox": "Inbox",
     "skills": "Skills",
     "suggestions": "Suggestions",
     "partnerAccess": "Partner access"
@@ -107,79 +107,7 @@
       "openConversations": "Open conversations →",
       "kbCurationLabel": "KB suggestions pending review",
       "crmMergeProposalsLabel": "CRM merges pending review",
-      "openReview": "Review →"
-    },
-    "review": {
-      "title": "Review",
-      "subtitle": "KB suggestions, CRM merges, and outreach drafts proposed by curators. Approve to publish/send, dismiss to discard.",
-      "automateHint": "Fully automate this by connecting an <adminAgent>Admin Agent</adminAgent>.",
-      "tabs": {
-        "kb": "KB suggestions",
-        "crm": "CRM merges",
-        "outreach": "Outreach drafts"
-      }
-    },
-    "outreachDrafts": {
-      "loading": "Loading…",
-      "emptyTitle": "No outreach drafts pending review",
-      "emptyBody": "When the draft-initial curator runs against an enabled campaign, drafts land here for approval. Approve to send via the campaign's email channel; dismiss to discard.",
-      "to": "to",
-      "via": "via",
-      "viewThread": "View thread →",
-      "untitled": "(no subject)",
-      "approve": "Approve & send",
-      "edit": "Edit",
-      "editComingSoon": "Inline editing ships next — for now, dismiss and have the curator redraft, or rerun the campaign.",
-      "dismiss": "Dismiss",
-      "dismissPrompt": "Reason for dismissing? (optional)",
-      "errors": {
-        "load": "Could not load outreach drafts.",
-        "approve": "Could not approve draft (may be blocked by suppression / consent).",
-        "dismiss": "Could not dismiss draft."
-      }
-    },
-    "kbCandidates": {
-      "loading": "Loading…",
-      "emptyTitle": "No KB suggestions",
-      "emptyBody": "Curators will draft KB candidates from resolved handovers and similar signals. Approved candidates publish to your chosen space.",
-      "publishTo": "Publish to:",
-      "willCreate": "Create new: {slug}",
-      "approve": "Approve",
-      "dismiss": "Dismiss",
-      "dismissConfirm": "Dismiss this candidate? It will be deleted.",
-      "sourceConvLink": "From conversation …{id}",
-      "errors": {
-        "load": "Could not load KB candidates.",
-        "approve": "Could not approve candidate.",
-        "dismiss": "Could not dismiss candidate.",
-        "noSpace": "Pick a target space first."
-      }
-    },
-    "crmMergeProposals": {
-      "title": "CRM merge proposals",
-      "subtitle": "Pending duplicate-contact merges proposed by the CRM hygiene curator. Apply to atomically copy the recommended patch onto the keeper, reassign activities and deals, and archive the duplicate. Dismiss to record that the pair is not the same person.",
-      "loading": "Loading…",
-      "emptyTitle": "No pending merge proposals",
-      "emptyBody": "The CRM hygiene curator proposes merges when it finds duplicate contacts. Approve to atomically merge keeper + duplicate, or dismiss to keep them separate.",
-      "hint": "The CRM hygiene curator runs weekly and re-files proposals if it finds the same suspect pair again — dismissing one prevents that.",
-      "keeperLabel": "Keeper",
-      "duplicateLabel": "Duplicate",
-      "evidenceToggle": "Show evidence",
-      "patchToggle": "Show recommended patch",
-      "applyButton": "Apply merge",
-      "dismissButton": "Dismiss",
-      "dismissPrompt": "Reason for dismissing? (optional)",
-      "working": "Working…",
-      "proposedAt": "Proposed {date}",
-      "confidence": {
-        "high": "High confidence",
-        "medium": "Medium confidence"
-      },
-      "errors": {
-        "load": "Failed to load merge proposals.",
-        "apply": "Failed to apply merge.",
-        "dismiss": "Failed to dismiss merge."
-      }
+      "openInbox": "Open inbox →"
     },
     "agents": {
       "title": "Connected agents",
@@ -362,6 +290,26 @@
       "resetHours": "in {hours}h",
       "errors": {
         "load": "Could not load usage."
+      },
+      "tiles": {
+        "mcpCalls": "MCP calls",
+        "apiCalls": "API calls",
+        "conversations": "Conversations",
+        "avgLatency": "Avg latency",
+        "thisMonth": "This month",
+        "sevenDay": "7d",
+        "deltaUp": "↑ {value} vs last",
+        "deltaDown": "↓ {value} vs last",
+        "deltaFlat": "— vs last"
+      },
+      "byAgent": {
+        "title": "By agent",
+        "rangeLabel": "last {days} days",
+        "rightLabel": "MCP calls · Latency",
+        "colAgent": "Agent",
+        "colMcpCalls": "MCP calls",
+        "colLatency": "Avg latency",
+        "empty": "No agent activity in this window."
       }
     },
     "auditLog": {
@@ -372,12 +320,15 @@
       "filterTool": "Tool",
       "filterActorType": "Actor type",
       "filterCorrelationId": "Correlation id",
+      "filterClient": "Client",
+      "clientAny": "Any",
       "apply": "Apply",
       "loadMore": "Load more",
       "emptyTitle": "No audit rows yet",
       "emptyBody": "Tool calls and control-plane writes appear here. Connect an agent and try a tool.",
       "tableTime": "Time",
       "tableActor": "Actor",
+      "tableClient": "Client",
       "tableToolMethod": "Tool / method",
       "tableResult": "Result",
       "tableCorrelation": "Correlation",
@@ -412,6 +363,11 @@
       "emailLabel": "Email",
       "saving": "Saving…",
       "editAria": "Edit your account details"
+    },
+    "status": {
+      "connected": "connected",
+      "connecting": "connecting",
+      "offline": "offline"
     },
     "settings": {
       "groups": {

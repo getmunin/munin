@@ -28,18 +28,36 @@ export class AuditInterceptor implements NestInterceptor {
     }
     if (!hasContext) return next.handle();
 
-    const request = context.switchToHttp().getRequest<{ method: string; url: string }>();
-    const method = `${request.method} ${request.url.split('?')[0]}`;
+    const request = context
+      .switchToHttp()
+      .getRequest<{ method: string; url: string; headers: Record<string, string | string[] | undefined> }>();
+    const verb = request.method.toUpperCase();
+    const method = `${verb} ${request.url.split('?')[0]}`;
+    const startedAt = Date.now();
+
+    if (verb === 'HEAD' || verb === 'OPTIONS') {
+      return next.handle();
+    }
+
+    const rawUa = request.headers['user-agent'];
+    const userAgent = Array.isArray(rawUa) ? rawUa[0] : rawUa;
 
     return next.handle().pipe(
       tap(() => {
-        void this.audit.record({ method, result: 'ok' });
+        void this.audit.record({
+          method,
+          result: 'ok',
+          durationMs: Date.now() - startedAt,
+          userAgent,
+        });
       }),
       catchError((err: unknown) => {
         void this.audit.record({
           method,
           result: 'error',
           error: err instanceof Error ? err.message : String(err),
+          durationMs: Date.now() - startedAt,
+          userAgent,
         });
         return throwError(() => err);
       }),

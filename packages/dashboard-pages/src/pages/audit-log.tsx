@@ -1,20 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollText } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import { Button } from '@getmunin/ui';
-import { Input } from '@getmunin/ui';
-import { Label } from '@getmunin/ui';
 import {
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  Hero,
+  Input,
+  Label,
 } from '@getmunin/ui';
+
+type ClientKind = 'sdk' | 'cli' | 'mcp' | 'unknown';
 
 interface AuditDto {
   id: string;
@@ -25,6 +28,9 @@ interface AuditDto {
   result: string | null;
   error: string | null;
   correlationId: string | null;
+  durationMs: number | null;
+  userAgent: string | null;
+  client: ClientKind;
   createdAt: string;
 }
 
@@ -41,39 +47,44 @@ export function AuditLogPage() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [exhausted, setExhausted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ tool: '', actorType: '', correlationId: '' });
+  const [filters, setFilters] = useState({ tool: '', actorType: '', correlationId: '', client: '' });
 
-  async function load(reset: boolean) {
-    try {
-      const params = new URLSearchParams();
-      if (filters.tool) params.set('tool', filters.tool);
-      if (filters.actorType) params.set('actorType', filters.actorType);
-      if (filters.correlationId) params.set('correlationId', filters.correlationId);
-      if (!reset && cursor) params.set('before', cursor);
-      const page = await api<AuditPage>(`/api/audit-log?${params.toString()}`);
-      setError(null);
-      if (reset) {
-        setItems(page.items);
-      } else {
-        setItems((prev) => [...prev, ...page.items]);
+  const load = useCallback(
+    async (
+      reset: boolean,
+      filterValues: { tool: string; actorType: string; correlationId: string; client: string },
+      beforeCursor: string | null,
+    ) => {
+      try {
+        const params = new URLSearchParams();
+        if (filterValues.tool) params.set('tool', filterValues.tool);
+        if (filterValues.actorType) params.set('actorType', filterValues.actorType);
+        if (filterValues.correlationId) params.set('correlationId', filterValues.correlationId);
+        if (filterValues.client) params.set('client', filterValues.client);
+        if (!reset && beforeCursor) params.set('before', beforeCursor);
+        const page = await api<AuditPage>(`/api/audit-log?${params.toString()}`);
+        setError(null);
+        if (reset) {
+          setItems(page.items);
+        } else {
+          setItems((prev) => [...prev, ...page.items]);
+        }
+        setCursor(page.nextCursor);
+        setExhausted(page.nextCursor === null);
+      } catch (err) {
+        setError(translate(err) || t('errors.load'));
       }
-      setCursor(page.nextCursor);
-      setExhausted(page.nextCursor === null);
-    } catch (err) {
-      setError(translate(err) || t('errors.load'));
-    }
-  }
+    },
+    [t, translate],
+  );
 
   useEffect(() => {
-    void load(true);
-  }, []);
+    void load(true, { tool: '', actorType: '', correlationId: '', client: '' }, null);
+  }, [load]);
 
   return (
     <>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
-      </header>
+      <Hero title={t('title')} lede={t('subtitle')} />
 
       <Card>
         <CardHeader>
@@ -82,12 +93,12 @@ export function AuditLogPage() {
         </CardHeader>
         <CardContent>
           <form
-            className="grid gap-3 md:grid-cols-4"
+            className="grid gap-3 md:grid-cols-5"
             onSubmit={(e) => {
               e.preventDefault();
               setCursor(null);
               setExhausted(false);
-              void load(true);
+              void load(true, filters, null);
             }}
           >
             <div className="space-y-1">
@@ -116,6 +127,21 @@ export function AuditLogPage() {
                 onChange={(e) => setFilters((f) => ({ ...f, correlationId: e.target.value }))}
                 placeholder="uuid"
               />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="client">{t('filterClient')}</Label>
+              <select
+                id="client"
+                value={filters.client}
+                onChange={(e) => setFilters((f) => ({ ...f, client: e.target.value }))}
+                className="h-9 w-full rounded-md border border-rule-soft bg-paper px-2 text-sm dark:bg-card dark:border-rule-on-dark"
+              >
+                <option value="">{t('clientAny')}</option>
+                <option value="sdk">sdk</option>
+                <option value="cli">cli</option>
+                <option value="mcp">mcp</option>
+                <option value="unknown">unknown</option>
+              </select>
             </div>
             <div className="flex items-end">
               <Button type="submit" className="w-full">
@@ -149,6 +175,7 @@ export function AuditLogPage() {
               <tr className="text-left text-xs font-medium uppercase text-muted-foreground">
                 <th className="px-3 py-2">{t('tableTime')}</th>
                 <th className="px-3 py-2">{t('tableActor')}</th>
+                <th className="px-3 py-2">{t('tableClient')}</th>
                 <th className="px-3 py-2">{t('tableToolMethod')}</th>
                 <th className="px-3 py-2">{t('tableResult')}</th>
                 <th className="px-3 py-2">{t('tableCorrelation')}</th>
@@ -164,6 +191,12 @@ export function AuditLogPage() {
                     })}
                   </td>
                   <td className="px-3 py-2 text-xs font-mono">{row.actorType}</td>
+                  <td
+                    className="px-3 py-2 text-xs font-mono"
+                    title={row.userAgent ?? undefined}
+                  >
+                    {row.client}
+                  </td>
                   <td className="px-3 py-2 text-xs font-mono">{row.tool ?? row.method ?? '—'}</td>
                   <td className="px-3 py-2">
                     <span
@@ -190,7 +223,7 @@ export function AuditLogPage() {
 
       {!exhausted && items.length > 0 && (
         <div className="flex justify-center">
-          <Button variant="outline" onClick={() => void load(false)}>
+          <Button variant="outline" onClick={() => void load(false, filters, cursor)}>
             {t('loadMore')}
           </Button>
         </div>

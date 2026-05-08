@@ -95,7 +95,7 @@ Strict rules:
 
 Behavior:
 
-- The proposal lands in `pending` status, visible to the operator on `/dashboard/review` (Outreach drafts tab).
+- The proposal lands in `pending` status, visible to the operator on `/dashboard/inbox` (Outreach drafts tab).
 - An `outreach.proposal.created` realtime event fires.
 - Re-running this skill on the same (campaign, contact) before the operator decides will reject with a uniqueness conflict — that's the dedup signal.
 

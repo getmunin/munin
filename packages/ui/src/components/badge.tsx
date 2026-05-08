@@ -4,19 +4,17 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "../cn"
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+  "inline-flex items-center gap-1.5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-eyebrow font-medium border whitespace-nowrap before:content-[''] before:size-[5px] before:rounded-full before:bg-current",
   {
     variants: {
       variant: {
-        default: "bg-primary/10 text-primary ring-primary/20",
-        secondary: "bg-secondary text-secondary-foreground ring-border",
-        outline: "bg-transparent text-foreground ring-border",
-        destructive:
-          "bg-destructive/10 text-destructive ring-destructive/20 dark:bg-destructive/20",
-        warning:
-          "bg-amber-50 text-amber-900 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/30",
-        success:
-          "bg-emerald-50 text-emerald-900 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/30",
+        default: "border-current text-ink dark:text-foreground",
+        secondary: "border-rule-soft text-ink-mute dark:border-rule-on-dark",
+        outline: "border-current text-ink-mute dark:text-foreground",
+        cobalt: "border-current text-cobalt dark:text-cobalt-soft",
+        destructive: "border-current text-destructive",
+        warning: "border-current text-[#9a7a1f] dark:text-amber-300",
+        success: "border-current text-cobalt dark:text-cobalt-soft",
       },
     },
     defaultVariants: { variant: "default" },

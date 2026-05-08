@@ -16,7 +16,9 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./styles/fonts.css": "./src/styles/fonts.css",
+    "./styles/tokens.css": "./src/styles/tokens.css"
   },
   "files": [
     "src"

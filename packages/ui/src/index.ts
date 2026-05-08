@@ -75,3 +75,10 @@ export {
   TableCaption,
 } from './components/table';
 export { Tabs, TabsList, TabsTrigger, TabsPanel } from './components/tabs';
+export { Eyebrow, eyebrowVariants } from './components/eyebrow';
+export { Hero } from './components/hero';
+export { SectionHead } from './components/section-head';
+export { Pill, pillVariants } from './components/pill';
+export { RailNav, RailGroup, RailItem, railItemClass } from './components/rail-nav';
+export { Hairline } from './components/hairline';
+export { PageSpinner } from './components/page-spinner';

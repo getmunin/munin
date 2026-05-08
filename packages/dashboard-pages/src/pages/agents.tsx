@@ -1,17 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Bot, Trash2 } from 'lucide-react';
 import { useFormatter, useLocale, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import { Button } from '@getmunin/ui';
 import {
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  Hero,
 } from '@getmunin/ui';
 
 interface TokenDto {
@@ -33,7 +34,7 @@ export function AgentsPage() {
   const [tokens, setTokens] = useState<TokenDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setError(null);
       const list = await api<TokenDto[]>('/api/tokens');
@@ -41,11 +42,11 @@ export function AgentsPage() {
     } catch (err) {
       setError(translate(err) || t('errors.load'));
     }
-  }
+  }, [t, translate]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   async function revoke(id: string) {
     try {
@@ -58,10 +59,7 @@ export function AgentsPage() {
 
   return (
     <>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
-      </header>
+      <Hero title={t('title')} lede={t('subtitle')} />
 
       {error && (
         <Card>

@@ -1,17 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Users } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import { Button } from '@getmunin/ui';
 import {
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  Hero,
 } from '@getmunin/ui';
 
 interface EndUserDto {
@@ -34,7 +35,7 @@ export function EndUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setError(null);
       const list = await api<EndUserDto[]>('/api/end-users');
@@ -42,11 +43,11 @@ export function EndUsersPage() {
     } catch (err) {
       setError(translate(err) || t('errors.load'));
     }
-  }
+  }, [t, translate]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   async function revokeTokens(id: string) {
     setRevokingId(id);
@@ -64,14 +65,12 @@ export function EndUsersPage() {
 
   return (
     <>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t.rich('subtitle', {
-            code: (chunks) => <code className="mx-1">{chunks}</code>,
-          })}
-        </p>
-      </header>
+      <Hero
+        title={t('title')}
+        lede={t.rich('subtitle', {
+          code: (chunks) => <code className="mx-1 font-mono text-xs">{chunks}</code>,
+        })}
+      />
 
       {error && (
         <Card>

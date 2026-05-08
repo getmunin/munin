@@ -1,0 +1,82 @@
+:root {
+  /* Raw RGB triples — used by Tailwind utilities that need alpha modifiers
+     (e.g. bg-ink/40). Wrap with rgb() in CSS to use as a color. */
+  --munin-bone: 232 228 220;        /* #E8E4DC — page bg, warm bone paper */
+  --munin-paper: 251 250 247;       /* #FBFAF7 — primary surface */
+  --munin-paper-deep: 240 238 232;  /* #F0EEE8 — alt surface */
+  --munin-ink: 15 20 25;            /* #0F1419 — dark surface + body text */
+
+  --munin-fg-1: 15 20 25;           /* #0F1419 — primary text */
+  --munin-fg-2: 61 66 74;           /* #3D424A — secondary text */
+  --munin-fg-3: 126 133 144;        /* #7E8590 — metadata, mute */
+  --munin-fg-on-dark-1: 251 250 247;
+  --munin-fg-on-dark-2: 244 239 230; /* used at 0.75 alpha in legacy */
+
+  --munin-accent: 0 102 255;        /* #0066FF — italic emphasis, links */
+  --munin-accent-soft: 127 177 255; /* #7FB1FF — italic on dark */
+  --munin-accent-deep: 0 72 184;    /* #0048B8 — hover/pressed */
+
+  --munin-rule-soft-alpha: 0.145;   /* hairline rule alpha on light */
+  --munin-rule-on-dark-alpha: 0.2;  /* hairline rule alpha on dark */
+
+  --munin-serif: 'Instrument Serif', 'Times New Roman', serif;
+  --munin-sans: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
+  --munin-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --munin-radius-pill: 999px;
+  --munin-radius-bubble: 14px;
+  --munin-radius-input: 2px;
+
+  --munin-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --munin-dur-fast: 120ms;
+  --munin-dur-base: 200ms;
+  --munin-dur-slow: 360ms;
+
+  color-scheme: light;
+
+  /* shadcn-compatible aliases — wrapped in rgb() so they work as plain colors */
+  --background: rgb(var(--munin-paper));
+  --foreground: rgb(var(--munin-fg-1));
+  --card: rgb(var(--munin-paper));
+  --card-foreground: rgb(var(--munin-fg-1));
+  --popover: rgb(var(--munin-paper));
+  --popover-foreground: rgb(var(--munin-fg-1));
+  --primary: rgb(var(--munin-ink));
+  --primary-foreground: rgb(var(--munin-paper));
+  --secondary: rgb(var(--munin-paper-deep));
+  --secondary-foreground: rgb(var(--munin-fg-1));
+  --muted: rgb(var(--munin-paper-deep));
+  --muted-foreground: rgb(var(--munin-fg-3));
+  --accent: rgb(var(--munin-paper-deep));
+  --accent-foreground: rgb(var(--munin-fg-1));
+  --destructive: #b53d3d;
+  --destructive-foreground: rgb(var(--munin-paper));
+  --border: rgb(var(--munin-ink) / var(--munin-rule-soft-alpha));
+  --input: rgb(var(--munin-ink) / var(--munin-rule-soft-alpha));
+  --ring: rgb(var(--munin-accent));
+  --radius: 0px;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: rgb(var(--munin-ink));
+  --foreground: rgb(var(--munin-fg-on-dark-1));
+  --card: #151b22;
+  --card-foreground: rgb(var(--munin-fg-on-dark-1));
+  --popover: #151b22;
+  --popover-foreground: rgb(var(--munin-fg-on-dark-1));
+  --primary: rgb(var(--munin-paper));
+  --primary-foreground: rgb(var(--munin-ink));
+  --secondary: #1c232b;
+  --secondary-foreground: rgb(var(--munin-fg-on-dark-1));
+  --muted: #1c232b;
+  --muted-foreground: rgb(var(--munin-fg-on-dark-2) / 0.75);
+  --accent: #1c232b;
+  --accent-foreground: rgb(var(--munin-fg-on-dark-1));
+  --destructive: #d96a6a;
+  --destructive-foreground: rgb(var(--munin-ink));
+  --border: rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha));
+  --input: rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha));
+  --ring: rgb(var(--munin-accent-soft));
+}

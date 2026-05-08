@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   UseGuards,
   UseInterceptors,
@@ -28,6 +29,10 @@ const PublishBody = z.object({
   targetSpaceSlug: z.string().min(1),
   audiences: z.array(z.string().min(1)).optional(),
 });
+const UpdateBody = z.object({
+  title: z.string().min(1).optional(),
+  body: z.string().min(1).optional(),
+});
 
 interface CandidateListResponse {
   items: CurationCandidateSummary[];
@@ -48,6 +53,23 @@ export class KbCandidatesController {
   @Get(':id')
   async get(@Param('id') id: string): Promise<CurationCandidateDto> {
     return translate(() => this.kb.getCurationCandidate(id));
+  }
+
+  @Patch(':id')
+  @HttpCode(200)
+  async update(@Param('id') id: string, @Body() body: unknown): Promise<CurationCandidateDto> {
+    const parsed = UpdateBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(async () => {
+      const existing = await this.kb.getCurationCandidate(id);
+      await this.kb.updateDocument({
+        id,
+        ifVersion: existing.version,
+        title: parsed.data.title,
+        body: parsed.data.body,
+      });
+      return this.kb.getCurationCandidate(id);
+    });
   }
 
   @Post(':id/publish')

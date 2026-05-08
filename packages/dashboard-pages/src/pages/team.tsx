@@ -1,20 +1,23 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Copy, Mail, MailX, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import { Button } from '@getmunin/ui';
-import { Input } from '@getmunin/ui';
-import { Label } from '@getmunin/ui';
 import {
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  Hero,
+  Input,
+  Label,
+  SectionHead,
 } from '@getmunin/ui';
+import { nativeFieldClass } from '../components/page-shell';
 
 type MemberRole = 'owner' | 'admin' | 'member';
 
@@ -60,7 +63,7 @@ export function TeamPage() {
   const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setError(null);
       const [m, i] = await Promise.all([
@@ -72,11 +75,11 @@ export function TeamPage() {
     } catch (err) {
       setError(translate(err) || t('errors.load'));
     }
-  }
+  }, [t, translate]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   async function invite(e: React.FormEvent) {
     e.preventDefault();
@@ -145,10 +148,7 @@ export function TeamPage() {
 
   return (
     <>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
-      </header>
+      <Hero title={t('title')} lede={t('subtitle')} />
 
       {error && (
         <Card>
@@ -186,7 +186,7 @@ export function TeamPage() {
               <Label htmlFor="role">{t('roleLabel')}</Label>
               <select
                 id="role"
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+                className={nativeFieldClass}
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as MemberRole)}
               >
@@ -257,10 +257,8 @@ export function TeamPage() {
         )}
       </ManualShareDialog>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground">
-          {members ? t('membersTitleCount', { count: members.length }) : t('membersTitle')}
-        </h2>
+      <section className="space-y-4">
+        <SectionHead title={members ? t('membersTitleCount', { count: members.length }) : t('membersTitle')} />
         {members === null ? (
           <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
         ) : (
@@ -282,7 +280,7 @@ export function TeamPage() {
                     <td className="px-3 py-2 text-xs text-muted-foreground">{m.email}</td>
                     <td className="px-3 py-2">
                       <select
-                        className="h-8 rounded-md border bg-background px-2 text-xs"
+                        className={nativeFieldClass + ' h-8 text-xs'}
                         value={m.role}
                         onChange={(e) => {
                           void changeRole(m.userId, e.target.value as MemberRole);
@@ -316,10 +314,8 @@ export function TeamPage() {
         )}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground">
-          {invites ? t('invitesTitleCount', { count: invites.length }) : t('invitesTitle')}
-        </h2>
+      <section className="space-y-4">
+        <SectionHead title={invites ? t('invitesTitleCount', { count: invites.length }) : t('invitesTitle')} />
         {invites === null ? (
           <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
         ) : invites.length === 0 ? (

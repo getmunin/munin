@@ -129,6 +129,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
 
   async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
+      'user-agent': '@getmunin/agent-runtime',
       ...(init.headers as Record<string, string> | undefined),
       authorization: `Bearer ${opts.adminApiKey}`,
     };

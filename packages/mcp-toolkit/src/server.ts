@@ -93,19 +93,26 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
       }
     }
 
+    const startedAt = Date.now();
     try {
       const value = await tool.handler(parseResult.data);
       await audit.record({
         tool: tool.meta.name,
         args: parseResult.data,
         result: 'ok',
+        durationMs: Date.now() - startedAt,
       });
       return {
         content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }],
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await audit.record({ tool: tool.meta.name, result: 'error', error: message });
+      await audit.record({
+        tool: tool.meta.name,
+        result: 'error',
+        error: message,
+        durationMs: Date.now() - startedAt,
+      });
       return errorResult(message);
     }
   });

@@ -6,6 +6,7 @@ import { TokensController } from './tokens.controller.js';
 import { OrgsController } from './orgs.controller.js';
 import { AuditLogController } from './audit-log.controller.js';
 import { UsageController } from './usage.controller.js';
+import { UsageStatsController } from './usage-stats.controller.js';
 import { ExportController } from './export.controller.js';
 import { WebhooksController } from './webhooks.controller.js';
 import { CmsDeliveryController } from './cms-delivery.controller.js';
@@ -34,6 +35,7 @@ import { ConversationsController } from './conversations.controller.js';
 import { ActivityController } from './activity.controller.js';
 import { EndUserConversationsController } from './end-user-conversations.controller.js';
 import { OverviewController } from './overview.controller.js';
+import { InboxController } from './inbox.controller.js';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -62,6 +64,7 @@ import { OverviewController } from './overview.controller.js';
     OrgsController,
     AuditLogController,
     UsageController,
+    UsageStatsController,
     ExportController,
     WebhooksController,
     CmsDeliveryController,
@@ -74,6 +77,7 @@ import { OverviewController } from './overview.controller.js';
     ActivityController,
     EndUserConversationsController,
     OverviewController,
+    InboxController,
     CrmMergeProposalsController,
     CrmSegmentsController,
     OutreachUnsubscribeController,

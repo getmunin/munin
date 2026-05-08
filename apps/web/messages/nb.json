@@ -73,7 +73,7 @@
     "dataExport": "Dataeksport",
     "conversations": "Samtaler",
     "activity": "Aktivitetslogg",
-    "review": "Gjennomgang",
+    "inbox": "Innboks",
     "skills": "Ferdigheter",
     "suggestions": "Forslag",
     "partnerAccess": "Partnertilgang"
@@ -107,79 +107,7 @@
       "openConversations": "Åpne samtaler →",
       "kbCurationLabel": "KB-forslag venter på gjennomgang",
       "crmMergeProposalsLabel": "CRM-sammenslåinger venter på gjennomgang",
-      "openReview": "Gjennomgå →"
-    },
-    "review": {
-      "title": "Gjennomgang",
-      "subtitle": "KB-forslag, CRM-sammenslåinger og utgående e-postutkast fra kuratorene. Godkjenn for å publisere/sende, avvis for å forkaste.",
-      "automateHint": "Automatiser hele flyten ved å koble til en <adminAgent>admin-agent</adminAgent>.",
-      "tabs": {
-        "kb": "KB-forslag",
-        "crm": "CRM-sammenslåinger",
-        "outreach": "Utgående utkast"
-      }
-    },
-    "outreachDrafts": {
-      "loading": "Laster …",
-      "emptyTitle": "Ingen utgående utkast venter på gjennomgang",
-      "emptyBody": "Når draft-initial-kuratoren kjører mot en aktivert kampanje, havner utkast her for godkjenning. Godkjenn for å sende via kampanjens e-postkanal; avvis for å forkaste.",
-      "to": "til",
-      "via": "via",
-      "viewThread": "Vis samtale →",
-      "untitled": "(ingen emne)",
-      "approve": "Godkjenn & send",
-      "edit": "Rediger",
-      "editComingSoon": "Inline-redigering kommer snart — foreløpig: avvis og la kuratoren skrive på nytt, eller kjør kampanjen igjen.",
-      "dismiss": "Avvis",
-      "dismissPrompt": "Begrunnelse for avvisning? (valgfritt)",
-      "errors": {
-        "load": "Kunne ikke laste utgående utkast.",
-        "approve": "Kunne ikke godkjenne utkast (kan være blokkert av suppresjon / samtykke).",
-        "dismiss": "Kunne ikke avvise utkast."
-      }
-    },
-    "kbCandidates": {
-      "loading": "Laster …",
-      "emptyTitle": "Ingen KB-forslag",
-      "emptyBody": "Kuratorene foreslår KB-kandidater fra avsluttede overleveringer og andre signaler. Godkjente kandidater publiseres til valgt rom.",
-      "publishTo": "Publiser til:",
-      "willCreate": "Opprett nytt: {slug}",
-      "approve": "Godkjenn",
-      "dismiss": "Avvis",
-      "dismissConfirm": "Avvise denne kandidaten? Den blir slettet.",
-      "sourceConvLink": "Fra samtale …{id}",
-      "errors": {
-        "load": "Klarte ikke laste KB-kandidater.",
-        "approve": "Klarte ikke godkjenne kandidat.",
-        "dismiss": "Klarte ikke avvise kandidat.",
-        "noSpace": "Velg et målrom først."
-      }
-    },
-    "crmMergeProposals": {
-      "title": "CRM-sammenslåinger",
-      "subtitle": "Forslag om å slå sammen duplikate kontakter, foreslått av CRM-hygienekuratoren. \"Slå sammen\" kopierer den anbefalte oppdateringen til keeperen, overfører aktiviteter og avtaler, og arkiverer duplikatet — alt i én transaksjon. \"Avvis\" registrerer at paret ikke er samme person.",
-      "loading": "Laster …",
-      "emptyTitle": "Ingen ventende sammenslåingsforslag",
-      "emptyBody": "CRM-hygienekuratoren foreslår sammenslåinger når den finner duplikate kontakter. Godkjenn for å slå sammen keeper + duplikat atomært, eller avvis for å holde dem adskilt.",
-      "hint": "CRM-hygienekuratoren kjører ukentlig og foreslår samme par på nytt hvis det fremdeles ser duplikat ut — å avvise hindrer det.",
-      "keeperLabel": "Keeper",
-      "duplicateLabel": "Duplikat",
-      "evidenceToggle": "Vis grunnlag",
-      "patchToggle": "Vis foreslått oppdatering",
-      "applyButton": "Slå sammen",
-      "dismissButton": "Avvis",
-      "dismissPrompt": "Begrunnelse for avvisning? (valgfritt)",
-      "working": "Arbeider …",
-      "proposedAt": "Foreslått {date}",
-      "confidence": {
-        "high": "Høy tiltro",
-        "medium": "Middels tiltro"
-      },
-      "errors": {
-        "load": "Klarte ikke laste sammenslåingsforslag.",
-        "apply": "Klarte ikke slå sammen.",
-        "dismiss": "Klarte ikke avvise."
-      }
+      "openInbox": "Åpne innboks →"
     },
     "agents": {
       "title": "Tilkoblede agenter",
@@ -362,6 +290,26 @@
       "resetHours": "om {hours}t",
       "errors": {
         "load": "Kunne ikke laste bruksdata."
+      },
+      "tiles": {
+        "mcpCalls": "MCP-kall",
+        "apiCalls": "API-kall",
+        "conversations": "Samtaler",
+        "avgLatency": "Snitt-forsinkelse",
+        "thisMonth": "Denne måneden",
+        "sevenDay": "7d",
+        "deltaUp": "↑ {value} vs. forrige",
+        "deltaDown": "↓ {value} vs. forrige",
+        "deltaFlat": "— vs. forrige"
+      },
+      "byAgent": {
+        "title": "Per agent",
+        "rangeLabel": "siste {days} dager",
+        "rightLabel": "MCP-kall · Forsinkelse",
+        "colAgent": "Agent",
+        "colMcpCalls": "MCP-kall",
+        "colLatency": "Snitt-forsinkelse",
+        "empty": "Ingen agent-aktivitet i dette vinduet."
       }
     },
     "auditLog": {
@@ -372,12 +320,15 @@
       "filterTool": "Verktøy",
       "filterActorType": "Aktørtype",
       "filterCorrelationId": "Korrelasjons-id",
+      "filterClient": "Klient",
+      "clientAny": "Alle",
       "apply": "Bruk",
       "loadMore": "Last flere",
       "emptyTitle": "Ingen hendelser ennå",
       "emptyBody": "Verktøykall og kontrollplanskriving vises her. Koble til en agent og prøv et verktøy.",
       "tableTime": "Tid",
       "tableActor": "Aktør",
+      "tableClient": "Klient",
       "tableToolMethod": "Verktøy / metode",
       "tableResult": "Resultat",
       "tableCorrelation": "Korrelasjon",
@@ -412,6 +363,11 @@
       "emailLabel": "E-post",
       "saving": "Lagrer…",
       "editAria": "Rediger kontodetaljer"
+    },
+    "status": {
+      "connected": "tilkoblet",
+      "connecting": "kobler til",
+      "offline": "frakoblet"
     },
     "settings": {
       "groups": {

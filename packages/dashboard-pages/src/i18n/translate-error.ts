@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { useMessages, useTranslations } from 'next-intl';
 
 interface ErrorLike {
@@ -48,21 +49,28 @@ export function useTranslateError() {
   const tErrors = useTranslations('errors');
   const tCommon = useTranslations('common');
   const messages = useMessages() as Record<string, unknown>;
-  const knownCodes = new Set(
-    messages.errors && typeof messages.errors === 'object'
-      ? Object.keys(messages.errors)
-      : [],
+  const knownCodes = useMemo(
+    () =>
+      new Set(
+        messages.errors && typeof messages.errors === 'object'
+          ? Object.keys(messages.errors)
+          : [],
+      ),
+    [messages],
   );
-  return (err: unknown, fallbackKey?: string): string => {
-    const code = getErrorCode(err);
-    if (code && knownCodes.has(code)) {
-      return tErrors(code as never);
-    }
-    if (err && typeof err === 'object' && 'message' in err) {
-      const msg = (err as ErrorLike).message;
-      if (typeof msg === 'string' && msg.length > 0) return msg;
-    }
-    if (typeof err === 'string') return err;
-    return fallbackKey ? tCommon(fallbackKey as never) : tCommon('unknownError');
-  };
+  return useCallback(
+    (err: unknown, fallbackKey?: string): string => {
+      const code = getErrorCode(err);
+      if (code && knownCodes.has(code)) {
+        return tErrors(code as never);
+      }
+      if (err && typeof err === 'object' && 'message' in err) {
+        const msg = (err as ErrorLike).message;
+        if (typeof msg === 'string' && msg.length > 0) return msg;
+      }
+      if (typeof err === 'string') return err;
+      return fallbackKey ? tCommon(fallbackKey as never) : tCommon('unknownError');
+    },
+    [tErrors, tCommon, knownCodes],
+  );
 }

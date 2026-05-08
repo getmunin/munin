@@ -8,11 +8,13 @@
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
+    "migrate": "tsx src/migrate.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@getmunin/agent-host": "workspace:*",
     "@getmunin/backend-core": "workspace:*",
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",
@@ -22,6 +24,7 @@
     "better-auth": "^1.1.0",
     "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
+    "postgres": "^3.4.5",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "@sentry/nestjs": "^10.51.0",

@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/agent-runtime",
-  "version": "0.25.0",
+  "version": "1.0.0",
   "license": "MIT",
   "description": "LLM agent loop — given a config, conversation history, and an MCP tool handle, produce a reply.",
   "publishConfig": {

@@ -64,6 +64,7 @@
     "overview": "Overview",
     "settings": "Settings",
     "team": "Team",
+    "builtInAi": "Built-in AI",
     "agents": "Connected agents",
     "apiKeys": "API keys",
     "channels": "Channels",
@@ -378,8 +379,28 @@
     }
   },
   "agentSetup": {
-    "title": "Configure AI agent",
-    "lede": "Pick an LLM provider, paste an API key, and choose models for chat and curation. The agent only runs once enabled.",
+    "titlePrefix": "Wake",
+    "titleAccent": "Munin.",
+    "lede": "Pick an LLM provider, paste an API key, and choose models for chat and curation. The agent comes online as soon as you save.",
+    "settings": {
+      "title": "Built-in AI",
+      "lede": "Provider, API key, and model selection for the in-process agent runner."
+    },
+    "wizard": {
+      "stepEyebrow": "Step {step} of {total}",
+      "readyTitle": "Lift-off.",
+      "readyLede": "From here, Munin handles new conversations on its own. The inbox shows what it's doing.",
+      "saveAndContinue": "Save & continue",
+      "checklist": {
+        "provider": "Provider configured ({url})",
+        "chat": "Chat model — {model}",
+        "curator": "Curator model — {model}"
+      },
+      "cta": {
+        "goToInbox": "Go to inbox",
+        "tweakSettings": "Tweak settings"
+      }
+    },
     "saved": "Saved.",
     "errors": {
       "load": "Couldn't load agent config.",
@@ -413,11 +434,6 @@
       "chat": "Chat model",
       "curator": "Curator model",
       "curatorSameAsChat": "Same as chat"
-    },
-    "enable": {
-      "title": "Enable",
-      "lede": "When enabled, the in-process runner starts replying to end-user messages and draining the curator queue.",
-      "checkbox": "AI agent enabled"
     }
   },
   "acceptInvite": {

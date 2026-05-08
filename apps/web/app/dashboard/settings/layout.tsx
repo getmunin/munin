@@ -13,6 +13,7 @@ type GroupKey = 'workspace' | 'access' | 'monitoring';
 type ItemKey =
   | 'team'
   | 'channels'
+  | 'builtInAi'
   | 'apiKeys'
   | 'agents'
   | 'endUsers'
@@ -37,6 +38,7 @@ const GROUPS: SubNavGroup[] = [
     items: [
       { href: '/dashboard/settings/team', labelKey: 'team' },
       { href: '/dashboard/settings/channels', labelKey: 'channels' },
+      { href: '/dashboard/settings/ai-agent', labelKey: 'builtInAi' },
       { href: '/dashboard/settings/export', labelKey: 'dataExport' },
     ],
   },

@@ -1,5 +1,50 @@
 # @getmunin/agent-host
 
+## 0.25.0
+
+### Minor Changes
+
+- 8b15805: feat(agent-host): derive runner activation from provider key presence
+
+  The `enabled` column on `agent_config` is gone — having a provider
+  API key set is the activation signal. This removes a confusing
+  toggle (a "configured but disabled" state nobody actually wanted)
+  and makes the wizard simpler: paste a key and the runner starts.
+
+  Behavior changes for upgraders:
+  - Schema: `enabled` column dropped from `agent_config` via
+    `ALTER TABLE ... DROP COLUMN IF EXISTS enabled` baked into both
+    `AGENT_HOST_SINGLETON_DDL` and `AGENT_HOST_MULTI_TENANT_DDL`.
+  - Existing rows with `enabled=false AND provider_api_key_ct IS NOT NULL`
+    now become active. Operators that explicitly disabled an
+    agent-with-creds should clear the provider key instead.
+  - `AgentConfigRepository.listEnabledIds()` → `listProvisionedIds()`,
+    filtering on `provider_api_key_ct IS NOT NULL`.
+  - `AgentConfigPatch.enabled` and `AgentConfigDto.enabled` removed.
+  - AdminKeyProvider hook signal: mint fires whenever the admin key
+    id is missing while a provider key is set (enables auto-recovery
+    for rows where the auto-mint never ran), revoke fires when the
+    provider key is cleared.
+
+### Patch Changes
+
+- 8b15805: fix(agent-host): set app.crypt_key in service-role context + use actor orgId for auto-minted keys
+
+  Two bugs surfaced while smoke-testing the bundled runner end-to-end:
+  1. `runWithServiceContext` set `app.bypass_rls` but not
+     `app.crypt_key`, so the runner's reconcile path crashed when
+     trying to decrypt the provider API key (`unrecognized configuration
+parameter "app.crypt_key"`). Now reads `MUNIN_ENCRYPTION_KEY` and
+     sets the GUC alongside `bypass_rls`.
+  2. `AutoMintAdminKeyProvider.mint` inserted into `api_keys` with
+     `orgId: configId`. That worked for cloud (configId === orgId) but
+     broke for OSS singleton (configId === 'singleton', not a real
+     org). Now resolves orgId from the actor on the request context.
+  - @getmunin/core@0.25.0
+  - @getmunin/db@0.25.0
+  - @getmunin/backend-core@0.25.0
+  - @getmunin/agent-runtime@0.25.0
+
 ## 0.24.1
 
 ### Patch Changes

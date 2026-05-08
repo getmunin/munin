@@ -1,0 +1,55 @@
+{
+  "name": "@getmunin/agent-host",
+  "version": "0.0.0",
+  "license": "MIT",
+  "description": "In-process agent runner host: config CRUD, /v1/models proxy, ConversationHandler + curator-loop. Used by both OSS backend and cloud backend.",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getmunin/munin.git",
+    "directory": "packages/agent-host"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@getmunin/agent-runtime": "workspace:*",
+    "@getmunin/backend-core": "workspace:*",
+    "@getmunin/core": "workspace:*",
+    "@getmunin/db": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@nestjs/common": "^11.1.19",
+    "@nestjs/core": "^11.1.19",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.5",
+    "reflect-metadata": "^0.2.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@getmunin/eslint-config": "workspace:*",
+    "@getmunin/tsconfig": "workspace:*",
+    "@types/node": "^22.7.0",
+    "eslint": "^9.10.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -1,5 +1,15 @@
 # @getmunin/agent-host
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [dc34579]
+  - @getmunin/backend-core@1.0.0
+  - @getmunin/core@1.0.0
+  - @getmunin/db@1.0.0
+  - @getmunin/agent-runtime@1.0.0
+
 ## 0.25.0
 
 ### Minor Changes

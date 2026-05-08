@@ -1,12 +1,11 @@
 import { sql } from 'drizzle-orm';
-import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 const createdAt = timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const updatedAt = timestamp('updated_at', { withTimezone: true }).notNull().defaultNow();
 
 export const agentConfig = pgTable('agent_config', {
   id: text('id').primaryKey(),
-  enabled: boolean('enabled').notNull().default(false),
   chatModel: text('chat_model').notNull(),
   curatorModel: text('curator_model'),
   providerBaseUrl: text('provider_base_url').notNull(),
@@ -25,7 +24,6 @@ export const SINGLETON_ID = 'singleton' as const;
 export const AGENT_HOST_SINGLETON_DDL = sql`
   CREATE TABLE IF NOT EXISTS agent_config (
     id text PRIMARY KEY DEFAULT 'singleton',
-    enabled boolean NOT NULL DEFAULT false,
     chat_model text NOT NULL DEFAULT 'anthropic/claude-haiku-4.5',
     curator_model text,
     provider_base_url text NOT NULL DEFAULT 'https://openrouter.ai/api/v1',
@@ -42,14 +40,17 @@ export const AGENT_HOST_SINGLETON_DDL = sql`
 
   INSERT INTO agent_config (id) VALUES ('singleton') ON CONFLICT (id) DO NOTHING;
 
-  CREATE INDEX IF NOT EXISTS agent_config_enabled_idx
-    ON agent_config(enabled) WHERE enabled = true;
+  DROP INDEX IF EXISTS agent_config_enabled_idx;
+
+  ALTER TABLE agent_config DROP COLUMN IF EXISTS enabled;
+
+  CREATE INDEX IF NOT EXISTS agent_config_provisioned_idx
+    ON agent_config(id) WHERE provider_api_key_ct IS NOT NULL;
 `;
 
 export const AGENT_HOST_MULTI_TENANT_DDL = sql`
   CREATE TABLE IF NOT EXISTS agent_config (
     id text PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
-    enabled boolean NOT NULL DEFAULT false,
     chat_model text NOT NULL,
     curator_model text,
     provider_base_url text NOT NULL,
@@ -65,6 +66,10 @@ export const AGENT_HOST_MULTI_TENANT_DDL = sql`
 
   ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS curator_model text;
 
-  CREATE INDEX IF NOT EXISTS agent_config_enabled_idx
-    ON agent_config(enabled) WHERE enabled = true;
+  DROP INDEX IF EXISTS agent_config_enabled_idx;
+
+  ALTER TABLE agent_config DROP COLUMN IF EXISTS enabled;
+
+  CREATE INDEX IF NOT EXISTS agent_config_provisioned_idx
+    ON agent_config(id) WHERE provider_api_key_ct IS NOT NULL;
 `;

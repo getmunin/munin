@@ -1,6 +1,5 @@
 export interface AgentConfigRow {
   id: string;
-  enabled: boolean;
   chatModel: string;
   curatorModel: string | null;
   providerBaseUrl: string;
@@ -14,7 +13,6 @@ export interface AgentConfigRow {
 }
 
 export interface AgentConfigPatch {
-  enabled?: boolean;
   chatModel?: string;
   curatorModel?: string | null;
   providerBaseUrl?: string;
@@ -28,7 +26,7 @@ export interface AgentConfigRepository {
   resolveCurrentId(): string;
   read(id: string): Promise<AgentConfigRow>;
   update(id: string, patch: AgentConfigPatch): Promise<AgentConfigRow>;
-  listEnabledIds(): Promise<string[]>;
+  listProvisionedIds(): Promise<string[]>;
   readDecryptedProviderKey(id: string): Promise<string | null>;
   readDecryptedAdminKey(id: string): Promise<string | null>;
 }

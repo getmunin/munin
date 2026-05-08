@@ -152,4 +152,39 @@ describe('AgentModelsService', () => {
     const calledUrl: unknown = fetchMock.mock.calls[0]?.[0];
     expect(calledUrl).toBe('https://provider.example/v1/models');
   });
+
+  it('uses Bearer auth for OAI-compat providers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ data: [] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const svc = new AgentModelsService(makeRepo({ apiKey: 'sk-or-test' }));
+    await svc.listForCurrentActor();
+    const call = fetchMock.mock.calls[0] as [unknown, { headers: Record<string, string> }];
+    const init = call[1];
+    expect(init.headers.authorization).toBe('Bearer sk-or-test');
+    expect(init.headers['x-api-key']).toBeUndefined();
+  });
+
+  it('uses x-api-key + anthropic-version on api.anthropic.com', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ data: [] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const repo = makeRepo({
+      apiKey: 'sk-ant-test',
+      row: { ...baseRow, providerBaseUrl: 'https://api.anthropic.com/v1' },
+    });
+    const svc = new AgentModelsService(repo);
+    await svc.listForCurrentActor();
+    const call = fetchMock.mock.calls[0] as [unknown, { headers: Record<string, string> }];
+    const init = call[1];
+    expect(init.headers['x-api-key']).toBe('sk-ant-test');
+    expect(init.headers['anthropic-version']).toBe('2023-06-01');
+    expect(init.headers.authorization).toBeUndefined();
+  });
 });

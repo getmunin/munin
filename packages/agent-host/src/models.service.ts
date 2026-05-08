@@ -54,10 +54,7 @@ export class AgentModelsService {
     try {
       res = await fetch(url, {
         method: 'GET',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          accept: 'application/json',
-        },
+        headers: authHeaders(baseUrl, apiKey),
       });
     } catch (err) {
       this.logger.warn(`fetch ${url} failed: ${describe(err)}`);
@@ -131,6 +128,20 @@ function parsePerMillion(raw: unknown): number | null {
   const n = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : null;
   if (n === null || !Number.isFinite(n)) return null;
   return n * 1_000_000;
+}
+
+function authHeaders(baseUrl: string, apiKey: string): Record<string, string> {
+  if (/api\.anthropic\.com/i.test(baseUrl)) {
+    return {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      accept: 'application/json',
+    };
+  }
+  return {
+    authorization: `Bearer ${apiKey}`,
+    accept: 'application/json',
+  };
 }
 
 function describe(err: unknown): string {

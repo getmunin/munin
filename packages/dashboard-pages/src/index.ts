@@ -5,6 +5,7 @@ export { PageShell, nativeFieldClass } from './components/page-shell';
 export { useActiveRole, isOwnerOrAdmin, type OrgRole } from './auth/use-active-role';
 
 export { AcceptInvitePage } from './pages/accept-invite';
+export { AgentSetupPage } from './pages/agent-setup';
 export { AgentsPage } from './pages/agents';
 export { ApiKeysPage } from './pages/api-keys';
 export { AuditLogPage } from './pages/audit-log';

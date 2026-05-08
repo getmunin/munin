@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
@@ -46,7 +46,7 @@ export function ApiKeysPage() {
   const [name, setName] = useState('');
   const [justCreated, setJustCreated] = useState<CreatedApiKey | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setError(null);
       const list = await api<ApiKeySummary[]>('/api/api-keys');
@@ -54,11 +54,11 @@ export function ApiKeysPage() {
     } catch (err) {
       setError(translate(err) || t('errors.load'));
     }
-  }
+  }, [t, translate]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();

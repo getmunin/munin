@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   CheckCircle2,
   ChevronDown,
@@ -74,7 +74,7 @@ export function ChannelsPage() {
   const [justCreated, setJustCreated] = useState<CreatedWidget | null>(null);
   const [rotated, setRotated] = useState<CreatedWidget | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setError(null);
       const list = await api<{ items: ChannelDto[] }>('/api/conv/channels');
@@ -82,11 +82,11 @@ export function ChannelsPage() {
     } catch (err) {
       setError(translate(err) || t('errors.load'));
     }
-  }
+  }, [t, translate]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   async function rotateKey(channel: ChannelDto) {
     if (!confirm(t('rotateConfirm', { name: channel.name }))) return;

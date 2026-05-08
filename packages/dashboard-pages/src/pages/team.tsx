@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Copy, Mail, MailX, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
@@ -63,7 +63,7 @@ export function TeamPage() {
   const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setError(null);
       const [m, i] = await Promise.all([
@@ -75,11 +75,11 @@ export function TeamPage() {
     } catch (err) {
       setError(translate(err) || t('errors.load'));
     }
-  }
+  }, [t, translate]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   async function invite(e: React.FormEvent) {
     e.preventDefault();

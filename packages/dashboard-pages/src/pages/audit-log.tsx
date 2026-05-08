@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollText } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
@@ -49,31 +49,38 @@ export function AuditLogPage() {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ tool: '', actorType: '', correlationId: '', client: '' });
 
-  async function load(reset: boolean) {
-    try {
-      const params = new URLSearchParams();
-      if (filters.tool) params.set('tool', filters.tool);
-      if (filters.actorType) params.set('actorType', filters.actorType);
-      if (filters.correlationId) params.set('correlationId', filters.correlationId);
-      if (filters.client) params.set('client', filters.client);
-      if (!reset && cursor) params.set('before', cursor);
-      const page = await api<AuditPage>(`/api/audit-log?${params.toString()}`);
-      setError(null);
-      if (reset) {
-        setItems(page.items);
-      } else {
-        setItems((prev) => [...prev, ...page.items]);
+  const load = useCallback(
+    async (
+      reset: boolean,
+      filterValues: { tool: string; actorType: string; correlationId: string; client: string },
+      beforeCursor: string | null,
+    ) => {
+      try {
+        const params = new URLSearchParams();
+        if (filterValues.tool) params.set('tool', filterValues.tool);
+        if (filterValues.actorType) params.set('actorType', filterValues.actorType);
+        if (filterValues.correlationId) params.set('correlationId', filterValues.correlationId);
+        if (filterValues.client) params.set('client', filterValues.client);
+        if (!reset && beforeCursor) params.set('before', beforeCursor);
+        const page = await api<AuditPage>(`/api/audit-log?${params.toString()}`);
+        setError(null);
+        if (reset) {
+          setItems(page.items);
+        } else {
+          setItems((prev) => [...prev, ...page.items]);
+        }
+        setCursor(page.nextCursor);
+        setExhausted(page.nextCursor === null);
+      } catch (err) {
+        setError(translate(err) || t('errors.load'));
       }
-      setCursor(page.nextCursor);
-      setExhausted(page.nextCursor === null);
-    } catch (err) {
-      setError(translate(err) || t('errors.load'));
-    }
-  }
+    },
+    [t, translate],
+  );
 
   useEffect(() => {
-    void load(true);
-  }, []);
+    void load(true, { tool: '', actorType: '', correlationId: '', client: '' }, null);
+  }, [load]);
 
   return (
     <>
@@ -91,7 +98,7 @@ export function AuditLogPage() {
               e.preventDefault();
               setCursor(null);
               setExhausted(false);
-              void load(true);
+              void load(true, filters, null);
             }}
           >
             <div className="space-y-1">
@@ -216,7 +223,7 @@ export function AuditLogPage() {
 
       {!exhausted && items.length > 0 && (
         <div className="flex justify-center">
-          <Button variant="outline" onClick={() => void load(false)}>
+          <Button variant="outline" onClick={() => void load(false, filters, cursor)}>
             {t('loadMore')}
           </Button>
         </div>

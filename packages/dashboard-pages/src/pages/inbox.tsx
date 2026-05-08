@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, MessageSquare, ShieldCheck, Unplug, X } from 'lucide-react';
+import { AlertCircle, MessageSquare, ShieldCheck, Unplug } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import {
   Button,
@@ -946,10 +946,10 @@ function QueueDrawer({
   const label = item.kind === 'outreach' ? 'OUTREACH' : item.kind.toUpperCase();
   const editable = item.kind !== 'crm';
 
-  const cancelEdit = () => {
+  const cancelEdit = useCallback(() => {
     setEditing(false);
     setEditedBody(initialBody);
-  };
+  }, [initialBody]);
 
   const saveEdit = async () => {
     if (!editedBody.trim() || pending) return;
@@ -973,8 +973,7 @@ function QueueDrawer({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing]);
+  }, [editing, cancelEdit]);
 
   let meta: string;
   if (item.kind === 'outreach') {

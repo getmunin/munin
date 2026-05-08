@@ -22,7 +22,7 @@ export async function openMcpClient(opts: OpenMcpClientOptions): Promise<OpenedM
     },
   });
   const client = new Client(
-    { name: opts.clientName ?? 'munin-agent-sidecar', version: '0.0.1' },
+    { name: opts.clientName ?? 'munin-agent', version: '0.0.1' },
     { capabilities: {} },
   );
   await client.connect(transport);

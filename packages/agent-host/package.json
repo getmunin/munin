@@ -1,8 +1,8 @@
 {
   "name": "@getmunin/agent-host",
-  "version": "0.0.0",
+  "version": "0.23.3",
   "license": "MIT",
-  "description": "In-process agent runner host: config CRUD, /v1/models proxy, ConversationHandler + curator-loop. Used by both OSS backend and cloud backend.",
+  "description": "In-process agent runner host: config CRUD, /v1/models proxy, ConversationHandler + curator-loop.",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"

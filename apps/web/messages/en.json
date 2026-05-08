@@ -377,6 +377,49 @@
       }
     }
   },
+  "agentSetup": {
+    "title": "Configure AI agent",
+    "lede": "Pick an LLM provider, paste an API key, and choose models for chat and curation. The agent only runs once enabled.",
+    "saved": "Saved.",
+    "errors": {
+      "load": "Couldn't load agent config.",
+      "test": "Connection test failed.",
+      "fetchModels": "Couldn't fetch model list.",
+      "save": "Couldn't save."
+    },
+    "provider": {
+      "title": "Provider",
+      "lede": "OpenAI-compatible endpoint. OpenRouter offers a single key with access to many providers.",
+      "urlLabel": "Base URL"
+    },
+    "apiKey": {
+      "title": "API key",
+      "ledeStored": "An API key is stored. Paste a new one to replace it.",
+      "ledeMissing": "Paste your provider API key. Stored encrypted at rest.",
+      "label": "Key",
+      "placeholderStored": "•••••••• (stored)"
+    },
+    "connection": {
+      "test": "Save & test",
+      "testing": "Testing…",
+      "testOk": "Connected — {count} models available.",
+      "testUnsupported": "Connected, but the provider doesn't expose /v1/models. Enter model ids manually."
+    },
+    "models": {
+      "title": "Models",
+      "curatorHint": "Curation runs less often but reasons over more text. Pick a stronger model than chat.",
+      "needKey": "Save an API key to load the model list.",
+      "unsupported": "Provider didn't return a model list. Enter model ids manually (e.g. anthropic/claude-haiku-4.5).",
+      "chat": "Chat model",
+      "curator": "Curator model",
+      "curatorSameAsChat": "Same as chat"
+    },
+    "enable": {
+      "title": "Enable",
+      "lede": "When enabled, the in-process runner starts replying to end-user messages and draining the curator queue.",
+      "checkbox": "AI agent enabled"
+    }
+  },
   "acceptInvite": {
     "pendingTitle": "Accepting your invitation…",
     "pendingBody": "One moment.",

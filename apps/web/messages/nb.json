@@ -377,6 +377,49 @@
       }
     }
   },
+  "agentSetup": {
+    "title": "Sett opp AI-agent",
+    "lede": "Velg en LLM-leverandør, lim inn en API-nøkkel, og velg modeller for chat og kurering. Agenten kjører først når den er aktivert.",
+    "saved": "Lagret.",
+    "errors": {
+      "load": "Kunne ikke laste agent-konfigurasjon.",
+      "test": "Tilkoblingstest feilet.",
+      "fetchModels": "Kunne ikke hente modell-liste.",
+      "save": "Kunne ikke lagre."
+    },
+    "provider": {
+      "title": "Leverandør",
+      "lede": "OpenAI-kompatibelt endepunkt. OpenRouter gir én nøkkel med tilgang til mange leverandører.",
+      "urlLabel": "Base-URL"
+    },
+    "apiKey": {
+      "title": "API-nøkkel",
+      "ledeStored": "En API-nøkkel er lagret. Lim inn en ny for å erstatte.",
+      "ledeMissing": "Lim inn API-nøkkelen din. Lagres kryptert.",
+      "label": "Nøkkel",
+      "placeholderStored": "•••••••• (lagret)"
+    },
+    "connection": {
+      "test": "Lagre og test",
+      "testing": "Tester…",
+      "testOk": "Tilkoblet — {count} modeller tilgjengelig.",
+      "testUnsupported": "Tilkoblet, men leverandøren støtter ikke /v1/models. Skriv inn modell-ID-er manuelt."
+    },
+    "models": {
+      "title": "Modeller",
+      "curatorHint": "Kurering kjører sjeldnere, men resonnerer over mer tekst. Velg en sterkere modell enn for chat.",
+      "needKey": "Lagre en API-nøkkel for å hente modell-listen.",
+      "unsupported": "Leverandøren returnerte ingen modell-liste. Skriv inn modell-ID-er manuelt (f.eks. anthropic/claude-haiku-4.5).",
+      "chat": "Chat-modell",
+      "curator": "Kurator-modell",
+      "curatorSameAsChat": "Samme som chat"
+    },
+    "enable": {
+      "title": "Aktivér",
+      "lede": "Når aktivert vil den innebygde runneren begynne å svare på sluttbruker-meldinger og tømme kurator-køen.",
+      "checkbox": "AI-agent aktivert"
+    }
+  },
   "acceptInvite": {
     "pendingTitle": "Aksepterer invitasjonen…",
     "pendingBody": "Et øyeblikk.",

@@ -1,5 +1,5 @@
 import { DynamicModule, Module, Provider, Type } from '@nestjs/common';
-import type { Db } from '@getmunin/db';
+import { DB, DbModule } from '@getmunin/backend-core';
 import { AgentConfigService } from './config.service.js';
 import { AgentConfigController } from './config.controller.js';
 import { AgentModelsService } from './models.service.js';
@@ -15,7 +15,6 @@ import type { AdminKeyProvider } from './admin-key-provider.js';
 export interface AgentHostModuleOptions {
   configRepository: Type<AgentConfigRepository>;
   adminKeyProvider: Type<AdminKeyProvider>;
-  db: Db;
   runnerOptions?: AgentHostRunnerOptions;
 }
 
@@ -30,9 +29,9 @@ export class AgentHostModule {
       provide: ADMIN_KEY_PROVIDER,
       useClass: options.adminKeyProvider,
     };
-    const dbProvider: Provider = {
+    const dbAliasProvider: Provider = {
       provide: AGENT_HOST_DB,
-      useValue: options.db,
+      useExisting: DB,
     };
     const runnerOptionsProvider: Provider = {
       provide: 'AGENT_HOST_RUNNER_OPTIONS',
@@ -40,10 +39,11 @@ export class AgentHostModule {
     };
     return {
       module: AgentHostModule,
+      imports: [DbModule],
       providers: [
         repoProvider,
         keyProvider,
-        dbProvider,
+        dbAliasProvider,
         runnerOptionsProvider,
         options.configRepository,
         options.adminKeyProvider,

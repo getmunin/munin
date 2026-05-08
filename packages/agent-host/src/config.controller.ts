@@ -25,7 +25,7 @@ const UpsertDto = z.object({
   debounceMs: z.number().int().nonnegative().optional(),
 });
 
-@Controller('api/agent-config')
+@Controller('api/v1/agent-config')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class AgentConfigController {

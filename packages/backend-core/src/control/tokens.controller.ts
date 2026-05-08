@@ -1,10 +1,10 @@
 import {
   Controller,
+  Delete,
   Get,
   HttpCode,
   NotFoundException,
   Param,
-  Post,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -28,11 +28,10 @@ interface TokenDto {
   createdAt: string;
 }
 
-@Controller('api/tokens')
+@Controller('api/v1/tokens')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class TokensController {
-  /** List all tokens issued for the calling org — surfaced as "Connected agents" in the dashboard. */
   @Get()
   async list(): Promise<TokenDto[]> {
     const ctx = getCurrentContext();
@@ -46,7 +45,7 @@ export class TokensController {
     return rows.map(toDto);
   }
 
-  @Post(':id/revoke')
+  @Delete(':id')
   @HttpCode(204)
   async revoke(@Param('id') id: string): Promise<void> {
     const ctx = getCurrentContext();

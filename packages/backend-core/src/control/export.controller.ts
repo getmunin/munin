@@ -24,7 +24,7 @@ interface ExportPayload {
  * are deliberately not exported — those are credentials/operational data,
  * not user content.
  */
-@Controller('api/export')
+@Controller('api/v1/export')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ExportController {

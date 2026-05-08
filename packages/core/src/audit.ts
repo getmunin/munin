@@ -2,7 +2,6 @@ import { schema } from '@getmunin/db';
 import { getCurrentContext } from './context.js';
 
 export interface AuditEventInput {
-  /** Tool or method name, e.g. "kb_search" or "POST /api/delegated-token". */
   tool?: string;
   method?: string;
   target?: { type: string; id: string };

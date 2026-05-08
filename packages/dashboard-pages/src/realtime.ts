@@ -54,7 +54,7 @@ export function useRealtime(
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let pingInterval: ReturnType<typeof setInterval> | null = null;
 
-    const url = API_URL.replace(/^http/, 'ws') + '/api/realtime';
+    const url = API_URL.replace(/^http/, 'ws') + '/api/v1/realtime';
 
     const connect = () => {
       if (cancelled) return;

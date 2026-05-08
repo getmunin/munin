@@ -42,7 +42,7 @@ export function ActivityPage() {
   const refresh = useCallback(async () => {
     try {
       const params = buildParams(null);
-      const page = await api<ActivityPageResponse>(`/api/activity?${params.toString()}`);
+      const page = await api<ActivityPageResponse>(`/api/v1/activity?${params.toString()}`);
       setItems(page.items);
       setCursor(page.nextCursor);
       setExhausted(page.nextCursor === null);
@@ -56,7 +56,7 @@ export function ActivityPage() {
     if (!cursor) return;
     try {
       const params = buildParams(cursor);
-      const page = await api<ActivityPageResponse>(`/api/activity?${params.toString()}`);
+      const page = await api<ActivityPageResponse>(`/api/v1/activity?${params.toString()}`);
       setItems((prev) => [...prev, ...page.items]);
       setCursor(page.nextCursor);
       setExhausted(page.nextCursor === null);

@@ -13,7 +13,7 @@ The chat-widget channel pushes transcripts into Munin in real time. Eventually a
 Munin emits this event whenever an `author_type` of `user`, `agent`, or `system` posts to a conversation. End-user messages instead fire `conversation.message.received`. Subscribe to `conversation.message.sent` on the customer's endpoint:
 
 ```
-POST /api/webhooks (admin)
+POST /api/v1/webhooks (admin)
 {
   "url": "https://customer.example/munin-webhook",
   "events": ["conversation.message.sent"],

@@ -147,14 +147,14 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
 
   return {
     async getConversation(id: string): Promise<ConversationDetail> {
-      return call<ConversationDetail>(`/api/conversations/${encodeURIComponent(id)}`);
+      return call<ConversationDetail>(`/api/v1/conversations/${encodeURIComponent(id)}`);
     },
     async postAgentMessage(
       conversationId: string,
       body: string,
       opts: { preserveAttention?: boolean; sinceMessageId?: string } = {},
     ): Promise<void> {
-      await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
+      await call<unknown>(`/api/v1/conversations/${encodeURIComponent(conversationId)}/messages`, {
         method: 'POST',
         body: JSON.stringify({
           body,
@@ -165,7 +165,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     },
     async tryAcquireConversation(input): Promise<{ acquired: boolean; leaseExpiresAt?: string; heldBy?: string | null }> {
       return call<{ acquired: boolean; leaseExpiresAt?: string; heldBy?: string | null }>(
-        `/api/conversations/${encodeURIComponent(input.conversationId)}/runner-claim`,
+        `/api/v1/conversations/${encodeURIComponent(input.conversationId)}/runner-claim`,
         {
           method: 'POST',
           body: JSON.stringify({
@@ -177,7 +177,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     },
     async releaseConversationClaim(input): Promise<{ released: boolean }> {
       return call<{ released: boolean }>(
-        `/api/conversations/${encodeURIComponent(input.conversationId)}/runner-release`,
+        `/api/v1/conversations/${encodeURIComponent(input.conversationId)}/runner-release`,
         {
           method: 'POST',
           body: JSON.stringify({ holder: input.holder }),
@@ -185,13 +185,13 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
       );
     },
     async postInternalNote(conversationId: string, body: string): Promise<void> {
-      await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
+      await call<unknown>(`/api/v1/conversations/${encodeURIComponent(conversationId)}/messages`, {
         method: 'POST',
         body: JSON.stringify({ body, internal: true }),
       });
     },
     async mintDelegatedToken(endUserId: string, ttlSeconds = 600): Promise<DelegatedToken> {
-      return call<DelegatedToken>('/api/delegated-token', {
+      return call<DelegatedToken>('/api/v1/tokens/delegated', {
         method: 'POST',
         body: JSON.stringify({
           endUserId,
@@ -220,43 +220,43 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     ): Promise<void> {
       const body: Record<string, unknown> = { status };
       if (snoozeUntil) body.snoozeUntil = snoozeUntil;
-      await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/status`, {
+      await call<unknown>(`/api/v1/conversations/${encodeURIComponent(conversationId)}/status`, {
         method: 'POST',
         body: JSON.stringify(body),
       });
     },
     async setTopic(conversationId: string, topicId: string | null): Promise<void> {
-      await call<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/topic`, {
+      await call<unknown>(`/api/v1/conversations/${encodeURIComponent(conversationId)}/topic`, {
         method: 'POST',
         body: JSON.stringify({ topicId }),
       });
     },
     async listTopics(): Promise<ConversationTopic[]> {
-      return call<ConversationTopic[]>(`/api/conversations/topics`);
+      return call<ConversationTopic[]>(`/api/v1/conversations/topics`);
     },
     async enqueueCuratorJob(
       input: EnqueueCuratorJobInput,
     ): Promise<{ job: CuratorJob; alreadyPending: boolean }> {
-      return call<{ job: CuratorJob; alreadyPending: boolean }>(`/api/curator/jobs`, {
+      return call<{ job: CuratorJob; alreadyPending: boolean }>(`/api/v1/curation/jobs`, {
         method: 'POST',
         body: JSON.stringify(input),
       });
     },
     async claimCuratorJobs(input: ClaimCuratorJobsInput): Promise<CuratorJob[]> {
-      const result = await call<{ items: CuratorJob[] }>(`/api/curator/jobs/claim`, {
+      const result = await call<{ items: CuratorJob[] }>(`/api/v1/curation/jobs/claim`, {
         method: 'POST',
         body: JSON.stringify(input),
       });
       return result.items;
     },
     async ackCuratorJob(id: string, input: AckCuratorJobInput = {}): Promise<CuratorJob> {
-      return call<CuratorJob>(`/api/curator/jobs/${encodeURIComponent(id)}/ack`, {
+      return call<CuratorJob>(`/api/v1/curation/jobs/${encodeURIComponent(id)}/ack`, {
         method: 'POST',
         body: JSON.stringify(input),
       });
     },
     async failCuratorJob(id: string, input: FailCuratorJobInput): Promise<CuratorJob> {
-      return call<CuratorJob>(`/api/curator/jobs/${encodeURIComponent(id)}/fail`, {
+      return call<CuratorJob>(`/api/v1/curation/jobs/${encodeURIComponent(id)}/fail`, {
         method: 'POST',
         body: JSON.stringify(input),
       });

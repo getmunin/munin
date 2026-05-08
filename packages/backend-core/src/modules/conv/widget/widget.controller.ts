@@ -29,7 +29,7 @@ import { WidgetIngestService } from './widget-ingest.service.js';
  * to write across conv_contacts / conv_conversations / conv_messages for
  * the bound org.
  */
-@Controller('api/conv/widget')
+@Controller('api/v1/widget')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class WidgetController {

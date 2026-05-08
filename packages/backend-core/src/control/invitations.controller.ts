@@ -22,7 +22,7 @@ const CreateInviteDto = z.object({
   role: z.enum(['owner', 'admin', 'member']).optional(),
 });
 
-@Controller('api/orgs/me/invitations')
+@Controller('api/v1/orgs/me/invitations')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class InvitationsController {

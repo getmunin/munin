@@ -36,12 +36,12 @@ export function DashboardPage() {
   const [agentStatus, setAgentStatus] = useState<AgentStatusDto | null>(null);
 
   const loadBacklog = useCallback(() => {
-    void api<BacklogDto>('/api/overview/backlog')
+    void api<BacklogDto>('/api/v1/overview/backlog')
       .then(setBacklog)
       .catch(() => setBacklog(null));
   }, []);
   const loadStatus = useCallback(() => {
-    void api<AgentStatusDto>('/api/overview/agent-status')
+    void api<AgentStatusDto>('/api/v1/overview/agent-status')
       .then(setAgentStatus)
       .catch(() => setAgentStatus(null));
   }, []);

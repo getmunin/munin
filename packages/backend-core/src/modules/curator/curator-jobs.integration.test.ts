@@ -113,7 +113,7 @@ const skipReason = TEST_URL
   }
 
   it('enqueues a job, claims it, and acks it', async () => {
-    const enq = await call('/api/curator/jobs', {
+    const enq = await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: {
         skillUri: 'skill://kb/curation',
@@ -128,7 +128,7 @@ const skipReason = TEST_URL
     expect(enqBody.alreadyPending).toBe(false);
     expect(enqBody.job.status).toBe('pending');
 
-    const claim = await call('/api/curator/jobs/claim', {
+    const claim = await call('/api/v1/curation/jobs/claim', {
       method: 'POST',
       body: { holder: 'sidecar-test', limit: 5, leaseSeconds: 60 },
     });
@@ -139,7 +139,7 @@ const skipReason = TEST_URL
     expect(claimBody.items[0]?.attempts).toBe(1);
     expect(claimBody.items[0]?.leaseHolder).toBe('sidecar-test');
 
-    const ack = await call(`/api/curator/jobs/${enqBody.job.id}/ack`, {
+    const ack = await call(`/api/v1/curation/jobs/${enqBody.job.id}/ack`, {
       method: 'POST',
       body: { replyText: 'done', toolCalls: 3, totalTokens: 200 },
     });
@@ -149,7 +149,7 @@ const skipReason = TEST_URL
     expect(ackBody.lastReplyText).toBe('done');
     expect(ackBody.lastToolCalls).toBe(3);
 
-    const reclaim = await call('/api/curator/jobs/claim', {
+    const reclaim = await call('/api/v1/curation/jobs/claim', {
       method: 'POST',
       body: { holder: 'sidecar-test' },
     });
@@ -158,7 +158,7 @@ const skipReason = TEST_URL
   });
 
   it('returns existing job when same dedupeKey is enqueued twice', async () => {
-    const first = await call('/api/curator/jobs', {
+    const first = await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: {
         skillUri: 'skill://kb/curation',
@@ -169,7 +169,7 @@ const skipReason = TEST_URL
     const firstBody = first.body as { job: { id: string }; alreadyPending: boolean };
     expect(firstBody.alreadyPending).toBe(false);
 
-    const second = await call('/api/curator/jobs', {
+    const second = await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: {
         skillUri: 'skill://kb/curation',
@@ -184,18 +184,18 @@ const skipReason = TEST_URL
   });
 
   it('fail with retryable=true bumps next_attempt_at and stays pending', async () => {
-    const enq = await call('/api/curator/jobs', {
+    const enq = await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: { skillUri: 'skill://kb/curation', userPrompt: 'will fail' },
     });
     const job = (enq.body as { job: { id: string } }).job;
 
-    await call('/api/curator/jobs/claim', {
+    await call('/api/v1/curation/jobs/claim', {
       method: 'POST',
       body: { holder: 'sidecar-test' },
     });
 
-    const fail = await call(`/api/curator/jobs/${job.id}/fail`, {
+    const fail = await call(`/api/v1/curation/jobs/${job.id}/fail`, {
       method: 'POST',
       body: { error: 'transient network error', retryable: true },
     });
@@ -207,24 +207,24 @@ const skipReason = TEST_URL
   });
 
   it('fail with retryable=false marks the job failed (not retried)', async () => {
-    const enq = await call('/api/curator/jobs', {
+    const enq = await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: { skillUri: 'skill://kb/curation', userPrompt: 'permanent fail' },
     });
     const job = (enq.body as { job: { id: string } }).job;
 
-    await call('/api/curator/jobs/claim', {
+    await call('/api/v1/curation/jobs/claim', {
       method: 'POST',
       body: { holder: 'sidecar-test' },
     });
 
-    const fail = await call(`/api/curator/jobs/${job.id}/fail`, {
+    const fail = await call(`/api/v1/curation/jobs/${job.id}/fail`, {
       method: 'POST',
       body: { error: 'skill missing', retryable: false },
     });
     expect((fail.body as { status: string }).status).toBe('failed');
 
-    const reclaim = await call('/api/curator/jobs/claim', {
+    const reclaim = await call('/api/v1/curation/jobs/claim', {
       method: 'POST',
       body: { holder: 'sidecar-test' },
     });
@@ -232,7 +232,7 @@ const skipReason = TEST_URL
   });
 
   it('retryable fail beyond maxAttempts marks the job dead', async () => {
-    const enq = await call('/api/curator/jobs', {
+    const enq = await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: { skillUri: 'skill://kb/curation', userPrompt: 'eventual dead', maxAttempts: 2 },
     });
@@ -243,7 +243,7 @@ const skipReason = TEST_URL
       .set({ attempts: 2, leaseExpiresAt: null, leaseHolder: null })
       .where(sql`id = ${job.id}`);
 
-    const fail = await call(`/api/curator/jobs/${job.id}/fail`, {
+    const fail = await call(`/api/v1/curation/jobs/${job.id}/fail`, {
       method: 'POST',
       body: { error: 'still broken', retryable: true },
     });
@@ -251,15 +251,15 @@ const skipReason = TEST_URL
   });
 
   it('isolates jobs across orgs (RLS)', async () => {
-    await call('/api/curator/jobs', {
+    await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: { skillUri: 'skill://kb/curation', userPrompt: 'org A job' },
     });
 
-    const otherList = await call('/api/curator/jobs', { key: otherAdminKey });
+    const otherList = await call('/api/v1/curation/jobs', { key: otherAdminKey });
     expect((otherList.body as { items: unknown[] }).items).toHaveLength(0);
 
-    const otherClaim = await call('/api/curator/jobs/claim', {
+    const otherClaim = await call('/api/v1/curation/jobs/claim', {
       method: 'POST',
       key: otherAdminKey,
       body: { holder: 'sidecar-other' },

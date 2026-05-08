@@ -44,7 +44,7 @@ function AcceptInviteInner() {
     setStatus('pending');
     void (async () => {
       try {
-        await api('/api/invitations/accept', {
+        await api('/api/v1/invitations/accept', {
           method: 'POST',
           body: JSON.stringify({ token }),
         });

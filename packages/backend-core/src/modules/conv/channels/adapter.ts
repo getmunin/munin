@@ -8,7 +8,7 @@ import type { schema, Db, Tx } from '@getmunin/db';
  *
  * Three inbound modes:
  *   - 'poll'    — runtime calls `tick()` on a timer (e.g. email IMAP).
- *   - 'webhook' — runtime exposes `POST /api/channels/:id/webhook`; provider
+ *   - 'webhook' — runtime exposes `POST /api/v1/conversations/channels/:id/webhook`; provider
  *                 → us. Adapter verifies the signature.
  *   - 'push'    — adapter exposes its own controller; agent → us via bearer
  *                 token (e.g. chat widget). Runtime doesn't drive it.

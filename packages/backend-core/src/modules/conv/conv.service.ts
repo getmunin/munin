@@ -73,7 +73,7 @@ export interface ConversationSummary {
   channelId: string;
   /**
    * The channel kind (e.g. 'email' | 'chat' | 'sms' | 'voice'). Populated by
-   * endpoints that JOIN conv_channels — currently only `GET /api/conversations/:id`.
+   * endpoints that JOIN conv_channels — currently only `GET /api/v1/conversations/:id`.
    * Other endpoints omit the field rather than fabricating a value; consumers that
    * need it should call the detail endpoint.
    */

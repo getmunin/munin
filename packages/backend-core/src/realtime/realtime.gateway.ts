@@ -19,7 +19,7 @@ import {
 } from '../common/auth/auth.guard.js';
 import { DbListenerService, type EventRow } from './db-listener.service.js';
 
-const PATH = '/api/realtime';
+const PATH = '/api/v1/realtime';
 
 interface ClientMessage {
   type: 'subscribe' | 'unsubscribe' | 'ping';

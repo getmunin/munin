@@ -117,7 +117,7 @@ For each pending proposal, the operator either:
 - **Applies it:** `crm_apply_merge_proposal({ id })`. In a single transaction: copies `recommendedPatch` onto the keeper; reassigns the duplicate's `crm_activities`, `crm_deals` (primary contact), and `crm_relationships` (contact-typed `from_id` / `to_id`) onto the keeper; transfers the duplicate's `endUserId` to the keeper if the keeper had none; archives the duplicate (`dedup-archived-YYYY-MM` tag + `customFields.mergedInto: <keeperId>` + `doNotContact: true`, `endUserId` cleared); marks the proposal `applied`.
 - **Dismisses it:** `crm_dismiss_merge_proposal({ id, reason })`. Records the rejection so the next curator pass skips this pair.
 
-The dashboard "Needs attention" backlog card surfaces the count of pending proposals via `/api/overview/backlog`.
+The dashboard "Needs attention" backlog card surfaces the count of pending proposals via `/api/v1/overview/backlog`.
 
 ## What NOT to do
 

@@ -6,7 +6,7 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service.js';
 import { assertOwnerOrAdmin } from './role-guard.js';
 
-@Controller('api/usage')
+@Controller('api/v1/usage')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class UsageController {

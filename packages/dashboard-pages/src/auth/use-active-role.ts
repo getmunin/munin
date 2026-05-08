@@ -22,7 +22,7 @@ let cache: CacheEntry | null = null;
 
 function fetchActiveRole(): Promise<OrgRole | null> {
   if (cache) return cache.promise;
-  const promise = api<MembershipDto[]>('/api/orgs/me/memberships').then((rows) => {
+  const promise = api<MembershipDto[]>('/api/v1/me/memberships').then((rows) => {
     const active = rows.find((m) => m.isDefault) ?? rows[0] ?? null;
     const role = active && isOrgRole(active.role) ? active.role : null;
     if (cache) cache.value = role;

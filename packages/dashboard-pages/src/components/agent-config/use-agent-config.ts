@@ -25,7 +25,7 @@ export function useAgentConfig(): UseAgentConfigResult {
   const load = useCallback(async () => {
     try {
       setLoadError(null);
-      const cfg = await api<AgentConfigDto>('/api/agent-config');
+      const cfg = await api<AgentConfigDto>('/api/v1/agent-config');
       setConfig(cfg);
     } catch (err) {
       setLoadError(translate(err) || t('errors.load'));
@@ -38,7 +38,7 @@ export function useAgentConfig(): UseAgentConfigResult {
 
   useEffect(() => {
     if (!config?.providerApiKeySet) return;
-    void api<ListModelsResult>('/api/agent-config/models')
+    void api<ListModelsResult>('/api/v1/agent-config/models')
       .then(setModels)
       .catch(() => undefined);
   }, [config?.providerApiKeySet]);

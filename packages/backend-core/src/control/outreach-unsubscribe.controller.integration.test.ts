@@ -66,7 +66,7 @@ const skipReason = TEST_URL
 
   it('valid token marks the contact unsubscribed and logs an activity', async () => {
     const token = signUnsubscribeToken({ orgId, contactId, campaignId: 'cmp_test' }, PEPPER);
-    const res = await fetch(`${baseUrl}/api/outreach/unsubscribe?token=${encodeURIComponent(token)}`);
+    const res = await fetch(`${baseUrl}/api/v1/outreach/unsubscribe?token=${encodeURIComponent(token)}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; alreadyUnsubscribed: boolean; contactFound: boolean };
     expect(body.ok).toBe(true);
@@ -92,7 +92,7 @@ const skipReason = TEST_URL
 
   it('replays as a no-op (alreadyUnsubscribed=true)', async () => {
     const token = signUnsubscribeToken({ orgId, contactId, campaignId: 'cmp_test' }, PEPPER);
-    const res = await fetch(`${baseUrl}/api/outreach/unsubscribe?token=${encodeURIComponent(token)}`);
+    const res = await fetch(`${baseUrl}/api/v1/outreach/unsubscribe?token=${encodeURIComponent(token)}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { alreadyUnsubscribed: boolean };
     expect(body.alreadyUnsubscribed).toBe(true);
@@ -102,13 +102,13 @@ const skipReason = TEST_URL
     const token = signUnsubscribeToken({ orgId, contactId, campaignId: 'cmp_test' }, PEPPER);
     const tampered = token.replace(contactId, 'cct_evil');
     const res = await fetch(
-      `${baseUrl}/api/outreach/unsubscribe?token=${encodeURIComponent(tampered)}`,
+      `${baseUrl}/api/v1/outreach/unsubscribe?token=${encodeURIComponent(tampered)}`,
     );
     expect(res.status).toBe(400);
   });
 
   it('returns 400 when token is missing', async () => {
-    const res = await fetch(`${baseUrl}/api/outreach/unsubscribe`);
+    const res = await fetch(`${baseUrl}/api/v1/outreach/unsubscribe`);
     expect(res.status).toBe(400);
   });
 });

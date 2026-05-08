@@ -43,7 +43,7 @@ interface WebhookDto {
   updatedAt: string;
 }
 
-@Controller('api/webhooks')
+@Controller('api/v1/webhooks')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class WebhooksController {

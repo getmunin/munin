@@ -44,7 +44,7 @@ interface ConversationListResponse {
   nextCursor: string | null;
 }
 
-@Controller('api/end-user/conversations')
+@Controller('api/v1/end-users/me/conversations')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class EndUserConversationsController {

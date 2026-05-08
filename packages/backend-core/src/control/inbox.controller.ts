@@ -34,7 +34,7 @@ interface InboxQueueResponse {
   };
 }
 
-@Controller('api/inbox')
+@Controller('api/v1/inbox')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class InboxController {
@@ -46,7 +46,7 @@ export class InboxController {
     private readonly outreach: OutreachService,
   ) {}
 
-  @Get('queue')
+  @Get()
   async queue(): Promise<InboxQueueResponse> {
     const [live, kbItems, crmItems, outreachItems] = await Promise.all([
       this.loadLive(),

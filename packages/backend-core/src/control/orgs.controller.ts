@@ -28,7 +28,7 @@ interface OrgDto {
   createdAt: string;
 }
 
-@Controller('api/orgs/me')
+@Controller('api/v1/orgs/me')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class OrgsController {

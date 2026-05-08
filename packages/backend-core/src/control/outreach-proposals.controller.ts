@@ -35,7 +35,7 @@ interface ProposalListResponse {
   items: ProposalDto[];
 }
 
-@Controller('api/outreach/proposals')
+@Controller('api/v1/outreach/proposals')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class OutreachProposalsController {

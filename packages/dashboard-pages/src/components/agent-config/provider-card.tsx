@@ -53,13 +53,13 @@ export function ProviderCard({ config, onSaved }: ProviderCardProps) {
     try {
       const body: UpsertBody = { providerBaseUrl };
       if (keyDirty && apiKey.length > 0) body.providerApiKey = apiKey;
-      const updated = await api<AgentConfigDto>('/api/agent-config', {
+      const updated = await api<AgentConfigDto>('/api/v1/agent-config', {
         method: 'PUT',
         body: JSON.stringify(body),
       });
       setApiKey('');
       setKeyDirty(false);
-      const result = await api<ListModelsResult>('/api/agent-config/models');
+      const result = await api<ListModelsResult>('/api/v1/agent-config/models');
       setMessage(
         result.supported
           ? t('connection.testOk', { count: result.models.length })

@@ -51,7 +51,7 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
     setMessage(null);
     setSaving(true);
     try {
-      const updated = await api<AgentConfigDto>('/api/agent-config', {
+      const updated = await api<AgentConfigDto>('/api/v1/agent-config', {
         method: 'PUT',
         body: JSON.stringify({
           chatModel,

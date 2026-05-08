@@ -38,7 +38,7 @@ export function EndUsersPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const list = await api<EndUserDto[]>('/api/end-users');
+      const list = await api<EndUserDto[]>('/api/v1/end-users');
       setItems(list);
     } catch (err) {
       setError(translate(err) || t('errors.load'));
@@ -52,7 +52,7 @@ export function EndUsersPage() {
   async function revokeTokens(id: string) {
     setRevokingId(id);
     try {
-      const result = await api<{ revoked: number }>(`/api/end-users/${id}/revoke-tokens`, {
+      const result = await api<{ revoked: number }>(`/api/v1/end-users/${id}/revoke-tokens`, {
         method: 'POST',
       });
       setError(result.revoked > 0 ? null : t('noTokensRevoked'));

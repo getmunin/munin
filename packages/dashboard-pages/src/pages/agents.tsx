@@ -37,7 +37,7 @@ export function AgentsPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const list = await api<TokenDto[]>('/api/tokens');
+      const list = await api<TokenDto[]>('/api/v1/tokens');
       setTokens(list);
     } catch (err) {
       setError(translate(err) || t('errors.load'));
@@ -50,7 +50,7 @@ export function AgentsPage() {
 
   async function revoke(id: string) {
     try {
-      await api(`/api/tokens/${id}/revoke`, { method: 'POST' });
+      await api(`/api/v1/tokens/${id}`, { method: 'DELETE' });
       await load();
     } catch (err) {
       setError(translate(err) || t('errors.revoke'));

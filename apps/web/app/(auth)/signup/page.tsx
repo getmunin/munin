@@ -54,7 +54,7 @@ function SignupForm() {
     void (async () => {
       try {
         const result = await api<{ email: string }>(
-          `/api/invitations/lookup?token=${encodeURIComponent(inviteToken)}`,
+          `/api/v1/invitations/lookup?token=${encodeURIComponent(inviteToken)}`,
         );
         setInviteEmail(result.email);
         setEmail(result.email);

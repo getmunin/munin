@@ -14,13 +14,15 @@ import type { AdminKeyProvider } from './admin-key-provider.js';
 export class AutoMintAdminKeyProvider implements AdminKeyProvider {
   async mint(configId: string): Promise<void> {
     const ctx = getCurrentContext();
+    const orgId = ctx.actor?.orgId;
+    if (!orgId) throw new Error('AutoMintAdminKeyProvider.mint requires an authenticated actor');
     const rawKey = buildApiKey('admin');
     const [row] = await ctx.db
       .insert(schema.apiKeys)
       .values({
-        orgId: configId,
+        orgId,
         type: 'admin',
-        name: 'self-service-ai-runner',
+        name: 'agent-host-runner',
         keyHash: hashSecret(rawKey),
         keyPrefix: keyPrefix(rawKey),
         scopes: ['*'],
@@ -42,7 +44,7 @@ export class AutoMintAdminKeyProvider implements AdminKeyProvider {
     const ctx = getCurrentContext();
     await ctx.db.execute(
       sql`UPDATE api_keys SET revoked_at = now()
-          WHERE id = ${adminApiKeyId} AND org_id = ${configId} AND revoked_at IS NULL`,
+          WHERE id = ${adminApiKeyId} AND revoked_at IS NULL`,
     );
     await ctx.db.execute(
       sql`UPDATE agent_config

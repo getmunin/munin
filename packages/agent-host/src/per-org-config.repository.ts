@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { decryptSecretSql, encryptSecretSql, getCurrentContext } from '@getmunin/core';
-import { eq, sql } from 'drizzle-orm';
+import { eq, isNotNull, sql } from 'drizzle-orm';
 import { agentConfig } from './schema.js';
 import type {
   AgentConfigPatch,
@@ -29,12 +29,12 @@ export class PerOrgConfigRepository implements AgentConfigRepository {
     return readOrMaterialize(id);
   }
 
-  async listEnabledIds(): Promise<string[]> {
+  async listProvisionedIds(): Promise<string[]> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select({ id: agentConfig.id })
       .from(agentConfig)
-      .where(eq(agentConfig.enabled, true));
+      .where(isNotNull(agentConfig.providerApiKeyCt));
     return rows.map((r) => r.id);
   }
 
@@ -52,7 +52,6 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
   const rows = await ctx.db
     .select({
       id: agentConfig.id,
-      enabled: agentConfig.enabled,
       chatModel: agentConfig.chatModel,
       curatorModel: agentConfig.curatorModel,
       providerBaseUrl: agentConfig.providerBaseUrl,
@@ -71,7 +70,6 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
   if (row) {
     return {
       id: row.id,
-      enabled: row.enabled,
       chatModel: row.chatModel,
       curatorModel: row.curatorModel,
       providerBaseUrl: row.providerBaseUrl,
@@ -88,7 +86,6 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
     .insert(agentConfig)
     .values({
       id,
-      enabled: false,
       chatModel: DEFAULT_CHAT_MODEL,
       providerBaseUrl: DEFAULT_PROVIDER_BASE_URL,
     })
@@ -96,7 +93,6 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
   if (!created) throw new Error(`failed to materialize agent_config row for id=${id}`);
   return {
     id: created.id,
-    enabled: created.enabled,
     chatModel: created.chatModel,
     curatorModel: created.curatorModel,
     providerBaseUrl: created.providerBaseUrl,
@@ -113,7 +109,6 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
 async function applyPatch(id: string, patch: AgentConfigPatch): Promise<void> {
   const ctx = getCurrentContext();
   const setClauses: Record<string, unknown> = {};
-  if (patch.enabled !== undefined) setClauses['enabled'] = patch.enabled;
   if (patch.chatModel !== undefined) setClauses['chatModel'] = patch.chatModel;
   if (patch.curatorModel !== undefined) setClauses['curatorModel'] = patch.curatorModel;
   if (patch.providerBaseUrl !== undefined) setClauses['providerBaseUrl'] = patch.providerBaseUrl;

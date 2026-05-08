@@ -64,6 +64,7 @@
     "overview": "Oversikt",
     "settings": "Innstillinger",
     "team": "Team",
+    "builtInAi": "Innebygd AI",
     "agents": "Tilkoblede agenter",
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
@@ -378,8 +379,28 @@
     }
   },
   "agentSetup": {
-    "title": "Sett opp AI-agent",
-    "lede": "Velg en LLM-leverandør, lim inn en API-nøkkel, og velg modeller for chat og kurering. Agenten kjører først når den er aktivert.",
+    "titlePrefix": "Vekk",
+    "titleAccent": "Munin.",
+    "lede": "Velg en LLM-leverandør, lim inn en API-nøkkel, og velg modeller for chat og kurering. Agenten kommer i gang så snart du lagrer.",
+    "settings": {
+      "title": "Innebygd AI",
+      "lede": "Leverandør, API-nøkkel og modell-valg for den innebygde agent-runneren."
+    },
+    "wizard": {
+      "stepEyebrow": "Steg {step} av {total}",
+      "readyTitle": "Avgang.",
+      "readyLede": "Herfra håndterer Munin nye samtaler på egen hånd. Innboksen viser hva som skjer.",
+      "saveAndContinue": "Lagre og fortsett",
+      "checklist": {
+        "provider": "Leverandør konfigurert ({url})",
+        "chat": "Chat-modell — {model}",
+        "curator": "Kurator-modell — {model}"
+      },
+      "cta": {
+        "goToInbox": "Gå til innboksen",
+        "tweakSettings": "Endre innstillinger"
+      }
+    },
     "saved": "Lagret.",
     "errors": {
       "load": "Kunne ikke laste agent-konfigurasjon.",
@@ -413,11 +434,6 @@
       "chat": "Chat-modell",
       "curator": "Kurator-modell",
       "curatorSameAsChat": "Samme som chat"
-    },
-    "enable": {
-      "title": "Aktivér",
-      "lede": "Når aktivert vil den innebygde runneren begynne å svare på sluttbruker-meldinger og tømme kurator-køen.",
-      "checkbox": "AI-agent aktivert"
     }
   },
   "acceptInvite": {

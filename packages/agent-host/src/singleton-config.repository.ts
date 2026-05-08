@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { decryptSecretSql, encryptSecretSql, getCurrentContext } from '@getmunin/core';
-import { eq, sql } from 'drizzle-orm';
+import { eq, isNotNull, sql } from 'drizzle-orm';
 import { agentConfig, SINGLETON_ID } from './schema.js';
 import type {
   AgentConfigPatch,
@@ -25,12 +25,12 @@ export class SingletonConfigRepository implements AgentConfigRepository {
     return readRow(SINGLETON_ID, false);
   }
 
-  async listEnabledIds(): Promise<string[]> {
+  async listProvisionedIds(): Promise<string[]> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select({ id: agentConfig.id })
       .from(agentConfig)
-      .where(eq(agentConfig.enabled, true))
+      .where(isNotNull(agentConfig.providerApiKeyCt))
       .limit(1);
     return rows.map((r) => r.id);
   }
@@ -55,7 +55,6 @@ async function readRow(id: string, createIfMissing: boolean): Promise<AgentConfi
   const rows = await ctx.db
     .select({
       id: agentConfig.id,
-      enabled: agentConfig.enabled,
       chatModel: agentConfig.chatModel,
       curatorModel: agentConfig.curatorModel,
       providerBaseUrl: agentConfig.providerBaseUrl,
@@ -74,7 +73,6 @@ async function readRow(id: string, createIfMissing: boolean): Promise<AgentConfi
   if (row) {
     return {
       id: row.id,
-      enabled: row.enabled,
       chatModel: row.chatModel,
       curatorModel: row.curatorModel,
       providerBaseUrl: row.providerBaseUrl,
@@ -99,7 +97,6 @@ async function readRow(id: string, createIfMissing: boolean): Promise<AgentConfi
 async function applyPatch(id: string, patch: AgentConfigPatch): Promise<void> {
   const ctx = getCurrentContext();
   const setClauses: Record<string, unknown> = {};
-  if (patch.enabled !== undefined) setClauses['enabled'] = patch.enabled;
   if (patch.chatModel !== undefined) setClauses['chatModel'] = patch.chatModel;
   if (patch.curatorModel !== undefined) setClauses['curatorModel'] = patch.curatorModel;
   if (patch.providerBaseUrl !== undefined) setClauses['providerBaseUrl'] = patch.providerBaseUrl;

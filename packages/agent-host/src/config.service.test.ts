@@ -9,7 +9,6 @@ import type { AdminKeyProvider } from './admin-key-provider.js';
 
 const baseRow: AgentConfigRow = {
   id: 'singleton',
-  enabled: false,
   chatModel: 'anthropic/claude-haiku-4.5',
   curatorModel: null,
   providerBaseUrl: 'https://provider.example/v1',
@@ -31,7 +30,7 @@ function makeRepo(opts: {
     resolveCurrentId: () => opts.before.id,
     read: vi.fn().mockResolvedValue(opts.before),
     update,
-    listEnabledIds: vi.fn().mockResolvedValue([]),
+    listProvisionedIds: vi.fn().mockResolvedValue([]),
     readDecryptedProviderKey: vi.fn().mockResolvedValue(null),
     readDecryptedAdminKey: vi.fn().mockResolvedValue(null),
   };
@@ -57,50 +56,49 @@ describe('AgentConfigService', () => {
     expect(dto.updatedAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
-  it('mints an admin key when enabling and none exists yet', async () => {
-    const after: AgentConfigRow = { ...baseRow, enabled: true };
+  it('mints an admin key when a provider key is first set', async () => {
+    const after: AgentConfigRow = { ...baseRow, providerApiKeySet: true };
     const repo = makeRepo({ before: baseRow, after });
     const adminKey = makeAdminKey();
     const svc = new AgentConfigService(repo, adminKey);
 
-    const patch: AgentConfigPatch = { enabled: true };
-    await svc.upsertForCurrentActor(patch);
+    await svc.upsertForCurrentActor({ providerApiKey: 'sk-test' });
 
     expect(adminKey.mint).toHaveBeenCalledWith('singleton');
     expect(adminKey.revoke).not.toHaveBeenCalled();
   });
 
-  it('does NOT mint when enabling but an admin key id already exists', async () => {
+  it('does NOT mint when adding a provider key but admin key already exists', async () => {
     const before: AgentConfigRow = { ...baseRow, adminApiKeyId: 'ak_existing' };
-    const after: AgentConfigRow = { ...before, enabled: true };
+    const after: AgentConfigRow = { ...before, providerApiKeySet: true };
     const repo = makeRepo({ before, after });
     const adminKey = makeAdminKey();
     const svc = new AgentConfigService(repo, adminKey);
 
-    await svc.upsertForCurrentActor({ enabled: true });
+    await svc.upsertForCurrentActor({ providerApiKey: 'sk-test' });
 
     expect(adminKey.mint).not.toHaveBeenCalled();
     expect(adminKey.revoke).not.toHaveBeenCalled();
   });
 
-  it('revokes the admin key when disabling and one exists', async () => {
+  it('revokes the admin key when the provider key is cleared', async () => {
     const before: AgentConfigRow = {
       ...baseRow,
-      enabled: true,
+      providerApiKeySet: true,
       adminApiKeyId: 'ak_to_revoke',
     };
-    const after: AgentConfigRow = { ...before, enabled: false };
+    const after: AgentConfigRow = { ...before, providerApiKeySet: false };
     const repo = makeRepo({ before, after });
     const adminKey = makeAdminKey();
     const svc = new AgentConfigService(repo, adminKey);
 
-    await svc.upsertForCurrentActor({ enabled: false });
+    await svc.upsertForCurrentActor({ providerApiKey: null });
 
     expect(adminKey.revoke).toHaveBeenCalledWith('singleton', 'ak_to_revoke');
     expect(adminKey.mint).not.toHaveBeenCalled();
   });
 
-  it('skips mint/revoke for patches that do not flip enabled', async () => {
+  it('skips mint/revoke when patches do not change provider-key presence', async () => {
     const repo = makeRepo({ before: baseRow, after: baseRow });
     const adminKey = makeAdminKey();
     const svc = new AgentConfigService(repo, adminKey);

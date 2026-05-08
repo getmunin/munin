@@ -8,7 +8,7 @@ import {
 } from '@getmunin/backend-core';
 import {
   AgentHostModule,
-  NoopAdminKeyProvider,
+  AutoMintAdminKeyProvider,
   SingletonConfigRepository,
 } from '@getmunin/agent-host';
 import { AuthModule } from './auth/auth.module.js';
@@ -20,7 +20,7 @@ import { AuthModule } from './auth/auth.module.js';
     AuthModule,
     AgentHostModule.forRoot({
       configRepository: SingletonConfigRepository,
-      adminKeyProvider: NoopAdminKeyProvider,
+      adminKeyProvider: AutoMintAdminKeyProvider,
     }),
   ],
   controllers: BACKEND_BASE_CONTROLLERS,

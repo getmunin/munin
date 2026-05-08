@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { AgentSetupPage, authClient } from '@getmunin/dashboard-pages';
+import { AgentSetupWizard, authClient } from '@getmunin/dashboard-pages';
 import { PageSpinner } from '@getmunin/ui';
 
 export default function SetupRoute() {
@@ -17,5 +17,5 @@ export default function SetupRoute() {
     return <PageSpinner className="min-h-screen bg-bone dark:bg-background" />;
   }
 
-  return <AgentSetupPage />;
+  return <AgentSetupWizard />;
 }

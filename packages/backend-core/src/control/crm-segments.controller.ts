@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -52,7 +53,7 @@ interface SegmentContactsResponse {
   items: ContactDto[];
 }
 
-@Controller('api/crm/segments')
+@Controller('api/v1/crm/segments')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class CrmSegmentsController {
@@ -77,7 +78,7 @@ export class CrmSegmentsController {
     return translate(() => this.crm.createSegment(parsed.data));
   }
 
-  @Post(':id')
+  @Patch(':id')
   @HttpCode(200)
   async update(@Param('id') id: string, @Body() body: unknown): Promise<SegmentDto> {
     const parsed = UpdateBody.safeParse(body ?? {});

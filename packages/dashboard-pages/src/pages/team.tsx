@@ -67,8 +67,8 @@ export function TeamPage() {
     try {
       setError(null);
       const [m, i] = await Promise.all([
-        api<MemberDto[]>('/api/orgs/me/members'),
-        api<InvitationDto[]>('/api/orgs/me/invitations'),
+        api<MemberDto[]>('/api/v1/orgs/me/members'),
+        api<InvitationDto[]>('/api/v1/orgs/me/invitations'),
       ]);
       setMembers(m);
       setInvites(i);
@@ -88,7 +88,7 @@ export function TeamPage() {
     setError(null);
     setLinkCopied(false);
     try {
-      const created = await api<CreatedInvitationDto>('/api/orgs/me/invitations', {
+      const created = await api<CreatedInvitationDto>('/api/v1/orgs/me/invitations', {
         method: 'POST',
         body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
       });
@@ -117,7 +117,7 @@ export function TeamPage() {
 
   async function revokeInvite(id: string) {
     try {
-      await api(`/api/orgs/me/invitations/${id}`, { method: 'DELETE' });
+      await api(`/api/v1/orgs/me/invitations/${id}`, { method: 'DELETE' });
       await load();
     } catch (err) {
       setError(translate(err) || t('errors.revokeInvite'));
@@ -127,7 +127,7 @@ export function TeamPage() {
   async function removeMember(userId: string) {
     if (!confirm(t('removeConfirm'))) return;
     try {
-      await api(`/api/orgs/me/members/${userId}`, { method: 'DELETE' });
+      await api(`/api/v1/orgs/me/members/${userId}`, { method: 'DELETE' });
       await load();
     } catch (err) {
       setError(translate(err) || t('errors.remove'));
@@ -136,7 +136,7 @@ export function TeamPage() {
 
   async function changeRole(userId: string, role: MemberRole) {
     try {
-      await api(`/api/orgs/me/members/${userId}`, {
+      await api(`/api/v1/orgs/me/members/${userId}`, {
         method: 'PATCH',
         body: JSON.stringify({ role }),
       });

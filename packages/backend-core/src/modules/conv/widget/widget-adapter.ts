@@ -3,7 +3,7 @@ import type { ChannelAdapter, InboundMode, SendContext, SendResult } from '../ch
 
 /**
  * Chat-widget adapter — push mode. Inbound is driven by the external agent
- * via the public REST endpoint (`POST /api/conv/widget/messages`); the
+ * via the public REST endpoint (`POST /api/v1/widget/messages`); the
  * runtime doesn't poll or expose a webhook for this kind.
  *
  * Outbound is a no-op for v1: Munin replies render in the customer's own

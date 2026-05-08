@@ -85,7 +85,7 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
 
   function connect(): void {
     if (stopped) return;
-    const url = `${opts.baseUrl.replace(/^http/, 'ws').replace(/\/+$/, '')}/api/realtime`;
+    const url = `${opts.baseUrl.replace(/^http/, 'ws').replace(/\/+$/, '')}/api/v1/realtime`;
     const socket = new WebSocket(url, {
       headers: { authorization: `Bearer ${opts.adminApiKey}` },
     });

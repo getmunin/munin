@@ -149,7 +149,7 @@ const skipReason = TEST_URL
 
   it('ingests a transcript and creates a conversation + contact + messages', async () => {
     const sessionId = 'vis_happy_path';
-    const res = await call('POST', '/api/conv/widget/messages', widgetKey, {
+    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
       visitor: { name: 'Vita', email: 'vita@example.com' },
@@ -190,23 +190,23 @@ const skipReason = TEST_URL
       sessionId,
       messages: [{ role: 'end_user', body: 'first', providerMessageId: 'idem_1' }],
     };
-    const first = await call('POST', '/api/conv/widget/messages', widgetKey, body);
+    const first = await call('POST', '/api/v1/widget/messages', widgetKey, body);
     expect(first.status).toBe(201);
     expect((first.json as { inserted: number }).inserted).toBe(1);
 
-    const second = await call('POST', '/api/conv/widget/messages', widgetKey, body);
+    const second = await call('POST', '/api/v1/widget/messages', widgetKey, body);
     expect(second.status).toBe(201);
     expect((second.json as { inserted: number; skipped: number }).inserted).toBe(0);
     expect((second.json as { skipped: number }).skipped).toBe(1);
   });
 
   it('separates conversations across sessionIds on the same channel', async () => {
-    const a = await call('POST', '/api/conv/widget/messages', widgetKey, {
+    const a = await call('POST', '/api/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_multi_a',
       messages: [{ role: 'end_user', body: 'session A' }],
     });
-    const b = await call('POST', '/api/conv/widget/messages', widgetKey, {
+    const b = await call('POST', '/api/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_multi_b',
       messages: [{ role: 'end_user', body: 'session B' }],
@@ -219,7 +219,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects a body whose channelId does not match the bound key', async () => {
-    const res = await call('POST', '/api/conv/widget/messages', widgetKey, {
+    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
       channelId: 'cch_nonexistent',
       sessionId: 'vis_mismatch',
       messages: [{ role: 'end_user', body: 'should be rejected' }],
@@ -228,7 +228,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects an admin key with no channel binding', async () => {
-    const res = await call('POST', '/api/conv/widget/messages', adminKey, {
+    const res = await call('POST', '/api/v1/widget/messages', adminKey, {
       channelId,
       sessionId: 'vis_admin_attempt',
       messages: [{ role: 'end_user', body: 'admin should not ingest' }],
@@ -237,7 +237,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects unauthenticated requests', async () => {
-    const res = await call('POST', '/api/conv/widget/messages', null, {
+    const res = await call('POST', '/api/v1/widget/messages', null, {
       channelId,
       sessionId: 'vis_no_auth',
       messages: [{ role: 'end_user', body: 'no key' }],
@@ -262,7 +262,7 @@ const skipReason = TEST_URL
     // server's connection pool can lag the rotate tx's commit by a tick.
     let staleStatus = 0;
     await waitFor(async () => {
-      const r = await call('POST', '/api/conv/widget/messages', oldKey, {
+      const r = await call('POST', '/api/v1/widget/messages', oldKey, {
         channelId,
         sessionId: 'vis_post_rotation',
         messages: [{ role: 'end_user', body: 'old key should fail' }],
@@ -273,7 +273,7 @@ const skipReason = TEST_URL
     expect(staleStatus).toBe(401);
 
     // New key works.
-    const fresh = await call('POST', '/api/conv/widget/messages', rotated.widgetKey, {
+    const fresh = await call('POST', '/api/v1/widget/messages', rotated.widgetKey, {
       channelId,
       sessionId: 'vis_post_rotation',
       messages: [{ role: 'end_user', body: 'new key should pass' }],

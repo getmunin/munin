@@ -27,7 +27,7 @@ export function ExportPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/export`, { credentials: 'include' });
+      const res = await fetch(`${API_URL}/api/v1/export`, { credentials: 'include' });
       if (!res.ok) {
         throw new ApiError(res.status, await res.text());
       }

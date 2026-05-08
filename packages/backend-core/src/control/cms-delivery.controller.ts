@@ -31,7 +31,7 @@ import { projectData, type FieldDef } from '../modules/cms/cms.fields.js';
  * context, and there's no auth here. Every SELECT hard-filters
  * `org_id` and `status='published'` so cross-org leakage is impossible.
  */
-@Controller('api/cms/v1')
+@Controller('api/v1/cms')
 @UseGuards(ThrottlerGuard)
 export class CmsDeliveryController {
   constructor(

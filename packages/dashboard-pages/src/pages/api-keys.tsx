@@ -49,7 +49,7 @@ export function ApiKeysPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const list = await api<ApiKeySummary[]>('/api/api-keys');
+      const list = await api<ApiKeySummary[]>('/api/v1/api-keys');
       setKeys(list);
     } catch (err) {
       setError(translate(err) || t('errors.load'));
@@ -65,7 +65,7 @@ export function ApiKeysPage() {
     if (!name.trim()) return;
     setCreating(true);
     try {
-      const created = await api<CreatedApiKey>('/api/api-keys', {
+      const created = await api<CreatedApiKey>('/api/v1/api-keys', {
         method: 'POST',
         body: JSON.stringify({ name: name.trim(), scopes: ['*'] }),
       });
@@ -81,7 +81,7 @@ export function ApiKeysPage() {
 
   async function revoke(id: string) {
     try {
-      await api(`/api/api-keys/${id}`, { method: 'DELETE' });
+      await api(`/api/v1/api-keys/${id}`, { method: 'DELETE' });
       await load();
     } catch (err) {
       setError(translate(err) || t('errors.revoke'));

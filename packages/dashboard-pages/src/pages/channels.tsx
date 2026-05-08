@@ -31,6 +31,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Hero,
   Input,
   Label,
 } from '@getmunin/ui';
@@ -102,28 +103,28 @@ export function ChannelsPage() {
 
   return (
     <>
-      <header className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-          <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button className="gap-2" />}>
-            {t('addChannel')}
-            <ChevronDown className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setWidgetOpen(true)}>
-              <MessageSquare className="size-4" />
-              {t('addWidget')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setEmailOpen(true)}>
-              <Mail className="size-4" />
-              {t('addEmail')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </header>
+      <Hero
+        title={t('title')}
+        lede={t('subtitle')}
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button className="gap-2" />}>
+              {t('addChannel')}
+              <ChevronDown className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setWidgetOpen(true)}>
+                <MessageSquare className="size-4" />
+                {t('addWidget')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEmailOpen(true)}>
+                <Mail className="size-4" />
+                {t('addEmail')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
 
       <CreateWidgetDialog
         open={widgetOpen}

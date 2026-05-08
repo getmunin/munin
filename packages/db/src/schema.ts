@@ -208,6 +208,7 @@ export const agents = pgTable(
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
+    description: text('description'),
     ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
     scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
     rateLimitPerMin: integer('rate_limit_per_min'),
@@ -320,6 +321,8 @@ export const auditLog = pgTable(
     correlationId: text('correlation_id'),
     result: varchar('result', { length: 16 }),
     error: text('error'),
+    durationMs: integer('duration_ms'),
+    userAgent: text('user_agent'),
     createdAt,
   },
   (t) => ({

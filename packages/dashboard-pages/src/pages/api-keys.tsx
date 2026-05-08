@@ -5,15 +5,16 @@ import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import { Button } from '@getmunin/ui';
-import { Input } from '@getmunin/ui';
-import { Label } from '@getmunin/ui';
 import {
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  Hero,
+  Input,
+  Label,
 } from '@getmunin/ui';
 
 interface ApiKeySummary {
@@ -89,10 +90,7 @@ export function ApiKeysPage() {
 
   return (
     <>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
-      </header>
+      <Hero title={t('title')} lede={t('subtitle')} />
 
       <Card>
         <CardHeader>

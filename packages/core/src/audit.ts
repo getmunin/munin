@@ -9,6 +9,8 @@ export interface AuditEventInput {
   args?: Record<string, unknown>;
   result?: 'ok' | 'error' | 'denied';
   error?: string;
+  durationMs?: number;
+  userAgent?: string;
 }
 
 /**
@@ -37,6 +39,8 @@ export class AuditLogger {
         correlationId: ctx.correlationId,
         result: input.result ?? 'ok',
         error: input.error ?? null,
+        durationMs: input.durationMs ?? null,
+        userAgent: input.userAgent ?? null,
       });
     } catch (err) {
       console.error('[audit] failed to record:', err);

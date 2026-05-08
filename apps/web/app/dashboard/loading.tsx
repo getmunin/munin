@@ -1,0 +1,5 @@
+import { PageSpinner } from '@getmunin/ui';
+
+export default function DashboardLoading() {
+  return <PageSpinner />;
+}

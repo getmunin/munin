@@ -60,32 +60,5 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
 
-  # Optional agent sidecar.
-  # Subscribes to conversation events on the local munin instance, posts AI-driven
-  # agent replies, runs KB curation per resolved handover, and runs scheduled
-  # CRM hygiene + CMS stale-content review passes. Off by default — start with:
-  #   docker compose --profile ai up
-  # See apps/agent-sidecar/.env.example for required variables.
-  agent-sidecar:
-    profiles: ["ai"]
-    build:
-      context: ..
-      dockerfile: apps/agent-sidecar/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      NODE_ENV: production
-      MUNIN_BASE_URL: ${MUNIN_BASE_URL:-http://backend:3001}
-      MUNIN_ADMIN_API_KEY: ${MUNIN_ADMIN_API_KEY:?set MUNIN_ADMIN_API_KEY in .env}
-      MUNIN_SIDECAR_PROVIDER_BASE_URL: ${MUNIN_SIDECAR_PROVIDER_BASE_URL:-https://openrouter.ai/api/v1}
-      MUNIN_SIDECAR_PROVIDER_API_KEY: ${MUNIN_SIDECAR_PROVIDER_API_KEY:?set MUNIN_SIDECAR_PROVIDER_API_KEY in .env}
-      MUNIN_SIDECAR_MODEL: ${MUNIN_SIDECAR_MODEL:-anthropic/claude-haiku-4.5}
-      MUNIN_SIDECAR_DEBOUNCE_MS: ${MUNIN_SIDECAR_DEBOUNCE_MS:-500}
-      MUNIN_SIDECAR_MAX_TOOL_ITERATIONS: ${MUNIN_SIDECAR_MAX_TOOL_ITERATIONS:-8}
-      MUNIN_SIDECAR_MAX_HISTORY_CHARS: ${MUNIN_SIDECAR_MAX_HISTORY_CHARS:-32000}
-      MUNIN_SIDECAR_CURATORS_DISABLED: ${MUNIN_SIDECAR_CURATORS_DISABLED:-0}
-      MUNIN_SIDECAR_KB_CURATION_ON_HANDOVER: ${MUNIN_SIDECAR_KB_CURATION_ON_HANDOVER:-1}
-
 volumes:
   munin-pg:

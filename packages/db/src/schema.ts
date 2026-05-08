@@ -1267,10 +1267,11 @@ export const cmsReferences = pgTable(
 );
 
 // ───────────────────────────── Curator jobs ──────────────────────────
-// Persistent queue for curator skill passes. The agent-sidecar (or any
-// admin-authenticated runner) claims pending rows, runs the skill, and
-// acks/fails. Survives sidecar restarts; provides at-least-once delivery
-// of (skillUri, userPrompt) work that originated from a backend event
+// Persistent queue for curator skill passes. The bundled in-process
+// runner (or any admin-authenticated runner) claims pending rows via
+// SELECT … FOR UPDATE SKIP LOCKED, runs the skill, and acks/fails.
+// Survives restarts; provides at-least-once delivery of (skillUri,
+// userPrompt) work that originated from a backend event
 // (handover_resolved → KB curation) or a scheduled sweep enqueue.
 export const curatorJobs = pgTable(
   'curator_jobs',

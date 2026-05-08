@@ -1,5 +1,35 @@
 # @getmunin/agent-host
 
+## 0.24.1
+
+### Patch Changes
+
+- 89cfd8e: fix(agent-host): use native auth for Anthropic /v1/models
+
+  Anthropic's OAI-compat shim accepts `Authorization: Bearer ...` for
+  `/v1/chat/completions` but not for `/v1/models` — that endpoint
+  requires the native `x-api-key` + `anthropic-version` headers.
+
+  `AgentModelsService.fetchModels` now picks headers based on the
+  provider URL: `x-api-key` + `anthropic-version: 2023-06-01` when the
+  URL is `api.anthropic.com`, Bearer otherwise (OpenRouter, OpenAI,
+  custom OAI-compat endpoints).
+
+- e8fe8b4: fix(agent-host): inline DEFAULT literals in singleton DDL
+
+  The drizzle `sql` template was interpolating two string constants
+  (`DEFAULT_CHAT_MODEL`, `DEFAULT_PROVIDER_BASE_URL`) as parameters
+  ($1, $2). Postgres rejects parameter binding in `DEFAULT` clauses
+  on `CREATE TABLE` with syntax error 42601, so `pnpm --filter
+@getmunin/backend migrate` failed on a fresh database. Inline the
+  literal values directly into the SQL.
+
+  Multi-tenant DDL was unaffected (no DEFAULTs).
+  - @getmunin/core@0.24.1
+  - @getmunin/db@0.24.1
+  - @getmunin/backend-core@0.24.1
+  - @getmunin/agent-runtime@0.24.1
+
 ## 0.24.0
 
 ### Minor Changes

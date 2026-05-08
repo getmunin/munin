@@ -120,17 +120,17 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
   private async reconcile(): Promise<void> {
     if (this.stopped) return;
-    let enabledIds: string[];
+    let provisionedIds: string[];
     try {
-      enabledIds = await runWithServiceContext(this.db, '_reconcile', () =>
-        this.repo.listEnabledIds(),
+      provisionedIds = await runWithServiceContext(this.db, '_reconcile', () =>
+        this.repo.listProvisionedIds(),
       );
     } catch (err) {
       this.logger.warn(`reconcile: failed to list configs: ${describe(err)}`);
       return;
     }
 
-    const desired = new Set(enabledIds);
+    const desired = new Set(provisionedIds);
 
     for (const [id, runner] of this.runners) {
       if (!desired.has(id)) {
@@ -146,7 +146,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       }
     }
 
-    for (const id of enabledIds) {
+    for (const id of provisionedIds) {
       if (this.runners.has(id)) continue;
       try {
         const runner = await this.spawnRunner(id);
@@ -160,7 +160,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     }
 
     if (this.lockManager) {
-      for (const id of enabledIds) {
+      for (const id of provisionedIds) {
         const got = await this.lockManager.tryAcquire(id);
         if (got && !this.lockManager.holds(id)) {
           this.logger.log(`acquired chat lock for ${id}`);

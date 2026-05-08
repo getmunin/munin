@@ -4,7 +4,6 @@ import type { AgentConfigRepository, AgentConfigRow } from './config.repository.
 
 const baseRow: AgentConfigRow = {
   id: 'singleton',
-  enabled: false,
   chatModel: 'anthropic/claude-haiku-4.5',
   curatorModel: null,
   providerBaseUrl: 'https://provider.example/v1',
@@ -24,7 +23,7 @@ function makeRepo(overrides: { apiKey?: string | null; row?: AgentConfigRow } = 
     resolveCurrentId: () => row.id,
     read: vi.fn().mockResolvedValue(row),
     update: vi.fn().mockResolvedValue(row),
-    listEnabledIds: vi.fn().mockResolvedValue([]),
+    listProvisionedIds: vi.fn().mockResolvedValue([]),
     readDecryptedProviderKey: vi.fn().mockResolvedValue(apiKey),
     readDecryptedAdminKey: vi.fn().mockResolvedValue(null),
   };

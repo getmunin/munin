@@ -9,7 +9,6 @@ import type { AdminKeyProvider } from './admin-key-provider.js';
 
 export interface AgentConfigDto {
   id: string;
-  enabled: boolean;
   chatModel: string;
   curatorModel: string | null;
   providerBaseUrl: string;
@@ -39,9 +38,12 @@ export class AgentConfigService {
     const before = await this.repo.read(id);
     const after = await this.repo.update(id, input);
 
-    if (input.enabled === true && !before.adminApiKeyId) {
+    const wasProvisioned = before.providerApiKeySet;
+    const isProvisioned = after.providerApiKeySet;
+
+    if (isProvisioned && !before.adminApiKeyId) {
       await this.adminKey.mint(id);
-    } else if (input.enabled === false && before.adminApiKeyId) {
+    } else if (wasProvisioned && !isProvisioned && before.adminApiKeyId) {
       await this.adminKey.revoke(id, before.adminApiKeyId);
     }
 
@@ -52,7 +54,6 @@ export class AgentConfigService {
 function toDto(row: AgentConfigRow): AgentConfigDto {
   return {
     id: row.id,
-    enabled: row.enabled,
     chatModel: row.chatModel,
     curatorModel: row.curatorModel,
     providerBaseUrl: row.providerBaseUrl,

@@ -132,14 +132,14 @@ const skipReason = TEST_URL
   }
 
   it('first runner claims; second runner is rejected', async () => {
-    const first = await call(`/api/conversations/${convId}/runner-claim`, {
+    const first = await call(`/api/v1/conversations/${convId}/runner-claim`, {
       method: 'POST',
       body: { holder: 'sidecar-A', leaseSeconds: 3600 },
     });
     expect(first.status).toBe(200);
     expect((first.body as { acquired: boolean }).acquired).toBe(true);
 
-    const second = await call(`/api/conversations/${convId}/runner-claim`, {
+    const second = await call(`/api/v1/conversations/${convId}/runner-claim`, {
       method: 'POST',
       body: { holder: 'sidecar-B', leaseSeconds: 3600 },
     });
@@ -150,11 +150,11 @@ const skipReason = TEST_URL
   });
 
   it('current holder can refresh its own lease', async () => {
-    await call(`/api/conversations/${convId}/runner-claim`, {
+    await call(`/api/v1/conversations/${convId}/runner-claim`, {
       method: 'POST',
       body: { holder: 'sidecar-A', leaseSeconds: 60 },
     });
-    const refresh = await call(`/api/conversations/${convId}/runner-claim`, {
+    const refresh = await call(`/api/v1/conversations/${convId}/runner-claim`, {
       method: 'POST',
       body: { holder: 'sidecar-A', leaseSeconds: 3600 },
     });
@@ -162,7 +162,7 @@ const skipReason = TEST_URL
   });
 
   it('expired lease can be taken over by another holder', async () => {
-    await call(`/api/conversations/${convId}/runner-claim`, {
+    await call(`/api/v1/conversations/${convId}/runner-claim`, {
       method: 'POST',
       body: { holder: 'sidecar-A', leaseSeconds: 60 },
     });
@@ -171,7 +171,7 @@ const skipReason = TEST_URL
       .set({ runnerLeaseExpiresAt: new Date(Date.now() - 60_000) })
       .where(eq(schema.convConversations.id, convId));
 
-    const takeover = await call(`/api/conversations/${convId}/runner-claim`, {
+    const takeover = await call(`/api/v1/conversations/${convId}/runner-claim`, {
       method: 'POST',
       body: { holder: 'sidecar-B', leaseSeconds: 3600 },
     });
@@ -187,17 +187,17 @@ const skipReason = TEST_URL
   });
 
   it('release works only for the current holder', async () => {
-    await call(`/api/conversations/${convId}/runner-claim`, {
+    await call(`/api/v1/conversations/${convId}/runner-claim`, {
       method: 'POST',
       body: { holder: 'sidecar-A', leaseSeconds: 3600 },
     });
-    const wrongRelease = await call(`/api/conversations/${convId}/runner-release`, {
+    const wrongRelease = await call(`/api/v1/conversations/${convId}/runner-release`, {
       method: 'POST',
       body: { holder: 'sidecar-B' },
     });
     expect((wrongRelease.body as { released: boolean }).released).toBe(false);
 
-    const correctRelease = await call(`/api/conversations/${convId}/runner-release`, {
+    const correctRelease = await call(`/api/v1/conversations/${convId}/runner-release`, {
       method: 'POST',
       body: { holder: 'sidecar-A' },
     });
@@ -211,11 +211,11 @@ const skipReason = TEST_URL
   });
 
   it('closing a conversation auto-clears the runner claim', async () => {
-    await call(`/api/conversations/${convId}/runner-claim`, {
+    await call(`/api/v1/conversations/${convId}/runner-claim`, {
       method: 'POST',
       body: { holder: 'sidecar-A', leaseSeconds: 3600 },
     });
-    const close = await call(`/api/conversations/${convId}/status`, {
+    const close = await call(`/api/v1/conversations/${convId}/status`, {
       method: 'POST',
       body: { status: 'closed' },
     });
@@ -250,7 +250,7 @@ const skipReason = TEST_URL
         internal: false,
       });
 
-    const racePost = await call(`/api/conversations/${convId}/messages`, {
+    const racePost = await call(`/api/v1/conversations/${convId}/messages`, {
       method: 'POST',
       body: { body: 'late reply from second runner', sinceMessageId: m1!.id },
     });

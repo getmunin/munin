@@ -20,7 +20,7 @@ describe('createRealtimeClient', () => {
     httpServer = createServer();
     wss = new WebSocketServer({ noServer: true });
     httpServer.on('upgrade', (req, socket, head) => {
-      if (!req.url?.startsWith('/api/realtime')) {
+      if (!req.url?.startsWith('/api/v1/realtime')) {
         socket.destroy();
         return;
       }

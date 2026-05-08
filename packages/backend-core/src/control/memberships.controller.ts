@@ -29,18 +29,7 @@ interface MembershipDto {
   isDefault: boolean;
 }
 
-/**
- * Cross-org listing + switching for the *current user* (session cookie auth).
- *
- * `GET /api/orgs/me/memberships` returns every org the caller is a member
- * of; `PATCH /api/orgs/me/memberships/active` flips `is_default` so the
- * session-cookie credential resolver picks that org on the next request.
- *
- * Bypasses RLS for these reads/writes because we need to span orgs; the
- * scope is hard-filtered by `actor.userId` so the caller can only see/touch
- * their own memberships.
- */
-@Controller('api/orgs/me/memberships')
+@Controller('api/v1/me/memberships')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class MembershipsController {

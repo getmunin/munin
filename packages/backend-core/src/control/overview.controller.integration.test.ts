@@ -90,7 +90,7 @@ const skipReason = TEST_URL
     kbCurationPending: number;
     crmMergeProposalsPending: number;
   }> {
-    const res = await fetch(`${baseUrl}/api/overview/backlog`, {
+    const res = await fetch(`${baseUrl}/api/v1/overview/backlog`, {
       headers: { authorization: `Bearer ${adminKey}` },
     });
     expect(res.ok).toBe(true);
@@ -125,7 +125,7 @@ const skipReason = TEST_URL
   });
 
   it('agent-status reports zero subscribers when nothing is connected', async () => {
-    const res = await fetch(`${baseUrl}/api/overview/agent-status`, {
+    const res = await fetch(`${baseUrl}/api/v1/overview/agent-status`, {
       headers: { authorization: `Bearer ${adminKeyA}` },
     });
     expect(res.ok).toBe(true);

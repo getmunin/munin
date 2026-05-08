@@ -715,7 +715,7 @@ function buildUnsubscribeUrl(input: {
     campaignId: input.campaignId,
   });
   const base = input.publicBaseUrl.replace(/\/+$/, '');
-  return `${base}/api/outreach/unsubscribe?token=${encodeURIComponent(token)}`;
+  return `${base}/api/v1/outreach/unsubscribe?token=${encodeURIComponent(token)}`;
 }
 
 function composeOutreachBody(input: {

@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   UseGuards,
   UseInterceptors,
@@ -41,7 +42,7 @@ interface ChannelListResponse {
   items: ChannelDto[];
 }
 
-@Controller('api/conv/channels')
+@Controller('api/v1/conversations/channels')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ConvChannelsController {
@@ -67,7 +68,7 @@ export class ConvChannelsController {
     return this.widgetTools.createChannel(parsed.data);
   }
 
-  @Post('widget/:id')
+  @Patch('widget/:id')
   @HttpCode(200)
   async updateWidget(
     @Param('id') id: string,

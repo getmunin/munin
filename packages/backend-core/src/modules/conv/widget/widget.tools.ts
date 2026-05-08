@@ -40,7 +40,7 @@ export class WidgetAdminTools {
     name: 'conv_widget_create_channel',
     title: 'Create chat-widget channel',
     description:
-      'Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /api/conv/widget/messages from the external agent.',
+      'Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /api/v1/widget/messages from the external agent.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateInput,

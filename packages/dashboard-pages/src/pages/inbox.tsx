@@ -212,7 +212,7 @@ export function InboxPage() {
 
   const loadInbox = useCallback(async () => {
     try {
-      const res = await api<InboxQueueResponse>('/api/inbox/queue');
+      const res = await api<InboxQueueResponse>('/api/v1/inbox');
       setItems(res.live);
       setDetails((prev) => mergeLive(prev, res.live));
       setQueue(buildQueue(res.queue));
@@ -224,7 +224,7 @@ export function InboxPage() {
 
   const loadDetail = useCallback(async (id: string) => {
     try {
-      const d = await api<ConversationDetail>(`/api/conversations/${id}`);
+      const d = await api<ConversationDetail>(`/api/v1/conversations/${id}`);
       setDetails((prev) => ({ ...prev, [id]: d }));
     } catch (err) {
       setError(messageOf(err));
@@ -244,7 +244,7 @@ export function InboxPage() {
     if (!queueDrawer || queueDrawer.kind !== 'kb') return;
     if (kbBodies[queueDrawer.id] !== undefined) return;
     void api<KbCandidateDto & { body: string }>(
-      `/api/kb/curation/candidates/${queueDrawer.id}`,
+      `/api/v1/kb/curation/candidates/${queueDrawer.id}`,
     )
       .then((doc) => setKbBodies((prev) => ({ ...prev, [queueDrawer.id]: doc.body })))
       .catch(() => {
@@ -274,7 +274,7 @@ export function InboxPage() {
   async function takeOver(id: string, openFullAfter = true) {
     setPending(true);
     try {
-      await api(`/api/conversations/${id}/take-over`, { method: 'POST', body: '{}' });
+      await api(`/api/v1/conversations/${id}/take-over`, { method: 'POST', body: '{}' });
       await Promise.all([loadDetail(id), loadInbox()]);
       if (openFullAfter) setConvDrawer({ id, mode: 'full' });
     } catch (err) {
@@ -287,7 +287,7 @@ export function InboxPage() {
   async function release(id: string) {
     setPending(true);
     try {
-      await api(`/api/conversations/${id}/release`, { method: 'POST', body: '{}' });
+      await api(`/api/v1/conversations/${id}/release`, { method: 'POST', body: '{}' });
       await Promise.all([loadDetail(id), loadInbox()]);
     } catch (err) {
       setError(messageOf(err));
@@ -299,7 +299,7 @@ export function InboxPage() {
   async function closeConv(id: string) {
     setPending(true);
     try {
-      await api(`/api/conversations/${id}/status`, {
+      await api(`/api/v1/conversations/${id}/status`, {
         method: 'POST',
         body: JSON.stringify({ status: 'closed' }),
       });
@@ -333,7 +333,7 @@ export function InboxPage() {
     });
     setPending(true);
     try {
-      await api(`/api/conversations/${id}/messages`, {
+      await api(`/api/v1/conversations/${id}/messages`, {
         method: 'POST',
         body: JSON.stringify({ body: trimmed }),
       });
@@ -356,14 +356,14 @@ export function InboxPage() {
     try {
       if (item.kind === 'kb') {
         const targetSlug = item.raw.proposedTargetSpaceSlug ?? 'support-faq';
-        await api(`/api/kb/curation/candidates/${item.id}/publish`, {
+        await api(`/api/v1/kb/curation/candidates/${item.id}/publish`, {
           method: 'POST',
           body: JSON.stringify({ targetSpaceSlug: targetSlug }),
         });
       } else if (item.kind === 'crm') {
-        await api(`/api/crm/merge-proposals/${item.id}/apply`, { method: 'POST' });
+        await api(`/api/v1/crm/merge-proposals/${item.id}/apply`, { method: 'POST' });
       } else {
-        await api(`/api/outreach/proposals/${item.id}/approve`, { method: 'POST' });
+        await api(`/api/v1/outreach/proposals/${item.id}/approve`, { method: 'POST' });
       }
       await loadInbox();
       setQueueDrawer(null);
@@ -378,13 +378,13 @@ export function InboxPage() {
     setPending(true);
     try {
       if (item.kind === 'kb') {
-        await api(`/api/kb/curation/candidates/${item.id}`, {
+        await api(`/api/v1/kb/curation/candidates/${item.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ body }),
         });
         setKbBodies((prev) => ({ ...prev, [item.id]: body }));
       } else if (item.kind === 'outreach') {
-        await api(`/api/outreach/proposals/${item.id}`, {
+        await api(`/api/v1/outreach/proposals/${item.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ draftBody: body }),
         });
@@ -402,14 +402,14 @@ export function InboxPage() {
     setPending(true);
     try {
       if (item.kind === 'kb') {
-        await api(`/api/kb/curation/candidates/${item.id}`, { method: 'DELETE' });
+        await api(`/api/v1/kb/curation/candidates/${item.id}/dismiss`, { method: 'POST' });
       } else if (item.kind === 'crm') {
-        await api(`/api/crm/merge-proposals/${item.id}/dismiss`, {
+        await api(`/api/v1/crm/merge-proposals/${item.id}/dismiss`, {
           method: 'POST',
           body: JSON.stringify({}),
         });
       } else {
-        await api(`/api/outreach/proposals/${item.id}/dismiss`, {
+        await api(`/api/v1/outreach/proposals/${item.id}/dismiss`, {
           method: 'POST',
           body: JSON.stringify({}),
         });
@@ -1233,7 +1233,7 @@ function ActivityRail({
   const refresh = useCallback(async () => {
     const param = contactId ? `contactId=${contactId}` : `conversationId=${conversationId}`;
     try {
-      const page = await api<{ items: ActivityDto[] }>(`/api/activity?${param}&limit=20`);
+      const page = await api<{ items: ActivityDto[] }>(`/api/v1/activity?${param}&limit=20`);
       setEvents(page.items);
       last.current = page.items[0]?.id ?? null;
     } catch {

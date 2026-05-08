@@ -24,7 +24,7 @@ Adapters are Nest providers registered via the multi-injection token `CHANNEL_AD
 ## Choose the right inbound mode
 
 - **`poll`** — provider doesn't push to us; we fetch on a timer. Email IMAP is the canonical example. Per-channel cursor lives in `conv_inbound_state.cursor` (jsonb, adapter-defined shape).
-- **`webhook`** — provider POSTs to `/api/channels/:channelId/webhook`. Adapter's `verify` checks the signature (Twilio HMAC, Telnyx Ed25519, …) and returns parsed messages. Best for SMS, voice transcripts, Slack events.
+- **`webhook`** — provider POSTs to `/api/v1/conversations/channels/:channelId/webhook`. Adapter's `verify` checks the signature (Twilio HMAC, Telnyx Ed25519, …) and returns parsed messages. Best for SMS, voice transcripts, Slack events.
 - **`push`** — caller is an authenticated agent that hits a public endpoint with a per-channel API key. Chat widget uses this. Adapter exposes its own `@Controller` (the runtime doesn't drive it); `inbound: { mode: 'push' }` just declares the mode.
 
 ## Author a new adapter — checklist

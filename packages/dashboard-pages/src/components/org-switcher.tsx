@@ -31,7 +31,7 @@ export function OrgSwitcher() {
   const [switching, setSwitching] = useState<string | null>(null);
 
   useEffect(() => {
-    void api<MembershipDto[]>('/api/orgs/me/memberships')
+    void api<MembershipDto[]>('/api/v1/me/memberships')
       .then(setMemberships)
       .catch((err: unknown) => setError(translate(err) || t('errors.load')));
   }, [t, translate]);
@@ -52,7 +52,7 @@ export function OrgSwitcher() {
     if (orgId === active.orgId) return;
     setSwitching(orgId);
     try {
-      await api('/api/orgs/me/memberships/active', {
+      await api('/api/v1/me/memberships/active', {
         method: 'PATCH',
         body: JSON.stringify({ orgId }),
       });

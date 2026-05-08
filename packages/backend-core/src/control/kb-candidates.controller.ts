@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   Param,
@@ -38,7 +37,7 @@ interface CandidateListResponse {
   items: CurationCandidateSummary[];
 }
 
-@Controller('api/kb/curation/candidates')
+@Controller('api/v1/kb/curation/candidates')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class KbCandidatesController {
@@ -86,7 +85,7 @@ export class KbCandidatesController {
     );
   }
 
-  @Delete(':id')
+  @Post(':id/dismiss')
   @HttpCode(200)
   async dismiss(@Param('id') id: string): Promise<{ dismissed: true }> {
     const doc = await translate(() => this.kb.getDocument(id));
@@ -95,7 +94,7 @@ export class KbCandidatesController {
   }
 }
 
-@Controller('api/kb/spaces')
+@Controller('api/v1/kb/spaces')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class KbSpacesController {

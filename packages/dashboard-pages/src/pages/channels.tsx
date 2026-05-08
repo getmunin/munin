@@ -77,7 +77,7 @@ export function ChannelsPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const list = await api<{ items: ChannelDto[] }>('/api/conv/channels');
+      const list = await api<{ items: ChannelDto[] }>('/api/v1/conversations/channels');
       setChannels(list.items);
     } catch (err) {
       setError(translate(err) || t('errors.load'));
@@ -92,7 +92,7 @@ export function ChannelsPage() {
     if (!confirm(t('rotateConfirm', { name: channel.name }))) return;
     try {
       const result = await api<{ widgetKey: string }>(
-        `/api/conv/channels/widget/${channel.id}/rotate-key`,
+        `/api/v1/conversations/channels/widget/${channel.id}/rotate-key`,
         { method: 'POST' },
       );
       setRotated({ id: channel.id, name: channel.name, widgetKey: result.widgetKey });
@@ -298,7 +298,7 @@ function EmailTestButton({
     setResult(null);
     try {
       const r = await api<{ smtp: string; imap: string }>(
-        `/api/conv/channels/email/${channelId}/test`,
+        `/api/v1/conversations/channels/email/${channelId}/test`,
         { method: 'POST' },
       );
       setResult(r);
@@ -374,7 +374,7 @@ function CreateWidgetDialog({
         .split(/[\s,]+/)
         .map((s) => s.trim())
         .filter(Boolean);
-      const created = await api<CreatedWidget>('/api/conv/channels/widget', {
+      const created = await api<CreatedWidget>('/api/v1/conversations/channels/widget', {
         method: 'POST',
         body: JSON.stringify({
           name: name.trim(),
@@ -515,7 +515,7 @@ function CreateEmailDialog({
           ...(imapMailbox.trim() ? { mailbox: imapMailbox.trim() } : {}),
         };
       }
-      await api('/api/conv/channels/email', {
+      await api('/api/v1/conversations/channels/email', {
         method: 'POST',
         body: JSON.stringify({ name: name.trim(), config }),
       });

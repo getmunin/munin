@@ -22,16 +22,13 @@ export const agentConfig = pgTable('agent_config', {
 
 export const SINGLETON_ID = 'singleton' as const;
 
-const DEFAULT_CHAT_MODEL = 'anthropic/claude-haiku-4.5';
-const DEFAULT_PROVIDER_BASE_URL = 'https://openrouter.ai/api/v1';
-
 export const AGENT_HOST_SINGLETON_DDL = sql`
   CREATE TABLE IF NOT EXISTS agent_config (
     id text PRIMARY KEY DEFAULT 'singleton',
     enabled boolean NOT NULL DEFAULT false,
-    chat_model text NOT NULL DEFAULT ${DEFAULT_CHAT_MODEL},
+    chat_model text NOT NULL DEFAULT 'anthropic/claude-haiku-4.5',
     curator_model text,
-    provider_base_url text NOT NULL DEFAULT ${DEFAULT_PROVIDER_BASE_URL},
+    provider_base_url text NOT NULL DEFAULT 'https://openrouter.ai/api/v1',
     provider_api_key_ct text,
     admin_api_key_ct text,
     admin_api_key_id text,

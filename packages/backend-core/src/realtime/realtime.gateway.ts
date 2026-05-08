@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { IncomingMessage } from 'node:http';
+import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { Db } from '@getmunin/db';
 import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
@@ -56,9 +56,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       this.logger.log('realtime gateway disabled via MUNIN_REALTIME_DISABLED');
       return;
     }
-    const httpServer = this.adapterHost.httpAdapter.getHttpServer() as
-      | { on(event: string, listener: (...args: unknown[]) => void): void }
-      | null;
+    const httpServer = this.adapterHost.httpAdapter.getHttpServer() as HttpServer | null;
     if (!httpServer) {
       this.logger.warn('http server not available; realtime gateway inactive');
       return;
@@ -81,10 +79,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       void this.handleUpgrade(req, socket, head);
     };
     this.upgradeListener = listener;
-    (httpServer as unknown as { on: (e: string, l: typeof listener) => void }).on(
-      'upgrade',
-      listener,
-    );
+    httpServer.on('upgrade', listener);
     this.logger.log(`gateway listening on ${PATH}`);
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/bootstrap",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "license": "MIT",
   "description": "Munin bootstrap engine: agent-driven app configuration via Q&A flows.",
   "publishConfig": {

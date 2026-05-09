@@ -1,5 +1,14 @@
 # @getmunin/bootstrap
 
+## 2.3.0
+
+### Patch Changes
+
+- Updated dependencies [d07dc99]
+  - @getmunin/db@2.3.0
+  - @getmunin/core@2.3.0
+  - @getmunin/types@2.3.0
+
 ## 2.2.0
 
 ### Patch Changes

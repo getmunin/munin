@@ -6,8 +6,8 @@ import { hashSecret } from './crypto.js';
 
 export interface ResolvedCredential {
   actor: ActorIdentity;
-  /** When the credential expires; undefined for non-expiring API keys. */
   expiresAt?: Date;
+  audience?: string;
 }
 
 /**
@@ -102,7 +102,11 @@ export class CredentialResolver {
       tokenRow.userId,
     );
 
-    return { actor, expiresAt: tokenRow.accessTokenExpiresAt };
+    return {
+      actor,
+      expiresAt: tokenRow.accessTokenExpiresAt,
+      audience: oauthMcpResourceAudience(),
+    };
   }
 
   /**
@@ -210,6 +214,11 @@ export class CredentialResolver {
       .limit(1);
     return rows[0]?.userId ?? null;
   }
+}
+
+function oauthMcpResourceAudience(): string {
+  const base = (process.env.MUNIN_PUBLIC_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  return `${base}/mcp`;
 }
 
 function deriveAudiencesFromScopes(scopes: string[]): Audience[] {

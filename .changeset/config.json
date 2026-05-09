@@ -7,6 +7,6 @@
   "access": "restricted",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@getmunin/backend", "@getmunin/web", "@getmunin/eslint-config", "@getmunin/tsconfig"]
+  "ignore": ["@getmunin/backend", "@getmunin/chat-widget", "@getmunin/web", "@getmunin/eslint-config", "@getmunin/tsconfig"]
 }
 

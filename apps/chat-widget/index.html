@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Munin chat widget — dev harness</title>
+  </head>
+  <body>
+    <h1>Munin chat widget</h1>
+    <p>Local dev harness. Edit attributes below to test the parser.</p>
+    <script
+      type="module"
+      src="/src/widget.ts"
+      data-munin-host="http://localhost:3001"
+      data-widget-key="mn_widget_dev_local"
+      data-channel-id="cnv_dev_local"
+      data-munin-theme-color="#10b981"
+      data-munin-position="bottom-right"
+      data-munin-greeting="Hey there!"
+      data-munin-title="Support"
+    ></script>
+  </body>
+</html>

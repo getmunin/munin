@@ -2,8 +2,11 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
+  Headers,
   Inject,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -13,8 +16,12 @@ import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../../../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../../../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../../../common/audit/audit.interceptor.js';
-import { WidgetIngestInput } from './widget.types.js';
-import type { WidgetIngestInputT, WidgetIngestResult } from './widget.types.js';
+import { WidgetIngestInput, WidgetListMessagesQuery } from './widget.types.js';
+import type {
+  WidgetIngestInputT,
+  WidgetIngestResult,
+  WidgetListMessagesResult,
+} from './widget.types.js';
 import { WidgetIngestService } from './widget-ingest.service.js';
 
 /**
@@ -36,7 +43,10 @@ export class WidgetController {
   constructor(@Inject(WidgetIngestService) private readonly ingestService: WidgetIngestService) {}
 
   @Post('messages')
-  async ingest(@Body() rawBody: unknown): Promise<WidgetIngestResult> {
+  async ingest(
+    @Body() rawBody: unknown,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetIngestResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor;
     if (!actor) throw new ForbiddenException('widget_auth_required');
@@ -61,6 +71,46 @@ export class WidgetController {
     }
 
     const orgId = key.orgId ?? actor.orgId;
-    return this.ingestService.ingest(orgId, input);
+    return this.ingestService.ingest(orgId, input, { origin });
+  }
+
+  /**
+   * Backfill endpoint used by the widget on (re)connect to catch up on
+   * messages dropped while the WebSocket was offline. Same auth + channel-
+   * binding + origin checks as the POST. Capped at 100 messages per call;
+   * `hasMore: true` means the caller should re-fetch with `since=` set to
+   * the last seen `at`. Not for polling — the widget keeps a WS open and
+   * only calls this on connect / reconnect.
+   */
+  @Get('messages')
+  async list(
+    @Query() rawQuery: Record<string, string>,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetListMessagesResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor) throw new ForbiddenException('widget_auth_required');
+
+    const keyRow = await ctx.db
+      .select({ channelId: schema.apiKeys.channelId, orgId: schema.apiKeys.orgId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, actor.id))
+      .limit(1);
+    const key = keyRow[0];
+    if (!key || !key.channelId) {
+      throw new ForbiddenException('widget_key_required');
+    }
+
+    const parsed = WidgetListMessagesQuery.safeParse(rawQuery);
+    if (!parsed.success) {
+      throw new ForbiddenException(`invalid_widget_query: ${parsed.error.message}`);
+    }
+    const query = parsed.data;
+    if (query.channelId !== key.channelId) {
+      throw new ForbiddenException('widget_channel_mismatch');
+    }
+
+    const orgId = key.orgId ?? actor.orgId;
+    return this.ingestService.listMessages(orgId, query, { origin });
   }
 }

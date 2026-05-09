@@ -1,5 +1,26 @@
 # @getmunin/backend-core
 
+## 2.2.0
+
+### Minor Changes
+
+- f4515d8: feat(oauth): MCP resource discovery + WWW-Authenticate (Phase 1)
+
+  First step toward MCP-spec OAuth 2.1 compliance:
+  - New `GET /.well-known/oauth-protected-resource` (RFC 9728) describing the `/mcp` resource: where it lives, which authorization servers can issue tokens for it, supported scopes (`mcp:tools`, `mcp:admin`, `mcp:self_service`, `kb:read`, `conv:write`, …), bearer transport.
+  - `AuthGuard` emits `WWW-Authenticate: Bearer resource_metadata="…"` on 401 responses for `/mcp/*` requests, per the MCP authorization spec. Other authenticated routes are unchanged.
+  - New `OAuthModule` exported from `@getmunin/backend-core` so cloud picks it up automatically.
+
+  This phase publishes the resource-side metadata. The authorization server endpoints (Better-Auth `oidcProvider`, RFC 8707 resource indicators, consent UI) come in subsequent phases. Existing API key + delegated token flows are untouched.
+
+### Patch Changes
+
+- @getmunin/core@2.2.0
+- @getmunin/db@2.2.0
+- @getmunin/types@2.2.0
+- @getmunin/mcp-toolkit@2.2.0
+- @getmunin/bootstrap@2.2.0
+
 ## 2.1.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @getmunin/dashboard-pages
 
+## 2.2.0
+
+### Patch Changes
+
+- @getmunin/ui@2.2.0
+
 ## 2.1.0
 
 ### Minor Changes

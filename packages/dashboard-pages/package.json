@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@getmunin/ui": "workspace:*",
-    "better-auth": "^1.6.9",
+    "better-auth": "^1.6.10",
     "lucide-react": "^1.11.0"
   },
   "peerDependencies": {

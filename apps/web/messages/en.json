@@ -235,6 +235,21 @@
         "revoke": "Could not revoke API key."
       }
     },
+    "oauthConsent": {
+      "title": "Authorize <client></client>?",
+      "lede": "An external application is asking for access to your Munin account. Review the requested scopes before deciding.",
+      "applicationLabel": "Application",
+      "scopesLabel": "Requested scopes",
+      "noScopes": "(no scopes requested)",
+      "authorize": "Authorize",
+      "authorizing": "Authorizing…",
+      "deny": "Deny",
+      "denying": "Denying…",
+      "missingParams": "Missing OAuth request. Return to the application that started the authorization flow.",
+      "errors": {
+        "generic": "Something went wrong. Please try again."
+      }
+    },
     "team": {
       "title": "Team",
       "subtitle": "Members and pending invitations for this org. Owners can invite others, change roles, and remove members; members can use the apps but can't manage access.",

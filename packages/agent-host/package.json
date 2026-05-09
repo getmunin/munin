@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/agent-host",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "license": "MIT",
   "description": "In-process agent runner host: config CRUD, /v1/models proxy, ConversationHandler + curator-loop.",
   "publishConfig": {

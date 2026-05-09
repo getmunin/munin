@@ -1,0 +1,32 @@
+import { Controller, Get, Header } from '@nestjs/common';
+import { AllowAnonymous } from '../common/auth/auth.guard.js';
+import {
+  authorizationServerUrl,
+  mcpResourceUrl,
+  SUPPORTED_SCOPES,
+} from './oauth.constants.js';
+
+interface ProtectedResourceMetadata {
+  resource: string;
+  authorization_servers: string[];
+  scopes_supported: readonly string[];
+  bearer_methods_supported: readonly string[];
+  resource_documentation?: string;
+}
+
+@Controller('.well-known/oauth-protected-resource')
+export class OAuthResourceController {
+  @Get()
+  @AllowAnonymous()
+  @Header('content-type', 'application/json; charset=utf-8')
+  @Header('cache-control', 'public, max-age=3600')
+  metadata(): ProtectedResourceMetadata {
+    return {
+      resource: mcpResourceUrl(),
+      authorization_servers: [authorizationServerUrl()],
+      scopes_supported: SUPPORTED_SCOPES,
+      bearer_methods_supported: ['header'],
+      resource_documentation: `${authorizationServerUrl()}/docs`,
+    };
+  }
+}

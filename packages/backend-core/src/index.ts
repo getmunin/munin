@@ -49,6 +49,15 @@ export { CmsModule } from './modules/cms/cms.module.js';
 export { RateLimitModule } from './common/rate-limit/rate-limit.module.js';
 export { QuotasModule } from './common/quotas/quotas.module.js';
 export { WebhookModule } from './common/webhooks/webhook.module.js';
+export { OAuthModule } from './oauth/oauth.module.js';
+export {
+  MCP_RESOURCE_PATH,
+  SUPPORTED_SCOPES,
+  type SupportedScope,
+  mcpResourceUrl,
+  authorizationServerUrl,
+  resourceMetadataUrl,
+} from './oauth/oauth.constants.js';
 
 export { HealthController } from './common/health.controller.js';
 export { WhoamiController } from './common/whoami.controller.js';

@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/types",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "license": "MIT",
   "description": "Shared Zod schemas + TypeScript types for the Munin platform.",
   "publishConfig": {

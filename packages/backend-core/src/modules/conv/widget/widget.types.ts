@@ -7,6 +7,21 @@ export const WidgetChannelConfig = z.object({
   originAllowlist: z.array(z.string().url()).default([]),
   /** Optional webhook called when a human/agent reply lands so the external bot can step back. */
   webhookOnEscalation: z.string().url().optional(),
+  /**
+   * Per-channel HMAC secret for browser-side visitor identity verification.
+   * The operator's server signs `externalId` with this secret and embeds the
+   * resulting hex digest as `data-user-hash` on the widget script tag; Munin
+   * recomputes the HMAC on every request and rejects mismatches. Stored
+   * plaintext because we must reproduce the digest server-side; protected by
+   * RLS like the rest of the channel config.
+   */
+  identityVerificationSecret: z.string().min(32).max(256).optional(),
+  /**
+   * When true, the widget API rejects anonymous (sessionId-only) requests.
+   * Every POST/GET/WS-subscribe must carry a verified `(externalId, userHash)`
+   * pair. Default false: anonymous chat is allowed.
+   */
+  requireVerifiedIdentity: z.boolean().default(false),
 });
 
 export type WidgetChannelConfigT = z.infer<typeof WidgetChannelConfig>;

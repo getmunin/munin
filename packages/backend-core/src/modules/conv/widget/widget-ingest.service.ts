@@ -7,9 +7,21 @@ import {
 } from '@nestjs/common';
 import { schema, type Tx } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
-import { WebhookDispatcher, getCurrentContext } from '@getmunin/core';
+import { WebhookDispatcher, getCurrentContext, verifyHmac } from '@getmunin/core';
 import { WidgetChannelConfig } from './widget.types.js';
 import type { WidgetIngestInputT, WidgetIngestResult } from './widget.types.js';
+
+/**
+ * Outcome of identity verification. The verified branch carries the
+ * trusted externalId for downstream contact binding; the anonymous branch
+ * means the operator did not assert an identity and the conversation is
+ * keyed by sessionId only. Failures throw `ForbiddenException` instead of
+ * returning so callers can't accidentally proceed on a partial / mismatched
+ * pair.
+ */
+export type IdentityResolution =
+  | { mode: 'verified'; externalId: string }
+  | { mode: 'anonymous' };
 
 /**
  * Idempotent ingestion of one widget batch into conv_*. Called from the
@@ -23,21 +35,32 @@ import type { WidgetIngestInputT, WidgetIngestResult } from './widget.types.js';
 export class WidgetIngestService {
   constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
 
-  async ingest(orgId: string, input: WidgetIngestInputT): Promise<WidgetIngestResult> {
+  async ingest(
+    orgId: string,
+    input: WidgetIngestInputT,
+    requestContext: { origin?: string } = {},
+  ): Promise<WidgetIngestResult> {
     const ctx = getCurrentContext();
     // Local-to-tx bypass; we already inside the request transaction and just
     // need to open up writes to conv_* against the bound channel's org.
     await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-    return this.ingestInTx(ctx.db as Tx, orgId, input);
+    return this.ingestInTx(ctx.db as Tx, orgId, input, requestContext);
   }
 
   private async ingestInTx(
     tx: Tx,
     orgId: string,
     input: WidgetIngestInputT,
+    requestContext: { origin?: string },
   ): Promise<WidgetIngestResult> {
     const channel = await this.loadChannel(tx, orgId, input.channelId);
-    const contact = await this.findOrCreateContact(tx, orgId, input);
+    const channelConfig = WidgetChannelConfig.parse(channel.config);
+    enforceOriginAllowlist(channelConfig, requestContext.origin);
+    const identity = verifyIdentity(channelConfig, {
+      verifiedExternalId: input.verifiedExternalId,
+      userHash: input.userHash,
+    });
+    const contact = await this.findOrCreateContact(tx, orgId, input, identity);
 
     const conv = await this.findOrCreateConversation(tx, orgId, channel.id, contact.id, input);
 
@@ -152,7 +175,47 @@ export class WidgetIngestService {
     tx: Tx,
     orgId: string,
     input: WidgetIngestInputT,
+    identity: IdentityResolution,
   ): Promise<typeof schema.convContacts.$inferSelect> {
+    // Verified mode: bind by `(orgId, metadata.externalId)` so the same user
+    // across multiple sessions / devices collapses to a single contact.
+    if (identity.mode === 'verified') {
+      const verifiedRows = await tx
+        .select()
+        .from(schema.convContacts)
+        .where(
+          and(
+            eq(schema.convContacts.orgId, orgId),
+            sql`${schema.convContacts.metadata}->>'externalId' = ${identity.externalId}`,
+          ),
+        )
+        .limit(1);
+      if (verifiedRows[0]) {
+        if (input.visitor?.name && !verifiedRows[0].name) {
+          await tx
+            .update(schema.convContacts)
+            .set({ name: input.visitor.name, updatedAt: new Date() })
+            .where(eq(schema.convContacts.id, verifiedRows[0].id));
+        }
+        return verifiedRows[0];
+      }
+      const lowerEmailV = input.visitor?.email?.trim().toLowerCase();
+      const [created] = await tx
+        .insert(schema.convContacts)
+        .values({
+          orgId,
+          email: lowerEmailV ?? null,
+          name: input.visitor?.name ?? null,
+          metadata: {
+            sessionId: input.sessionId,
+            externalId: identity.externalId,
+            ...(input.visitor?.metadata ?? {}),
+          },
+        })
+        .returning();
+      return created!;
+    }
+
     const lowerEmail = input.visitor?.email?.trim().toLowerCase();
     if (lowerEmail) {
       const existing = await tx
@@ -252,4 +315,78 @@ function isUniqueViolation(err: unknown): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Reject browser-style requests (those with an `Origin` header) whose
+ * origin is not on the channel's allowlist. Server-to-server callers omit
+ * `Origin` and pass through unconditionally — they're authenticated by the
+ * widget API key alone, which is meant to live server-side. Empty
+ * allowlists fail closed for browser callers.
+ */
+export function enforceOriginAllowlist(
+  channelConfig: { originAllowlist: string[] },
+  origin: string | undefined,
+): void {
+  if (!origin) return;
+  const allowed = (channelConfig.originAllowlist ?? []).some((entry) =>
+    originMatches(entry, origin),
+  );
+  if (!allowed) throw new ForbiddenException('origin_not_allowed');
+}
+
+function originMatches(allowlistEntry: string, origin: string): boolean {
+  // Allowlist entries are full URLs (e.g. `https://customer.example`) per
+  // the WidgetChannelConfig schema; compare on origin (scheme+host+port)
+  // so trailing paths or slashes in the config don't cause false negatives.
+  try {
+    const a = new URL(allowlistEntry).origin;
+    const b = new URL(origin).origin;
+    return a === b;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve a widget request's visitor identity against the channel's
+ * verification config. Pure function: same input ⇒ same output, no I/O.
+ *
+ * - Both `verifiedExternalId` and `userHash` set, secret configured, HMAC
+ *   matches ⇒ verified.
+ * - Both unset, channel allows anonymous ⇒ anonymous.
+ * - Anything else (one without the other, mismatched HMAC, missing secret
+ *   when verification is attempted, anonymous when channel requires
+ *   verification) ⇒ ForbiddenException with a generic code so callers can't
+ *   distinguish "wrong secret" from "wrong externalId" by response or
+ *   timing. The HMAC compare itself is timing-safe via `verifyHmac`.
+ */
+export function verifyIdentity(
+  channelConfig: { identityVerificationSecret?: string; requireVerifiedIdentity: boolean },
+  input: { verifiedExternalId?: string; userHash?: string },
+): IdentityResolution {
+  const hasExt = !!input.verifiedExternalId;
+  const hasHash = !!input.userHash;
+
+  if (hasExt !== hasHash) {
+    throw new ForbiddenException('identity_partial');
+  }
+
+  if (hasExt && hasHash) {
+    if (!channelConfig.identityVerificationSecret) {
+      throw new ForbiddenException('identity_verification_failed');
+    }
+    const ok = verifyHmac(
+      input.verifiedExternalId!,
+      channelConfig.identityVerificationSecret,
+      input.userHash!.toLowerCase(),
+    );
+    if (!ok) throw new ForbiddenException('identity_verification_failed');
+    return { mode: 'verified', externalId: input.verifiedExternalId! };
+  }
+
+  if (channelConfig.requireVerifiedIdentity) {
+    throw new ForbiddenException('identity_required');
+  }
+  return { mode: 'anonymous' };
 }

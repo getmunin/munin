@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Headers,
   Inject,
   Post,
   UseGuards,
@@ -36,7 +37,10 @@ export class WidgetController {
   constructor(@Inject(WidgetIngestService) private readonly ingestService: WidgetIngestService) {}
 
   @Post('messages')
-  async ingest(@Body() rawBody: unknown): Promise<WidgetIngestResult> {
+  async ingest(
+    @Body() rawBody: unknown,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetIngestResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor;
     if (!actor) throw new ForbiddenException('widget_auth_required');
@@ -61,6 +65,6 @@ export class WidgetController {
     }
 
     const orgId = key.orgId ?? actor.orgId;
-    return this.ingestService.ingest(orgId, input);
+    return this.ingestService.ingest(orgId, input, { origin });
   }
 }

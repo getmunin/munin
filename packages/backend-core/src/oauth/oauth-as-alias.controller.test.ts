@@ -22,12 +22,14 @@ describe('OAuthAsAliasController', () => {
       authorization_endpoint: 'https://api.example.test/auth/oauth2/authorize',
       token_endpoint: 'https://api.example.test/auth/oauth2/token',
     };
-    global.fetch = vi.fn(async () =>
-      new Response(JSON.stringify(fakeMeta), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    ) as typeof fetch;
+    global.fetch = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(fakeMeta), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
 
     const out = await new OAuthAsAliasController().metadata();
     expect(out).toEqual(fakeMeta);
@@ -38,7 +40,9 @@ describe('OAuthAsAliasController', () => {
   });
 
   it('throws 502 when upstream is unreachable', async () => {
-    global.fetch = vi.fn(async () => new Response('boom', { status: 500 })) as typeof fetch;
+    global.fetch = vi.fn(() =>
+      Promise.resolve(new Response('boom', { status: 500 })),
+    );
     await expect(new OAuthAsAliasController().metadata()).rejects.toMatchObject({
       status: 502,
     });

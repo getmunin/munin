@@ -69,12 +69,11 @@ const PRESET_BASE_URL = `http://127.0.0.1:${FIXED_PORT}`;
       expect(body.code_challenge_methods_supported).toContain('S256');
     });
 
-    it('exposes the upstream openid-configuration document', async () => {
-      const res = await fetch(`${baseUrl}/auth/.well-known/openid-configuration`);
+    it('exposes the JWKS endpoint for token verification', async () => {
+      const res = await fetch(`${baseUrl}/auth/jwks`);
       expect(res.status).toBe(200);
-      const body = (await res.json()) as Record<string, unknown>;
-      expect(body.issuer).toBe(baseUrl);
-      expect(body.registration_endpoint).toBe(`${baseUrl}/auth/oauth2/register`);
+      const body = (await res.json()) as { keys?: unknown };
+      expect(Array.isArray(body.keys)).toBe(true);
     });
   });
 

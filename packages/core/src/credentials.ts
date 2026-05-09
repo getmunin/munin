@@ -71,13 +71,12 @@ export class CredentialResolver {
   ): Promise<ResolvedCredential | null> {
     const tokenRows = await this.db
       .select()
-      .from(schema.oauthAccessTokens)
-      .where(eq(schema.oauthAccessTokens.accessToken, rawToken))
+      .from(schema.oauthAccessToken)
+      .where(eq(schema.oauthAccessToken.token, rawToken))
       .limit(1);
     const tokenRow = tokenRows[0];
     if (!tokenRow) return null;
-    const now = new Date();
-    if (tokenRow.accessTokenExpiresAt < now) return null;
+    if (tokenRow.expiresAt < new Date()) return null;
     if (!tokenRow.userId) return null;
 
     const memberships = await this.db
@@ -87,7 +86,7 @@ export class CredentialResolver {
     const active = memberships.find((m) => m.isDefault) ?? memberships[0];
     if (!active) return null;
 
-    const scopes = tokenRow.scopes.trim().length > 0 ? tokenRow.scopes.split(/\s+/) : [];
+    const scopes = tokenRow.scopes;
     const audiences = deriveAudiencesFromScopes(scopes);
 
     const actor = new ActorIdentity(
@@ -104,7 +103,7 @@ export class CredentialResolver {
 
     return {
       actor,
-      expiresAt: tokenRow.accessTokenExpiresAt,
+      expiresAt: tokenRow.expiresAt,
       audience: oauthMcpResourceAudience(),
     };
   }

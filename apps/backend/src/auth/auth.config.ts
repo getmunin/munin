@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { oidcProvider } from 'better-auth/plugins';
+import { jwt } from 'better-auth/plugins';
+import { oauthProvider } from '@better-auth/oauth-provider';
 import { APIError } from 'better-auth/api';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
@@ -21,7 +22,7 @@ const SUPPORTED_SCOPES = [
   'crm:write',
   'cms:read',
   'cms:write',
-];
+] as const;
 
 const asMuninAuth = (instance: unknown): BetterAuthInstance => instance as BetterAuthInstance;
 import { schema, type Db } from '@getmunin/db';
@@ -72,21 +73,23 @@ export function createMuninAuth({
         session: schema.sessions,
         account: schema.accounts,
         verification: schema.verifications,
-        oauthApplication: schema.oauthApplications,
-        oauthAccessToken: schema.oauthAccessTokens,
-        oauthConsent: schema.oauthConsents,
+        oauthClient: schema.oauthClient,
+        oauthAccessToken: schema.oauthAccessToken,
+        oauthRefreshToken: schema.oauthRefreshToken,
+        oauthConsent: schema.oauthConsent,
+        jwks: schema.jwks,
       },
     }),
     plugins: [
-      oidcProvider({
+      jwt({ jwt: { issuer: baseUrl.replace(/\/+$/, '') } }),
+      oauthProvider({
         loginPage: `${dashboardUrl}/login`,
         consentPage: `${dashboardUrl}/dashboard/oauth/consent`,
         allowDynamicClientRegistration: true,
-        requirePKCE: true,
-        scopes: SUPPORTED_SCOPES,
-        metadata: {
-          scopes_supported: SUPPORTED_SCOPES,
-        },
+        allowUnauthenticatedClientRegistration: true,
+        scopes: [...SUPPORTED_SCOPES],
+        validAudiences: [`${baseUrl.replace(/\/+$/, '')}/mcp`],
+        silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
       }),
     ],
     emailAndPassword: {

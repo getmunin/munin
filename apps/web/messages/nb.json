@@ -235,6 +235,21 @@
         "revoke": "Kunne ikke tilbakekalle API-nøkkel."
       }
     },
+    "oauthConsent": {
+      "title": "Gi <client></client> tilgang?",
+      "lede": "En ekstern applikasjon ber om tilgang til Munin-kontoen din. Gå gjennom forespurte tillatelser før du bestemmer deg.",
+      "applicationLabel": "Applikasjon",
+      "scopesLabel": "Forespurte tillatelser",
+      "noScopes": "(ingen tillatelser forespurt)",
+      "authorize": "Gi tilgang",
+      "authorizing": "Gir tilgang …",
+      "deny": "Avslå",
+      "denying": "Avslår …",
+      "missingParams": "Mangler OAuth-forespørsel. Gå tilbake til applikasjonen som startet autoriseringen.",
+      "errors": {
+        "generic": "Noe gikk galt. Prøv igjen."
+      }
+    },
     "team": {
       "title": "Team",
       "subtitle": "Medlemmer og ventende invitasjoner for denne organisasjonen. Eiere kan invitere andre, endre roller og fjerne medlemmer; medlemmer kan bruke appene, men kan ikke administrere tilgang.",

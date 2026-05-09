@@ -118,6 +118,14 @@ export const verifications = pgTable(
   }),
 );
 
+export const jwks = pgTable('jwks', {
+  id: id('jwk'),
+  publicKey: text('public_key').notNull(),
+  privateKey: text('private_key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+});
+
 // Membership: which users belong to which orgs. Many-to-many — a user can
 // be a member of multiple orgs (their personal org plus any team orgs
 // they were invited to). `role` gates membership-management actions: only
@@ -243,71 +251,110 @@ export const oauthClients = pgTable(
   }),
 );
 
-// Better-Auth OIDC provider plugin tables. The plugin owns its own model
-// (separate from the legacy `oauthClients` table above) so Better-Auth can
-// run unmodified. The plugin's expected fields are reflected here verbatim;
-// renaming any column requires a corresponding `schema:` mapping in the
-// plugin config.
-export const oauthApplications = pgTable(
-  'oauth_applications',
+export const oauthClient = pgTable(
+  'oauth_client',
   {
-    id: id('oapp'),
+    id: id('oclt'),
     clientId: text('client_id').notNull().unique(),
     clientSecret: text('client_secret'),
-    type: text('type').notNull(),
-    name: text('name').notNull(),
-    icon: text('icon'),
-    metadata: text('metadata'),
     disabled: boolean('disabled').notNull().default(false),
-    redirectUrls: text('redirect_urls').notNull(),
+    skipConsent: boolean('skip_consent'),
+    enableEndSession: boolean('enable_end_session'),
+    subjectType: text('subject_type'),
+    scopes: text('scopes').array(),
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name'),
+    uri: text('uri'),
+    icon: text('icon'),
+    contacts: text('contacts').array(),
+    tos: text('tos'),
+    policy: text('policy'),
+    softwareId: text('software_id'),
+    softwareVersion: text('software_version'),
+    softwareStatement: text('software_statement'),
+    redirectUris: text('redirect_uris').array().notNull(),
+    postLogoutRedirectUris: text('post_logout_redirect_uris').array(),
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    grantTypes: text('grant_types').array(),
+    responseTypes: text('response_types').array(),
+    public: boolean('public'),
+    type: text('type'),
+    requirePKCE: boolean('require_pkce'),
+    referenceId: text('reference_id'),
+    metadata: jsonb('metadata'),
     createdAt,
     updatedAt,
   },
   (t) => ({
-    userIdx: index('oauth_applications_user_idx').on(t.userId),
+    userIdx: index('oauth_client_user_idx').on(t.userId),
   }),
 );
 
-export const oauthAccessTokens = pgTable(
-  'oauth_access_tokens',
+export const oauthRefreshToken = pgTable(
+  'oauth_refresh_token',
   {
-    id: id('oat'),
-    accessToken: text('access_token').notNull().unique(),
-    refreshToken: text('refresh_token').notNull().unique(),
-    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }).notNull(),
-    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }).notNull(),
+    id: id('orft'),
+    token: text('token').notNull(),
     clientId: text('client_id')
       .notNull()
-      .references(() => oauthApplications.clientId, { onDelete: 'cascade' }),
-    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    scopes: text('scopes').notNull(),
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => sessions.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt,
-    updatedAt,
+    revoked: timestamp('revoked', { withTimezone: true }),
+    authTime: timestamp('auth_time', { withTimezone: true }),
+    scopes: text('scopes').array().notNull(),
   },
   (t) => ({
-    clientIdx: index('oauth_access_tokens_client_idx').on(t.clientId),
-    userIdx: index('oauth_access_tokens_user_idx').on(t.userId),
+    clientIdx: index('oauth_refresh_token_client_idx').on(t.clientId),
+    sessionIdx: index('oauth_refresh_token_session_idx').on(t.sessionId),
+    userIdx: index('oauth_refresh_token_user_idx').on(t.userId),
   }),
 );
 
-export const oauthConsents = pgTable(
-  'oauth_consents',
+export const oauthAccessToken = pgTable(
+  'oauth_access_token',
+  {
+    id: id('oat'),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => sessions.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    refreshId: text('refresh_id').references(() => oauthRefreshToken.id, { onDelete: 'set null' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt,
+    scopes: text('scopes').array().notNull(),
+  },
+  (t) => ({
+    clientIdx: index('oauth_access_token_client_idx').on(t.clientId),
+    sessionIdx: index('oauth_access_token_session_idx').on(t.sessionId),
+    userIdx: index('oauth_access_token_user_idx').on(t.userId),
+    refreshIdx: index('oauth_access_token_refresh_idx').on(t.refreshId),
+  }),
+);
+
+export const oauthConsent = pgTable(
+  'oauth_consent',
   {
     id: id('oco'),
     clientId: text('client_id')
       .notNull()
-      .references(() => oauthApplications.clientId, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    scopes: text('scopes').notNull(),
-    consentGiven: boolean('consent_given').notNull(),
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    scopes: text('scopes').array().notNull(),
     createdAt,
     updatedAt,
   },
   (t) => ({
-    clientUserIdx: index('oauth_consents_client_user_idx').on(t.clientId, t.userId),
+    clientUserIdx: index('oauth_consent_client_user_idx').on(t.clientId, t.userId),
   }),
 );
 
@@ -1487,9 +1534,11 @@ export const allTables = {
   endUsers,
   agents,
   oauthClients,
-  oauthApplications,
-  oauthAccessTokens,
-  oauthConsents,
+  oauthClient,
+  oauthAccessToken,
+  oauthRefreshToken,
+  oauthConsent,
+  jwks,
   tokens,
   apiKeys,
   auditLog,

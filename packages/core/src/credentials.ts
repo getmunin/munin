@@ -28,6 +28,9 @@ export class CredentialResolver {
    * a JWT-only flow can come later.
    */
   async resolveBearerToken(rawToken: string): Promise<ResolvedCredential | null> {
+    const oauthHit = await this.resolveOauthAccessToken(rawToken);
+    if (oauthHit) return oauthHit;
+
     const tokenHash = hashSecret(rawToken);
     const rows = await this.db
       .select()
@@ -54,7 +57,6 @@ export class CredentialResolver {
       row.userId ?? undefined,
     );
 
-    // Touch last-used asynchronously; don't block the request on it.
     void this.db
       .update(schema.tokens)
       .set({ lastUsedAt: new Date() })
@@ -62,6 +64,45 @@ export class CredentialResolver {
       .catch(() => {});
 
     return { actor, expiresAt: row.expiresAt ?? undefined };
+  }
+
+  private async resolveOauthAccessToken(
+    rawToken: string,
+  ): Promise<ResolvedCredential | null> {
+    const tokenRows = await this.db
+      .select()
+      .from(schema.oauthAccessTokens)
+      .where(eq(schema.oauthAccessTokens.accessToken, rawToken))
+      .limit(1);
+    const tokenRow = tokenRows[0];
+    if (!tokenRow) return null;
+    const now = new Date();
+    if (tokenRow.accessTokenExpiresAt < now) return null;
+    if (!tokenRow.userId) return null;
+
+    const memberships = await this.db
+      .select()
+      .from(schema.orgMembers)
+      .where(eq(schema.orgMembers.userId, tokenRow.userId));
+    const active = memberships.find((m) => m.isDefault) ?? memberships[0];
+    if (!active) return null;
+
+    const scopes = tokenRow.scopes.trim().length > 0 ? tokenRow.scopes.split(/\s+/) : [];
+    const audiences = deriveAudiencesFromScopes(scopes);
+
+    const actor = new ActorIdentity(
+      'user',
+      tokenRow.userId,
+      active.orgId,
+      scopes,
+      audiences,
+      undefined,
+      tokenRow.id,
+      undefined,
+      tokenRow.userId,
+    );
+
+    return { actor, expiresAt: tokenRow.accessTokenExpiresAt };
   }
 
   /**
@@ -169,4 +210,16 @@ export class CredentialResolver {
       .limit(1);
     return rows[0]?.userId ?? null;
   }
+}
+
+function deriveAudiencesFromScopes(scopes: string[]): Audience[] {
+  const set = new Set<Audience>();
+  for (const scope of scopes) {
+    if (scope === 'mcp:admin') set.add('admin');
+    if (scope === 'mcp:self_service') set.add('self_service');
+  }
+  if (set.size === 0) {
+    if (scopes.length > 0) set.add('admin');
+  }
+  return Array.from(set);
 }

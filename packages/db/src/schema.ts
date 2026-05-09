@@ -243,6 +243,74 @@ export const oauthClients = pgTable(
   }),
 );
 
+// Better-Auth OIDC provider plugin tables. The plugin owns its own model
+// (separate from the legacy `oauthClients` table above) so Better-Auth can
+// run unmodified. The plugin's expected fields are reflected here verbatim;
+// renaming any column requires a corresponding `schema:` mapping in the
+// plugin config.
+export const oauthApplications = pgTable(
+  'oauth_applications',
+  {
+    id: id('oapp'),
+    clientId: text('client_id').notNull().unique(),
+    clientSecret: text('client_secret'),
+    type: text('type').notNull(),
+    name: text('name').notNull(),
+    icon: text('icon'),
+    metadata: text('metadata'),
+    disabled: boolean('disabled').notNull().default(false),
+    redirectUrls: text('redirect_urls').notNull(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    userIdx: index('oauth_applications_user_idx').on(t.userId),
+  }),
+);
+
+export const oauthAccessTokens = pgTable(
+  'oauth_access_tokens',
+  {
+    id: id('oat'),
+    accessToken: text('access_token').notNull().unique(),
+    refreshToken: text('refresh_token').notNull().unique(),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }).notNull(),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }).notNull(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthApplications.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    scopes: text('scopes').notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    clientIdx: index('oauth_access_tokens_client_idx').on(t.clientId),
+    userIdx: index('oauth_access_tokens_user_idx').on(t.userId),
+  }),
+);
+
+export const oauthConsents = pgTable(
+  'oauth_consents',
+  {
+    id: id('oco'),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthApplications.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    scopes: text('scopes').notNull(),
+    consentGiven: boolean('consent_given').notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    clientUserIdx: index('oauth_consents_client_user_idx').on(t.clientId, t.userId),
+  }),
+);
+
 // Tokens issued via OAuth or as delegated end-user JWTs.
 export const tokens = pgTable(
   'tokens',
@@ -1419,6 +1487,9 @@ export const allTables = {
   endUsers,
   agents,
   oauthClients,
+  oauthApplications,
+  oauthAccessTokens,
+  oauthConsents,
   tokens,
   apiKeys,
   auditLog,

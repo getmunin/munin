@@ -43,6 +43,9 @@ importers:
       '@getmunin/backend-core':
         specifier: workspace:*
         version: link:../../packages/backend-core
+      '@getmunin/chat-widget':
+        specifier: workspace:*
+        version: link:../chat-widget
       '@getmunin/core':
         specifier: workspace:*
         version: link:../../packages/core

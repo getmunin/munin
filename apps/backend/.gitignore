@@ -1,0 +1,3 @@
+# Built widget bundle copied in by `prebuild` (scripts/copy-widget.mjs).
+# Source of truth lives in apps/chat-widget/; never commit the artifacts.
+public/widget/

@@ -23,6 +23,7 @@ describe('OAuthResourceController', () => {
       scopes_supported: SUPPORTED_SCOPES,
       bearer_methods_supported: ['header'],
       resource_documentation: 'https://api.example.test/docs',
+      resource_indicators_supported: true,
     });
   });
 

@@ -503,6 +503,374 @@ const skipReason = TEST_URL
     expect(err!.message).toMatch(/upgrade rejected: 401/i);
     ws.terminate();
   });
+
+  it('fans out visitor typing to operators subscribed to the conversation', async () => {
+    const sessionId = 'rt_typing_v2o';
+
+    // Visitor must have a conversation before typing can be routed.
+    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${widgetKey}`,
+        Origin: ALLOWED_ORIGIN,
+      },
+      body: JSON.stringify({
+        channelId,
+        sessionId,
+        messages: [{ role: 'end_user', body: 'first' }],
+      }),
+    });
+    const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
+
+    const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
+    try {
+      wsOperator.send(
+        JSON.stringify({ type: 'subscribe', channel: 'conversation', id: conversationId }),
+      );
+      // Visitor's subscription is technically optional for sending typing
+      // but realistic.
+      wsVisitor.send(
+        JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId }),
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      wsVisitor.send(
+        JSON.stringify({
+          type: 'typing',
+          channel: 'widget',
+          channelId,
+          sessionId,
+          isTyping: true,
+        }),
+      );
+
+      const evt = await nextEvent(
+        wsOperator,
+        (m) => m.type === 'typing' && (m as { authorType?: string }).authorType === 'visitor',
+      );
+      expect(evt).toMatchObject({
+        type: 'typing',
+        channel: `conversation:${conversationId}`,
+        isTyping: true,
+        authorType: 'visitor',
+      });
+    } finally {
+      wsVisitor.terminate();
+      wsOperator.terminate();
+    }
+  });
+
+  it('fans out operator typing to widget subscribers of the same (channelId, sessionId)', async () => {
+    const sessionId = 'rt_typing_o2v';
+    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${widgetKey}`,
+        Origin: ALLOWED_ORIGIN,
+      },
+      body: JSON.stringify({
+        channelId,
+        sessionId,
+        messages: [{ role: 'end_user', body: 'first' }],
+      }),
+    });
+    const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
+
+    const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
+    try {
+      wsVisitor.send(
+        JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId }),
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      wsOperator.send(
+        JSON.stringify({
+          type: 'typing',
+          channel: 'conversation',
+          id: conversationId,
+          isTyping: true,
+        }),
+      );
+
+      const evt = await nextEvent(
+        wsVisitor,
+        (m) => m.type === 'typing' && (m as { authorType?: string }).authorType === 'operator',
+      );
+      expect(evt).toMatchObject({
+        type: 'typing',
+        channel: `widget:${channelId}:${sessionId}`,
+        isTyping: true,
+        authorType: 'operator',
+      });
+    } finally {
+      wsVisitor.terminate();
+      wsOperator.terminate();
+    }
+  });
+
+  it('throttles repeated typing:true to at most one broadcast per 1.5s window', async () => {
+    const sessionId = 'rt_typing_throttle';
+    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${widgetKey}`,
+        Origin: ALLOWED_ORIGIN,
+      },
+      body: JSON.stringify({
+        channelId,
+        sessionId,
+        messages: [{ role: 'end_user', body: 'first' }],
+      }),
+    });
+    const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
+
+    const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
+    try {
+      wsOperator.send(
+        JSON.stringify({ type: 'subscribe', channel: 'conversation', id: conversationId }),
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      let typingCount = 0;
+      wsOperator.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === 'typing' && msg.authorType === 'visitor' && msg.isTyping) {
+            typingCount++;
+          }
+        } catch {
+          // ignore
+        }
+      });
+
+      // Spam 10 typing:true events back-to-back.
+      for (let i = 0; i < 10; i++) {
+        wsVisitor.send(
+          JSON.stringify({
+            type: 'typing',
+            channel: 'widget',
+            channelId,
+            sessionId,
+            isTyping: true,
+          }),
+        );
+      }
+
+      // Wait beyond a single 1.5s window so we'd see a second broadcast if
+      // the throttle were broken — but not enough for the auto-clear.
+      await new Promise((r) => setTimeout(r, 600));
+      expect(typingCount).toBe(1);
+    } finally {
+      wsVisitor.terminate();
+      wsOperator.terminate();
+    }
+  });
+
+  it('auto-clears typing with typing:false after 5 s of silence', async () => {
+    const sessionId = 'rt_typing_auto_clear';
+    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${widgetKey}`,
+        Origin: ALLOWED_ORIGIN,
+      },
+      body: JSON.stringify({
+        channelId,
+        sessionId,
+        messages: [{ role: 'end_user', body: 'first' }],
+      }),
+    });
+    const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
+
+    const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
+    try {
+      wsOperator.send(
+        JSON.stringify({ type: 'subscribe', channel: 'conversation', id: conversationId }),
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      wsVisitor.send(
+        JSON.stringify({
+          type: 'typing',
+          channel: 'widget',
+          channelId,
+          sessionId,
+          isTyping: true,
+        }),
+      );
+
+      // Receive the typing:true.
+      await nextEvent(
+        wsOperator,
+        (m) => m.type === 'typing' && (m as { isTyping?: boolean }).isTyping === true,
+      );
+
+      // Don't send another typing event; the server's auto-clear should
+      // fire typing:false after 5 s.
+      const cleared = await nextEvent(
+        wsOperator,
+        (m) => m.type === 'typing' && (m as { isTyping?: boolean }).isTyping === false,
+        7000,
+      );
+      expect(cleared).toMatchObject({
+        type: 'typing',
+        isTyping: false,
+        authorType: 'visitor',
+      });
+    } finally {
+      wsVisitor.terminate();
+      wsOperator.terminate();
+    }
+  }, 12000);
+
+  it('does not leak visitor typing across sessionIds', async () => {
+    const sessA = 'rt_typing_iso_a';
+    const sessB = 'rt_typing_iso_b';
+    // Both sessions need conversations.
+    for (const s of [sessA, sessB]) {
+      await fetch(`${baseUrl}/api/v1/widget/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${widgetKey}`,
+          Origin: ALLOWED_ORIGIN,
+        },
+        body: JSON.stringify({
+          channelId,
+          sessionId: s,
+          messages: [{ role: 'end_user', body: 'first' }],
+        }),
+      });
+    }
+
+    // wsB is a widget subscriber on session B; should NOT see typing fired
+    // by session A (typing fans out to operators on conversation:<id>, not
+    // to other visitors of the same channel).
+    const wsA = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    const wsB = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    await Promise.all([waitForOpen(wsA), waitForOpen(wsB)]);
+    try {
+      wsB.send(
+        JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId: sessB }),
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      const noEventP = expectNoEvent(wsB, (m) => m.type === 'typing', 700);
+      wsA.send(
+        JSON.stringify({
+          type: 'typing',
+          channel: 'widget',
+          channelId,
+          sessionId: sessA,
+          isTyping: true,
+        }),
+      );
+      await noEventP;
+    } finally {
+      wsA.terminate();
+      wsB.terminate();
+    }
+  });
+
+  it('drops widget typing from operator-side connections and conversation typing from widget-side connections', async () => {
+    const sessionId = 'rt_typing_role_mix';
+    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${widgetKey}`,
+        Origin: ALLOWED_ORIGIN,
+      },
+      body: JSON.stringify({
+        channelId,
+        sessionId,
+        messages: [{ role: 'end_user', body: 'first' }],
+      }),
+    });
+    const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
+
+    const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
+    try {
+      wsOperator.send(
+        JSON.stringify({ type: 'subscribe', channel: 'conversation', id: conversationId }),
+      );
+      wsVisitor.send(
+        JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId }),
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Operator tries to fire widget-style typing — should be dropped.
+      const noVisitorEventP = expectNoEvent(wsVisitor, (m) => m.type === 'typing', 600);
+      wsOperator.send(
+        JSON.stringify({
+          type: 'typing',
+          channel: 'widget',
+          channelId,
+          sessionId,
+          isTyping: true,
+        }),
+      );
+      await noVisitorEventP;
+
+      // Widget tries to fire conversation-style typing — should be dropped.
+      const noOperatorEventP = expectNoEvent(wsOperator, (m) => m.type === 'typing', 600);
+      wsVisitor.send(
+        JSON.stringify({
+          type: 'typing',
+          channel: 'conversation',
+          id: conversationId,
+          isTyping: true,
+        }),
+      );
+      await noOperatorEventP;
+    } finally {
+      wsVisitor.terminate();
+      wsOperator.terminate();
+    }
+  });
+
+  it('drops widget typing when the (channelId, sessionId) has no conversation yet', async () => {
+    const sessionId = 'rt_typing_pre_conv'; // no ingest first
+    const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
+    try {
+      // Operator subscribes broadly to org so anything that DID fan out
+      // would have a destination — the gateway just shouldn't fan
+      // out at all because no conversation maps to (channelId, sessionId).
+      wsOperator.send(JSON.stringify({ type: 'subscribe', channel: 'org' }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      const noEventP = expectNoEvent(wsOperator, (m) => m.type === 'typing', 600);
+      wsVisitor.send(
+        JSON.stringify({
+          type: 'typing',
+          channel: 'widget',
+          channelId,
+          sessionId,
+          isTyping: true,
+        }),
+      );
+      await noEventP;
+    } finally {
+      wsVisitor.terminate();
+      wsOperator.terminate();
+    }
+  });
 });
 
 function parseToolResult<T>(result: unknown): T {

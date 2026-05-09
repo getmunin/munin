@@ -28,12 +28,14 @@ import { WidgetChannelConfig } from '../modules/conv/widget/widget.types.js';
 const PATH = '/api/v1/realtime';
 
 interface ClientMessage {
-  type: 'subscribe' | 'unsubscribe' | 'ping';
+  type: 'subscribe' | 'unsubscribe' | 'ping' | 'typing';
   channel?: 'org' | 'conversation' | 'contact' | 'widget';
   id?: string;
   /** widget channel: scoped subscription key. */
   channelId?: string;
   sessionId?: string;
+  /** typing: whether the sender is currently typing (false ⇒ stopped). */
+  isTyping?: boolean;
 }
 
 interface WidgetConnectionContext {
@@ -49,6 +51,28 @@ interface ConversationMetaCache {
   meta: { channelId: string; sessionId: string | null; contactExternalId: string | null } | null;
 }
 
+/**
+ * Per-connection state needed for typing fanout. The gateway also
+ * registers each entry in `subscribersByChannel` so cross-connection
+ * lookup (visitor → operator and vice versa) is O(1) on the channel key.
+ */
+interface ConnectionEntry {
+  ws: WebSocket;
+  widgetCtx: WidgetConnectionContext | null;
+  orgId: string;
+  conversationMetaCache: Map<string, ConversationMetaCache>;
+  /** Per-conversation timestamp of the last typing:true broadcast from
+   *  this sender — used to enforce the 1/1.5 s server-side throttle. */
+  typingLastFiredAt: Map<string, number>;
+  /** Per-conversation auto-clear timer; fires typing:false at 5 s of
+   *  silence. Reset on every refresh. */
+  typingAutoClearTimers: Map<string, NodeJS.Timeout>;
+}
+
+const TYPING_MIN_INTERVAL_MS = 1500;
+const TYPING_AUTO_CLEAR_MS = 5000;
+const WS_MAX_PAYLOAD_BYTES = 64 * 1024;
+
 @Injectable()
 export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(RealtimeGateway.name);
@@ -57,6 +81,12 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     null;
   private readonly resolver: CredentialResolver;
   private readonly selfServiceSubscribersByOrg = new Map<string, Set<WebSocket>>();
+  /**
+   * Global registry of subscriptions keyed by encoded channel ID. Lets the
+   * typing handler fan out to every other connection subscribed to the
+   * target channel without a per-event DB query.
+   */
+  private readonly subscribersByChannel = new Map<string, Set<ConnectionEntry>>();
 
   selfServiceSubscriberCount(orgId: string): number {
     return this.selfServiceSubscribersByOrg.get(orgId)?.size ?? 0;
@@ -86,6 +116,11 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
     this.wss = new WebSocketServer({
       noServer: true,
+      // 64 KB cap on inbound frames. Typing payloads are small (<200 bytes);
+      // legitimate subscription messages are similarly tiny. Anything
+      // larger is either misuse or a slowloris-style abuse — let the ws
+      // library close the connection rather than buffer the data.
+      maxPayload: WS_MAX_PAYLOAD_BYTES,
       // Browsers can't set arbitrary HTTP headers on a WebSocket upgrade, so
       // browser callers pass the bearer token via Sec-WebSocket-Protocol:
       //   ['bearer', '<token>']  →  send 'bearer' back so the handshake
@@ -210,6 +245,14 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const subscriptions = new Set<string>();
     const conversationMetaCache = new Map<string, ConversationMetaCache>();
     const isWidget = !!widgetCtx;
+    const entry: ConnectionEntry = {
+      ws,
+      widgetCtx,
+      orgId: actor.orgId,
+      conversationMetaCache,
+      typingLastFiredAt: new Map(),
+      typingAutoClearTimers: new Map(),
+    };
     // Widget connections are visitor-side; they don't count toward the
     // operator self-service subscriber pool.
     const isSelfServiceAgent = !isWidget && actor.type !== 'end_user_agent';
@@ -227,6 +270,37 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       if (!set) return;
       set.delete(ws);
       if (set.size === 0) this.selfServiceSubscribersByOrg.delete(actor.orgId);
+    };
+
+    const addChannelSubscription = (key: string) => {
+      subscriptions.add(key);
+      let set = this.subscribersByChannel.get(key);
+      if (!set) {
+        set = new Set();
+        this.subscribersByChannel.set(key, set);
+      }
+      set.add(entry);
+    };
+    const removeChannelSubscription = (key: string) => {
+      subscriptions.delete(key);
+      const set = this.subscribersByChannel.get(key);
+      if (!set) return;
+      set.delete(entry);
+      if (set.size === 0) this.subscribersByChannel.delete(key);
+    };
+    const removeAllChannelSubscriptions = () => {
+      for (const key of subscriptions) {
+        const set = this.subscribersByChannel.get(key);
+        if (!set) continue;
+        set.delete(entry);
+        if (set.size === 0) this.subscribersByChannel.delete(key);
+      }
+      subscriptions.clear();
+    };
+    const clearTypingTimers = () => {
+      for (const t of entry.typingAutoClearTimers.values()) clearTimeout(t);
+      entry.typingAutoClearTimers.clear();
+      entry.typingLastFiredAt.clear();
     };
 
     const unsubscribe = this.listener.subscribe((event) => {
@@ -272,6 +346,10 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
         ws.send(JSON.stringify({ type: 'pong' }));
         return;
       }
+      if (msg.type === 'typing') {
+        void this.handleTyping(entry, msg);
+        return;
+      }
       const key = encodeChannel(msg);
       if (!key) return;
       if (isWidget) {
@@ -281,20 +359,188 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
         // depth alongside the upgrade-time gate.
         if (!key.startsWith(`widget:${widgetCtx!.channelId}:`)) return;
       }
-      if (msg.type === 'subscribe') subscriptions.add(key);
-      else if (msg.type === 'unsubscribe') subscriptions.delete(key);
+      if (msg.type === 'subscribe') addChannelSubscription(key);
+      else if (msg.type === 'unsubscribe') removeChannelSubscription(key);
     });
 
     ws.on('close', () => {
       unsubscribe();
       removeSelfServiceSubscriber();
+      removeAllChannelSubscriptions();
+      clearTypingTimers();
     });
     ws.on('error', () => {
       unsubscribe();
       removeSelfServiceSubscriber();
+      removeAllChannelSubscriptions();
+      clearTypingTimers();
     });
 
     ws.send(JSON.stringify({ type: 'ready', orgId: actor.orgId }));
+  }
+
+  /**
+   * Handle a `typing` message from a client.
+   *
+   * - Widget side (visitor): `{ type:'typing', channel:'widget', channelId,
+   *   sessionId, isTyping }`. The gateway resolves the (channelId, sessionId)
+   *   to a conversation, then fans out a `typing` notification on the
+   *   `conversation:<id>` channel so operator subscribers see it.
+   * - Operator side: `{ type:'typing', channel:'conversation', id, isTyping }`.
+   *   The gateway resolves the conversation's (channelId, sessionId) and
+   *   fans out on `widget:<channelId>:<sessionId>`.
+   *
+   * Server-side throttle: 1 typing:true per 1.5 s per (sender, conversation).
+   * Auto-clear: typing:true schedules a typing:false 5 s later if no refresh.
+   * Verified-mode widget receivers are filtered by externalId match against
+   * the conversation's contact (defense in depth — the channel binding
+   * already excludes other sessions).
+   */
+  private async handleTyping(entry: ConnectionEntry, msg: ClientMessage): Promise<void> {
+    if (typeof msg.isTyping !== 'boolean') return;
+    const isWidget = !!entry.widgetCtx;
+
+    let conversationId: string | null = null;
+    let outboundChannel: string | null = null;
+    let authorType: 'visitor' | 'operator' | null = null;
+
+    if (msg.channel === 'widget') {
+      if (!isWidget) return; // operator can't impersonate widget side
+      if (!msg.channelId || !msg.sessionId) return;
+      if (msg.channelId !== entry.widgetCtx!.channelId) return;
+      const meta = await this.resolveWidgetSession(msg.channelId, msg.sessionId);
+      if (!meta) return;
+      // Verified-mode senders must own the conversation.
+      if (
+        entry.widgetCtx!.verifiedExternalId &&
+        meta.contactExternalId !== entry.widgetCtx!.verifiedExternalId
+      ) {
+        return;
+      }
+      conversationId = meta.conversationId;
+      outboundChannel = `conversation:${conversationId}`;
+      authorType = 'visitor';
+    } else if (msg.channel === 'conversation') {
+      if (isWidget) return; // widget side can't fire operator-style typing
+      if (!msg.id) return;
+      const meta = await this.resolveConversationMeta(msg.id);
+      if (!meta || meta.sessionId === null) return;
+      conversationId = msg.id;
+      outboundChannel = `widget:${meta.channelId}:${meta.sessionId}`;
+      authorType = 'operator';
+    } else {
+      return;
+    }
+
+    // Throttle typing:true to 1 per TYPING_MIN_INTERVAL_MS per sender per
+    // conversation. typing:false bypasses the throttle so a sender can
+    // explicitly retract before the auto-clear fires.
+    if (msg.isTyping) {
+      const now = Date.now();
+      const last = entry.typingLastFiredAt.get(conversationId) ?? 0;
+      if (now - last < TYPING_MIN_INTERVAL_MS) return;
+      entry.typingLastFiredAt.set(conversationId, now);
+    } else {
+      entry.typingLastFiredAt.delete(conversationId);
+    }
+
+    // Reset any in-flight auto-clear timer for this (sender, conversation).
+    const existing = entry.typingAutoClearTimers.get(conversationId);
+    if (existing) {
+      clearTimeout(existing);
+      entry.typingAutoClearTimers.delete(conversationId);
+    }
+
+    this.fanoutTyping(entry, outboundChannel, conversationId, authorType, msg.isTyping);
+
+    if (msg.isTyping) {
+      const conversationIdSnapshot = conversationId;
+      const outboundChannelSnapshot = outboundChannel;
+      const authorTypeSnapshot = authorType;
+      const timer = setTimeout(() => {
+        entry.typingAutoClearTimers.delete(conversationIdSnapshot);
+        entry.typingLastFiredAt.delete(conversationIdSnapshot);
+        this.fanoutTyping(
+          entry,
+          outboundChannelSnapshot,
+          conversationIdSnapshot,
+          authorTypeSnapshot,
+          false,
+        );
+      }, TYPING_AUTO_CLEAR_MS);
+      entry.typingAutoClearTimers.set(conversationId, timer);
+    }
+  }
+
+  private fanoutTyping(
+    fromEntry: ConnectionEntry,
+    outboundChannel: string,
+    conversationId: string,
+    authorType: 'visitor' | 'operator',
+    isTyping: boolean,
+  ): void {
+    const subs = this.subscribersByChannel.get(outboundChannel);
+    if (!subs) return;
+    const payload = JSON.stringify({
+      type: 'typing',
+      channel: outboundChannel,
+      isTyping,
+      authorType,
+    });
+    for (const sub of subs) {
+      if (sub === fromEntry) continue;
+      if (sub.orgId !== fromEntry.orgId) continue;
+      // Verified-mode widget receivers: confirm the conversation belongs
+      // to this connection's verified externalId. Cached per-connection.
+      if (sub.widgetCtx?.verifiedExternalId) {
+        const cached = sub.conversationMetaCache.get(conversationId);
+        if (
+          !cached ||
+          !cached.meta ||
+          cached.meta.contactExternalId !== sub.widgetCtx.verifiedExternalId
+        ) {
+          // Resolve in-band so future events can also pass; but skip this
+          // typing event to avoid blocking the fanout loop on DB.
+          void this.resolveConversationMeta(conversationId).then((meta) => {
+            sub.conversationMetaCache.set(conversationId, { meta });
+          });
+          continue;
+        }
+      }
+      try {
+        sub.ws.send(payload);
+      } catch {
+        // socket may be mid-close; ignore
+      }
+    }
+  }
+
+  /**
+   * Look up a widget session's (conversationId, contactExternalId) from
+   * (channelId, sessionId). Returns null if no conversation exists yet —
+   * common when the visitor types before sending their first message.
+   */
+  private async resolveWidgetSession(
+    channelId: string,
+    sessionId: string,
+  ): Promise<{ conversationId: string; contactExternalId: string | null } | null> {
+    const rows = await this.db
+      .select({
+        id: schema.convConversations.id,
+        contactExternalId: sql<string | null>`${schema.convContacts.metadata}->>'externalId'`,
+      })
+      .from(schema.convConversations)
+      .leftJoin(
+        schema.convContacts,
+        eq(schema.convContacts.id, schema.convConversations.contactId),
+      )
+      .where(
+        sql`${schema.convConversations.channelId} = ${channelId} AND ${schema.convConversations.metadata}->>'sessionId' = ${sessionId}`,
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return { conversationId: row.id, contactExternalId: row.contactExternalId ?? null };
   }
 
   /**

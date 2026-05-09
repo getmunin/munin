@@ -1,19 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { AgentSetupWizard, authClient } from '@getmunin/dashboard-pages';
+import { AgentSetupWizard, useSetupGate } from '@getmunin/dashboard-pages';
 import { PageSpinner } from '@getmunin/ui';
 
 export default function SetupRoute() {
-  const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
+  const { ready } = useSetupGate();
 
-  useEffect(() => {
-    if (!isPending && !session) router.push('/login');
-  }, [isPending, session, router]);
-
-  if (isPending || !session) {
+  if (!ready) {
     return <PageSpinner className="min-h-screen bg-bone dark:bg-background" />;
   }
 

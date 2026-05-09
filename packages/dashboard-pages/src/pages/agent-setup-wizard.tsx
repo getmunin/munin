@@ -150,7 +150,7 @@ function ReadyCard({ config, onBack }: ReadyCardProps) {
           </Button>
           <Button
             variant="outline"
-            render={<Link href={'/dashboard/settings/ai-agent' satisfies Route} />}
+            render={<Link href={'/dashboard/settings/builtin-ai' satisfies Route} />}
           >
             {t('wizard.cta.tweakSettings')}
           </Button>

@@ -1,21 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { authClient, useActiveRole } from '@getmunin/dashboard-pages';
+import { authClient, useDashboardGate } from '@getmunin/dashboard-pages';
 import { PageSpinner } from '@getmunin/ui';
 import { MuninTopbar } from '@/components/munin-topbar';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
-  const { role } = useActiveRole();
+  const { data: session } = authClient.useSession();
+  const { ready, role } = useDashboardGate();
 
-  useEffect(() => {
-    if (!isPending && !session) router.push('/login');
-  }, [isPending, session, router]);
-
-  if (isPending || !session) {
+  if (!ready || !session) {
     return <PageSpinner className="min-h-screen bg-bone dark:bg-background" />;
   }
 

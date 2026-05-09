@@ -38,7 +38,7 @@ const GROUPS: SubNavGroup[] = [
     items: [
       { href: '/dashboard/settings/team', labelKey: 'team' },
       { href: '/dashboard/settings/channels', labelKey: 'channels' },
-      { href: '/dashboard/settings/ai-agent', labelKey: 'builtInAi' },
+      { href: '/dashboard/settings/builtin-ai', labelKey: 'builtInAi' },
       { href: '/dashboard/settings/export', labelKey: 'dataExport' },
     ],
   },

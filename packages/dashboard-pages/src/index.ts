@@ -3,9 +3,12 @@ export { authClient } from './auth-client';
 export { OrgSwitcher } from './components/org-switcher';
 export { PageShell, nativeFieldClass } from './components/page-shell';
 export { useActiveRole, isOwnerOrAdmin, type OrgRole } from './auth/use-active-role';
+export { useAgentConfigStatus } from './auth/use-agent-config-status';
+export { useDashboardGate } from './auth/use-dashboard-gate';
+export { useSetupGate } from './auth/use-setup-gate';
 
 export { AcceptInvitePage } from './pages/accept-invite';
-export { AgentSettingsPage } from './pages/agent-settings';
+export { BuiltinAiSettingsPage } from './pages/builtin-ai-settings';
 export { AgentSetupWizard } from './pages/agent-setup-wizard';
 export { AgentsPage } from './pages/agents';
 export { ApiKeysPage } from './pages/api-keys';

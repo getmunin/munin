@@ -833,6 +833,43 @@ const skipReason = TEST_URL
     );
     expect(admin.status).toBe(403);
   });
+
+  it('accepts an end_user body of exactly 1000 chars and rejects 1001', async () => {
+    const ok = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_charcap_ok',
+      messages: [{ role: 'end_user', body: 'a'.repeat(1000) }],
+    });
+    expect(ok.status).toBe(201);
+
+    const tooBig = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_charcap_over',
+      messages: [{ role: 'end_user', body: 'a'.repeat(1001) }],
+    });
+    expect(tooBig.status).toBe(403);
+    expect(JSON.stringify(tooBig.json)).toMatch(/exceeds 1000 chars|too_big/i);
+  });
+
+  it('still accepts long agent bodies (operator-pushed messages keep the 50K cap)', async () => {
+    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_charcap_agent',
+      messages: [{ role: 'agent', body: 'b'.repeat(20_000) }],
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects an end_user bodyHtml over 4000 chars', async () => {
+    const tooBig = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_charcap_html',
+      messages: [
+        { role: 'end_user', body: 'short', bodyHtml: '<p>' + 'x'.repeat(4001) + '</p>' },
+      ],
+    });
+    expect(tooBig.status).toBe(403);
+  });
 });
 
 function qs(params: Record<string, string | undefined>): string {

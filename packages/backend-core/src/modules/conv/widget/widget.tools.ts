@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
-import { buildApiKey, getCurrentContext, hashSecret, keyPrefix } from '@getmunin/core';
+import { buildApiKey, getCurrentContext, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
 import { WidgetChannelConfig } from './widget.types.js';
 
 const CreateInput = z.object({
@@ -11,6 +11,7 @@ const CreateInput = z.object({
   displayName: z.string().min(1).max(120),
   originAllowlist: z.array(z.string().url()).default([]),
   webhookOnEscalation: z.string().url().optional(),
+  requireVerifiedIdentity: z.boolean().optional(),
 });
 
 const UpdateInput = z.object({
@@ -18,20 +19,41 @@ const UpdateInput = z.object({
   displayName: z.string().min(1).max(120).optional(),
   originAllowlist: z.array(z.string().url()).optional(),
   webhookOnEscalation: z.string().url().nullable().optional(),
+  requireVerifiedIdentity: z.boolean().optional(),
 });
 
 const RotateInput = z.object({ channelId: z.string() });
+
+type WidgetConfig = z.infer<typeof WidgetChannelConfig>;
+type SanitizedWidgetConfig = Omit<WidgetConfig, 'identityVerificationSecret'> & {
+  /** Whether an identity verification secret is currently configured. The
+   *  plaintext is only ever surfaced from `conv_widget_create_channel` and
+   *  `conv_widget_rotate_identity_secret`. */
+  hasIdentityVerificationSecret: boolean;
+};
+
+function sanitizeConfig(config: WidgetConfig): SanitizedWidgetConfig {
+  const { identityVerificationSecret, ...rest } = config;
+  return { ...rest, hasIdentityVerificationSecret: !!identityVerificationSecret };
+}
 
 interface ChannelDto {
   id: string;
   name: string;
   type: 'chat';
   active: boolean;
-  config: z.infer<typeof WidgetChannelConfig>;
+  config: SanitizedWidgetConfig;
 }
 
 interface CreateResult extends ChannelDto {
   widgetKey: string;
+  /** HMAC secret for browser-side identity verification. Surfaced once. */
+  identityVerificationSecret: string;
+}
+
+interface RotateIdentitySecretResult {
+  channelId: string;
+  identityVerificationSecret: string;
 }
 
 @Injectable()
@@ -51,11 +73,14 @@ export class WidgetAdminTools {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
 
+    const identityVerificationSecret = randomToken(32);
     const config = WidgetChannelConfig.parse({
       provider: 'widget',
       displayName: args.displayName,
       originAllowlist: args.originAllowlist,
       webhookOnEscalation: args.webhookOnEscalation,
+      identityVerificationSecret,
+      requireVerifiedIdentity: args.requireVerifiedIdentity ?? false,
     });
 
     const [channel] = await ctx.db
@@ -85,8 +110,9 @@ export class WidgetAdminTools {
       name: channel!.name,
       type: 'chat',
       active: channel!.active,
-      config,
+      config: sanitizeConfig(config),
       widgetKey: rawKey,
+      identityVerificationSecret,
     };
   }
 
@@ -127,6 +153,8 @@ export class WidgetAdminTools {
         args.webhookOnEscalation === null
           ? undefined
           : (args.webhookOnEscalation ?? prev.webhookOnEscalation),
+      identityVerificationSecret: prev.identityVerificationSecret,
+      requireVerifiedIdentity: args.requireVerifiedIdentity ?? prev.requireVerifiedIdentity,
     });
 
     const [updated] = await ctx.db
@@ -140,7 +168,7 @@ export class WidgetAdminTools {
       name: updated!.name,
       type: 'chat',
       active: updated!.active,
-      config: next,
+      config: sanitizeConfig(next),
     };
   }
 
@@ -194,5 +222,50 @@ export class WidgetAdminTools {
     });
 
     return { widgetKey: rawKey };
+  }
+
+  @McpTool({
+    name: 'conv_widget_rotate_identity_secret',
+    title: 'Rotate widget identity-verification secret',
+    description:
+      'Generate a fresh per-channel HMAC secret used to verify browser-side `data-user-hash` values against `data-external-id`. The previous secret is replaced atomically; any previously-issued user hashes stop verifying immediately and the operator must re-render their pages with newly-computed hashes. Returns the new plaintext once.',
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: RotateInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  async rotateIdentitySecret(
+    args: z.infer<typeof RotateInput>,
+  ): Promise<RotateIdentitySecretResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+
+    const rows = await ctx.db
+      .select()
+      .from(schema.convChannels)
+      .where(
+        and(
+          eq(schema.convChannels.id, args.channelId),
+          eq(schema.convChannels.orgId, actor.orgId),
+        ),
+      )
+      .limit(1);
+    const existing = rows[0];
+    if (!existing) throw new NotFoundException(`channel ${args.channelId} not found`);
+    const prev = WidgetChannelConfig.parse(existing.config);
+
+    const identityVerificationSecret = randomToken(32);
+    const next = WidgetChannelConfig.parse({
+      ...prev,
+      identityVerificationSecret,
+    });
+
+    await ctx.db
+      .update(schema.convChannels)
+      .set({ config: next, updatedAt: new Date() })
+      .where(eq(schema.convChannels.id, args.channelId));
+
+    return { channelId: args.channelId, identityVerificationSecret };
   }
 }

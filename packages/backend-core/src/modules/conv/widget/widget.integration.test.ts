@@ -23,6 +23,7 @@ const skipReason = TEST_URL
   let adminKey: string;
   let widgetKey: string;
   let channelId: string;
+  let identityVerificationSecret: string;
 
   beforeAll(async () => {
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod-it-must-be-32-chars';
@@ -68,7 +69,12 @@ const skipReason = TEST_URL
 
     // Mint a widget channel + key via the admin MCP tool.
     const created = await withClient(adminKey, async (c) => {
-      return parseToolResult<{ id: string; widgetKey: string }>(
+      return parseToolResult<{
+        id: string;
+        widgetKey: string;
+        identityVerificationSecret: string;
+        config: { hasIdentityVerificationSecret: boolean; requireVerifiedIdentity: boolean };
+      }>(
         await c.callTool({
           name: 'conv_widget_create_channel',
           arguments: {
@@ -81,6 +87,7 @@ const skipReason = TEST_URL
     });
     channelId = created.id;
     widgetKey = created.widgetKey;
+    identityVerificationSecret = created.identityVerificationSecret;
   });
 
   afterAll(async () => {
@@ -280,6 +287,135 @@ const skipReason = TEST_URL
     });
     expect(fresh.status).toBe(201);
     widgetKey = rotated.widgetKey;
+  });
+
+  it('returns an identity-verification secret on create and never re-surfaces it', async () => {
+    expect(identityVerificationSecret).toBeTruthy();
+    expect(identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
+
+    // The secret persists in the channel config (RLS-protected JSONB).
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db
+      .select({ config: schema.convChannels.config })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channelId));
+    const config = rows[0]!.config as {
+      identityVerificationSecret?: string;
+      requireVerifiedIdentity?: boolean;
+    };
+    expect(config.identityVerificationSecret).toEqual(identityVerificationSecret);
+    expect(config.requireVerifiedIdentity).toBe(false);
+
+    // An update never echoes the secret back through the response.
+    const updated = await withClient(adminKey, async (c) => {
+      return parseToolResult<{
+        config: Record<string, unknown> & { hasIdentityVerificationSecret: boolean };
+      }>(
+        await c.callTool({
+          name: 'conv_widget_update_channel',
+          arguments: { channelId, displayName: 'Storefront Bot v2' },
+        }),
+      );
+    });
+    expect(updated.config.hasIdentityVerificationSecret).toBe(true);
+    expect(updated.config).not.toHaveProperty('identityVerificationSecret');
+  });
+
+  it('toggles requireVerifiedIdentity via update', async () => {
+    const enabled = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ config: { requireVerifiedIdentity: boolean } }>(
+        await c.callTool({
+          name: 'conv_widget_update_channel',
+          arguments: { channelId, requireVerifiedIdentity: true },
+        }),
+      );
+    });
+    expect(enabled.config.requireVerifiedIdentity).toBe(true);
+
+    const disabled = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ config: { requireVerifiedIdentity: boolean } }>(
+        await c.callTool({
+          name: 'conv_widget_update_channel',
+          arguments: { channelId, requireVerifiedIdentity: false },
+        }),
+      );
+    });
+    expect(disabled.config.requireVerifiedIdentity).toBe(false);
+  });
+
+  it('rotates the identity secret to a fresh distinct value', async () => {
+    const oldSecret = identityVerificationSecret;
+    const rotated = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ channelId: string; identityVerificationSecret: string }>(
+        await c.callTool({
+          name: 'conv_widget_rotate_identity_secret',
+          arguments: { channelId },
+        }),
+      );
+    });
+    expect(rotated.channelId).toBe(channelId);
+    expect(rotated.identityVerificationSecret).toBeTruthy();
+    expect(rotated.identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
+    expect(rotated.identityVerificationSecret).not.toEqual(oldSecret);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db
+      .select({ config: schema.convChannels.config })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channelId));
+    const config = rows[0]!.config as { identityVerificationSecret?: string };
+    expect(config.identityVerificationSecret).toEqual(rotated.identityVerificationSecret);
+
+    identityVerificationSecret = rotated.identityVerificationSecret;
+  });
+
+  it('rejects identity rotation across tenants', async () => {
+    // Mint a fresh org with its own admin key, channel, and secret.
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const ts = Date.now();
+    const [otherOrg] = await db
+      .insert(schema.orgs)
+      .values({ name: 'Widget IT Org B', slug: `widget-it-b-${ts}` })
+      .returning();
+    const otherAdminKey = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId: otherOrg!.id,
+      type: 'admin',
+      name: 'widget-it-admin-b',
+      keyHash: hashSecret(otherAdminKey),
+      keyPrefix: keyPrefix(otherAdminKey),
+      scopes: ['*'],
+    });
+
+    // Org B's admin attempts to rotate Org A's channel secret. NotFound (404)
+    // because the channel lookup is org-scoped — we must never leak the
+    // existence of another tenant's channel via a different status code.
+    let threw: unknown = null;
+    try {
+      await withClient(otherAdminKey, async (c) => {
+        return parseToolResult(
+          await c.callTool({
+            name: 'conv_widget_rotate_identity_secret',
+            arguments: { channelId },
+          }),
+        );
+      });
+    } catch (err) {
+      threw = err;
+    }
+    expect(threw).toBeTruthy();
+    expect(String(threw)).toMatch(/not found|tool error/i);
+
+    // Secret on Org A's channel must be unchanged.
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db
+      .select({ config: schema.convChannels.config })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channelId));
+    const config = rows[0]!.config as { identityVerificationSecret?: string };
+    expect(config.identityVerificationSecret).toEqual(identityVerificationSecret);
+
+    await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
   });
 });
 

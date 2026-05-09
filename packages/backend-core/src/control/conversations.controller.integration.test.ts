@@ -98,19 +98,27 @@ const skipReason = TEST_URL
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
 
+    // Insert the chat channel directly via the service-role connection
+    // (bypasses RLS, commits before app boot). Previously this went through
+    // an MCP tool call after the app started — that path occasionally
+    // flaked under CI: the tool's response was awaited but its result
+    // wasn't validated, so a transient transport error left the channel
+    // missing and every "no active channel configured" assertion below it
+    // failed. Direct insert is one SQL round-trip with deterministic
+    // visibility for the app's separate connection pool.
+    await db.insert(schema.convChannels).values({
+      orgId: orgAId,
+      type: 'chat',
+      name: 'Web chat',
+      config: {},
+    });
+
     app = await NestFactory.create(AppModule, { logger: false });
     await app.listen(0, '127.0.0.1');
     const server = app.getHttpServer() as { address(): AddressInfo | string | null };
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
     baseUrl = `http://127.0.0.1:${address.port}`;
-
-    await withClient(adminKeyA, async (c) => {
-      await c.callTool({
-        name: 'conv_create_channel',
-        arguments: { type: 'chat', name: 'Web chat' },
-      });
-    });
   });
 
   afterAll(async () => {

@@ -1,14 +1,17 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
+import { mkdtempSync, writeFileSync, rmSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { buildApiKey, hashSecret, keyPrefix, signHmac } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.js';
+import { createApp } from '../../../bootstrap-app.js';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL
@@ -24,6 +27,10 @@ const skipReason = TEST_URL
   let widgetKey: string;
   let channelId: string;
   let identityVerificationSecret: string;
+  let widgetAssetDir: string;
+  const FIXTURE_SHA = 'abcdef012345';
+  const FIXTURE_BUNDLE = `widget.${FIXTURE_SHA}.js`;
+  const FIXTURE_BUNDLE_BODY = '/* munin widget test fixture */ console.log("fixture");';
 
   beforeAll(async () => {
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod-it-must-be-32-chars';
@@ -60,7 +67,20 @@ const skipReason = TEST_URL
       scopes: ['*'],
     });
 
-    app = await NestFactory.create(AppModule, { logger: false });
+    // Stage a fake widget bundle + manifest in a tmp dir so the static-
+    // asset routes have something to serve from createApp().
+    widgetAssetDir = mkdtempSync(join(tmpdir(), 'munin-widget-asset-'));
+    writeFileSync(join(widgetAssetDir, FIXTURE_BUNDLE), FIXTURE_BUNDLE_BODY);
+    writeFileSync(
+      join(widgetAssetDir, `${FIXTURE_BUNDLE}.map`),
+      JSON.stringify({ version: 3, sources: ['fixture.ts'] }),
+    );
+    writeFileSync(
+      join(widgetAssetDir, 'manifest.json'),
+      JSON.stringify({ current: FIXTURE_BUNDLE, sha: FIXTURE_SHA, builtAt: new Date().toISOString() }),
+    );
+
+    app = await createApp(AppModule, { logger: false, widgetAssetDir });
     await app.listen(0, '127.0.0.1');
     const server = app.getHttpServer() as { address(): AddressInfo | string | null };
     const address = server.address();
@@ -95,6 +115,9 @@ const skipReason = TEST_URL
     if (db) {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       await db.delete(schema.orgs).where(sql`id = ${orgId}`);
+    }
+    if (widgetAssetDir) {
+      rmSync(widgetAssetDir, { recursive: true, force: true });
     }
   });
 
@@ -869,6 +892,61 @@ const skipReason = TEST_URL
       ],
     });
     expect(tooBig.status).toBe(403);
+  });
+
+  it('redirects GET /widget.js to the current hashed bundle with a short revalidate cache', async () => {
+    const res = await fetch(`${baseUrl}/widget.js`, { method: 'GET', redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`/widget/${FIXTURE_BUNDLE}`);
+    expect(res.headers.get('cache-control')).toContain('max-age=300');
+    expect(res.headers.get('cache-control')).toContain('must-revalidate');
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+  });
+
+  it('serves /widget/<sha>.js with immutable cache and JS content-type', async () => {
+    const res = await fetch(`${baseUrl}/widget/${FIXTURE_BUNDLE}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/javascript');
+    expect(res.headers.get('cache-control')).toContain('immutable');
+    expect(res.headers.get('cache-control')).toContain('max-age=31536000');
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    const body = await res.text();
+    expect(body).toBe(FIXTURE_BUNDLE_BODY);
+  });
+
+  it('serves the sourcemap with a JSON content-type', async () => {
+    const res = await fetch(`${baseUrl}/widget/${FIXTURE_BUNDLE}.map`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+  });
+
+  it('rejects non-hex hashed paths with 404', async () => {
+    const res = await fetch(`${baseUrl}/widget/widget.zzzzzzzzzzzz.js`);
+    expect(res.status).toBe(404);
+  });
+
+  it('rejects path traversal under /widget/', async () => {
+    const res = await fetch(`${baseUrl}/widget/..%2Fmanifest.json`);
+    expect(res.status).toBe(404);
+  });
+
+  it('serves 503 on /widget.js when the manifest is removed', async () => {
+    const manifestPath = join(widgetAssetDir, 'manifest.json');
+    unlinkSync(manifestPath);
+    try {
+      const res = await fetch(`${baseUrl}/widget.js`, { method: 'GET', redirect: 'manual' });
+      expect(res.status).toBe(503);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+    } finally {
+      writeFileSync(
+        manifestPath,
+        JSON.stringify({
+          current: FIXTURE_BUNDLE,
+          sha: FIXTURE_SHA,
+          builtAt: new Date().toISOString(),
+        }),
+      );
+    }
   });
 });
 

@@ -1,12 +1,35 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { oidcProvider } from 'better-auth/plugins';
 import { APIError } from 'better-auth/api';
+
+type BetterAuthInstance = ReturnType<typeof betterAuth>;
+
+const SUPPORTED_SCOPES = [
+  'openid',
+  'profile',
+  'email',
+  'offline_access',
+  'mcp:tools',
+  'mcp:admin',
+  'mcp:self_service',
+  'kb:read',
+  'kb:write',
+  'conv:read',
+  'conv:write',
+  'crm:read',
+  'crm:write',
+  'cms:read',
+  'cms:write',
+];
+
+const asMuninAuth = (instance: unknown): BetterAuthInstance => instance as BetterAuthInstance;
 import { schema, type Db } from '@getmunin/db';
 import type { Mailer } from '@getmunin/core';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { resetPasswordEmail, verifyEmailEmail } from './email-templates.js';
 
-export type MuninAuth = ReturnType<typeof createMuninAuth>;
+export type MuninAuth = BetterAuthInstance;
 
 export interface MuninAuthOptions {
   db: Db;
@@ -34,11 +57,11 @@ export function createMuninAuth({
   mailer,
   webBaseUrl,
   allowedEmailDomains = [],
-}: MuninAuthOptions) {
+}: MuninAuthOptions): BetterAuthInstance {
   const origins = uniqueOrigins([baseUrl, ...(trustedOrigins ?? [])]);
   const dashboardUrl = (webBaseUrl ?? trustedOrigins?.[0] ?? baseUrl).replace(/\/+$/, '');
 
-  return betterAuth({
+  return asMuninAuth(betterAuth({
     baseURL: baseUrl,
     basePath: '/auth',
     secret: authSecret,
@@ -49,8 +72,23 @@ export function createMuninAuth({
         session: schema.sessions,
         account: schema.accounts,
         verification: schema.verifications,
+        oauthApplication: schema.oauthApplications,
+        oauthAccessToken: schema.oauthAccessTokens,
+        oauthConsent: schema.oauthConsents,
       },
     }),
+    plugins: [
+      oidcProvider({
+        loginPage: `${dashboardUrl}/login`,
+        consentPage: `${dashboardUrl}/dashboard/oauth/consent`,
+        allowDynamicClientRegistration: true,
+        requirePKCE: true,
+        scopes: SUPPORTED_SCOPES,
+        metadata: {
+          scopes_supported: SUPPORTED_SCOPES,
+        },
+      }),
+    ],
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
@@ -103,7 +141,7 @@ export function createMuninAuth({
         },
       },
     },
-  });
+  }));
 }
 
 /**

@@ -10,7 +10,8 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Duplex } from 'node:stream';
-import type { Db } from '@getmunin/db';
+import { schema, type Db } from '@getmunin/db';
+import { eq, sql } from 'drizzle-orm';
 import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
 import { DB } from '../common/db/db.module.js';
 import {
@@ -18,13 +19,34 @@ import {
   type AdditionalCredentialResolver,
 } from '../common/auth/auth.guard.js';
 import { DbListenerService, type EventRow } from './db-listener.service.js';
+import {
+  enforceOriginAllowlist,
+  verifyIdentity,
+} from '../modules/conv/widget/widget-ingest.service.js';
+import { WidgetChannelConfig } from '../modules/conv/widget/widget.types.js';
 
 const PATH = '/api/v1/realtime';
 
 interface ClientMessage {
   type: 'subscribe' | 'unsubscribe' | 'ping';
-  channel?: 'org' | 'conversation' | 'contact';
+  channel?: 'org' | 'conversation' | 'contact' | 'widget';
   id?: string;
+  /** widget channel: scoped subscription key. */
+  channelId?: string;
+  sessionId?: string;
+}
+
+interface WidgetConnectionContext {
+  /** apiKeys.channelId — the widget channel this connection is bound to. */
+  channelId: string;
+  /** Set iff the upgrade carried a verified identity HMAC. Limits the
+   *  connection to events whose conversation contact matches. */
+  verifiedExternalId?: string;
+}
+
+interface ConversationMetaCache {
+  /** null = looked up, not a widget conversation (don't re-query). */
+  meta: { channelId: string; sessionId: string | null; contactExternalId: string | null } | null;
 }
 
 @Injectable()
@@ -43,7 +65,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
     private readonly listener: DbListenerService,
-    @Inject(DB) db: Db,
+    @Inject(DB) private readonly db: Db,
     @Optional()
     @Inject(ADDITIONAL_CREDENTIAL_RESOLVERS)
     private readonly additionalResolvers: AdditionalCredentialResolver[] = [],
@@ -111,20 +133,86 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       return;
     }
 
+    // Detect a widget API key: look up the apiKeys row and check type.
+    // Widget keys carry `channelId` and live behind originAllowlist + HMAC
+    // identity gates, so we authorize them at upgrade time before any
+    // application data crosses the socket.
+    let widgetCtx: WidgetConnectionContext | null = null;
+    try {
+      widgetCtx = await this.gateWidgetUpgrade(req, credential);
+    } catch (err) {
+      this.logger.debug(`widget upgrade gate failed: ${describeErr(err)}`);
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
     if (!this.wss) {
       socket.destroy();
       return;
     }
     const resolvedCredential = credential;
+    const widgetContext = widgetCtx;
     this.wss.handleUpgrade(req, socket, head, (ws) => {
-      this.handleConnection(ws, resolvedCredential);
+      this.handleConnection(ws, resolvedCredential, widgetContext);
     });
   }
 
-  private handleConnection(ws: WebSocket, credential: ResolvedCredential): void {
+  /**
+   * If `credential` came from a widget API key, validate the upgrade
+   * against the channel's `originAllowlist` and `identityVerificationSecret`,
+   * and return a context object scoping the connection to that channel.
+   * Returns `null` for non-widget credentials. Throws on any widget gate
+   * failure so the caller responds with 401.
+   */
+  private async gateWidgetUpgrade(
+    req: IncomingMessage,
+    credential: ResolvedCredential,
+  ): Promise<WidgetConnectionContext | null> {
+    const apiKey = await this.db
+      .select({ type: schema.apiKeys.type, channelId: schema.apiKeys.channelId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, credential.actor.id))
+      .limit(1);
+    const row = apiKey[0];
+    if (!row || row.type !== 'widget') return null;
+    if (!row.channelId) throw new Error('widget_key_missing_channel');
+
+    const channelRows = await this.db
+      .select({ config: schema.convChannels.config })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, row.channelId))
+      .limit(1);
+    const channelRow = channelRows[0];
+    if (!channelRow) throw new Error('widget_channel_not_found');
+    const config = WidgetChannelConfig.parse(channelRow.config);
+
+    const origin = readHeader(req, 'origin');
+    enforceOriginAllowlist(config, origin);
+
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const verifiedExternalId = url.searchParams.get('externalId') ?? undefined;
+    const userHash = url.searchParams.get('userHash') ?? undefined;
+    const identity = verifyIdentity(config, { verifiedExternalId, userHash });
+
+    return {
+      channelId: row.channelId,
+      verifiedExternalId: identity.mode === 'verified' ? identity.externalId : undefined,
+    };
+  }
+
+  private handleConnection(
+    ws: WebSocket,
+    credential: ResolvedCredential,
+    widgetCtx: WidgetConnectionContext | null,
+  ): void {
     const actor = credential.actor;
     const subscriptions = new Set<string>();
-    const isSelfServiceAgent = actor.type !== 'end_user_agent';
+    const conversationMetaCache = new Map<string, ConversationMetaCache>();
+    const isWidget = !!widgetCtx;
+    // Widget connections are visitor-side; they don't count toward the
+    // operator self-service subscriber pool.
+    const isSelfServiceAgent = !isWidget && actor.type !== 'end_user_agent';
     if (isSelfServiceAgent) {
       let set = this.selfServiceSubscribersByOrg.get(actor.orgId);
       if (!set) {
@@ -144,6 +232,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const unsubscribe = this.listener.subscribe((event) => {
       if (event.org_id !== actor.orgId) return;
       if (
+        !isWidget &&
         actor.type === 'end_user_agent' &&
         actor.endUserId &&
         !ownsEvent(event, actor.endUserId)
@@ -151,7 +240,17 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
         return;
       }
       for (const channel of subscriptions) {
-        if (channelMatches(channel, event)) {
+        if (isWidget) {
+          // Widget subscriptions: resolve the event's conversation metadata
+          // (cached per-connection) and only forward when the (channelId,
+          // sessionId) pair matches AND, in verified mode, the contact's
+          // externalId matches the asserted one.
+          void this.matchWidgetEvent(channel, event, conversationMetaCache, widgetCtx).then(
+            (matched) => {
+              if (matched) ws.send(JSON.stringify({ type: 'event', channel, event }));
+            },
+          );
+        } else if (channelMatches(channel, event)) {
           ws.send(JSON.stringify({ type: 'event', channel, event }));
         }
       }
@@ -175,6 +274,13 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       }
       const key = encodeChannel(msg);
       if (!key) return;
+      if (isWidget) {
+        // Widget keys can ONLY subscribe to their own channelId+sessionId
+        // pair. Any attempt to subscribe to org/conversation/contact, or to
+        // a different widget channel, is silently ignored — defense in
+        // depth alongside the upgrade-time gate.
+        if (!key.startsWith(`widget:${widgetCtx!.channelId}:`)) return;
+      }
       if (msg.type === 'subscribe') subscriptions.add(key);
       else if (msg.type === 'unsubscribe') subscriptions.delete(key);
     });
@@ -189,6 +295,71 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     });
 
     ws.send(JSON.stringify({ type: 'ready', orgId: actor.orgId }));
+  }
+
+  /**
+   * Decide whether an event should be forwarded to a widget subscription
+   * `widget:<channelId>:<sessionId>`. Resolves the conversation metadata
+   * once per connection per conversationId and caches both hits and
+   * non-widget conversations (so we don't re-query for unrelated events).
+   */
+  private async matchWidgetEvent(
+    channel: string,
+    event: EventRow,
+    cache: Map<string, ConversationMetaCache>,
+    widgetCtx: WidgetConnectionContext,
+  ): Promise<boolean> {
+    if (!channel.startsWith('widget:')) return false;
+    const rest = channel.slice('widget:'.length);
+    const sep = rest.indexOf(':');
+    if (sep < 0) return false;
+    const subChannelId = rest.slice(0, sep);
+    const subSessionId = rest.slice(sep + 1);
+    if (subChannelId !== widgetCtx.channelId) return false;
+
+    const conversationId = event.payload?.['conversationId'];
+    if (typeof conversationId !== 'string') return false;
+
+    let cached = cache.get(conversationId);
+    if (!cached) {
+      const meta = await this.resolveConversationMeta(conversationId);
+      cached = { meta };
+      cache.set(conversationId, cached);
+    }
+    const meta = cached.meta;
+    if (!meta) return false;
+    if (meta.channelId !== subChannelId) return false;
+    if (meta.sessionId !== subSessionId) return false;
+    if (widgetCtx.verifiedExternalId) {
+      if (meta.contactExternalId !== widgetCtx.verifiedExternalId) return false;
+    }
+    return true;
+  }
+
+  private async resolveConversationMeta(
+    conversationId: string,
+  ): Promise<{ channelId: string; sessionId: string | null; contactExternalId: string | null } | null> {
+    const rows = await this.db
+      .select({
+        channelId: schema.convConversations.channelId,
+        sessionId: sql<string | null>`${schema.convConversations.metadata}->>'sessionId'`,
+        contactExternalId: sql<string | null>`${schema.convContacts.metadata}->>'externalId'`,
+      })
+      .from(schema.convConversations)
+      .leftJoin(
+        schema.convContacts,
+        eq(schema.convContacts.id, schema.convConversations.contactId),
+      )
+      .where(eq(schema.convConversations.id, conversationId))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    if (!row.channelId) return null;
+    return {
+      channelId: row.channelId,
+      sessionId: row.sessionId ?? null,
+      contactExternalId: row.contactExternalId ?? null,
+    };
   }
 
   private async authenticate(req: IncomingMessage): Promise<ResolvedCredential | null> {
@@ -286,7 +457,14 @@ function encodeChannel(msg: ClientMessage): string | null {
   if (msg.channel === 'org') return 'org';
   if (msg.channel === 'conversation' && msg.id) return `conversation:${msg.id}`;
   if (msg.channel === 'contact' && msg.id) return `contact:${msg.id}`;
+  if (msg.channel === 'widget' && msg.channelId && msg.sessionId) {
+    return `widget:${msg.channelId}:${msg.sessionId}`;
+  }
   return null;
+}
+
+function describeErr(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 function channelMatches(channel: string, event: EventRow): boolean {

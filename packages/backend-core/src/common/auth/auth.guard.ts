@@ -3,7 +3,7 @@ import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../db/db.module.js';
 import { Reflector } from '@nestjs/core';
-import { resourceMetadataUrl } from '../../oauth/oauth.constants.js';
+import { mcpResourceUrl, resourceMetadataUrl } from '../../oauth/oauth.constants.js';
 
 /** Decorator used on routes that should be reachable without auth (signup, oauth discovery). */
 export const ALLOW_ANONYMOUS = Symbol('allowAnonymous');
@@ -95,17 +95,28 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('invalid or expired credential');
     }
 
+    if (isMcpRequest(request) && credential.audience) {
+      if (credential.audience !== mcpResourceUrl()) {
+        maybeSetMcpResourceMetadataHeader(context, request);
+        throw new UnauthorizedException('token audience does not match the requested resource');
+      }
+    }
+
     request.credential = credential;
     return true;
   }
+}
+
+function isMcpRequest(request: AuthenticatedRequest & { url?: string; path?: string }): boolean {
+  const url = (request.url ?? request.path ?? '').toString();
+  return url.startsWith('/mcp');
 }
 
 function maybeSetMcpResourceMetadataHeader(
   context: ExecutionContext,
   request: AuthenticatedRequest & { url?: string; path?: string },
 ): void {
-  const url = (request.url ?? request.path ?? '').toString();
-  if (!url.startsWith('/mcp')) return;
+  if (!isMcpRequest(request)) return;
   const res = context.switchToHttp().getResponse<{ setHeader?: (n: string, v: string) => void }>();
   res.setHeader?.(
     'WWW-Authenticate',

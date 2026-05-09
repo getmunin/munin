@@ -12,6 +12,7 @@ interface ProtectedResourceMetadata {
   scopes_supported: readonly string[];
   bearer_methods_supported: readonly string[];
   resource_documentation?: string;
+  resource_indicators_supported: boolean;
 }
 
 @Controller('.well-known/oauth-protected-resource')
@@ -27,6 +28,7 @@ export class OAuthResourceController {
       scopes_supported: SUPPORTED_SCOPES,
       bearer_methods_supported: ['header'],
       resource_documentation: `${authorizationServerUrl()}/docs`,
+      resource_indicators_supported: true,
     };
   }
 }

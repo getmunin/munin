@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   CheckCircle2,
   ChevronDown,
+  Code,
   Copy,
   Globe,
+  KeyRound,
   Mail,
   MessageSquare,
   RefreshCw,
@@ -58,6 +60,13 @@ interface CreatedWidget {
   id: string;
   name: string;
   widgetKey: string;
+  identityVerificationSecret?: string;
+}
+
+interface RotatedIdentity {
+  id: string;
+  name: string;
+  identityVerificationSecret: string;
 }
 
 const KEY_DISPLAY_TIMEOUT_MS = 1500;
@@ -73,6 +82,8 @@ export function ChannelsPage() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [justCreated, setJustCreated] = useState<CreatedWidget | null>(null);
   const [rotated, setRotated] = useState<CreatedWidget | null>(null);
+  const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
+  const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -98,6 +109,23 @@ export function ChannelsPage() {
       setRotated({ id: channel.id, name: channel.name, widgetKey: result.widgetKey });
     } catch (err) {
       setError(translate(err) || t('errors.rotate'));
+    }
+  }
+
+  async function rotateIdentity(channel: ChannelDto) {
+    if (!confirm(t('rotateIdentityConfirm', { name: channel.name }))) return;
+    try {
+      const result = await api<{ identityVerificationSecret: string }>(
+        `/api/v1/conversations/channels/widget/${channel.id}/rotate-identity-secret`,
+        { method: 'POST' },
+      );
+      setRotatedIdentity({
+        id: channel.id,
+        name: channel.name,
+        identityVerificationSecret: result.identityVerificationSecret,
+      });
+    } catch (err) {
+      setError(translate(err) || t('errors.rotateIdentity'));
     }
   }
 
@@ -149,7 +177,18 @@ export function ChannelsPage() {
         <KeyCallout
           title={t('createdTitle')}
           description={t('createdDescription', { name: justCreated.name })}
-          keyValue={justCreated.widgetKey}
+          rows={[
+            { label: t('keyLabelWidget'), value: justCreated.widgetKey },
+            ...(justCreated.identityVerificationSecret
+              ? [
+                  {
+                    label: t('keyLabelIdentitySecret'),
+                    value: justCreated.identityVerificationSecret,
+                    hint: t('identitySecretHint'),
+                  },
+                ]
+              : []),
+          ]}
           onDismiss={() => setJustCreated(null)}
         />
       )}
@@ -158,10 +197,27 @@ export function ChannelsPage() {
         <KeyCallout
           title={t('rotatedTitle')}
           description={t('rotatedDescription', { name: rotated.name })}
-          keyValue={rotated.widgetKey}
+          rows={[{ label: t('keyLabelWidget'), value: rotated.widgetKey }]}
           onDismiss={() => setRotated(null)}
         />
       )}
+
+      {rotatedIdentity && (
+        <KeyCallout
+          title={t('rotatedIdentityTitle')}
+          description={t('rotatedIdentityDescription', { name: rotatedIdentity.name })}
+          rows={[
+            {
+              label: t('keyLabelIdentitySecret'),
+              value: rotatedIdentity.identityVerificationSecret,
+              hint: t('identitySecretHint'),
+            },
+          ]}
+          onDismiss={() => setRotatedIdentity(null)}
+        />
+      )}
+
+      {embedFor && <EmbedSnippetDialog channel={embedFor} onClose={() => setEmbedFor(null)} />}
 
       {error && (
         <Card>
@@ -190,6 +246,10 @@ export function ChannelsPage() {
               onRotate={() => {
                 void rotateKey(c);
               }}
+              onRotateIdentity={() => {
+                void rotateIdentity(c);
+              }}
+              onShowEmbed={() => setEmbedFor(c)}
               onErrorMessage={(msg) => setError(msg)}
               createdLabel={format.dateTime(new Date(c.createdAt), { dateStyle: 'medium' })}
             />
@@ -203,11 +263,15 @@ export function ChannelsPage() {
 function ChannelRow({
   channel,
   onRotate,
+  onRotateIdentity,
+  onShowEmbed,
   onErrorMessage,
   createdLabel,
 }: {
   channel: ChannelDto;
   onRotate: () => void;
+  onRotateIdentity: () => void;
+  onShowEmbed: () => void;
   onErrorMessage: (msg: string) => void;
   createdLabel: string;
 }) {
@@ -268,10 +332,20 @@ function ChannelRow({
         </div>
         <div className="flex flex-col items-end gap-2">
           {channel.type === 'chat' && (
-            <Button variant="outline" size="sm" onClick={onRotate}>
-              <RefreshCw className="size-4" />
-              {t('rotateKey')}
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={onShowEmbed}>
+                <Code className="size-4" />
+                {t('showEmbed')}
+              </Button>
+              <Button variant="outline" size="sm" onClick={onRotate}>
+                <RefreshCw className="size-4" />
+                {t('rotateKey')}
+              </Button>
+              <Button variant="outline" size="sm" onClick={onRotateIdentity}>
+                <KeyRound className="size-4" />
+                {t('rotateIdentity')}
+              </Button>
+            </>
           )}
           {channel.type === 'email' && (
             <EmailTestButton channelId={channel.id} onError={onErrorMessage} />
@@ -704,25 +778,24 @@ function Field({
   );
 }
 
+interface CalloutRow {
+  label: string;
+  value: string;
+  hint?: string;
+}
+
 function KeyCallout({
   title,
   description,
-  keyValue,
+  rows,
   onDismiss,
 }: {
   title: string;
   description: string;
-  keyValue: string;
+  rows: CalloutRow[];
   onDismiss: () => void;
 }) {
   const t = useTranslations('dashboard.channels');
-  const [copied, setCopied] = useState(false);
-  function copy() {
-    void navigator.clipboard.writeText(keyValue).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), KEY_DISPLAY_TIMEOUT_MS);
-    });
-  }
   return (
     <Card className="border-emerald-200 bg-emerald-50">
       <CardHeader>
@@ -730,19 +803,182 @@ function KeyCallout({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-center gap-2">
-          <code className="flex-1 truncate rounded-md border bg-background px-3 py-2 font-mono text-sm">
-            {keyValue}
-          </code>
-          <Button variant="outline" size="sm" onClick={copy}>
-            <Copy className="size-4" />
-            {copied ? t('copied') : t('copy')}
-          </Button>
-        </div>
+        {rows.map((row) => (
+          <CopyableSecret key={row.label} label={row.label} value={row.value} hint={row.hint} />
+        ))}
         <Button variant="ghost" size="sm" onClick={onDismiss}>
           {t('savedIt')}
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+function CopyableSecret({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  const t = useTranslations('dashboard.channels');
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), KEY_DISPLAY_TIMEOUT_MS);
+    });
+  }
+  return (
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 truncate rounded-md border bg-background px-3 py-2 font-mono text-sm">
+          {value}
+        </code>
+        <Button variant="outline" size="sm" onClick={copy}>
+          <Copy className="size-4" />
+          {copied ? t('copied') : t('copy')}
+        </Button>
+      </div>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+const HASH_SNIPPETS: Array<{ language: string; label: string; build: (channelId: string) => string }> = [
+  {
+    language: 'node',
+    label: 'Node.js',
+    build: () => `// Compute on every request, signed with your channel's identity secret.
+import crypto from 'node:crypto';
+const userHash = crypto
+  .createHmac('sha256', process.env.MUNIN_IDENTITY_SECRET)
+  .update(externalId)        // your stable user id
+  .digest('hex');`,
+  },
+  {
+    language: 'ruby',
+    label: 'Ruby',
+    build: () => `require 'openssl'
+user_hash = OpenSSL::HMAC.hexdigest(
+  'sha256', ENV['MUNIN_IDENTITY_SECRET'], external_id
+)`,
+  },
+  {
+    language: 'php',
+    label: 'PHP',
+    build: () => `$userHash = hash_hmac(
+  'sha256',
+  $externalId,
+  getenv('MUNIN_IDENTITY_SECRET')
+);`,
+  },
+  {
+    language: 'python',
+    label: 'Python',
+    build: () => `import hmac, hashlib, os
+user_hash = hmac.new(
+    os.environ['MUNIN_IDENTITY_SECRET'].encode(),
+    external_id.encode(),
+    hashlib.sha256,
+).hexdigest()`,
+  },
+];
+
+function defaultHost(): string {
+  if (typeof window === 'undefined') return '';
+  return window.location.origin;
+}
+
+function EmbedSnippetDialog({
+  channel,
+  onClose,
+}: {
+  channel: ChannelDto;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const [host, setHost] = useState(defaultHost);
+  const [language, setLanguage] = useState(HASH_SNIPPETS[0]!.language);
+  const [snippetCopied, setSnippetCopied] = useState(false);
+  const [hashCopied, setHashCopied] = useState(false);
+
+  const trimmedHost = host.replace(/\/+$/, '');
+  const scriptSnippet = [
+    `<script src="${trimmedHost}/widget.js"`,
+    `        data-munin-host="${trimmedHost}"`,
+    `        data-widget-key="<your widget key>"`,
+    `        data-channel-id="${channel.id}"`,
+    `        defer></script>`,
+  ].join('\n');
+
+  const hashSnippet = HASH_SNIPPETS.find((s) => s.language === language)!.build(channel.id);
+
+  function copySnippet() {
+    void navigator.clipboard.writeText(scriptSnippet).then(() => {
+      setSnippetCopied(true);
+      setTimeout(() => setSnippetCopied(false), KEY_DISPLAY_TIMEOUT_MS);
+    });
+  }
+  function copyHash() {
+    void navigator.clipboard.writeText(hashSnippet).then(() => {
+      setHashCopied(true);
+      setTimeout(() => setHashCopied(false), KEY_DISPLAY_TIMEOUT_MS);
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{t('embed.title', { name: channel.name })}</DialogTitle>
+          <DialogDescription>{t('embed.description')}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-5 py-2">
+          <div className="space-y-1">
+            <Label>{t('embed.hostLabel')}</Label>
+            <Input value={host} onChange={(e) => setHost(e.target.value)} />
+            <p className="text-xs text-muted-foreground">{t('embed.hostHint')}</p>
+          </div>
+
+          <div className="space-y-1">
+            <Label>{t('embed.scriptLabel')}</Label>
+            <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs">
+              {scriptSnippet}
+            </pre>
+            <Button variant="outline" size="sm" onClick={copySnippet}>
+              <Copy className="size-4" />
+              {snippetCopied ? t('copied') : t('embed.copyScript')}
+            </Button>
+            <p className="text-xs text-muted-foreground">{t('embed.scriptHint')}</p>
+          </div>
+
+          <div className="space-y-1">
+            <Label>{t('embed.hashLabel')}</Label>
+            <p className="text-xs text-muted-foreground">{t('embed.hashHint')}</p>
+            <div className="flex flex-wrap gap-2">
+              {HASH_SNIPPETS.map((s) => (
+                <Button
+                  key={s.language}
+                  variant={s.language === language ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setLanguage(s.language)}
+                  type="button"
+                >
+                  {s.label}
+                </Button>
+              ))}
+            </div>
+            <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs">
+              {hashSnippet}
+            </pre>
+            <Button variant="outline" size="sm" onClick={copyHash}>
+              <Copy className="size-4" />
+              {hashCopied ? t('copied') : t('embed.copyHash')}
+            </Button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={onClose} variant="outline">
+            {t('cancel')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

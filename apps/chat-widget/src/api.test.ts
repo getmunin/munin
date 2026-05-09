@@ -11,7 +11,8 @@ function mockFetch(
 ): { fetchImpl: typeof fetch; calls: CapturedCall[] } {
   const calls: CapturedCall[] = [];
   const fetchImpl: typeof fetch = (input, init) => {
-    const call = { url: String(input), init: init ?? {} };
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    const call = { url, init: init ?? {} };
     calls.push(call);
     const { status, body } = responder(call);
     return Promise.resolve(
@@ -48,7 +49,7 @@ describe('api: postMessage', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toBe('https://munin.example/api/v1/widget/messages');
     expect(calls[0]!.init.method).toBe('POST');
-    const body = JSON.parse(String(calls[0]!.init.body));
+    const body = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
     expect(body).toMatchObject({
       channelId: 'cnv_chan',
       sessionId: 'sess_1',
@@ -71,7 +72,7 @@ describe('api: postMessage', () => {
       fetchImpl,
     });
     await client.postMessage('hi');
-    const body = JSON.parse(String(calls[0]!.init.body));
+    const body = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
     expect(body.verifiedExternalId).toBe('user_42');
     expect(body.userHash).toBe('a'.repeat(64));
   });
@@ -90,7 +91,7 @@ describe('api: postMessage', () => {
       fetchImpl,
     });
     await client.postMessage('hi');
-    const body = JSON.parse(String(calls[0]!.init.body));
+    const body = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
     expect(body.visitor).toEqual({
       name: 'Ada',
       email: 'ada@example.com',

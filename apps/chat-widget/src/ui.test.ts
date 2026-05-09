@@ -29,7 +29,7 @@ function shadowRoot(): ShadowRoot {
   return sr;
 }
 
-function $<T extends Element = Element>(selector: string): T {
+function $<T extends HTMLElement = HTMLElement>(selector: string): T {
   const el = shadowRoot().querySelector(selector);
   if (!el) throw new Error(`no element matched ${selector}`);
   return el as T;
@@ -42,11 +42,11 @@ function $$(selector: string): Element[] {
 describe('ui: mount + lifecycle', () => {
   it('attaches an open Shadow DOM host to document.body and renders the launcher hidden by default', () => {
     controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
-    const host = document.querySelector('[data-munin-widget]') as HTMLElement | null;
+    const host = document.querySelector('[data-munin-widget]');
     expect(host).not.toBeNull();
     expect(host!.shadowRoot).not.toBeNull();
-    const launcher = $('.launcher') as HTMLButtonElement;
-    const panel = $('.panel') as HTMLDivElement;
+    const launcher = $('.launcher');
+    const panel = $('.panel');
     expect(launcher.hidden).toBe(false);
     expect(panel.hidden).toBe(true);
   });
@@ -54,14 +54,14 @@ describe('ui: mount + lifecycle', () => {
   it('opens the panel on launcher click and shows the greeting once', () => {
     const onOpen = vi.fn();
     controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {}, onOpen });
-    ($('.launcher') as HTMLButtonElement).click();
-    expect(($('.panel') as HTMLDivElement).hidden).toBe(false);
-    expect(($('.launcher') as HTMLButtonElement).hidden).toBe(true);
+    ($('.launcher')).click();
+    expect(($('.panel')).hidden).toBe(false);
+    expect(($('.launcher')).hidden).toBe(true);
     expect($('.greeting').textContent).toBe('Hi!');
     expect(onOpen).toHaveBeenCalledTimes(1);
     // Reopen — greeting should not be appended again.
-    ($('.close') as HTMLButtonElement).click();
-    ($('.launcher') as HTMLButtonElement).click();
+    ($('.close')).click();
+    ($('.launcher')).click();
     expect($$('.greeting')).toHaveLength(1);
   });
 
@@ -77,7 +77,7 @@ describe('ui: mount + lifecycle', () => {
 describe('ui: addMessages', () => {
   beforeEach(() => {
     controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
-    ($('.launcher') as HTMLButtonElement).click();
+    ($('.launcher')).click();
   });
 
   it('appends end_user / agent / system messages with role classes', () => {
@@ -114,7 +114,7 @@ describe('ui: addMessages', () => {
         at: '2026-01-01T00:00:00Z',
       },
     ]);
-    const m = $('.message') as HTMLElement;
+    const m = $('.message');
     expect(m.textContent).toBe('<script>alert(1)</script>');
     expect(m.querySelector('script')).toBeNull();
   });
@@ -123,26 +123,26 @@ describe('ui: addMessages', () => {
 describe('ui: agent typing', () => {
   beforeEach(() => {
     controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
-    ($('.launcher') as HTMLButtonElement).click();
+    ($('.launcher')).click();
   });
 
   it('shows the typing indicator on setAgentTyping(true)', () => {
     controller!.setAgentTyping(true);
-    expect(($('.typing') as HTMLElement).hidden).toBe(false);
+    expect(($('.typing')).hidden).toBe(false);
   });
 
   it('hides on setAgentTyping(false)', () => {
     controller!.setAgentTyping(true);
     controller!.setAgentTyping(false);
-    expect(($('.typing') as HTMLElement).hidden).toBe(true);
+    expect(($('.typing')).hidden).toBe(true);
   });
 
   it('auto-clears after 5 s without a refresh', () => {
     vi.useFakeTimers();
     controller!.setAgentTyping(true);
-    expect(($('.typing') as HTMLElement).hidden).toBe(false);
+    expect(($('.typing')).hidden).toBe(false);
     vi.advanceTimersByTime(5100);
-    expect(($('.typing') as HTMLElement).hidden).toBe(true);
+    expect(($('.typing')).hidden).toBe(true);
   });
 
   it('refreshing the indicator within 5 s extends the auto-clear', () => {
@@ -151,9 +151,9 @@ describe('ui: agent typing', () => {
     vi.advanceTimersByTime(3000);
     controller!.setAgentTyping(true); // refresh
     vi.advanceTimersByTime(3000);
-    expect(($('.typing') as HTMLElement).hidden).toBe(false);
+    expect(($('.typing')).hidden).toBe(false);
     vi.advanceTimersByTime(2200);
-    expect(($('.typing') as HTMLElement).hidden).toBe(true);
+    expect(($('.typing')).hidden).toBe(true);
   });
 });
 
@@ -164,41 +164,41 @@ describe('ui: composer', () => {
     onSend = vi.fn();
     onTypingIntent = vi.fn();
     controller = mount(baseConfig, { onSend, onTypingIntent });
-    ($('.launcher') as HTMLButtonElement).click();
+    ($('.launcher')).click();
   });
 
   function setText(s: string): void {
-    const ta = $('textarea') as HTMLTextAreaElement;
+    const ta = $<HTMLTextAreaElement>('textarea');
     ta.value = s;
     ta.dispatchEvent(new Event('input'));
   }
 
   it('updates the counter as the user types and disables send when empty', () => {
-    expect(($('.send') as HTMLButtonElement).disabled).toBe(true);
+    expect($<HTMLButtonElement>('.send').disabled).toBe(true);
     expect($('.counter').textContent).toBe('0/1000');
     setText('hello');
     expect($('.counter').textContent).toBe('5/1000');
-    expect(($('.send') as HTMLButtonElement).disabled).toBe(false);
+    expect($<HTMLButtonElement>('.send').disabled).toBe(false);
   });
 
   it('disables send and adds .over class when over the 1000-char limit', () => {
     setText('x'.repeat(1001));
     expect($('.counter').classList.contains('over')).toBe(true);
-    expect(($('.send') as HTMLButtonElement).disabled).toBe(true);
+    expect($<HTMLButtonElement>('.send').disabled).toBe(true);
   });
 
   it('emits onSend on submit and clears the textarea', () => {
     setText('hi there');
-    ($('.composer') as HTMLFormElement).dispatchEvent(
+    ($('.composer')).dispatchEvent(
       new Event('submit', { cancelable: true, bubbles: true }),
     );
     expect(onSend).toHaveBeenCalledWith('hi there');
-    expect(($('textarea') as HTMLTextAreaElement).value).toBe('');
+    expect($<HTMLTextAreaElement>('textarea').value).toBe('');
   });
 
   it('does not emit onSend when the field is empty or only whitespace', () => {
     setText('   ');
-    ($('.composer') as HTMLFormElement).dispatchEvent(
+    ($('.composer')).dispatchEvent(
       new Event('submit', { cancelable: true, bubbles: true }),
     );
     expect(onSend).not.toHaveBeenCalled();
@@ -214,14 +214,14 @@ describe('ui: composer', () => {
 
   it('stops typing intent and emits onSend on Enter (without Shift)', () => {
     setText('hi');
-    const ta = $('textarea') as HTMLTextAreaElement;
+    const ta = $<HTMLTextAreaElement>('textarea');
     ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true }));
     expect(onSend).toHaveBeenCalledWith('hi');
   });
 
   it('does not send on Shift+Enter (newline)', () => {
     setText('hi');
-    const ta = $('textarea') as HTMLTextAreaElement;
+    const ta = $<HTMLTextAreaElement>('textarea');
     ta.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true, bubbles: true }),
     );
@@ -232,14 +232,14 @@ describe('ui: composer', () => {
 describe('ui: connection state banner', () => {
   beforeEach(() => {
     controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
-    ($('.launcher') as HTMLButtonElement).click();
+    ($('.launcher')).click();
   });
 
   it('hides the banner on connected / idle / connecting', () => {
     controller!.setConnectionState('reconnecting');
-    expect(($('.status') as HTMLElement).hidden).toBe(false);
+    expect(($('.status')).hidden).toBe(false);
     controller!.setConnectionState('connected');
-    expect(($('.status') as HTMLElement).hidden).toBe(true);
+    expect(($('.status')).hidden).toBe(true);
   });
 
   it('shows "Reconnecting…" while reconnecting', () => {

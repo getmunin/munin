@@ -187,8 +187,12 @@ const skipReason = TEST_URL
       );
       const onMessage = (data: WebSocket.RawData) => {
         try {
-          const text = Buffer.isBuffer(data) ? data.toString('utf8') : data.toString();
-          const msg = JSON.parse(text);
+          const text = decodeWsData(data);
+          const msg = JSON.parse(text) as {
+            type: string;
+            channel?: string;
+            event?: { type: string; payload?: Record<string, unknown> };
+          };
           if (predicate(msg)) {
             clearTimeout(timer);
             ws.off('message', onMessage);
@@ -219,7 +223,7 @@ const skipReason = TEST_URL
       }, withinMs);
       const onMessage = (data: WebSocket.RawData) => {
         try {
-          const msg = JSON.parse(data.toString());
+          const msg = JSON.parse(decodeWsData(data)) as { type: string; channel?: string };
           if (predicate(msg)) {
             clearTimeout(timer);
             ws.off('message', onMessage);
@@ -643,7 +647,11 @@ const skipReason = TEST_URL
       let typingCount = 0;
       wsOperator.on('message', (data) => {
         try {
-          const msg = JSON.parse(data.toString());
+          const msg = JSON.parse(decodeWsData(data)) as {
+            type?: string;
+            authorType?: string;
+            isTyping?: boolean;
+          };
           if (msg.type === 'typing' && msg.authorType === 'visitor' && msg.isTyping) {
             typingCount++;
           }
@@ -872,6 +880,13 @@ const skipReason = TEST_URL
     }
   });
 });
+
+function decodeWsData(data: WebSocket.RawData): string {
+  if (typeof data === 'string') return data;
+  if (Buffer.isBuffer(data)) return data.toString('utf8');
+  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
+  return Buffer.from(data).toString('utf8');
+}
 
 function parseToolResult<T>(result: unknown): T {
   const r = result as { content?: Array<{ type: string; text?: string }>; isError?: boolean };

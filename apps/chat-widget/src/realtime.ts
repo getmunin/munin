@@ -87,7 +87,7 @@ const RECONNECT_MAX_JITTER_MS = 250;
 export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
   const setTimeoutFn = deps.setTimeoutImpl ?? setTimeout;
   const clearTimeoutFn = deps.clearTimeoutImpl ?? clearTimeout;
-  const WS = deps.webSocketCtor ?? (globalThis.WebSocket as unknown as WebSocketConstructor);
+  const WS = deps.webSocketCtor ?? (globalThis.WebSocket);
 
   let ws: WebSocketLike | null = null;
   let currentState: ConnectionState = 'idle';

@@ -3,6 +3,7 @@ import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../db/db.module.js';
 import { Reflector } from '@nestjs/core';
+import { resourceMetadataUrl } from '../../oauth/oauth.constants.js';
 
 /** Decorator used on routes that should be reachable without auth (signup, oauth discovery). */
 export const ALLOW_ANONYMOUS = Symbol('allowAnonymous');
@@ -90,12 +91,26 @@ export class AuthGuard implements CanActivate {
 
     if (!credential) {
       if (allowAnon) return true;
+      maybeSetMcpResourceMetadataHeader(context, request);
       throw new UnauthorizedException('invalid or expired credential');
     }
 
     request.credential = credential;
     return true;
   }
+}
+
+function maybeSetMcpResourceMetadataHeader(
+  context: ExecutionContext,
+  request: AuthenticatedRequest & { url?: string; path?: string },
+): void {
+  const url = (request.url ?? request.path ?? '').toString();
+  if (!url.startsWith('/mcp')) return;
+  const res = context.switchToHttp().getResponse<{ setHeader?: (n: string, v: string) => void }>();
+  res.setHeader?.(
+    'WWW-Authenticate',
+    `Bearer resource_metadata="${resourceMetadataUrl()}"`,
+  );
 }
 
 const SESSION_COOKIE_NAMES = ['better-auth.session_token', '__Secure-better-auth.session_token'];

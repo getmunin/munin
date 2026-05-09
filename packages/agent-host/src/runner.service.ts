@@ -61,6 +61,7 @@ interface CuratorWorker {
 export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(AgentHostRunner.name);
   private readonly runners = new Map<string, PerConfigRunner>();
+  private readonly failedSpawns = new Map<string, { error: string; loggedAt: number }>();
   private reconcileTimer: NodeJS.Timeout | null = null;
   private stopped = false;
   private readonly baseUrl: string;
@@ -152,10 +153,11 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         const runner = await this.spawnRunner(id);
         if (runner) {
           this.runners.set(id, runner);
+          this.failedSpawns.delete(id);
           this.logger.log(`started runner for ${id}`);
         }
       } catch (err) {
-        this.logger.error(`failed to start runner for ${id}: ${describe(err)}`);
+        this.recordSpawnFailure(id, describe(err));
       }
     }
 
@@ -166,6 +168,20 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           this.logger.log(`acquired chat lock for ${id}`);
         }
       }
+    }
+  }
+
+  private recordSpawnFailure(id: string, error: string): void {
+    const now = Date.now();
+    const RELOG_MS = 10 * 60 * 1000;
+    const prev = this.failedSpawns.get(id);
+    const sameError = prev?.error === error;
+    const dueForRelog = !prev || !sameError || now - prev.loggedAt >= RELOG_MS;
+    if (dueForRelog) {
+      this.logger.error(`failed to start runner for ${id}: ${error}`);
+      this.failedSpawns.set(id, { error, loggedAt: now });
+    } else {
+      this.logger.debug?.(`spawn for ${id} still failing: ${error}`);
     }
   }
 

@@ -42,6 +42,18 @@ export const WidgetIngestMessage = z.object({
 export const WidgetIngestInput = z.object({
   channelId: z.string().min(1),
   sessionId: z.string().min(1).max(200),
+  /**
+   * Operator-supplied user ID, paired with `userHash`. When both are set
+   * Munin verifies `hmac_sha256(channel.identityVerificationSecret, externalId)`
+   * matches `userHash` and binds the resulting contact to this externalId.
+   * Either both fields must be present or neither.
+   */
+  verifiedExternalId: z.string().min(1).max(200).optional(),
+  /** Hex SHA-256 HMAC digest paired with `verifiedExternalId`. */
+  userHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
+    .optional(),
   visitor: z
     .object({
       name: z.string().max(120).optional(),

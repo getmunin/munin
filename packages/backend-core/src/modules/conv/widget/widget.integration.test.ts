@@ -5,7 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
+import { buildApiKey, hashSecret, keyPrefix, signHmac } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.js';
@@ -117,8 +117,12 @@ const skipReason = TEST_URL
     path: string,
     token: string | null,
     body?: unknown,
+    extraHeaders: Record<string, string> = {},
   ): Promise<{ status: number; json: unknown }> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...extraHeaders,
+    };
     if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(`${baseUrl}${path}`, {
       method,
@@ -416,6 +420,202 @@ const skipReason = TEST_URL
     expect(config.identityVerificationSecret).toEqual(identityVerificationSecret);
 
     await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
+  });
+
+  it('accepts a verified visitor and binds the contact to externalId', async () => {
+    const externalId = 'user_42';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    const res = await call(
+      'POST',
+      '/api/v1/widget/messages',
+      widgetKey,
+      {
+        channelId,
+        sessionId: 'vis_verified_a',
+        verifiedExternalId: externalId,
+        userHash,
+        visitor: { name: 'Ada' },
+        messages: [{ role: 'end_user', body: 'verified hello' }],
+      },
+      { Origin: 'https://customer.example' },
+    );
+    expect(res.status).toBe(201);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const contacts = await db
+      .select()
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          sql`${schema.convContacts.metadata}->>'externalId' = ${externalId}`,
+        ),
+      );
+    expect(contacts).toHaveLength(1);
+    expect(contacts[0]!.name).toBe('Ada');
+  });
+
+  it('collapses one externalId across multiple sessions to a single contact', async () => {
+    const externalId = 'user_multi_sess';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+
+    const r1 = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_multi_a',
+      verifiedExternalId: externalId,
+      userHash,
+      messages: [{ role: 'end_user', body: 'hi from device A' }],
+    });
+    const r2 = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_multi_b',
+      verifiedExternalId: externalId,
+      userHash,
+      messages: [{ role: 'end_user', body: 'hi from device B' }],
+    });
+    expect(r1.status).toBe(201);
+    expect(r2.status).toBe(201);
+    const r1Body = r1.json as { contactId: string; conversationId: string };
+    const r2Body = r2.json as { contactId: string; conversationId: string };
+    expect(r1Body.contactId).toBe(r2Body.contactId);
+    expect(r1Body.conversationId).not.toBe(r2Body.conversationId);
+  });
+
+  it('rejects a tampered userHash with 403', async () => {
+    const externalId = 'user_tamper';
+    const good = signHmac(externalId, identityVerificationSecret);
+    // Flip the last hex char.
+    const last = good[good.length - 1]!;
+    const flipped = last === 'a' ? 'b' : 'a';
+    const tampered = good.slice(0, -1) + flipped;
+    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_tampered',
+      verifiedExternalId: externalId,
+      userHash: tampered,
+      messages: [{ role: 'end_user', body: 'should not land' }],
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects a userHash signed with a different channels secret (cross-channel replay)', async () => {
+    // Mint a second widget channel within the same org.
+    const second = await withClient(adminKey, async (c) => {
+      return parseToolResult<{
+        id: string;
+        widgetKey: string;
+        identityVerificationSecret: string;
+      }>(
+        await c.callTool({
+          name: 'conv_widget_create_channel',
+          arguments: {
+            name: 'storefront-bot-2',
+            displayName: 'Storefront Bot 2',
+            originAllowlist: ['https://customer.example'],
+          },
+        }),
+      );
+    });
+    // Sign with channel-2 secret, send to channel-1.
+    const externalId = 'user_replay';
+    const cross = signHmac(externalId, second.identityVerificationSecret);
+    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_cross',
+      verifiedExternalId: externalId,
+      userHash: cross,
+      messages: [{ role: 'end_user', body: 'should not land' }],
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects partial identity attributes (one without the other)', async () => {
+    const onlyExt = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_partial_a',
+      verifiedExternalId: 'user_partial',
+      messages: [{ role: 'end_user', body: 'no hash' }],
+    });
+    expect(onlyExt.status).toBe(403);
+
+    const onlyHash = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_partial_b',
+      userHash: '0'.repeat(64),
+      messages: [{ role: 'end_user', body: 'no externalId' }],
+    });
+    expect(onlyHash.status).toBe(403);
+  });
+
+  it('rejects anonymous when requireVerifiedIdentity is on; verified passes', async () => {
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_widget_update_channel',
+        arguments: { channelId, requireVerifiedIdentity: true },
+      });
+    });
+    try {
+      const anon = await call('POST', '/api/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: 'vis_required_anon',
+        messages: [{ role: 'end_user', body: 'anon should fail' }],
+      });
+      expect(anon.status).toBe(403);
+
+      const externalId = 'user_required';
+      const userHash = signHmac(externalId, identityVerificationSecret);
+      const verified = await call('POST', '/api/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: 'vis_required_ok',
+        verifiedExternalId: externalId,
+        userHash,
+        messages: [{ role: 'end_user', body: 'verified ok' }],
+      });
+      expect(verified.status).toBe(201);
+    } finally {
+      await withClient(adminKey, async (c) => {
+        await c.callTool({
+          name: 'conv_widget_update_channel',
+          arguments: { channelId, requireVerifiedIdentity: false },
+        });
+      });
+    }
+  });
+
+  it('rejects requests with a non-allowlisted Origin and accepts allowlisted ones', async () => {
+    const denied = await call(
+      'POST',
+      '/api/v1/widget/messages',
+      widgetKey,
+      {
+        channelId,
+        sessionId: 'vis_origin_bad',
+        messages: [{ role: 'end_user', body: 'bad origin' }],
+      },
+      { Origin: 'https://attacker.example' },
+    );
+    expect(denied.status).toBe(403);
+
+    const allowed = await call(
+      'POST',
+      '/api/v1/widget/messages',
+      widgetKey,
+      {
+        channelId,
+        sessionId: 'vis_origin_ok',
+        messages: [{ role: 'end_user', body: 'allowlisted origin' }],
+      },
+      { Origin: 'https://customer.example' },
+    );
+    expect(allowed.status).toBe(201);
+
+    // No Origin (server-to-server) still passes the allowlist gate.
+    const noOrigin = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_origin_none',
+      messages: [{ role: 'end_user', body: 'no origin' }],
+    });
+    expect(noOrigin.status).toBe(201);
   });
 });
 

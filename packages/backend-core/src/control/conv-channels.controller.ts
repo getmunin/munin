@@ -24,12 +24,14 @@ const CreateWidgetBody = z.object({
   displayName: z.string().min(1).max(120),
   originAllowlist: z.array(z.string().url()).default([]),
   webhookOnEscalation: z.string().url().optional(),
+  requireVerifiedIdentity: z.boolean().optional(),
 });
 
 const UpdateWidgetBody = z.object({
   displayName: z.string().min(1).max(120).optional(),
   originAllowlist: z.array(z.string().url()).optional(),
   webhookOnEscalation: z.string().url().nullable().optional(),
+  requireVerifiedIdentity: z.boolean().optional(),
 });
 
 const SetupEmailBody = z.object({
@@ -83,6 +85,14 @@ export class ConvChannelsController {
   @HttpCode(200)
   async rotateWidgetKey(@Param('id') id: string): Promise<{ widgetKey: string }> {
     return this.widgetTools.rotateKey({ channelId: id });
+  }
+
+  @Post('widget/:id/rotate-identity-secret')
+  @HttpCode(200)
+  async rotateIdentitySecret(
+    @Param('id') id: string,
+  ): Promise<Awaited<ReturnType<WidgetAdminTools['rotateIdentitySecret']>>> {
+    return this.widgetTools.rotateIdentitySecret({ channelId: id });
   }
 
   @Post('email')

@@ -1,14 +1,17 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
+import { mkdtempSync, writeFileSync, rmSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
+import { buildApiKey, hashSecret, keyPrefix, signHmac } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.js';
+import { createApp } from '../../../bootstrap-app.js';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL
@@ -23,6 +26,11 @@ const skipReason = TEST_URL
   let adminKey: string;
   let widgetKey: string;
   let channelId: string;
+  let identityVerificationSecret: string;
+  let widgetAssetDir: string;
+  const FIXTURE_SHA = 'abcdef012345';
+  const FIXTURE_BUNDLE = `widget.${FIXTURE_SHA}.js`;
+  const FIXTURE_BUNDLE_BODY = '/* munin widget test fixture */ console.log("fixture");';
 
   beforeAll(async () => {
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod-it-must-be-32-chars';
@@ -59,7 +67,20 @@ const skipReason = TEST_URL
       scopes: ['*'],
     });
 
-    app = await NestFactory.create(AppModule, { logger: false });
+    // Stage a fake widget bundle + manifest in a tmp dir so the static-
+    // asset routes have something to serve from createApp().
+    widgetAssetDir = mkdtempSync(join(tmpdir(), 'munin-widget-asset-'));
+    writeFileSync(join(widgetAssetDir, FIXTURE_BUNDLE), FIXTURE_BUNDLE_BODY);
+    writeFileSync(
+      join(widgetAssetDir, `${FIXTURE_BUNDLE}.map`),
+      JSON.stringify({ version: 3, sources: ['fixture.ts'] }),
+    );
+    writeFileSync(
+      join(widgetAssetDir, 'manifest.json'),
+      JSON.stringify({ current: FIXTURE_BUNDLE, sha: FIXTURE_SHA, builtAt: new Date().toISOString() }),
+    );
+
+    app = await createApp(AppModule, { logger: false, widgetAssetDir });
     await app.listen(0, '127.0.0.1');
     const server = app.getHttpServer() as { address(): AddressInfo | string | null };
     const address = server.address();
@@ -68,7 +89,12 @@ const skipReason = TEST_URL
 
     // Mint a widget channel + key via the admin MCP tool.
     const created = await withClient(adminKey, async (c) => {
-      return parseToolResult<{ id: string; widgetKey: string }>(
+      return parseToolResult<{
+        id: string;
+        widgetKey: string;
+        identityVerificationSecret: string;
+        config: { hasIdentityVerificationSecret: boolean; requireVerifiedIdentity: boolean };
+      }>(
         await c.callTool({
           name: 'conv_widget_create_channel',
           arguments: {
@@ -81,6 +107,7 @@ const skipReason = TEST_URL
     });
     channelId = created.id;
     widgetKey = created.widgetKey;
+    identityVerificationSecret = created.identityVerificationSecret;
   });
 
   afterAll(async () => {
@@ -88,6 +115,9 @@ const skipReason = TEST_URL
     if (db) {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       await db.delete(schema.orgs).where(sql`id = ${orgId}`);
+    }
+    if (widgetAssetDir) {
+      rmSync(widgetAssetDir, { recursive: true, force: true });
     }
   });
 
@@ -110,8 +140,12 @@ const skipReason = TEST_URL
     path: string,
     token: string | null,
     body?: unknown,
+    extraHeaders: Record<string, string> = {},
   ): Promise<{ status: number; json: unknown }> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...extraHeaders,
+    };
     if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(`${baseUrl}${path}`, {
       method,
@@ -281,7 +315,648 @@ const skipReason = TEST_URL
     expect(fresh.status).toBe(201);
     widgetKey = rotated.widgetKey;
   });
+
+  it('returns an identity-verification secret on create and never re-surfaces it', async () => {
+    expect(identityVerificationSecret).toBeTruthy();
+    expect(identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
+
+    // The secret persists in the channel config (RLS-protected JSONB).
+    // waitFor absorbs commit-visibility races between the MCP tool's
+    // commit and this separate connection's snapshot.
+    await waitFor(async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, channelId));
+      const c = rows[0]!.config as {
+        identityVerificationSecret?: string;
+        requireVerifiedIdentity?: boolean;
+      };
+      return (
+        c.identityVerificationSecret === identityVerificationSecret &&
+        c.requireVerifiedIdentity === false
+      );
+    });
+
+    // An update never echoes the secret back through the response.
+    const updated = await withClient(adminKey, async (c) => {
+      return parseToolResult<{
+        config: Record<string, unknown> & { hasIdentityVerificationSecret: boolean };
+      }>(
+        await c.callTool({
+          name: 'conv_widget_update_channel',
+          arguments: { channelId, displayName: 'Storefront Bot v2' },
+        }),
+      );
+    });
+    expect(updated.config.hasIdentityVerificationSecret).toBe(true);
+    expect(updated.config).not.toHaveProperty('identityVerificationSecret');
+  });
+
+  it('toggles requireVerifiedIdentity via update', async () => {
+    const enabled = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ config: { requireVerifiedIdentity: boolean } }>(
+        await c.callTool({
+          name: 'conv_widget_update_channel',
+          arguments: { channelId, requireVerifiedIdentity: true },
+        }),
+      );
+    });
+    expect(enabled.config.requireVerifiedIdentity).toBe(true);
+
+    const disabled = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ config: { requireVerifiedIdentity: boolean } }>(
+        await c.callTool({
+          name: 'conv_widget_update_channel',
+          arguments: { channelId, requireVerifiedIdentity: false },
+        }),
+      );
+    });
+    expect(disabled.config.requireVerifiedIdentity).toBe(false);
+  });
+
+  it('rotates the identity secret to a fresh distinct value', async () => {
+    const oldSecret = identityVerificationSecret;
+    const rotated = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ channelId: string; identityVerificationSecret: string }>(
+        await c.callTool({
+          name: 'conv_widget_rotate_identity_secret',
+          arguments: { channelId },
+        }),
+      );
+    });
+    expect(rotated.channelId).toBe(channelId);
+    expect(rotated.identityVerificationSecret).toBeTruthy();
+    expect(rotated.identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
+    expect(rotated.identityVerificationSecret).not.toEqual(oldSecret);
+
+    // Update the closure's secret BEFORE asserting DB persistence, so a
+    // transient stale-read on this separate connection (commit visibility
+    // can lag the MCP tool response by a tick under load) doesn't poison
+    // every subsequent test that signs with this secret. We then waitFor
+    // the DB to converge.
+    identityVerificationSecret = rotated.identityVerificationSecret;
+    await waitFor(async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, channelId));
+      const config = rows[0]!.config as { identityVerificationSecret?: string };
+      return config.identityVerificationSecret === rotated.identityVerificationSecret;
+    });
+  });
+
+  it('rejects identity rotation across tenants', async () => {
+    // Mint a fresh org with its own admin key, channel, and secret.
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const ts = Date.now();
+    const [otherOrg] = await db
+      .insert(schema.orgs)
+      .values({ name: 'Widget IT Org B', slug: `widget-it-b-${ts}` })
+      .returning();
+    const otherAdminKey = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId: otherOrg!.id,
+      type: 'admin',
+      name: 'widget-it-admin-b',
+      keyHash: hashSecret(otherAdminKey),
+      keyPrefix: keyPrefix(otherAdminKey),
+      scopes: ['*'],
+    });
+
+    // Org B's admin attempts to rotate Org A's channel secret. NotFound (404)
+    // because the channel lookup is org-scoped — we must never leak the
+    // existence of another tenant's channel via a different status code.
+    let threw: unknown = null;
+    try {
+      await withClient(otherAdminKey, async (c) => {
+        return parseToolResult(
+          await c.callTool({
+            name: 'conv_widget_rotate_identity_secret',
+            arguments: { channelId },
+          }),
+        );
+      });
+    } catch (err) {
+      threw = err;
+    }
+    expect(threw).toBeTruthy();
+    expect(String(threw)).toMatch(/not found|tool error/i);
+
+    // Secret on Org A's channel must be unchanged.
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db
+      .select({ config: schema.convChannels.config })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channelId));
+    const config = rows[0]!.config as { identityVerificationSecret?: string };
+    expect(config.identityVerificationSecret).toEqual(identityVerificationSecret);
+
+    await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
+  });
+
+  it('accepts a verified visitor and binds the contact to externalId', async () => {
+    const externalId = 'user_42';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    const res = await call(
+      'POST',
+      '/api/v1/widget/messages',
+      widgetKey,
+      {
+        channelId,
+        sessionId: 'vis_verified_a',
+        verifiedExternalId: externalId,
+        userHash,
+        visitor: { name: 'Ada' },
+        messages: [{ role: 'end_user', body: 'verified hello' }],
+      },
+      { Origin: 'https://customer.example' },
+    );
+    expect(res.status).toBe(201);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const contacts = await db
+      .select()
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          sql`${schema.convContacts.metadata}->>'externalId' = ${externalId}`,
+        ),
+      );
+    expect(contacts).toHaveLength(1);
+    expect(contacts[0]!.name).toBe('Ada');
+  });
+
+  it('collapses one externalId across multiple sessions to a single contact', async () => {
+    const externalId = 'user_multi_sess';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+
+    const r1 = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_multi_a',
+      verifiedExternalId: externalId,
+      userHash,
+      messages: [{ role: 'end_user', body: 'hi from device A' }],
+    });
+    const r2 = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_multi_b',
+      verifiedExternalId: externalId,
+      userHash,
+      messages: [{ role: 'end_user', body: 'hi from device B' }],
+    });
+    expect(r1.status).toBe(201);
+    expect(r2.status).toBe(201);
+    const r1Body = r1.json as { contactId: string; conversationId: string };
+    const r2Body = r2.json as { contactId: string; conversationId: string };
+    expect(r1Body.contactId).toBe(r2Body.contactId);
+    expect(r1Body.conversationId).not.toBe(r2Body.conversationId);
+  });
+
+  it('rejects a tampered userHash with 403', async () => {
+    const externalId = 'user_tamper';
+    const good = signHmac(externalId, identityVerificationSecret);
+    // Flip the last hex char.
+    const last = good[good.length - 1]!;
+    const flipped = last === 'a' ? 'b' : 'a';
+    const tampered = good.slice(0, -1) + flipped;
+    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_tampered',
+      verifiedExternalId: externalId,
+      userHash: tampered,
+      messages: [{ role: 'end_user', body: 'should not land' }],
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects a userHash signed with a different channels secret (cross-channel replay)', async () => {
+    // Mint a second widget channel within the same org.
+    const second = await withClient(adminKey, async (c) => {
+      return parseToolResult<{
+        id: string;
+        widgetKey: string;
+        identityVerificationSecret: string;
+      }>(
+        await c.callTool({
+          name: 'conv_widget_create_channel',
+          arguments: {
+            name: 'storefront-bot-2',
+            displayName: 'Storefront Bot 2',
+            originAllowlist: ['https://customer.example'],
+          },
+        }),
+      );
+    });
+    // Sign with channel-2 secret, send to channel-1.
+    const externalId = 'user_replay';
+    const cross = signHmac(externalId, second.identityVerificationSecret);
+    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_cross',
+      verifiedExternalId: externalId,
+      userHash: cross,
+      messages: [{ role: 'end_user', body: 'should not land' }],
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects partial identity attributes (one without the other)', async () => {
+    const onlyExt = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_partial_a',
+      verifiedExternalId: 'user_partial',
+      messages: [{ role: 'end_user', body: 'no hash' }],
+    });
+    expect(onlyExt.status).toBe(403);
+
+    const onlyHash = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_partial_b',
+      userHash: '0'.repeat(64),
+      messages: [{ role: 'end_user', body: 'no externalId' }],
+    });
+    expect(onlyHash.status).toBe(403);
+  });
+
+  it('rejects anonymous when requireVerifiedIdentity is on; verified passes', async () => {
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_widget_update_channel',
+        arguments: { channelId, requireVerifiedIdentity: true },
+      });
+    });
+    try {
+      const anon = await call('POST', '/api/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: 'vis_required_anon',
+        messages: [{ role: 'end_user', body: 'anon should fail' }],
+      });
+      expect(anon.status).toBe(403);
+
+      const externalId = 'user_required';
+      const userHash = signHmac(externalId, identityVerificationSecret);
+      const verified = await call('POST', '/api/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: 'vis_required_ok',
+        verifiedExternalId: externalId,
+        userHash,
+        messages: [{ role: 'end_user', body: 'verified ok' }],
+      });
+      expect(verified.status).toBe(201);
+    } finally {
+      await withClient(adminKey, async (c) => {
+        await c.callTool({
+          name: 'conv_widget_update_channel',
+          arguments: { channelId, requireVerifiedIdentity: false },
+        });
+      });
+    }
+  });
+
+  it('rejects requests with a non-allowlisted Origin and accepts allowlisted ones', async () => {
+    const denied = await call(
+      'POST',
+      '/api/v1/widget/messages',
+      widgetKey,
+      {
+        channelId,
+        sessionId: 'vis_origin_bad',
+        messages: [{ role: 'end_user', body: 'bad origin' }],
+      },
+      { Origin: 'https://attacker.example' },
+    );
+    expect(denied.status).toBe(403);
+
+    const allowed = await call(
+      'POST',
+      '/api/v1/widget/messages',
+      widgetKey,
+      {
+        channelId,
+        sessionId: 'vis_origin_ok',
+        messages: [{ role: 'end_user', body: 'allowlisted origin' }],
+      },
+      { Origin: 'https://customer.example' },
+    );
+    expect(allowed.status).toBe(201);
+
+    // No Origin (server-to-server) still passes the allowlist gate.
+    const noOrigin = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_origin_none',
+      messages: [{ role: 'end_user', body: 'no origin' }],
+    });
+    expect(noOrigin.status).toBe(201);
+  });
+
+  it('lists messages ordered ascending and filters by since', async () => {
+    const sessionId = 'vis_list_basic';
+    const t0 = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [
+        { role: 'end_user', body: 'one' },
+        { role: 'agent', body: 'two' },
+        { role: 'end_user', body: 'three' },
+      ],
+    });
+    expect(t0.status).toBe(201);
+
+    const all = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      widgetKey,
+    );
+    expect(all.status).toBe(200);
+    const allBody = all.json as { messages: Array<{ body: string; role: string; at: string }>; hasMore: boolean };
+    expect(allBody.hasMore).toBe(false);
+    expect(allBody.messages.map((m) => m.body)).toEqual(['one', 'two', 'three']);
+    expect(allBody.messages.map((m) => m.role)).toEqual(['end_user', 'agent', 'end_user']);
+    // Strictly ascending timestamps (or equal — they were inserted in one tx).
+    const times = allBody.messages.map((m) => Date.parse(m.at));
+    for (let i = 1; i < times.length; i++) {
+      expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]!);
+    }
+
+    // since filter: exclude rows with createdAt <= since.
+    const since = allBody.messages[0]!.at;
+    const after = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId, since })}`,
+      widgetKey,
+    );
+    expect(after.status).toBe(200);
+    const afterBody = after.json as { messages: Array<{ body: string }> };
+    expect(afterBody.messages.map((m) => m.body)).not.toContain('one');
+  });
+
+  it('returns hasMore: true when the conversation has > 100 messages', async () => {
+    const sessionId = 'vis_list_hasmore';
+    const batch = Array.from({ length: 50 }, (_, i) => ({
+      role: 'end_user' as const,
+      body: `m${i}`,
+    }));
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: batch,
+    });
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: batch,
+    });
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'final' }],
+    });
+
+    const res = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const body = res.json as { messages: unknown[]; hasMore: boolean };
+    expect(body.messages).toHaveLength(100);
+    expect(body.hasMore).toBe(true);
+  });
+
+  it('isolates GET responses by sessionId', async () => {
+    const a = 'vis_list_isolate_a';
+    const b = 'vis_list_isolate_b';
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: a,
+      messages: [{ role: 'end_user', body: 'a-only' }],
+    });
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: b,
+      messages: [{ role: 'end_user', body: 'b-only' }],
+    });
+    const resA = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: a })}`,
+      widgetKey,
+    );
+    const bodyA = resA.json as { messages: Array<{ body: string }> };
+    expect(bodyA.messages.map((m) => m.body)).not.toContain('b-only');
+    expect(bodyA.messages.map((m) => m.body)).toContain('a-only');
+  });
+
+  it('returns empty when GET is verified but the contact is bound to a different externalId', async () => {
+    const sessionId = 'vis_list_verified_mismatch';
+    const otherExt = 'user_other';
+    const otherHash = signHmac(otherExt, identityVerificationSecret);
+
+    // Bind the conversation/contact via verified ingest as user_other.
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: otherExt,
+      userHash: otherHash,
+      messages: [{ role: 'end_user', body: 'belongs to other' }],
+    });
+
+    // Now request as a different verified user — same sessionId but
+    // different externalId. Empty response (don't leak that the session
+    // exists for someone else).
+    const requesterExt = 'user_requester';
+    const requesterHash = signHmac(requesterExt, identityVerificationSecret);
+    const res = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({
+        channelId,
+        sessionId,
+        verifiedExternalId: requesterExt,
+        userHash: requesterHash,
+      })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const body = res.json as { messages: unknown[] };
+    expect(body.messages).toEqual([]);
+  });
+
+  it('rejects GET on partial / tampered identity attributes', async () => {
+    const sessionId = 'vis_list_identity_bad';
+    const partial = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({
+        channelId,
+        sessionId,
+        verifiedExternalId: 'user_x',
+      })}`,
+      widgetKey,
+    );
+    expect(partial.status).toBe(403);
+
+    const tampered = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({
+        channelId,
+        sessionId,
+        verifiedExternalId: 'user_x',
+        userHash: '0'.repeat(64),
+      })}`,
+      widgetKey,
+    );
+    expect(tampered.status).toBe(403);
+  });
+
+  it('rejects GET with a non-allowlisted Origin', async () => {
+    const res = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_origin_bad' })}`,
+      widgetKey,
+      undefined,
+      { Origin: 'https://attacker.example' },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects GET when channelId in query does not match the widget keys binding', async () => {
+    const second = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ id: string; widgetKey: string }>(
+        await c.callTool({
+          name: 'conv_widget_create_channel',
+          arguments: {
+            name: 'storefront-bot-list-other',
+            displayName: 'Other Bot',
+            originAllowlist: ['https://customer.example'],
+          },
+        }),
+      );
+    });
+    const res = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId: second.id, sessionId: 'vis_other' })}`,
+      widgetKey, // wrong key for that channel
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects GET with no auth or with admin key', async () => {
+    const noAuth = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_no_auth' })}`,
+      null,
+    );
+    expect(noAuth.status).toBe(401);
+    const admin = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_admin' })}`,
+      adminKey,
+    );
+    expect(admin.status).toBe(403);
+  });
+
+  it('accepts an end_user body of exactly 1000 chars and rejects 1001', async () => {
+    const ok = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_charcap_ok',
+      messages: [{ role: 'end_user', body: 'a'.repeat(1000) }],
+    });
+    expect(ok.status).toBe(201);
+
+    const tooBig = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_charcap_over',
+      messages: [{ role: 'end_user', body: 'a'.repeat(1001) }],
+    });
+    expect(tooBig.status).toBe(403);
+    expect(JSON.stringify(tooBig.json)).toMatch(/exceeds 1000 chars|too_big/i);
+  });
+
+  it('still accepts long agent bodies (operator-pushed messages keep the 50K cap)', async () => {
+    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_charcap_agent',
+      messages: [{ role: 'agent', body: 'b'.repeat(20_000) }],
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects an end_user bodyHtml over 4000 chars', async () => {
+    const tooBig = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_charcap_html',
+      messages: [
+        { role: 'end_user', body: 'short', bodyHtml: '<p>' + 'x'.repeat(4001) + '</p>' },
+      ],
+    });
+    expect(tooBig.status).toBe(403);
+  });
+
+  it('redirects GET /widget.js to the current hashed bundle with a short revalidate cache', async () => {
+    const res = await fetch(`${baseUrl}/widget.js`, { method: 'GET', redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`/widget/${FIXTURE_BUNDLE}`);
+    expect(res.headers.get('cache-control')).toContain('max-age=300');
+    expect(res.headers.get('cache-control')).toContain('must-revalidate');
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+  });
+
+  it('serves /widget/<sha>.js with immutable cache and JS content-type', async () => {
+    const res = await fetch(`${baseUrl}/widget/${FIXTURE_BUNDLE}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/javascript');
+    expect(res.headers.get('cache-control')).toContain('immutable');
+    expect(res.headers.get('cache-control')).toContain('max-age=31536000');
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    const body = await res.text();
+    expect(body).toBe(FIXTURE_BUNDLE_BODY);
+  });
+
+  it('serves the sourcemap with a JSON content-type', async () => {
+    const res = await fetch(`${baseUrl}/widget/${FIXTURE_BUNDLE}.map`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+  });
+
+  it('rejects non-hex hashed paths with 404', async () => {
+    const res = await fetch(`${baseUrl}/widget/widget.zzzzzzzzzzzz.js`);
+    expect(res.status).toBe(404);
+  });
+
+  it('rejects path traversal under /widget/', async () => {
+    const res = await fetch(`${baseUrl}/widget/..%2Fmanifest.json`);
+    expect(res.status).toBe(404);
+  });
+
+  it('serves 503 on /widget.js when the manifest is removed', async () => {
+    const manifestPath = join(widgetAssetDir, 'manifest.json');
+    unlinkSync(manifestPath);
+    try {
+      const res = await fetch(`${baseUrl}/widget.js`, { method: 'GET', redirect: 'manual' });
+      expect(res.status).toBe(503);
+      expect(res.headers.get('cache-control')).toBe('no-store');
+    } finally {
+      writeFileSync(
+        manifestPath,
+        JSON.stringify({
+          current: FIXTURE_BUNDLE,
+          sha: FIXTURE_SHA,
+          builtAt: new Date().toISOString(),
+        }),
+      );
+    }
+  });
 });
+
+function qs(params: Record<string, string | undefined>): string {
+  const u = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) u.set(k, v);
+  }
+  return u.toString();
+}
 
 function parseToolResult<T>(result: unknown): T {
   const r = result as { content?: Array<{ type: string; text?: string }>; isError?: boolean };

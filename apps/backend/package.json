@@ -5,6 +5,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "prebuild": "node scripts/copy-widget.mjs",
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
@@ -16,6 +17,7 @@
   "dependencies": {
     "@getmunin/agent-host": "workspace:*",
     "@getmunin/backend-core": "workspace:*",
+    "@getmunin/chat-widget": "workspace:*",
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",
     "@nestjs/common": "^11.1.19",

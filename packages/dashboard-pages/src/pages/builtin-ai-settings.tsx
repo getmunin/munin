@@ -6,7 +6,7 @@ import { useAgentConfig } from '../components/agent-config/use-agent-config';
 import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
 
-export function AgentSettingsPage() {
+export function BuiltinAiSettingsPage() {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
   const { config, loadError, models, setConfig, setModels } = useAgentConfig();

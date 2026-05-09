@@ -298,17 +298,23 @@ const skipReason = TEST_URL
     expect(identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
 
     // The secret persists in the channel config (RLS-protected JSONB).
-    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-    const rows = await db
-      .select({ config: schema.convChannels.config })
-      .from(schema.convChannels)
-      .where(eq(schema.convChannels.id, channelId));
-    const config = rows[0]!.config as {
-      identityVerificationSecret?: string;
-      requireVerifiedIdentity?: boolean;
-    };
-    expect(config.identityVerificationSecret).toEqual(identityVerificationSecret);
-    expect(config.requireVerifiedIdentity).toBe(false);
+    // waitFor absorbs commit-visibility races between the MCP tool's
+    // commit and this separate connection's snapshot.
+    await waitFor(async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, channelId));
+      const c = rows[0]!.config as {
+        identityVerificationSecret?: string;
+        requireVerifiedIdentity?: boolean;
+      };
+      return (
+        c.identityVerificationSecret === identityVerificationSecret &&
+        c.requireVerifiedIdentity === false
+      );
+    });
 
     // An update never echoes the secret back through the response.
     const updated = await withClient(adminKey, async (c) => {
@@ -362,15 +368,21 @@ const skipReason = TEST_URL
     expect(rotated.identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
     expect(rotated.identityVerificationSecret).not.toEqual(oldSecret);
 
-    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-    const rows = await db
-      .select({ config: schema.convChannels.config })
-      .from(schema.convChannels)
-      .where(eq(schema.convChannels.id, channelId));
-    const config = rows[0]!.config as { identityVerificationSecret?: string };
-    expect(config.identityVerificationSecret).toEqual(rotated.identityVerificationSecret);
-
+    // Update the closure's secret BEFORE asserting DB persistence, so a
+    // transient stale-read on this separate connection (commit visibility
+    // can lag the MCP tool response by a tick under load) doesn't poison
+    // every subsequent test that signs with this secret. We then waitFor
+    // the DB to converge.
     identityVerificationSecret = rotated.identityVerificationSecret;
+    await waitFor(async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, channelId));
+      const config = rows[0]!.config as { identityVerificationSecret?: string };
+      return config.identityVerificationSecret === rotated.identityVerificationSecret;
+    });
   });
 
   it('rejects identity rotation across tenants', async () => {

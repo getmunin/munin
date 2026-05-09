@@ -6,10 +6,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { schema, type Tx } from '@getmunin/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, sql } from 'drizzle-orm';
 import { WebhookDispatcher, getCurrentContext, verifyHmac } from '@getmunin/core';
 import { WidgetChannelConfig } from './widget.types.js';
-import type { WidgetIngestInputT, WidgetIngestResult } from './widget.types.js';
+import type {
+  WidgetIngestInputT,
+  WidgetIngestResult,
+  WidgetListMessagesQueryT,
+  WidgetListMessagesResult,
+  WidgetListedMessage,
+} from './widget.types.js';
+
+const LIST_MESSAGES_LIMIT = 100;
 
 /**
  * Outcome of identity verification. The verified branch carries the
@@ -45,6 +53,102 @@ export class WidgetIngestService {
     // need to open up writes to conv_* against the bound channel's org.
     await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
     return this.ingestInTx(ctx.db as Tx, orgId, input, requestContext);
+  }
+
+  /**
+   * Backfill messages for a (channelId, sessionId) conversation. The widget
+   * calls this once on (re)connect to catch up on anything dropped while the
+   * WS was offline; thereafter it relies on realtime push. There is no
+   * polling — operators must not lengthen this into a hot loop.
+   */
+  async listMessages(
+    orgId: string,
+    query: WidgetListMessagesQueryT,
+    requestContext: { origin?: string } = {},
+  ): Promise<WidgetListMessagesResult> {
+    const ctx = getCurrentContext();
+    await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const tx = ctx.db as Tx;
+
+    const channel = await this.loadChannel(tx, orgId, query.channelId);
+    const channelConfig = WidgetChannelConfig.parse(channel.config);
+    enforceOriginAllowlist(channelConfig, requestContext.origin);
+    const identity = verifyIdentity(channelConfig, {
+      verifiedExternalId: query.verifiedExternalId,
+      userHash: query.userHash,
+    });
+
+    const conv = await tx
+      .select({
+        id: schema.convConversations.id,
+        contactId: schema.convConversations.contactId,
+      })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          eq(schema.convConversations.channelId, channel.id),
+          sql`${schema.convConversations.metadata}->>'sessionId' = ${query.sessionId}`,
+        ),
+      )
+      .limit(1);
+    if (!conv[0]) return { messages: [], hasMore: false };
+
+    // Verified-mode authorization: the conversation's contact must be bound
+    // to the same externalId. Returning an empty result on mismatch (rather
+    // than 403) prevents leaking the existence of a sessionId belonging to a
+    // different visitor.
+    if (identity.mode === 'verified') {
+      const contact = await tx
+        .select({ metadata: schema.convContacts.metadata })
+        .from(schema.convContacts)
+        .where(eq(schema.convContacts.id, conv[0].contactId!))
+        .limit(1);
+      const contactExternalId = (contact[0]?.metadata as { externalId?: string } | undefined)
+        ?.externalId;
+      if (contactExternalId !== identity.externalId) {
+        return { messages: [], hasMore: false };
+      }
+    }
+
+    // PG stores timestamps at microsecond precision; JS Date is millisecond.
+    // The widget echoes `at` back as ISO ms-precision, so compare at ms
+    // resolution: returning rows where the column is strictly newer than the
+    // last seen ms is `created_at >= since + 1 ms`. This may double-deliver
+    // co-millisecond rows on reconnect — the widget dedupes by message id.
+    const sinceFilter = query.since
+      ? gte(schema.convMessages.createdAt, new Date(query.since.getTime() + 1))
+      : undefined;
+    const rows = await tx
+      .select({
+        id: schema.convMessages.id,
+        authorType: schema.convMessages.authorType,
+        body: schema.convMessages.body,
+        bodyHtml: schema.convMessages.bodyHtml,
+        createdAt: schema.convMessages.createdAt,
+        internal: schema.convMessages.internal,
+      })
+      .from(schema.convMessages)
+      .where(
+        sinceFilter
+          ? and(eq(schema.convMessages.conversationId, conv[0].id), sinceFilter)
+          : eq(schema.convMessages.conversationId, conv[0].id),
+      )
+      .orderBy(asc(schema.convMessages.createdAt))
+      .limit(LIST_MESSAGES_LIMIT + 1);
+
+    const hasMore = rows.length > LIST_MESSAGES_LIMIT;
+    const slice = hasMore ? rows.slice(0, LIST_MESSAGES_LIMIT) : rows;
+    const messages: WidgetListedMessage[] = slice
+      .filter((r) => !r.internal)
+      .map((r) => ({
+        id: r.id,
+        role: normalizeRole(r.authorType),
+        body: r.body,
+        bodyHtml: r.bodyHtml,
+        at: r.createdAt.toISOString(),
+      }));
+    return { messages, hasMore };
   }
 
   private async ingestInTx(
@@ -304,6 +408,16 @@ export class WidgetIngestService {
     });
     return created!;
   }
+}
+
+function normalizeRole(authorType: string): WidgetListedMessage['role'] {
+  // Operator-side messages may carry authorType `user` (human operator) or
+  // `agent` (AI). Both surface to the visitor as `agent` — visitors don't
+  // distinguish humans from AI in the widget UI. Anything else falls back
+  // to `system`.
+  if (authorType === 'end_user') return 'end_user';
+  if (authorType === 'agent' || authorType === 'user') return 'agent';
+  return 'system';
 }
 
 function isUniqueViolation(err: unknown): boolean {

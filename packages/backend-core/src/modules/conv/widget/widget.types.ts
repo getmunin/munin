@@ -75,3 +75,39 @@ export interface WidgetIngestResult {
   inserted: number;
   skipped: number;
 }
+
+/**
+ * Query for the WS-reconnect backfill endpoint. Browsers pass `since` as
+ * an ISO timestamp; the server returns messages with `createdAt > since`,
+ * ordered ascending, capped at 100. Identity attributes mirror
+ * `WidgetIngestInput` so the same verification rules apply.
+ */
+export const WidgetListMessagesQuery = z.object({
+  channelId: z.string().min(1),
+  sessionId: z.string().min(1).max(200),
+  since: z
+    .string()
+    .datetime()
+    .optional()
+    .transform((s) => (s ? new Date(s) : undefined)),
+  verifiedExternalId: z.string().min(1).max(200).optional(),
+  userHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
+    .optional(),
+});
+
+export type WidgetListMessagesQueryT = z.infer<typeof WidgetListMessagesQuery>;
+
+export interface WidgetListedMessage {
+  id: string;
+  role: 'end_user' | 'agent' | 'system';
+  body: string;
+  bodyHtml: string | null;
+  at: string;
+}
+
+export interface WidgetListMessagesResult {
+  messages: WidgetListedMessage[];
+  hasMore: boolean;
+}

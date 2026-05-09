@@ -617,7 +617,219 @@ const skipReason = TEST_URL
     });
     expect(noOrigin.status).toBe(201);
   });
+
+  it('lists messages ordered ascending and filters by since', async () => {
+    const sessionId = 'vis_list_basic';
+    const t0 = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [
+        { role: 'end_user', body: 'one' },
+        { role: 'agent', body: 'two' },
+        { role: 'end_user', body: 'three' },
+      ],
+    });
+    expect(t0.status).toBe(201);
+
+    const all = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      widgetKey,
+    );
+    expect(all.status).toBe(200);
+    const allBody = all.json as { messages: Array<{ body: string; role: string; at: string }>; hasMore: boolean };
+    expect(allBody.hasMore).toBe(false);
+    expect(allBody.messages.map((m) => m.body)).toEqual(['one', 'two', 'three']);
+    expect(allBody.messages.map((m) => m.role)).toEqual(['end_user', 'agent', 'end_user']);
+    // Strictly ascending timestamps (or equal — they were inserted in one tx).
+    const times = allBody.messages.map((m) => Date.parse(m.at));
+    for (let i = 1; i < times.length; i++) {
+      expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]!);
+    }
+
+    // since filter: exclude rows with createdAt <= since.
+    const since = allBody.messages[0]!.at;
+    const after = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId, since })}`,
+      widgetKey,
+    );
+    expect(after.status).toBe(200);
+    const afterBody = after.json as { messages: Array<{ body: string }> };
+    expect(afterBody.messages.map((m) => m.body)).not.toContain('one');
+  });
+
+  it('returns hasMore: true when the conversation has > 100 messages', async () => {
+    const sessionId = 'vis_list_hasmore';
+    const batch = Array.from({ length: 50 }, (_, i) => ({
+      role: 'end_user' as const,
+      body: `m${i}`,
+    }));
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: batch,
+    });
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: batch,
+    });
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'final' }],
+    });
+
+    const res = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const body = res.json as { messages: unknown[]; hasMore: boolean };
+    expect(body.messages).toHaveLength(100);
+    expect(body.hasMore).toBe(true);
+  });
+
+  it('isolates GET responses by sessionId', async () => {
+    const a = 'vis_list_isolate_a';
+    const b = 'vis_list_isolate_b';
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: a,
+      messages: [{ role: 'end_user', body: 'a-only' }],
+    });
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: b,
+      messages: [{ role: 'end_user', body: 'b-only' }],
+    });
+    const resA = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: a })}`,
+      widgetKey,
+    );
+    const bodyA = resA.json as { messages: Array<{ body: string }> };
+    expect(bodyA.messages.map((m) => m.body)).not.toContain('b-only');
+    expect(bodyA.messages.map((m) => m.body)).toContain('a-only');
+  });
+
+  it('returns empty when GET is verified but the contact is bound to a different externalId', async () => {
+    const sessionId = 'vis_list_verified_mismatch';
+    const otherExt = 'user_other';
+    const otherHash = signHmac(otherExt, identityVerificationSecret);
+
+    // Bind the conversation/contact via verified ingest as user_other.
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: otherExt,
+      userHash: otherHash,
+      messages: [{ role: 'end_user', body: 'belongs to other' }],
+    });
+
+    // Now request as a different verified user — same sessionId but
+    // different externalId. Empty response (don't leak that the session
+    // exists for someone else).
+    const requesterExt = 'user_requester';
+    const requesterHash = signHmac(requesterExt, identityVerificationSecret);
+    const res = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({
+        channelId,
+        sessionId,
+        verifiedExternalId: requesterExt,
+        userHash: requesterHash,
+      })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const body = res.json as { messages: unknown[] };
+    expect(body.messages).toEqual([]);
+  });
+
+  it('rejects GET on partial / tampered identity attributes', async () => {
+    const sessionId = 'vis_list_identity_bad';
+    const partial = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({
+        channelId,
+        sessionId,
+        verifiedExternalId: 'user_x',
+      })}`,
+      widgetKey,
+    );
+    expect(partial.status).toBe(403);
+
+    const tampered = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({
+        channelId,
+        sessionId,
+        verifiedExternalId: 'user_x',
+        userHash: '0'.repeat(64),
+      })}`,
+      widgetKey,
+    );
+    expect(tampered.status).toBe(403);
+  });
+
+  it('rejects GET with a non-allowlisted Origin', async () => {
+    const res = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_origin_bad' })}`,
+      widgetKey,
+      undefined,
+      { Origin: 'https://attacker.example' },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects GET when channelId in query does not match the widget keys binding', async () => {
+    const second = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ id: string; widgetKey: string }>(
+        await c.callTool({
+          name: 'conv_widget_create_channel',
+          arguments: {
+            name: 'storefront-bot-list-other',
+            displayName: 'Other Bot',
+            originAllowlist: ['https://customer.example'],
+          },
+        }),
+      );
+    });
+    const res = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId: second.id, sessionId: 'vis_other' })}`,
+      widgetKey, // wrong key for that channel
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects GET with no auth or with admin key', async () => {
+    const noAuth = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_no_auth' })}`,
+      null,
+    );
+    expect(noAuth.status).toBe(401);
+    const admin = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_admin' })}`,
+      adminKey,
+    );
+    expect(admin.status).toBe(403);
+  });
 });
+
+function qs(params: Record<string, string | undefined>): string {
+  const u = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) u.set(k, v);
+  }
+  return u.toString();
+}
 
 function parseToolResult<T>(result: unknown): T {
   const r = result as { content?: Array<{ type: string; text?: string }>; isError?: boolean };

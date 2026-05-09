@@ -6,7 +6,7 @@ import { authClient } from '../auth-client';
 import { isOwnerOrAdmin, useActiveRole, type OrgRole } from './use-active-role';
 import { useAgentConfigStatus } from './use-agent-config-status';
 
-const EXEMPT_PREFIXES = ['/dashboard/account'];
+const EXEMPT_PREFIXES = ['/dashboard/account', '/dashboard/oauth/consent'];
 
 export function useDashboardGate(): { ready: boolean; role: OrgRole | null } {
   const router = useRouter();

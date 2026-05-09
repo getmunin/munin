@@ -9,6 +9,7 @@ export { useSetupGate } from './auth/use-setup-gate';
 
 export { AcceptInvitePage } from './pages/accept-invite';
 export { BuiltinAiSettingsPage } from './pages/builtin-ai-settings';
+export { OAuthConsentPage } from './pages/oauth-consent';
 export { AgentSetupWizard } from './pages/agent-setup-wizard';
 export { AgentsPage } from './pages/agents';
 export { ApiKeysPage } from './pages/api-keys';

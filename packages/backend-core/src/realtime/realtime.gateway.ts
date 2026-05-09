@@ -357,7 +357,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
         // pair. Any attempt to subscribe to org/conversation/contact, or to
         // a different widget channel, is silently ignored — defense in
         // depth alongside the upgrade-time gate.
-        if (!key.startsWith(`widget:${widgetCtx!.channelId}:`)) return;
+        if (!key.startsWith(`widget:${widgetCtx.channelId}:`)) return;
       }
       if (msg.type === 'subscribe') addChannelSubscription(key);
       else if (msg.type === 'unsubscribe') removeChannelSubscription(key);

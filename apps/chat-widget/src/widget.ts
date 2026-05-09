@@ -1,6 +1,6 @@
 import { parseConfig, type WidgetConfig } from './config.js';
 import { getSessionId } from './session.js';
-import { createApiClient, WidgetApiError, type ListedMessage } from './api.js';
+import { createApiClient, WidgetApiError } from './api.js';
 import { createRealtimeClient, type IncomingTyping } from './realtime.js';
 import { mount, type UiController } from './ui.js';
 
@@ -108,29 +108,34 @@ function start(config: WidgetConfig): void {
     }
   }
 
-  let ui: UiController;
-
-  ui = mount(config, {
-    async onSend(text) {
-      ui.setSending(true);
-      try {
-        await api.postMessage(text);
-        // Don't optimistically render — the WS event triggers a backfill
-        // that will pull the canonical message in.
-      } catch (err) {
-        if (err instanceof WidgetApiError) {
-          console.warn(`[munin-widget] send failed: ${err.status}`);
-        } else {
-          console.warn('[munin-widget] send failed:', err);
-        }
-      } finally {
-        ui.setSending(false);
-      }
+  // `ui` is referenced inside the hooks below, but those hooks only fire
+  // in response to user interaction — well after this synchronous mount
+  // returns and the closure resolves. `const` is safe.
+  const ui: UiController = mount(config, {
+    onSend(text) {
+      void sendMessage(text);
     },
     onTypingIntent(intent) {
       realtime.sendTyping(intent === 'typing');
     },
   });
+
+  async function sendMessage(text: string): Promise<void> {
+    ui.setSending(true);
+    try {
+      await api.postMessage(text);
+      // Don't optimistically render — the WS event triggers a backfill
+      // that will pull the canonical message in.
+    } catch (err) {
+      if (err instanceof WidgetApiError) {
+        console.warn(`[munin-widget] send failed: ${err.status}`);
+      } else {
+        console.warn('[munin-widget] send failed:', err);
+      }
+    } finally {
+      ui.setSending(false);
+    }
+  }
 
   realtime.onState((state) => {
     ui.setConnectionState(state);

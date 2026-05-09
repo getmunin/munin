@@ -99,7 +99,7 @@ describe('realtime: connection lifecycle', () => {
     ws.fakeOpen();
     expect(states).toEqual(['connecting', 'connected']);
     expect(ws.sent).toHaveLength(1);
-    const msg = JSON.parse(ws.sent[0]!);
+    const msg = JSON.parse(ws.sent[0]!) as Record<string, unknown>;
     expect(msg).toMatchObject({
       type: 'subscribe',
       channel: 'widget',
@@ -120,8 +120,8 @@ describe('realtime: connection lifecycle', () => {
     });
     client.connect();
     const ws = MockWebSocket.instances.at(-1)!;
-    expect((ws as MockWebSocket).url).toContain('externalId=user_42');
-    expect((ws as MockWebSocket).url).toContain(`userHash=${'a'.repeat(64)}`);
+    expect((ws).url).toContain('externalId=user_42');
+    expect((ws).url).toContain(`userHash=${'a'.repeat(64)}`);
     client.close();
   });
 
@@ -183,7 +183,7 @@ describe('realtime: connection lifecycle', () => {
     const ws = MockWebSocket.instances.at(-1)!;
     ws.fakeOpen();
     // Inject raw invalid data via the test driver.
-    expect(() => (ws as MockWebSocket).fakeRawMessage('{not valid')).not.toThrow();
+    expect(() => (ws).fakeRawMessage('{not valid')).not.toThrow();
     client.close();
   });
 });
@@ -212,7 +212,7 @@ describe('realtime: typing throttle', () => {
     vi.setSystemTime(start + 1000);
     client.sendTyping(true);
     expect(ws.sent).toHaveLength(1);
-    expect(JSON.parse(ws.sent[0]!).isTyping).toBe(true);
+    expect((JSON.parse(ws.sent[0]!) as { isTyping: boolean }).isTyping).toBe(true);
 
     // After 1.5 s the throttle releases.
     vi.setSystemTime(start + 1600);
@@ -241,7 +241,7 @@ describe('realtime: typing throttle', () => {
     vi.setSystemTime(start + 100);
     client.sendTyping(false);
     expect(ws.sent).toHaveLength(2);
-    expect(JSON.parse(ws.sent[1]!).isTyping).toBe(false);
+    expect((JSON.parse(ws.sent[1]!) as { isTyping: boolean }).isTyping).toBe(false);
     client.close();
   });
 

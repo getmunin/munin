@@ -65,6 +65,23 @@ const config: Config = {
           soft: 'rgb(var(--munin-ink) / 0.145)',
           'on-dark': 'rgb(var(--munin-fg-on-dark-2) / 0.2)',
         },
+        'auth-navy': {
+          DEFAULT: 'rgb(var(--munin-auth-navy) / <alpha-value>)',
+          hover: 'rgb(var(--munin-auth-navy-hover) / <alpha-value>)',
+        },
+        'alert-bad': {
+          DEFAULT: 'rgb(var(--munin-alert-bad-bg) / <alpha-value>)',
+          ink: 'rgb(var(--munin-alert-bad-ink) / <alpha-value>)',
+          border: 'rgb(var(--munin-alert-bad-border) / <alpha-value>)',
+        },
+        'invite-good': {
+          DEFAULT: 'rgb(var(--munin-invite-good-bg) / <alpha-value>)',
+          ink: 'rgb(var(--munin-invite-good-ink) / <alpha-value>)',
+        },
+        'invite-bad': {
+          DEFAULT: 'rgb(var(--munin-invite-bad-bg) / <alpha-value>)',
+          ink: 'rgb(var(--munin-invite-bad-ink) / <alpha-value>)',
+        },
       },
       borderRadius: {
         none: '0',

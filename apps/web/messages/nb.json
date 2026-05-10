@@ -37,7 +37,13 @@
       "submitting": "Logger inn…",
       "noAccount": "Ny her?",
       "createAccount": "Opprett konto",
-      "failed": "Innlogging mislyktes"
+      "failed": "Innlogging mislyktes",
+      "invalid": {
+        "title": "Den e-postadressen og passordet stemmer ikke.",
+        "hint": "Sjekk adressen, eller prøv igjen.",
+        "hintWithReset": "Sjekk adressen, eller {resetLink}.",
+        "resetLinkLabel": "tilbakestill passordet"
+      }
     },
     "signUp": {
       "title": "Opprett konto",
@@ -55,6 +61,37 @@
       "name": "Navn",
       "email": "E-post",
       "password": "Passord"
+    },
+    "cite": "Grímnismál",
+    "epigraphs": {
+      "login": {
+        "eyebrow": "En hilsen fra loftet",
+        "quote": "Hugin og Munin flyr hver dag over hele verden. Jeg frykter for Hugin, at han ikke skal komme tilbake, men enda mer engster jeg meg for Munin."
+      },
+      "loginError": {
+        "eyebrow": "En hilsen fra loftet",
+        "quote": "Ravnen kjenner ditt ansikt, ikke ditt passord. Prøv igjen — eller send bud, og en ny nøkkel vil komme."
+      },
+      "signup": {
+        "eyebrow": "Hvorfor Munin?",
+        "quote": "Minnet er eldre enn tanken. Begge ravnene flyr, men bare én vender alltid tilbake."
+      },
+      "forgot": {
+        "eyebrow": "En hilsen fra loftet",
+        "quote": "Minnet svikter, men ravnen vender tilbake. Send bud, og en sti vil åpne seg igjen."
+      },
+      "reset": {
+        "eyebrow": "En ny begynnelse",
+        "quote": "Det som er glemt kan settes på nytt. Flokken holder døren, men du holder nøkkelen."
+      },
+      "invite": {
+        "eyebrow": "En invitasjon",
+        "quote": "To ravner er bedre enn én. Flokken husker det ingen enkelt sinn kan holde."
+      },
+      "inviteBad": {
+        "eyebrow": "En invitasjon",
+        "quote": "Selv Munin glemmer, når for mange dager er gått. Spør igjen, og flokken vil huske."
+      }
     }
   },
   "nav": {

@@ -17,10 +17,12 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./schema": {
+      "development": "./src/schema.ts",
       "types": "./dist/schema.d.ts",
       "default": "./dist/schema.js"
     }
@@ -31,7 +33,6 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && mkdir -p dist/sql && cp src/sql/*.sql dist/sql/",
-    "dev": "tsc -p tsconfig.build.json --watch",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",

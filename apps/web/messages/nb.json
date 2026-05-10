@@ -80,36 +80,6 @@
     "partnerAccess": "Partnertilgang"
   },
   "dashboard": {
-    "overview": {
-      "title": "Velkommen til Munin",
-      "subtitle": "Koble til AI-agenten din eller bygg en serverside-integrasjon.",
-      "connectCard": {
-        "title": "Koble til AI-agenten din",
-        "description": "Legg denne URL-en inn i Claude Desktop, Cursor eller en annen MCP-klient.",
-        "consentNote": "Du ser et samtykkebilde her når en agent kobler seg til."
-      },
-      "buildCard": {
-        "title": "Bygg en serverside-integrasjon",
-        "description": "Tale-AI, web-chatbot eller mobilapp? Generer korte sluttbruker-tokens fra serveren.",
-        "cta": "Administrer API-nøkler"
-      }
-    },
-    "agentStatus": {
-      "title": "Selvbetjeningsagent",
-      "connected": "{count, plural, one {1 agent tilkoblet} other {# agenter tilkoblet}} — sluttbrukermeldinger får automatiske svar.",
-      "notConnected": "Ingen selvbetjeningsagent tilkoblet. Sluttbrukermeldinger blir liggende til et menneske svarer fra dashbordet eller en agent-runner kobles til.",
-      "staleNotConnected": "Ingen selvbetjeningsagent tilkoblet, og det finnes ubesvarte sluttbrukermeldinger. Svar fra dashbordet eller koble til en agent-runner.",
-      "hint": "Koble til en agent: kjør @getmunin/agent-runtime mot dette Munin-instansens MCP, eller bruk skytjenesten."
-    },
-    "needsAttention": {
-      "title": "Trenger oppmerksomhet",
-      "allClear": "Alt er ajour.",
-      "conversationsLabel": "samtaler som venter på overlevering",
-      "openConversations": "Åpne samtaler →",
-      "kbCurationLabel": "KB-forslag venter på gjennomgang",
-      "crmMergeProposalsLabel": "CRM-sammenslåinger venter på gjennomgang",
-      "openInbox": "Åpne innboks →"
-    },
     "agents": {
       "title": "Tilkoblede agenter",
       "subtitle": "Alle OAuth-autoriserte agenter og sluttbruker-tokens utstedt for denne organisasjonen. Tilbakekall et aktivt token for å gjøre videre MCP-kall ugyldige umiddelbart.",

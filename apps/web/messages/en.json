@@ -37,7 +37,13 @@
       "submitting": "Signing in…",
       "noAccount": "New here?",
       "createAccount": "Create an account",
-      "failed": "Sign-in failed"
+      "failed": "Sign-in failed",
+      "invalid": {
+        "title": "That email and password don't match.",
+        "hint": "Check the address, or try again.",
+        "hintWithReset": "Check the address, or {resetLink}.",
+        "resetLinkLabel": "reset your password"
+      }
     },
     "signUp": {
       "title": "Create your account",
@@ -55,6 +61,37 @@
       "name": "Your name",
       "email": "Email",
       "password": "Password"
+    },
+    "cite": "Grímnismál",
+    "epigraphs": {
+      "login": {
+        "eyebrow": "A note from the loft",
+        "quote": "Huginn and Muninn fly each day over the wide world. I fear for Huginn, that he come not back, yet more anxious am I for Muninn."
+      },
+      "loginError": {
+        "eyebrow": "A note from the loft",
+        "quote": "The raven knows your face, not your password. Try again — or send word, and a new key shall come."
+      },
+      "signup": {
+        "eyebrow": "Why Munin?",
+        "quote": "Memory is older than thought. Both ravens fly, but only one always returns."
+      },
+      "forgot": {
+        "eyebrow": "A note from the loft",
+        "quote": "Memory falters, but the raven returns. Send word, and a path will open again."
+      },
+      "reset": {
+        "eyebrow": "A new beginning",
+        "quote": "What is forgotten can be set anew. The flock keeps the door, but you keep the key."
+      },
+      "invite": {
+        "eyebrow": "An invitation",
+        "quote": "Two ravens are better than one. The flock remembers what no single mind can hold."
+      },
+      "inviteBad": {
+        "eyebrow": "An invitation",
+        "quote": "Even Muninn forgets, when too many days have passed. Ask again, and the flock will remember."
+      }
     }
   },
   "nav": {

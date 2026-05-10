@@ -4,11 +4,22 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { api, ApiError, authClient } from '@getmunin/dashboard-pages';
-import { Button } from '@getmunin/ui';
-import { Input } from '@getmunin/ui';
-import { Label } from '@getmunin/ui';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getmunin/ui';
+import {
+  api,
+  ApiError,
+  authClient,
+  AuthShell,
+  AuthEpigraph,
+  AuthHeading,
+  AuthSubheading,
+  AuthFootnote,
+  AuthField,
+  AuthLabel,
+  AuthInput,
+  AuthSubmit,
+  ErrorAlert,
+  OSS_AUTH_FOOTER,
+} from '@getmunin/dashboard-pages';
 import { useTranslateError } from '@/lib/translate-error';
 
 function safeRedirect(raw: string | null): string {
@@ -82,73 +93,79 @@ function SignupForm() {
     }
   }
 
-  return (
-    <Card className="border-0 shadow-none sm:border sm:shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-2xl">{t('title')}</CardTitle>
-        <CardDescription>
-          {inviteEmail ? t('invitationSubtitle', { email: inviteEmail }) : t('subtitle')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
-        <form
-          onSubmit={(event) => {
-            void onSubmit(event);
-          }}
-          className="space-y-4"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="name">{tFields('name')}</Label>
-            <Input
-              id="name"
-              type="text"
-              autoComplete="name"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">{tFields('email')}</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              readOnly={inviteEmail !== null}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">{tFields('password')}</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? t('submitting') : t('submit')}
-          </Button>
-        </form>
+  const signInHref = redirectRaw
+    ? `/login?redirect=${encodeURIComponent(redirectRaw)}`
+    : '/login';
 
-        <p className="pt-2 text-sm text-muted-foreground">
-          {t('haveAccount')}{' '}
-          <Link
-            href={redirectRaw ? `/login?redirect=${encodeURIComponent(redirectRaw)}` : '/login'}
-            className="font-medium text-foreground underline"
+  return (
+    <AuthShell
+      rightZone={<AuthEpigraph state="signup" footer={OSS_AUTH_FOOTER} />}
+      leftZone={
+        <>
+          <AuthHeading>{t('title')}</AuthHeading>
+          <AuthSubheading>
+            {inviteEmail ? t('invitationSubtitle', { email: inviteEmail }) : t('subtitle')}
+          </AuthSubheading>
+
+          {inviteError && <ErrorAlert title={inviteError} />}
+          {error && !inviteError && <ErrorAlert title={error} />}
+
+          <form
+            onSubmit={(event) => {
+              void onSubmit(event);
+            }}
           >
-            {t('signInLink')}
-          </Link>
-        </p>
-      </CardContent>
-    </Card>
+            <AuthField>
+              <AuthLabel htmlFor="su-name">{tFields('name')}</AuthLabel>
+              <AuthInput
+                id="su-name"
+                type="text"
+                autoComplete="name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </AuthField>
+            <AuthField>
+              <AuthLabel htmlFor="su-email">{tFields('email')}</AuthLabel>
+              <AuthInput
+                id="su-email"
+                type="email"
+                autoComplete="email"
+                required
+                readOnly={inviteEmail !== null}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </AuthField>
+            <AuthField>
+              <AuthLabel htmlFor="su-pw">{tFields('password')}</AuthLabel>
+              <AuthInput
+                id="su-pw"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </AuthField>
+            <AuthSubmit type="submit" disabled={submitting}>
+              {submitting ? t('submitting') : t('submit')}
+            </AuthSubmit>
+          </form>
+
+          <AuthFootnote>
+            {t('haveAccount')}{' '}
+            <Link
+              href={signInHref}
+              className="text-ink underline underline-offset-[3px] decoration-1"
+            >
+              {t('signInLink')}
+            </Link>
+          </AuthFootnote>
+        </>
+      }
+    />
   );
 }
 

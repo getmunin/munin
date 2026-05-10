@@ -2,6 +2,27 @@ export { api, ApiError } from './api';
 export { authClient } from './auth-client';
 export { OrgSwitcher } from './components/org-switcher';
 export { PageShell, nativeFieldClass } from './components/page-shell';
+export {
+  AuthShell,
+  AuthHeading,
+  AuthSubheading,
+  AuthFootnote,
+  AuthDivider,
+  AuthEpigraph,
+  ErrorAlert,
+  AuthField,
+  AuthLabel,
+  AuthInput,
+  AuthSubmit,
+  AuthFieldHint,
+  AuthOAuthButton,
+  AuthInviteCard,
+  AUTH_STATES,
+  type AuthState,
+  type AuthFooter,
+  OSS_AUTH_FOOTER,
+  CLOUD_AUTH_FOOTER,
+} from './components/auth-shell';
 export { useActiveRole, isOwnerOrAdmin, type OrgRole } from './auth/use-active-role';
 export { useAgentConfigStatus } from './auth/use-agent-config-status';
 export { useDashboardGate } from './auth/use-dashboard-gate';

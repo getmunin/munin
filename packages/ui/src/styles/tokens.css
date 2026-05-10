@@ -16,6 +16,18 @@
   --munin-accent-soft: 127 177 255; /* #7FB1FF — italic on dark */
   --munin-accent-deep: 0 72 184;    /* #0048B8 — hover/pressed */
 
+  --munin-auth-navy: 42 63 88;        /* #2A3F58 — primary CTA on auth pages */
+  --munin-auth-navy-hover: 31 47 68;  /* #1F2F44 */
+
+  --munin-alert-bad-bg: 236 211 203;     /* #ECD3CB */
+  --munin-alert-bad-ink: 110 31 18;      /* #6E1F12 */
+  --munin-alert-bad-border: 184 73 58;   /* #B8493A */
+
+  --munin-invite-good-bg: 212 226 182;   /* #D4E2B6 */
+  --munin-invite-good-ink: 74 106 31;    /* #4A6A1F */
+  --munin-invite-bad-bg: 236 211 203;    /* #ECD3CB */
+  --munin-invite-bad-ink: 138 42 26;     /* #8A2A1A */
+
   --munin-rule-soft-alpha: 0.145;   /* hairline rule alpha on light */
   --munin-rule-on-dark-alpha: 0.2;  /* hairline rule alpha on dark */
 

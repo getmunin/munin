@@ -4,11 +4,20 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { authClient } from '@getmunin/dashboard-pages';
-import { Button } from '@getmunin/ui';
-import { Input } from '@getmunin/ui';
-import { Label } from '@getmunin/ui';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getmunin/ui';
+import {
+  authClient,
+  AuthShell,
+  AuthEpigraph,
+  AuthHeading,
+  AuthSubheading,
+  AuthFootnote,
+  AuthField,
+  AuthLabel,
+  AuthInput,
+  AuthSubmit,
+  ErrorAlert,
+  OSS_AUTH_FOOTER,
+} from '@getmunin/dashboard-pages';
 import { useTranslateError } from '@/lib/translate-error';
 
 function safeRedirect(raw: string | null): string {
@@ -18,6 +27,7 @@ function safeRedirect(raw: string | null): string {
 
 function LoginForm() {
   const t = useTranslations('auth.signIn');
+  const tInvalid = useTranslations('auth.signIn.invalid');
   const tFields = useTranslations('auth.fields');
   const tCommon = useTranslations('common');
   const translateError = useTranslateError();
@@ -53,55 +63,64 @@ function LoginForm() {
     }
   }
 
-  return (
-    <Card className="border-0 shadow-none sm:border sm:shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-2xl">{t('title')}</CardTitle>
-        <CardDescription>{t('subtitle')}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <form
-          onSubmit={(event) => {
-            void onSubmit(event);
-          }}
-          className="space-y-4"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="email">{tFields('email')}</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">{tFields('password')}</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? t('submitting') : t('submit')}
-          </Button>
-        </form>
+  const epigraphState = error ? 'login-error' : 'login';
 
-        <p className="pt-2 text-sm text-muted-foreground">
-          {t('noAccount')}{' '}
-          <Link href={signupHref} className="font-medium text-foreground underline">
-            {t('createAccount')}
-          </Link>
-        </p>
-      </CardContent>
-    </Card>
+  return (
+    <AuthShell
+      rightZone={<AuthEpigraph state={epigraphState} footer={OSS_AUTH_FOOTER} />}
+      leftZone={
+        <>
+          <AuthHeading>{t('title')}</AuthHeading>
+          <AuthSubheading>{t('subtitle')}</AuthSubheading>
+
+          {error && <ErrorAlert title={tInvalid('title')}>{tInvalid('hint')}</ErrorAlert>}
+
+          <form
+            onSubmit={(event) => {
+              void onSubmit(event);
+            }}
+          >
+            <AuthField>
+              <AuthLabel htmlFor="login-email">{tFields('email')}</AuthLabel>
+              <AuthInput
+                id="login-email"
+                type="email"
+                autoComplete="email"
+                required
+                invalid={!!error}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </AuthField>
+            <AuthField>
+              <AuthLabel htmlFor="login-pw">{tFields('password')}</AuthLabel>
+              <AuthInput
+                id="login-pw"
+                type="password"
+                autoComplete="current-password"
+                required
+                invalid={!!error}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </AuthField>
+            <AuthSubmit type="submit" disabled={submitting}>
+              {submitting ? t('submitting') : t('submit')}
+            </AuthSubmit>
+          </form>
+
+          <AuthFootnote>
+            {t('noAccount')}{' '}
+            <Link
+              href={signupHref}
+              className="text-ink underline underline-offset-[3px] decoration-1"
+            >
+              {t('createAccount')}
+            </Link>
+          </AuthFootnote>
+        </>
+      }
+    />
   );
 }
 

@@ -51,7 +51,7 @@ export function MuninTopbar({ role, user, onSignOut, inboxCount, status = 'conne
         className="flex items-center gap-1 self-center text-ink dark:text-foreground"
         aria-label="Munin"
       >
-        <Image src="/raven-flying.svg" alt="Munin" width={28} height={28} className="block dark:invert" priority />
+        <Image src="/munin-logo.png" alt="Munin" width={28} height={28} className="block" priority />
       </Link>
 
       <span className="my-auto h-5 w-px bg-rule-soft dark:bg-rule-on-dark" aria-hidden />

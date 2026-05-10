@@ -9,6 +9,8 @@ export function Footer() {
   const t = useTranslations('footer');
 
   if (pathname?.startsWith('/dashboard')) return null;
+  if (pathname === '/login' || pathname === '/signup') return null;
+  if (pathname?.startsWith('/accept-invite')) return null;
 
   return (
     <footer className="border-t border-rule-soft px-6 py-5 text-xs text-ink-mute dark:border-rule-on-dark">

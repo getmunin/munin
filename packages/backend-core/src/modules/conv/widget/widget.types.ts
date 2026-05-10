@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const WidgetChannelConfig = z.object({
   provider: z.literal('widget'),
-  displayName: z.string().min(1).max(120),
   /** Hostnames allowed to call the public ingest endpoint with the widget key. */
   originAllowlist: z.array(z.string().url()).default([]),
   /** Optional webhook called when a human/agent reply lands so the external bot can step back. */

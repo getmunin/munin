@@ -1327,6 +1327,196 @@
         "security": []
       }
     },
+    "/api/v1/conversations/channels": {
+      "get": {
+        "operationId": "ConvChannelsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/channels/widget": {
+      "post": {
+        "operationId": "ConvChannelsController_createWidget",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/channels/widget/{id}": {
+      "patch": {
+        "operationId": "ConvChannelsController_updateWidget",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/channels/widget/{id}/rotate-key": {
+      "post": {
+        "operationId": "ConvChannelsController_rotateWidgetKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/channels/widget/{id}/rotate-identity-secret": {
+      "post": {
+        "operationId": "ConvChannelsController_rotateIdentitySecret",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/channels/email": {
+      "post": {
+        "operationId": "ConvChannelsController_setupEmail",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/api/v1/conversations/channels/email/{id}/test": {
+      "post": {
+        "operationId": "ConvChannelsController_testEmail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v1/conversations": {
       "get": {
         "operationId": "ConversationsController_list",
@@ -2701,196 +2891,6 @@
         },
         "tags": [
           "CuratorJobs"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/api/v1/conversations/channels": {
-      "get": {
-        "operationId": "ConvChannelsController_list",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ConvChannels"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/api/v1/conversations/channels/widget": {
-      "post": {
-        "operationId": "ConvChannelsController_createWidget",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ConvChannels"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/api/v1/conversations/channels/widget/{id}": {
-      "patch": {
-        "operationId": "ConvChannelsController_updateWidget",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ConvChannels"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/api/v1/conversations/channels/widget/{id}/rotate-key": {
-      "post": {
-        "operationId": "ConvChannelsController_rotateWidgetKey",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ConvChannels"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/api/v1/conversations/channels/widget/{id}/rotate-identity-secret": {
-      "post": {
-        "operationId": "ConvChannelsController_rotateIdentitySecret",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ConvChannels"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/api/v1/conversations/channels/email": {
-      "post": {
-        "operationId": "ConvChannelsController_setupEmail",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ConvChannels"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/api/v1/conversations/channels/email/{id}/test": {
-      "post": {
-        "operationId": "ConvChannelsController_testEmail",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ConvChannels"
         ],
         "security": [
           {

@@ -150,8 +150,6 @@
       "createWidgetDescription": "Mints a `mn_widget_*` API key bound to this channel. The widget loads on the configured origins and posts via /api/v1/widget/messages.",
       "nameLabel": "Internal name",
       "namePlaceholder": "e.g. main-site-widget",
-      "displayNameLabel": "Display name",
-      "displayNamePlaceholder": "e.g. Acme Support",
       "originsLabel": "Origin allowlist",
       "originsHint": "Comma- or whitespace-separated list of origins (full URLs with scheme + host) that may load the widget. Leave empty to allow any origin.",
       "createWidget": "Create widget channel",
@@ -177,7 +175,7 @@
         "hostLabel": "Munin host",
         "hostHint": "Defaults to where this dashboard is served. Edit if your public widget host differs from your admin host.",
         "scriptLabel": "Embed snippet",
-        "scriptHint": "Replace <your widget key> with the mn_widget_* shown when this channel was created. Add data-external-id and data-user-hash to identify a known visitor (see below).",
+        "scriptHint": "Replace [your widget key] with the mn_widget_* shown when this channel was created. Add data-external-id and data-user-hash to identify a known visitor (see below).",
         "copyScript": "Copy snippet",
         "hashLabel": "Optional: verify visitor identity",
         "hashHint": "If you want to bind a chat to a known user (e.g. so you can resume their thread next visit), compute a server-side HMAC with the channel's identity secret and pass it as data-user-hash:",
@@ -212,7 +210,10 @@
         "rotate": "Could not rotate key.",
         "rotateIdentity": "Could not rotate identity secret.",
         "test": "Could not test email credentials."
-      }
+      },
+      "savedIt": "Got it",
+      "copy": "Copy",
+      "copied": "Copied"
     },
     "apiKeys": {
       "title": "API keys",

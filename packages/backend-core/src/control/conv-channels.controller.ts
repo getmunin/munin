@@ -21,14 +21,12 @@ import { EmailChannelConfigInput } from '../modules/conv/email/email.service.js'
 
 const CreateWidgetBody = z.object({
   name: z.string().min(1).max(120),
-  displayName: z.string().min(1).max(120),
   originAllowlist: z.array(z.string().url()).default([]),
   webhookOnEscalation: z.string().url().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
 });
 
 const UpdateWidgetBody = z.object({
-  displayName: z.string().min(1).max(120).optional(),
   originAllowlist: z.array(z.string().url()).optional(),
   webhookOnEscalation: z.string().url().nullable().optional(),
   requireVerifiedIdentity: z.boolean().optional(),

@@ -71,7 +71,6 @@ Per `skill://conv/widget-onboarding`:
   "name": "conv_widget_create_channel",
   "arguments": {
     "name": "acme-storefront-bot",
-    "displayName": "Acme Bot",
     "originAllowlist": ["https://www.acme.com", "https://shop.acme.com"]
   }
 }

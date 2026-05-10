@@ -99,7 +99,6 @@ const skipReason = TEST_URL
           name: 'conv_widget_create_channel',
           arguments: {
             name: 'storefront-bot',
-            displayName: 'Storefront Bot',
             originAllowlist: ['https://customer.example'],
           },
         }),
@@ -346,7 +345,7 @@ const skipReason = TEST_URL
       }>(
         await c.callTool({
           name: 'conv_widget_update_channel',
-          arguments: { channelId, displayName: 'Storefront Bot v2' },
+          arguments: { channelId, originAllowlist: ['https://customer.example/v2'] },
         }),
       );
     });
@@ -545,7 +544,6 @@ const skipReason = TEST_URL
           name: 'conv_widget_create_channel',
           arguments: {
             name: 'storefront-bot-2',
-            displayName: 'Storefront Bot 2',
             originAllowlist: ['https://customer.example'],
           },
         }),
@@ -828,7 +826,6 @@ const skipReason = TEST_URL
           name: 'conv_widget_create_channel',
           arguments: {
             name: 'storefront-bot-list-other',
-            displayName: 'Other Bot',
             originAllowlist: ['https://customer.example'],
           },
         }),

@@ -150,8 +150,6 @@
       "createWidgetDescription": "Lager en `mn_widget_*` API-nøkkel knyttet til denne kanalen. Widgeten lastes på de konfigurerte opprinnelsene og poster via /api/v1/widget/messages.",
       "nameLabel": "Internt navn",
       "namePlaceholder": "f.eks. main-site-widget",
-      "displayNameLabel": "Visningsnavn",
-      "displayNamePlaceholder": "f.eks. Acme Support",
       "originsLabel": "Liste over godkjente opprinnelser",
       "originsHint": "Komma- eller mellomroms-separert liste over opprinnelser (full URL med scheme + host) som kan laste widgeten. Tom for å tillate alle opprinnelser.",
       "createWidget": "Opprett widget-kanal",
@@ -177,7 +175,7 @@
         "hostLabel": "Munin-host",
         "hostHint": "Standard er der dette dashbordet serveres fra. Rediger hvis offentlig widget-host er forskjellig fra admin-host.",
         "scriptLabel": "Embed-snutt",
-        "scriptHint": "Erstatt <your widget key> med mn_widget_* som ble vist da denne kanalen ble opprettet. Legg til data-external-id og data-user-hash for å identifisere en kjent besøkende (se under).",
+        "scriptHint": "Erstatt [your widget key] med mn_widget_* som ble vist da denne kanalen ble opprettet. Legg til data-external-id og data-user-hash for å identifisere en kjent besøkende (se under).",
         "copyScript": "Kopier snutt",
         "hashLabel": "Valgfritt: verifiser besøkendes identitet",
         "hashHint": "Hvis du vil knytte en chat til en kjent bruker (f.eks. for å gjenoppta tråden ved neste besøk), beregn en server-side HMAC med kanalens identitetshemmelighet og send den som data-user-hash:",
@@ -212,7 +210,10 @@
         "rotate": "Kunne ikke rotere nøkkel.",
         "rotateIdentity": "Kunne ikke rotere identitetshemmelighet.",
         "test": "Kunne ikke teste e-postlegitimasjon."
-      }
+      },
+      "savedIt": "OK",
+      "copy": "Kopier",
+      "copied": "Kopiert"
     },
     "apiKeys": {
       "title": "API-nøkler",

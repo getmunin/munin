@@ -278,7 +278,7 @@ function ChannelRow({
   const t = useTranslations('dashboard.channels');
   const widgetConfig =
     channel.type === 'chat'
-      ? (channel.config as { displayName?: string; originAllowlist?: string[] } | null)
+      ? (channel.config as { originAllowlist?: string[] } | null)
       : null;
   const emailConfig = channel.type === 'email' ? (channel.config as EmailChannelDto['config']) : null;
   const origins = widgetConfig?.originAllowlist ?? [];
@@ -297,11 +297,6 @@ function ChannelRow({
               </span>
             )}
           </div>
-          {widgetConfig?.displayName && (
-            <p className="text-xs text-muted-foreground">
-              {t('displayNameLabel')}: <span className="font-medium">{widgetConfig.displayName}</span>
-            </p>
-          )}
           {origins.length > 0 && (
             <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
               <Globe className="size-3" />
@@ -429,19 +424,17 @@ function CreateWidgetDialog({
   const t = useTranslations('dashboard.channels');
   const translate = useTranslateError();
   const [name, setName] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [originAllowlist, setOriginAllowlist] = useState('');
   const [creating, setCreating] = useState(false);
 
   function reset() {
     setName('');
-    setDisplayName('');
     setOriginAllowlist('');
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !displayName.trim()) return;
+    if (!name.trim()) return;
     setCreating(true);
     try {
       const allowlist = originAllowlist
@@ -452,7 +445,6 @@ function CreateWidgetDialog({
         method: 'POST',
         body: JSON.stringify({
           name: name.trim(),
-          displayName: displayName.trim(),
           originAllowlist: allowlist,
         }),
       });
@@ -479,14 +471,6 @@ function CreateWidgetDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('namePlaceholder')}
-              required
-            />
-          </Field>
-          <Field label={t('displayNameLabel')}>
-            <Input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder={t('displayNamePlaceholder')}
               required
             />
           </Field>

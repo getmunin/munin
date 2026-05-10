@@ -1624,11 +1624,6 @@
           "minLength": 1,
           "maxLength": 120
         },
-        "displayName": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
         "originAllowlist": {
           "default": [],
           "type": "array",
@@ -1647,7 +1642,6 @@
       },
       "required": [
         "name",
-        "displayName",
         "originAllowlist"
       ],
       "additionalProperties": false
@@ -1656,7 +1650,7 @@
   {
     "name": "conv_widget_update_channel",
     "title": "Update chat-widget channel",
-    "description": "Update a chat-widget channel's displayName / originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.",
+    "description": "Update a chat-widget channel's originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.",
     "audiences": [
       "admin"
     ],
@@ -1671,11 +1665,6 @@
       "properties": {
         "channelId": {
           "type": "string"
-        },
-        "displayName": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
         },
         "originAllowlist": {
           "type": "array",

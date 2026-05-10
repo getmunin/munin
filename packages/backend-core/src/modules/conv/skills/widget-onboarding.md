@@ -15,7 +15,6 @@ Call `conv_widget_create_channel`:
 ```jsonc
 {
   "name": "storefront-bot",
-  "displayName": "Storefront Bot",
   "originAllowlist": ["https://customer.example"]
 }
 ```

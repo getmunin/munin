@@ -3,21 +3,24 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle2, MailQuestion } from 'lucide-react';
+import { ArrowRight, ArrowLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { authClient } from '../auth-client';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import { Button } from '@getmunin/ui';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@getmunin/ui';
+  AuthShell,
+  AuthEpigraph,
+  AuthInviteCard,
+  type AuthFooter,
+  OSS_AUTH_FOOTER,
+} from '../components/auth-shell';
 
-function AcceptInviteInner() {
+interface AcceptInvitePageProps {
+  footer?: AuthFooter;
+}
+
+function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
   const t = useTranslations('acceptInvite');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
@@ -56,74 +59,101 @@ function AcceptInviteInner() {
     })();
   }, [sessionLoading, session, token, router, status, t, translate]);
 
-  return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      {status === 'accepted' ? (
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="size-5 text-emerald-700" />
-              <CardTitle>{t('acceptedTitle')}</CardTitle>
-            </div>
-            <CardDescription>{t('acceptedBody')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button render={<Link href="/dashboard" />} className="w-full">
-              {t('goToDashboard')}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : status === 'error' ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <MailQuestion className="size-5 text-destructive" />
-              <CardTitle>{t('errorTitle')}</CardTitle>
-            </div>
-            <CardDescription className="whitespace-pre-wrap">
-              {message ?? tCommon('unknownError')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {session && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  void (async () => {
-                    await authClient.signOut();
-                    if (token) {
-                      router.push(`/accept-invite?token=${encodeURIComponent(token)}`);
-                    } else {
-                      router.push('/login');
-                    }
-                  })();
-                }}
+  const epigraphState = status === 'error' ? 'invite-bad' : 'invite';
+
+  if (status === 'accepted') {
+    return (
+      <AuthShell
+        variant="invite"
+        rightZone={<AuthEpigraph state="invite" footer={footer} />}
+        leftZone={
+          <AuthInviteCard
+            tone="good"
+            badge={t('acceptedTitle')}
+            title={t('acceptedBody')}
+            body={null}
+            primary={
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-2.5 rounded-[12px] border border-auth-navy bg-auth-navy px-[22px] py-3.5 text-[15px] font-medium text-white transition-colors duration-fast ease-munin hover:border-auth-navy-hover hover:bg-auth-navy-hover"
               >
-                {t('signOutAndRetry')}
-              </Button>
-            )}
-            <Button variant="outline" render={<Link href="/dashboard" />} className="w-full">
-              {t('backToDashboard')}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('pendingTitle')}</CardTitle>
-            <CardDescription>{t('pendingBody')}</CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-    </main>
+                {t('goToDashboard')}
+                <ArrowRight className="size-4" strokeWidth={2} />
+              </Link>
+            }
+          />
+        }
+      />
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <AuthShell
+        variant="invite"
+        rightZone={<AuthEpigraph state="invite-bad" footer={footer} />}
+        leftZone={
+          <AuthInviteCard
+            tone="bad"
+            badge={t('errorTitle')}
+            title={message ?? tCommon('unknownError')}
+            body={null}
+            primary={
+              <Link
+                href={session ? '/dashboard' : '/login'}
+                className="inline-flex items-center gap-2 rounded-[12px] border border-ink bg-transparent px-[18px] py-3 text-[14px] text-ink transition-colors duration-fast ease-munin hover:bg-ink hover:text-paper"
+              >
+                <ArrowLeft className="size-3.5" strokeWidth={2} />
+                {session ? t('backToDashboard') : t('errors.expired')}
+              </Link>
+            }
+            secondary={
+              session ? (
+                <button
+                  type="button"
+                  className="bg-transparent text-[14px] text-ink-soft hover:text-ink"
+                  onClick={() => {
+                    void (async () => {
+                      await authClient.signOut();
+                      if (token) {
+                        router.push(`/accept-invite?token=${encodeURIComponent(token)}`);
+                      } else {
+                        router.push('/login');
+                      }
+                    })();
+                  }}
+                >
+                  {t('signOutAndRetry')}
+                </button>
+              ) : null
+            }
+          />
+        }
+      />
+    );
+  }
+
+  return (
+    <AuthShell
+      variant="invite"
+      rightZone={<AuthEpigraph state={epigraphState} footer={footer} />}
+      leftZone={
+        <AuthInviteCard
+          tone="good"
+          badge={t('pendingTitle')}
+          title={t('pendingBody')}
+          body={null}
+        />
+      }
+    />
   );
 }
 
-export function AcceptInvitePage() {
+export function AcceptInvitePage({ footer = OSS_AUTH_FOOTER }: AcceptInvitePageProps = {}) {
   return (
     <Suspense fallback={null}>
-      <AcceptInviteInner />
+      <AcceptInviteInner footer={footer} />
     </Suspense>
   );
 }
+

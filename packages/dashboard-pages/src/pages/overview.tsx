@@ -1,227 +1,91 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { AlertCircle, Bot, CheckCircle2, Code2, KeyRound } from 'lucide-react';
-import { useTranslations } from 'next-intl';
-import { Button } from '@getmunin/ui';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@getmunin/ui';
 import { api } from '../api';
 import { useRealtime } from '../realtime';
+import { DashboardHero } from '../components/dashboard/dashboard-hero';
+import { GetStarted } from '../components/dashboard/get-started';
+import { InboxPreview } from '../components/dashboard/inbox-preview';
+import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
+import {
+  mergeInboxPreview,
+  totalInboxCount,
+  type InboxQueueShape,
+} from '../lib/inbox-preview';
 
-interface BacklogDto {
-  conversationsNeedingAttention: number;
-  kbCurationPending: number;
-  crmMergeProposalsPending: number;
-}
-
-interface AgentStatusDto {
-  selfServiceAgentSubscriberCount: number;
-  lastInboundEndUserMessageAt: string | null;
-  lastAgentMessageAt: string | null;
+interface MembershipDto {
+  orgId: string;
+  orgName: string;
+  orgSlug: string;
+  isDefault: boolean;
 }
 
 export function DashboardPage() {
-  const t = useTranslations('dashboard.overview');
-  const tBacklog = useTranslations('dashboard.needsAttention');
-  const tAgent = useTranslations('dashboard.agentStatus');
+  const [inbox, setInbox] = useState<InboxQueueShape | null>(null);
+  const [summary, setSummary] = useState<UsageSummary | null>(null);
+  const [orgName, setOrgName] = useState<string | null>(null);
 
-  const [backlog, setBacklog] = useState<BacklogDto | null>(null);
-  const [agentStatus, setAgentStatus] = useState<AgentStatusDto | null>(null);
-
-  const loadBacklog = useCallback(() => {
-    void api<BacklogDto>('/api/v1/overview/backlog')
-      .then(setBacklog)
-      .catch(() => setBacklog(null));
+  const loadInbox = useCallback(() => {
+    void api<InboxQueueShape>('/api/v1/inbox')
+      .then(setInbox)
+      .catch(() => setInbox(null));
   }, []);
-  const loadStatus = useCallback(() => {
-    void api<AgentStatusDto>('/api/v1/overview/agent-status')
-      .then(setAgentStatus)
-      .catch(() => setAgentStatus(null));
+  const loadSummary = useCallback(() => {
+    void api<UsageSummary>('/api/v1/usage/summary')
+      .then(setSummary)
+      .catch(() => setSummary(null));
+  }, []);
+  const loadOrg = useCallback(() => {
+    void api<MembershipDto[]>('/api/v1/me/memberships')
+      .then((memberships) => {
+        const m = memberships.find((x) => x.isDefault) ?? memberships[0];
+        setOrgName(m?.orgName ?? null);
+      })
+      .catch(() => setOrgName(null));
   }, []);
 
   useEffect(() => {
-    loadBacklog();
-    loadStatus();
-  }, [loadBacklog, loadStatus]);
+    loadInbox();
+    loadSummary();
+    loadOrg();
+  }, [loadInbox, loadSummary, loadOrg]);
 
   useRealtime([{ channel: 'org' }], (event) => {
     if (
       event.type.startsWith('conversation.') ||
       event.type.startsWith('kb.document.') ||
-      event.type.startsWith('crm.merge_proposal.')
+      event.type.startsWith('kb.curation.') ||
+      event.type.startsWith('crm.merge_proposal.') ||
+      event.type.startsWith('outreach.')
     ) {
-      loadBacklog();
-      loadStatus();
+      loadInbox();
+      loadSummary();
     }
   });
 
-  const allClear =
-    backlog !== null &&
-    backlog.conversationsNeedingAttention === 0 &&
-    backlog.kbCurationPending === 0 &&
-    backlog.crmMergeProposalsPending === 0;
+  const rows = mergeInboxPreview(inbox, 5);
+  const totalCount = totalInboxCount(inbox);
+  const liveCount = inbox?.live.length ?? 0;
 
   return (
-    <>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
-      </div>
+    <div className="px-10 py-10 max-w-7xl mx-auto space-y-10">
+      <DashboardHero
+        orgName={orgName}
+        date={new Date()}
+        totalCount={totalCount}
+        liveCount={liveCount}
+      />
 
-      {backlog !== null && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              {allClear ? (
-                <CheckCircle2 className="size-5 text-muted-foreground" />
-              ) : (
-                <AlertCircle className="size-5 text-amber-600 dark:text-amber-400" />
-              )}
-              <CardTitle>{tBacklog('title')}</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {allClear ? (
-              <p className="text-muted-foreground">{tBacklog('allClear')}</p>
-            ) : (
-              <ul className="space-y-2">
-                {backlog.conversationsNeedingAttention > 0 && (
-                  <li className="flex items-center justify-between gap-3">
-                    <span>
-                      <strong className="font-medium">
-                        {backlog.conversationsNeedingAttention}
-                      </strong>{' '}
-                      {tBacklog('conversationsLabel')}
-                    </span>
-                    <Link
-                      href="/dashboard/inbox"
-                      className="text-xs text-muted-foreground hover:underline"
-                    >
-                      {tBacklog('openConversations')}
-                    </Link>
-                  </li>
-                )}
-                {backlog.kbCurationPending > 0 && (
-                  <li className="flex items-center justify-between gap-3">
-                    <span>
-                      <strong className="font-medium">{backlog.kbCurationPending}</strong>{' '}
-                      {tBacklog('kbCurationLabel')}
-                    </span>
-                    <Link
-                      href="/dashboard/inbox"
-                      className="text-xs text-muted-foreground hover:underline"
-                    >
-                      {tBacklog('openInbox')}
-                    </Link>
-                  </li>
-                )}
-                {backlog.crmMergeProposalsPending > 0 && (
-                  <li className="flex items-center justify-between gap-3">
-                    <span>
-                      <strong className="font-medium">{backlog.crmMergeProposalsPending}</strong>{' '}
-                      {tBacklog('crmMergeProposalsLabel')}
-                    </span>
-                    <Link
-                      href="/dashboard/inbox"
-                      className="text-xs text-muted-foreground hover:underline"
-                    >
-                      {tBacklog('openInbox')}
-                    </Link>
-                  </li>
-                )}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {agentStatus !== null && <AgentStatusCard status={agentStatus} t={tAgent} />}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bot className="size-5 text-muted-foreground" />
-              <CardTitle>{t('connectCard.title')}</CardTitle>
-            </div>
-            <CardDescription>{t('connectCard.description')}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <code className="block rounded-md border bg-muted px-3 py-2 font-mono text-sm">
-              https://mcp.getmunin.com
-            </code>
-            <p className="text-xs text-muted-foreground">{t('connectCard.consentNote')}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Code2 className="size-5 text-muted-foreground" />
-              <CardTitle>{t('buildCard.title')}</CardTitle>
-            </div>
-            <CardDescription>{t('buildCard.description')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full" render={<Link href="/dashboard/settings/api-keys" />}>
-              <KeyRound className="size-4" />
-              {t('buildCard.cta')}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </>
-  );
-}
-
-function AgentStatusCard({
-  status,
-  t,
-}: {
-  status: AgentStatusDto;
-  t: ReturnType<typeof useTranslations>;
-}) {
-  const connected = status.selfServiceAgentSubscriberCount > 0;
-  const lastInbound = status.lastInboundEndUserMessageAt
-    ? new Date(status.lastInboundEndUserMessageAt)
-    : null;
-  const lastAgent = status.lastAgentMessageAt ? new Date(status.lastAgentMessageAt) : null;
-  const inboundAheadOfAgent =
-    lastInbound !== null && (lastAgent === null || lastInbound > lastAgent);
-  const stale = !connected && inboundAheadOfAgent;
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          {connected ? (
-            <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400" />
-          ) : stale ? (
-            <AlertCircle className="size-5 text-amber-600 dark:text-amber-400" />
-          ) : (
-            <Bot className="size-5 text-muted-foreground" />
-          )}
-          <CardTitle>{t('title')}</CardTitle>
+      {totalCount > 0 ? (
+        <div className="grid gap-8 md:grid-cols-[1.4fr_1fr]">
+          <InboxPreview rows={rows} totalCount={totalCount} />
+          <UsageKpis summary={summary} />
         </div>
-        <CardDescription>
-          {connected
-            ? t('connected', { count: status.selfServiceAgentSubscriberCount })
-            : stale
-              ? t('staleNotConnected')
-              : t('notConnected')}
-        </CardDescription>
-      </CardHeader>
-      {!connected && (
-        <CardContent>
-          <p className="text-xs text-muted-foreground">{t('hint')}</p>
-        </CardContent>
+      ) : (
+        <UsageKpis summary={summary} />
       )}
-    </Card>
+
+      <GetStarted />
+    </div>
   );
 }

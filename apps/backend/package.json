@@ -10,6 +10,7 @@
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "migrate": "tsx src/migrate.ts",
+    "migrate:test": "tsx src/migrate-test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests"

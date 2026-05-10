@@ -1,3 +1,4 @@
+import './test-env';
 import { defineConfig } from 'vitest/config';
 import swc from 'unplugin-swc';
 

@@ -1,3 +1,4 @@
+import './load-env.js';
 import './instrument.js';
 import 'reflect-metadata';
 import { createApp } from '@getmunin/backend-core';

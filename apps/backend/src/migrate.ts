@@ -8,6 +8,7 @@
  * Reads MUNIN_MIGRATE_URL (privileged superuser URL — not the runtime
  * munin_app role). Both halves are idempotent.
  */
+import './load-env.js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { runMigrations } from '@getmunin/db';

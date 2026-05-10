@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "concurrency": "20",
   "globalDependencies": ["**/.env.*local", "**/.env"],
   "globalEnv": ["NODE_ENV", "DATABASE_URL", "TEST_DATABASE_URL", "MUNIN_*"],
   "tasks": {

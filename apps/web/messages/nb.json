@@ -5,7 +5,6 @@
   },
   "common": {
     "loading": "Laster…",
-    "or": "eller",
     "signOut": "Logg ut",
     "revoke": "Tilbakekall",
     "save": "Lagre",
@@ -34,7 +33,6 @@
     "signIn": {
       "title": "Logg inn",
       "subtitle": "Velkommen tilbake til Munin.",
-      "googleButton": "Logg inn med Google",
       "submit": "Logg inn",
       "submitting": "Logger inn…",
       "noAccount": "Ny her?",
@@ -45,7 +43,6 @@
       "title": "Opprett konto",
       "subtitle": "Munin — agent-native forretningsapper.",
       "invitationSubtitle": "Du aksepterer en invitasjon for {email}.",
-      "googleButton": "Registrer deg med Google",
       "submit": "Opprett konto",
       "submitting": "Oppretter konto…",
       "haveAccount": "Har du allerede konto?",
@@ -483,12 +480,6 @@
     "CONV_INVALID": "Samtaleoppføringen er ugyldig.",
     "FEEDBACK_RATE_LIMIT": "For mange forslag opprettet siste time. Prøv igjen senere.",
     "FEEDBACK_NOT_FOUND": "Forslaget ble ikke funnet."
-  },
-  "ui": {
-    "googleButton": {
-      "signIn": "Logg inn med Google",
-      "signUp": "Registrer deg med Google"
-    }
   },
   "footer": {
     "privacy": "Personvern",

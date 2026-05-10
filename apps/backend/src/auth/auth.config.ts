@@ -37,7 +37,6 @@ export interface MuninAuthOptions {
   baseUrl: string;
   authSecret: string;
   trustedOrigins?: string[];
-  google?: { clientId: string; clientSecret: string };
   mailer?: Mailer;
   /** URL of the dashboard, used to build verification + reset links. */
   webBaseUrl?: string;
@@ -54,7 +53,6 @@ export function createMuninAuth({
   baseUrl,
   authSecret,
   trustedOrigins,
-  google,
   mailer,
   webBaseUrl,
   allowedEmailDomains = [],
@@ -118,14 +116,6 @@ export function createMuninAuth({
             });
           },
           sendOnSignUp: true,
-        }
-      : undefined,
-    socialProviders: google
-      ? {
-          google: {
-            clientId: google.clientId,
-            clientSecret: google.clientSecret,
-          },
         }
       : undefined,
     trustedOrigins: origins,

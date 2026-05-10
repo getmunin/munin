@@ -5,7 +5,6 @@
   },
   "common": {
     "loading": "Loading…",
-    "or": "or",
     "signOut": "Sign out",
     "revoke": "Revoke",
     "save": "Save",
@@ -34,7 +33,6 @@
     "signIn": {
       "title": "Sign in",
       "subtitle": "Welcome back to Munin.",
-      "googleButton": "Sign in with Google",
       "submit": "Sign in",
       "submitting": "Signing in…",
       "noAccount": "New here?",
@@ -45,7 +43,6 @@
       "title": "Create your account",
       "subtitle": "Munin — agent-native business apps.",
       "invitationSubtitle": "You're accepting an invitation for {email}.",
-      "googleButton": "Sign up with Google",
       "submit": "Create account",
       "submitting": "Creating account…",
       "haveAccount": "Already have an account?",
@@ -483,12 +480,6 @@
     "CONV_INVALID": "Conversation entry is invalid.",
     "FEEDBACK_RATE_LIMIT": "Too many suggestions created in the last hour. Try again later.",
     "FEEDBACK_NOT_FOUND": "Suggestion not found."
-  },
-  "ui": {
-    "googleButton": {
-      "signIn": "Sign in with Google",
-      "signUp": "Sign up with Google"
-    }
   },
   "footer": {
     "privacy": "Privacy",

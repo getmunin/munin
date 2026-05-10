@@ -7,10 +7,10 @@
   "scripts": {
     "prebuild": "node scripts/copy-widget.mjs",
     "build": "nest build",
-    "dev": "nest start --watch",
+    "dev": "node --import @swc-node/register/esm-register --watch --conditions=development src/main.ts",
     "start": "node dist/main.js",
-    "migrate": "tsx src/migrate.ts",
-    "migrate:test": "tsx src/migrate-test.ts",
+    "migrate": "node --import @swc-node/register/esm-register --conditions=development src/migrate.ts",
+    "migrate:test": "node --import @swc-node/register/esm-register --conditions=development src/migrate-test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests"
@@ -39,6 +39,7 @@
     "@getmunin/tsconfig": "workspace:*",
     "@nestjs/cli": "^11.0.21",
     "@nestjs/testing": "^11.1.19",
+    "@swc-node/register": "^1.11.1",
     "@swc/core": "^1.15.32",
     "@types/express": "^5.0.0",
     "@types/node": "^22.7.0",

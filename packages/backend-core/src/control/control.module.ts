@@ -26,6 +26,7 @@ import { OutreachUnsubscribeController } from './outreach-unsubscribe.controller
 import { OutreachProposalsController } from './outreach-proposals.controller.js';
 import { OutreachModule } from '../modules/outreach/outreach.module.js';
 import { PublicSkillsController } from './public-skills.controller.js';
+import { PublicMcpToolsController } from './public-mcp-tools.controller.js';
 import { InvitationsController } from './invitations.controller.js';
 import { AcceptInvitationController } from './accept-invitation.controller.js';
 import { InvitationsService } from './invitations.service.js';
@@ -73,6 +74,7 @@ import { InboxController } from './inbox.controller.js';
     MembersController,
     MembershipsController,
     PublicSkillsController,
+    PublicMcpToolsController,
     ConversationsController,
     ActivityController,
     EndUserConversationsController,

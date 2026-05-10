@@ -1,0 +1,4069 @@
+[
+  {
+    "name": "ping",
+    "title": "Ping the MCP server",
+    "description": "Verify the MCP pipe; echoes a message and returns the resolved org and actor type.",
+    "audiences": [
+      "admin",
+      "self_service"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_list_collections",
+    "title": "List CMS collections",
+    "description": "List CMS collections (content types) defined for your org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_get_collection",
+    "title": "Read CMS collection",
+    "description": "Read one collection by id or slug, including its field definitions.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "idOrSlug": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "idOrSlug"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_create_collection",
+    "title": "Create CMS collection",
+    "description": "Define a new collection. Fields is an array of { name, type, required?, options? } — see field types: text, rich_text, markdown, number, integer, boolean, date, datetime, select, multi_select, asset, reference, array, json.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "fields": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "localized": {
+          "type": "boolean"
+        },
+        "settings": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "name",
+        "slug",
+        "fields"
+      ],
+      "additionalProperties": false,
+      "$defs": {
+        "__schema0": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "text",
+                "rich_text",
+                "markdown",
+                "number",
+                "integer",
+                "boolean",
+                "date",
+                "datetime",
+                "select",
+                "multi_select",
+                "asset",
+                "reference",
+                "array",
+                "json"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "localized": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "default": {},
+            "options": {
+              "type": "object",
+              "properties": {
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "targetCollection": {
+                  "type": "string"
+                },
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  {
+    "name": "cms_update_collection",
+    "title": "Update CMS collection",
+    "description": "Patch a collection. Field migration is lossy: dropped or renamed fields stay in entries' `data` jsonb but stop being read by the projection layer.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "idOrSlug": {
+          "type": "string"
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fields": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              }
+            },
+            "settings": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "idOrSlug",
+        "patch"
+      ],
+      "additionalProperties": false,
+      "$defs": {
+        "__schema0": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "text",
+                "rich_text",
+                "markdown",
+                "number",
+                "integer",
+                "boolean",
+                "date",
+                "datetime",
+                "select",
+                "multi_select",
+                "asset",
+                "reference",
+                "array",
+                "json"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "localized": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "default": {},
+            "options": {
+              "type": "object",
+              "properties": {
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "targetCollection": {
+                  "type": "string"
+                },
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  {
+    "name": "cms_delete_collection",
+    "title": "Delete CMS collection",
+    "description": "Delete a collection. Cascades to all entries, versions, and references.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "idOrSlug": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "idOrSlug"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_list_entries",
+    "title": "List CMS entries",
+    "description": "List entries. Filters: collection (id or slug), status, locale. Drafts and scheduled entries are returned to admins; the public delivery API only ever returns published.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "published",
+            "scheduled",
+            "archived"
+          ]
+        },
+        "locale": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_get_entry",
+    "title": "Read CMS entry",
+    "description": "Read one entry. Data is projected through the collection's current field schema.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_create_entry",
+    "title": "Create CMS entry",
+    "description": "Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: \"published\"` to publish on creation; default is draft.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "locale": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "published"
+          ]
+        }
+      },
+      "required": [
+        "collection",
+        "slug",
+        "data"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_update_entry",
+    "title": "Update CMS entry",
+    "description": "Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. Updating `data` re-validates against the collection schema, regenerates search_text + embedding, and rewrites references.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "locale": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "id",
+        "ifVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_publish_entry",
+    "title": "Publish CMS entry",
+    "description": "Flip an entry to status=\"published\". Stamps publishedAt and fires cms.entry.published.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "id",
+        "ifVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_unpublish_entry",
+    "title": "Unpublish CMS entry",
+    "description": "Revert an entry to status=\"draft\". Clears publishedAt; fires cms.entry.unpublished.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "id",
+        "ifVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_schedule_publish",
+    "title": "Schedule CMS entry publish",
+    "description": "Schedule an entry to flip to published at a future ISO 8601 datetime. The schedule worker drains due rows every minute.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "scheduledAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        }
+      },
+      "required": [
+        "id",
+        "ifVersion",
+        "scheduledAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_delete_entry",
+    "title": "Delete CMS entry",
+    "description": "Delete an entry. Cascades to its versions and references.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "id",
+        "ifVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_list_versions",
+    "title": "List CMS entry versions",
+    "description": "List all prior versions of an entry, newest first.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "entryId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "entryId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_restore_version",
+    "title": "Restore CMS entry version",
+    "description": "Roll an entry back to an earlier version. Creates a new current version with that historical data.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "entryId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "entryId",
+        "version",
+        "ifVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_list_assets",
+    "title": "List CMS assets",
+    "description": "List media-library assets in your org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_request_asset_upload",
+    "title": "Request CMS asset upload URL",
+    "description": "Mint a presigned upload URL for a new asset. The asset row is created in `uploaded:false` state; PUT the file body to `uploadUrl`, then call cms_complete_asset_upload to mark it live.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "mime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "altText": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "name",
+        "mime",
+        "sizeBytes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_complete_asset_upload",
+    "title": "Complete CMS asset upload",
+    "description": "Mark a previously-requested asset upload as complete.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_delete_asset",
+    "title": "Delete CMS asset",
+    "description": "Delete an asset and remove the underlying file from storage.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_list_locales",
+    "title": "List CMS locales",
+    "description": "List configured locales for your org. The default locale is used when an entry omits one.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_create_locale",
+    "title": "Create CMS locale",
+    "description": "Add a locale. Code is ISO 639-1 (e.g. \"en\") or BCP-47 (\"en-US\"). The first locale is the default unless overridden.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 16
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "isDefault": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_set_default_locale",
+    "title": "Set default CMS locale",
+    "description": "Set which locale is treated as the org's default for new entries.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_list_inbound_references",
+    "title": "List inbound CMS references",
+    "description": "List entries that link to the given entry. Useful before deleting — see \"what would break\".",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "entryId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "entryId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_search",
+    "title": "Search CMS entries",
+    "description": "Hybrid full-text + semantic search across CMS entries. Returns drafts and published; the public delivery API runs the same engine but hard-filters to published-only.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "collection": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "published",
+            "scheduled",
+            "archived"
+          ]
+        },
+        "locale": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 50
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_list_conversations",
+    "title": "List conversations",
+    "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, or topic.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "snoozed",
+            "closed",
+            "spam"
+          ]
+        },
+        "assigneeUserId": {
+          "type": "string"
+        },
+        "topicId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_get_conversation",
+    "title": "Read conversation",
+    "description": "Read one conversation including every public + internal message.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_send_message",
+    "title": "Send message in conversation",
+    "description": "Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50000
+        },
+        "internal": {
+          "type": "boolean"
+        },
+        "inReplyToId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversationId",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_assign_conversation",
+    "title": "Assign conversation",
+    "description": "Assign a conversation to a user (pass user id) or unassign (pass null). Useful for routing escalated conversations.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "assigneeUserId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "assigneeUserId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_change_status",
+    "title": "Change conversation status",
+    "description": "Change a conversation's status. `snoozeUntil` (ISO 8601) is required when status is \"snoozed\".",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "snoozed",
+            "closed",
+            "spam"
+          ]
+        },
+        "snoozeUntil": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_request_handover",
+    "title": "Request handover to a human",
+    "description": "Flag a conversation as needing human attention. Use this when you have reached the limit of what you can resolve autonomously — billing decisions, refunds outside policy, sensitive complaints, anything where a human teammate should step in. Appends an internal system note (visible only to staff) recording your stated `reason`, sets the conversation's \"needs human attention\" flag (which pins it to the top of the dashboard's Conversations page), and emits `conversation.handover_requested`. Idempotent — calling again on an already-flagged conversation is a no-op. The flag clears automatically once a human teammate replies or closes the conversation.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "conversationId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_search_messages",
+    "title": "Search conversation messages",
+    "description": "Substring search over message bodies. Returns the matching messages newest first; use conv_get_conversation to load surrounding context.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_list_channels",
+    "title": "List conversation channels",
+    "description": "List conversation channels configured for your org. Currently shipping adapters: email and chat (widget). The `voice` and `sms` channel types are reserved for upcoming adapters.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_create_channel",
+    "title": "Create conversation channel",
+    "description": "Add a new conversation channel. Currently shipping adapters: `email` and `chat` (widget). Channel-specific configuration goes in `config`. The `voice` and `sms` channel types are reserved and not yet wired to an adapter.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "email",
+            "voice",
+            "chat",
+            "sms"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "config": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "type",
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_list_topics",
+    "title": "List conversation topics",
+    "description": "List conversation topics (Billing, Support, Refunds, …) for your org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_create_topic",
+    "title": "Create conversation topic",
+    "description": "Add a new conversation topic. Slug must be lowercase letters, digits, hyphens.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "color": {
+          "type": "string",
+          "maxLength": 16
+        }
+      },
+      "required": [
+        "name",
+        "slug"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_set_topic",
+    "title": "Set or clear a conversation topic",
+    "description": "Tag a conversation with one of the org's existing topics, or pass `topicId: null` to clear the topic. Use `conv_list_topics` first to see what topics exist; topics must be pre-created via `conv_create_topic`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        },
+        "topicId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "conversationId",
+        "topicId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_request_handover_in_my_conversation",
+    "title": "Request a human teammate to take over",
+    "description": "Flag the current conversation as needing human attention. Use this when you can't answer the end-user's question on your own — pricing exceptions, account-specific issues you can't verify, anything sensitive. Pass the exact `conversationId` you were given in the system context. Sets a \"needs human attention\" flag on the conversation (pinning it to the top of the team's dashboard) and posts an internal note recording your `reason`. After calling this, do not keep generating replies on your own — let the user know a teammate will follow up, then stop. The flag clears once a teammate replies. The end-user does not see the system note — only the team does.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "conversationId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_email_setup_channel",
+    "title": "Set up email channel",
+    "description": "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "addressing": {
+              "type": "object",
+              "properties": {
+                "fromAddress": {
+                  "type": "string",
+                  "format": "email",
+                  "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                },
+                "fromName": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "replyToTemplate": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "fromAddress"
+              ],
+              "additionalProperties": false
+            },
+            "outbound": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "const": "smtp"
+                    },
+                    "host": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "port": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 65535
+                    },
+                    "secure": {
+                      "type": "boolean"
+                    },
+                    "username": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "password": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "host",
+                    "port",
+                    "secure",
+                    "username"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "const": "mailer"
+                    }
+                  },
+                  "required": [
+                    "provider"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "inbound": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "const": "imap"
+                },
+                "host": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "port": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535
+                },
+                "secure": {
+                  "type": "boolean"
+                },
+                "username": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "password": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "mailbox": {
+                  "type": "string",
+                  "maxLength": 120
+                }
+              },
+              "required": [
+                "provider",
+                "host",
+                "port",
+                "secure",
+                "username"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "addressing",
+            "outbound"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "name",
+        "config"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_email_test_channel",
+    "title": "Test email channel credentials",
+    "description": "Test an email channel's stored credentials. Attempts an SMTP connect (and an IMAP connect if inbound is configured) without sending or fetching anything. Returns `{ smtp: \"ok\" | error, imap: \"ok\" | error | \"not configured\" }`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_widget_create_channel",
+    "title": "Create chat-widget channel",
+    "description": "Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /api/v1/widget/messages from the external agent.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "originAllowlist": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "webhookOnEscalation": {
+          "type": "string",
+          "format": "uri"
+        },
+        "requireVerifiedIdentity": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "displayName",
+        "originAllowlist"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_widget_update_channel",
+    "title": "Update chat-widget channel",
+    "description": "Update a chat-widget channel's displayName / originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "originAllowlist": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "webhookOnEscalation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requireVerifiedIdentity": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_widget_rotate_key",
+    "title": "Rotate widget API key",
+    "description": "Revoke any active widget keys bound to this channel and mint a fresh `mn_widget_*` key. Returns the new plaintext key once. Existing inflight requests using the old key keep working until revocation lands.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_widget_rotate_identity_secret",
+    "title": "Rotate widget identity-verification secret",
+    "description": "Generate a fresh per-channel HMAC secret used to verify browser-side `data-user-hash` values against `data-external-id`. The previous secret is replaced atomically; any previously-issued user hashes stop verifying immediately and the operator must re-render their pages with newly-computed hashes. Returns the new plaintext once.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_contacts",
+    "title": "List contacts",
+    "description": "List contacts in your org, newest-updated first. Filter by company or tag.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "companyId": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_get_contact",
+    "title": "Read contact",
+    "description": "Read one contact, including AI fields, tags, custom fields, and compliance flags.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_find_contact",
+    "title": "Find contact by email or phone",
+    "description": "Find an existing contact by email and/or phone before creating a new one. Returns null if no match.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "phone": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_contact",
+    "title": "Create contact",
+    "description": "Create a new contact. Search with crm_find_contact first to avoid duplicates.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "companyId": {
+          "type": "string"
+        },
+        "endUserId": {
+          "type": "string"
+        },
+        "tags": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "customFields": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_update_contact",
+    "title": "Update contact",
+    "description": "Update fields on a contact. Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "phone": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "address": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "companyId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "ownerUserId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tags": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "customFields": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "doNotContact": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "patch"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_bulk_create_contacts",
+    "title": "Bulk-create contacts",
+    "description": "Bulk-create contacts with dedupe + compliance checks: rows whose email or phone already match a do_not_contact contact are skipped, as are rows that would duplicate an existing contact.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contacts": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "phone": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "address": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "companyId": {
+                "type": "string"
+              },
+              "endUserId": {
+                "type": "string"
+              },
+              "tags": {
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "customFields": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "contacts"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_search_contacts",
+    "title": "Search contacts",
+    "description": "Substring search across name, email, phone, and title. Returns contacts ordered newest-updated first.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_companies",
+    "title": "List companies",
+    "description": "List companies in your org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_company",
+    "title": "Create company",
+    "description": "Create a new company.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "domain": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "tags": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "customFields": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_pipelines",
+    "title": "List sales pipelines",
+    "description": "List sales pipelines for your org with their stages in position order.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_pipeline",
+    "title": "Create sales pipeline",
+    "description": "Create a new sales pipeline with at least one stage. Stages are inserted in array order; mark a stage `winLoss: \"won\"` or `\"lost\"` to record terminal outcomes.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "stages": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "winLoss": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "won",
+                  "lost"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "name",
+        "slug",
+        "stages"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_deals",
+    "title": "List deals",
+    "description": "List deals, optionally filtered by pipeline or stage.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pipelineId": {
+          "type": "string"
+        },
+        "stageId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_deal",
+    "title": "Create deal",
+    "description": "Create a new deal in a pipeline. If `stageId` is omitted, the deal lands in the pipeline's first stage by position.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "pipelineId": {
+          "type": "string"
+        },
+        "stageId": {
+          "type": "string"
+        },
+        "amountCents": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "currency": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 8
+        },
+        "primaryContactId": {
+          "type": "string"
+        },
+        "companyId": {
+          "type": "string"
+        },
+        "expectedCloseAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        }
+      },
+      "required": [
+        "name",
+        "pipelineId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_change_stage",
+    "title": "Change deal stage",
+    "description": "Move a deal to a new stage. If the destination stage is a won/lost terminal, `closedAt` is stamped automatically.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "dealId": {
+          "type": "string"
+        },
+        "stageId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dealId",
+        "stageId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_log_activity",
+    "title": "Log CRM activity",
+    "description": "Record an activity (note / call / email / meeting / task) against a contact, company, or deal. If `contactId` is set, the contact's `lastContactedAt` is also bumped.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "note",
+            "call",
+            "email",
+            "meeting",
+            "task"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 50000
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "companyId": {
+          "type": "string"
+        },
+        "dealId": {
+          "type": "string"
+        },
+        "dueAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_activities",
+    "title": "List CRM activities",
+    "description": "List CRM activities filtered by contact, deal, or company.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contactId": {
+          "type": "string"
+        },
+        "dealId": {
+          "type": "string"
+        },
+        "companyId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_set_ai_summary",
+    "title": "Set AI summary or next action",
+    "description": "Set the AI-generated summary and/or next-action for a contact, company, or deal. These live in dedicated columns so agents do not pollute the human-edited description.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "entityType": {
+          "type": "string",
+          "enum": [
+            "contact",
+            "company",
+            "deal"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nextAction": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "entityType",
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_propose_merge_candidate",
+    "title": "Propose a CRM merge candidate",
+    "description": "File a structured proposal that two contacts are the same person. Pass `confidence` (\"high\" | \"medium\"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM hygiene curator runs this on a periodic cadence; see `skill://crm/hygiene`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contactAId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "contactBId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium"
+          ]
+        },
+        "evidence": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "recommendedKeeperId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "recommendedPatch": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "contactAId",
+        "contactBId",
+        "confidence",
+        "evidence",
+        "recommendedKeeperId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_merge_proposals",
+    "title": "List CRM merge proposals",
+    "description": "List CRM merge proposals, defaulting to `status: \"pending\"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: \"dismissed\"` once per curator pass to skip pairs the operator has already rejected.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "applied",
+            "dismissed"
+          ]
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_apply_merge_proposal",
+    "title": "Apply a CRM merge proposal",
+    "description": "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), and marks the proposal `applied`. Activities and deals stay on whichever contactId they were originally logged under — that's a documented v1 limitation. Throws if the proposal is not in `pending` status.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_dismiss_merge_proposal",
+    "title": "Dismiss a CRM merge proposal",
+    "description": "Mark a pending merge proposal as dismissed (the operator decided these are not the same person). The next CRM hygiene curator pass queries dismissed proposals and skips refiling the same pair. Optional `reason` is stored for audit. Throws if the proposal is not in `pending` status.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_segments",
+    "title": "List CRM segments",
+    "description": "List saved contact segments. A segment is a named CRM filter — used as the audience for outreach campaigns and other targeting workflows. Returns each segment with its filter definition.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_get_segment",
+    "title": "Read CRM segment",
+    "description": "Read one segment, including its filter definition.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_segment",
+    "title": "Create CRM segment",
+    "description": "Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "filter": {
+          "type": "object",
+          "properties": {
+            "tagsAny": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "tagsAll": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "companyId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "searchQuery": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "contactedSince": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "name",
+        "filter"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_update_segment",
+    "title": "Update CRM segment",
+    "description": "Patch a segment: rename, edit description, or replace the filter.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "filter": {
+              "type": "object",
+              "properties": {
+                "tagsAny": {
+                  "maxItems": 32,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "tagsAll": {
+                  "maxItems": 32,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "companyId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "searchQuery": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "contactedSince": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "patch"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_delete_segment",
+    "title": "Delete CRM segment",
+    "description": "Delete a segment. Outreach campaigns referencing it will fail until reassigned.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_contacts_in_segment",
+    "title": "List contacts in segment",
+    "description": "Resolve a segment to its current contacts. ALWAYS excludes suppressed contacts (do_not_contact OR unsubscribed) AND contacts without a recorded lawful basis (consent_lawful_basis IS NULL). Use this — not crm_list_contacts — to materialize an outreach audience: the suppression and consent floors are non-overridable here.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 500
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_set_contact_consent",
+    "title": "Set contact consent",
+    "description": "Record the lawful basis and source for contacting this person. Required before they can appear in any outreach segment. `lawfulBasis` is one of `consent`, `legitimate_interest`, or `contract`. `source` is a short label (e.g. \"imported-2026-q2\", \"web-form-trial-signup\", \"event-attendee-summit-2025\"). Logs a CRM activity for audit.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "lawfulBasis": {
+          "type": "string",
+          "enum": [
+            "consent",
+            "legitimate_interest",
+            "contract"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "evidence": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "givenAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        }
+      },
+      "required": [
+        "contactId",
+        "lawfulBasis",
+        "source"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_get_my_contact",
+    "title": "Read my CRM contact",
+    "description": "Read the CRM contact linked to the calling end-user. RLS restricts visibility to that single row.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_update_my_contact",
+    "title": "Update my CRM contact",
+    "description": "Update the calling end-user's own contact record. Only basic personal fields (name, phone, address) are editable from this surface — tags, ownership, custom fields, and AI fields are admin-only.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_log_activity_self",
+    "title": "Log activity as end-user",
+    "description": "Record an activity attributed to the calling end-user agent (e.g. a voice agent logging \"spoke with customer for 4m, follow-up needed\"). Auto-scoped to the end-user's own CRM contact when one exists.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "note",
+            "call",
+            "email",
+            "meeting",
+            "task"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 50000
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_list_spaces",
+    "title": "List KB spaces",
+    "description": "List knowledge-base spaces in your org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_create_space",
+    "title": "Create KB space",
+    "description": "Create a new knowledge-base space. Slug must be unique within your org and only contain lowercase letters, digits and hyphens.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "name",
+        "slug"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_list_documents",
+    "title": "List KB documents",
+    "description": "List knowledge-base documents in your org, newest-updated first. Optionally filter by space or tag.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "spaceId": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_get_document",
+    "title": "Read KB document",
+    "description": "Read one knowledge-base document, including its full body, tags, and current version. End-user agents see only documents whose `audiences` includes `'self_service'`.",
+    "audiences": [
+      "admin",
+      "self_service"
+    ],
+    "scopes": [
+      "kb:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_get_document_by_slug",
+    "title": "Read KB document by slug",
+    "description": "Read a knowledge-base document by its space slug and document slug — used when a stable identifier (e.g. 'agent-runtime/system-prompt') is needed instead of the document UUID. Returns null when the document does not exist.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "spaceSlug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "spaceSlug",
+        "slug"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_search",
+    "title": "Search knowledge base",
+    "description": "Search the knowledge base by natural-language query. Combines full-text search and vector similarity for the best of both. End-user agents see only documents whose `audiences` includes `'self_service'`.",
+    "audiences": [
+      "admin",
+      "self_service"
+    ],
+    "scopes": [
+      "kb:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "spaceId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 50
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_create_document",
+    "title": "Create KB document",
+    "description": "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "spaceId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1
+        },
+        "audiences": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "self_service"
+            ]
+          }
+        },
+        "tags": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "spaceId",
+        "title",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_update_document",
+    "title": "Update KB document",
+    "description": "Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1
+        },
+        "audiences": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "self_service"
+            ]
+          }
+        },
+        "tags": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      },
+      "required": [
+        "id",
+        "ifVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_delete_document",
+    "title": "Delete KB document",
+    "description": "Delete a knowledge-base document. Pass `ifVersion` for optimistic concurrency. Cascades to chunks and versions.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "id",
+        "ifVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_list_versions",
+    "title": "List KB document versions",
+    "description": "List all prior versions of a knowledge-base document, newest first.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "documentId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_propose_curation_candidate",
+    "title": "Propose KB curation candidate",
+    "description": "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/curation` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "draftBody": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceConversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "sourceMessageIds": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "proposedTargetSpaceSlug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "subject",
+        "draftBody"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_publish_curation_candidate",
+    "title": "Publish KB curation candidate",
+    "description": "Promote a reviewed curation candidate into a target KB space. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the `curation`/`candidate` tags, and removes the candidate from the inbox. The target space must already exist.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "candidateDocumentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetSpaceSlug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "audiences": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "self_service"
+            ]
+          }
+        }
+      },
+      "required": [
+        "candidateDocumentId",
+        "targetSpaceSlug"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_restore_version",
+    "title": "Restore KB document version",
+    "description": "Roll a document back to an earlier version. Creates a new current version with that historical content.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "documentId",
+        "version",
+        "ifVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_list_campaigns",
+    "title": "List outreach campaigns",
+    "description": "List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, CTA URL, and the enabled flag. The draft-initial curator only drafts proposals for `enabled = true` campaigns.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_get_campaign",
+    "title": "Read one outreach campaign",
+    "description": "Read a single campaign by id, including brief and cadence rules.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_create_campaign",
+    "title": "Create outreach campaign",
+    "description": "Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email channel. New campaigns default `enabled: false` so the curator does not start drafting until you flip it on.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "brief": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 5000
+        },
+        "segmentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "cadenceRules": {
+          "type": "object",
+          "properties": {
+            "maxPerWeekPerContact": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 7
+            },
+            "quietHoursStart": {
+              "type": "string",
+              "pattern": "^[0-2]\\d:[0-5]\\d$"
+            },
+            "quietHoursEnd": {
+              "type": "string",
+              "pattern": "^[0-2]\\d:[0-5]\\d$"
+            },
+            "blackoutDates": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "ctaUrl": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "unsubscribeRequired": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "brief",
+        "segmentId",
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_update_campaign",
+    "title": "Update outreach campaign",
+    "description": "Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "brief": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 5000
+            },
+            "segmentId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "channelId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "cadenceRules": {
+              "type": "object",
+              "properties": {
+                "maxPerWeekPerContact": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 7
+                },
+                "quietHoursStart": {
+                  "type": "string",
+                  "pattern": "^[0-2]\\d:[0-5]\\d$"
+                },
+                "quietHoursEnd": {
+                  "type": "string",
+                  "pattern": "^[0-2]\\d:[0-5]\\d$"
+                },
+                "blackoutDates": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "ctaUrl": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uri"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "unsubscribeRequired": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "patch"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_list_proposals",
+    "title": "List outreach proposals",
+    "description": "List drafted outreach proposals (initials in PR2; replies in PR3). Defaults to all statuses. The draft-initial curator queries `status: \"pending\", kind: \"initial\"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: \"pending\"`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "sent",
+            "failed",
+            "dismissed"
+          ]
+        },
+        "campaignId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "initial",
+            "reply"
+          ]
+        },
+        "contactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 500
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_propose_initial",
+    "title": "Propose an initial outreach draft",
+    "description": "File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) while a pending row exists throws — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaignId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "contactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "draftSubject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "draftBody": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "evidence": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "proposedSendAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        }
+      },
+      "required": [
+        "campaignId",
+        "contactId",
+        "draftSubject",
+        "draftBody"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_propose_reply",
+    "title": "Propose an outreach reply draft",
+    "description": "File a drafted reply to an inbound message on an outreach-originated conversation, for human approval. The conversation must have an `outreachCampaignId` set (it's an outreach conversation) and a CRM contact resolvable by email. Idempotent: re-proposing while a pending reply exists for the same conversation throws — the operator should approve or dismiss the existing one first. Reply approvals send via `conv_send_message` on the existing conversation; no unsubscribe footer is appended (replies thread inside the existing email chain that already carries the unsubscribe link).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "draftBody": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "evidence": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "conversationId",
+        "draftBody"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bootstrap_status",
+    "title": "Read bootstrap progress",
+    "description": "Read the conversational config progress for one Munin app (kb / conv / crm / ...). Returns the next step to ask the user about, or `completed: true` when all steps are done.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        }
+      },
+      "required": [
+        "app"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bootstrap_answer",
+    "title": "Submit bootstrap answer",
+    "description": "Submit the user's answer to a bootstrap step. The runner validates `value`, applies side effects (e.g. creates a space), and returns the updated status.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "stepId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "value": {}
+      },
+      "required": [
+        "app",
+        "stepId",
+        "value"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

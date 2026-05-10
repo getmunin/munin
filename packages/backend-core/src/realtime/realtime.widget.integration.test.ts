@@ -85,7 +85,6 @@ const skipReason = TEST_URL
           name: 'conv_widget_create_channel',
           arguments: {
             name: 'rt-storefront-bot',
-            displayName: 'RT Storefront Bot',
             originAllowlist: [ALLOWED_ORIGIN],
           },
         }),

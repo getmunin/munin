@@ -59,7 +59,7 @@ const skipReason = TEST_URL
         orgId,
         type: 'chat',
         name: 'rc-chat',
-        config: { provider: 'widget', displayName: 'rc', originAllowlist: [] },
+        config: { provider: 'widget', originAllowlist: [] },
       })
       .returning();
 

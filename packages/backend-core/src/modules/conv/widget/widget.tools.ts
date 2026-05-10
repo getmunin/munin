@@ -8,7 +8,6 @@ import { WidgetChannelConfig } from './widget.types.js';
 
 const CreateInput = z.object({
   name: z.string().min(1).max(120),
-  displayName: z.string().min(1).max(120),
   originAllowlist: z.array(z.string().url()).default([]),
   webhookOnEscalation: z.string().url().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
@@ -16,7 +15,6 @@ const CreateInput = z.object({
 
 const UpdateInput = z.object({
   channelId: z.string(),
-  displayName: z.string().min(1).max(120).optional(),
   originAllowlist: z.array(z.string().url()).optional(),
   webhookOnEscalation: z.string().url().nullable().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
@@ -76,7 +74,6 @@ export class WidgetAdminTools {
     const identityVerificationSecret = randomToken(32);
     const config = WidgetChannelConfig.parse({
       provider: 'widget',
-      displayName: args.displayName,
       originAllowlist: args.originAllowlist,
       webhookOnEscalation: args.webhookOnEscalation,
       identityVerificationSecret,
@@ -120,7 +117,7 @@ export class WidgetAdminTools {
     name: 'conv_widget_update_channel',
     title: 'Update chat-widget channel',
     description:
-      'Update a chat-widget channel\'s displayName / originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.',
+      'Update a chat-widget channel\'s originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: UpdateInput,
@@ -147,7 +144,6 @@ export class WidgetAdminTools {
 
     const next = WidgetChannelConfig.parse({
       provider: 'widget',
-      displayName: args.displayName ?? prev.displayName,
       originAllowlist: args.originAllowlist ?? prev.originAllowlist,
       webhookOnEscalation:
         args.webhookOnEscalation === null

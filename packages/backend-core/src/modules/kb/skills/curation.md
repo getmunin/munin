@@ -105,7 +105,7 @@ Behavior:
 
 - The first call ever materializes the `kb-curation-inbox` KB space (admin audience). Subsequent calls reuse it.
 - The candidate is created as a regular `kb_documents` row inside that space, tagged `curation` + `candidate`, audience `admin` only. It is **not** visible to end-user agents — they keep getting handovers for the same gap until the operator promotes the candidate.
-- A `kb.curation_candidate.proposed` realtime event fires for any subscribed agent / cloud runner.
+- A `kb.curation_candidate.proposed` realtime event fires for any subscribed agent or scheduled runner.
 
 ## Step 6 — review and promote (the operator's loop)
 

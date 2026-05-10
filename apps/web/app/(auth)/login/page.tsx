@@ -5,12 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { authClient } from '@getmunin/dashboard-pages';
-import { GoogleButton } from '@getmunin/ui';
 import { Button } from '@getmunin/ui';
 import { Input } from '@getmunin/ui';
 import { Label } from '@getmunin/ui';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getmunin/ui';
-import { Separator } from '@getmunin/ui';
 import { useTranslateError } from '@/lib/translate-error';
 
 function safeRedirect(raw: string | null): string {
@@ -22,7 +20,6 @@ function LoginForm() {
   const t = useTranslations('auth.signIn');
   const tFields = useTranslations('auth.fields');
   const tCommon = useTranslations('common');
-  const tUi = useTranslations('ui.googleButton');
   const translateError = useTranslateError();
   const router = useRouter();
   const params = useSearchParams();
@@ -63,15 +60,6 @@ function LoginForm() {
         <CardDescription>{t('subtitle')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <GoogleButton
-          label={tUi('signIn')}
-          onSignIn={() => {
-            void authClient.signIn.social({ provider: 'google', callbackURL: redirectTo });
-          }}
-        />
-
-        <DividerWithLabel label={tCommon('or')} />
-
         <form
           onSubmit={(event) => {
             void onSubmit(event);
@@ -122,15 +110,5 @@ export default function LoginPage() {
     <Suspense fallback={null}>
       <LoginForm />
     </Suspense>
-  );
-}
-
-function DividerWithLabel({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-      <Separator className="flex-1" />
-      {label}
-      <Separator className="flex-1" />
-    </div>
   );
 }

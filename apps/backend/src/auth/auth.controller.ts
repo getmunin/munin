@@ -5,7 +5,6 @@ import { readMailerFromEnv } from '@getmunin/core';
 import {
   DB,
   handleAuthRequest,
-  readGoogleProviderFromEnv,
   readTrustedOriginsFromEnv,
   requireAuthSecret,
 } from '@getmunin/backend-core';
@@ -28,7 +27,6 @@ export class AuthController {
       baseUrl: process.env.MUNIN_PUBLIC_URL ?? PUBLIC_URL_FALLBACK,
       authSecret: requireAuthSecret(),
       trustedOrigins: readTrustedOriginsFromEnv(),
-      google: readGoogleProviderFromEnv(),
       mailer,
       webBaseUrl: process.env.MUNIN_WEB_URL,
       allowedEmailDomains: readAllowedEmailDomainsFromEnv(),

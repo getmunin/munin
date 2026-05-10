@@ -17,6 +17,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
@@ -26,7 +27,6 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node ./scripts/copy-skills.mjs",
-    "dev": "tsc -p tsconfig.build.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",

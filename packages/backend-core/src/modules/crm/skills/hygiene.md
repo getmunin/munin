@@ -10,7 +10,7 @@ CRM data drifts. Imports re-add contacts under a slightly different email. Human
 
 This skill walks an admin agent through one periodic hygiene pass: pull contacts, find suspect pairs, judge each pair, and file high-confidence pairs as **structured merge proposals** via `crm_propose_merge_candidate`. A human (or trusted admin agent) then reviews each pending proposal and resolves it with `crm_apply_merge_proposal` (atomic patch + archive) or `crm_dismiss_merge_proposal` (records the rejection so the next curator pass skips the pair).
 
-Run periodically. Don't run inline per CRM mutation — batching is cheaper and the suspect-pair signal is much stronger when you can see the whole population at once. The cloud product has a curator runner that schedules this weekly per enabled org.
+Run periodically. Don't run inline per CRM mutation — batching is cheaper and the suspect-pair signal is much stronger when you can see the whole population at once. A weekly cadence is a good default; wire it up via your scheduler of choice.
 
 ## TL;DR
 
@@ -124,7 +124,7 @@ The dashboard "Needs attention" backlog card surfaces the count of pending propo
 - **Don't auto-apply.** v1 is propose-only. The cost of a wrong merge (lost activity history, wrong `endUserId` link) is much higher than the cost of one extra human review per pair.
 - **Don't propose pairs the operator already dismissed.** Step 1 exists for a reason. If you skip it, you'll churn the operator's review queue with noise.
 - **Don't include private end-user data in `evidence` beyond what's needed to decide.** No payment info, no internal account states, no health/legal/financial details. The matched email, the matched phone, the names, the companyId — that's enough.
-- **Don't run on every conversation.** This is a periodic batch pass. The cloud curator runner schedules it. If you're being asked to do it inline as part of a chat reply, push back — that's the wrong shape.
+- **Don't run on every conversation.** This is a periodic batch pass — your scheduler triggers it. If you're being asked to do it inline as part of a chat reply, push back — that's the wrong shape.
 - **Don't use `crm_update_contact` to "manually merge" instead of proposing.** The proposals table is the audit trail and the operator's review queue. Bypassing it loses both.
 
 ## Future work

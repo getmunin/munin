@@ -37,17 +37,17 @@ Once you've signed up (hosted) or run `docker compose up` (self-host), point you
 {
   "mcpServers": {
     "munin": {
-      "url": "https://mcp.getmunin.com"
+      "url": "http://localhost:3001/mcp"
     }
   }
 }
 ```
 
-For self-host, swap in `http://localhost:3001/mcp`. The first call triggers an OAuth consent screen in your browser, then your agent has the full tool surface (KB, conversations, CRM, CMS, suggestions).
+(For the hosted version, swap in `https://mcp.getmunin.com`.) The first call triggers an OAuth consent screen in your browser, then your agent has the full tool surface (KB, conversations, CRM, CMS, suggestions).
 
 ## Two trust contexts, one MCP endpoint
 
-The same `mcp.getmunin.com` URL serves two distinct callers, audience-aware:
+The same `/mcp` endpoint serves two distinct callers, audience-aware:
 
 - **Admin agents** (Claude Desktop, Cursor, internal automation) — OAuth-authorized by you. Full tool surface.
 - **End-user agents** (your voice AI, web chatbot, mobile app helper) — short-lived delegated tokens minted server-side from your backend, scoped to one of your end-users. Only self-service tools (read your own contact, send a message in your own conversation).

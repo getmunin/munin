@@ -19,7 +19,7 @@ Run periodically. Quarterly is a good default for content-stable orgs; monthly f
 3. **Find stale published entries** — `cms_list_entries({ status: "published" })`, filter to `updatedAt > N months ago` per collection's velocity. For each, run `cms_list_inbound_references` to see if the entry is still load-bearing or has been superseded.
 4. **Find orphaned assets** — `cms_list_assets`, cross-reference against entry bodies (search for asset IDs in entries' `data` payloads) to find uploads no entry points to.
 5. **Compose a structured report** grouped by recommended action: `archive`, `refresh`, `delete-asset`, `keep`. Include enough evidence per item that a reviewer can decide without re-querying.
-6. **Stop.** The operator reviews the report (curator-runner log on the cloud product, or your reply-to-the-user output for ad-hoc runs) and acts on it manually using the existing `cms_*` tools.
+6. **Stop.** The operator reviews the report (your reply-to-the-user output for ad-hoc runs, or the scheduled-runner log if you're invoked from a cron) and acts on it manually using the existing `cms_*` tools.
 
 ## Step 1 — collections inventory
 

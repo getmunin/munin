@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/db",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "license": "MIT",
   "description": "Munin database: Drizzle schema, migrations, RLS policies.",
   "publishConfig": {

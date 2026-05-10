@@ -80,36 +80,6 @@
     "partnerAccess": "Partner access"
   },
   "dashboard": {
-    "overview": {
-      "title": "Welcome to Munin",
-      "subtitle": "Connect your AI agent or build a server-side integration.",
-      "connectCard": {
-        "title": "Connect your AI agent",
-        "description": "Add this URL to Claude Desktop, Cursor, or any MCP client.",
-        "consentNote": "You'll see a consent screen here when an agent connects."
-      },
-      "buildCard": {
-        "title": "Build a server integration",
-        "description": "Voice AI, web chatbot, or mobile app? Mint short-lived end-user tokens server-side.",
-        "cta": "Manage API keys"
-      }
-    },
-    "agentStatus": {
-      "title": "Self-service agent",
-      "connected": "{count, plural, one {1 agent connected} other {# agents connected}} — replies to end-user messages will be handled automatically.",
-      "notConnected": "No self-service agent connected. End-user messages will sit until a human replies from the dashboard or an agent runner is connected.",
-      "staleNotConnected": "No self-service agent connected, and there are unanswered end-user messages. Reply from the dashboard or connect an agent runner.",
-      "hint": "Connect an agent: run @getmunin/agent-runtime against this Munin's MCP, or use the cloud product's auto-replier."
-    },
-    "needsAttention": {
-      "title": "Needs attention",
-      "allClear": "All caught up.",
-      "conversationsLabel": "conversations needing handover",
-      "openConversations": "Open conversations →",
-      "kbCurationLabel": "KB suggestions pending review",
-      "crmMergeProposalsLabel": "CRM merges pending review",
-      "openInbox": "Open inbox →"
-    },
     "agents": {
       "title": "Connected agents",
       "subtitle": "Every OAuth-authorized agent and end-user token issued for this org. Revoke any active token to immediately invalidate further MCP calls.",

@@ -10,15 +10,17 @@ import { cn } from '@getmunin/ui';
 import { LocaleSwitcher } from './locale-switcher';
 import { UserMenu } from './user-menu';
 
-type NavLabelKey = 'inbox' | 'settings';
+type NavLabelKey = 'overview' | 'inbox' | 'settings';
 
 interface NavItem {
   href: Route;
   labelKey: NavLabelKey;
   ownerOrAdminOnly?: boolean;
+  exact?: boolean;
 }
 
 const NAV: NavItem[] = [
+  { href: '/dashboard', labelKey: 'overview', exact: true },
   { href: '/dashboard/inbox', labelKey: 'inbox' },
   { href: '/dashboard/settings', labelKey: 'settings', ownerOrAdminOnly: true },
 ];
@@ -60,7 +62,7 @@ export function MuninTopbar({ role, user, onSignOut, inboxCount, status = 'conne
 
       <nav className="absolute inset-y-0 left-1/2 flex -translate-x-1/2 items-stretch">
         {visibleNav.map((item) => {
-          const active = pathname.startsWith(item.href);
+          const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
@@ -69,7 +71,7 @@ export function MuninTopbar({ role, user, onSignOut, inboxCount, status = 'conne
                 'inline-flex items-center gap-1.5 px-5 text-[13px] -mb-px border-b-2 border-transparent transition-colors duration-fast ease-munin',
                 active
                   ? 'border-cobalt bg-paper-deep font-medium text-ink dark:bg-secondary dark:text-foreground dark:border-cobalt-soft'
-                  : 'text-ink-mute hover:bg-paper-deep hover:text-ink dark:hover:bg-secondary dark:hover:text-foreground',
+                  : 'text-ink-mute hover:bg-paper-deep hover:text-ink hover:border-ink dark:hover:bg-secondary dark:hover:text-foreground dark:hover:border-foreground',
               )}
             >
               {tNav(item.labelKey)}

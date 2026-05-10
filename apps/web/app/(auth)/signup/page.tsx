@@ -5,12 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { api, ApiError, authClient } from '@getmunin/dashboard-pages';
-import { GoogleButton } from '@getmunin/ui';
 import { Button } from '@getmunin/ui';
 import { Input } from '@getmunin/ui';
 import { Label } from '@getmunin/ui';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@getmunin/ui';
-import { Separator } from '@getmunin/ui';
 import { useTranslateError } from '@/lib/translate-error';
 
 function safeRedirect(raw: string | null): string {
@@ -33,7 +31,6 @@ function SignupForm() {
   const t = useTranslations('auth.signUp');
   const tFields = useTranslations('auth.fields');
   const tCommon = useTranslations('common');
-  const tUi = useTranslations('ui.googleButton');
   const translateError = useTranslateError();
   const router = useRouter();
   const params = useSearchParams();
@@ -95,15 +92,6 @@ function SignupForm() {
       </CardHeader>
       <CardContent className="space-y-4">
         {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
-        <GoogleButton
-          label={tUi('signUp')}
-          onSignIn={() => {
-            void authClient.signIn.social({ provider: 'google', callbackURL: redirectTo });
-          }}
-        />
-
-        <DividerWithLabel label={tCommon('or')} />
-
         <form
           onSubmit={(event) => {
             void onSubmit(event);
@@ -161,16 +149,6 @@ function SignupForm() {
         </p>
       </CardContent>
     </Card>
-  );
-}
-
-function DividerWithLabel({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-      <Separator className="flex-1" />
-      {label}
-      <Separator className="flex-1" />
-    </div>
   );
 }
 

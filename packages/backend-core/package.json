@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/backend-core",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "license": "MIT",
   "description": "Shared NestJS modules powering both OSS and cloud Munin backends.",
   "publishConfig": {

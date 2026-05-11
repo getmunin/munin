@@ -545,6 +545,9 @@ importers:
 
   packages/dashboard-pages:
     dependencies:
+      '@getmunin/types':
+        specifier: workspace:*
+        version: link:../types
       '@getmunin/ui':
         specifier: workspace:*
         version: link:../ui
@@ -563,6 +566,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@getmunin/eslint-config':
         specifier: workspace:*

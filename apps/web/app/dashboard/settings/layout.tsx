@@ -2,63 +2,11 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import type { Route } from 'next';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { isOwnerOrAdmin, useActiveRole } from '@getmunin/dashboard-pages';
 import { PageSpinner, RailGroup, RailItem, RailNav } from '@getmunin/ui';
-
-type GroupKey = 'workspace' | 'access' | 'monitoring';
-
-type ItemKey =
-  | 'team'
-  | 'channels'
-  | 'builtInAi'
-  | 'apiKeys'
-  | 'agents'
-  | 'endUsers'
-  | 'usage'
-  | 'activity'
-  | 'auditLog'
-  | 'dataExport';
-
-interface SubNavItem {
-  href: Route;
-  labelKey: ItemKey;
-}
-
-interface SubNavGroup {
-  groupKey: GroupKey;
-  items: SubNavItem[];
-}
-
-const GROUPS: SubNavGroup[] = [
-  {
-    groupKey: 'workspace',
-    items: [
-      { href: '/dashboard/settings/team', labelKey: 'team' },
-      { href: '/dashboard/settings/channels', labelKey: 'channels' },
-      { href: '/dashboard/settings/builtin-ai', labelKey: 'builtInAi' },
-      { href: '/dashboard/settings/export', labelKey: 'dataExport' },
-    ],
-  },
-  {
-    groupKey: 'access',
-    items: [
-      { href: '/dashboard/settings/api-keys', labelKey: 'apiKeys' },
-      { href: '/dashboard/settings/agents', labelKey: 'agents' },
-      { href: '/dashboard/settings/end-users', labelKey: 'endUsers' },
-    ],
-  },
-  {
-    groupKey: 'monitoring',
-    items: [
-      { href: '/dashboard/settings/usage', labelKey: 'usage' },
-      { href: '/dashboard/settings/activity', labelKey: 'activity' },
-      { href: '/dashboard/settings/audit-log', labelKey: 'auditLog' },
-    ],
-  },
-];
+import { SETTINGS_GROUPS } from '../nav-config';
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -78,28 +26,30 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   }
 
   return (
-    <div className="flex gap-10 px-10 py-10 max-w-7xl mx-auto">
-      <RailNav>
-        {GROUPS.map((group) => (
-          <RailGroup key={group.groupKey} label={tGroups(group.groupKey)}>
-            {group.items.map((item) => (
-              <RailItem
-                key={item.href}
-                render={
-                  <Link
-                    href={item.href}
-                    aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
-                  />
-                }
-                active={pathname.startsWith(item.href)}
-              >
-                {tNav(item.labelKey)}
-              </RailItem>
-            ))}
-          </RailGroup>
-        ))}
-      </RailNav>
-      <div className="flex-1 min-w-0 space-y-10">{children}</div>
+    <div className="flex min-h-[calc(100vh-3.5rem)]">
+      <aside className="hidden md:flex md:flex-col w-72 shrink-0 bg-bone border-r border-rule-soft dark:bg-secondary dark:border-rule-on-dark py-10 px-6">
+        <RailNav className="w-full">
+          {SETTINGS_GROUPS.map((group) => (
+            <RailGroup key={group.groupKey} label={tGroups(group.groupKey)}>
+              {group.items.map((item) => (
+                <RailItem
+                  key={item.href}
+                  render={
+                    <Link
+                      href={item.href}
+                      aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
+                    />
+                  }
+                  active={pathname.startsWith(item.href)}
+                >
+                  {tNav(item.labelKey)}
+                </RailItem>
+              ))}
+            </RailGroup>
+          ))}
+        </RailNav>
+      </aside>
+      <div className="flex-1 min-w-0 px-12 py-10 space-y-10">{children}</div>
     </div>
   );
 }

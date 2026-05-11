@@ -1,19 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Bot, Trash2 } from 'lucide-react';
-import { useFormatter, useLocale, useTranslations } from 'next-intl';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Hero,
-} from '@getmunin/ui';
+import { LoadFailed } from '../components/load-failed';
+import { EmptyCallout } from '../components/empty-callout';
+import { useLoadGate } from '../lib/use-load-gate';
+import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
+import { Button, Card, CardContent, Hero, SectionHead, cn } from '@getmunin/ui';
 
 interface TokenDto {
   id: string;
@@ -27,39 +22,53 @@ interface TokenDto {
   createdAt: string;
 }
 
+type TokenStatus = 'active' | 'revoked' | 'expired';
+
 export function AgentsPage() {
   const t = useTranslations('dashboard.agents');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
+  const format = useFormatter();
   const [tokens, setTokens] = useState<TokenDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      setError(null);
-      const list = await api<TokenDto[]>('/api/v1/tokens');
-      setTokens(list);
-    } catch (err) {
-      setError(translate(err) || t('errors.load'));
-    }
-  }, [t, translate]);
+    setError(null);
+    const list = await api<TokenDto[]>('/api/v1/tokens');
+    setTokens(list);
+  }, []);
+
+  const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
+  const buildLoadFailedProps = useSettingsLoadFailedProps();
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void tryLoad();
+  }, [tryLoad]);
 
   async function revoke(id: string) {
     try {
       await api(`/api/v1/tokens/${id}`, { method: 'DELETE' });
-      await load();
+      await tryLoad();
     } catch (err) {
       setError(translate(err) || t('errors.revoke'));
     }
   }
 
+  if (loadError && !hasLoadedOnce) {
+    return (
+      <LoadFailed
+        {...buildLoadFailedProps('agents', loadError, () => void retry(), retrying)}
+      />
+    );
+  }
+
   return (
     <>
-      <Hero title={t('title')} lede={t('subtitle')} />
+      <Hero
+        eyebrow={t('eyebrow')}
+        title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
+        lede={t('subtitle')}
+      />
 
       {error && (
         <Card>
@@ -67,87 +76,136 @@ export function AgentsPage() {
         </Card>
       )}
 
-      {tokens === null ? (
-        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
-      ) : tokens.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bot className="size-5 text-muted-foreground" />
-              <CardTitle>{t('emptyTitle')}</CardTitle>
-            </div>
-            <CardDescription>{t('emptyBody')}</CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <ul className="space-y-3">
-          {tokens.map((token) => (
-            <TokenCard
-              key={token.id}
-              token={token}
-              onRevoke={() => {
-                void revoke(token.id);
-              }}
-            />
-          ))}
-        </ul>
-      )}
+      <section className="space-y-4">
+        <SectionHead
+          title={tokens ? t('agentsTitleCount', { count: tokens.length }) : t('agentsTitle')}
+          divider={false}
+        />
+
+        {tokens === null ? (
+          <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
+        ) : tokens.length === 0 ? (
+          <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-rule-soft dark:border-rule-on-dark text-left">
+                <Th>{t('tableToken')}</Th>
+                <Th>{t('tableOrigin')}</Th>
+                <Th>{t('tableStatus')}</Th>
+                <Th>{t('tableIssued')}</Th>
+                <Th>{t('tableLastUsed')}</Th>
+                <Th>{t('tableExpires')}</Th>
+                <Th className="text-right" />
+              </tr>
+            </thead>
+            <tbody>
+              {tokens.map((token) => {
+                const status: TokenStatus =
+                  token.revokedAt !== null
+                    ? 'revoked'
+                    : token.expiresAt !== null && new Date(token.expiresAt) < new Date()
+                      ? 'expired'
+                      : 'active';
+                const typeLabel = labelForType(token.type, t);
+                const issued = format.dateTime(new Date(token.createdAt), {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                });
+                const lastUsed = token.lastUsedAt
+                  ? format.dateTime(new Date(token.lastUsedAt), {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : '—';
+                const expires = token.expiresAt
+                  ? format.dateTime(new Date(token.expiresAt), {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : '—';
+                return (
+                  <tr
+                    key={token.id}
+                    className="border-b border-rule-soft dark:border-rule-on-dark align-top"
+                  >
+                    <td className="py-4 pr-4">
+                      <div className="text-sm font-medium text-ink dark:text-foreground">
+                        {typeLabel}
+                      </div>
+                      <div className="font-mono text-[11px] text-ink-mute">
+                        {token.scopes.length > 0 ? token.scopes.join(' ') : t('noScopes')}
+                      </div>
+                    </td>
+                    <td className="py-4 pr-4 font-mono text-xs text-ink-mute">
+                      {token.audiences.join(', ') || '—'}
+                    </td>
+                    <td className="py-4 pr-4">
+                      <StatusChip status={status} t={t} />
+                    </td>
+                    <td className="py-4 pr-4 font-mono text-xs text-ink-mute">{issued}</td>
+                    <td className="py-4 pr-4 font-mono text-xs text-ink-mute">{lastUsed}</td>
+                    <td className="py-4 pr-4 font-mono text-xs text-ink-mute">{expires}</td>
+                    <td className="py-4 text-right">
+                      {status === 'active' && (
+                        <Button variant="outline" size="sm" onClick={() => void revoke(token.id)}>
+                          {tCommon('revoke')}
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </section>
     </>
   );
 }
 
-function TokenCard({ token, onRevoke }: { token: TokenDto; onRevoke: () => void }) {
-  const t = useTranslations('dashboard.agents');
-  const format = useFormatter();
-  const locale = useLocale();
-  const isRevoked = token.revokedAt !== null;
-  const isExpired = token.expiresAt !== null && new Date(token.expiresAt) < new Date();
-  const status: 'active' | 'revoked' | 'expired' = isRevoked
-    ? 'revoked'
-    : isExpired
-      ? 'expired'
-      : 'active';
-  const fmt = (iso: string) => format.dateTime(new Date(iso), { dateStyle: 'medium', timeStyle: 'short' });
-  const typeLabel = labelForType(token.type, t);
+function Th({ children, className }: { children?: ReactNode; className?: string }) {
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-base">{typeLabel}</CardTitle>
-            <CardDescription>
-              {token.audiences.join(', ') || '—'} · {token.scopes.join(' ') || t('noScopes')}
-            </CardDescription>
-          </div>
-          <span
-            className={
-              status === 'active'
-                ? 'rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700'
-                : 'rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'
-            }
-          >
-            {t(`status.${status}`)}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
-        <div className="space-y-0.5" lang={locale}>
-          <div>{t('issued', { when: fmt(token.createdAt) })}</div>
-          {token.lastUsedAt && <div>{t('lastUsed', { when: fmt(token.lastUsedAt) })}</div>}
-          {token.expiresAt && <div>{t('expires', { when: fmt(token.expiresAt) })}</div>}
-        </div>
-        {!isRevoked && (
-          <Button variant="outline" size="sm" onClick={() => onRevoke()}>
-            <Trash2 className="size-4" />
-            {t('revoke')}
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+    <th
+      className={cn(
+        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute font-normal',
+        className,
+      )}
+    >
+      {children}
+    </th>
   );
 }
 
-function labelForType(type: string, t: ReturnType<typeof useTranslations<'dashboard.agents'>>): string {
+function StatusChip({
+  status,
+  t,
+}: {
+  status: TokenStatus;
+  t: ReturnType<typeof useTranslations<'dashboard.agents'>>;
+}) {
+  const label = t(`status.${status}`);
+  return (
+    <span
+      className={cn(
+        'inline-block px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow',
+        status === 'active'
+          ? 'bg-cobalt/15 text-cobalt-deep dark:bg-cobalt-soft/20 dark:text-cobalt-soft'
+          : 'border border-rule-soft dark:border-rule-on-dark text-ink-mute',
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function labelForType(
+  type: string,
+  t: ReturnType<typeof useTranslations<'dashboard.agents'>>,
+): string {
   if (type === 'oauth_access') return t('types.oauth_access');
   if (type === 'oauth_refresh') return t('types.oauth_refresh');
   if (type === 'delegated_end_user') return t('types.delegated_end_user');

@@ -1,28 +1,33 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  CheckCircle2,
   ChevronDown,
   Code,
   Copy,
-  Globe,
   KeyRound,
   Mail,
   MessageSquare,
-  RefreshCw,
-  XCircle,
+  MoreHorizontal,
+  ShieldCheck,
+  Trash2,
 } from 'lucide-react';
-import { useFormatter, useTranslations } from 'next-intl';
-import { api } from '../api';
+import { useTranslations } from 'next-intl';
+import { api, ApiError } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
+import { LoadFailed } from '../components/load-failed';
+import { EmptyCallout } from '../components/empty-callout';
+import { SaveErrorStage, type SaveErrorDetail } from '../components/save-error-stage';
+import { useConfirm } from '../components/confirm-dialog';
+import { FormField } from '../components/form-field';
+import { useLoadGate } from '../lib/use-load-gate';
+import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
+import { CreateWidgetBody, SetupEmailBody } from '@getmunin/types';
+import { dialogButtonClass, dialogFooterClass, dialogHintClass, dialogLabelClass } from '../lib/dialog-style';
 import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -32,10 +37,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Hero,
   Input,
   Label,
+  SectionHead,
+  cn,
 } from '@getmunin/ui';
 
 interface ChannelDto {
@@ -51,8 +59,21 @@ interface EmailChannelDto extends ChannelDto {
   type: 'email';
   config: {
     addressing?: { fromAddress?: string; fromName?: string; replyToTemplate?: string };
-    outbound?: { provider: 'smtp'; host: string; port: number };
-    inbound?: { provider: 'imap'; host: string; port: number };
+    outbound?: {
+      provider: 'smtp';
+      host: string;
+      port: number;
+      secure?: boolean;
+      username?: string;
+    };
+    inbound?: {
+      provider: 'imap';
+      host: string;
+      port: number;
+      secure?: boolean;
+      username?: string;
+      mailbox?: string;
+    };
   };
 }
 
@@ -75,32 +96,37 @@ export function ChannelsPage() {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
-  const format = useFormatter();
+  const confirm = useConfirm();
   const [channels, setChannels] = useState<ChannelDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [widgetOpen, setWidgetOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
-  const [justCreated, setJustCreated] = useState<CreatedWidget | null>(null);
+  const [editEmail, setEditEmail] = useState<EmailChannelDto | null>(null);
   const [rotated, setRotated] = useState<CreatedWidget | null>(null);
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      setError(null);
-      const list = await api<{ items: ChannelDto[] }>('/api/v1/conversations/channels');
-      setChannels(list.items);
-    } catch (err) {
-      setError(translate(err) || t('errors.load'));
-    }
-  }, [t, translate]);
+    setError(null);
+    const list = await api<{ items: ChannelDto[] }>('/api/v1/conversations/channels');
+    setChannels(list.items);
+  }, []);
+
+  const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
+  const buildLoadFailedProps = useSettingsLoadFailedProps();
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void tryLoad();
+  }, [tryLoad]);
 
   async function rotateKey(channel: ChannelDto) {
-    if (!confirm(t('rotateConfirm', { name: channel.name }))) return;
+    const ok = await confirm({
+      title: t('rotateConfirmTitle'),
+      message: t('rotateConfirm', { name: channel.name }),
+      confirmLabel: t('rotateKey'),
+      cancelLabel: tCommon('cancel'),
+    });
+    if (!ok) return;
     try {
       const result = await api<{ widgetKey: string }>(
         `/api/v1/conversations/channels/widget/${channel.id}/rotate-key`,
@@ -113,7 +139,13 @@ export function ChannelsPage() {
   }
 
   async function rotateIdentity(channel: ChannelDto) {
-    if (!confirm(t('rotateIdentityConfirm', { name: channel.name }))) return;
+    const ok = await confirm({
+      title: t('rotateIdentityConfirmTitle'),
+      message: t('rotateIdentityConfirm', { name: channel.name }),
+      confirmLabel: t('rotateIdentity'),
+      cancelLabel: tCommon('cancel'),
+    });
+    if (!ok) return;
     try {
       const result = await api<{ identityVerificationSecret: string }>(
         `/api/v1/conversations/channels/widget/${channel.id}/rotate-identity-secret`,
@@ -129,93 +161,92 @@ export function ChannelsPage() {
     }
   }
 
+  async function deleteChannel(channel: ChannelDto) {
+    const ok = await confirm({
+      title: t('deleteChannelConfirmTitle'),
+      message: t('deleteChannelConfirm', { name: channel.name }),
+      confirmLabel: t('deleteChannel'),
+      cancelLabel: tCommon('cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/v1/conversations/channels/${channel.id}`, { method: 'DELETE' });
+      await tryLoad();
+    } catch (err) {
+      setError(translate(err) || t('errors.delete'));
+    }
+  }
+
+  if (loadError && !hasLoadedOnce) {
+    return (
+      <LoadFailed
+        {...buildLoadFailedProps('channels', loadError, () => void retry(), retrying)}
+      />
+    );
+  }
+
   return (
     <>
       <Hero
-        title={t('title')}
+        eyebrow={t('eyebrow')}
+        title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
         lede={t('subtitle')}
-        actions={
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button className="gap-2" />}>
-              {t('addChannel')}
-              <ChevronDown className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setWidgetOpen(true)}>
-                <MessageSquare className="size-4" />
-                {t('addWidget')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setEmailOpen(true)}>
-                <Mail className="size-4" />
-                {t('addEmail')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        }
       />
 
       <CreateWidgetDialog
         open={widgetOpen}
         onOpenChange={setWidgetOpen}
-        onCreated={(created) => {
-          setJustCreated(created);
-          void load();
-        }}
-        onError={(msg) => setError(msg)}
-      />
-
-      <CreateEmailDialog
-        open={emailOpen}
-        onOpenChange={setEmailOpen}
         onCreated={() => {
-          void load();
+          void tryLoad();
         }}
-        onError={(msg) => setError(msg)}
       />
 
-      {justCreated && (
-        <KeyCallout
-          title={t('createdTitle')}
-          description={t('createdDescription', { name: justCreated.name })}
-          rows={[
-            { label: t('keyLabelWidget'), value: justCreated.widgetKey },
-            ...(justCreated.identityVerificationSecret
-              ? [
-                  {
-                    label: t('keyLabelIdentitySecret'),
-                    value: justCreated.identityVerificationSecret,
-                    hint: t('identitySecretHint'),
-                  },
-                ]
-              : []),
-          ]}
-          onDismiss={() => setJustCreated(null)}
-        />
-      )}
+      <EmailChannelDialog
+        open={emailOpen || editEmail !== null}
+        editChannel={editEmail}
+        onOpenChange={(next) => {
+          if (!next) {
+            setEmailOpen(false);
+            setEditEmail(null);
+          }
+        }}
+        onSaved={() => {
+          void tryLoad();
+        }}
+      />
 
-      {rotated && (
-        <KeyCallout
-          title={t('rotatedTitle')}
-          description={t('rotatedDescription', { name: rotated.name })}
-          rows={[{ label: t('keyLabelWidget'), value: rotated.widgetKey }]}
-          onDismiss={() => setRotated(null)}
-        />
-      )}
+      <RotatedSecretDialog
+        open={rotated !== null}
+        title={t('rotatedTitle')}
+        description={rotated ? t('rotatedDescription', { name: rotated.name }) : ''}
+        rows={
+          rotated
+            ? [{ label: t('keyLabelWidget'), value: rotated.widgetKey }]
+            : []
+        }
+        onClose={() => setRotated(null)}
+      />
 
-      {rotatedIdentity && (
-        <KeyCallout
-          title={t('rotatedIdentityTitle')}
-          description={t('rotatedIdentityDescription', { name: rotatedIdentity.name })}
-          rows={[
-            {
-              label: t('keyLabelIdentitySecret'),
-              value: rotatedIdentity.identityVerificationSecret,
-              hint: t('identitySecretHint'),
-            },
-          ]}
-          onDismiss={() => setRotatedIdentity(null)}
-        />
-      )}
+      <RotatedSecretDialog
+        open={rotatedIdentity !== null}
+        title={t('rotatedIdentityTitle')}
+        description={
+          rotatedIdentity ? t('rotatedIdentityDescription', { name: rotatedIdentity.name }) : ''
+        }
+        rows={
+          rotatedIdentity
+            ? [
+                {
+                  label: t('keyLabelIdentitySecret'),
+                  value: rotatedIdentity.identityVerificationSecret,
+                  hint: t('identitySecretHint'),
+                },
+              ]
+            : []
+        }
+        onClose={() => setRotatedIdentity(null)}
+      />
 
       {embedFor && <EmbedSnippetDialog channel={embedFor} onClose={() => setEmbedFor(null)} />}
 
@@ -225,187 +256,205 @@ export function ChannelsPage() {
         </Card>
       )}
 
-      {channels === null ? (
-        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
-      ) : channels.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <MessageSquare className="size-5 text-muted-foreground" />
-              <CardTitle>{t('emptyTitle')}</CardTitle>
-            </div>
-            <CardDescription>{t('emptyBody')}</CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <ul className="space-y-2">
-          {channels.map((c) => (
-            <ChannelRow
-              key={c.id}
-              channel={c}
-              onRotate={() => {
-                void rotateKey(c);
-              }}
-              onRotateIdentity={() => {
-                void rotateIdentity(c);
-              }}
-              onShowEmbed={() => setEmbedFor(c)}
-              onErrorMessage={(msg) => setError(msg)}
-              createdLabel={format.dateTime(new Date(c.createdAt), { dateStyle: 'medium' })}
-            />
-          ))}
-        </ul>
-      )}
+      <section className="space-y-4">
+        <SectionHead
+          title={
+            channels
+              ? t('channelsTitleCount', { count: channels.length })
+              : t('channelsTitle')
+          }
+          actions={
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button size="sm" className="gap-2" />}>
+                {t('addChannel')}
+                <ChevronDown className="size-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setWidgetOpen(true)}>
+                  <MessageSquare className="size-4" />
+                  {t('addWidget')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setEmailOpen(true)}>
+                  <Mail className="size-4" />
+                  {t('addEmail')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
+          divider={false}
+        />
+
+        {channels === null ? (
+          <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
+        ) : channels.length === 0 ? (
+          <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
+        ) : (
+          <ul className="space-y-3">
+            {channels.map((c) => (
+              <ChannelRow
+                key={c.id}
+                channel={c}
+                onRotate={() => {
+                  void rotateKey(c);
+                }}
+                onRotateIdentity={() => {
+                  void rotateIdentity(c);
+                }}
+                onDelete={() => {
+                  void deleteChannel(c);
+                }}
+                onShowEmbed={() => setEmbedFor(c)}
+                onEdit={() => setEditEmail(c as EmailChannelDto)}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
     </>
   );
 }
+
 
 function ChannelRow({
   channel,
   onRotate,
   onRotateIdentity,
+  onDelete,
   onShowEmbed,
-  onErrorMessage,
-  createdLabel,
+  onEdit,
 }: {
   channel: ChannelDto;
   onRotate: () => void;
   onRotateIdentity: () => void;
+  onDelete: () => void;
   onShowEmbed: () => void;
-  onErrorMessage: (msg: string) => void;
-  createdLabel: string;
+  onEdit: () => void;
 }) {
   const t = useTranslations('dashboard.channels');
-  const widgetConfig =
-    channel.type === 'chat'
-      ? (channel.config as { originAllowlist?: string[] } | null)
-      : null;
+  const tCommon = useTranslations('common');
+  const isChat = channel.type === 'chat';
+  const widgetConfig = isChat
+    ? (channel.config as { originAllowlist?: string[] } | null)
+    : null;
   const emailConfig = channel.type === 'email' ? (channel.config as EmailChannelDto['config']) : null;
   const origins = widgetConfig?.originAllowlist ?? [];
+
   return (
-    <li className="rounded-lg border bg-background px-4 py-3">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 space-y-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-medium">{channel.name}</p>
-            <span className="rounded-full border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
-              {channel.type}
-            </span>
+    <li className="border border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <TypeBadge kind={channel.type} label={isChat ? t('typeChat') : t('typeEmail')} />
+            <h3 className="font-serif text-lg leading-none text-ink dark:text-foreground">
+              {channel.name}
+            </h3>
             {!channel.active && (
-              <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs text-amber-900">
+              <span className="border border-amber-300 bg-amber-50 px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow text-amber-900">
                 {t('inactive')}
               </span>
             )}
           </div>
-          {origins.length > 0 && (
-            <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-              <Globe className="size-3" />
-              {origins.map((o) => (
-                <code key={o} className="rounded bg-muted px-1.5 py-0.5 font-mono">
-                  {o}
-                </code>
-              ))}
-            </p>
-          )}
-          {emailConfig?.addressing?.fromAddress && (
-            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Mail className="size-3" />
-              <span className="font-mono">{emailConfig.addressing.fromAddress}</span>
-              {emailConfig.outbound?.provider === 'smtp' && (
-                <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
-                  smtp://{emailConfig.outbound.host}:{emailConfig.outbound.port}
-                </span>
-              )}
-              {emailConfig.inbound && (
-                <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
-                  imap://{emailConfig.inbound.host}:{emailConfig.inbound.port}
-                </span>
-              )}
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">{t('createdAt', { date: createdLabel })}</p>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {isChat ? (
+              origins.length > 0 ? (
+                origins.map((o) => <OriginChip key={o} text={o} />)
+              ) : (
+                <OriginChip text={t('anyOrigin')} muted />
+              )
+            ) : (
+              <>
+                {emailConfig?.addressing?.fromAddress && (
+                  <span className="font-mono text-[11px] text-ink dark:text-foreground">
+                    {emailConfig.addressing.fromName
+                      ? `${emailConfig.addressing.fromName} <${emailConfig.addressing.fromAddress}>`
+                      : emailConfig.addressing.fromAddress}
+                  </span>
+                )}
+                {emailConfig?.outbound?.provider === 'smtp' && (
+                  <OriginChip text={t('smtpServer', { host: emailConfig.outbound.host })} />
+                )}
+                {emailConfig?.inbound && <OriginChip text={t('imapPolling')} />}
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          {channel.type === 'chat' && (
-            <>
-              <Button variant="outline" size="sm" onClick={onShowEmbed}>
-                <Code className="size-4" />
+
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="flex items-center gap-1">
+            {isChat ? (
+              <Button variant="outline" size="sm" onClick={onShowEmbed} className="gap-1.5">
+                <Code className="size-3.5" />
                 {t('showEmbed')}
               </Button>
-              <Button variant="outline" size="sm" onClick={onRotate}>
-                <RefreshCw className="size-4" />
-                {t('rotateKey')}
+            ) : (
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                {tCommon('edit')}
               </Button>
-              <Button variant="outline" size="sm" onClick={onRotateIdentity}>
-                <KeyRound className="size-4" />
-                {t('rotateIdentity')}
-              </Button>
-            </>
-          )}
-          {channel.type === 'email' && (
-            <EmailTestButton channelId={channel.id} onError={onErrorMessage} />
-          )}
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    aria-label={t('moreActions')}
+                  />
+                }
+              >
+                <MoreHorizontal className="size-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isChat && (
+                  <>
+                    <DropdownMenuItem onClick={onRotate}>
+                      <KeyRound className="size-4" />
+                      {t('rotateKey')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={onRotateIdentity}>
+                      <ShieldCheck className="size-4" />
+                      {t('rotateIdentity')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem className="text-destructive" onClick={onDelete}>
+                  <Trash2 className="size-4" />
+                  {t('deleteChannel')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
     </li>
   );
 }
 
-function EmailTestButton({
-  channelId,
-  onError,
-}: {
-  channelId: string;
-  onError: (msg: string) => void;
-}) {
-  const t = useTranslations('dashboard.channels');
-  const translate = useTranslateError();
-  const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState<{ smtp: string; imap: string } | null>(null);
-  async function run() {
-    setTesting(true);
-    setResult(null);
-    try {
-      const r = await api<{ smtp: string; imap: string }>(
-        `/api/v1/conversations/channels/email/${channelId}/test`,
-        { method: 'POST' },
-      );
-      setResult(r);
-    } catch (err) {
-      onError(translate(err) || t('errors.test'));
-    } finally {
-      setTesting(false);
-    }
-  }
+function TypeBadge({ kind, label }: { kind: 'chat' | 'email' | 'voice' | 'sms'; label: string }) {
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Button variant="outline" size="sm" onClick={() => void run()} disabled={testing}>
-        {testing ? t('testing') : t('test')}
-      </Button>
-      {result && (
-        <div className="flex items-center gap-2 text-xs">
-          <TestStatus label="SMTP" status={result.smtp} />
-          <TestStatus label="IMAP" status={result.imap} />
-        </div>
+    <span
+      className={cn(
+        'inline-flex items-center px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow rounded',
+        kind === 'chat'
+          ? 'bg-cobalt/15 text-cobalt-deep dark:bg-cobalt-soft/20 dark:text-cobalt-soft'
+          : 'bg-auth-navy/15 text-auth-navy dark:bg-auth-navy/30 dark:text-paper',
       )}
-    </div>
+    >
+      {label}
+    </span>
   );
 }
 
-function TestStatus({ label, status }: { label: string; status: string }) {
-  const ok = status === 'ok';
-  const skipped = status === 'not configured';
+function OriginChip({ text, muted }: { text: string; muted?: boolean }) {
   return (
-    <span className="flex items-center gap-1">
-      <span className="font-medium">{label}:</span>
-      {ok ? (
-        <CheckCircle2 className="size-3 text-emerald-600" />
-      ) : skipped ? (
-        <span className="text-muted-foreground">—</span>
-      ) : (
-        <XCircle className="size-3 text-red-600" />
+    <span
+      className={cn(
+        'inline-block border border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
+        muted ? 'text-ink-mute italic' : 'text-ink dark:text-foreground',
       )}
-      {!ok && !skipped && <span className="max-w-40 truncate text-red-700">{status}</span>}
+    >
+      {text}
     </span>
   );
 }
@@ -414,45 +463,68 @@ function CreateWidgetDialog({
   open,
   onOpenChange,
   onCreated,
-  onError,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (created: CreatedWidget) => void;
-  onError: (msg: string) => void;
+  onCreated: () => void;
 }) {
   const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const [name, setName] = useState('');
   const [originAllowlist, setOriginAllowlist] = useState('');
+  const [originsError, setOriginsError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<CreatedWidget | null>(null);
+  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
 
-  function reset() {
-    setName('');
-    setOriginAllowlist('');
-  }
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setOriginAllowlist('');
+      setOriginsError(null);
+      setCreated(null);
+      setSubmitError(null);
+      setCreating(false);
+    }
+  }, [open]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit() {
     if (!name.trim()) return;
+    const allowlist = originAllowlist
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const parsed = CreateWidgetBody.safeParse({
+      name: name.trim(),
+      originAllowlist: allowlist,
+    });
+    if (!parsed.success) {
+      const issue = parsed.error.issues.find(
+        (i) => Array.isArray(i.path) && i.path[0] === 'originAllowlist',
+      );
+      const badIndex = issue?.path[1];
+      const badValue = typeof badIndex === 'number' ? allowlist[badIndex] : undefined;
+      setOriginsError(t('originsInvalid', { invalid: badValue ?? allowlist.join(', ') }));
+      return;
+    }
+    setOriginsError(null);
     setCreating(true);
+    setSubmitError(null);
     try {
-      const allowlist = originAllowlist
-        .split(/[\s,]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const created = await api<CreatedWidget>('/api/v1/conversations/channels/widget', {
+      const result = await api<CreatedWidget>('/api/v1/conversations/channels/widget', {
         method: 'POST',
-        body: JSON.stringify({
-          name: name.trim(),
-          originAllowlist: allowlist,
-        }),
+        body: JSON.stringify(parsed.data),
       });
-      onCreated(created);
-      reset();
-      onOpenChange(false);
+      setCreated(result);
+      onCreated();
     } catch (err) {
-      onError(translate(err) || t('errors.create'));
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.create'), {
+          endpoint: '/api/v1/conversations/channels/widget',
+          method: 'POST',
+        }),
+      );
     } finally {
       setCreating(false);
     }
@@ -461,52 +533,164 @@ function CreateWidgetDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('createWidgetTitle')}</DialogTitle>
-          <DialogDescription>{t('createWidgetDescription')}</DialogDescription>
-        </DialogHeader>
-        <form className="mt-4 flex flex-col gap-4" onSubmit={(e) => void submit(e)}>
-          <Field label={t('nameLabel')}>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('namePlaceholder')}
-              required
-            />
-          </Field>
-          <Field label={t('originsLabel')} hint={t('originsHint')}>
-            <Input
-              value={originAllowlist}
-              onChange={(e) => setOriginAllowlist(e.target.value)}
-              placeholder="https://example.com, https://www.example.com"
-            />
-          </Field>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              {t('cancel')}
-            </Button>
-            <Button type="submit" disabled={creating}>
-              {creating ? t('creating') : t('createWidget')}
-            </Button>
-          </DialogFooter>
-        </form>
+        {created ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('createdTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('createdDescription', { name: created.name })}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-4 mt-2">
+              <CopyableSecret label={t('keyLabelWidget')} value={created.widgetKey} />
+              {created.identityVerificationSecret && (
+                <CopyableSecret
+                  label={t('keyLabelIdentitySecret')}
+                  value={created.identityVerificationSecret}
+                  hint={t('identitySecretHint')}
+                />
+              )}
+            </div>
+            <DialogFooter className={dialogFooterClass}>
+              <Button
+                variant="accent"
+                className={dialogButtonClass}
+                onClick={() => onOpenChange(false)}
+              >
+                {tCommon('gotIt')}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : submitError ? (
+          <SaveErrorStage
+            detail={submitError}
+            onBack={() => setSubmitError(null)}
+            onRetry={() => void submit()}
+            retrying={creating}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('createWidgetTitle')}</DialogTitle>
+              <DialogDescription>{t('createWidgetDescription')}</DialogDescription>
+            </DialogHeader>
+            <form
+              className="mt-4 flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submit();
+              }}
+            >
+              <FormField label={t('nameLabel')} hint={t('nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('namePlaceholder')}
+                  required
+                  autoFocus
+                />
+              </FormField>
+              <FormField label={t('originsLabel')} hint={t('originsHint')}>
+                <Input
+                  value={originAllowlist}
+                  onChange={(e) => {
+                    setOriginAllowlist(e.target.value);
+                    if (originsError) setOriginsError(null);
+                  }}
+                  placeholder="https://example.com, https://www.example.com"
+                  aria-invalid={originsError ? true : undefined}
+                />
+                {originsError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {originsError}
+                  </p>
+                )}
+              </FormField>
+
+              <DialogFooter className={dialogFooterClass}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={dialogButtonClass}
+                  onClick={() => onOpenChange(false)}
+                >
+                  {tCommon('cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="accent"
+                  className={dialogButtonClass}
+                  disabled={creating}
+                >
+                  {creating ? tCommon('creating') : t('createWidget')}
+                  <span aria-hidden className="ml-1 font-mono">↵</span>
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function CreateEmailDialog({
+function zodIssuesToFieldErrors(
+  issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey> }>,
+  t: ReturnType<typeof useTranslations<'dashboard.channels'>>,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const issue of issues) {
+    const path = issue.path;
+    const last = path[path.length - 1];
+    const parent = path[path.length - 2];
+    if (last === 'fromAddress') {
+      errors.fromAddress = t('email.fromAddressInvalid');
+    } else if (last === 'host') {
+      if (parent === 'outbound') errors.smtpHost = t('email.hostInvalid');
+      else if (parent === 'inbound') errors.imapHost = t('email.hostInvalid');
+    } else if (last === 'port') {
+      if (parent === 'outbound') errors.smtpPort = t('email.portInvalid');
+      else if (parent === 'inbound') errors.imapPort = t('email.portInvalid');
+    }
+  }
+  return errors;
+}
+
+function toSaveErrorDetail(
+  err: unknown,
+  _message: string,
+  fallback: { endpoint: string; method: string },
+): SaveErrorDetail {
+  if (err instanceof ApiError) {
+    return {
+      endpoint: err.endpoint,
+      method: err.method,
+      status: `${err.status} · ${err.statusText}`,
+      requestId: err.requestId,
+    };
+  }
+  return {
+    endpoint: fallback.endpoint,
+    method: fallback.method,
+    status: '—',
+    requestId: null,
+  };
+}
+
+function EmailChannelDialog({
   open,
   onOpenChange,
-  onCreated,
-  onError,
+  onSaved,
+  editChannel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
-  onError: (msg: string) => void;
+  onSaved: () => void;
+  editChannel: EmailChannelDto | null;
 }) {
+  const isEdit = editChannel !== null;
   const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const [name, setName] = useState('');
   const [fromAddress, setFromAddress] = useState('');
@@ -524,64 +708,100 @@ function CreateEmailDialog({
   const [imapPassword, setImapPassword] = useState('');
   const [imapMailbox, setImapMailbox] = useState('');
   const [creating, setCreating] = useState(false);
+  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
-  function reset() {
-    setName('');
-    setFromAddress('');
-    setFromName('');
-    setSmtpHost('');
-    setSmtpPort('587');
-    setSmtpSecure(false);
-    setSmtpUsername('');
+  useEffect(() => {
+    if (!open) return;
+    const cfg = editChannel?.config;
+    setName(editChannel?.name ?? '');
+    setFromAddress(cfg?.addressing?.fromAddress ?? '');
+    setFromName(cfg?.addressing?.fromName ?? '');
+    setSmtpHost(cfg?.outbound?.host ?? '');
+    setSmtpPort(cfg?.outbound?.port != null ? String(cfg.outbound.port) : '587');
+    setSmtpSecure(cfg?.outbound?.secure ?? false);
+    setSmtpUsername(cfg?.outbound?.username ?? '');
     setSmtpPassword('');
-    setEnableInbound(false);
-    setImapHost('');
-    setImapPort('993');
-    setImapSecure(true);
-    setImapUsername('');
+    setEnableInbound(cfg?.inbound != null);
+    setImapHost(cfg?.inbound?.host ?? '');
+    setImapPort(cfg?.inbound?.port != null ? String(cfg.inbound.port) : '993');
+    setImapSecure(cfg?.inbound?.secure ?? true);
+    setImapUsername(cfg?.inbound?.username ?? '');
     setImapPassword('');
-    setImapMailbox('');
-  }
+    setImapMailbox(cfg?.inbound?.mailbox ?? '');
+    setSubmitError(null);
+    setFieldErrors({});
+    setCreating(false);
+  }, [open, editChannel]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || !fromAddress.trim() || !smtpHost.trim() || !smtpPassword) return;
-    setCreating(true);
-    try {
-      const config: Record<string, unknown> = {
+  async function submit() {
+    if (!name.trim() || !fromAddress.trim() || !smtpHost.trim()) return;
+    if (!isEdit && !smtpPassword) return;
+    const payload = {
+      ...(isEdit && editChannel ? { channelId: editChannel.id } : {}),
+      name: name.trim(),
+      config: {
         addressing: {
           fromAddress: fromAddress.trim(),
           ...(fromName.trim() ? { fromName: fromName.trim() } : {}),
         },
         outbound: {
-          provider: 'smtp',
+          provider: 'smtp' as const,
           host: smtpHost.trim(),
           port: Number.parseInt(smtpPort, 10),
           secure: smtpSecure,
           username: smtpUsername.trim(),
-          password: smtpPassword,
+          ...(smtpPassword ? { password: smtpPassword } : {}),
         },
-      };
-      if (enableInbound) {
-        config.inbound = {
-          provider: 'imap',
-          host: imapHost.trim(),
-          port: Number.parseInt(imapPort, 10),
-          secure: imapSecure,
-          username: imapUsername.trim(),
-          password: imapPassword,
-          ...(imapMailbox.trim() ? { mailbox: imapMailbox.trim() } : {}),
-        };
-      }
+        ...(enableInbound
+          ? {
+              inbound: {
+                provider: 'imap' as const,
+                host: imapHost.trim(),
+                port: Number.parseInt(imapPort, 10),
+                secure: imapSecure,
+                username: imapUsername.trim(),
+                ...(imapPassword ? { password: imapPassword } : {}),
+                ...(imapMailbox.trim() ? { mailbox: imapMailbox.trim() } : {}),
+              },
+            }
+          : {}),
+      },
+    };
+    const parsed = SetupEmailBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setCreating(true);
+    setSubmitError(null);
+    try {
       await api('/api/v1/conversations/channels/email', {
         method: 'POST',
-        body: JSON.stringify({ name: name.trim(), config }),
+        body: JSON.stringify(parsed.data),
       });
-      reset();
       onOpenChange(false);
-      onCreated();
+      onSaved();
     } catch (err) {
-      onError(translate(err) || t('errors.createEmail'));
+      setSubmitError(
+        toSaveErrorDetail(
+          err,
+          translate(err) || t(isEdit ? 'errors.updateEmail' : 'errors.createEmail'),
+          {
+            endpoint: '/api/v1/conversations/channels/email',
+            method: 'POST',
+          },
+        ),
+      );
     } finally {
       setCreating(false);
     }
@@ -590,73 +810,104 @@ function CreateEmailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        {submitError ? (
+          <SaveErrorStage
+            detail={submitError}
+            onBack={() => setSubmitError(null)}
+            onRetry={() => void submit()}
+            retrying={creating}
+          />
+        ) : (
+          <>
         <DialogHeader>
-          <DialogTitle>{t('email.createTitle')}</DialogTitle>
-          <DialogDescription>{t('email.createDescription')}</DialogDescription>
+          <DialogTitle>{t(isEdit ? 'email.editTitle' : 'email.createTitle')}</DialogTitle>
+          <DialogDescription>
+            {t(isEdit ? 'email.editDescription' : 'email.createDescription')}
+          </DialogDescription>
         </DialogHeader>
-        <form className="mt-4 flex flex-col gap-4" onSubmit={(e) => void submit(e)}>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t('nameLabel')}>
+            <FormField label={t('nameLabel')}>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. support-inbox"
+                maxLength={120}
                 required
               />
-            </Field>
-            <Field label={t('email.fromAddressLabel')}>
+            </FormField>
+            <FormField label={t('email.fromAddressLabel')} error={fieldErrors.fromAddress}>
               <Input
                 type="email"
                 value={fromAddress}
-                onChange={(e) => setFromAddress(e.target.value)}
+                onChange={(e) => {
+                  setFromAddress(e.target.value);
+                  clearFieldError('fromAddress');
+                }}
                 placeholder="support@example.com"
                 required
+                aria-invalid={fieldErrors.fromAddress ? true : undefined}
               />
-            </Field>
-            <Field label={t('email.fromNameLabel')}>
+            </FormField>
+            <FormField label={t('email.fromNameLabel')}>
               <Input
                 value={fromName}
                 onChange={(e) => setFromName(e.target.value)}
                 placeholder="Acme Support"
+                maxLength={120}
               />
-            </Field>
+            </FormField>
           </div>
 
-          <fieldset className="space-y-3 rounded-md border p-3">
-            <legend className="px-1 text-sm font-medium">{t('email.outboundLabel')}</legend>
+          <fieldset className="space-y-3 rounded-md border px-3 pb-3">
+            <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.outboundLabel')}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={t('email.host')}>
+              <FormField label={t('email.host')} error={fieldErrors.smtpHost}>
                 <Input
                   value={smtpHost}
-                  onChange={(e) => setSmtpHost(e.target.value)}
+                  onChange={(e) => {
+                    setSmtpHost(e.target.value);
+                    clearFieldError('smtpHost');
+                  }}
                   placeholder="smtp.example.com"
                   required
+                  aria-invalid={fieldErrors.smtpHost ? true : undefined}
                 />
-              </Field>
-              <Field label={t('email.port')}>
+              </FormField>
+              <FormField label={t('email.port')} error={fieldErrors.smtpPort}>
                 <Input
                   type="number"
                   value={smtpPort}
-                  onChange={(e) => setSmtpPort(e.target.value)}
+                  onChange={(e) => {
+                    setSmtpPort(e.target.value);
+                    clearFieldError('smtpPort');
+                  }}
                   required
+                  aria-invalid={fieldErrors.smtpPort ? true : undefined}
                 />
-              </Field>
-              <Field label={t('email.username')}>
+              </FormField>
+              <FormField label={t('email.username')}>
                 <Input
                   value={smtpUsername}
                   onChange={(e) => setSmtpUsername(e.target.value)}
                   required
                 />
-              </Field>
-              <Field label={t('email.password')}>
+              </FormField>
+              <FormField label={t('email.password')}>
                 <Input
                   type="password"
                   value={smtpPassword}
                   onChange={(e) => setSmtpPassword(e.target.value)}
                   placeholder="••••••••"
-                  required
+                  required={!isEdit}
                 />
-              </Field>
+              </FormField>
               <label className="flex items-center gap-2 text-sm sm:col-span-2">
                 <input
                   type="checkbox"
@@ -668,8 +919,8 @@ function CreateEmailDialog({
             </div>
           </fieldset>
 
-          <fieldset className="space-y-3 rounded-md border p-3">
-            <legend className="px-1 text-sm font-medium">{t('email.inboundLabel')}</legend>
+          <fieldset className="space-y-3 rounded-md border px-3 pb-3">
+            <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.inboundLabel')}</legend>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -680,44 +931,53 @@ function CreateEmailDialog({
             </label>
             {enableInbound && (
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label={t('email.host')}>
+                <FormField label={t('email.host')} error={fieldErrors.imapHost}>
                   <Input
                     value={imapHost}
-                    onChange={(e) => setImapHost(e.target.value)}
+                    onChange={(e) => {
+                      setImapHost(e.target.value);
+                      clearFieldError('imapHost');
+                    }}
                     placeholder="imap.example.com"
                     required
+                    aria-invalid={fieldErrors.imapHost ? true : undefined}
                   />
-                </Field>
-                <Field label={t('email.port')}>
+                </FormField>
+                <FormField label={t('email.port')} error={fieldErrors.imapPort}>
                   <Input
                     type="number"
                     value={imapPort}
-                    onChange={(e) => setImapPort(e.target.value)}
+                    onChange={(e) => {
+                      setImapPort(e.target.value);
+                      clearFieldError('imapPort');
+                    }}
                     required
+                    aria-invalid={fieldErrors.imapPort ? true : undefined}
                   />
-                </Field>
-                <Field label={t('email.username')}>
+                </FormField>
+                <FormField label={t('email.username')}>
                   <Input
                     value={imapUsername}
                     onChange={(e) => setImapUsername(e.target.value)}
                     required
                   />
-                </Field>
-                <Field label={t('email.password')}>
+                </FormField>
+                <FormField label={t('email.password')}>
                   <Input
                     type="password"
                     value={imapPassword}
                     onChange={(e) => setImapPassword(e.target.value)}
-                    required
+                    required={!isEdit || !editChannel?.config.inbound}
                   />
-                </Field>
-                <Field label={t('email.mailbox')}>
+                </FormField>
+                <FormField label={t('email.mailbox')}>
                   <Input
                     value={imapMailbox}
                     onChange={(e) => setImapMailbox(e.target.value)}
                     placeholder="INBOX"
+                    maxLength={120}
                   />
-                </Field>
+                </FormField>
                 <label className="flex items-center gap-2 text-sm sm:col-span-2">
                   <input
                     type="checkbox"
@@ -730,37 +990,37 @@ function CreateEmailDialog({
             )}
           </fieldset>
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              {t('cancel')}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+            >
+              {tCommon('cancel')}
             </Button>
-            <Button type="submit" disabled={creating}>
-              {creating ? t('creating') : t('email.create')}
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={creating}
+            >
+              {creating
+                ? tCommon(isEdit ? 'saving' : 'creating')
+                : isEdit
+                  ? tCommon('saveChanges')
+                  : t('email.create')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
             </Button>
           </DialogFooter>
         </form>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label>{label}</Label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
 
 interface CalloutRow {
   label: string;
@@ -768,38 +1028,44 @@ interface CalloutRow {
   hint?: string;
 }
 
-function KeyCallout({
+function RotatedSecretDialog({
+  open,
   title,
   description,
   rows,
-  onDismiss,
+  onClose,
 }: {
+  open: boolean;
   title: string;
   description: string;
   rows: CalloutRow[];
-  onDismiss: () => void;
+  onClose: () => void;
 }) {
-  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
   return (
-    <Card className="border-emerald-200 bg-emerald-50">
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {rows.map((row) => (
-          <CopyableSecret key={row.label} label={row.label} value={row.value} hint={row.hint} />
-        ))}
-        <Button variant="ghost" size="sm" onClick={onDismiss}>
-          {t('savedIt')}
-        </Button>
-      </CardContent>
-    </Card>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <div className="mt-2 flex flex-col gap-4">
+          {rows.map((row) => (
+            <CopyableSecret key={row.label} label={row.label} value={row.value} hint={row.hint} />
+          ))}
+        </div>
+        <DialogFooter className={dialogFooterClass}>
+          <Button variant="accent" className={dialogButtonClass} onClick={onClose}>
+            {tCommon('gotIt')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function CopyableSecret({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
   const [copied, setCopied] = useState(false);
   function copy() {
     void navigator.clipboard.writeText(value).then(() => {
@@ -816,7 +1082,7 @@ function CopyableSecret({ label, value, hint }: { label: string; value: string; 
         </code>
         <Button variant="outline" size="sm" onClick={copy}>
           <Copy className="size-4" />
-          {copied ? t('copied') : t('copy')}
+          {copied ? tCommon('copied') : tCommon('copy')}
         </Button>
       </div>
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -864,11 +1130,6 @@ user_hash = hmac.new(
   },
 ];
 
-function defaultHost(): string {
-  if (typeof window === 'undefined') return '';
-  return window.location.origin;
-}
-
 function EmbedSnippetDialog({
   channel,
   onClose,
@@ -877,15 +1138,14 @@ function EmbedSnippetDialog({
   onClose: () => void;
 }) {
   const t = useTranslations('dashboard.channels');
-  const [host, setHost] = useState(defaultHost);
+  const tCommon = useTranslations('common');
   const [language, setLanguage] = useState(HASH_SNIPPETS[0]!.language);
   const [snippetCopied, setSnippetCopied] = useState(false);
   const [hashCopied, setHashCopied] = useState(false);
 
-  const trimmedHost = host.replace(/\/+$/, '');
+  const host = typeof window === 'undefined' ? '' : window.location.origin.replace(/\/+$/, '');
   const scriptSnippet = [
-    `<script src="${trimmedHost}/widget.js"`,
-    `        data-munin-host="${trimmedHost}"`,
+    `<script src="${host}/widget.js"`,
     `        data-widget-key="<your widget key>"`,
     `        data-channel-id="${channel.id}"`,
     `        defer></script>`,
@@ -913,53 +1173,54 @@ function EmbedSnippetDialog({
           <DialogTitle>{t('embed.title', { name: channel.name })}</DialogTitle>
           <DialogDescription>{t('embed.description')}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-5 py-2">
-          <div className="space-y-1">
-            <Label>{t('embed.hostLabel')}</Label>
-            <Input value={host} onChange={(e) => setHost(e.target.value)} />
-            <p className="text-xs text-muted-foreground">{t('embed.hostHint')}</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label>{t('embed.scriptLabel')}</Label>
+        <div className="space-y-8 py-2">
+          <div className="space-y-3">
+            <Label className={dialogLabelClass}>{t('embed.scriptLabel')}</Label>
             <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs">
               {scriptSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copySnippet}>
               <Copy className="size-4" />
-              {snippetCopied ? t('copied') : t('embed.copyScript')}
+              {snippetCopied ? tCommon('copied') : t('embed.copyScript')}
             </Button>
-            <p className="text-xs text-muted-foreground">{t('embed.scriptHint')}</p>
+            <p className={dialogHintClass}>{t('embed.scriptHint')}</p>
           </div>
 
-          <div className="space-y-1">
-            <Label>{t('embed.hashLabel')}</Label>
-            <p className="text-xs text-muted-foreground">{t('embed.hashHint')}</p>
-            <div className="flex flex-wrap gap-2">
-              {HASH_SNIPPETS.map((s) => (
-                <Button
-                  key={s.language}
-                  variant={s.language === language ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setLanguage(s.language)}
-                  type="button"
-                >
-                  {s.label}
-                </Button>
-              ))}
+          <div className="space-y-3">
+            <Label className={dialogLabelClass}>{t('embed.hashLabel')}</Label>
+            <p className={dialogHintClass}>{t('embed.hashHint')}</p>
+            <div className="flex w-fit border border-ink dark:border-foreground">
+              {HASH_SNIPPETS.map((s) => {
+                const active = s.language === language;
+                return (
+                  <button
+                    key={s.language}
+                    type="button"
+                    onClick={() => setLanguage(s.language)}
+                    className={cn(
+                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
+                      active
+                        ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
+                        : 'bg-paper hover:bg-paper-deep dark:bg-card dark:hover:bg-secondary',
+                    )}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
             </div>
             <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs">
               {hashSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copyHash}>
               <Copy className="size-4" />
-              {hashCopied ? t('copied') : t('embed.copyHash')}
+              {hashCopied ? tCommon('copied') : t('embed.copyHash')}
             </Button>
           </div>
         </div>
-        <DialogFooter>
-          <Button onClick={onClose} variant="outline">
-            {t('cancel')}
+        <DialogFooter className={dialogFooterClass}>
+          <Button type="button" variant="accent" className={dialogButtonClass} onClick={onClose}>
+            {tCommon('done')}
           </Button>
         </DialogFooter>
       </DialogContent>

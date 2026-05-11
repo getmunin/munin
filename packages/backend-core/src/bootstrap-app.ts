@@ -5,6 +5,7 @@ import { LocalFsStorage, type AssetStorage } from '@getmunin/core';
 import { createReadStream, existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { STORAGE } from './common/storage/storage.token.js';
 
@@ -58,7 +59,9 @@ export async function createApp(
   app.enableCors({
     origin: readAllowedOrigins(),
     credentials: true,
+    exposedHeaders: ['x-request-id'],
   });
+  app.use(requestIdMiddleware);
 
   // Static-asset GET handler. Active only when the storage provider is
   // local; in S3 mode reads go directly to the bucket's public host.
@@ -72,6 +75,17 @@ export async function createApp(
   app.use('/widget', widgetBundleMiddleware(resolvedWidgetDir));
 
   return app;
+}
+
+const REQUEST_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
+
+function requestIdMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const incoming = req.headers['x-request-id'];
+  const candidate = Array.isArray(incoming) ? incoming[0] : incoming;
+  const id = typeof candidate === 'string' && REQUEST_ID_RE.test(candidate) ? candidate : randomUUID();
+  (req as Request & { requestId?: string }).requestId = id;
+  res.setHeader('x-request-id', id);
+  next();
 }
 
 function staticAssetsMiddleware(storage: LocalFsStorage) {

@@ -151,7 +151,7 @@ function EditProfileDialog({ open, onOpenChange, initialName, email }: EditProfi
               {tCommon('cancel')}
             </Button>
             <Button type="submit" disabled={submitting || !name.trim()}>
-              {submitting ? t('saving') : tCommon('save')}
+              {submitting ? tCommon('saving') : tCommon('save')}
             </Button>
           </DialogFooter>
         </form>

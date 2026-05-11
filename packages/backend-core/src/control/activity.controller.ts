@@ -6,10 +6,14 @@ import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 
+type ActorKind = 'user' | 'agent' | 'widget' | 'system' | 'unknown';
+
 interface ActivityDto {
   id: string;
   type: string;
   actorId: string | null;
+  actorKind: ActorKind | null;
+  actorLabel: string | null;
   correlationId: string | null;
   payload: Record<string, unknown>;
   createdAt: string;
@@ -78,7 +82,11 @@ export class ActivityController {
       .orderBy(desc(schema.events.createdAt), desc(schema.events.id))
       .limit(take + 1);
 
-    const items = rows.slice(0, take).map(toDto);
+    const baseRows = rows.slice(0, take);
+    const labels = await this.resolveActorLabels(
+      baseRows.map((r) => r.actorId).filter((v): v is string => v !== null),
+    );
+    const items = baseRows.map((r) => toDto(r, labels));
     const nextCursor =
       rows.length > take && items.length > 0
         ? encodeCursor({
@@ -88,13 +96,53 @@ export class ActivityController {
         : null;
     return { items, nextCursor };
   }
+
+  private async resolveActorLabels(
+    ids: string[],
+  ): Promise<Map<string, { kind: ActorKind; label: string }>> {
+    const ctx = getCurrentContext();
+    const out = new Map<string, { kind: ActorKind; label: string }>();
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return out;
+
+    const userRows = await ctx.db
+      .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
+      .from(schema.users)
+      .where(inArray(schema.users.id, unique));
+    for (const r of userRows) out.set(r.id, { kind: 'user', label: r.name ?? r.email });
+
+    const remaining = unique.filter((id) => !out.has(id));
+    if (remaining.length > 0) {
+      const agentRows = await ctx.db
+        .select({ id: schema.agents.id, name: schema.agents.name })
+        .from(schema.agents)
+        .where(inArray(schema.agents.id, remaining));
+      for (const r of agentRows) out.set(r.id, { kind: 'agent', label: r.name });
+    }
+    return out;
+  }
 }
 
-function toDto(row: typeof schema.events.$inferSelect): ActivityDto {
+function actorKindFromId(id: string): ActorKind {
+  if (id.startsWith('usr_')) return 'user';
+  if (id.startsWith('agt_')) return 'agent';
+  if (id.startsWith('mn_widge_') || id.startsWith('akey_')) return 'widget';
+  if (id === 'system') return 'system';
+  return 'unknown';
+}
+
+function toDto(
+  row: typeof schema.events.$inferSelect,
+  labels: Map<string, { kind: ActorKind; label: string }>,
+): ActivityDto {
+  const resolved = row.actorId ? labels.get(row.actorId) : null;
+  const kind = row.actorId ? (resolved?.kind ?? actorKindFromId(row.actorId)) : null;
   return {
     id: row.id,
     type: row.type,
     actorId: row.actorId,
+    actorKind: kind,
+    actorLabel: resolved?.label ?? null,
     correlationId: row.correlationId,
     payload: row.payload,
     createdAt: row.createdAt.toISOString(),

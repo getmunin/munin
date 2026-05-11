@@ -1,20 +1,35 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Copy } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
+import { LoadFailed } from '../components/load-failed';
+import { EmptyCallout } from '../components/empty-callout';
+import { useLoadGate } from '../lib/use-load-gate';
+import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
+import {
+  dialogButtonClass,
+  dialogFooterClass,
+  dialogHintClass,
+  dialogLabelClass,
+} from '../lib/dialog-style';
 import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Hero,
   Input,
   Label,
+  SectionHead,
+  cn,
 } from '@getmunin/ui';
 
 interface ApiKeySummary {
@@ -42,87 +57,45 @@ export function ApiKeysPage() {
   const format = useFormatter();
   const [keys, setKeys] = useState<ApiKeySummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState('');
-  const [justCreated, setJustCreated] = useState<CreatedApiKey | null>(null);
+  const [mintOpen, setMintOpen] = useState(false);
 
   const load = useCallback(async () => {
-    try {
-      setError(null);
-      const list = await api<ApiKeySummary[]>('/api/v1/api-keys');
-      setKeys(list);
-    } catch (err) {
-      setError(translate(err) || t('errors.load'));
-    }
-  }, [t, translate]);
+    setError(null);
+    const list = await api<ApiKeySummary[]>('/api/v1/api-keys');
+    setKeys(list);
+  }, []);
+
+  const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
+  const buildLoadFailedProps = useSettingsLoadFailedProps();
 
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setCreating(true);
-    try {
-      const created = await api<CreatedApiKey>('/api/v1/api-keys', {
-        method: 'POST',
-        body: JSON.stringify({ name: name.trim(), scopes: ['*'] }),
-      });
-      setJustCreated(created);
-      setName('');
-      await load();
-    } catch (err) {
-      setError(translate(err) || t('errors.create'));
-    } finally {
-      setCreating(false);
-    }
-  }
+    void tryLoad();
+  }, [tryLoad]);
 
   async function revoke(id: string) {
     try {
       await api(`/api/v1/api-keys/${id}`, { method: 'DELETE' });
-      await load();
+      await tryLoad();
     } catch (err) {
       setError(translate(err) || t('errors.revoke'));
     }
   }
 
+  if (loadError && !hasLoadedOnce) {
+    return (
+      <LoadFailed
+        {...buildLoadFailedProps('api-keys', loadError, () => void retry(), retrying)}
+      />
+    );
+  }
+
   return (
     <>
-      <Hero title={t('title')} lede={t('subtitle')} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t('createTitle')}</CardTitle>
-          <CardDescription>{t('createDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="flex flex-col gap-3 sm:flex-row sm:items-end"
-            onSubmit={(e) => {
-              void create(e);
-            }}
-          >
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="name">{t('nameLabel')}</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('namePlaceholder')}
-                required
-              />
-            </div>
-            <Button type="submit" disabled={creating}>
-              <Plus className="size-4" />
-              {creating ? t('creating') : t('create')}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {justCreated && <NewKeyCallout created={justCreated} onDismiss={() => setJustCreated(null)} />}
+      <Hero
+        eyebrow={t('eyebrow')}
+        title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
+        lede={t('subtitle')}
+      />
 
       {error && (
         <Card>
@@ -130,101 +103,233 @@ export function ApiKeysPage() {
         </Card>
       )}
 
-      {keys === null ? (
-        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
-      ) : keys.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <KeyRound className="size-5 text-muted-foreground" />
-              <CardTitle>{t('emptyTitle')}</CardTitle>
-            </div>
-            <CardDescription>{t('emptyBody')}</CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <ul className="space-y-2">
-          {keys.map((k) => {
-            const createdLabel = format.dateTime(new Date(k.createdAt), { dateStyle: 'medium' });
-            const lastUsedLabel = k.lastUsedAt
-              ? format.dateTime(new Date(k.lastUsedAt), { dateStyle: 'medium', timeStyle: 'short' })
-              : null;
-            return (
-              <li
-                key={k.id}
-                className="flex items-center justify-between gap-4 rounded-lg border bg-background px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{k.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {lastUsedLabel
-                      ? t.rich('rowMetaWithLast', {
-                          prefix: k.prefix,
-                          created: createdLabel,
-                          lastUsed: lastUsedLabel,
-                          code: (chunks) => <span className="font-mono">{chunks}</span>,
+      <section className="space-y-4">
+        <SectionHead
+          title={keys ? t('activeKeysTitleCount', { count: keys.length }) : t('activeKeysTitle')}
+          actions={
+            <Button size="sm" onClick={() => setMintOpen(true)}>
+              {t('mintNew')}
+            </Button>
+          }
+          divider={false}
+        />
+
+        {keys === null ? (
+          <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
+        ) : keys.length === 0 ? (
+          <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-rule-soft dark:border-rule-on-dark text-left">
+                <Th>{t('tableName')}</Th>
+                <Th>{t('tablePrefix')}</Th>
+                <Th>{t('tableCreated')}</Th>
+                <Th>{t('tableLastUsed')}</Th>
+                <Th className="text-right" />
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map((k) => (
+                <tr key={k.id} className="border-b border-rule-soft dark:border-rule-on-dark">
+                  <td className="py-4 pr-4 text-sm font-medium text-ink dark:text-foreground">
+                    {k.name}
+                  </td>
+                  <td className="py-4 pr-4 font-mono text-xs text-ink-mute">{k.prefix}…</td>
+                  <td className="py-4 pr-4 font-mono text-xs text-ink-mute">
+                    {format.dateTime(new Date(k.createdAt), {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </td>
+                  <td className="py-4 pr-4 font-mono text-xs text-ink-mute">
+                    {k.lastUsedAt
+                      ? format.dateTime(new Date(k.lastUsedAt), {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
                         })
-                      : t.rich('rowMeta', {
-                          prefix: k.prefix,
-                          created: createdLabel,
-                          code: (chunks) => <span className="font-mono">{chunks}</span>,
-                        })}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    void revoke(k.id);
-                  }}
-                >
-                  <Trash2 className="size-4" />
-                  {t('revoke')}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                      : '—'}
+                  </td>
+                  <td className="py-4 text-right">
+                    <Button variant="outline" size="sm" onClick={() => void revoke(k.id)}>
+                      {tCommon('revoke')}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <MintKeyDialog
+        open={mintOpen}
+        onOpenChange={setMintOpen}
+        onMinted={() => {
+          void tryLoad();
+        }}
+      />
     </>
   );
 }
 
-function NewKeyCallout({
-  created,
-  onDismiss,
+function Th({ children, className }: { children?: ReactNode; className?: string }) {
+  return (
+    <th
+      className={cn(
+        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute font-normal',
+        className,
+      )}
+    >
+      {children}
+    </th>
+  );
+}
+
+function MintKeyDialog({
+  open,
+  onOpenChange,
+  onMinted,
 }: {
-  created: CreatedApiKey;
-  onDismiss: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onMinted: () => void;
 }) {
   const t = useTranslations('dashboard.apiKeys');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<CreatedApiKey | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setCreated(null);
+      setError(null);
+      setCreating(false);
+    }
+  }, [open]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const result = await api<CreatedApiKey>('/api/v1/api-keys', {
+        method: 'POST',
+        body: JSON.stringify({ name: name.trim(), scopes: ['*'] }),
+      });
+      setCreated(result);
+      onMinted();
+    } catch (err) {
+      setError(translate(err) || t('errors.create'));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        {created ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('revealTitle')}</DialogTitle>
+              <DialogDescription>{t('revealSub')}</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-3 mt-2">
+              <p className="text-sm text-ink dark:text-foreground border-l-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+                {t('revealWarning')}
+              </p>
+              <KeyReveal value={created.key} copyLabel={t('copyClipboard')} />
+            </div>
+            <DialogFooter className={dialogFooterClass}>
+              <Button
+                variant="accent"
+                className={dialogButtonClass}
+                onClick={() => onOpenChange(false)}
+              >
+                {t('revealDone')}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('mintModalTitle')}</DialogTitle>
+              <DialogDescription>{t('mintModalSub')}</DialogDescription>
+            </DialogHeader>
+            <form className="flex flex-col gap-4 mt-2" onSubmit={(e) => void submit(e)}>
+              <div className="space-y-2">
+                <Label htmlFor="mint-name" className={dialogLabelClass}>
+                  {t('nameLabel')}
+                </Label>
+                <Input
+                  id="mint-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('namePlaceholder')}
+                  required
+                  autoFocus
+                />
+                <p className={dialogHintClass}>{t('nameHint')}</p>
+              </div>
+
+              {error && (
+                <p className={cn(dialogHintClass, 'text-destructive')} role="alert">
+                  {error}
+                </p>
+              )}
+
+              <DialogFooter className={dialogFooterClass}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={dialogButtonClass}
+                  onClick={() => onOpenChange(false)}
+                >
+                  {tCommon('cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="accent"
+                  className={dialogButtonClass}
+                  disabled={creating}
+                >
+                  {creating ? tCommon('creating') : t('mintModalSubmit')}
+                  <span aria-hidden className="ml-1 font-mono">↵</span>
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function KeyReveal({ value, copyLabel }: { value: string; copyLabel: string }) {
   const [copied, setCopied] = useState(false);
   function copy() {
-    void navigator.clipboard.writeText(created.key).then(() => {
+    void navigator.clipboard.writeText(value).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
   }
   return (
-    <Card className="border-emerald-200 bg-emerald-50">
-      <CardHeader>
-        <CardTitle className="text-base">{t('createdTitle')}</CardTitle>
-        <CardDescription>{t('createdDescription')}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center gap-2">
-          <code className="flex-1 truncate rounded-md border bg-background px-3 py-2 font-mono text-sm">
-            {created.key}
-          </code>
-          <Button variant="outline" size="sm" onClick={copy}>
-            <Copy className="size-4" />
-            {copied ? t('copied') : t('copy')}
-          </Button>
-        </div>
-        <Button variant="ghost" size="sm" onClick={onDismiss}>
-          {t('savedIt')}
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-2">
+      <code className="flex-1 truncate border border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-3 py-2 font-mono text-xs text-ink dark:text-foreground">
+        {value}
+      </code>
+      <Button variant="outline" size="sm" onClick={copy} className="gap-1.5">
+        <Copy className="size-3.5" />
+        {copied ? '✓' : copyLabel}
+      </Button>
+    </div>
   );
 }

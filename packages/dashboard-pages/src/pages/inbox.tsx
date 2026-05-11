@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, MessageSquare, ShieldCheck, Unplug } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
+import { useTranslations } from 'next-intl';
 import {
   Button,
   Card,
@@ -15,6 +16,9 @@ import {
 } from '@getmunin/ui';
 import { api, ApiError } from '../api';
 import { useRealtime, type SubscriptionChannel } from '../realtime';
+import { LoadFailed } from '../components/load-failed';
+import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
+import { EmptyPerch } from '../components/empty-perch';
 
 type Status = 'open' | 'snoozed' | 'closed' | 'spam';
 
@@ -199,6 +203,8 @@ function mergeLive(
 }
 
 export function InboxPage() {
+  const t = useTranslations('dashboard.inbox');
+  const buildLoadFailedProps = useInboxLoadFailedProps();
   const [items, setItems] = useState<ConversationSummary[]>([]);
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
@@ -209,6 +215,9 @@ export function InboxPage() {
   const [pending, setPending] = useState(false);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [kbBodies, setKbBodies] = useState<Record<string, string>>({});
+  const [loadError, setLoadError] = useState<ApiError | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const loadInbox = useCallback(async () => {
     try {
@@ -217,10 +226,30 @@ export function InboxPage() {
       setDetails((prev) => mergeLive(prev, res.live));
       setQueue(buildQueue(res.queue));
       setError(null);
+      setLoadError(null);
+      setHasLoadedOnce(true);
     } catch (err) {
+      if (err instanceof ApiError) setLoadError(err);
       setError(messageOf(err));
     }
   }, []);
+
+  const retryLoad = useCallback(async () => {
+    setRetrying(true);
+    try {
+      await loadInbox();
+    } finally {
+      setRetrying(false);
+    }
+  }, [loadInbox]);
+
+  useEffect(() => {
+    if (!loadError) return;
+    const id = setInterval(() => {
+      void retryLoad();
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [loadError, retryLoad]);
 
   const loadDetail = useCallback(async (id: string) => {
     try {
@@ -425,21 +454,38 @@ export function InboxPage() {
 
   const liveItems = items;
   const selectedConv = convDrawer ? details[convDrawer.id] : null;
+  const isInboxEmpty =
+    hasLoadedOnce && !loadError && liveItems.length === 0 && queue.length === 0;
+
+  if (loadError && !hasLoadedOnce) {
+    return (
+      <div className="px-10 py-10 max-w-7xl mx-auto">
+        <LoadFailed {...buildLoadFailedProps(loadError, () => void retryLoad(), retrying)} />
+      </div>
+    );
+  }
+
+  if (isInboxEmpty) {
+    return (
+      <div className="px-10 py-10 max-w-7xl mx-auto">
+        <EmptyPerch />
+      </div>
+    );
+  }
+
+  const heroLede =
+    liveItems.length > 0
+      ? t('ledeLive', { count: liveItems.length })
+      : queue.length > 0
+        ? t('ledeQueueOnly', { count: queue.length })
+        : t('ledeQuiet');
 
   return (
     <div className="px-10 py-10 max-w-7xl mx-auto space-y-10">
       <Hero
-        eyebrow="01 — inbox"
-        title={
-          <>
-            Word from the <em>flock.</em>
-          </>
-        }
-        lede={
-          liveItems.length > 0
-            ? `${liveItems.length} ${liveItems.length === 1 ? 'live conversation is' : 'live conversations are'} paused on your reply. The rest can wait.`
-            : 'All quiet. Drafts and conversations land here as they arrive.'
-        }
+        eyebrow={t('eyebrow')}
+        title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
+        lede={heroLede}
       />
 
       {error && (
@@ -1236,7 +1282,8 @@ function ActivityRail({
       const page = await api<{ items: ActivityDto[] }>(`/api/v1/activity?${param}&limit=20`);
       setEvents(page.items);
       last.current = page.items[0]?.id ?? null;
-    } catch {
+    } catch (err) {
+      console.warn('[inbox/activity-rail] refresh failed', err);
       return;
     }
   }, [contactId, conversationId]);

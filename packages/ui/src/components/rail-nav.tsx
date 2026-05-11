@@ -21,7 +21,7 @@ interface RailGroupProps extends React.ComponentProps<'div'> {
 function RailGroup({ label, className, children, ...props }: RailGroupProps) {
   return (
     <div data-slot="rail-group" className={cn('mb-6', className)} {...props}>
-      <p className="px-3 pb-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <p className="px-3 pb-3 block font-mono uppercase tracking-eyebrow text-ink-mute text-[11px]">
         {label}
       </p>
       <ul className="space-y-px">{children}</ul>

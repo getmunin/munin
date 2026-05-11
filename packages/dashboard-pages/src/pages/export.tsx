@@ -5,15 +5,7 @@ import { Download } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ApiError } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Hero,
-} from '@getmunin/ui';
+import { Button, Card, CardContent, Hero } from '@getmunin/ui';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -29,7 +21,15 @@ export function ExportPage() {
     try {
       const res = await fetch(`${API_URL}/api/v1/export`, { credentials: 'include' });
       if (!res.ok) {
-        throw new ApiError(res.status, await res.text());
+        const body = await res.text();
+        throw new ApiError({
+          status: res.status,
+          statusText: res.statusText || 'error',
+          endpoint: '/api/v1/export',
+          method: 'GET',
+          requestId: res.headers.get('x-request-id'),
+          message: body || `${res.status} ${res.statusText}`,
+        });
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -50,7 +50,11 @@ export function ExportPage() {
 
   return (
     <>
-      <Hero title={t('title')} lede={t('subtitle')} />
+      <Hero
+        eyebrow={t('eyebrow')}
+        title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
+        lede={t('subtitle')}
+      />
 
       {error && (
         <Card>
@@ -58,18 +62,16 @@ export function ExportPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('cardTitle')}</CardTitle>
-          <CardDescription>{t('cardDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={() => void download()} disabled={loading}>
-            <Download className="size-4" />
-            {loading ? t('preparing') : t('download')}
-          </Button>
-        </CardContent>
-      </Card>
+      <section className="border border-rule-soft dark:border-rule-on-dark p-8 space-y-4 max-w-2xl">
+        <h2 className="font-serif text-2xl text-ink dark:text-foreground">{t('cardTitle')}</h2>
+        <p className="text-sm text-ink-soft dark:text-foreground/70 leading-relaxed">
+          {t('cardDescription')}
+        </p>
+        <Button onClick={() => void download()} disabled={loading} className="gap-1.5">
+          <Download className="size-3.5" />
+          {loading ? t('preparing') : t('download')}
+        </Button>
+      </section>
     </>
   );
 }

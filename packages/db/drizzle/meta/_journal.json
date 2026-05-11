@@ -134,6 +134,13 @@
       "when": 1778900000000,
       "tag": "0018_oauth_provider_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1779000000000,
+      "tag": "0019_conv_channels_archived_at",
+      "breakpoints": true
     }
   ]
 }

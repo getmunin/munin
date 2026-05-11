@@ -715,6 +715,7 @@ export const convChannels = pgTable(
     name: text('name').notNull(),
     config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
     active: boolean('active').notNull().default(true),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt,
     updatedAt,
   },

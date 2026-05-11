@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -10,33 +11,17 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import { ConvService, type ChannelDto } from '../modules/conv/conv.service.js';
 import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.js';
 import { EmailAdminTools } from '../modules/conv/email/email.tools.js';
-import { EmailChannelConfigInput } from '../modules/conv/email/email.service.js';
-
-const CreateWidgetBody = z.object({
-  name: z.string().min(1).max(120),
-  originAllowlist: z.array(z.string().url()).default([]),
-  webhookOnEscalation: z.string().url().optional(),
-  requireVerifiedIdentity: z.boolean().optional(),
-});
-
-const UpdateWidgetBody = z.object({
-  originAllowlist: z.array(z.string().url()).optional(),
-  webhookOnEscalation: z.string().url().nullable().optional(),
-  requireVerifiedIdentity: z.boolean().optional(),
-});
-
-const SetupEmailBody = z.object({
-  channelId: z.string().optional(),
-  name: z.string().min(1).max(120),
-  config: EmailChannelConfigInput,
-});
+import {
+  CreateWidgetBody,
+  UpdateWidgetBody,
+  SetupEmailBody,
+} from '@getmunin/types';
 
 interface ChannelListResponse {
   items: ChannelDto[];
@@ -109,5 +94,11 @@ export class ConvChannelsController {
     @Param('id') id: string,
   ): Promise<Awaited<ReturnType<EmailAdminTools['testChannel']>>> {
     return this.emailTools.testChannel({ channelId: id });
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async archive(@Param('id') id: string): Promise<void> {
+    await this.conv.archiveChannel(id);
   }
 }

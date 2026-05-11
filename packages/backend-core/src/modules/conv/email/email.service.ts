@@ -13,50 +13,15 @@ import {
   setEncryptionKeySql,
 } from '@getmunin/core';
 import { z } from 'zod';
+import {
+  EmailChannelConfigInput,
+  type EmailChannelConfigInputT,
+} from '@getmunin/types';
+
+export { EmailChannelConfigInput };
+export type { EmailChannelConfigInputT };
 
 const REDACTED_PASSWORD = '••••';
-
-// ─── Zod schemas — channel config ─────────────────────────────────────────
-
-const SmtpOutboundSchema = z.object({
-  provider: z.literal('smtp'),
-  host: z.string().min(1),
-  port: z.number().int().min(1).max(65535),
-  secure: z.boolean(),
-  username: z.string().min(1),
-  password: z.string().min(1).optional(),
-});
-
-const MailerOutboundSchema = z.object({
-  provider: z.literal('mailer'),
-});
-
-const OutboundConfigSchema = z.discriminatedUnion('provider', [
-  SmtpOutboundSchema,
-  MailerOutboundSchema,
-]);
-
-const ImapInboundSchema = z.object({
-  provider: z.literal('imap'),
-  host: z.string().min(1),
-  port: z.number().int().min(1).max(65535),
-  secure: z.boolean(),
-  username: z.string().min(1),
-  password: z.string().min(1).optional(),
-  mailbox: z.string().max(120).optional(),
-});
-
-export const EmailChannelConfigInput = z.object({
-  addressing: z.object({
-    fromAddress: z.string().email(),
-    fromName: z.string().max(120).optional(),
-    replyToTemplate: z.string().max(200).optional(),
-  }),
-  outbound: OutboundConfigSchema,
-  inbound: ImapInboundSchema.optional(),
-});
-
-export type EmailChannelConfigInputT = z.infer<typeof EmailChannelConfigInput>;
 
 // ─── DTO shapes the dashboard / agents see (passwords redacted) ──────────
 

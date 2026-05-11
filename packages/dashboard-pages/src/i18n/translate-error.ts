@@ -29,8 +29,8 @@ export function translateError(
     try {
       const tx = tErrors(code as never);
       if (typeof tx === 'string' && tx.length > 0) return tx;
-    } catch {
-      // missing key — fall through
+    } catch (lookupErr) {
+      console.debug(`[munin/translate-error] missing i18n key "errors.${code}"`, lookupErr);
     }
   }
   if (err && typeof err === 'object' && 'message' in err) {
@@ -40,7 +40,8 @@ export function translateError(
   if (typeof err === 'string') return err;
   try {
     return tRoot('common.unknownError' as never);
-  } catch {
+  } catch (rootErr) {
+    console.warn('[munin/translate-error] common.unknownError missing', rootErr);
     return 'Unknown error.';
   }
 }

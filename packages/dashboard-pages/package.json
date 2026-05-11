@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/dashboard-pages",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "license": "MIT",
   "description": "Munin dashboard page components shared between OSS and cloud Next apps.",
   "publishConfig": {
@@ -26,9 +26,11 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@getmunin/types": "workspace:*",
     "@getmunin/ui": "workspace:*",
     "better-auth": "^1.6.10",
-    "lucide-react": "^1.11.0"
+    "lucide-react": "^1.11.0",
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
     "next": "^15.0.0",

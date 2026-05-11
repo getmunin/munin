@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
+import { useActiveMembership } from '../auth/use-active-role';
 import { useRealtime } from '../realtime';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { GetStarted } from '../components/dashboard/get-started';
@@ -13,17 +14,11 @@ import {
   type InboxQueueShape,
 } from '../lib/inbox-preview';
 
-interface MembershipDto {
-  orgId: string;
-  orgName: string;
-  orgSlug: string;
-  isDefault: boolean;
-}
-
 export function DashboardPage() {
   const [inbox, setInbox] = useState<InboxQueueShape | null>(null);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
-  const [orgName, setOrgName] = useState<string | null>(null);
+  const { membership } = useActiveMembership();
+  const orgName = membership?.name ?? null;
 
   const loadInbox = useCallback(() => {
     void api<InboxQueueShape>('/api/v1/inbox')
@@ -35,20 +30,11 @@ export function DashboardPage() {
       .then(setSummary)
       .catch(() => setSummary(null));
   }, []);
-  const loadOrg = useCallback(() => {
-    void api<MembershipDto[]>('/api/v1/me/memberships')
-      .then((memberships) => {
-        const m = memberships.find((x) => x.isDefault) ?? memberships[0];
-        setOrgName(m?.orgName ?? null);
-      })
-      .catch(() => setOrgName(null));
-  }, []);
 
   useEffect(() => {
     loadInbox();
     loadSummary();
-    loadOrg();
-  }, [loadInbox, loadSummary, loadOrg]);
+  }, [loadInbox, loadSummary]);
 
   useRealtime([{ channel: 'org' }], (event) => {
     if (

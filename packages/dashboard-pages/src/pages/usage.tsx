@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { api } from '../api';
-import { useTranslateError } from '../i18n/translate-error';
 import { useRealtime } from '../realtime';
-import { Card, CardContent, Hero, cn } from '@getmunin/ui';
+import { LoadFailed } from '../components/load-failed';
+import { useLoadGate } from '../lib/use-load-gate';
+import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
+import { Hero, cn } from '@getmunin/ui';
 
 interface SummaryTile {
   current: number;
@@ -35,42 +37,44 @@ interface UsageByAgentDto {
 
 export function UsagePage() {
   const t = useTranslations('dashboard.usage');
-  const translate = useTranslateError();
   const [summary, setSummary] = useState<UsageSummaryDto | null>(null);
   const [byAgent, setByAgent] = useState<UsageByAgentDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      const [s, a] = await Promise.all([
-        api<UsageSummaryDto>('/api/v1/usage/summary'),
-        api<UsageByAgentDto>('/api/v1/usage/by-agent'),
-      ]);
-      setSummary(s);
-      setByAgent(a);
-      setError(null);
-    } catch (err) {
-      setError(translate(err) || t('errors.load'));
-    }
-  }, [t, translate]);
+    const [s, a] = await Promise.all([
+      api<UsageSummaryDto>('/api/v1/usage/summary'),
+      api<UsageByAgentDto>('/api/v1/usage/by-agent'),
+    ]);
+    setSummary(s);
+    setByAgent(a);
+  }, []);
+
+  const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
+  const buildLoadFailedProps = useSettingsLoadFailedProps();
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void tryLoad();
+  }, [tryLoad]);
 
   useRealtime([{ channel: 'org' }], () => {
-    void load();
+    void tryLoad();
   });
+
+  if (loadError && !hasLoadedOnce) {
+    return (
+      <LoadFailed
+        {...buildLoadFailedProps('usage', loadError, () => void retry(), retrying)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-10">
-      <Hero title={t('title')} lede={t('subtitle')} />
-
-      {error && (
-        <Card>
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
+      <Hero
+        eyebrow={t('eyebrow')}
+        title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
+        lede={t('subtitle')}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px bg-rule-soft border border-rule-soft dark:bg-rule-on-dark dark:border-rule-on-dark">
         <Tile

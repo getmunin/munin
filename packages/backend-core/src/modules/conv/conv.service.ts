@@ -111,8 +111,26 @@ export class ConvService {
     const rows = await ctx.db
       .select()
       .from(schema.convChannels)
+      .where(isNull(schema.convChannels.archivedAt))
       .orderBy(asc(schema.convChannels.name));
     return rows.map(toChannelDto);
+  }
+
+  async archiveChannel(channelId: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .update(schema.convChannels)
+      .set({ archivedAt: new Date(), active: false })
+      .where(
+        and(
+          eq(schema.convChannels.id, channelId),
+          isNull(schema.convChannels.archivedAt),
+        ),
+      )
+      .returning({ id: schema.convChannels.id });
+    if (!row) {
+      throw new NotFoundException(`channel ${channelId} not found or already archived`);
+    }
   }
 
   async createChannel(input: {

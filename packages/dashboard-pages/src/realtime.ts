@@ -32,11 +32,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
  * while the component is mounted. Fires `onEvent` for every matching
  * incoming event; the caller decides what to do with it.
  */
+export type RealtimeStatus = 'connecting' | 'connected' | 'offline';
+
 export function useRealtime(
   subscriptions: readonly SubscriptionChannel[],
   onEvent: (event: RealtimeEventRow) => void,
-): { connected: boolean } {
-  const [connected, setConnected] = useState(false);
+): { connected: boolean; status: RealtimeStatus } {
+  const [status, setStatus] = useState<RealtimeStatus>('connecting');
+  const connected = status === 'connected';
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
 
@@ -58,11 +61,12 @@ export function useRealtime(
 
     const connect = () => {
       if (cancelled) return;
+      setStatus('connecting');
       ws = new WebSocket(url);
       ws.onopen = () => {
         if (cancelled || !ws) return;
         backoffMs = 500;
-        setConnected(true);
+        setStatus('connected');
         for (const sub of subsRef.current) {
           ws.send(JSON.stringify({ type: 'subscribe', ...sub }));
         }
@@ -74,7 +78,8 @@ export function useRealtime(
         let frame: IncomingFrame | null = null;
         try {
           frame = JSON.parse(msg.data as string) as IncomingFrame;
-        } catch {
+        } catch (err) {
+          console.debug('[munin/realtime] dropped malformed frame', err);
           return;
         }
         if (frame.type === 'event' && frame.event) {
@@ -83,10 +88,10 @@ export function useRealtime(
       };
       ws.onerror = () => undefined;
       ws.onclose = () => {
-        setConnected(false);
         if (pingInterval) clearInterval(pingInterval);
         pingInterval = null;
         if (cancelled) return;
+        setStatus('offline');
         const delay = backoffMs;
         backoffMs = Math.min(backoffMs * 2, 30_000);
         reconnectTimer = setTimeout(connect, delay);
@@ -97,7 +102,6 @@ export function useRealtime(
 
     return () => {
       cancelled = true;
-      setConnected(false);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (pingInterval) clearInterval(pingInterval);
       if (ws) {
@@ -107,12 +111,13 @@ export function useRealtime(
         ws.onclose = null;
         try {
           ws.close();
-        } catch {
+        } catch (err) {
+          console.warn('[munin/realtime] ws.close() failed during cleanup', err);
           return;
         }
       }
     };
   }, [subsKey]);
 
-  return { connected };
+  return { connected, status };
 }

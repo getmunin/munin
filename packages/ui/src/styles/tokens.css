@@ -92,3 +92,9 @@
   --input: rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha));
   --ring: rgb(var(--munin-accent-soft));
 }
+
+@keyframes munin-pulse-dot {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.05); }
+}
+.animate-pulse-dot { animation: munin-pulse-dot 1.6s ease-in-out infinite; }

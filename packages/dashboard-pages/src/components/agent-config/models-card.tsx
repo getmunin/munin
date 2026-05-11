@@ -13,7 +13,7 @@ import {
   Label,
 } from '@getmunin/ui';
 import { api } from '../../api';
-import { nativeFieldClass } from '../page-shell';
+import { NativeSelect } from '../native-select';
 import { useTranslateError } from '../../i18n/translate-error';
 import {
   formatModel,
@@ -83,9 +83,8 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
           <>
             <div className="space-y-1.5">
               <Label htmlFor="chatModel">{t('models.chat')}</Label>
-              <select
+              <NativeSelect
                 id="chatModel"
-                className={nativeFieldClass}
                 value={chatModel}
                 onChange={(e) => setChatModel(e.target.value)}
               >
@@ -94,13 +93,12 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
                     {formatModel(m)}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="curatorModel">{t('models.curator')}</Label>
-              <select
+              <NativeSelect
                 id="curatorModel"
-                className={nativeFieldClass}
                 value={curatorModel}
                 onChange={(e) => setCuratorModel(e.target.value)}
               >
@@ -110,7 +108,7 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
                     {formatModel(m)}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           </>
         ) : models && !models.supported ? (

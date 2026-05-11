@@ -33,10 +33,26 @@ const raw = execFileSync('pnpm', ['licenses', 'list', '--prod', '--json'], {
 });
 const grouped = JSON.parse(raw);
 
+function isPlatformSpecific(paths) {
+  for (const p of paths) {
+    const pkgJson = join(p, 'package.json');
+    if (!existsSync(pkgJson)) continue;
+    try {
+      const meta = JSON.parse(readFileSync(pkgJson, 'utf8'));
+      if (Array.isArray(meta.os) && meta.os.length > 0) return true;
+      if (Array.isArray(meta.cpu) && meta.cpu.length > 0) return true;
+    } catch (err) {
+      console.warn(`licenses: could not read ${pkgJson}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return false;
+}
+
 const packages = [];
 for (const [licenseGroup, entries] of Object.entries(grouped)) {
   for (const entry of entries) {
     if (entry.name?.startsWith('@getmunin/')) continue;
+    if (isPlatformSpecific(entry.paths ?? [])) continue;
     packages.push({
       name: entry.name,
       versions: entry.versions ?? [],

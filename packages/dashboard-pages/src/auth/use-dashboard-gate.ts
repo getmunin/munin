@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter } from '../i18n-navigation';
 import { authClient } from '../auth-client';
 import { isOwnerOrAdmin, useActiveRole, type OrgRole } from './use-active-role';
 import { useAgentConfigStatus } from './use-agent-config-status';

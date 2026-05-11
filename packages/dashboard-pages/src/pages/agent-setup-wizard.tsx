@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import type { Route } from 'next';
+import { Link } from '../i18n-navigation';
 import { useTranslations } from 'next-intl';
 import { Button, Card, CardContent, Hero } from '@getmunin/ui';
 import { useAgentConfig } from '../components/agent-config/use-agent-config';
@@ -145,12 +144,12 @@ function ReadyCard({ config, onBack }: ReadyCardProps) {
           ))}
         </ul>
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          <Button render={<Link href={'/dashboard/inbox' satisfies Route} />}>
-            {t('wizard.cta.goToInbox')}
+          <Button render={<Link href="/dashboard" />}>
+            {t('wizard.cta.goToDashboard')}
           </Button>
           <Button
             variant="outline"
-            render={<Link href={'/dashboard/settings/builtin-ai' satisfies Route} />}
+            render={<Link href="/dashboard/settings/builtin-ai" />}
           >
             {t('wizard.cta.tweakSettings')}
           </Button>

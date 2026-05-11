@@ -1,47 +1,41 @@
 'use client';
 
+import { useTranslations, useLocale } from 'next-intl';
 import { Hero } from '@getmunin/ui';
 
 interface DashboardHeroProps {
   orgName: string | null;
   date: Date;
-  totalCount: number;
   liveCount: number;
+  queueCount: number;
 }
 
-export function DashboardHero({ orgName, date, totalCount, liveCount }: DashboardHeroProps) {
-  const dateLabel = date.toLocaleDateString('en-US', {
+export function DashboardHero({ orgName, date, liveCount, queueCount }: DashboardHeroProps) {
+  const t = useTranslations('dashboard.overview');
+  const locale = useLocale();
+  const dateLabel = new Intl.DateTimeFormat(locale, {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
-  });
+  }).format(date);
   const eyebrow = [orgName, dateLabel].filter(Boolean).join(' · ');
-  const lede = composeLede(totalCount, liveCount);
+
+  let lede: string;
+  if (liveCount === 0 && queueCount === 0) {
+    lede = t('ledeQuiet');
+  } else if (liveCount > 0 && queueCount === 0) {
+    lede = t('ledeLiveOnly', { count: liveCount });
+  } else if (liveCount === 0 && queueCount > 0) {
+    lede = t('ledeQueueOnly', { count: queueCount });
+  } else {
+    lede = t('ledeBoth', { live: liveCount, queue: queueCount });
+  }
 
   return (
     <Hero
       eyebrow={eyebrow}
-      title={
-        <>
-          The day, <em>from above</em>.
-        </>
-      }
+      title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
       lede={lede}
     />
   );
-}
-
-function composeLede(totalCount: number, liveCount: number): string {
-  if (totalCount === 0) {
-    return 'Nothing waiting on you. The agents are caught up; the perch is quiet.';
-  }
-  const things =
-    totalCount === 1 ? '1 thing waiting on you' : `${totalCount} things waiting on you`;
-  if (liveCount === 0) {
-    return `${things}. No live conversations — review at your own pace.`;
-  }
-  if (liveCount === 1) {
-    return `${things}, and one live conversation needs a reply.`;
-  }
-  return `${things}, and ${liveCount} live conversations need a reply.`;
 }

@@ -118,7 +118,6 @@
     "dataExport": "Dataeksport",
     "conversations": "Samtaler",
     "activity": "Aktivitet",
-    "inbox": "Innboks",
     "skills": "Ferdigheter",
     "suggestions": "Forslag",
     "partnerAccess": "Partnertilgang",
@@ -146,18 +145,91 @@
       "retry": "Prøv igjen",
       "autoRetryHint": "Prøver automatisk hvert 30. sekund"
     },
-    "inbox": {
-      "eyebrow": "01 — innboks",
+    "overview": {
       "title": "Ord fra <em>flokken</em>.",
-      "ledeLive": "{count, plural, =1 {# pågående samtale venter på svaret ditt. Resten kan vente.} other {# pågående samtaler venter på svaret ditt. Resten kan vente.}}",
-      "ledeQueueOnly": "{count, plural, =1 {Ingenting live. # utkast å se gjennom når du har tid.} other {Ingenting live. # utkast å se gjennom når du har tid.}}",
       "ledeQuiet": "Alt stille. Utkast og samtaler dukker opp her etter hvert som de kommer.",
+      "ledeLiveOnly": "{count, plural, =1 {# pågående samtale venter på deg. Agentene er ellers à jour.} other {# pågående samtaler venter på deg. Agentene er ellers à jour.}}",
+      "ledeQueueOnly": "{count, plural, =1 {# utkast venter. Agentene er ellers à jour.} other {# utkast venter. Agentene er ellers à jour.}}",
+      "ledeBoth": "{live, plural, =1 {# pågående samtale venter på deg} other {# pågående samtaler venter på deg}}, {queue, plural, =1 {# utkast til venter også} other {# utkast venter også}}. Agentene er ellers à jour.",
       "empty": {
         "eyebrow": "Innboks · ledig",
         "title": "En <em>tom</em> grein.",
         "body": "Ingen utkast ennå. Koble til en agent, så begynner Munin å samle arbeidet deres her — utkast å godkjenne, samtaler å overta, kunnskap å bekrefte.",
         "readDocs": "Les dokumentasjonen",
         "browseMcp": "Utforsk MCP-verktøy"
+      },
+      "liveNow": {
+        "eyebrow": "Pågår nå",
+        "subtitle": "venter på svaret ditt",
+        "waiting": "venter {age}",
+        "takenOver": "du · overtatt",
+        "reply": "Svar ↵",
+        "takeOver": "Overta →",
+        "chat": "Chat →"
+      },
+      "queue": {
+        "eyebrow": "Kø",
+        "sortedByRecency": "sortert etter ferskhet",
+        "empty": "Køen er <accent>tom.</accent>",
+        "kindKb": "KB",
+        "kindCrm": "CRM",
+        "kindOutreach": "UTGÅENDE",
+        "approve": "Godkjenn",
+        "dismiss": "Avvis",
+        "kbSnippetProposed": "Foreslått for {slug}.",
+        "kbSnippetFallback": "KB-kandidat.",
+        "crmSnippet": "{confidence} tillit — sammenslåing foreslått.",
+        "outreachDraftFallback": "Utgående utkast"
+      },
+      "drawer": {
+        "close": "lukk ×",
+        "loading": "Laster…",
+        "customer": "Kunde",
+        "agentDraft": "Agentens utkast til svar",
+        "noDraft": "Ingen utkast ennå.",
+        "proposal": "Forslag",
+        "replyFrom": "Svar fra",
+        "subject": "Emne — {subject}",
+        "sendDraft": "Send utkast ↵",
+        "send": "Send ↵",
+        "edit": "Rediger",
+        "cancel": "Avbryt",
+        "save": "Lagre ↵",
+        "approve": "Godkjenn",
+        "dismiss": "Avvis",
+        "takeOver": "Overta",
+        "release": "Slipp",
+        "closeConv": "Lukk",
+        "replyPlaceholder": "Svar…",
+        "shortcutSend": "⌘↵ send",
+        "shortcutSave": "⌘↵ lagre · esc avbryt",
+        "shortcutApprove": "⌘↵ godkjenn",
+        "pillLive": "live",
+        "pillConversation": "samtale",
+        "pillTakenOver": "overtatt",
+        "metaConv": "{who} · venter {age}",
+        "metaConvFull": "{who} · {status}",
+        "metaCrm": "Kontakter ×2 · {confidence} · {age}",
+        "metaKb": "{slug} · {age}",
+        "metaOutreach": "{kind} · {handle} · {age}",
+        "outreachKindReply": "SVAR",
+        "outreachKindInitial": "FØRSTE",
+        "conversationFallback": "Samtale #{id}",
+        "crmMergeBody": "Slå sammen <strong>{loser}</strong> inn i <strong>{keeper}</strong>.",
+        "crmMergeExplain": "Beholder hovedoppføringen; flytter referanser; arkiverer den andre. Ingen samtaler går tapt.",
+        "internalLabel": "intern · {author}",
+        "activityConv": "Samtaleaktivitet",
+        "activityContact": "Kontaktaktivitet",
+        "activityEmpty": "Ingen aktivitet ennå.",
+        "kbSlugFallback": "kb-curation-inbox",
+        "handleFallback": "—",
+        "endUserFallback": "—"
+      },
+      "relative": {
+        "justNow": "akkurat nå",
+        "minutes": "{n}m",
+        "hours": "{n}t",
+        "days": "{n}d"
       }
     },
     "activity": {
@@ -431,6 +503,20 @@
         "revoke": "Kunne ikke tilbakekalle tokens."
       }
     },
+    "getStarted": {
+      "eyebrow": "Kom i gang",
+      "title": "Vekk <em>flokken</em>.",
+      "lede": "Koble favorittmodellen din til Munin over MCP, og velg en oppskrift som setter en agent til å sende utkast hit.",
+      "connectMcp": "01 · Koble til MCP",
+      "pickClient": "velg klient",
+      "recipesEyebrow": "02 · Agent-oppskrifter",
+      "recipesCount": "{count} forslag",
+      "copy": "Kopier",
+      "copied": "Kopiert ✓",
+      "then": "Deretter",
+      "apiKeyHint": "Lag en API-nøkkel i <link>Innstillinger · API-nøkler</link> og lim den inn der plassholderen står. Tokenet er bundet til denne organisasjonen.",
+      "viewPrompt": "Se prompten →"
+    },
     "usage": {
       "eyebrow": "Overvåking · Bruk",
       "title": "Flokken i <em>tall</em>.",
@@ -446,15 +532,21 @@
         "load": "Kunne ikke laste bruksdata."
       },
       "tiles": {
+        "headline": "Bruk · denne måneden",
+        "fullReport": "Full rapport →",
+        "byAgentBreakdown": "Detaljer per agent →",
         "mcpCalls": "MCP-kall",
         "apiCalls": "API-kall",
         "conversations": "Samtaler",
         "avgLatency": "Snitt-forsinkelse",
+        "avgLatency7d": "Snitt-forsinkelse · 7d",
         "thisMonth": "Denne måneden",
         "sevenDay": "7d",
         "deltaUp": "↑ {value} vs. forrige",
         "deltaDown": "↓ {value} vs. forrige",
-        "deltaFlat": "— vs. forrige"
+        "deltaPctUp": "↑ {pct}% vs. forrige",
+        "deltaPctDown": "↓ {pct}% vs. forrige",
+        "deltaFlat": "uendret vs. forrige"
       },
       "byAgent": {
         "title": "Per agent",
@@ -553,7 +645,7 @@
         "curator": "Kurator-modell — {model}"
       },
       "cta": {
-        "goToInbox": "Gå til innboksen",
+        "goToDashboard": "Gå til dashbord",
         "tweakSettings": "Endre innstillinger"
       }
     },

@@ -1,16 +1,14 @@
 'use client';
 
-import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
-import type { Route } from 'next';
+import { Link, usePathname } from '../i18n-navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Menu, X } from 'lucide-react';
 import { Sheet, SheetContent, cn } from '@getmunin/ui';
 import type { RealtimeStatus } from '../realtime';
 
 export interface MuninTopbarNavItem {
-  href: Route;
+  href: string;
   label: string;
   exact?: boolean;
   meta?: ReactNode;
@@ -24,7 +22,7 @@ export interface MuninTopbarStatus {
 
 export interface MuninTopbarProps {
   brand: string;
-  brandHref?: Route;
+  brandHref?: string;
   logoSrc?: string;
   logoAlt?: string;
   navItems: MuninTopbarNavItem[];

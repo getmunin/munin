@@ -1,6 +1,7 @@
 'use client';
 
-import Link from 'next/link';
+import { Link } from '../../i18n-navigation';
+import { useTranslations } from 'next-intl';
 import { Eyebrow } from '@getmunin/ui';
 import { Spark } from './spark';
 
@@ -22,44 +23,46 @@ interface UsageKpisProps {
 }
 
 export function UsageKpis({ summary }: UsageKpisProps) {
+  const t = useTranslations('dashboard.usage.tiles');
+
   return (
     <section className="min-w-0">
       <div className="flex items-baseline justify-between gap-4 border-b border-ink pb-2.5 mb-3.5 dark:border-foreground">
         <Eyebrow tone="ink" size="sm" className="font-medium">
-          Usage · this month
+          {t('headline')}
         </Eyebrow>
         <Link
           href="/dashboard/settings/usage"
           className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-cobalt transition-colors duration-fast"
         >
-          Full report →
+          {t('byAgentBreakdown')}
         </Link>
       </div>
 
       <div className="grid gap-3.5 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
         <Kpi
-          label="MCP calls"
+          label={t('mcpCalls')}
           value={summary?.mcpCalls.current}
           previous={summary?.mcpCalls.previous}
           spark={summary?.mcpCalls.sparkline ?? []}
           format={formatCount}
         />
         <Kpi
-          label="API calls"
+          label={t('apiCalls')}
           value={summary?.apiCalls.current}
           previous={summary?.apiCalls.previous}
           spark={summary?.apiCalls.sparkline ?? []}
           format={formatCount}
         />
         <Kpi
-          label="Conversations"
+          label={t('conversations')}
           value={summary?.conversations.current}
           previous={summary?.conversations.previous}
           spark={summary?.conversations.sparkline ?? []}
           format={formatCount}
         />
         <Kpi
-          label="Avg latency · 7d"
+          label={t('avgLatency7d')}
           value={summary?.avgLatencyMs.current}
           previous={summary?.avgLatencyMs.previous}
           spark={summary?.avgLatencyMs.sparkline ?? []}
@@ -68,13 +71,6 @@ export function UsageKpis({ summary }: UsageKpisProps) {
           tone="ink"
         />
       </div>
-
-      <Link
-        href="/dashboard/settings/usage"
-        className="mt-3.5 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-eyebrow text-cobalt hover:text-cobalt-deep transition-colors duration-fast py-2 dark:text-cobalt-soft"
-      >
-        See by-agent breakdown →
-      </Link>
     </section>
   );
 }
@@ -90,7 +86,8 @@ interface KpiProps {
 }
 
 function Kpi({ label, value, previous, spark, format, lowerIsBetter, tone = 'accent' }: KpiProps) {
-  const delta = formatDelta(value, previous, format, lowerIsBetter);
+  const t = useTranslations('dashboard.usage.tiles');
+  const delta = formatDelta(value, previous, format, lowerIsBetter, t);
   return (
     <div className="border border-rule-soft bg-paper px-4 py-3.5 dark:bg-card dark:border-rule-on-dark">
       <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">{label}</div>
@@ -104,7 +101,7 @@ function Kpi({ label, value, previous, spark, format, lowerIsBetter, tone = 'acc
             : 'font-mono text-[10px] text-ink-mute'
         }
       >
-        {delta?.label ?? ' '}
+        {delta?.label ?? ' '}
       </div>
       <Spark className="mt-2" values={spark} tone={tone} />
     </div>
@@ -112,7 +109,7 @@ function Kpi({ label, value, previous, spark, format, lowerIsBetter, tone = 'acc
 }
 
 function formatCount(n: number): string {
-  return n.toLocaleString('en-US');
+  return n.toLocaleString();
 }
 
 function formatLatency(ms: number): string {
@@ -124,23 +121,25 @@ function formatDelta(
   current: number | undefined,
   previous: number | undefined,
   format: (n: number) => string,
-  lowerIsBetter = false,
+  lowerIsBetter: boolean | undefined,
+  t: ReturnType<typeof useTranslations>,
 ): { tone: 'positive' | 'neutral'; label: string } | null {
   if (current === undefined || previous === undefined || previous === 0) return null;
   const diff = current - previous;
-  if (diff === 0) return { tone: 'neutral', label: 'flat vs last' };
+  if (diff === 0) return { tone: 'neutral', label: t('deltaFlat') };
   const pct = Math.round((Math.abs(diff) / previous) * 100);
-  const arrow = diff > 0 ? '↑' : '↓';
   const isImprovement = lowerIsBetter ? diff < 0 : diff > 0;
   if (lowerIsBetter) {
     const absDiff = Math.abs(diff);
+    const key = diff > 0 ? 'deltaUp' : 'deltaDown';
     return {
       tone: isImprovement ? 'positive' : 'neutral',
-      label: `${arrow} ${format(absDiff)}`,
+      label: t(key, { value: format(absDiff) }),
     };
   }
+  const key = diff > 0 ? 'deltaPctUp' : 'deltaPctDown';
   return {
     tone: isImprovement ? 'positive' : 'neutral',
-    label: `${arrow} ${pct}% vs last`,
+    label: t(key, { pct }),
   };
 }

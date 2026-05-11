@@ -1,13 +1,15 @@
 'use client';
 
-import Link from 'next/link';
+import { Link } from '../../i18n-navigation';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { cn, Eyebrow } from '@getmunin/ui';
 import { MCP_SETUPS, type McpSetup } from '../../data/mcp-setups';
 import { RECIPES, type Recipe } from '../../data/recipes';
 import { RecipeDrawer } from './recipe-drawer';
 
 export function GetStarted() {
+  const t = useTranslations('dashboard.getStarted');
   const [activeId, setActiveId] = useState<McpSetup['id']>('claude');
   const [openRecipe, setOpenRecipe] = useState<Recipe | null>(null);
   const [copied, setCopied] = useState(false);
@@ -25,13 +27,16 @@ export function GetStarted() {
   return (
     <section className="border-t border-rule-soft pt-14 dark:border-rule-on-dark">
       <header className="mb-8 max-w-xl space-y-2">
-        <Eyebrow tone="muted">Get started</Eyebrow>
+        <Eyebrow tone="muted">{t('eyebrow')}</Eyebrow>
         <h2 className="font-serif text-3xl md:text-4xl leading-[1.0] font-normal tracking-tight text-ink dark:text-foreground">
-          Wake the <em className="italic text-cobalt dark:text-cobalt-soft">flock</em>.
+          {t.rich('title', {
+            em: (chunks) => (
+              <em className="italic text-cobalt dark:text-cobalt-soft">{chunks}</em>
+            ),
+          })}
         </h2>
         <p className="text-sm text-ink-soft max-w-lg leading-[1.55] dark:text-foreground/80">
-          Connect your favourite model to Munin over MCP, then pick a recipe to wire up an agent
-          that drops drafts into this inbox.
+          {t('lede')}
         </p>
       </header>
 
@@ -40,10 +45,10 @@ export function GetStarted() {
         <div>
           <div className="flex justify-between items-baseline border-b border-ink pb-2.5 mb-4 dark:border-foreground">
             <Eyebrow tone="ink" size="sm" className="font-medium">
-              01 · Connect MCP
+              {t('connectMcp')}
             </Eyebrow>
             <Eyebrow tone="muted" size="sm">
-              pick your client
+              {t('pickClient')}
             </Eyebrow>
           </div>
 
@@ -97,23 +102,25 @@ export function GetStarted() {
                 onClick={copySnippet}
                 className="font-mono text-[10px] uppercase tracking-eyebrow bg-ink text-paper border-0 px-3 py-1.5 cursor-pointer hover:bg-black dark:bg-foreground dark:text-background"
               >
-                {copied ? 'Copied ✓' : 'Copy'}
+                {copied ? t('copied') : t('copy')}
               </button>
             </div>
           </div>
 
           <div className="mt-4 px-4 py-3.5 bg-paper-deep border-l-2 border-cobalt text-[13px] leading-[1.55] text-ink-soft dark:bg-secondary dark:text-foreground/80">
             <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute mr-2">
-              Then
+              {t('then')}
             </span>
-            Mint an API key in{' '}
-            <Link
-              href="/dashboard/settings/api-keys"
-              className="text-cobalt no-underline border-b border-current dark:text-cobalt-soft"
-            >
-              Settings · API keys
-            </Link>{' '}
-            and paste it in place of the placeholder. The token scopes the agent to a single org.
+            {t.rich('apiKeyHint', {
+              link: (chunks) => (
+                <Link
+                  href="/dashboard/settings/api-keys"
+                  className="text-cobalt no-underline border-b border-current dark:text-cobalt-soft"
+                >
+                  {chunks}
+                </Link>
+              ),
+            })}
           </div>
         </div>
 
@@ -121,10 +128,10 @@ export function GetStarted() {
         <div>
           <div className="flex justify-between items-baseline border-b border-ink pb-2.5 mb-4 dark:border-foreground">
             <Eyebrow tone="ink" size="sm" className="font-medium">
-              02 · Agent recipes
+              {t('recipesEyebrow')}
             </Eyebrow>
             <Eyebrow tone="muted" size="sm">
-              {RECIPES.length} starters
+              {t('recipesCount', { count: RECIPES.length })}
             </Eyebrow>
           </div>
 
@@ -154,7 +161,7 @@ export function GetStarted() {
                     {r.cadence}
                   </span>
                   <span className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
-                    View prompt →
+                    {t('viewPrompt')}
                   </span>
                 </div>
               </li>

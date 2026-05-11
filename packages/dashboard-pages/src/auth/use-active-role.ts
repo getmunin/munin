@@ -13,20 +13,38 @@ interface MembershipDto {
   isDefault: boolean;
 }
 
+export interface ActiveMembership {
+  orgId: string;
+  name: string;
+  slug: string;
+  role: OrgRole;
+  isDefault: boolean;
+}
+
 interface CacheEntry {
-  promise: Promise<OrgRole | null>;
-  value: OrgRole | null | undefined;
+  promise: Promise<ActiveMembership | null>;
+  value: ActiveMembership | null | undefined;
 }
 
 let cache: CacheEntry | null = null;
 
-function fetchActiveRole(): Promise<OrgRole | null> {
+function fetchActiveMembership(): Promise<ActiveMembership | null> {
   if (cache) return cache.promise;
   const promise = api<MembershipDto[]>('/api/v1/me/memberships').then((rows) => {
     const active = rows.find((m) => m.isDefault) ?? rows[0] ?? null;
-    const role = active && isOrgRole(active.role) ? active.role : null;
-    if (cache) cache.value = role;
-    return role;
+    if (!active || !isOrgRole(active.role)) {
+      if (cache) cache.value = null;
+      return null;
+    }
+    const membership: ActiveMembership = {
+      orgId: active.orgId,
+      name: active.name,
+      slug: active.slug,
+      role: active.role,
+      isDefault: active.isDefault,
+    };
+    if (cache) cache.value = membership;
+    return membership;
   });
   cache = { promise, value: undefined };
   promise.catch(() => {
@@ -39,22 +57,26 @@ function isOrgRole(value: string): value is OrgRole {
   return value === 'owner' || value === 'admin' || value === 'member';
 }
 
-export function useActiveRole(): { role: OrgRole | null; loading: boolean; error: string | null } {
-  const [role, setRole] = useState<OrgRole | null>(cache?.value ?? null);
+export function useActiveMembership(): {
+  membership: ActiveMembership | null;
+  loading: boolean;
+  error: string | null;
+} {
+  const [membership, setMembership] = useState<ActiveMembership | null>(cache?.value ?? null);
   const [loading, setLoading] = useState(cache?.value === undefined);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     if (cache?.value !== undefined) {
-      setRole(cache.value);
+      setMembership(cache.value);
       setLoading(false);
       return;
     }
-    fetchActiveRole()
-      .then((r) => {
+    fetchActiveMembership()
+      .then((m) => {
         if (!cancelled) {
-          setRole(r);
+          setMembership(m);
           setLoading(false);
         }
       })
@@ -69,7 +91,12 @@ export function useActiveRole(): { role: OrgRole | null; loading: boolean; error
     };
   }, []);
 
-  return { role, loading, error };
+  return { membership, loading, error };
+}
+
+export function useActiveRole(): { role: OrgRole | null; loading: boolean; error: string | null } {
+  const { membership, loading, error } = useActiveMembership();
+  return { role: membership?.role ?? null, loading, error };
 }
 
 export function isOwnerOrAdmin(role: OrgRole | null): boolean {

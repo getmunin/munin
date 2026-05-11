@@ -1,21 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { ScrollText } from 'lucide-react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Hero,
-  Input,
-  Label,
-} from '@getmunin/ui';
+import { LoadFailed } from '../components/load-failed';
+import { EmptyCallout } from '../components/empty-callout';
+import { useLoadGate } from '../lib/use-load-gate';
+import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
+import { NativeSelect } from '../components/native-select';
+import { Button, Card, CardContent, Hero, Input, SectionHead, cn } from '@getmunin/ui';
 
 type ClientKind = 'sdk' | 'cli' | 'mcp' | 'unknown';
 
@@ -41,6 +35,7 @@ interface AuditPage {
 
 export function AuditLogPage() {
   const t = useTranslations('dashboard.auditLog');
+  const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const format = useFormatter();
   const [items, setItems] = useState<AuditDto[]>([]);
@@ -49,6 +44,30 @@ export function AuditLogPage() {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ tool: '', actorType: '', correlationId: '', client: '' });
 
+  const fetchPage = useCallback(
+    async (
+      reset: boolean,
+      filterValues: { tool: string; actorType: string; correlationId: string; client: string },
+      beforeCursor: string | null,
+    ) => {
+      const params = new URLSearchParams();
+      if (filterValues.tool) params.set('tool', filterValues.tool);
+      if (filterValues.actorType) params.set('actorType', filterValues.actorType);
+      if (filterValues.correlationId) params.set('correlationId', filterValues.correlationId);
+      if (filterValues.client) params.set('client', filterValues.client);
+      if (!reset && beforeCursor) params.set('before', beforeCursor);
+      const page = await api<AuditPage>(`/api/v1/admin/audit-logs?${params.toString()}`);
+      if (reset) {
+        setItems(page.items);
+      } else {
+        setItems((prev) => [...prev, ...page.items]);
+      }
+      setCursor(page.nextCursor);
+      setExhausted(page.nextCursor === null);
+    },
+    [],
+  );
+
   const load = useCallback(
     async (
       reset: boolean,
@@ -56,101 +75,41 @@ export function AuditLogPage() {
       beforeCursor: string | null,
     ) => {
       try {
-        const params = new URLSearchParams();
-        if (filterValues.tool) params.set('tool', filterValues.tool);
-        if (filterValues.actorType) params.set('actorType', filterValues.actorType);
-        if (filterValues.correlationId) params.set('correlationId', filterValues.correlationId);
-        if (filterValues.client) params.set('client', filterValues.client);
-        if (!reset && beforeCursor) params.set('before', beforeCursor);
-        const page = await api<AuditPage>(`/api/v1/admin/audit-logs?${params.toString()}`);
         setError(null);
-        if (reset) {
-          setItems(page.items);
-        } else {
-          setItems((prev) => [...prev, ...page.items]);
-        }
-        setCursor(page.nextCursor);
-        setExhausted(page.nextCursor === null);
+        await fetchPage(reset, filterValues, beforeCursor);
       } catch (err) {
         setError(translate(err) || t('errors.load'));
       }
     },
-    [t, translate],
+    [fetchPage, t, translate],
   );
 
+  const initialLoad = useCallback(async () => {
+    await fetchPage(true, { tool: '', actorType: '', correlationId: '', client: '' }, null);
+  }, [fetchPage]);
+
+  const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(initialLoad);
+  const buildLoadFailedProps = useSettingsLoadFailedProps();
+
   useEffect(() => {
-    void load(true, { tool: '', actorType: '', correlationId: '', client: '' }, null);
-  }, [load]);
+    void tryLoad();
+  }, [tryLoad]);
+
+  if (loadError && !hasLoadedOnce) {
+    return (
+      <LoadFailed
+        {...buildLoadFailedProps('audit-log', loadError, () => void retry(), retrying)}
+      />
+    );
+  }
 
   return (
     <>
-      <Hero title={t('title')} lede={t('subtitle')} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t('filterTitle')}</CardTitle>
-          <CardDescription>{t('filterDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="grid gap-3 md:grid-cols-5"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setCursor(null);
-              setExhausted(false);
-              void load(true, filters, null);
-            }}
-          >
-            <div className="space-y-1">
-              <Label htmlFor="tool">{t('filterTool')}</Label>
-              <Input
-                id="tool"
-                value={filters.tool}
-                onChange={(e) => setFilters((f) => ({ ...f, tool: e.target.value }))}
-                placeholder="kb_search"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="actorType">{t('filterActorType')}</Label>
-              <Input
-                id="actorType"
-                value={filters.actorType}
-                onChange={(e) => setFilters((f) => ({ ...f, actorType: e.target.value }))}
-                placeholder="admin_agent"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="correlationId">{t('filterCorrelationId')}</Label>
-              <Input
-                id="correlationId"
-                value={filters.correlationId}
-                onChange={(e) => setFilters((f) => ({ ...f, correlationId: e.target.value }))}
-                placeholder="uuid"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="client">{t('filterClient')}</Label>
-              <select
-                id="client"
-                value={filters.client}
-                onChange={(e) => setFilters((f) => ({ ...f, client: e.target.value }))}
-                className="h-9 w-full rounded-md border border-rule-soft bg-paper px-2 text-sm dark:bg-card dark:border-rule-on-dark"
-              >
-                <option value="">{t('clientAny')}</option>
-                <option value="sdk">sdk</option>
-                <option value="cli">cli</option>
-                <option value="mcp">mcp</option>
-                <option value="unknown">unknown</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <Button type="submit" className="w-full">
-                {t('apply')}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <Hero
+        eyebrow={t('eyebrow')}
+        title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
+        lede={t('subtitle')}
+      />
 
       {error && (
         <Card>
@@ -158,76 +117,148 @@ export function AuditLogPage() {
         </Card>
       )}
 
-      {items.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <ScrollText className="size-5 text-muted-foreground" />
-              <CardTitle>{t('emptyTitle')}</CardTitle>
-            </div>
-            <CardDescription>{t('emptyBody')}</CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <div className="overflow-hidden rounded-lg border bg-background">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40">
-              <tr className="text-left text-xs font-medium uppercase text-muted-foreground">
-                <th className="px-3 py-2">{t('tableTime')}</th>
-                <th className="px-3 py-2">{t('tableActor')}</th>
-                <th className="px-3 py-2">{t('tableClient')}</th>
-                <th className="px-3 py-2">{t('tableToolMethod')}</th>
-                <th className="px-3 py-2">{t('tableResult')}</th>
-                <th className="px-3 py-2">{t('tableCorrelation')}</th>
+      <form
+        className="grid gap-3 md:grid-cols-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setCursor(null);
+          setExhausted(false);
+          void load(true, filters, null);
+        }}
+      >
+        <Input
+          value={filters.tool}
+          onChange={(e) => setFilters((f) => ({ ...f, tool: e.target.value }))}
+          placeholder={t('filterTool')}
+          className="font-mono text-xs"
+        />
+        <Input
+          value={filters.actorType}
+          onChange={(e) => setFilters((f) => ({ ...f, actorType: e.target.value }))}
+          placeholder={t('filterActorType')}
+          className="font-mono text-xs"
+        />
+        <Input
+          value={filters.correlationId}
+          onChange={(e) => setFilters((f) => ({ ...f, correlationId: e.target.value }))}
+          placeholder={t('filterCorrelationId')}
+          className="font-mono text-xs"
+        />
+        <NativeSelect
+          wrapperClassName="w-auto"
+          className="font-mono text-xs"
+          value={filters.client}
+          onChange={(e) => setFilters((f) => ({ ...f, client: e.target.value }))}
+        >
+          <option value="">{t('clientAny')}</option>
+          <option value="sdk">sdk</option>
+          <option value="cli">cli</option>
+          <option value="mcp">mcp</option>
+          <option value="unknown">unknown</option>
+        </NativeSelect>
+        <Button type="submit" variant="outline">
+          {tCommon('apply')}
+        </Button>
+      </form>
+
+      <section className="space-y-4">
+        <SectionHead
+          title={t('trailTitleCount', { count: items.length })}
+          meta={t('appendOnly')}
+          divider={false}
+        />
+
+        {items.length === 0 ? (
+          <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-rule-soft dark:border-rule-on-dark text-left">
+                <Th>{t('tableTime')}</Th>
+                <Th>{t('tableActor')}</Th>
+                <Th>{t('tableClient')}</Th>
+                <Th>{t('tableToolMethod')}</Th>
+                <Th>{t('tableResult')}</Th>
+                <Th>{t('tableCorrelation')}</Th>
               </tr>
             </thead>
             <tbody>
               {items.map((row) => (
-                <tr key={row.id} className="border-t">
-                  <td className="px-3 py-2 text-xs">
+                <tr
+                  key={row.id}
+                  className="border-b border-rule-soft dark:border-rule-on-dark align-top"
+                >
+                  <td className="py-3 pr-4 font-mono text-[11px] text-ink-mute whitespace-nowrap">
                     {format.dateTime(new Date(row.createdAt), {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
                     })}
                   </td>
-                  <td className="px-3 py-2 text-xs font-mono">{row.actorType}</td>
+                  <td className="py-3 pr-4 font-mono text-[11px] text-ink dark:text-foreground">
+                    {row.actorType}
+                  </td>
                   <td
-                    className="px-3 py-2 text-xs font-mono"
+                    className="py-3 pr-4 font-mono text-[11px] text-ink-mute"
                     title={row.userAgent ?? undefined}
                   >
                     {row.client}
                   </td>
-                  <td className="px-3 py-2 text-xs font-mono">{row.tool ?? row.method ?? '—'}</td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={
-                        row.result === 'ok'
-                          ? 'rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700'
-                          : row.result === 'denied'
-                            ? 'rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700'
-                            : 'rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700'
-                      }
-                    >
-                      {row.result ?? '—'}
-                    </span>
+                  <td className="py-3 pr-4 font-mono text-[11px] text-ink dark:text-foreground">
+                    {row.tool ?? row.method ?? '—'}
                   </td>
-                  <td className="px-3 py-2 text-xs font-mono text-muted-foreground">
+                  <td className="py-3 pr-4">
+                    <ResultChip result={row.result} />
+                  </td>
+                  <td className="py-3 pr-4 font-mono text-[11px] text-ink-mute">
                     {row.correlationId?.slice(0, 8) ?? '—'}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
 
-      {!exhausted && items.length > 0 && (
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={() => void load(false, filters, cursor)}>
-            {t('loadMore')}
-          </Button>
-        </div>
-      )}
+        {!exhausted && items.length > 0 && (
+          <div className="flex justify-center pt-2">
+            <Button variant="outline" onClick={() => void load(false, filters, cursor)}>
+              {tCommon('loadMore')}
+            </Button>
+          </div>
+        )}
+      </section>
     </>
+  );
+}
+
+function Th({ children, className }: { children?: ReactNode; className?: string }) {
+  return (
+    <th
+      className={cn(
+        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute font-normal',
+        className,
+      )}
+    >
+      {children}
+    </th>
+  );
+}
+
+function ResultChip({ result }: { result: string | null }) {
+  if (!result) return <span className="font-mono text-[11px] text-ink-mute">—</span>;
+  return (
+    <span
+      className={cn(
+        'inline-block px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow',
+        result === 'ok'
+          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+          : result === 'denied'
+            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+            : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300',
+      )}
+    >
+      {result}
+    </span>
   );
 }

@@ -15,7 +15,7 @@ type Step = 1 | 2 | 3;
 export function AgentSetupWizard() {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
-  const { config, loadError, models, setConfig, setModels } = useAgentConfig();
+  const { config, loadErrorMessage, models, setConfig, setModels } = useAgentConfig();
 
   const [step, setStep] = useState<Step | null>(null);
 
@@ -25,11 +25,11 @@ export function AgentSetupWizard() {
     setStep(config.providerApiKeySet ? 3 : 1);
   }, [config, step]);
 
-  if (loadError) {
+  if (loadErrorMessage) {
     return (
       <main className="mx-auto w-full max-w-3xl px-6 py-12">
         <Card>
-          <CardContent className="py-4 text-sm text-destructive">{loadError}</CardContent>
+          <CardContent className="py-4 text-sm text-destructive">{loadErrorMessage}</CardContent>
         </Card>
       </main>
     );
@@ -166,7 +166,8 @@ function ReadyCard({ config, onBack }: ReadyCardProps) {
 function shortHost(url: string): string {
   try {
     return new URL(url).host;
-  } catch {
+  } catch (err) {
+    console.debug('[agent-setup] could not parse URL, returning raw', url, err);
     return url;
   }
 }

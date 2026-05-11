@@ -17,6 +17,8 @@
     "test": "turbo run test --concurrency=1",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "licenses:check": "node scripts/licenses.mjs check",
+    "licenses:generate": "node scripts/licenses.mjs generate",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm -r --filter '@getmunin/*' --filter '!@getmunin/eslint-config' --filter '!@getmunin/tsconfig' --filter '!@getmunin/backend' --filter '!@getmunin/web' build && changeset publish"

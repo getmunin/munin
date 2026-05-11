@@ -6,3 +6,4 @@ build
 coverage
 drizzle/meta
 pnpm-lock.yaml
+THIRD_PARTY_LICENSES.md

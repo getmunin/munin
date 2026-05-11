@@ -92,6 +92,29 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  licenses:
+    name: license policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@getmunin'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check licenses
+        run: pnpm licenses:check
+
   e2e:
     name: e2e (playwright)
     runs-on: ubuntu-latest

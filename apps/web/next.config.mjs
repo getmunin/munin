@@ -14,6 +14,15 @@ const nextConfig = {
       '.js': ['.ts', '.tsx', '.js'],
       '.mjs': ['.mts', '.mjs'],
     };
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      (warning) =>
+        /next-intl\/dist\/esm\/production\/extractor\/format/.test(String(warning?.message ?? '')),
+    ];
+    config.infrastructureLogging = {
+      ...(config.infrastructureLogging ?? {}),
+      level: 'error',
+    };
     return config;
   },
 };
@@ -22,8 +31,10 @@ const sentryDisabled = !process.env.NEXT_PUBLIC_SENTRY_DSN && !process.env.SENTR
 
 export default withSentryConfig(withNextIntl(nextConfig), {
   silent: true,
-  disableLogger: sentryDisabled,
   hideSourceMaps: true,
   widenClientFileUpload: true,
-  reactComponentAnnotation: { enabled: false },
+  webpack: {
+    treeshake: { removeDebugLogging: sentryDisabled },
+    reactComponentAnnotation: { enabled: false },
+  },
 });

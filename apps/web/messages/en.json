@@ -118,7 +118,6 @@
     "dataExport": "Data export",
     "conversations": "Conversations",
     "activity": "Activity",
-    "inbox": "Inbox",
     "skills": "Skills",
     "suggestions": "Suggestions",
     "partnerAccess": "Partner access",
@@ -146,18 +145,91 @@
       "retry": "Retry",
       "autoRetryHint": "Auto-retrying every 30s"
     },
-    "inbox": {
-      "eyebrow": "01 — inbox",
+    "overview": {
       "title": "Word from the <em>flock</em>.",
-      "ledeLive": "{count, plural, =1 {# live conversation is paused on your reply. The rest can wait.} other {# live conversations are paused on your reply. The rest can wait.}}",
-      "ledeQueueOnly": "{count, plural, =1 {Nothing live. # draft to review when you have time.} other {Nothing live. # drafts to review when you have time.}}",
       "ledeQuiet": "All quiet. Drafts and conversations land here as they arrive.",
+      "ledeLiveOnly": "{count, plural, =1 {# live conversation is paused on you. Agents are caught up otherwise.} other {# live conversations are paused on you. Agents are caught up otherwise.}}",
+      "ledeQueueOnly": "{count, plural, =1 {# draft waiting. Agents are caught up otherwise.} other {# drafts waiting. Agents are caught up otherwise.}}",
+      "ledeBoth": "{live, plural, =1 {# live conversation is paused on you} other {# live conversations are paused on you}}, {queue, plural, =1 {# more draft waiting} other {# more drafts waiting}}. Agents are caught up otherwise.",
       "empty": {
         "eyebrow": "Inbox · idle",
         "title": "An <em>empty</em> perch.",
         "body": "No drafts yet. Connect an agent and Munin will start collecting their work here — drafts to approve, conversations to take over, knowledge to confirm.",
         "readDocs": "Read the docs",
         "browseMcp": "Browse MCP tools"
+      },
+      "liveNow": {
+        "eyebrow": "Live now",
+        "subtitle": "paused on your reply",
+        "waiting": "waiting {age}",
+        "takenOver": "you · taken over",
+        "reply": "Reply ↵",
+        "takeOver": "Take over →",
+        "chat": "Chat →"
+      },
+      "queue": {
+        "eyebrow": "Queue",
+        "sortedByRecency": "sorted by recency",
+        "empty": "Queue is <accent>clear.</accent>",
+        "kindKb": "KB",
+        "kindCrm": "CRM",
+        "kindOutreach": "OUTREACH",
+        "approve": "Approve",
+        "dismiss": "Dismiss",
+        "kbSnippetProposed": "Proposed for {slug}.",
+        "kbSnippetFallback": "KB candidate.",
+        "crmSnippet": "{confidence} confidence — proposed merge.",
+        "outreachDraftFallback": "Outreach draft"
+      },
+      "drawer": {
+        "close": "close ×",
+        "loading": "Loading…",
+        "customer": "Customer",
+        "agentDraft": "Agent's draft reply",
+        "noDraft": "No draft yet.",
+        "proposal": "Proposal",
+        "replyFrom": "Reply from",
+        "subject": "Subject — {subject}",
+        "sendDraft": "Send draft ↵",
+        "send": "Send ↵",
+        "edit": "Edit",
+        "cancel": "Cancel",
+        "save": "Save ↵",
+        "approve": "Approve",
+        "dismiss": "Dismiss",
+        "takeOver": "Take over",
+        "release": "Release",
+        "closeConv": "Close",
+        "replyPlaceholder": "Reply…",
+        "shortcutSend": "⌘↵ send",
+        "shortcutSave": "⌘↵ save · esc cancel",
+        "shortcutApprove": "⌘↵ approve",
+        "pillLive": "live",
+        "pillConversation": "conversation",
+        "pillTakenOver": "taken over",
+        "metaConv": "{who} · waiting {age}",
+        "metaConvFull": "{who} · {status}",
+        "metaCrm": "Contacts ×2 · {confidence} · {age}",
+        "metaKb": "{slug} · {age}",
+        "metaOutreach": "{kind} · {handle} · {age}",
+        "outreachKindReply": "REPLY",
+        "outreachKindInitial": "INITIAL",
+        "conversationFallback": "Conversation #{id}",
+        "crmMergeBody": "Merge <strong>{loser}</strong> into <strong>{keeper}</strong>.",
+        "crmMergeExplain": "Keeps the primary; rewrites foreign keys; archives the loser. No conversations are lost.",
+        "internalLabel": "internal · {author}",
+        "activityConv": "Conversation activity",
+        "activityContact": "Contact activity",
+        "activityEmpty": "No activity yet.",
+        "kbSlugFallback": "kb-curation-inbox",
+        "handleFallback": "—",
+        "endUserFallback": "—"
+      },
+      "relative": {
+        "justNow": "just now",
+        "minutes": "{n}m",
+        "hours": "{n}h",
+        "days": "{n}d"
       }
     },
     "activity": {
@@ -431,6 +503,20 @@
         "revoke": "Could not revoke tokens."
       }
     },
+    "getStarted": {
+      "eyebrow": "Get started",
+      "title": "Wake the <em>flock</em>.",
+      "lede": "Connect your favourite model to Munin over MCP, then pick a recipe to wire up an agent that drops drafts into this inbox.",
+      "connectMcp": "01 · Connect MCP",
+      "pickClient": "pick your client",
+      "recipesEyebrow": "02 · Agent recipes",
+      "recipesCount": "{count} starters",
+      "copy": "Copy",
+      "copied": "Copied ✓",
+      "then": "Then",
+      "apiKeyHint": "Mint an API key in <link>Settings · API keys</link> and paste it in place of the placeholder. The token scopes the agent to a single org.",
+      "viewPrompt": "View prompt →"
+    },
     "usage": {
       "eyebrow": "Monitoring · Usage",
       "title": "The flock by the <em>numbers</em>.",
@@ -446,15 +532,21 @@
         "load": "Could not load usage."
       },
       "tiles": {
+        "headline": "Usage · this month",
+        "fullReport": "Full report →",
+        "byAgentBreakdown": "By-agent breakdown →",
         "mcpCalls": "MCP calls",
         "apiCalls": "API calls",
         "conversations": "Conversations",
         "avgLatency": "Avg latency",
+        "avgLatency7d": "Avg latency · 7d",
         "thisMonth": "This month",
         "sevenDay": "7d",
         "deltaUp": "↑ {value} vs last",
         "deltaDown": "↓ {value} vs last",
-        "deltaFlat": "— vs last"
+        "deltaPctUp": "↑ {pct}% vs last",
+        "deltaPctDown": "↓ {pct}% vs last",
+        "deltaFlat": "flat vs last"
       },
       "byAgent": {
         "title": "By agent",
@@ -553,7 +645,7 @@
         "curator": "Curator model — {model}"
       },
       "cta": {
-        "goToInbox": "Go to inbox",
+        "goToDashboard": "Go to dashboard",
         "tweakSettings": "Tweak settings"
       }
     },

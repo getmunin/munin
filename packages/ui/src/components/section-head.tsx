@@ -22,7 +22,7 @@ function SectionHead({
       data-slot="section-head"
       className={cn(
         'flex items-end justify-between gap-4 pb-3',
-        divider && 'border-b border-rule-soft dark:border-rule-on-dark',
+        divider && 'border-b-[0.5px] border-rule-soft dark:border-rule-on-dark',
         className,
       )}
       {...props}

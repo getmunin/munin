@@ -45,11 +45,16 @@ export interface ConversationHandlerDeps {
     delay: (ms: number, signal: AbortSignal) => Promise<void>;
   };
   provider?: Provider;
+  onTyping?: (conversationId: string, isTyping: boolean) => void;
 }
 
 export interface IncomingMessage {
   conversationId: string;
   authorType: 'user' | 'agent' | 'end_user' | 'system';
+}
+
+export interface GreetTrigger {
+  conversationId: string;
 }
 
 interface InFlight {
@@ -59,8 +64,9 @@ interface InFlight {
 
 export interface ConversationHandler {
   handle(event: IncomingMessage): void;
-  /** Wait for all in-flight runs to finish (used by tests). */
+  greet(event: GreetTrigger): void;
   flush(): Promise<void>;
+  stop(): Promise<void>;
 }
 
 export function createConversationHandler(deps: ConversationHandlerDeps): ConversationHandler {
@@ -71,9 +77,21 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
   };
   const scheduler = deps.scheduler ?? defaultScheduler;
   const inFlight = new Map<string, InFlight>();
+  const claimsHeld = new Set<string>();
   const tokenCache = new Map<string, { accessToken: string; expiresAtMs: number }>();
   const holderId = deps.holderId ?? `runner-${randomUUID()}`;
   const leaseSeconds = deps.leaseSeconds ?? 3600;
+
+  async function releaseClaim(conversationId: string): Promise<void> {
+    if (!claimsHeld.delete(conversationId)) return;
+    await deps.rest
+      .releaseConversationClaim({ conversationId, holder: holderId })
+      .catch((err) =>
+        log.warn(
+          `${conversationId} release claim failed: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      );
+  }
 
   async function getDelegatedToken(endUserId: string): Promise<string> {
     const now = Date.now();
@@ -89,7 +107,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     return minted.accessToken;
   }
 
-  function shouldRespond(detail: ConversationDetail): boolean {
+  function shouldRespond(detail: ConversationDetail, mode: 'reply' | 'greet'): boolean {
     if (detail.status !== 'open') {
       log.info(`skip ${detail.id}: status=${detail.status}`);
       return false;
@@ -110,6 +128,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       log.info(`skip ${detail.id}: no end-user bound`);
       return false;
     }
+    if (mode === 'greet') return true;
     const last = lastInbound(detail);
     if (!last) {
       log.info(`skip ${detail.id}: no inbound message yet`);
@@ -118,7 +137,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     return true;
   }
 
-  async function run(conversationId: string, signal: AbortSignal): Promise<void> {
+  async function run(
+    conversationId: string,
+    signal: AbortSignal,
+    mode: 'reply' | 'greet' = 'reply',
+  ): Promise<void> {
     try {
       await scheduler.delay(deps.config.debounceMs, signal);
     } catch {
@@ -127,7 +150,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     if (signal.aborted) return;
 
     const detail = await deps.rest.getConversation(conversationId);
-    if (!shouldRespond(detail)) return;
+    if (!shouldRespond(detail, mode)) return;
     if (signal.aborted) return;
 
     const claim = await deps.rest.tryAcquireConversation({
@@ -141,8 +164,47 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       );
       return;
     }
+    claimsHeld.add(conversationId);
 
-    const history = deps.rest.toRuntimeHistory(detail);
+    let typingActive = false;
+    let typingKeepalive: ReturnType<typeof setInterval> | null = null;
+    const emitTyping = (isTyping: boolean): void => {
+      if (!deps.onTyping) return;
+      try {
+        deps.onTyping(conversationId, isTyping);
+      } catch (err) {
+        log.warn(
+          `${conversationId} onTyping(${isTyping}) threw: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    };
+    const startTyping = (): void => {
+      if (typingActive || !deps.onTyping) return;
+      typingActive = true;
+      emitTyping(true);
+      typingKeepalive = setInterval(() => emitTyping(true), 3000);
+    };
+    const stopTyping = (): void => {
+      if (!typingActive) return;
+      typingActive = false;
+      if (typingKeepalive) {
+        clearInterval(typingKeepalive);
+        typingKeepalive = null;
+      }
+      emitTyping(false);
+    };
+
+    try {
+    let history = deps.rest.toRuntimeHistory(detail);
+    if (mode === 'greet' && history.length === 0) {
+      history = [
+        {
+          authorType: 'end_user',
+          body: '[Visitor opened the chat. Greet them briefly and ask how you can help.]',
+          createdAt: new Date().toISOString(),
+        },
+      ];
+    }
     const sinceMessageId = detail.messages[detail.messages.length - 1]?.id;
     const endUserId = detail.endUserId!;
     const baseSystem = deps.prompts.system();
@@ -159,6 +221,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       if (signal.aborted) return;
       const accessToken = await getDelegatedToken(endUserId);
       const mcp = await deps.openMcp({ delegatedToken: accessToken });
+      startTyping();
       try {
         const reply = await runAgent({
           config: {
@@ -240,6 +303,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         `${conversationId} handover request failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     });
+    } finally {
+      stopTyping();
+      await releaseClaim(conversationId);
+    }
   }
 
   async function runAuditPass(args: {
@@ -355,30 +422,39 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     }
   }
 
+  function spawn(conversationId: string, mode: 'reply' | 'greet'): void {
+    const existing = inFlight.get(conversationId);
+    if (existing) existing.controller.abort();
+    const controller = new AbortController();
+    const promise = run(conversationId, controller.signal, mode)
+      .catch((err) => {
+        log.error(
+          `${conversationId} unhandled: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      })
+      .finally(() => {
+        if (inFlight.get(conversationId)?.controller === controller) {
+          inFlight.delete(conversationId);
+        }
+      });
+    inFlight.set(conversationId, { controller, promise });
+  }
+
   return {
     handle(event: IncomingMessage): void {
       if (event.authorType !== 'user' && event.authorType !== 'end_user') return;
-
-      const existing = inFlight.get(event.conversationId);
-      if (existing) {
-        existing.controller.abort();
-      }
-      const controller = new AbortController();
-      const promise = run(event.conversationId, controller.signal)
-        .catch((err) => {
-          log.error(
-            `${event.conversationId} unhandled: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        })
-        .finally(() => {
-          if (inFlight.get(event.conversationId)?.controller === controller) {
-            inFlight.delete(event.conversationId);
-          }
-        });
-      inFlight.set(event.conversationId, { controller, promise });
+      spawn(event.conversationId, 'reply');
+    },
+    greet(event: GreetTrigger): void {
+      spawn(event.conversationId, 'greet');
     },
     async flush(): Promise<void> {
       await Promise.all([...inFlight.values()].map((f) => f.promise));
+    },
+    async stop(): Promise<void> {
+      for (const f of inFlight.values()) f.controller.abort();
+      await Promise.allSettled([...inFlight.values()].map((f) => f.promise));
+      await Promise.allSettled([...claimsHeld].map((id) => releaseClaim(id)));
     },
   };
 }

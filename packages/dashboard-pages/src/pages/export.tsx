@@ -5,7 +5,8 @@ import { Download } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ApiError } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import { Button, Card, CardContent, Hero } from '@getmunin/ui';
+import { notify } from '../lib/notify';
+import { Button, Hero } from '@getmunin/ui';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -13,11 +14,9 @@ export function ExportPage() {
   const t = useTranslations('dashboard.export');
   const translate = useTranslateError();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function download() {
     setLoading(true);
-    setError(null);
     try {
       const res = await fetch(`${API_URL}/api/v1/export`, { credentials: 'include' });
       if (!res.ok) {
@@ -42,7 +41,7 @@ export function ExportPage() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(translate(err) || t('errors.export'));
+      notify.error(translate(err) || t('errors.export'));
     } finally {
       setLoading(false);
     }
@@ -56,18 +55,12 @@ export function ExportPage() {
         lede={t('subtitle')}
       />
 
-      {error && (
-        <Card>
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
-
-      <section className="border border-rule-soft dark:border-rule-on-dark p-8 space-y-4 max-w-2xl">
+      <section className="border-[0.5px] border-rule-soft dark:border-rule-on-dark p-8 space-y-4 max-w-2xl">
         <h2 className="font-serif text-2xl text-ink dark:text-foreground">{t('cardTitle')}</h2>
         <p className="text-sm text-ink-soft dark:text-foreground/70 leading-relaxed">
           {t('cardDescription')}
         </p>
-        <Button onClick={() => void download()} disabled={loading} className="gap-1.5">
+        <Button onClick={() => void download()} pending={loading} className="gap-1.5">
           <Download className="size-3.5" />
           {loading ? t('preparing') : t('download')}
         </Button>

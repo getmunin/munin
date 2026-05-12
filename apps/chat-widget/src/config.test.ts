@@ -28,10 +28,14 @@ describe('parseConfig', () => {
       host: 'https://munin.example.com', // trailing slash stripped
       widgetKey: 'mn_widget_abc',
       channelId: 'cnv_001',
-      themeColor: '#2563eb',
+      themeColor: '#0066FF',
       position: 'bottom-right',
-      greeting: 'Hi! How can we help?',
+      greeting: 'Hi there. How can we help?',
       title: 'Chat',
+      eyebrow: 'Powered by Munin',
+      size: 'standard',
+      fonts: 'bundled',
+      showHistory: true,
     });
     expect(result.config.visitor).toBeUndefined();
     expect(result.config.externalId).toBeUndefined();
@@ -123,7 +127,7 @@ describe('parseConfig', () => {
     const result = parseConfig(el);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.config.themeColor).toBe('#2563eb');
+    expect(result.config.themeColor).toBe('#0066FF');
     expect(result.warnings.some((w) => w.attr === 'data-munin-theme-color')).toBe(true);
   });
 

@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Loader2 } from "lucide-react"
 
 import { cn } from "../cn"
 
@@ -9,19 +10,19 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "border border-ink bg-ink text-paper hover:bg-cobalt-deep hover:border-cobalt-deep dark:border-paper dark:bg-paper dark:text-ink dark:hover:bg-cobalt-soft dark:hover:border-cobalt-soft dark:hover:text-ink",
+          "border-[0.5px] border-ink bg-ink text-paper hover:bg-cobalt-deep hover:border-cobalt-deep dark:border-paper dark:bg-paper dark:text-ink dark:hover:bg-cobalt-soft dark:hover:border-cobalt-soft dark:hover:text-ink",
         outline:
-          "border border-ink bg-transparent text-ink hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink",
+          "border-[0.5px] border-ink bg-transparent text-ink hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink",
         secondary:
-          "border border-rule-soft bg-paper-deep text-ink hover:bg-ink hover:text-paper hover:border-ink dark:bg-secondary dark:text-foreground dark:border-rule-on-dark dark:hover:bg-paper dark:hover:text-ink",
+          "border-[0.5px] border-rule-soft bg-paper-deep text-ink hover:bg-ink hover:text-paper hover:border-ink dark:bg-secondary dark:text-foreground dark:border-rule-on-dark dark:hover:bg-paper dark:hover:text-ink",
         ghost:
-          "border border-transparent text-ink hover:bg-paper-deep dark:text-foreground dark:hover:bg-secondary",
+          "border-[0.5px] border-transparent text-ink hover:bg-paper-deep dark:text-foreground dark:hover:bg-secondary",
         accent:
-          "border border-cobalt bg-cobalt text-paper hover:bg-cobalt-deep hover:border-cobalt-deep",
+          "border-[0.5px] border-cobalt bg-cobalt text-paper hover:bg-cobalt-deep hover:border-cobalt-deep",
         destructive:
-          "border border-destructive bg-transparent text-destructive hover:bg-destructive hover:text-destructive-foreground",
+          "border-[0.5px] border-destructive bg-transparent text-destructive hover:bg-destructive hover:text-destructive-foreground",
         link:
-          "border-0 border-b border-cobalt bg-transparent text-cobalt font-serif italic normal-case tracking-normal text-[15px] hover:text-cobalt-deep hover:border-cobalt-deep h-auto px-0 py-0 dark:text-cobalt-soft dark:border-cobalt-soft",
+          "border-0 border-b-[0.5px] border-cobalt bg-transparent text-cobalt font-serif italic normal-case tracking-normal text-[15px] hover:text-cobalt-deep hover:border-cobalt-deep h-auto px-0 py-0 dark:text-cobalt-soft dark:border-cobalt-soft",
       },
       size: {
         default: "h-9 gap-1.5 px-3 py-2",
@@ -41,14 +42,21 @@ const buttonVariants = cva(
   }
 )
 
+interface ButtonExtraProps {
+  pending?: boolean
+}
+
 function Button({
   className,
   variant = "default",
   size = "default",
   render,
   nativeButton,
+  pending = false,
+  disabled,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & ButtonExtraProps) {
   const resolvedNativeButton = nativeButton ?? render === undefined
   return (
     <ButtonPrimitive
@@ -56,8 +64,12 @@ function Button({
       className={cn(buttonVariants({ variant, size, className }))}
       render={render}
       nativeButton={resolvedNativeButton}
+      disabled={pending || disabled}
       {...props}
-    />
+    >
+      {pending ? <Loader2 className="animate-spin" aria-hidden /> : null}
+      {children}
+    </ButtonPrimitive>
   )
 }
 

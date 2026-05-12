@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, ilike, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { CuratorJobsService } from '../curator/curator-jobs.service.js';
 import { ConversationClaimsService } from './conv.claims.service.js';
@@ -59,10 +59,12 @@ export interface MessageDto {
   conversationId: string;
   authorType: 'user' | 'agent' | 'end_user' | 'system';
   authorId: string;
+  authorName: string | null;
   body: string;
   internal: boolean;
   inReplyToId: string | null;
   attachments: unknown[];
+  metadata: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -131,6 +133,15 @@ export class ConvService {
     if (!row) {
       throw new NotFoundException(`channel ${channelId} not found or already archived`);
     }
+    await ctx.db
+      .update(schema.apiKeys)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(
+          eq(schema.apiKeys.channelId, channelId),
+          isNull(schema.apiKeys.revokedAt),
+        ),
+      );
   }
 
   async createChannel(input: {
@@ -232,8 +243,26 @@ export class ConvService {
 
   // ─── Conversations ──────────────────────────────────────────────────────
 
+  async listConversationsByIds(
+    ids: string[],
+    options: { excludeStatuses?: readonly ConversationStatus[] } = {},
+  ): Promise<ConversationSummary[]> {
+    if (ids.length === 0) return [];
+    const ctx = getCurrentContext();
+    const filters: SQL[] = [inArray(schema.convConversations.id, ids)];
+    if (options.excludeStatuses && options.excludeStatuses.length > 0) {
+      filters.push(notInArray(schema.convConversations.status, [...options.excludeStatuses]));
+    }
+    const rows = await ctx.db
+      .select()
+      .from(schema.convConversations)
+      .where(and(...filters));
+    return rows.map((r) => toConversationSummary(r));
+  }
+
   async listConversations(input: {
     status?: ConversationStatus;
+    excludeStatuses?: readonly ConversationStatus[];
     assigneeUserId?: string;
     topicId?: string;
     endUserId?: string;
@@ -246,6 +275,7 @@ export class ConvService {
 
   async listConversationsPage(input: {
     status?: ConversationStatus;
+    excludeStatuses?: readonly ConversationStatus[];
     assigneeUserId?: string;
     topicId?: string;
     endUserId?: string;
@@ -257,6 +287,9 @@ export class ConvService {
     const limit = clampLimit(input.limit, 50, 200);
     const filters: SQL[] = [];
     if (input.status) filters.push(eq(schema.convConversations.status, input.status));
+    if (input.excludeStatuses && input.excludeStatuses.length > 0) {
+      filters.push(notInArray(schema.convConversations.status, [...input.excludeStatuses]));
+    }
     if (input.assigneeUserId) filters.push(eq(schema.convConversations.assigneeUserId, input.assigneeUserId));
     if (input.topicId) filters.push(eq(schema.convConversations.topicId, input.topicId));
     if (input.endUserId) filters.push(eq(schema.convConversations.endUserId, input.endUserId));
@@ -312,10 +345,46 @@ export class ConvService {
       .where(eq(schema.convMessages.conversationId, id))
       .orderBy(asc(schema.convMessages.createdAt));
 
+    const authorNames = await this.loadAuthorNames(messages);
     return {
       ...toConversationSummary(row.conv, row.channelType),
-      messages: messages.map(toMessageDto),
+      messages: messages.map((m) => toMessageDto(m, authorNames)),
     };
+  }
+
+  private async loadAuthorNames(
+    messages: ReadonlyArray<typeof schema.convMessages.$inferSelect>,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const ctx = getCurrentContext();
+    const userIds = [
+      ...new Set(messages.filter((m) => m.authorType === 'user').map((m) => m.authorId)),
+    ];
+    if (userIds.length > 0) {
+      const rows = await ctx.db
+        .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
+        .from(schema.users)
+        .where(inArray(schema.users.id, userIds));
+      for (const r of rows) out.set(r.id, r.name ?? r.email);
+    }
+    const contactIds = [
+      ...new Set(messages.filter((m) => m.authorType === 'end_user').map((m) => m.authorId)),
+    ];
+    if (contactIds.length > 0) {
+      const rows = await ctx.db
+        .select({
+          id: schema.convContacts.id,
+          name: schema.convContacts.name,
+          email: schema.convContacts.email,
+        })
+        .from(schema.convContacts)
+        .where(inArray(schema.convContacts.id, contactIds));
+      for (const r of rows) {
+        const label = r.name ?? r.email;
+        if (label) out.set(r.id, label);
+      }
+    }
+    return out;
   }
 
   async createConversation(input: {
@@ -411,6 +480,7 @@ export class ConvService {
     authorId: string;
     preserveAttention?: boolean;
     sinceMessageId?: string;
+    claim?: boolean;
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -488,7 +558,8 @@ export class ConvService {
     if (
       actor.type === 'user' &&
       input.authorType === 'user' &&
-      !input.internal
+      !input.internal &&
+      input.claim !== false
     ) {
       try {
         await this.claims.claim({ conversationId: input.conversationId });
@@ -775,6 +846,7 @@ export class ConvService {
   async requestHandover(input: {
     conversationId: string;
     reason?: string;
+    suggestedReply?: string;
     postSystemNote?: boolean;
   }): Promise<ConversationSummary> {
     const ctx = getCurrentContext();
@@ -804,6 +876,19 @@ export class ConvService {
         authorId: actor.id,
         body,
         internal: true,
+      });
+    }
+
+    const draft = input.suggestedReply?.trim();
+    if (draft) {
+      await ctx.db.insert(schema.convMessages).values({
+        orgId: actor.orgId,
+        conversationId: input.conversationId,
+        authorType: 'agent',
+        authorId: actor.id,
+        body: draft,
+        internal: true,
+        metadata: { kind: 'draft_reply' },
       });
     }
 
@@ -840,7 +925,8 @@ export class ConvService {
       .where(or(ilike(schema.convMessages.body, `%${trimmed}%`)))
       .orderBy(desc(schema.convMessages.createdAt))
       .limit(limit);
-    return rows.map(toMessageDto);
+    const authorNames = await this.loadAuthorNames(rows);
+    return rows.map((r) => toMessageDto(r, authorNames));
   }
 
   /**
@@ -924,16 +1010,21 @@ function toConversationSummary(
   };
 }
 
-function toMessageDto(row: typeof schema.convMessages.$inferSelect): MessageDto {
+function toMessageDto(
+  row: typeof schema.convMessages.$inferSelect,
+  authorNames: Map<string, string> = new Map(),
+): MessageDto {
   return {
     id: row.id,
     conversationId: row.conversationId,
     authorType: row.authorType as MessageDto['authorType'],
     authorId: row.authorId,
+    authorName: authorNames.get(row.authorId) ?? null,
     body: row.body,
     internal: row.internal,
     inReplyToId: row.inReplyToId,
     attachments: row.attachments,
+    metadata: row.metadata,
     createdAt: row.createdAt.toISOString(),
   };
 }

@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Inject,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -16,11 +17,20 @@ import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../../../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../../../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../../../common/audit/audit.interceptor.js';
-import { WidgetIngestInput, WidgetListMessagesQuery } from './widget.types.js';
+import {
+  WidgetIngestInput,
+  WidgetListConversationsQuery,
+  WidgetListMessagesQuery,
+  WidgetSetVisitorInput,
+  WidgetStartConversationInput,
+} from './widget.types.js';
 import type {
   WidgetIngestInputT,
   WidgetIngestResult,
+  WidgetListConversationsResult,
   WidgetListMessagesResult,
+  WidgetSetVisitorResult,
+  WidgetStartConversationResult,
 } from './widget.types.js';
 import { WidgetIngestService } from './widget-ingest.service.js';
 
@@ -112,5 +122,101 @@ export class WidgetController {
 
     const orgId = key.orgId ?? actor.orgId;
     return this.ingestService.listMessages(orgId, query, { origin });
+  }
+
+  @Get('conversations')
+  async listConversations(
+    @Query() rawQuery: Record<string, string>,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetListConversationsResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor) throw new ForbiddenException('widget_auth_required');
+
+    const keyRow = await ctx.db
+      .select({ channelId: schema.apiKeys.channelId, orgId: schema.apiKeys.orgId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, actor.id))
+      .limit(1);
+    const key = keyRow[0];
+    if (!key || !key.channelId) {
+      throw new ForbiddenException('widget_key_required');
+    }
+
+    const parsed = WidgetListConversationsQuery.safeParse(rawQuery);
+    if (!parsed.success) {
+      throw new ForbiddenException(`invalid_widget_query: ${parsed.error.message}`);
+    }
+    const query = parsed.data;
+    if (query.channelId !== key.channelId) {
+      throw new ForbiddenException('widget_channel_mismatch');
+    }
+
+    const orgId = key.orgId ?? actor.orgId;
+    return this.ingestService.listConversations(orgId, query, { origin });
+  }
+
+  @Patch('visitor')
+  async setVisitor(
+    @Body() rawBody: unknown,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetSetVisitorResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor) throw new ForbiddenException('widget_auth_required');
+
+    const keyRow = await ctx.db
+      .select({ channelId: schema.apiKeys.channelId, orgId: schema.apiKeys.orgId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, actor.id))
+      .limit(1);
+    const key = keyRow[0];
+    if (!key || !key.channelId) {
+      throw new ForbiddenException('widget_key_required');
+    }
+
+    const parsed = WidgetSetVisitorInput.safeParse(rawBody);
+    if (!parsed.success) {
+      throw new ForbiddenException(`invalid_widget_input: ${parsed.error.message}`);
+    }
+    const input = parsed.data;
+    if (input.channelId !== key.channelId) {
+      throw new ForbiddenException('widget_channel_mismatch');
+    }
+
+    const orgId = key.orgId ?? actor.orgId;
+    return this.ingestService.setVisitor(orgId, input, { origin });
+  }
+
+  @Post('conversations')
+  async startConversation(
+    @Body() rawBody: unknown,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetStartConversationResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor) throw new ForbiddenException('widget_auth_required');
+
+    const keyRow = await ctx.db
+      .select({ channelId: schema.apiKeys.channelId, orgId: schema.apiKeys.orgId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, actor.id))
+      .limit(1);
+    const key = keyRow[0];
+    if (!key || !key.channelId) {
+      throw new ForbiddenException('widget_key_required');
+    }
+
+    const parsed = WidgetStartConversationInput.safeParse(rawBody);
+    if (!parsed.success) {
+      throw new ForbiddenException(`invalid_widget_input: ${parsed.error.message}`);
+    }
+    const input = parsed.data;
+    if (input.channelId !== key.channelId) {
+      throw new ForbiddenException('widget_channel_mismatch');
+    }
+
+    const orgId = key.orgId ?? actor.orgId;
+    return this.ingestService.startConversation(orgId, input, { origin });
   }
 }

@@ -18,7 +18,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b [&_tr]:border-ink dark:[&_tr]:border-rule-on-dark", className)}
+      className={cn("[&_tr]:border-b-[0.5px] [&_tr]:border-ink dark:[&_tr]:border-rule-on-dark", className)}
       {...props}
     />
   )
@@ -38,7 +38,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
     <tfoot
       data-slot="table-footer"
-      className={cn("border-t border-rule-soft bg-paper-deep font-medium dark:bg-secondary dark:border-rule-on-dark", className)}
+      className={cn("border-t-[0.5px] border-rule-soft bg-paper-deep font-medium dark:bg-secondary dark:border-rule-on-dark", className)}
       {...props}
     />
   )
@@ -49,7 +49,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b border-rule-soft transition-colors duration-fast ease-munin hover:bg-paper-deep data-[state=selected]:bg-paper-deep dark:border-rule-on-dark dark:hover:bg-secondary dark:data-[state=selected]:bg-secondary",
+        "border-b-[0.5px] border-rule-soft transition-colors duration-fast ease-munin hover:bg-paper-deep data-[state=selected]:bg-paper-deep dark:border-rule-on-dark dark:hover:bg-secondary dark:data-[state=selected]:bg-secondary",
         className
       )}
       {...props}

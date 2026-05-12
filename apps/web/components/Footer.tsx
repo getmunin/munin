@@ -12,7 +12,7 @@ export function Footer() {
   if (pathname?.startsWith('/accept-invite')) return null;
 
   return (
-    <footer className="border-t border-rule-soft px-6 py-5 text-xs text-ink-mute dark:border-rule-on-dark">
+    <footer className="border-t-[0.5px] border-rule-soft px-6 py-5 text-xs text-ink-mute dark:border-rule-on-dark">
       <nav className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
         <span className="font-mono text-[10px] uppercase tracking-eyebrow">
           © {new Date().getFullYear()} Munin

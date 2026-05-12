@@ -1,19 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, MessageSquare, ShieldCheck, Unplug } from 'lucide-react';
+import { AlertCircle, MessageSquare, ShieldCheck, Unplug, User } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import { useTranslations } from 'next-intl';
 import {
   Button,
-  Card,
-  CardContent,
   Pill,
   Sheet,
   SheetContent,
   cn,
 } from '@getmunin/ui';
 import { api, ApiError } from '../../api';
+import { notify } from '../../lib/notify';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 
 type Status = 'open' | 'snoozed' | 'closed' | 'spam';
@@ -40,10 +39,12 @@ interface MessageDto {
   conversationId: string;
   authorType: 'user' | 'agent' | 'end_user' | 'system';
   authorId: string;
+  authorName: string | null;
   body: string;
   internal: boolean;
   inReplyToId: string | null;
   attachments: unknown[];
+  metadata: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -174,10 +175,12 @@ function liveToStubDetail(c: LiveSummary): ConversationDetail {
             conversationId: c.id,
             authorType: 'end_user',
             authorId: c.endUserId ?? 'end_user',
+            authorName: null,
             body: latest.body,
             internal: false,
             inReplyToId: null,
             attachments: [],
+            metadata: {},
             createdAt: latest.createdAt,
           },
         ]
@@ -202,7 +205,6 @@ export interface InboxController {
   details: Record<string, ConversationDetail>;
   queue: QueueItem[];
   pending: boolean;
-  error: string | null;
   loadError: ApiError | null;
   hasLoadedOnce: boolean;
   retrying: boolean;
@@ -219,7 +221,7 @@ export interface InboxController {
   takeOver: (id: string, openFullAfter?: boolean) => Promise<void>;
   release: (id: string) => Promise<void>;
   closeConv: (id: string) => Promise<void>;
-  send: (id: string, body: string) => Promise<void>;
+  send: (id: string, body: string, options?: { claim?: boolean; closeDrawer?: boolean }) => Promise<void>;
   approveQueue: (item: QueueItem) => Promise<void>;
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
   dismissQueue: (item: QueueItem) => Promise<void>;
@@ -235,7 +237,6 @@ export function useInboxData(): InboxController {
   const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
   const [reply, setReply] = useState('');
   const [draftEdit, setDraftEdit] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -247,12 +248,11 @@ export function useInboxData(): InboxController {
       setItems(res.live);
       setDetails((prev) => mergeLive(prev, res.live));
       setQueue(buildQueue(res.queue));
-      setError(null);
       setLoadError(null);
       setHasLoadedOnce(true);
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
-      setError(messageOf(err));
+      notify.error(messageOf(err));
     }
   }, [buildQueue]);
 
@@ -278,7 +278,7 @@ export function useInboxData(): InboxController {
       const d = await api<ConversationDetail>(`/api/v1/conversations/${id}`);
       setDetails((prev) => ({ ...prev, [id]: d }));
     } catch (err) {
-      setError(messageOf(err));
+      notify.error(messageOf(err));
     }
   }, []);
 
@@ -328,7 +328,7 @@ export function useInboxData(): InboxController {
         await Promise.all([loadDetail(id), loadInbox()]);
         if (openFullAfter) setConvDrawer({ id, mode: 'full' });
       } catch (err) {
-        setError(messageOf(err));
+        notify.error(messageOf(err));
       } finally {
         setPending(false);
       }
@@ -343,7 +343,7 @@ export function useInboxData(): InboxController {
         await api(`/api/v1/conversations/${id}/release`, { method: 'POST', body: '{}' });
         await Promise.all([loadDetail(id), loadInbox()]);
       } catch (err) {
-        setError(messageOf(err));
+        notify.error(messageOf(err));
       } finally {
         setPending(false);
       }
@@ -359,18 +359,20 @@ export function useInboxData(): InboxController {
           method: 'POST',
           body: JSON.stringify({ status: 'closed' }),
         });
-        await Promise.all([loadDetail(id), loadInbox()]);
+        setConvDrawer(null);
+        setItems((prev) => prev.filter((it) => it.id !== id));
+        await loadInbox();
       } catch (err) {
-        setError(messageOf(err));
+        notify.error(messageOf(err));
       } finally {
         setPending(false);
       }
     },
-    [loadDetail, loadInbox],
+    [loadInbox],
   );
 
   const send = useCallback(
-    async (id: string, body: string) => {
+    async (id: string, body: string, options: { claim?: boolean; closeDrawer?: boolean } = {}) => {
       if (!body.trim()) return;
       const trimmed = body.trim();
       const temp: MessageDto = {
@@ -378,10 +380,12 @@ export function useInboxData(): InboxController {
         conversationId: id,
         authorType: 'user',
         authorId: 'me',
+        authorName: null,
         body: trimmed,
         internal: false,
         inReplyToId: null,
         attachments: [],
+        metadata: {},
         createdAt: new Date().toISOString(),
       };
       setReply('');
@@ -392,13 +396,22 @@ export function useInboxData(): InboxController {
       });
       setPending(true);
       try {
+        const payload: Record<string, unknown> = { body: trimmed };
+        if (options.claim === false) payload.claim = false;
         await api(`/api/v1/conversations/${id}/messages`, {
           method: 'POST',
-          body: JSON.stringify({ body: trimmed }),
+          body: JSON.stringify(payload),
         });
-        await Promise.all([loadDetail(id), loadInbox()]);
+        if (options.closeDrawer) {
+          setConvDrawer(null);
+          setItems((prev) => prev.filter((it) => it.id !== id));
+        }
+        await loadInbox();
+        if (!options.closeDrawer) {
+          await loadDetail(id);
+        }
       } catch (err) {
-        setError(messageOf(err));
+        notify.error(messageOf(err));
         setDetails((prev) => {
           const d = prev[id];
           if (!d) return prev;
@@ -430,7 +443,7 @@ export function useInboxData(): InboxController {
         await loadInbox();
         setQueueDrawer(null);
       } catch (err) {
-        setError(messageOf(err));
+        notify.error(messageOf(err));
       } finally {
         setPending(false);
       }
@@ -456,7 +469,7 @@ export function useInboxData(): InboxController {
         }
         await loadInbox();
       } catch (err) {
-        setError(messageOf(err));
+        notify.error(messageOf(err));
         throw err;
       } finally {
         setPending(false);
@@ -485,7 +498,7 @@ export function useInboxData(): InboxController {
         await loadInbox();
         setQueueDrawer(null);
       } catch (err) {
-        setError(messageOf(err));
+        notify.error(messageOf(err));
       } finally {
         setPending(false);
       }
@@ -498,7 +511,6 @@ export function useInboxData(): InboxController {
     details,
     queue,
     pending,
-    error,
     loadError,
     hasLoadedOnce,
     retrying,
@@ -520,14 +532,6 @@ export function useInboxData(): InboxController {
     saveQueue,
     dismissQueue,
   };
-}
-
-export function InboxErrorBanner({ message }: { message: string }) {
-  return (
-    <Card>
-      <CardContent className="py-4 text-sm text-destructive">{message}</CardContent>
-    </Card>
-  );
 }
 
 export function LiveNowSection({ controller }: { controller: InboxController }) {
@@ -586,7 +590,7 @@ export function QueueSection({ controller }: { controller: InboxController }) {
           {t('sortedByRecency')}
         </span>
       </div>
-      <ul className="border-t border-rule-soft dark:border-rule-on-dark">
+      <ul className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
         {queue.map((q) => (
           <QueueRow
             key={`${q.kind}-${q.id}`}
@@ -645,7 +649,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
                 pending={pending}
                 draftEdit={draftEdit}
                 setDraftEdit={setDraftEdit}
-                onSendDraft={(body) => void send(selectedConv.id, body)}
+                onSendDraft={(body) => void send(selectedConv.id, body, { claim: false, closeDrawer: true })}
                 onTakeOver={() => void takeOver(selectedConv.id, true)}
                 onClose={() => setConvDrawer(null)}
               />
@@ -723,7 +727,7 @@ function LiveCard({
   return (
     <li>
       <div
-        className="group/livecard flex items-stretch gap-4 border border-ink bg-paper px-5 py-4 cursor-pointer transition-colors duration-fast ease-munin hover:border-cobalt dark:border-rule-on-dark dark:bg-card dark:hover:border-cobalt-soft"
+        className="group/livecard flex items-stretch gap-4 border-[0.5px] border-ink bg-paper px-5 py-4 cursor-pointer transition-colors duration-fast ease-munin hover:border-cobalt dark:border-rule-on-dark dark:bg-card dark:hover:border-cobalt-soft"
         onClick={handleCardClick}
         role="button"
         tabIndex={0}
@@ -749,7 +753,7 @@ function LiveCard({
             {subject}
           </h3>
           {lastEndUserMsg && (
-            <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
+            <p className="border-l-[0.5px] border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
               &ldquo;{truncate(lastEndUserMsg.body, 160)}&rdquo;
             </p>
           )}
@@ -801,7 +805,7 @@ function QueueRow({
   return (
     <li>
       <div
-        className="group/qrow relative flex items-center gap-4 border-b border-rule-soft px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:border-rule-on-dark dark:hover:bg-secondary"
+        className="group/qrow relative flex items-center gap-4 border-b-[0.5px] border-rule-soft px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:border-rule-on-dark dark:hover:bg-secondary"
         onClick={onOpen}
         role="button"
         tabIndex={0}
@@ -864,10 +868,15 @@ function SimplifiedConvDrawer({
   const draft = detail.messages
     .slice()
     .reverse()
-    .find((m) => m.authorType === 'agent' && !m.internal);
+    .find(
+      (m) =>
+        m.authorType === 'agent' &&
+        m.internal &&
+        m.metadata?.['kind'] === 'draft_reply',
+    );
 
   const draftBody = draftEdit ?? draft?.body ?? '';
-  const isEditing = draftEdit !== null;
+  const isEditing = draftEdit !== null || !draft;
   const waiting = detail.needsHumanAttentionAt ? age(detail.needsHumanAttentionAt) : '';
   const who = detail.endUserId ?? t('conversationFallback', { id: detail.displayId });
 
@@ -892,7 +901,7 @@ function SimplifiedConvDrawer({
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
               {t('customer')}
             </p>
-            <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
+            <p className="border-l-[0.5px] border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
               &ldquo;{customer.body}&rdquo;
             </p>
           </section>
@@ -907,12 +916,12 @@ function SimplifiedConvDrawer({
               value={draftBody}
               onChange={(e) => setDraftEdit(e.target.value)}
               rows={8}
-              className="w-full rounded-input border border-ink bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark dark:text-foreground"
+              className="w-full rounded-input border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark dark:text-foreground"
               autoFocus
             />
           ) : (
-            <div className="border border-ink bg-paper px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap dark:bg-card dark:border-rule-on-dark dark:text-foreground">
-              {draft ? draft.body : <span className="text-ink-mute italic">{t('noDraft')}</span>}
+            <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap dark:bg-card dark:border-rule-on-dark dark:text-foreground">
+              {draft!.body}
             </div>
           )}
         </section>
@@ -925,15 +934,16 @@ function SimplifiedConvDrawer({
           disabled: pending || !draftBody.trim(),
         }}
         secondary={[
-          isEditing
-            ? { label: t('cancel'), onClick: () => setDraftEdit(null) }
-            : {
-                label: t('edit'),
-                onClick: () => setDraftEdit(draft?.body ?? ''),
-                disabled: !draft,
-              },
+          draft
+            ? isEditing
+              ? { label: t('cancel'), onClick: () => setDraftEdit(null) }
+              : {
+                  label: t('edit'),
+                  onClick: () => setDraftEdit(draft.body),
+                }
+            : null,
           { label: t('takeOver'), onClick: onTakeOver, disabled: pending },
-        ]}
+        ].filter((a): a is { label: string; onClick: () => void } => a !== null)}
         shortcut={t('shortcutSend')}
       />
     </>
@@ -965,6 +975,14 @@ function FullConvDrawer({
   const claimed = detail.claim !== null;
   const endUserLabel = detail.endUserId ?? t('endUserFallback');
 
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  const lastMessageId = detail.messages[detail.messages.length - 1]?.id;
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [detail.id, lastMessageId, detail.messages.length]);
+
   useCmdEnter(() => {
     if (reply.trim() && !pending) onSend();
   });
@@ -978,8 +996,8 @@ function FullConvDrawer({
         meta={t('metaConvFull', { who: endUserLabel, status: detail.status })}
         rightExtra={
           claimed ? (
-            <Pill tone="review">
-              <ShieldCheck className="size-3" /> {t('pillTakenOver')}
+            <Pill tone="review" className="before:hidden">
+              <User className="size-3" /> {t('pillTakenOver')}
             </Pill>
           ) : null
         }
@@ -987,7 +1005,7 @@ function FullConvDrawer({
         closeLabel={t('close')}
       />
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
+      <div ref={messagesRef} className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
         {detail.messages.map((m) => (
           <MessageBubble key={m.id} message={m} />
         ))}
@@ -995,13 +1013,13 @@ function FullConvDrawer({
 
       <ActivityRail contactId={detail.contactId} conversationId={detail.id} />
 
-      <div className="border-t border-rule-soft p-4 dark:border-rule-on-dark">
+      <div className="border-t-[0.5px] border-rule-soft p-4 dark:border-rule-on-dark">
         <textarea
           value={reply}
           onChange={(e) => setReply(e.target.value)}
           rows={3}
           placeholder={t('replyPlaceholder')}
-          className="w-full rounded-input border border-rule-soft bg-paper px-3 py-2 text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
+          className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
         />
         <div className="mt-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -1148,7 +1166,7 @@ function QueueDrawer({
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
               {t('replyFrom')}
             </p>
-            <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
+            <p className="border-l-[0.5px] border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
               &ldquo;{item.snippet}&rdquo;
             </p>
           </section>
@@ -1163,11 +1181,11 @@ function QueueDrawer({
               value={editedBody}
               onChange={(e) => setEditedBody(e.target.value)}
               rows={14}
-              className="w-full resize-y rounded-input border border-cobalt bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:text-foreground"
+              className="w-full resize-y rounded-input border-[0.5px] border-cobalt bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:text-foreground"
               autoFocus
             />
           ) : (
-            <div className="border border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
+            <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
               {item.kind === 'outreach' ? (
                 <>
                   {item.raw.draftSubject && (
@@ -1252,7 +1270,7 @@ function DrawerHeader({
   closeLabel: string;
 }) {
   return (
-    <div className="border-b border-rule-soft px-6 pb-4 pt-5 dark:border-rule-on-dark">
+    <div className="border-b-[0.5px] border-rule-soft px-6 pb-4 pt-5 dark:border-rule-on-dark">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-2">
@@ -1289,7 +1307,7 @@ function DrawerFooter({
   shortcut?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-rule-soft px-6 py-3 dark:border-rule-on-dark">
+    <div className="flex items-center justify-between gap-2 border-t-[0.5px] border-rule-soft px-6 py-3 dark:border-rule-on-dark">
       <div className="flex items-center gap-2">
         <Button variant="accent" size="sm" onClick={primary.onClick} disabled={primary.disabled}>
           {primary.label}
@@ -1333,7 +1351,7 @@ function MessageBubble({ message }: { message: MessageDto }) {
     return (
       <div
         className={cn(
-          'max-w-[85%] border border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-500/30 dark:bg-amber-500/10',
+          'max-w-[85%] border-[0.5px] border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-500/30 dark:bg-amber-500/10',
           isOutbound
             ? 'ml-auto rounded-bubble rounded-tr-[2px]'
             : 'mr-auto rounded-bubble rounded-tl-[2px]',
@@ -1367,11 +1385,20 @@ function MessageBubble({ message }: { message: MessageDto }) {
               : 'text-ink-mute',
         )}
       >
-        {message.authorType}
+        {bubbleLabel(message, t)}
       </div>
       <div className="whitespace-pre-wrap">{message.body}</div>
     </div>
   );
+}
+
+function bubbleLabel(
+  message: MessageDto,
+  t: ReturnType<typeof useTranslations<'dashboard.overview.drawer'>>,
+): string {
+  if (message.authorName) return message.authorName;
+  if (message.authorType === 'end_user') return t('anonymousVisitor');
+  return message.authorType;
 }
 
 function ActivityRail({
@@ -1415,7 +1442,7 @@ function ActivityRail({
   });
 
   return (
-    <div className="border-t border-rule-soft dark:border-rule-on-dark">
+    <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

@@ -135,7 +135,7 @@ const skipReason = TEST_URL
   }
 
   async function call(
-    method: 'POST' | 'GET',
+    method: 'POST' | 'GET' | 'PATCH',
     path: string,
     token: string | null,
     body?: unknown,
@@ -889,6 +889,135 @@ const skipReason = TEST_URL
       ],
     });
     expect(tooBig.status).toBe(403);
+  });
+
+  it('lists conversations for an identity-verified visitor across sessions', async () => {
+    const externalId = `user_listconv_${Date.now()}`;
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    const sidA = `vis_listconv_a_${Date.now()}`;
+    const sidB = `vis_listconv_b_${Date.now()}`;
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sidA,
+      verifiedExternalId: externalId,
+      userHash,
+      messages: [{ role: 'end_user', body: 'first thread' }],
+    });
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sidB,
+      verifiedExternalId: externalId,
+      userHash,
+      messages: [{ role: 'end_user', body: 'second thread' }],
+    });
+
+    const res = await call(
+      'GET',
+      `/api/v1/widget/conversations?${qs({
+        channelId,
+        verifiedExternalId: externalId,
+        userHash,
+      })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const body = res.json as { conversations: Array<{ sessionId: string; preview: string }> };
+    const sids = body.conversations.map((c) => c.sessionId).sort();
+    expect(sids).toEqual([sidA, sidB].sort());
+    expect(body.conversations.find((c) => c.sessionId === sidA)!.preview).toBe('first thread');
+  });
+
+  it('lists conversations by anonymous sessionIds passed in the query', async () => {
+    const sid = `vis_listconv_anon_${Date.now()}`;
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sid,
+      messages: [{ role: 'end_user', body: 'anonymous thread' }],
+    });
+
+    const res = await call(
+      'GET',
+      `/api/v1/widget/conversations?${qs({ channelId, sessionIds: sid })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const body = res.json as { conversations: Array<{ sessionId: string }> };
+    expect(body.conversations.map((c) => c.sessionId)).toContain(sid);
+  });
+
+  it('returns empty when an anonymous caller passes no sessionIds', async () => {
+    const res = await call(
+      'GET',
+      `/api/v1/widget/conversations?${qs({ channelId })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    expect((res.json as { conversations: unknown[] }).conversations).toEqual([]);
+  });
+
+  it('patches the visitor email on the contact bound to the session', async () => {
+    const sid = `vis_setemail_${Date.now()}`;
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sid,
+      messages: [{ role: 'end_user', body: 'pre-email' }],
+    });
+
+    const res = await call('PATCH', '/api/v1/widget/visitor', widgetKey, {
+      channelId,
+      sessionId: sid,
+      email: 'set-mid-convo@example.com',
+    });
+    expect(res.status).toBe(200);
+    const body = res.json as { email: string | null };
+    expect(body.email).toBe('set-mid-convo@example.com');
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const contacts = await db
+      .select({ email: schema.convContacts.email })
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          sql`${schema.convContacts.metadata}->>'sessionId' = ${sid}`,
+        ),
+      );
+    expect(contacts[0]?.email).toBe('set-mid-convo@example.com');
+  });
+
+  it('rejects PATCH /visitor with mismatched channelId', async () => {
+    const res = await call('PATCH', '/api/v1/widget/visitor', widgetKey, {
+      channelId: 'cch_nonexistent',
+      sessionId: 'sid_x',
+      email: 'x@example.com',
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns authorKind and authorName on listed agent messages', async () => {
+    const sid = `vis_author_${Date.now()}`;
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sid,
+      messages: [
+        { role: 'end_user', body: 'help' },
+        { role: 'agent', body: 'sure thing' },
+      ],
+    });
+    const res = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const body = res.json as {
+      messages: Array<{ role: string; authorKind: string | null; authorName: string | null }>;
+      conversation: { status: string } | null;
+    };
+    const agent = body.messages.find((m) => m.role === 'agent')!;
+    expect(agent.authorKind).toBe('ai');
+    expect(agent.authorName).toBe('Munin');
+    expect(body.conversation?.status).toBe('open');
   });
 
   it('redirects GET /widget.js to the current hashed bundle with a short revalidate cache', async () => {

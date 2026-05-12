@@ -19,6 +19,7 @@ export {
   type SaveErrorDetail,
 } from './components/save-error-stage';
 export { useLoadGate } from './lib/use-load-gate';
+export { notify } from './lib/notify';
 export {
   dialogLabelClass,
   dialogHintClass,
@@ -32,10 +33,10 @@ export {
 export { authClient } from './auth-client';
 export { OrgSwitcher } from './components/org-switcher';
 export {
-  MuninTopbar,
-  type MuninTopbarProps,
-  type MuninTopbarNavItem,
-  type MuninTopbarStatus,
+  DashboardTopbar,
+  type DashboardTopbarProps,
+  SettingsTopbar,
+  type SettingsTopbarProps,
 } from './components/munin-topbar';
 export { PageShell, nativeFieldClass } from './components/page-shell';
 export { NativeSelect } from './components/native-select';
@@ -63,6 +64,7 @@ export {
 export {
   useActiveRole,
   useActiveMembership,
+  invalidateActiveMembershipCache,
   isOwnerOrAdmin,
   type OrgRole,
   type ActiveMembership,
@@ -72,6 +74,7 @@ export { useDashboardGate } from './auth/use-dashboard-gate';
 export { useSetupGate } from './auth/use-setup-gate';
 
 export { AcceptInvitePage } from './pages/accept-invite';
+export { AccountPage, type AccountPageProps } from './pages/account';
 export { BuiltinAiSettingsPage } from './pages/builtin-ai-settings';
 export { OAuthConsentPage } from './pages/oauth-consent';
 export { AgentSetupWizard } from './pages/agent-setup-wizard';

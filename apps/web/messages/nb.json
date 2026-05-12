@@ -107,6 +107,7 @@
   "nav": {
     "overview": "Oversikt",
     "settings": "Innstillinger",
+    "account": "Konto",
     "team": "Team",
     "builtInAi": "Innebygd AI",
     "agents": "Agenter",
@@ -185,12 +186,12 @@
         "close": "lukk ×",
         "loading": "Laster…",
         "customer": "Kunde",
-        "agentDraft": "Agentens utkast til svar",
-        "noDraft": "Ingen utkast ennå.",
+        "agentDraft": "Ditt svar",
+        "noDraft": "Ingen utkast",
         "proposal": "Forslag",
         "replyFrom": "Svar fra",
         "subject": "Emne — {subject}",
-        "sendDraft": "Send utkast ↵",
+        "sendDraft": "Send melding ↵",
         "send": "Send ↵",
         "edit": "Rediger",
         "cancel": "Avbryt",
@@ -199,7 +200,7 @@
         "dismiss": "Avvis",
         "takeOver": "Overta",
         "release": "Slipp",
-        "closeConv": "Lukk",
+        "closeConv": "Lukk samtale",
         "replyPlaceholder": "Svar…",
         "shortcutSend": "⌘↵ send",
         "shortcutSave": "⌘↵ lagre · esc avbryt",
@@ -223,7 +224,8 @@
         "activityEmpty": "Ingen aktivitet ennå.",
         "kbSlugFallback": "kb-curation-inbox",
         "handleFallback": "—",
-        "endUserFallback": "—"
+        "endUserFallback": "—",
+        "anonymousVisitor": "Anonym"
       },
       "relative": {
         "justNow": "akkurat nå",
@@ -270,9 +272,10 @@
       "types": {
         "oauth_access": "OAuth-tilgangstoken",
         "oauth_refresh": "OAuth-fornyelsestoken",
-        "delegated_end_user": "Delegert sluttbruker-token",
+        "delegated_end_user": "Sluttbruker-token",
         "guest": "Gjeste-token"
       },
+      "revoked": "Token tilbakekalt.",
       "errors": {
         "load": "Kunne ikke laste tilkoblede agenter.",
         "revoke": "Kunne ikke tilbakekalle token."
@@ -314,7 +317,8 @@
         "title": "Embed-snutt — {name}",
         "description": "Lim dette inn på hver side der du vil at widgeten skal vises.",
         "scriptLabel": "Embed-snutt",
-        "scriptHint": "Erstatt [your widget key] med mn_widget_* som ble vist da denne kanalen ble opprettet. Legg til data-external-id og data-user-hash for å identifisere en kjent besøkende (se under).",
+        "scriptHint": "Erstatt [your widget key] med mn_widget_* som ble vist da denne kanalen ble opprettet. For å identifisere en kjent besøkende, legg til data-external-id og data-user-hash (se under). For tema, plassering og andre alternativer, se widget-guiden.",
+        "guideLinkLabel": "Les widget-guiden →",
         "copyScript": "Kopier snutt",
         "hashLabel": "Valgfritt · verifiser besøkendes identitet",
         "hashHint": "Hvis du vil knytte en chat til en kjent bruker (f.eks. for å gjenoppta tråden ved neste besøk), beregn en server-side HMAC med kanalens identitetshemmelighet og send den som data-user-hash:",
@@ -401,6 +405,7 @@
       "emptyBody": "Opprett din første nøkkel over for å komme i gang.",
       "createdTitle": "Nøkkel opprettet — kopier den nå",
       "createdDescription": "Munin lagrer bare hashen. Vi kan ikke vise deg denne nøkkelen igjen.",
+      "revoked": "API-nøkkel tilbakekalt.",
       "errors": {
         "load": "Kunne ikke laste API-nøkler.",
         "create": "Kunne ikke opprette API-nøkkel.",
@@ -472,12 +477,16 @@
       "inviteModalRoleHint": "Medlemmer kan lese innboksen og svare. Admins kan i tillegg styre kanaler og nøkler.",
       "inviteModalSubmit": "Send invitasjon",
       "inviteRow": "{role} · invitert {created} · utløper {expires}",
+      "editNameTitle": "Endre navn",
+      "editNameSubtitle": "Oppdater visningsnavnet som vises i Munin.",
+      "editNameLabel": "Visningsnavn",
       "errors": {
         "load": "Kunne ikke laste team.",
         "invite": "Kunne ikke sende invitasjon.",
         "revokeInvite": "Kunne ikke tilbakekalle invitasjon.",
         "remove": "Kunne ikke fjerne medlem.",
-        "changeRole": "Kunne ikke endre rolle."
+        "changeRole": "Kunne ikke endre rolle.",
+        "rename": "Kunne ikke lagre navn."
       }
     },
     "endUsers": {
@@ -497,6 +506,7 @@
       "tableCreated": "Opprettet",
       "revokeActive": "Tilbakekall aktive tokens",
       "revoking": "Tilbakekaller…",
+      "revokedCount": "{count, plural, =1 {Tilbakekalte 1 token.} other {Tilbakekalte # tokens.}}",
       "noTokensRevoked": "Ingen aktive tokens å tilbakekalle for denne sluttbrukeren.",
       "errors": {
         "load": "Kunne ikke laste sluttbrukere.",
@@ -623,12 +633,37 @@
         "access": "Tilgang og integrasjoner",
         "monitoring": "Overvåking"
       }
+    },
+    "account": {
+      "eyebrow": "Arbeidsområde · Konto",
+      "title": "Ditt <em>arbeidsområde</em>.",
+      "subtitle": "Innstillinger som gjelder hele organisasjonen.",
+      "orgSectionTitle": "Organisasjon",
+      "orgNameLabel": "Organisasjonsnavn",
+      "orgNameHint": "Vises i toppmenyen og på delte sider. Inntil 128 tegn.",
+      "orgNamePlaceholder": "Acme AS",
+      "saved": "Lagret",
+      "errors": {
+        "save": "Kunne ikke lagre organisasjonen."
+      }
     }
   },
   "agentSetup": {
     "titlePrefix": "Vekk",
     "titleAccent": "Munin.",
-    "lede": "Velg en LLM-leverandør, lim inn en API-nøkkel, og velg modeller for chat og kurering. Agenten kommer i gang så snart du lagrer.",
+    "lede": "Gi arbeidsområdet et navn, velg en LLM-leverandør, lim inn en API-nøkkel, og velg modeller for chat og kurering. Agenten kommer i gang så snart du lagrer.",
+    "org": {
+      "title": "Navn på arbeidsområdet",
+      "lede": "Vises i toppmenyen og på delte sider. Du kan endre dette senere i innstillingene.",
+      "nameLabel": "Organisasjonsnavn",
+      "namePlaceholder": "Acme AS",
+      "nameHint": "Inntil 128 tegn.",
+      "continue": "Fortsett",
+      "errors": {
+        "load": "Kunne ikke laste organisasjonen.",
+        "save": "Kunne ikke lagre organisasjonen."
+      }
+    },
     "settings": {
       "eyebrow": "Arbeidsområde · Innebygd AI",
       "title": "Flokkens <em>sinn</em>.",

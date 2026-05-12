@@ -55,6 +55,7 @@ export {
 export {
   createRealtimeClient,
   type CuratorJobPendingEvent,
+  type GreetRequestedEvent,
   type HandoverResolvedEvent,
   type KbDocumentChangedEvent,
   type MessageReceivedEvent,

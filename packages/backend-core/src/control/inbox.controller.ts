@@ -1,6 +1,6 @@
 import { Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
@@ -24,6 +24,8 @@ interface LiveConversation extends ConversationSummary {
   latestEndUserMessage: { body: string; createdAt: string } | null;
   claim: ConversationClaim | null;
 }
+
+const EXCLUDED_LIVE_STATUSES = ['closed', 'spam'] as const;
 
 interface InboxQueueResponse {
   live: LiveConversation[];
@@ -62,10 +64,33 @@ export class InboxController {
   }
 
   private async loadLive(): Promise<LiveConversation[]> {
-    const summaries = await this.conv.listConversations({
+    const ctx = getCurrentContext();
+    const claimedIdRows = await ctx.db
+      .select({ id: schema.claims.entityId })
+      .from(schema.claims)
+      .where(
+        and(
+          eq(schema.claims.entityType, 'conversation'),
+          isNotNull(schema.claims.userId),
+          gt(schema.claims.expiresAt, sql`now()`),
+        ),
+      );
+    const claimedIds = new Set(claimedIdRows.map((r) => r.id));
+
+    const flaggedSummaries = await this.conv.listConversations({
       needsHumanAttention: true,
+      excludeStatuses: EXCLUDED_LIVE_STATUSES,
       limit: 50,
     });
+    const flaggedIds = new Set(flaggedSummaries.map((c) => c.id));
+    const missingClaimedIds = [...claimedIds].filter((id) => !flaggedIds.has(id));
+    const claimedOnly =
+      missingClaimedIds.length > 0
+        ? await this.conv.listConversationsByIds(missingClaimedIds, {
+            excludeStatuses: EXCLUDED_LIVE_STATUSES,
+          })
+        : [];
+    const summaries = [...flaggedSummaries, ...claimedOnly];
     if (summaries.length === 0) return [];
 
     const ids = summaries.map((c) => c.id);

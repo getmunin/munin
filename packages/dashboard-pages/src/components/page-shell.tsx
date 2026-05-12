@@ -21,4 +21,4 @@ export function PageShell({ eyebrow, title, lede, actions, children, className }
 }
 
 export const nativeFieldClass =
-  'h-9 w-full min-w-0 rounded-input border border-rule-soft bg-paper px-3 py-1.5 text-sm text-ink transition-colors duration-fast ease-munin outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt disabled:opacity-50 dark:bg-card dark:text-foreground dark:border-rule-on-dark';
+  'h-9 w-full min-w-0 rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-1.5 text-sm text-ink transition-colors duration-fast ease-munin outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt disabled:opacity-50 dark:bg-card dark:text-foreground dark:border-rule-on-dark';

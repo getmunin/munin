@@ -27,7 +27,7 @@ export function UsageKpis({ summary }: UsageKpisProps) {
 
   return (
     <section className="min-w-0">
-      <div className="flex items-baseline justify-between gap-4 border-b border-ink pb-2.5 mb-3.5 dark:border-foreground">
+      <div className="flex items-baseline justify-between gap-4 border-b-[0.5px] border-ink pb-2.5 mb-3.5 dark:border-foreground">
         <Eyebrow tone="ink" size="sm" className="font-medium">
           {t('headline')}
         </Eyebrow>
@@ -89,7 +89,7 @@ function Kpi({ label, value, previous, spark, format, lowerIsBetter, tone = 'acc
   const t = useTranslations('dashboard.usage.tiles');
   const delta = formatDelta(value, previous, format, lowerIsBetter, t);
   return (
-    <div className="border border-rule-soft bg-paper px-4 py-3.5 dark:bg-card dark:border-rule-on-dark">
+    <div className="border-[0.5px] border-rule-soft bg-paper px-4 py-3.5 dark:bg-card dark:border-rule-on-dark">
       <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">{label}</div>
       <div className="font-serif text-[28px] leading-none tracking-tight my-1.5 text-ink dark:text-foreground">
         {value === undefined ? '—' : format(value)}

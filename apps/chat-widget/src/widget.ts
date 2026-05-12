@@ -1,28 +1,15 @@
 import { parseConfig, type WidgetConfig } from './config.js';
-import { getSessionId } from './session.js';
-import { createApiClient, WidgetApiError } from './api.js';
+import {
+  getRecentSessionIds,
+  getSessionId,
+  getVisitorId,
+  mintNewSession,
+  setCurrentSession,
+} from './session.js';
+import { createApiClient, WidgetApiError, type ConversationSummary } from './api.js';
 import { createRealtimeClient, type IncomingTyping } from './realtime.js';
 import { mount, type UiController } from './ui.js';
 
-/**
- * Bootstrap entry. Wires the full pipeline:
- *
- *   parseConfig → getSessionId → createApiClient → createRealtimeClient
- *                                                       │
- *                  mount(UI) ◄────────────────────────── │
- *                       │                                │
- *                       ├── onSend ─► api.postMessage    │
- *                       └── onTypingIntent ─► realtime.sendTyping
- *                                                        │
- *   realtime.onState('connected') ─► api.backfillSince(lastSeenAt)
- *                                       └─► ui.addMessages
- *   realtime.onEvent (any) ─► api.backfillSince(lastSeenAt)
- *                                       └─► ui.addMessages
- *   realtime.onTyping(operator) ─► ui.setAgentTyping
- *
- * Important: there is no recurring timer pulling messages. WS events
- * trigger one-shot REST backfills; reconnect triggers one. That's it.
- */
 function bootstrap(): void {
   const scriptEl = currentScript();
   if (!scriptEl) return;
@@ -44,7 +31,8 @@ function bootstrap(): void {
 }
 
 function start(config: WidgetConfig): void {
-  const sessionId = getSessionId(config.channelId);
+  let sessionId = getSessionId(config.channelId);
+  const visitorId = getVisitorId(config.channelId);
   const identity =
     config.externalId && config.userHash
       ? { externalId: config.externalId, userHash: config.userHash }
@@ -54,6 +42,7 @@ function start(config: WidgetConfig): void {
     widgetKey: config.widgetKey,
     channelId: config.channelId,
     sessionId,
+    visitorId,
     identity,
     visitor: config.visitor,
   });
@@ -68,14 +57,10 @@ function start(config: WidgetConfig): void {
   let lastSeenAt: Date | undefined;
   let backfillInFlight = false;
   let backfillPending = false;
+  let agentTurnsThisSession = 0;
+  let visitorHasEmail = !!config.visitor?.email;
+  let emailCardShown = false;
 
-  /**
-   * Fetch any messages newer than `lastSeenAt`, append them, advance the
-   * cursor. Coalesces concurrent calls: if a backfill is already in
-   * flight when we're called, we set a flag and the in-flight call
-   * recurses once it completes. This keeps the widget at most one round-
-   * trip behind even if events arrive in bursts.
-   */
   async function backfill(): Promise<void> {
     if (backfillInFlight) {
       backfillPending = true;
@@ -88,11 +73,22 @@ function start(config: WidgetConfig): void {
         const res = await api.backfillSince(lastSeenAt);
         if (res.messages.length > 0) {
           ui.addMessages(res.messages);
+          for (const m of res.messages) {
+            if (m.role === 'agent') {
+              agentTurnsThisSession += 1;
+              ui.setAgentTyping(false);
+            }
+          }
           const last = res.messages[res.messages.length - 1]!;
           lastSeenAt = new Date(last.at);
         }
+        if (res.conversation) {
+          ui.setConversation(res.conversation);
+          if (res.conversation.contactEmail) visitorHasEmail = true;
+        }
         hasMore = res.hasMore;
       }
+      maybeShowEmailCard();
     } catch (err) {
       if (err instanceof WidgetApiError) {
         console.warn(`[munin-widget] backfill failed: ${err.status}`);
@@ -108,9 +104,76 @@ function start(config: WidgetConfig): void {
     }
   }
 
-  // `ui` is referenced inside the hooks below, but those hooks only fire
-  // in response to user interaction — well after this synchronous mount
-  // returns and the closure resolves. `const` is safe.
+  async function refreshPastConversations(): Promise<void> {
+    if (!config.showHistory) return;
+    try {
+      const recent = getRecentSessionIds(config.channelId);
+      const convs = await api.listConversations(recent);
+      const filtered = convs.filter((c) => c.sessionId !== sessionId);
+      ui.setPastConversations(filtered);
+    } catch (err) {
+      if (err instanceof WidgetApiError && err.status === 404) return;
+      console.warn('[munin-widget] list conversations failed:', err);
+    }
+  }
+
+  function maybeShowEmailCard(): void {
+    if (emailCardShown || visitorHasEmail) return;
+    if (agentTurnsThisSession < 1) return;
+    emailCardShown = true;
+    ui.showEmailCard();
+  }
+
+  function switchToSession(next: string): void {
+    sessionId = next;
+    api.setSessionId(next);
+    realtime.setSessionId(next);
+    lastSeenAt = undefined;
+    agentTurnsThisSession = 0;
+    emailCardShown = false;
+    ui.resetChat();
+    ui.setView('chat');
+    if (realtime.state() === 'connected') {
+      void backfill();
+    }
+  }
+
+  function startConversation(): void {
+    ui.setChatKind('new');
+    switchToSession(mintNewSession(config.channelId));
+    api.startConversation().catch((err) => {
+      if (err instanceof WidgetApiError) {
+        console.warn(`[munin-widget] start conversation failed: ${err.status}`);
+      } else {
+        console.warn('[munin-widget] start conversation failed:', err);
+      }
+    });
+  }
+
+  function openConversation(summary: ConversationSummary): void {
+    ui.setChatKind('existing');
+    if (summary.sessionId === sessionId) {
+      ui.setView('chat');
+      return;
+    }
+    setCurrentSession(config.channelId, summary.sessionId);
+    switchToSession(summary.sessionId);
+  }
+
+  async function setVisitorEmail(email: string): Promise<void> {
+    try {
+      await api.setVisitorEmail(email);
+      visitorHasEmail = true;
+      ui.setEmailSaved(email);
+    } catch (err) {
+      if (err instanceof WidgetApiError) {
+        console.warn(`[munin-widget] set email failed: ${err.status}`);
+      } else {
+        console.warn('[munin-widget] set email failed:', err);
+      }
+    }
+  }
+
   const ui: UiController = mount(config, {
     onSend(text) {
       void sendMessage(text);
@@ -118,14 +181,24 @@ function start(config: WidgetConfig): void {
     onTypingIntent(intent) {
       realtime.sendTyping(intent === 'typing');
     },
+    onStartConversation() {
+      startConversation();
+    },
+    onOpenConversation(summary) {
+      openConversation(summary);
+    },
+    onBackToWelcome() {
+      void refreshPastConversations();
+    },
+    onSetVisitorEmail(email) {
+      void setVisitorEmail(email);
+    },
   });
 
   async function sendMessage(text: string): Promise<void> {
     ui.setSending(true);
     try {
       await api.postMessage(text);
-      // Don't optimistically render — the WS event triggers a backfill
-      // that will pull the canonical message in.
     } catch (err) {
       if (err instanceof WidgetApiError) {
         console.warn(`[munin-widget] send failed: ${err.status}`);
@@ -139,13 +212,13 @@ function start(config: WidgetConfig): void {
 
   realtime.onState((state) => {
     ui.setConnectionState(state);
-    if (state === 'connected') void backfill();
+    if (state === 'connected') {
+      void backfill();
+      void refreshPastConversations();
+    }
   });
 
   realtime.onEvent(() => {
-    // Any event arrives ⇒ pull the new messages. The event payload only
-    // has conversationId + messageId; the canonical body comes from
-    // backfillSince which uses the same auth + scope.
     void backfill();
   });
 

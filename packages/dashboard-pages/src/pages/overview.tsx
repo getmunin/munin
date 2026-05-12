@@ -14,7 +14,6 @@ import {
   LiveNowSection,
   QueueSection,
   InboxDrawers,
-  InboxErrorBanner,
 } from '../components/dashboard/inbox-sections';
 
 export function DashboardPage() {
@@ -63,8 +62,6 @@ export function DashboardPage() {
         liveCount={inbox.items.length}
         queueCount={inbox.queue.length}
       />
-
-      {inbox.error && <InboxErrorBanner message={inbox.error} />}
 
       <LiveNowSection controller={inbox} />
       <QueueSection controller={inbox} />

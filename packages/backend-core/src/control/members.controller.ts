@@ -4,6 +4,7 @@ import {
   ConflictException,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   NotFoundException,
@@ -21,9 +22,14 @@ import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import { assertOwner, assertOwnerOrAdmin } from './role-guard.js';
 
-const PatchMemberDto = z.object({
-  role: z.enum(['owner', 'admin', 'member']),
-});
+const PatchMemberDto = z
+  .object({
+    role: z.enum(['owner', 'admin', 'member']).optional(),
+    name: z.string().min(1).max(128).optional(),
+  })
+  .refine((data) => data.role !== undefined || data.name !== undefined, {
+    message: 'at least one of role or name must be provided',
+  });
 
 interface MemberDto {
   userId: string;
@@ -73,31 +79,58 @@ export class MembersController {
 
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwner(actor.orgId, actor.userId ?? actor.id);
+    const actorId = actor.userId ?? actor.id;
 
-    // Prevent demoting the last owner.
-    if (parsed.data.role !== 'owner') {
-      const owners = await ctx.db
+    if (parsed.data.role !== undefined) {
+      await assertOwner(actor.orgId, actorId);
+
+      if (parsed.data.role !== 'owner') {
+        const owners = await ctx.db
+          .select({ userId: schema.orgMembers.userId })
+          .from(schema.orgMembers)
+          .where(
+            and(eq(schema.orgMembers.orgId, actor.orgId), eq(schema.orgMembers.role, 'owner')),
+          );
+        const lastOwnerIsTarget =
+          owners.length === 1 && owners[0]?.userId === userId;
+        if (lastOwnerIsTarget) {
+          throw new ConflictException('cannot demote the last owner');
+        }
+      }
+
+      const result = await ctx.db
+        .update(schema.orgMembers)
+        .set({ role: parsed.data.role })
+        .where(
+          and(eq(schema.orgMembers.orgId, actor.orgId), eq(schema.orgMembers.userId, userId)),
+        )
+        .returning();
+      if (result.length === 0)
+        throw new NotFoundException(`member ${userId} not found in this org`);
+    }
+
+    if (parsed.data.name !== undefined) {
+      if (actor.type !== 'user') {
+        throw new ForbiddenException('API keys cannot edit member names');
+      }
+      if (userId !== actorId) {
+        await assertOwnerOrAdmin(actor.orgId, actorId);
+      }
+      const targetExists = await ctx.db
         .select({ userId: schema.orgMembers.userId })
         .from(schema.orgMembers)
         .where(
-          and(eq(schema.orgMembers.orgId, actor.orgId), eq(schema.orgMembers.role, 'owner')),
-        );
-      const lastOwnerIsTarget =
-        owners.length === 1 && owners[0]?.userId === userId;
-      if (lastOwnerIsTarget) {
-        throw new ConflictException('cannot demote the last owner');
-      }
-    }
+          and(eq(schema.orgMembers.orgId, actor.orgId), eq(schema.orgMembers.userId, userId)),
+        )
+        .limit(1);
+      if (!targetExists[0])
+        throw new NotFoundException(`member ${userId} not found in this org`);
 
-    const result = await ctx.db
-      .update(schema.orgMembers)
-      .set({ role: parsed.data.role })
-      .where(
-        and(eq(schema.orgMembers.orgId, actor.orgId), eq(schema.orgMembers.userId, userId)),
-      )
-      .returning();
-    if (result.length === 0) throw new NotFoundException(`member ${userId} not found in this org`);
+      await ctx.db
+        .update(schema.users)
+        .set({ name: parsed.data.name, updatedAt: new Date() })
+        .where(eq(schema.users.id, userId));
+    }
 
     const dto = await this.list();
     const found = dto.find((m) => m.userId === userId);

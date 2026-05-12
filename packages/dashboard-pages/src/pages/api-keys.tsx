@@ -9,6 +9,7 @@ import { LoadFailed } from '../components/load-failed';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
+import { notify } from '../lib/notify';
 import {
   dialogButtonClass,
   dialogFooterClass,
@@ -17,8 +18,6 @@ import {
 } from '../lib/dialog-style';
 import {
   Button,
-  Card,
-  CardContent,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -56,11 +55,10 @@ export function ApiKeysPage() {
   const translate = useTranslateError();
   const format = useFormatter();
   const [keys, setKeys] = useState<ApiKeySummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [mintOpen, setMintOpen] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setError(null);
     const list = await api<ApiKeySummary[]>('/api/v1/api-keys');
     setKeys(list);
   }, []);
@@ -73,11 +71,15 @@ export function ApiKeysPage() {
   }, [tryLoad]);
 
   async function revoke(id: string) {
+    setRevokingId(id);
     try {
       await api(`/api/v1/api-keys/${id}`, { method: 'DELETE' });
       await tryLoad();
+      notify.success(t('revoked'));
     } catch (err) {
-      setError(translate(err) || t('errors.revoke'));
+      notify.error(translate(err) || t('errors.revoke'));
+    } finally {
+      setRevokingId(null);
     }
   }
 
@@ -97,12 +99,6 @@ export function ApiKeysPage() {
         lede={t('subtitle')}
       />
 
-      {error && (
-        <Card>
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
-
       <section className="space-y-4">
         <SectionHead
           title={keys ? t('activeKeysTitleCount', { count: keys.length }) : t('activeKeysTitle')}
@@ -121,7 +117,7 @@ export function ApiKeysPage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tableName')}</Th>
                 <Th>{t('tablePrefix')}</Th>
                 <Th>{t('tableCreated')}</Th>
@@ -131,7 +127,7 @@ export function ApiKeysPage() {
             </thead>
             <tbody>
               {keys.map((k) => (
-                <tr key={k.id} className="border-b border-rule-soft dark:border-rule-on-dark">
+                <tr key={k.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
                   <td className="py-4 pr-4 text-sm font-medium text-ink dark:text-foreground">
                     {k.name}
                   </td>
@@ -153,7 +149,12 @@ export function ApiKeysPage() {
                       : '—'}
                   </td>
                   <td className="py-4 text-right">
-                    <Button variant="outline" size="sm" onClick={() => void revoke(k.id)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      pending={revokingId === k.id}
+                      onClick={() => void revoke(k.id)}
+                    >
                       {tCommon('revoke')}
                     </Button>
                   </td>
@@ -243,7 +244,7 @@ function MintKeyDialog({
               <DialogDescription>{t('revealSub')}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-3 mt-2">
-              <p className="text-sm text-ink dark:text-foreground border-l-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+              <p className="text-sm text-ink dark:text-foreground border-l-[0.5px] border-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
                 {t('revealWarning')}
               </p>
               <KeyReveal value={created.key} copyLabel={t('copyClipboard')} />
@@ -323,7 +324,7 @@ function KeyReveal({ value, copyLabel }: { value: string; copyLabel: string }) {
   }
   return (
     <div className="flex items-center gap-2">
-      <code className="flex-1 truncate border border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-3 py-2 font-mono text-xs text-ink dark:text-foreground">
+      <code className="flex-1 truncate border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-3 py-2 font-mono text-xs text-ink dark:text-foreground">
         {value}
       </code>
       <Button variant="outline" size="sm" onClick={copy} className="gap-1.5">

@@ -37,6 +37,7 @@ const ChangeStatusInput = z.object({
 const RequestHandoverInput = z.object({
   conversationId: z.string(),
   reason: z.string().max(500).optional(),
+  suggestedReply: z.string().max(2000).optional(),
 });
 
 const SearchInput = z.object({
@@ -151,7 +152,7 @@ export class ConvAdminTools {
     name: 'conv_request_handover',
     title: 'Request handover to a human',
     description:
-      'Flag a conversation as needing human attention. Use this when you have reached the limit of what you can resolve autonomously — billing decisions, refunds outside policy, sensitive complaints, anything where a human teammate should step in. Appends an internal system note (visible only to staff) recording your stated `reason`, sets the conversation\'s "needs human attention" flag (which pins it to the top of the dashboard\'s Conversations page), and emits `conversation.handover_requested`. Idempotent — calling again on an already-flagged conversation is a no-op. The flag clears automatically once a human teammate replies or closes the conversation.',
+      'Flag a conversation as needing human attention. Use this when you have reached the limit of what you can resolve autonomously — billing decisions, refunds outside policy, sensitive complaints, anything where a human teammate should step in. Appends an internal system note (visible only to staff) recording your stated `reason`, sets the conversation\'s "needs human attention" flag (which pins it to the top of the dashboard\'s Conversations page), and emits `conversation.handover_requested`. Also pass `suggestedReply` — your best guess at what a human teammate could send to resolve the issue. The team sees this as a starting draft they can edit, approve, or rewrite. Idempotent — calling again on an already-flagged conversation is a no-op. The flag clears automatically once a human teammate replies or closes the conversation.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: RequestHandoverInput,

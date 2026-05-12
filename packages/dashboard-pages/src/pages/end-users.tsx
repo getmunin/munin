@@ -8,7 +8,8 @@ import { LoadFailed } from '../components/load-failed';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
-import { Button, Card, CardContent, Hero, Input, SectionHead, cn } from '@getmunin/ui';
+import { notify } from '../lib/notify';
+import { Button, Hero, Input, SectionHead, cn } from '@getmunin/ui';
 
 interface EndUserDto {
   id: string;
@@ -27,12 +28,10 @@ export function EndUsersPage() {
   const translate = useTranslateError();
   const format = useFormatter();
   const [items, setItems] = useState<EndUserDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
-    setError(null);
     const list = await api<EndUserDto[]>('/api/v1/end-users');
     setItems(list);
   }, []);
@@ -61,9 +60,13 @@ export function EndUsersPage() {
       const result = await api<{ revoked: number }>(`/api/v1/end-users/${id}/revoke-tokens`, {
         method: 'POST',
       });
-      setError(result.revoked > 0 ? null : t('noTokensRevoked'));
+      if (result.revoked > 0) {
+        notify.success(t('revokedCount', { count: result.revoked }));
+      } else {
+        notify.info(t('noTokensRevoked'));
+      }
     } catch (err) {
-      setError(translate(err) || t('errors.revoke'));
+      notify.error(translate(err) || t('errors.revoke'));
     } finally {
       setRevokingId(null);
     }
@@ -84,12 +87,6 @@ export function EndUsersPage() {
         title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
         lede={t('subtitle')}
       />
-
-      {error && (
-        <Card>
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
 
       <section className="space-y-4">
         <SectionHead
@@ -120,7 +117,7 @@ export function EndUsersPage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tablePerson')}</Th>
                 <Th>{t('tableExternalId')}</Th>
                 <Th>{t('tableLastContact')}</Th>
@@ -129,7 +126,7 @@ export function EndUsersPage() {
             </thead>
             <tbody>
               {filtered.map((eu) => (
-                <tr key={eu.id} className="border-b border-rule-soft dark:border-rule-on-dark">
+                <tr key={eu.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
                   <td className="py-4 pr-4">
                     <div className="flex items-center gap-3">
                       <Avatar name={eu.name} />
@@ -153,10 +150,10 @@ export function EndUsersPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={revokingId === eu.id}
+                      pending={revokingId === eu.id}
                       onClick={() => void revokeTokens(eu.id)}
                     >
-                      {revokingId === eu.id ? t('revoking') : t('revokeActive')}
+                      {t('revokeActive')}
                     </Button>
                   </td>
                 </tr>

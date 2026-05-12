@@ -28,6 +28,10 @@ interface CacheEntry {
 
 let cache: CacheEntry | null = null;
 
+export function invalidateActiveMembershipCache(): void {
+  cache = null;
+}
+
 function fetchActiveMembership(): Promise<ActiveMembership | null> {
   if (cache) return cache.promise;
   const promise = api<MembershipDto[]>('/api/v1/me/memberships').then((rows) => {

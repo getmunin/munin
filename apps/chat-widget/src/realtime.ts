@@ -74,6 +74,7 @@ export interface RealtimeClient {
   close(): void;
   state(): ConnectionState;
   sendTyping(isTyping: boolean): void;
+  setSessionId(sessionId: string): void;
   onEvent(l: EventListener): () => void;
   onTyping(l: TypingListener): () => void;
   onState(l: StateListener): () => void;
@@ -83,6 +84,7 @@ const TYPING_MIN_INTERVAL_MS = 1500;
 const RECONNECT_INITIAL_MS = 250;
 const RECONNECT_MAX_MS = 30_000;
 const RECONNECT_MAX_JITTER_MS = 250;
+const MAX_COLD_ATTEMPTS = 6;
 
 export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
   const setTimeoutFn = deps.setTimeoutImpl ?? setTimeout;
@@ -92,9 +94,12 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
   let ws: WebSocketLike | null = null;
   let currentState: ConnectionState = 'idle';
   let attempt = 0;
+  let coldAttempts = 0;
+  let hasEverConnected = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let lastTypingSentAt = 0;
   let closedByCaller = false;
+  let sessionId = deps.sessionId;
 
   const eventListeners = new Set<EventListener>();
   const typingListeners = new Set<TypingListener>();
@@ -123,6 +128,10 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
 
   function scheduleReconnect(): void {
     if (closedByCaller) return;
+    if (!hasEverConnected && coldAttempts >= MAX_COLD_ATTEMPTS) {
+      setState('closed');
+      return;
+    }
     setState('reconnecting');
     const backoff = Math.min(
       RECONNECT_MAX_MS,
@@ -134,6 +143,7 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
       doConnect();
     }, backoff + jitter);
     attempt += 1;
+    if (!hasEverConnected) coldAttempts += 1;
   }
 
   function doConnect(): void {
@@ -151,6 +161,8 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     ws = socket;
     socket.addEventListener('open', () => {
       attempt = 0;
+      coldAttempts = 0;
+      hasEverConnected = true;
       setState('connected');
       // Subscribe to our (channelId, sessionId) tuple so the gateway
       // routes operator-side events back to us.
@@ -160,7 +172,7 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
             type: 'subscribe',
             channel: 'widget',
             channelId: deps.channelId,
-            sessionId: deps.sessionId,
+            sessionId,
           }),
         );
       } catch {
@@ -248,7 +260,7 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
             type: 'typing',
             channel: 'widget',
             channelId: deps.channelId,
-            sessionId: deps.sessionId,
+            sessionId,
             isTyping,
           }),
         );
@@ -267,6 +279,24 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     onState(l) {
       stateListeners.add(l);
       return () => stateListeners.delete(l);
+    },
+    setSessionId(next) {
+      if (next === sessionId) return;
+      sessionId = next;
+      if (ws && ws.readyState === WS.OPEN) {
+        try {
+          ws.send(
+            JSON.stringify({
+              type: 'subscribe',
+              channel: 'widget',
+              channelId: deps.channelId,
+              sessionId,
+            }),
+          );
+        } catch (err) {
+          console.warn('[munin-widget] resubscribe failed:', err);
+        }
+      }
     },
   };
 }

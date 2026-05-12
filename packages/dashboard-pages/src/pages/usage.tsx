@@ -76,7 +76,7 @@ export function UsagePage() {
         lede={t('subtitle')}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px bg-rule-soft border border-rule-soft dark:bg-rule-on-dark dark:border-rule-on-dark">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px bg-rule-soft border-[0.5px] border-rule-soft dark:bg-rule-on-dark dark:border-rule-on-dark">
         <Tile
           label={t('tiles.mcpCalls')}
           period={t('tiles.thisMonth')}
@@ -166,8 +166,8 @@ function ByAgentSection({ data }: { data: UsageByAgentDto | null }) {
         </p>
       </div>
 
-      <div className="border-t border-rule-soft dark:border-rule-on-dark">
-        <div className="grid grid-cols-[1fr_auto_auto] gap-x-12 px-1 py-3 border-b border-rule-soft dark:border-rule-on-dark">
+      <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-x-12 px-1 py-3 border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
           <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
             {t('colAgent')}
           </span>
@@ -186,7 +186,7 @@ function ByAgentSection({ data }: { data: UsageByAgentDto | null }) {
         {data?.agents.map((agent) => (
           <div
             key={agent.id}
-            className="grid grid-cols-[1fr_auto_auto] gap-x-12 items-baseline px-1 py-5 border-b border-rule-soft dark:border-rule-on-dark"
+            className="grid grid-cols-[1fr_auto_auto] gap-x-12 items-baseline px-1 py-5 border-b-[0.5px] border-rule-soft dark:border-rule-on-dark"
           >
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-semibold text-ink dark:text-foreground">{agent.name}</span>

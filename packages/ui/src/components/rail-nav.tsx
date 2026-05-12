@@ -31,7 +31,7 @@ function RailGroup({ label, className, children, ...props }: RailGroupProps) {
 
 function railItemClass(active?: boolean) {
   return cn(
-    'flex items-center justify-between gap-2 px-3 py-1.5 text-sm border-l-2 border-transparent transition-colors duration-fast ease-munin',
+    'flex items-center justify-between gap-2 px-3 py-1.5 text-sm border-l-[0.5px] border-transparent transition-colors duration-fast ease-munin',
     active
       ? 'border-cobalt bg-paper text-ink font-medium dark:bg-card dark:text-foreground dark:border-cobalt-soft'
       : 'text-ink-soft hover:bg-paper hover:text-ink dark:hover:bg-card dark:hover:text-foreground',

@@ -129,7 +129,7 @@ export function ActivityPage() {
       />
 
       <section data-screen-label="activity · feed">
-        <header className="flex items-baseline justify-between border-b border-rule-soft dark:border-rule-on-dark pb-2 mb-0">
+        <header className="flex items-baseline justify-between border-b-[0.5px] border-rule-soft dark:border-rule-on-dark pb-2 mb-0">
           <h2 className="font-serif text-2xl leading-none">{t('liveStream')}</h2>
           <span className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
             {t('windowLabel', { count: visible.length, minutes: WINDOW_MS / 60_000 })}
@@ -137,7 +137,7 @@ export function ActivityPage() {
         </header>
 
         <div className="bg-ink dark:bg-card text-paper dark:text-foreground font-mono text-[12px] leading-relaxed px-6 py-4 min-h-[12rem]">
-          <div className="grid grid-cols-[6rem_minmax(0,11rem)_minmax(0,12rem)_1fr] gap-x-6 pb-2 mb-1 border-b border-paper/15 dark:border-rule-on-dark text-[10px] uppercase tracking-eyebrow text-paper/45 dark:text-foreground/45">
+          <div className="grid grid-cols-[6rem_minmax(0,11rem)_minmax(0,12rem)_1fr] gap-x-6 pb-2 mb-1 border-b-[0.5px] border-paper/15 dark:border-rule-on-dark text-[10px] uppercase tracking-eyebrow text-paper/45 dark:text-foreground/45">
             <span>{t('colTime')}</span>
             <span>{t('colType')}</span>
             <span>{t('colActor')}</span>

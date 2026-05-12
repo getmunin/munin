@@ -5,6 +5,7 @@ import { listEndpoints } from './_lib/openapi';
 import { mcpTools } from './_lib/mcp';
 import { skills } from './_lib/skills';
 import { buildSearchIndex } from './_lib/search-index';
+import { GUIDES } from './guides/_lib/guides';
 
 export const metadata = {
   title: 'Munin · Developer portal',
@@ -17,6 +18,7 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
     rest: listEndpoints().length,
     mcp: mcpTools.length,
     skills: skills.length,
+    guides: GUIDES.length,
   };
   const searchIndex = buildSearchIndex();
   return (

@@ -214,12 +214,16 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     if (!row.channelId) throw new Error('widget_key_missing_channel');
 
     const channelRows = await this.db
-      .select({ config: schema.convChannels.config })
+      .select({
+        config: schema.convChannels.config,
+        active: schema.convChannels.active,
+      })
       .from(schema.convChannels)
       .where(eq(schema.convChannels.id, row.channelId))
       .limit(1);
     const channelRow = channelRows[0];
     if (!channelRow) throw new Error('widget_channel_not_found');
+    if (!channelRow.active) throw new Error('widget_channel_inactive');
     const config = WidgetChannelConfig.parse(channelRow.config);
 
     const origin = readHeader(req, 'origin');

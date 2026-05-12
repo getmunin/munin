@@ -107,6 +107,7 @@
   "nav": {
     "overview": "Overview",
     "settings": "Settings",
+    "account": "Account",
     "team": "Team",
     "builtInAi": "Built-in AI",
     "agents": "Agents",
@@ -185,12 +186,12 @@
         "close": "close ×",
         "loading": "Loading…",
         "customer": "Customer",
-        "agentDraft": "Agent's draft reply",
-        "noDraft": "No draft yet.",
+        "agentDraft": "Your reply",
+        "noDraft": "No draft",
         "proposal": "Proposal",
         "replyFrom": "Reply from",
         "subject": "Subject — {subject}",
-        "sendDraft": "Send draft ↵",
+        "sendDraft": "Send message ↵",
         "send": "Send ↵",
         "edit": "Edit",
         "cancel": "Cancel",
@@ -199,7 +200,7 @@
         "dismiss": "Dismiss",
         "takeOver": "Take over",
         "release": "Release",
-        "closeConv": "Close",
+        "closeConv": "Close conversation",
         "replyPlaceholder": "Reply…",
         "shortcutSend": "⌘↵ send",
         "shortcutSave": "⌘↵ save · esc cancel",
@@ -223,7 +224,8 @@
         "activityEmpty": "No activity yet.",
         "kbSlugFallback": "kb-curation-inbox",
         "handleFallback": "—",
-        "endUserFallback": "—"
+        "endUserFallback": "—",
+        "anonymousVisitor": "Anonymous"
       },
       "relative": {
         "justNow": "just now",
@@ -270,9 +272,10 @@
       "types": {
         "oauth_access": "OAuth access token",
         "oauth_refresh": "OAuth refresh token",
-        "delegated_end_user": "Delegated end-user token",
+        "delegated_end_user": "End-user token",
         "guest": "Guest token"
       },
+      "revoked": "Token revoked.",
       "errors": {
         "load": "Could not load connected agents.",
         "revoke": "Could not revoke token."
@@ -314,7 +317,8 @@
         "title": "Embed snippet — {name}",
         "description": "Paste this on every page where you want the widget to appear.",
         "scriptLabel": "Embed snippet",
-        "scriptHint": "Replace [your widget key] with the mn_widget_* shown when this channel was created. Add data-external-id and data-user-hash to identify a known visitor (see below).",
+        "scriptHint": "Replace [your widget key] with the mn_widget_* shown when this channel was created. To identify a known visitor, add data-external-id and data-user-hash (see below). For theming, positioning, and other options, see the widget guide.",
+        "guideLinkLabel": "Read the widget guide →",
         "copyScript": "Copy snippet",
         "hashLabel": "Optional · verify visitor identity",
         "hashHint": "If you want to bind a chat to a known user (e.g. so you can resume their thread next visit), compute a server-side HMAC with the channel's identity secret and pass it as data-user-hash:",
@@ -401,6 +405,7 @@
       "emptyBody": "Create your first key above to get started.",
       "createdTitle": "Key created — copy it now",
       "createdDescription": "Munin only stores the hash. We can't show you this key again.",
+      "revoked": "API key revoked.",
       "errors": {
         "load": "Could not load API keys.",
         "create": "Could not create API key.",
@@ -472,12 +477,16 @@
       "inviteModalRoleHint": "Members can read inbox + reply. Admins also manage channels and keys.",
       "inviteModalSubmit": "Send invitation",
       "inviteRow": "{role} · invited {created} · expires {expires}",
+      "editNameTitle": "Edit name",
+      "editNameSubtitle": "Update the display name shown across Munin.",
+      "editNameLabel": "Display name",
       "errors": {
         "load": "Could not load team.",
         "invite": "Could not send invite.",
         "revokeInvite": "Could not revoke invite.",
         "remove": "Could not remove member.",
-        "changeRole": "Could not change role."
+        "changeRole": "Could not change role.",
+        "rename": "Could not save name."
       }
     },
     "endUsers": {
@@ -497,6 +506,7 @@
       "searchPlaceholder": "search by email or name",
       "revokeActive": "Revoke active tokens",
       "revoking": "Revoking…",
+      "revokedCount": "{count, plural, =1 {Revoked 1 token.} other {Revoked # tokens.}}",
       "noTokensRevoked": "No active tokens to revoke for this end-user.",
       "errors": {
         "load": "Could not load end-users.",
@@ -623,12 +633,37 @@
         "access": "Access & integrations",
         "monitoring": "Monitoring"
       }
+    },
+    "account": {
+      "eyebrow": "Workspace · Account",
+      "title": "Your <em>workspace</em>.",
+      "subtitle": "Settings that apply to the whole organization.",
+      "orgSectionTitle": "Organization",
+      "orgNameLabel": "Organization name",
+      "orgNameHint": "Shown in the topbar and on shared pages. Up to 128 characters.",
+      "orgNamePlaceholder": "Acme Corp",
+      "saved": "Saved",
+      "errors": {
+        "save": "Could not save organization."
+      }
     }
   },
   "agentSetup": {
     "titlePrefix": "Wake",
     "titleAccent": "Munin.",
-    "lede": "Pick an LLM provider, paste an API key, and choose models for chat and curation. The agent comes online as soon as you save.",
+    "lede": "Name your workspace, pick an LLM provider, paste an API key, and choose models for chat and curation. The agent comes online as soon as you save.",
+    "org": {
+      "title": "Name your workspace",
+      "lede": "Shown in the topbar and on shared pages. You can change this later in settings.",
+      "nameLabel": "Organization name",
+      "namePlaceholder": "Acme Corp",
+      "nameHint": "Up to 128 characters.",
+      "continue": "Continue",
+      "errors": {
+        "load": "Could not load organization.",
+        "save": "Could not save organization."
+      }
+    },
     "settings": {
       "eyebrow": "Workspace · Built-in AI",
       "title": "Mind of the <em>flock</em>.",

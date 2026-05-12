@@ -4,25 +4,37 @@ import { useEffect, useState } from 'react';
 import { Link } from '../i18n-navigation';
 import { useTranslations } from 'next-intl';
 import { Button, Card, CardContent, Hero } from '@getmunin/ui';
+import { useActiveMembership } from '../auth/use-active-role';
 import { useAgentConfig } from '../components/agent-config/use-agent-config';
+import { OrgNameCard } from '../components/agent-config/org-name-card';
 import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
 import type { AgentConfigDto } from '../components/agent-config/types';
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
+const TOTAL_STEPS = 4;
 
 export function AgentSetupWizard() {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
   const { config, loadErrorMessage, models, setConfig, setModels } = useAgentConfig();
+  const { membership, loading: membershipLoading } = useActiveMembership();
 
   const [step, setStep] = useState<Step | null>(null);
 
   useEffect(() => {
     if (step !== null) return;
     if (config === null) return;
-    setStep(config.providerApiKeySet ? 3 : 1);
-  }, [config, step]);
+    if (membershipLoading) return;
+    const orgNamed = membership ? membership.name.trim().length > 0 : false;
+    if (!orgNamed) {
+      setStep(1);
+    } else if (!config.providerApiKeySet) {
+      setStep(2);
+    } else {
+      setStep(4);
+    }
+  }, [config, step, membership, membershipLoading]);
 
   if (loadErrorMessage) {
     return (
@@ -45,7 +57,7 @@ export function AgentSetupWizard() {
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-12">
       <Hero
-        eyebrow={step === 3 ? undefined : t('wizard.stepEyebrow', { step, total: 3 })}
+        eyebrow={step === TOTAL_STEPS ? undefined : t('wizard.stepEyebrow', { step, total: TOTAL_STEPS })}
         title={
           <>
             {t('titlePrefix')} <em>{t('titleAccent')}</em>
@@ -55,7 +67,7 @@ export function AgentSetupWizard() {
       />
 
       <div className="mt-6 flex items-center gap-2">
-        {[1, 2, 3].map((n) => (
+        {[1, 2, 3, 4].map((n) => (
           <button
             key={n}
             type="button"
@@ -77,35 +89,37 @@ export function AgentSetupWizard() {
       </div>
 
       <div className="mt-8 space-y-6">
-        {step === 1 && (
+        {step === 1 && <OrgNameCard onSaved={() => setStep(2)} />}
+
+        {step === 2 && (
           <ProviderCard
             config={config}
             onSaved={(updated, result) => {
               setConfig(updated);
               setModels(result);
-              setStep(2);
-            }}
-          />
-        )}
-
-        {step === 2 && (
-          <ModelsCard
-            config={config}
-            models={models}
-            saveLabel={t('wizard.saveAndContinue')}
-            extraActions={
-              <Button type="button" variant="outline" onClick={() => setStep(1)}>
-                {tCommon('back')}
-              </Button>
-            }
-            onSaved={(updated) => {
-              setConfig(updated);
               setStep(3);
             }}
           />
         )}
 
-        {step === 3 && <ReadyCard config={config} onBack={() => setStep(2)} />}
+        {step === 3 && (
+          <ModelsCard
+            config={config}
+            models={models}
+            saveLabel={t('wizard.saveAndContinue')}
+            extraActions={
+              <Button type="button" variant="outline" onClick={() => setStep(2)}>
+                {tCommon('back')}
+              </Button>
+            }
+            onSaved={(updated) => {
+              setConfig(updated);
+              setStep(4);
+            }}
+          />
+        )}
+
+        {step === 4 && <ReadyCard config={config} onBack={() => setStep(3)} />}
       </div>
     </main>
   );

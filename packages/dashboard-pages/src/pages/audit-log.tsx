@@ -8,8 +8,9 @@ import { LoadFailed } from '../components/load-failed';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
+import { notify } from '../lib/notify';
 import { NativeSelect } from '../components/native-select';
-import { Button, Card, CardContent, Hero, Input, SectionHead, cn } from '@getmunin/ui';
+import { Button, Hero, Input, SectionHead, cn } from '@getmunin/ui';
 
 type ClientKind = 'sdk' | 'cli' | 'mcp' | 'unknown';
 
@@ -41,7 +42,6 @@ export function AuditLogPage() {
   const [items, setItems] = useState<AuditDto[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [exhausted, setExhausted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ tool: '', actorType: '', correlationId: '', client: '' });
 
   const fetchPage = useCallback(
@@ -75,10 +75,9 @@ export function AuditLogPage() {
       beforeCursor: string | null,
     ) => {
       try {
-        setError(null);
         await fetchPage(reset, filterValues, beforeCursor);
       } catch (err) {
-        setError(translate(err) || t('errors.load'));
+        notify.error(translate(err) || t('errors.load'));
       }
     },
     [fetchPage, t, translate],
@@ -110,12 +109,6 @@ export function AuditLogPage() {
         title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
         lede={t('subtitle')}
       />
-
-      {error && (
-        <Card>
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
 
       <form
         className="grid gap-3 md:grid-cols-5"
@@ -173,7 +166,7 @@ export function AuditLogPage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tableTime')}</Th>
                 <Th>{t('tableActor')}</Th>
                 <Th>{t('tableClient')}</Th>
@@ -186,7 +179,7 @@ export function AuditLogPage() {
               {items.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-rule-soft dark:border-rule-on-dark align-top"
+                  className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark align-top"
                 >
                   <td className="py-3 pr-4 font-mono text-[11px] text-ink-mute whitespace-nowrap">
                     {format.dateTime(new Date(row.createdAt), {

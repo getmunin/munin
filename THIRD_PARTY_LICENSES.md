@@ -4649,7 +4649,7 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @next/env@15.5.15
+## @next/env@15.5.18
 
 > Next.js dotenv file loading
 - Homepage: https://github.com/vercel/next.js#readme
@@ -21729,7 +21729,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## fast-uri@3.1.0
+## fast-uri@3.1.2
 
 > Dependency-free RFC 3986 URI toolbox
 - Homepage: https://github.com/fastify/fast-uri
@@ -21738,10 +21738,8 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 Copyright (c) 2011-2021, Gary Court until https://github.com/garycourt/uri-js/commit/a1acf730b4bba3f1097c9f52e7d9d3aba8cdcaae
-Copyright (c) 2021-present The Fastify team
+Copyright (c) 2021-present The Fastify team <https://github.com/fastify/fastify#team>
 All rights reserved.
-
-The Fastify team members are listed at https://github.com/fastify/fastify#team.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -25177,7 +25175,7 @@ THE SOFTWARE.
 
 ---
 
-## kysely@0.28.16
+## kysely@0.28.17
 
 > Type safe SQL query builder
 - Homepage: https://kysely.dev
@@ -27636,7 +27634,7 @@ SOFTWARE.
 
 ---
 
-## next@15.5.15
+## next@15.5.18
 
 > The React Framework
 - Homepage: https://nextjs.org

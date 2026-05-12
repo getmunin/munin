@@ -10,7 +10,7 @@ export function DocsShell({
   searchIndex,
 }: {
   children: ReactNode;
-  counts: { rest: number; mcp: number; skills: number };
+  counts: { rest: number; mcp: number; skills: number; guides: number };
   searchIndex: SearchIndex;
 }) {
   const pathname = usePathname();
@@ -45,16 +45,21 @@ export function DocsShell({
         <Link className={section === 'started' ? 'active' : ''} href="/docs">
           Get <em>started</em>
         </Link>
+        <Link className={section === 'guides' ? 'active' : ''} href="/docs/guides">
+          <em>Guides</em>
+          <span className="ct">{counts.guides}</span>
+        </Link>
         <Link className={section === 'rest' ? 'active' : ''} href="/docs/rest">
           REST <em>API</em>
           <span className="ct">{counts.rest}</span>
         </Link>
         <Link className={section === 'mcp' ? 'active' : ''} href="/docs/mcp">
-          MCP <em>Tools</em>
+          <em>MCP</em> Tools
           <span className="ct">{counts.mcp}</span>
         </Link>
         <Link className={section === 'skills' ? 'active' : ''} href="/docs/skills">
-          Skills<span className="ct">{counts.skills}</span>
+          <em>Skills</em> Library
+          <span className="ct">{counts.skills}</span>
         </Link>
         <div className="spacer" />
         <DocsSearch index={searchIndex} />
@@ -65,10 +70,13 @@ export function DocsShell({
   );
 }
 
-function sectionFromPath(path: string | null): 'started' | 'rest' | 'mcp' | 'skills' {
+function sectionFromPath(
+  path: string | null,
+): 'started' | 'rest' | 'mcp' | 'skills' | 'guides' {
   if (!path) return 'started';
   if (path.startsWith('/docs/rest')) return 'rest';
   if (path.startsWith('/docs/mcp')) return 'mcp';
   if (path.startsWith('/docs/skills')) return 'skills';
+  if (path.startsWith('/docs/guides')) return 'guides';
   return 'started';
 }

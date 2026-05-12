@@ -28,6 +28,11 @@ export interface CuratorJobPendingEvent {
   nextAttemptAt: string;
 }
 
+export interface GreetRequestedEvent {
+  conversationId: string;
+  endUserId?: string;
+}
+
 export interface RealtimeClientOptions {
   baseUrl: string;
   adminApiKey: string;
@@ -35,6 +40,7 @@ export interface RealtimeClientOptions {
   onKbDocumentChanged?: (event: KbDocumentChangedEvent) => void;
   onHandoverResolved?: (event: HandoverResolvedEvent) => void;
   onCuratorJobPending?: (event: CuratorJobPendingEvent) => void;
+  onGreetRequested?: (event: GreetRequestedEvent) => void;
   onConnected?: () => void;
   logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void };
 }
@@ -42,6 +48,7 @@ export interface RealtimeClientOptions {
 export interface RealtimeClient {
   start(): void;
   stop(): Promise<void>;
+  sendConversationTyping(conversationId: string, isTyping: boolean): void;
 }
 
 const RECONNECT_BASE_MS = 1000;
@@ -155,6 +162,16 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
           return;
         }
 
+        if (opts.onGreetRequested && eventType === 'conversation.greet_requested') {
+          const conversationId = payload['conversationId'];
+          if (typeof conversationId !== 'string') return;
+          opts.onGreetRequested({
+            conversationId,
+            endUserId: typeof payload['endUserId'] === 'string' ? payload['endUserId'] : undefined,
+          });
+          return;
+        }
+
         if (opts.onCuratorJobPending && eventType === 'curator_job.pending') {
           const jobId = payload['jobId'];
           const skillUri = payload['skillUri'];
@@ -216,6 +233,22 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       ws = null;
+    },
+    sendConversationTyping(conversationId, isTyping): void {
+      const socket = ws;
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      try {
+        socket.send(
+          JSON.stringify({
+            type: 'typing',
+            channel: 'conversation',
+            id: conversationId,
+            isTyping,
+          }),
+        );
+      } catch (err) {
+        log.warn(`sendConversationTyping failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     },
   };
 }

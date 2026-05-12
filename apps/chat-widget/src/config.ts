@@ -31,6 +31,12 @@ export const WIDGET_END_USER_BODY_HTML_MAX_CHARS = 4_000;
 const VALID_POSITIONS = ['bottom-right', 'bottom-left'] as const;
 type Position = (typeof VALID_POSITIONS)[number];
 
+const VALID_SIZES = ['compact', 'standard', 'generous'] as const;
+type Size = (typeof VALID_SIZES)[number];
+
+const VALID_FONTS = ['bundled', 'system'] as const;
+type Fonts = (typeof VALID_FONTS)[number];
+
 const HEX64 = /^[0-9a-f]{64}$/i;
 const HEX_COLOR = /^#[0-9a-f]{3,8}$/i;
 // Loose RFC-5322ish; matches what the BE Zod `z.string().email()` accepts
@@ -59,6 +65,10 @@ export interface WidgetConfig {
   position: Position;
   greeting: string;
   title: string;
+  eyebrow: string;
+  size: Size;
+  fonts: Fonts;
+  showHistory: boolean;
   visitor?: WidgetVisitor;
 }
 
@@ -72,10 +82,14 @@ export type ParseResult =
   | { ok: false; errors: ParseError[]; warnings: ParseError[] };
 
 const DEFAULTS = {
-  themeColor: '#2563eb',
+  themeColor: '#0066FF',
   position: 'bottom-right' as Position,
-  greeting: 'Hi! How can we help?',
+  greeting: 'Hi there. How can we help?',
   title: 'Chat',
+  eyebrow: 'Powered by Munin',
+  size: 'standard' as Size,
+  fonts: 'bundled' as Fonts,
+  showHistory: true,
 };
 
 export function parseConfig(scriptEl: HTMLElement): ParseResult {
@@ -105,7 +119,15 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
     optColor(scriptEl, 'data-munin-theme-color', warnings) ?? DEFAULTS.themeColor;
   const position = optPosition(scriptEl, warnings) ?? DEFAULTS.position;
   const greeting = scriptEl.getAttribute('data-munin-greeting') ?? DEFAULTS.greeting;
-  const title = scriptEl.getAttribute('data-munin-title') ?? DEFAULTS.title;
+  const title =
+    scriptEl.getAttribute('data-munin-org-name') ??
+    scriptEl.getAttribute('data-munin-title') ??
+    DEFAULTS.title;
+  const eyebrow = scriptEl.getAttribute('data-munin-eyebrow') ?? DEFAULTS.eyebrow;
+  const size = optEnum(scriptEl, 'data-munin-size', VALID_SIZES, warnings) ?? DEFAULTS.size;
+  const fonts = optEnum(scriptEl, 'data-munin-fonts', VALID_FONTS, warnings) ?? DEFAULTS.fonts;
+  const showHistory =
+    optBool(scriptEl, 'data-munin-show-history', warnings) ?? DEFAULTS.showHistory;
 
   const visitor = parseVisitor(scriptEl, warnings);
 
@@ -126,6 +148,10 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
       position,
       greeting,
       title,
+      eyebrow,
+      size,
+      fonts,
+      showHistory,
       visitor,
     },
   };
@@ -162,6 +188,32 @@ function optPosition(el: HTMLElement, warnings: ParseError[]): Position | undefi
     return undefined;
   }
   return t;
+}
+
+function optEnum<T extends string>(
+  el: HTMLElement,
+  attr: string,
+  allowed: readonly T[],
+  warnings: ParseError[],
+): T | undefined {
+  const v = el.getAttribute(attr);
+  if (!v) return undefined;
+  const t = v.trim() as T;
+  if (!allowed.includes(t)) {
+    warnings.push({ attr, message: `${attr} must be one of ${allowed.join(', ')}` });
+    return undefined;
+  }
+  return t;
+}
+
+function optBool(el: HTMLElement, attr: string, warnings: ParseError[]): boolean | undefined {
+  const v = el.getAttribute(attr);
+  if (v === null) return undefined;
+  const t = v.trim().toLowerCase();
+  if (t === '' || t === 'true' || t === '1' || t === 'yes') return true;
+  if (t === 'false' || t === '0' || t === 'no') return false;
+  warnings.push({ attr, message: `${attr} must be true|false` });
+  return undefined;
 }
 
 function parseVisitor(el: HTMLElement, warnings: ParseError[]): WidgetVisitor | undefined {

@@ -21,4 +21,4 @@ export const dialogButtonClass =
  * background and a hairline above (matches the mockup).
  */
 export const dialogFooterClass =
-  '-mx-6 -mb-6 mt-6 px-6 py-3 bg-paper-deep border-t border-rule-soft dark:bg-secondary dark:border-rule-on-dark flex flex-col-reverse gap-2 sm:flex-row sm:justify-end';
+  '-mx-6 -mb-6 mt-6 px-6 py-3 bg-paper-deep border-t-[0.5px] border-rule-soft dark:bg-secondary dark:border-rule-on-dark flex flex-col-reverse gap-2 sm:flex-row sm:justify-end';

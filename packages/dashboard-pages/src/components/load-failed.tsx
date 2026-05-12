@@ -60,7 +60,7 @@ export function LoadFailed({
         <div className="flex items-center gap-2 font-mono uppercase tracking-eyebrow text-[11px] text-alert-bad-ink">
           <span
             aria-hidden
-            className="size-1.5 rounded-full bg-alert-bad-border"
+            className="size-1.5 rounded-full bg-alert-bad-border-[0.5px]"
           />
           <span>{eyebrow}</span>
         </div>
@@ -82,7 +82,7 @@ export function LoadFailed({
 
       <dl
         className={cn(
-          'grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 border border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary p-4',
+          'grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary p-4',
           isInbox ? 'max-w-[520px]' : 'max-w-[480px]',
         )}
       >

@@ -56,11 +56,7 @@ export async function createApp(
 ): Promise<INestApplication> {
   const { widgetAssetDir, ...nestOpts } = opts;
   const app = await NestFactory.create(appModule, nestOpts);
-  app.enableCors({
-    origin: readAllowedOrigins(),
-    credentials: true,
-    exposedHeaders: ['x-request-id'],
-  });
+  app.use(corsMiddleware(readAllowedOrigins()));
   app.use(requestIdMiddleware);
 
   // Static-asset GET handler. Active only when the storage provider is
@@ -75,6 +71,45 @@ export async function createApp(
   app.use('/widget', widgetBundleMiddleware(resolvedWidgetDir));
 
   return app;
+}
+
+function isPublicWidgetPath(path: string): boolean {
+  return (
+    path === '/widget.js' ||
+    path.startsWith('/widget/') ||
+    path.startsWith('/api/v1/widget')
+  );
+}
+
+function corsMiddleware(strictOrigins: string[] | true) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
+    const allowAny = isPublicWidgetPath(req.path);
+    const allowed =
+      origin !== undefined &&
+      (allowAny || strictOrigins === true || strictOrigins.includes(origin));
+
+    if (allowed && origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Expose-Headers', 'x-request-id');
+    }
+
+    if (req.method === 'OPTIONS') {
+      if (allowed) {
+        res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
+        const reqHeaders = req.headers['access-control-request-headers'];
+        if (typeof reqHeaders === 'string') {
+          res.setHeader('Access-Control-Allow-Headers', reqHeaders);
+        }
+        res.setHeader('Access-Control-Max-Age', '86400');
+      }
+      res.status(204).end();
+      return;
+    }
+    next();
+  };
 }
 
 const REQUEST_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;

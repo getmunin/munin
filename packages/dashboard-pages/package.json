@@ -30,6 +30,7 @@
     "@getmunin/ui": "workspace:*",
     "better-auth": "^1.6.10",
     "lucide-react": "^1.11.0",
+    "sonner": "^2.0.7",
     "zod": "^4.3.6"
   },
   "peerDependencies": {
@@ -45,7 +46,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.10.0",
-    "next": "^15.0.0",
+    "next": "^15.5.18",
     "react-markdown": "^9.1.0",
     "typescript": "^5.6.0"
   }

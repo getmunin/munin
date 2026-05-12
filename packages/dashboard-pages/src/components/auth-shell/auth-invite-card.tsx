@@ -50,7 +50,7 @@ export function AuthInviteCard({
       </h2>
       <div className="mb-7 max-w-[440px] text-[15px] leading-[1.55] text-ink">{body}</div>
       {meta && meta.length > 0 && (
-        <dl className="mb-6 mt-0 grid grid-cols-[auto_1fr] gap-x-[18px] gap-y-1.5 border-t border-ink/[0.12] pt-[18px] font-mono text-[11px] tracking-wide text-ink-soft">
+        <dl className="mb-6 mt-0 grid grid-cols-[auto_1fr] gap-x-[18px] gap-y-1.5 border-t-[0.5px] border-ink/[0.12] pt-[18px] font-mono text-[11px] tracking-wide text-ink-soft">
           {meta.map(({ label, value }) => (
             <div key={label} className="contents">
               <dt className="text-[10px] uppercase tracking-eyebrow text-ink-mute">

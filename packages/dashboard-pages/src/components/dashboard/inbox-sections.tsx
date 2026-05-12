@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, MessageSquare, ShieldCheck, Unplug, User } from 'lucide-react';
+import { AlertCircle, MessageSquare, Unplug, User } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import { useTranslations } from 'next-intl';
 import {
@@ -921,7 +921,7 @@ function SimplifiedConvDrawer({
             />
           ) : (
             <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap dark:bg-card dark:border-rule-on-dark dark:text-foreground">
-              {draft!.body}
+              {draft?.body}
             </div>
           )}
         </section>

@@ -2,7 +2,7 @@
   "name": "@getmunin/agent-runtime",
   "version": "3.2.1",
   "license": "MIT",
-  "description": "LLM agent loop — given a config, conversation history, and an MCP tool handle, produce a reply.",
+  "description": "LLM agent loop \u2014 given a config, conversation history, and an MCP tool handle, produce a reply.",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
@@ -23,9 +23,10 @@
     }
   },
   "files": [
+    "README.md",
     "dist",
     "prompts",
-    "README.md"
+    "src"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

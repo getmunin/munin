@@ -29,7 +29,8 @@
   },
   "files": [
     "dist",
-    "drizzle"
+    "drizzle",
+    "src"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && mkdir -p dist/sql && cp src/sql/*.sql dist/sql/",

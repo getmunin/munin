@@ -1,5 +1,7 @@
 # @getmunin/sdk
 
+## 3.4.0
+
 ## 3.2.1
 
 ### Patch Changes

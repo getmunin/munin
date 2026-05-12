@@ -58,7 +58,11 @@ export class ActivityController {
         .where(eq(schema.convConversations.contactId, contactId));
       const ids = convs.map((c) => c.id);
       if (ids.length === 0) return { items: [], nextCursor: null };
-      filters.push(sql`${schema.events.payload}->>'conversationId' = ANY(${ids})`);
+      const placeholders = sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`, `,
+      );
+      filters.push(sql`${schema.events.payload}->>'conversationId' IN (${placeholders})`);
     }
     if (cursor) {
       const decoded = decodeCursor(cursor);

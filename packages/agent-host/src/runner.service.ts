@@ -20,6 +20,7 @@ import {
   type ConversationHandler,
   type CuratorJob,
   type CuratorJobPendingEvent,
+  type GreetRequestedEvent,
   type HandlerConfig,
   type KbDocumentChangedEvent,
   type MessageReceivedEvent,
@@ -108,7 +109,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     await Promise.all(
       [...this.runners.values()].map(async (r) => {
         await r.realtime.stop();
-        await r.handler.flush();
+        await r.handler.stop();
         await r.curatorWorker.stop();
         await r.adminMcp.close().catch((err: unknown) => {
           this.logger.warn(`adminMcp.close() on shutdown failed: ${describe(err)}`);
@@ -137,7 +138,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       if (!desired.has(id)) {
         this.logger.log(`stopping runner for ${id}`);
         await runner.realtime.stop();
-        await runner.handler.flush();
+        await runner.handler.stop();
         await runner.curatorWorker.stop();
         await runner.adminMcp.close().catch((err: unknown) => {
           this.logger.warn(`${id}: adminMcp.close() on stop failed: ${describe(err)}`);
@@ -227,24 +228,22 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       debounceMs: config.debounceMs,
     };
 
-    const handler = createConversationHandler({
-      config: handlerConfig,
-      rest,
-      prompts,
-      openMcp: ({ delegatedToken }) =>
-        openMcpClient({ baseUrl: this.baseUrl, bearerToken: delegatedToken }),
-      holderId: this.holderId,
-      logger: this.scopedLogger(id, 'chat'),
-    });
-
     const curatorWorker = this.buildCuratorWorker({ id, config, providerApiKey, rest });
 
+    const handlerRef: { current: ConversationHandler | null } = { current: null };
     const realtime = createRealtimeClient({
       baseUrl: this.baseUrl,
       adminApiKey,
       onMessageReceived: (event: MessageReceivedEvent) => {
         if (this.lockManager && !this.lockManager.holds(id)) return;
-        handler.handle({ conversationId: event.conversationId, authorType: event.authorType });
+        handlerRef.current?.handle({
+          conversationId: event.conversationId,
+          authorType: event.authorType,
+        });
+      },
+      onGreetRequested: (event: GreetRequestedEvent) => {
+        if (this.lockManager && !this.lockManager.holds(id)) return;
+        handlerRef.current?.greet({ conversationId: event.conversationId });
       },
       onCuratorJobPending: (event) => curatorWorker.onPending(event),
       onConnected: () => curatorWorker.onConnected(),
@@ -255,6 +254,20 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       },
       logger: this.scopedLogger(id, 'realtime'),
     });
+
+    const handler = createConversationHandler({
+      config: handlerConfig,
+      rest,
+      prompts,
+      openMcp: ({ delegatedToken }) =>
+        openMcpClient({ baseUrl: this.baseUrl, bearerToken: delegatedToken }),
+      holderId: this.holderId,
+      logger: this.scopedLogger(id, 'chat'),
+      onTyping: (conversationId, isTyping) =>
+        realtime.sendConversationTyping(conversationId, isTyping),
+    });
+    handlerRef.current = handler;
+
     realtime.start();
 
     return { realtime, handler, prompts, adminMcp, curatorWorker };

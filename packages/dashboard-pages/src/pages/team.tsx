@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useFormatter, useNow, useTranslations } from 'next-intl';
 import { api } from '../api';
+import { authClient } from '../auth-client';
+import { useActiveRole, isOwnerOrAdmin } from '../auth/use-active-role';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
 import { EmptyCallout } from '../components/empty-callout';
@@ -12,6 +14,7 @@ import { CopyableSecret } from '../components/copyable-secret';
 import { NativeSelect } from '../components/native-select';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
+import { notify } from '../lib/notify';
 import {
   dialogButtonClass,
   dialogFooterClass,
@@ -20,8 +23,6 @@ import {
 } from '../lib/dialog-style';
 import {
   Button,
-  Card,
-  CardContent,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -72,14 +73,17 @@ export function TeamPage() {
   const format = useFormatter();
   const now = useNow();
   const confirm = useConfirm();
+  const { data: session } = authClient.useSession();
+  const { role: actorRole } = useActiveRole();
+  const currentUserId = session?.user.id ?? null;
+  const canEditAnyone = isOwnerOrAdmin(actorRole);
   const [members, setMembers] = useState<MemberDto[] | null>(null);
   const [invites, setInvites] = useState<InvitationDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [editing, setEditing] = useState<MemberDto | null>(null);
   const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
 
   const load = useCallback(async () => {
-    setError(null);
     const [m, i] = await Promise.all([
       api<MemberDto[]>('/api/v1/orgs/me/members'),
       api<InvitationDto[]>('/api/v1/orgs/me/invitations'),
@@ -96,7 +100,6 @@ export function TeamPage() {
   }, [tryLoad]);
 
   async function submitInvite(email: string, role: MemberRole) {
-    setError(null);
     const created = await api<CreatedInvitationDto>('/api/v1/orgs/me/invitations', {
       method: 'POST',
       body: JSON.stringify({ email: email.trim(), role }),
@@ -122,7 +125,7 @@ export function TeamPage() {
       await api(`/api/v1/orgs/me/invitations/${invite.id}`, { method: 'DELETE' });
       await tryLoad();
     } catch (err) {
-      setError(translate(err) || t('errors.revokeInvite'));
+      notify.error(translate(err) || t('errors.revokeInvite'));
     }
   }
 
@@ -139,7 +142,7 @@ export function TeamPage() {
       await api(`/api/v1/orgs/me/members/${userId}`, { method: 'DELETE' });
       await tryLoad();
     } catch (err) {
-      setError(translate(err) || t('errors.remove'));
+      notify.error(translate(err) || t('errors.remove'));
     }
   }
 
@@ -151,8 +154,16 @@ export function TeamPage() {
       });
       await tryLoad();
     } catch (err) {
-      setError(translate(err) || t('errors.changeRole'));
+      notify.error(translate(err) || t('errors.changeRole'));
     }
+  }
+
+  async function renameMember(userId: string, name: string) {
+    await api<MemberDto>(`/api/v1/orgs/me/members/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    });
+    await tryLoad();
   }
 
   if (loadError && !hasLoadedOnce) {
@@ -171,12 +182,6 @@ export function TeamPage() {
         lede={t('subtitle')}
       />
 
-      {error && (
-        <Card>
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
-
       <section className="space-y-4">
         <SectionHead
           title={members ? t('membersTitleCount', { count: members.length }) : t('membersTitle')}
@@ -192,7 +197,7 @@ export function TeamPage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('membersTableName')}</Th>
                 <Th>{t('membersTableEmail')}</Th>
                 <Th>{t('membersTableRole')}</Th>
@@ -202,7 +207,7 @@ export function TeamPage() {
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m.userId} className="border-b border-rule-soft dark:border-rule-on-dark">
+                <tr key={m.userId} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
                   <td className="py-4 pr-4 text-sm font-medium text-ink dark:text-foreground">
                     {m.name ?? '—'}
                   </td>
@@ -220,9 +225,20 @@ export function TeamPage() {
                     {format.dateTime(new Date(m.joinedAt), { month: 'short', year: 'numeric' })}
                   </td>
                   <td className="py-4 text-right">
-                    <Button variant="outline" size="sm" onClick={() => void removeMember(m.userId)}>
-                      {t('remove')}
-                    </Button>
+                    <div className="inline-flex items-center gap-2">
+                      {(canEditAnyone || m.userId === currentUserId) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditing(m)}
+                        >
+                          {tCommon('edit')}
+                        </Button>
+                      )}
+                      <Button variant="outline" size="sm" onClick={() => void removeMember(m.userId)}>
+                        {t('remove')}
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -243,7 +259,7 @@ export function TeamPage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('invitesTable.email')}</Th>
                 <Th>{t('invitesTable.role')}</Th>
                 <Th>{t('invitesTable.sent')}</Th>
@@ -253,7 +269,7 @@ export function TeamPage() {
             </thead>
             <tbody>
               {invites.map((inv) => (
-                <tr key={inv.id} className="border-b border-rule-soft dark:border-rule-on-dark">
+                <tr key={inv.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
                   <td className="py-4 pr-4 font-mono text-xs text-ink dark:text-foreground">
                     {inv.email}
                   </td>
@@ -282,6 +298,13 @@ export function TeamPage() {
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         onSubmit={submitInvite}
+      />
+
+      <EditMemberDialog
+        member={editing}
+        isSelf={editing?.userId === currentUserId}
+        onClose={() => setEditing(null)}
+        onSubmit={renameMember}
       />
 
       <Dialog
@@ -362,7 +385,7 @@ function RoleSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as MemberRole)}
-        className="appearance-none border border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:border-cobalt focus-visible:outline-none"
+        className="appearance-none border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:border-cobalt focus-visible:outline-none"
       >
         <option value="owner">{labelOwner}</option>
         <option value="admin">{labelAdmin}</option>
@@ -385,9 +408,123 @@ function RoleChip({
 }) {
   const label = role === 'owner' ? t('roleOwner') : role === 'admin' ? t('roleAdmin') : t('roleMember');
   return (
-    <span className="inline-block border border-rule-soft dark:border-rule-on-dark font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute py-1 px-2.5">
+    <span className="inline-block border-[0.5px] border-rule-soft dark:border-rule-on-dark font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute py-1 px-2.5">
       {label}
     </span>
+  );
+}
+
+function EditMemberDialog({
+  member,
+  isSelf,
+  onClose,
+  onSubmit,
+}: {
+  member: MemberDto | null;
+  isSelf: boolean;
+  onClose: () => void;
+  onSubmit: (userId: string, name: string) => Promise<void>;
+}) {
+  const t = useTranslations('dashboard.team');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (member) {
+      setName(member.name ?? '');
+      setError(null);
+      setSubmitting(false);
+    }
+  }, [member]);
+
+  if (!member) {
+    return (
+      <Dialog open={false} onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent />
+      </Dialog>
+    );
+  }
+
+  const trimmed = name.trim();
+  const dirty = trimmed.length > 0 && trimmed !== (member.name ?? '');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!member || !dirty) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit(member.userId, trimmed);
+      if (isSelf) {
+        try {
+          await authClient.updateUser({ name: trimmed });
+        } catch {
+          /* Better Auth session refresh is best-effort */
+        }
+      }
+      onClose();
+    } catch (err) {
+      setError(translate(err) || t('errors.rename'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t('editNameTitle')}</DialogTitle>
+          <DialogDescription>{t('editNameSubtitle')}</DialogDescription>
+        </DialogHeader>
+        <form className="flex flex-col gap-4" onSubmit={(e) => void submit(e)}>
+          <div className="space-y-2">
+            <Label htmlFor="edit-member-name" className={dialogLabelClass}>
+              {t('editNameLabel')}
+            </Label>
+            <Input
+              id="edit-member-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={128}
+              required
+              autoFocus
+            />
+            {!isSelf && (
+              <p className={dialogHintClass}>{member.email}</p>
+            )}
+          </div>
+
+          {error && (
+            <p className={cn(dialogHintClass, 'text-destructive')} role="alert">
+              {error}
+            </p>
+          )}
+
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={submitting || !dirty}
+            >
+              {submitting ? tCommon('saving') : tCommon('save')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

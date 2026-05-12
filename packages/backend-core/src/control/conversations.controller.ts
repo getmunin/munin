@@ -42,6 +42,7 @@ const ReplyBody = z.object({
   inReplyToId: z.string().optional(),
   preserveAttention: z.boolean().optional(),
   sinceMessageId: z.string().optional(),
+  claim: z.boolean().optional(),
 });
 
 const AcquireBody = z.object({
@@ -158,6 +159,7 @@ export class ConversationsController {
         inReplyToId: parsed.data.inReplyToId,
         preserveAttention: parsed.data.preserveAttention,
         sinceMessageId: parsed.data.sinceMessageId,
+        claim: parsed.data.claim,
         authorType: actor.type === 'user' ? 'user' : 'agent',
         authorId: actor.id,
       }),
@@ -209,7 +211,12 @@ export class ConversationsController {
   async status(@Param('id') id: string, @Body() body: unknown): Promise<ConversationSummary> {
     const parsed = StatusBody.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() => this.conv.changeStatus({ id, ...parsed.data }));
+    return translate(async () => {
+      if (parsed.data.status === 'closed') {
+        await this.claims.release({ conversationId: id, force: true });
+      }
+      return this.conv.changeStatus({ id, ...parsed.data });
+    });
   }
 
   @Post(':id/agent-mode')

@@ -47,7 +47,7 @@ export default function DocsHome() {
         <Link className="gs-card" href="/docs/mcp">
           <div className="gs-num">02</div>
           <h3>
-            MCP <em>Tools</em>
+            <em>MCP</em> Tools
           </h3>
           <p className="gs-when">
             When you&rsquo;re wiring an LLM agent to act on Munin — read articles, reply in
@@ -65,7 +65,9 @@ export default function DocsHome() {
 
         <Link className="gs-card" href="/docs/skills">
           <div className="gs-num">03</div>
-          <h3>Skills</h3>
+          <h3>
+            <em>Skills</em> Library
+          </h3>
           <p className="gs-when">
             When you want your agent to <em>do things well</em>, not just call tools — the runbooks
             humans write to encode how Munin should be operated.
@@ -131,7 +133,7 @@ export default function DocsHome() {
       </h2>
       <div className="gs-next">
         <Link className="gs-next-row" href="/docs/skills">
-          <span className="gs-next-eyebrow">Skills</span>
+          <span className="gs-next-eyebrow">Skills · Library</span>
           <span className="gs-next-title">
             Read the bundled <em>runbooks</em>
           </span>

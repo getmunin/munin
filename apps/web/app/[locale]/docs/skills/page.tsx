@@ -9,7 +9,7 @@ export default function SkillsIndex() {
       <SkillsSidebar groups={groups} />
       <main className="docs-main">
         <header className="docs-hero">
-          <div className="eyebrow">Section · Skills</div>
+          <div className="eyebrow">Section · Skills Library</div>
           <h1>
             How your agent <em>works</em>.
           </h1>

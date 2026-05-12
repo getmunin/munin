@@ -22,12 +22,11 @@ import { useConfirm } from '../components/confirm-dialog';
 import { FormField } from '../components/form-field';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
+import { notify } from '../lib/notify';
 import { CreateWidgetBody, SetupEmailBody } from '@getmunin/types';
 import { dialogButtonClass, dialogFooterClass, dialogHintClass, dialogLabelClass } from '../lib/dialog-style';
 import {
   Button,
-  Card,
-  CardContent,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -98,7 +97,6 @@ export function ChannelsPage() {
   const translate = useTranslateError();
   const confirm = useConfirm();
   const [channels, setChannels] = useState<ChannelDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [widgetOpen, setWidgetOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [editEmail, setEditEmail] = useState<EmailChannelDto | null>(null);
@@ -107,7 +105,6 @@ export function ChannelsPage() {
   const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
 
   const load = useCallback(async () => {
-    setError(null);
     const list = await api<{ items: ChannelDto[] }>('/api/v1/conversations/channels');
     setChannels(list.items);
   }, []);
@@ -134,7 +131,7 @@ export function ChannelsPage() {
       );
       setRotated({ id: channel.id, name: channel.name, widgetKey: result.widgetKey });
     } catch (err) {
-      setError(translate(err) || t('errors.rotate'));
+      notify.error(translate(err) || t('errors.rotate'));
     }
   }
 
@@ -157,7 +154,7 @@ export function ChannelsPage() {
         identityVerificationSecret: result.identityVerificationSecret,
       });
     } catch (err) {
-      setError(translate(err) || t('errors.rotateIdentity'));
+      notify.error(translate(err) || t('errors.rotateIdentity'));
     }
   }
 
@@ -174,7 +171,7 @@ export function ChannelsPage() {
       await api(`/api/v1/conversations/channels/${channel.id}`, { method: 'DELETE' });
       await tryLoad();
     } catch (err) {
-      setError(translate(err) || t('errors.delete'));
+      notify.error(translate(err) || t('errors.delete'));
     }
   }
 
@@ -249,12 +246,6 @@ export function ChannelsPage() {
       />
 
       {embedFor && <EmbedSnippetDialog channel={embedFor} onClose={() => setEmbedFor(null)} />}
-
-      {error && (
-        <Card>
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
 
       <section className="space-y-4">
         <SectionHead
@@ -340,7 +331,7 @@ function ChannelRow({
   const origins = widgetConfig?.originAllowlist ?? [];
 
   return (
-    <li className="border border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
+    <li className="border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex items-center gap-3 flex-wrap">
@@ -349,7 +340,7 @@ function ChannelRow({
               {channel.name}
             </h3>
             {!channel.active && (
-              <span className="border border-amber-300 bg-amber-50 px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow text-amber-900">
+              <span className="border-[0.5px] border-amber-300 bg-amber-50 px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow text-amber-900">
                 {t('inactive')}
               </span>
             )}
@@ -450,7 +441,7 @@ function OriginChip({ text, muted }: { text: string; muted?: boolean }) {
   return (
     <span
       className={cn(
-        'inline-block border border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
+        'inline-block border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
         muted ? 'text-ink-mute italic' : 'text-ink dark:text-foreground',
       )}
     >
@@ -865,7 +856,7 @@ function EmailChannelDialog({
             </FormField>
           </div>
 
-          <fieldset className="space-y-3 rounded-md border px-3 pb-3">
+          <fieldset className="space-y-3 rounded-md border-[0.5px] px-3 pb-3">
             <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.outboundLabel')}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField label={t('email.host')} error={fieldErrors.smtpHost}>
@@ -919,7 +910,7 @@ function EmailChannelDialog({
             </div>
           </fieldset>
 
-          <fieldset className="space-y-3 rounded-md border px-3 pb-3">
+          <fieldset className="space-y-3 rounded-md border-[0.5px] px-3 pb-3">
             <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.inboundLabel')}</legend>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -1077,7 +1068,7 @@ function CopyableSecret({ label, value, hint }: { label: string; value: string; 
     <div className="space-y-1">
       <Label>{label}</Label>
       <div className="flex items-center gap-2">
-        <code className="flex-1 truncate rounded-md border bg-background px-3 py-2 font-mono text-sm">
+        <code className="flex-1 truncate rounded-md border-[0.5px] bg-background px-3 py-2 font-mono text-sm">
           {value}
         </code>
         <Button variant="outline" size="sm" onClick={copy}>
@@ -1143,11 +1134,13 @@ function EmbedSnippetDialog({
   const [snippetCopied, setSnippetCopied] = useState(false);
   const [hashCopied, setHashCopied] = useState(false);
 
-  const host = typeof window === 'undefined' ? '' : window.location.origin.replace(/\/+$/, '');
+  const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
   const scriptSnippet = [
     `<script src="${host}/widget.js"`,
+    `        data-munin-host="${host}"`,
     `        data-widget-key="<your widget key>"`,
     `        data-channel-id="${channel.id}"`,
+    `        data-munin-fonts="system"`,
     `        defer></script>`,
   ].join('\n');
 
@@ -1176,7 +1169,7 @@ function EmbedSnippetDialog({
         <div className="space-y-8 py-2">
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.scriptLabel')}</Label>
-            <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-md border-[0.5px] bg-muted px-3 py-2 font-mono text-xs">
               {scriptSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copySnippet}>
@@ -1184,12 +1177,15 @@ function EmbedSnippetDialog({
               {snippetCopied ? tCommon('copied') : t('embed.copyScript')}
             </Button>
             <p className={dialogHintClass}>{t('embed.scriptHint')}</p>
+            <a href="/docs/guides/chat-widget" target="_blank" rel="noreferrer" className="text-[13px] underline">
+              {t('embed.guideLinkLabel')}
+            </a>
           </div>
 
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.hashLabel')}</Label>
             <p className={dialogHintClass}>{t('embed.hashHint')}</p>
-            <div className="flex w-fit border border-ink dark:border-foreground">
+            <div className="flex w-fit border-[0.5px] border-ink dark:border-foreground">
               {HASH_SNIPPETS.map((s) => {
                 const active = s.language === language;
                 return (
@@ -1198,7 +1194,7 @@ function EmbedSnippetDialog({
                     type="button"
                     onClick={() => setLanguage(s.language)}
                     className={cn(
-                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
+                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r-[0.5px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
                       active
                         ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
                         : 'bg-paper hover:bg-paper-deep dark:bg-card dark:hover:bg-secondary',
@@ -1209,7 +1205,7 @@ function EmbedSnippetDialog({
                 );
               })}
             </div>
-            <pre className="overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-md border-[0.5px] bg-muted px-3 py-2 font-mono text-xs">
               {hashSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copyHash}>

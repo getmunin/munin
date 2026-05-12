@@ -90,7 +90,7 @@ export function ProviderCard({ config, onSaved }: ProviderCardProps) {
               type="button"
               onClick={() => selectPreset(p.id)}
               className={
-                'rounded-input border px-3 py-2 text-sm transition-colors ' +
+                'rounded-input border-[0.5px] px-3 py-2 text-sm transition-colors ' +
                 (preset === p.id
                   ? 'border-cobalt bg-cobalt/5 text-ink dark:text-foreground'
                   : 'border-rule-soft text-muted-foreground hover:text-ink dark:hover:text-foreground')

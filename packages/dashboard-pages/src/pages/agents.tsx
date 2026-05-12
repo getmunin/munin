@@ -8,7 +8,8 @@ import { LoadFailed } from '../components/load-failed';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
-import { Button, Card, CardContent, Hero, SectionHead, cn } from '@getmunin/ui';
+import { notify } from '../lib/notify';
+import { Button, Hero, SectionHead, cn } from '@getmunin/ui';
 
 interface TokenDto {
   id: string;
@@ -30,10 +31,9 @@ export function AgentsPage() {
   const translate = useTranslateError();
   const format = useFormatter();
   const [tokens, setTokens] = useState<TokenDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setError(null);
     const list = await api<TokenDto[]>('/api/v1/tokens');
     setTokens(list);
   }, []);
@@ -46,11 +46,15 @@ export function AgentsPage() {
   }, [tryLoad]);
 
   async function revoke(id: string) {
+    setRevokingId(id);
     try {
       await api(`/api/v1/tokens/${id}`, { method: 'DELETE' });
       await tryLoad();
+      notify.success(t('revoked'));
     } catch (err) {
-      setError(translate(err) || t('errors.revoke'));
+      notify.error(translate(err) || t('errors.revoke'));
+    } finally {
+      setRevokingId(null);
     }
   }
 
@@ -70,12 +74,6 @@ export function AgentsPage() {
         lede={t('subtitle')}
       />
 
-      {error && (
-        <Card>
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
-
       <section className="space-y-4">
         <SectionHead
           title={tokens ? t('agentsTitleCount', { count: tokens.length }) : t('agentsTitle')}
@@ -89,7 +87,7 @@ export function AgentsPage() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tableToken')}</Th>
                 <Th>{t('tableOrigin')}</Th>
                 <Th>{t('tableStatus')}</Th>
@@ -130,7 +128,7 @@ export function AgentsPage() {
                 return (
                   <tr
                     key={token.id}
-                    className="border-b border-rule-soft dark:border-rule-on-dark align-top"
+                    className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark align-middle"
                   >
                     <td className="py-4 pr-4">
                       <div className="text-sm font-medium text-ink dark:text-foreground">
@@ -151,7 +149,12 @@ export function AgentsPage() {
                     <td className="py-4 pr-4 font-mono text-xs text-ink-mute">{expires}</td>
                     <td className="py-4 text-right">
                       {status === 'active' && (
-                        <Button variant="outline" size="sm" onClick={() => void revoke(token.id)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          pending={revokingId === token.id}
+                          onClick={() => void revoke(token.id)}
+                        >
                           {tCommon('revoke')}
                         </Button>
                       )}
@@ -194,7 +197,7 @@ function StatusChip({
         'inline-block px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow',
         status === 'active'
           ? 'bg-cobalt/15 text-cobalt-deep dark:bg-cobalt-soft/20 dark:text-cobalt-soft'
-          : 'border border-rule-soft dark:border-rule-on-dark text-ink-mute',
+          : 'border-[0.5px] border-rule-soft dark:border-rule-on-dark text-ink-mute',
       )}
     >
       {label}

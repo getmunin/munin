@@ -1,8 +1,8 @@
 {
   "name": "@getmunin/agent-runtime",
-  "version": "3.4.0",
+  "version": "3.4.1",
   "license": "MIT",
-  "description": "LLM agent loop \u2014 given a config, conversation history, and an MCP tool handle, produce a reply.",
+  "description": "LLM agent loop — given a config, conversation history, and an MCP tool handle, produce a reply.",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"

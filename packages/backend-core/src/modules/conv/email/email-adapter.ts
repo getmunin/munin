@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { createTransport, type Transporter } from 'nodemailer';
 import { DB } from '../../../common/db/db.module.js';
 import { MAILER } from '../../../common/mail/mail.module.js';
+import { CuratorJobsService } from '../../curator/curator-jobs.service.js';
 import {
   EmailService,
   jsonbToStored,
@@ -116,6 +117,7 @@ export class EmailAdapter implements ChannelAdapter {
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(MAILER) private readonly mailer: Mailer,
     @Inject(EmailService) private readonly emailService: EmailService,
+    @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
   ) {}
 
   /** Test-only: swap the IMAP boundary. */
@@ -373,6 +375,24 @@ export class EmailAdapter implements ChannelAdapter {
             internal: false,
           },
         });
+
+        if (cleanText && cleanText.length >= 80) {
+          await this.curatorJobs.enqueue({
+            skillUri: 'skill://conv/strip-email-signature',
+            userPrompt:
+              `Run the signature-stripping skill on this inbound email message.\n\n` +
+              `Message ID: ${msg!.id}\n` +
+              `Sender: ${parsed.fromAddress}\n\n` +
+              `Body:\n${cleanText}`,
+            sourceEventType: 'conversation.message.received',
+            sourceEventPayload: {
+              conversationId,
+              messageId: msg!.id,
+              channelType: 'email',
+            },
+            dedupeKey: `strip-sig:msg:${msg!.id}`,
+          });
+        }
       });
     });
   }

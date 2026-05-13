@@ -292,11 +292,13 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     };
 
     const smartModel = opts.config.smartModel ?? opts.config.fastModel;
+    const fastModel = opts.config.fastModel;
 
     const executeOne = async (job: CuratorJob): Promise<void> => {
       log.info(`running ${job.skillUri} for ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
       let result: SkillPassResult;
       try {
+        const tier = modelTierFor(job.skillUri);
         result = await runSkillPass({
           baseUrl: this.baseUrl,
           adminApiKey: (await runWithServiceContext(this.db, opts.id, () =>
@@ -304,7 +306,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           )) ?? this.fallbackAdminApiKey ?? '',
           providerBaseUrl: opts.config.providerBaseUrl,
           providerApiKey: opts.providerApiKey,
-          model: smartModel,
+          model: tier === 'fast' ? fastModel : smartModel,
           skillUri: job.skillUri,
           userPrompt: job.userPrompt,
           maxToolIterations: 24,
@@ -427,7 +429,13 @@ function toolPrefixesFor(skillUri: string): string[] | undefined {
   if (skillUri === 'skill://outreach/draft-initial') return ['conv_', 'kb_', 'crm_', 'outreach_'];
   if (skillUri === 'skill://outreach/draft-reply') return ['conv_', 'kb_', 'crm_', 'outreach_'];
   if (skillUri === 'skill://cms/stale-content-review') return ['cms_'];
+  if (skillUri === 'skill://conv/strip-email-signature') return ['conv_strip_message_signature'];
   return undefined;
+}
+
+function modelTierFor(skillUri: string): 'fast' | 'smart' {
+  if (skillUri === 'skill://conv/strip-email-signature') return 'fast';
+  return 'smart';
 }
 
 function describe(err: unknown): string {

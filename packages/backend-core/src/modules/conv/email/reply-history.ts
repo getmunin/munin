@@ -67,6 +67,62 @@ export function stripQuotedReplyHtml(html: string | null): string | null {
   return out.replace(/\s+$/, '');
 }
 
+const SIGNATURE_OPENERS: RegExp[] = [
+  /^--\s?$/,
+  /^_{5,}$/,
+  /^sent from my (iphone|ipad|ipod|android|.+\bphone|.+\btablet)\b/i,
+  /^sent from outlook( for ios| for android| mobile)?\b/i,
+  /^get outlook for (ios|android)\b/i,
+  /^sent via samsung\b/i,
+  /^sendt fra (min )?(iphone|ipad|outlook|mobil|android)\b/i,
+  /^envoyé de mon (iphone|ipad)\b/i,
+  /^enviado desde mi (iphone|ipad)\b/i,
+  /^verzonden vanaf mijn (iphone|ipad)\b/i,
+  /^von meinem (iphone|ipad) gesendet\b/i,
+];
+
+/**
+ * Strip an email signature off the end of an already-quote-stripped body.
+ * Cuts at the first line that matches a known signature opener (RFC 3676
+ * `-- `, mobile-client patterns across a few languages, or an underscore
+ * separator). Always conservative — if cutting would leave the body empty
+ * or near-empty, returns the input unchanged.
+ *
+ * Run AFTER `stripQuotedReplyText` so the openers aren't fighting the
+ * quoted reply for the cut point.
+ */
+export function stripSignatureText(body: string): string {
+  if (!body) return body;
+  const lines = body.split(/\r?\n/);
+  let cut = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!.trim();
+    if (SIGNATURE_OPENERS.some((re) => re.test(line))) {
+      cut = i;
+      break;
+    }
+  }
+  if (cut < 0) return body;
+  const kept = lines.slice(0, cut);
+  let nonEmpty = 0;
+  for (const l of kept) if (l.trim() !== '') nonEmpty += 1;
+  if (nonEmpty === 0) return body;
+  return kept.join('\n').replace(/\s+$/g, '').trim();
+}
+
+/**
+ * HTML signature strip — narrowly targets containers mail clients reliably
+ * mark up as signatures. Gmail's `<div class="gmail_signature">` is the
+ * canonical case. Outlook leaves no class hook so we don't try to guess.
+ */
+export function stripSignatureHtml(html: string | null): string | null {
+  if (!html) return html;
+  let out = html;
+  out = out.replace(/<div[^>]*class="[^"]*gmail_signature[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  out = out.replace(/<div[^>]*data-smartmail="gmail_signature"[^>]*>[\s\S]*?<\/div>/gi, '');
+  return out.replace(/\s+$/, '');
+}
+
 /** Prefix the subject with `Re: ` unless it already starts with one. */
 export function ensureReSubject(subject: string | null | undefined): string {
   const s = (subject ?? '').trim();

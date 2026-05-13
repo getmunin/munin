@@ -706,6 +706,47 @@ export class ConvService {
     });
   }
 
+  async stripMessageSignature(input: {
+    messageId: string;
+    body: string;
+    signatureText?: string;
+  }): Promise<{ updated: boolean; reason?: string }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select()
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.id, input.messageId))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return { updated: false, reason: 'message_not_found' };
+    if (row.orgId !== actor.orgId) return { updated: false, reason: 'wrong_org' };
+    if (row.authorType !== 'end_user') return { updated: false, reason: 'not_inbound' };
+
+    const newBody = input.body.trim();
+    if (!newBody) return { updated: false, reason: 'empty_body' };
+
+    const originalBody = row.body;
+    if (newBody === originalBody) return { updated: false, reason: 'no_change' };
+
+    if (originalBody.length > 0 && newBody.length < originalBody.length * 0.5) {
+      return { updated: false, reason: 'too_aggressive' };
+    }
+
+    const existingMeta = row.metadata ?? {};
+    const patchedMeta: Record<string, unknown> = {
+      ...existingMeta,
+      preStripBody: originalBody,
+      ...(input.signatureText ? { signatureText: input.signatureText } : {}),
+    };
+
+    await ctx.db
+      .update(schema.convMessages)
+      .set({ body: newBody, metadata: patchedMeta })
+      .where(eq(schema.convMessages.id, input.messageId));
+    return { updated: true };
+  }
+
   async assignConversation(input: {
     id: string;
     assigneeUserId: string | null;

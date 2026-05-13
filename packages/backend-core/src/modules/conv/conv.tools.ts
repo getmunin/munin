@@ -62,6 +62,12 @@ const SetTopicInput = z.object({
   topicId: z.string().nullable(),
 });
 
+const StripMessageSignatureInput = z.object({
+  messageId: z.string(),
+  body: z.string().min(1).max(50_000),
+  signatureText: z.string().max(5_000).optional(),
+});
+
 const EmptyInput = z.object({});
 
 @Injectable()
@@ -248,5 +254,20 @@ export class ConvAdminTools {
   })
   setTopic(args: z.infer<typeof SetTopicInput>) {
     return this.conv.setTopic(args);
+  }
+
+  @McpTool({
+    name: 'conv_strip_message_signature',
+    title: 'Strip the signature from an inbound message',
+    description:
+      "Replace an inbound message's body with a signature-stripped version. Used by the strip-email-signature curator skill — runs after the regex quote-stripper to clean up the trailing sign-off / contact block. The original body is kept in `metadata.preStripBody` for audit; the removed signature (if provided) is stored in `metadata.signatureText`. Refuses if the new body is empty, more than 50% shorter than the original, or if the message isn't an end-user inbound in the caller's org.",
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: StripMessageSignatureInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  stripMessageSignature(args: z.infer<typeof StripMessageSignatureInput>) {
+    return this.conv.stripMessageSignature(args);
   }
 }

@@ -66,6 +66,7 @@ interface EmailChannelDto extends ChannelDto {
       port: number;
       secure?: boolean;
       username?: string;
+      trackOpens?: boolean;
     };
     inbound?: {
       provider: 'imap';
@@ -710,6 +711,7 @@ function EmailChannelDialog({
   const [smtpSecure, setSmtpSecure] = useState(false);
   const [smtpUsername, setSmtpUsername] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
+  const [trackOpens, setTrackOpens] = useState(false);
   const [enableInbound, setEnableInbound] = useState(false);
   const [imapHost, setImapHost] = useState('');
   const [imapPort, setImapPort] = useState('993');
@@ -740,6 +742,7 @@ function EmailChannelDialog({
     setSmtpSecure(cfg?.outbound?.secure ?? false);
     setSmtpUsername(cfg?.outbound?.username ?? '');
     setSmtpPassword('');
+    setTrackOpens(cfg?.outbound?.trackOpens ?? false);
     setEnableInbound(cfg?.inbound != null);
     setImapHost(cfg?.inbound?.host ?? '');
     setImapPort(cfg?.inbound?.port != null ? String(cfg.inbound.port) : '993');
@@ -770,6 +773,7 @@ function EmailChannelDialog({
           secure: smtpSecure,
           username: smtpUsername.trim(),
           ...(smtpPassword ? { password: smtpPassword } : {}),
+          trackOpens,
         },
         ...(enableInbound
           ? {
@@ -925,6 +929,20 @@ function EmailChannelDialog({
                   onChange={(e) => setSmtpSecure(e.target.checked)}
                 />
                 {t('email.secure')}
+              </label>
+              <label className="flex items-start gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={trackOpens}
+                  onChange={(e) => setTrackOpens(e.target.checked)}
+                />
+                <span>
+                  {t('email.trackOpens')}
+                  <span className="block text-[11px] text-ink-mute">
+                    {t('email.trackOpensHint')}
+                  </span>
+                </span>
               </label>
             </div>
           </fieldset>

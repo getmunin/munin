@@ -46,3 +46,18 @@ CREATE POLICY tenant_isolation ON conv_inbound_state
         AND c.org_id = app_org_id()
     )
   );
+
+-- Per-end-user read stamps on agent messages. Org-scoped, admin reads
+-- everything for "Seen at …" dashboard badges. The widget ingest service
+-- runs with app.bypass_rls=on (it writes on behalf of the end-user but
+-- needs to write the org_id too), so the WITH CHECK gate stays the
+-- standard one.
+ALTER TABLE conv_message_reads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_message_reads FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_message_reads;
+CREATE POLICY tenant_isolation ON conv_message_reads
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

@@ -4,10 +4,12 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
+  signEmailOpenToken,
   withContext,
   type Mailer,
   type RequestContext,
 } from '@getmunin/core';
+import { readPublicBaseUrl } from '../../../oauth/oauth.constants.js';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, type ParsedMail, type AddressObject } from 'mailparser';
 import { randomUUID } from 'node:crypto';
@@ -135,6 +137,7 @@ export class EmailAdapter implements ChannelAdapter {
     const body = quoted ? `${ctx.message.body}\n\n${quoted}` : ctx.message.body;
 
     const subject = ensureReSubject(ctx.conversation.subject?.trim() || null);
+    const trackerUrl = trackerUrlFor(config, ctx);
 
     const built: BuiltMessage = buildOutbound({
       from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
@@ -146,6 +149,7 @@ export class EmailAdapter implements ChannelAdapter {
       messageIdDomain: config.addressing.fromAddress,
       inReplyTo: ctx.delivery.inReplyToHeader ?? undefined,
       references: ctx.delivery.inReplyToHeader ? [ctx.delivery.inReplyToHeader] : undefined,
+      trackerUrl,
     });
 
     if (config.outbound.provider === 'smtp') {
@@ -478,4 +482,22 @@ function extractTextBody(raw: string): string {
   const split = raw.indexOf('\r\n\r\n');
   if (split < 0) return '';
   return raw.slice(split + 4);
+}
+
+function trackerUrlFor(
+  config: StoredEmailChannelConfig,
+  ctx: SendContext,
+): string | undefined {
+  if (!config.outbound.trackOpens) return undefined;
+  if (!ctx.message.bodyHtml) return undefined;
+  if (!process.env.MUNIN_KEY_PEPPER) return undefined;
+  try {
+    const token = signEmailOpenToken({
+      orgId: ctx.channel.orgId,
+      deliveryId: ctx.delivery.id,
+    });
+    return `${readPublicBaseUrl()}/api/v1/c/o/${token}.gif`;
+  } catch {
+    return undefined;
+  }
 }

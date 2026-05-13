@@ -30,7 +30,7 @@ export interface EmailChannelConfigDto {
     replyToTemplate?: string;
   };
   outbound:
-    | { provider: 'mailer' }
+    | { provider: 'mailer'; trackOpens?: boolean }
     | {
         provider: 'smtp';
         host: string;
@@ -38,6 +38,7 @@ export interface EmailChannelConfigDto {
         secure: boolean;
         username: string;
         password: typeof REDACTED_PASSWORD;
+        trackOpens?: boolean;
       };
   inbound?: {
     provider: 'imap';
@@ -57,10 +58,12 @@ const StoredSmtpOutboundSchema = z.object({
   secure: z.boolean(),
   username: z.string(),
   encryptedPassword: z.string(),
+  trackOpens: z.boolean().optional(),
 });
 
 const StoredMailerOutboundSchema = z.object({
   provider: z.literal('mailer'),
+  trackOpens: z.boolean().optional(),
 });
 
 const StoredImapInboundSchema = z.object({
@@ -104,8 +107,16 @@ export class EmailService {
               encryptedPassword: input.outbound.password
                 ? await encryptString(input.outbound.password)
                 : '',
+              ...(input.outbound.trackOpens !== undefined
+                ? { trackOpens: input.outbound.trackOpens }
+                : {}),
             }
-          : { provider: 'mailer' },
+          : {
+              provider: 'mailer',
+              ...(input.outbound.trackOpens !== undefined
+                ? { trackOpens: input.outbound.trackOpens }
+                : {}),
+            },
     };
     if (input.inbound) {
       out.inbound = {
@@ -135,8 +146,16 @@ export class EmailService {
               secure: stored.outbound.secure,
               username: stored.outbound.username,
               password: REDACTED_PASSWORD,
+              ...(stored.outbound.trackOpens !== undefined
+                ? { trackOpens: stored.outbound.trackOpens }
+                : {}),
             }
-          : { provider: 'mailer' },
+          : {
+              provider: 'mailer',
+              ...(stored.outbound.trackOpens !== undefined
+                ? { trackOpens: stored.outbound.trackOpens }
+                : {}),
+            },
     };
     if (stored.inbound) {
       out.inbound = {

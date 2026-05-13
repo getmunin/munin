@@ -368,6 +368,8 @@
         "username": "Brukernavn",
         "password": "Passord",
         "secure": "Bruk TLS",
+        "trackOpens": "Spor når mottakere åpner e-post",
+        "trackOpensHint": "Legger inn en 1×1 sporingspiksel i HTML-delen. Best-effort — mange klienter blokkerer bilder, Apple Mail Privacy Protection forhåndslaster dem.",
         "mailbox": "Postboks (valgfritt, standard INBOX)",
         "enableInbound": "Aktiver innkommende (poll en IMAP-postboks)",
         "create": "Opprett e-postkanal",

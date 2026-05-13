@@ -15,6 +15,7 @@ export interface UiHooks {
   onOpenConversation?: (summary: ConversationSummary) => void;
   onBackToWelcome?: () => void;
   onSetVisitorEmail?: (email: string) => void;
+  onMessageRead?: (messageId: string) => void;
 }
 
 export type ChatKind = 'new' | 'existing';
@@ -71,6 +72,23 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
   let emailSaved: { email: string } | null = null;
 
   const seenIds = new Set<string>();
+  const readReported = new Set<string>();
+  const readObserver: IntersectionObserver | null =
+    typeof IntersectionObserver !== 'undefined'
+      ? new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              const id = (entry.target as HTMLElement).getAttribute('data-message-id');
+              if (!id || readReported.has(id)) continue;
+              readReported.add(id);
+              readObserver?.unobserve(entry.target);
+              hooks.onMessageRead?.(id);
+            }
+          },
+          { root: panel.messagesEl, threshold: 0.5 },
+        )
+      : null;
 
   launcher.addEventListener('click', () => open());
   panel.closeBtn.addEventListener('click', () => close());
@@ -121,7 +139,11 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
     for (const m of messages) {
       if (seenIds.has(m.id)) continue;
       seenIds.add(m.id);
-      panel.messagesEl.appendChild(renderMessage(m));
+      const el = renderMessage(m);
+      panel.messagesEl.appendChild(el);
+      if (readObserver && m.role !== 'end_user' && m.role !== 'system') {
+        readObserver.observe(el);
+      }
       appended = true;
     }
     if (panel.typingEl.parentNode === panel.messagesEl) {
@@ -204,6 +226,8 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
 
   function resetChat(): void {
     seenIds.clear();
+    readReported.clear();
+    readObserver?.disconnect();
     panel.messagesEl.innerHTML = '';
     panel.messagesEl.appendChild(panel.typingEl);
     panel.typingEl.hidden = true;
@@ -288,6 +312,7 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
   function destroy(): void {
     if (agentTypingTimer) clearTimeout(agentTypingTimer);
     if (typingIdleTimer) clearTimeout(typingIdleTimer);
+    readObserver?.disconnect();
     host.remove();
   }
 

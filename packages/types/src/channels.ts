@@ -12,10 +12,12 @@ export const SmtpOutboundSchema = z.object({
   secure: z.boolean(),
   username: z.string().min(1),
   password: z.string().min(1).optional(),
+  trackOpens: z.boolean().optional(),
 });
 
 export const MailerOutboundSchema = z.object({
   provider: z.literal('mailer'),
+  trackOpens: z.boolean().optional(),
 });
 
 export const OutboundConfigSchema = z.discriminatedUnion('provider', [

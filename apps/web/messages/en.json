@@ -219,6 +219,7 @@
         "crmMergeBody": "Merge <strong>{loser}</strong> into <strong>{keeper}</strong>.",
         "crmMergeExplain": "Keeps the primary; rewrites foreign keys; archives the loser. No conversations are lost.",
         "internalLabel": "internal · {author}",
+        "seenAt": "Seen {time}",
         "activityConv": "Conversation activity",
         "activityContact": "Contact activity",
         "activityEmpty": "No activity yet.",

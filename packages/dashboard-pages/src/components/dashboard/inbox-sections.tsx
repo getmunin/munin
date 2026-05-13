@@ -46,6 +46,7 @@ interface MessageDto {
   attachments: unknown[];
   metadata: Record<string, unknown>;
   createdAt: string;
+  seenAt?: string | null;
 }
 
 interface ConversationDetail extends ConversationSummary {
@@ -1365,31 +1366,46 @@ function MessageBubble({ message }: { message: MessageDto }) {
     );
   }
   return (
-    <div
-      className={cn(
-        'max-w-[85%] px-3 py-2 text-sm',
-        isStaff
-          ? 'ml-auto rounded-bubble rounded-tr-[2px] bg-cobalt text-paper'
-          : isAgent
-            ? 'ml-auto rounded-bubble rounded-tr-[2px] bg-ink text-paper dark:bg-paper dark:text-ink'
-            : 'mr-auto rounded-bubble rounded-tl-[2px] bg-paper-deep text-ink dark:bg-secondary dark:text-foreground',
-      )}
-    >
+    <div className={cn('flex flex-col gap-1', isOutbound ? 'items-end' : 'items-start')}>
       <div
         className={cn(
-          'mb-0.5 font-mono text-[9px] uppercase tracking-eyebrow',
+          'max-w-[85%] px-3 py-2 text-sm',
           isStaff
-            ? 'text-paper/70'
+            ? 'rounded-bubble rounded-tr-[2px] bg-cobalt text-paper'
             : isAgent
-              ? 'text-paper/70 dark:text-ink/70'
-              : 'text-ink-mute',
+              ? 'rounded-bubble rounded-tr-[2px] bg-ink text-paper dark:bg-paper dark:text-ink'
+              : 'rounded-bubble rounded-tl-[2px] bg-paper-deep text-ink dark:bg-secondary dark:text-foreground',
         )}
       >
-        {bubbleLabel(message, t)}
+        <div
+          className={cn(
+            'mb-0.5 font-mono text-[9px] uppercase tracking-eyebrow',
+            isStaff
+              ? 'text-paper/70'
+              : isAgent
+                ? 'text-paper/70 dark:text-ink/70'
+                : 'text-ink-mute',
+          )}
+        >
+          {bubbleLabel(message, t)}
+        </div>
+        <div className="whitespace-pre-wrap">{message.body}</div>
       </div>
-      <div className="whitespace-pre-wrap">{message.body}</div>
+      {isOutbound && message.seenAt && (
+        <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+          {t('seenAt', { time: formatSeenAt(message.seenAt) })}
+        </div>
+      )}
     </div>
   );
+}
+
+function formatSeenAt(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
 }
 
 function bubbleLabel(

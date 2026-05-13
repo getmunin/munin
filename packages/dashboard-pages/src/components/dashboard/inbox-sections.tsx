@@ -572,7 +572,17 @@ export function useInboxData(): InboxController {
 
 export function LiveNowSection({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.liveNow');
-  const { items, details, pending, setConvDrawer, setReply, setDraftEdit, takeOver } = controller;
+  const {
+    items,
+    details,
+    pending,
+    actionError,
+    clearActionError,
+    setConvDrawer,
+    setReply,
+    setDraftEdit,
+    takeOver,
+  } = controller;
   if (items.length === 0) return null;
 
   return (
@@ -598,6 +608,8 @@ export function LiveNowSection({ controller }: { controller: InboxController }) 
             conv={c}
             detail={details[c.id]}
             pending={pending}
+            actionError={actionError?.conversationId === c.id ? actionError : null}
+            onDismissError={clearActionError}
             onOpen={(mode) => {
               setReply('');
               setDraftEdit(null);
@@ -750,12 +762,16 @@ function LiveCard({
   conv,
   detail,
   pending,
+  actionError,
+  onDismissError,
   onOpen,
   onTakeOver,
 }: {
   conv: ConversationSummary;
   detail: ConversationDetail | undefined;
   pending: boolean;
+  actionError: ConvActionError;
+  onDismissError: () => void;
   onOpen: (mode: 'simplified' | 'full') => void;
   onTakeOver: () => void;
 }) {
@@ -785,7 +801,7 @@ function LiveCard({
   const handleCardClick = () => onOpen(claimed ? 'full' : 'simplified');
 
   return (
-    <li>
+    <li className="space-y-0">
       <div
         className="group/livecard flex items-stretch gap-4 border-[0.5px] border-ink bg-paper px-5 py-4 cursor-pointer transition-colors duration-fast ease-munin hover:border-cobalt dark:border-rule-on-dark dark:bg-card dark:hover:border-cobalt-soft"
         onClick={handleCardClick}
@@ -840,6 +856,23 @@ function LiveCard({
           )}
         </div>
       </div>
+      {actionError && (
+        <div
+          className="flex items-start gap-3 border-x-[0.5px] border-b-[0.5px] border-ink border-t-0 bg-destructive/5 px-5 py-2 text-sm text-destructive dark:border-rule-on-dark"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="flex-1">
+            {tDrawer(`actionFailed.${actionError.type}`)} — {actionError.message}
+          </span>
+          <button
+            type="button"
+            className="underline-offset-2 hover:underline"
+            onClick={onDismissError}
+          >
+            {tDrawer('close')}
+          </button>
+        </div>
+      )}
     </li>
   );
 }

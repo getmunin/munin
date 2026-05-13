@@ -66,6 +66,7 @@ export interface MessageDto {
   attachments: unknown[];
   metadata: Record<string, unknown>;
   createdAt: string;
+  seenAt: string | null;
 }
 
 export interface ConversationSummary {
@@ -339,16 +340,31 @@ export class ConvService {
     const row = conversations[0];
     if (!row) throw new NotFoundException(`conv_not_found: conversation ${id}`);
 
-    const messages = await ctx.db
-      .select()
+    const reads = ctx.db
+      .select({
+        messageId: schema.convMessageReads.messageId,
+        seenAt: sql<Date | null>`MIN(${schema.convMessageReads.readAt})`.as('seen_at'),
+      })
+      .from(schema.convMessageReads)
+      .where(eq(schema.convMessageReads.conversationId, id))
+      .groupBy(schema.convMessageReads.messageId)
+      .as('reads');
+
+    const rows = await ctx.db
+      .select({
+        msg: schema.convMessages,
+        seenAt: reads.seenAt,
+      })
       .from(schema.convMessages)
+      .leftJoin(reads, eq(reads.messageId, schema.convMessages.id))
       .where(eq(schema.convMessages.conversationId, id))
       .orderBy(asc(schema.convMessages.createdAt));
 
+    const messages = rows.map((r) => r.msg);
     const authorNames = await this.loadAuthorNames(messages);
     return {
       ...toConversationSummary(row.conv, row.channelType),
-      messages: messages.map((m) => toMessageDto(m, authorNames)),
+      messages: rows.map((r) => toMessageDto(r.msg, authorNames, r.seenAt)),
     };
   }
 
@@ -1013,6 +1029,7 @@ function toConversationSummary(
 function toMessageDto(
   row: typeof schema.convMessages.$inferSelect,
   authorNames: Map<string, string> = new Map(),
+  seenAt: Date | null = null,
 ): MessageDto {
   return {
     id: row.id,
@@ -1026,6 +1043,7 @@ function toMessageDto(
     attachments: row.attachments,
     metadata: row.metadata,
     createdAt: row.createdAt.toISOString(),
+    seenAt: seenAt ? seenAt.toISOString() : null,
   };
 }
 

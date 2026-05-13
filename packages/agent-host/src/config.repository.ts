@@ -1,7 +1,7 @@
 export interface AgentConfigRow {
   id: string;
-  chatModel: string;
-  curatorModel: string | null;
+  fastModel: string;
+  smartModel: string | null;
   providerBaseUrl: string;
   providerApiKeySet: boolean;
   maxHistoryChars: number;
@@ -13,8 +13,8 @@ export interface AgentConfigRow {
 }
 
 export interface AgentConfigPatch {
-  chatModel?: string;
-  curatorModel?: string | null;
+  fastModel?: string;
+  smartModel?: string | null;
   providerBaseUrl?: string;
   providerApiKey?: string | null;
   maxHistoryChars?: number;

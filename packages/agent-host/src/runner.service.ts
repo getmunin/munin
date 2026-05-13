@@ -222,7 +222,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     const handlerConfig: HandlerConfig = {
       providerBaseUrl: config.providerBaseUrl,
       providerApiKey,
-      model: config.chatModel,
+      model: config.fastModel,
       maxToolIterations: config.maxToolIterations,
       maxHistoryChars: config.maxHistoryChars,
       debounceMs: config.debounceMs,
@@ -291,7 +291,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       return p;
     };
 
-    const curatorModel = opts.config.curatorModel ?? opts.config.chatModel;
+    const smartModel = opts.config.smartModel ?? opts.config.fastModel;
 
     const executeOne = async (job: CuratorJob): Promise<void> => {
       log.info(`running ${job.skillUri} for ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
@@ -304,7 +304,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           )) ?? this.fallbackAdminApiKey ?? '',
           providerBaseUrl: opts.config.providerBaseUrl,
           providerApiKey: opts.providerApiKey,
-          model: curatorModel,
+          model: smartModel,
           skillUri: job.skillUri,
           userPrompt: job.userPrompt,
           maxToolIterations: 24,

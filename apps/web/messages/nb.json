@@ -692,8 +692,8 @@
       "saveAndContinue": "Lagre og fortsett",
       "checklist": {
         "provider": "Leverandør konfigurert ({url})",
-        "chat": "Chat-modell — {model}",
-        "curator": "Kurator-modell — {model}"
+        "fast": "Rask modell — {model}",
+        "smart": "Smart modell — {model}"
       },
       "cta": {
         "goToDashboard": "Gå til dashbord",
@@ -727,12 +727,14 @@
     },
     "models": {
       "title": "Modeller",
-      "curatorHint": "Kurering kjører sjeldnere, men resonnerer over mer tekst. Velg en sterkere modell enn for chat.",
+      "smartHint": "Munin bruker to modeller. Velg én rask og rimelig for chat-bot-svar og lett rydding; velg en sterkere for jobber som krever skjønn.",
       "needKey": "Lagre en API-nøkkel for å hente modell-listen.",
       "unsupported": "Leverandøren returnerte ingen modell-liste. Skriv inn modell-ID-er manuelt (f.eks. anthropic/claude-haiku-4.5).",
-      "chat": "Chat-modell",
-      "curator": "Kurator-modell",
-      "curatorSameAsChat": "Samme som chat"
+      "fast": "Rask modell",
+      "fastHint": "Brukes til: chat-bot-svar, signaturfjerning, klassifisering, korte oppsummeringer. Latens og kostnad veier tyngre enn intelligens her.",
+      "smart": "Smart modell",
+      "smartUseHint": "Brukes til: KB-kurering, CRM-hygiene, utgående utkast — overalt der agenten må vurdere på tvers av mange meldinger.",
+      "smartSameAsFast": "Samme som rask modell"
     }
   },
   "acceptInvite": {

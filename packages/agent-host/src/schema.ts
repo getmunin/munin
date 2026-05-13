@@ -6,8 +6,8 @@ const updatedAt = timestamp('updated_at', { withTimezone: true }).notNull().defa
 
 export const agentConfig = pgTable('agent_config', {
   id: text('id').primaryKey(),
-  chatModel: text('chat_model').notNull(),
-  curatorModel: text('curator_model'),
+  fastModel: text('fast_model').notNull(),
+  smartModel: text('smart_model'),
   providerBaseUrl: text('provider_base_url').notNull(),
   providerApiKeyCt: text('provider_api_key_ct'),
   adminApiKeyCt: text('admin_api_key_ct'),
@@ -22,10 +22,26 @@ export const agentConfig = pgTable('agent_config', {
 export const SINGLETON_ID = 'singleton' as const;
 
 export const AGENT_HOST_SINGLETON_DDL = sql`
+  DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'agent_config' AND column_name = 'chat_model'
+    ) THEN
+      ALTER TABLE agent_config RENAME COLUMN chat_model TO fast_model;
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'agent_config' AND column_name = 'curator_model'
+    ) THEN
+      ALTER TABLE agent_config RENAME COLUMN curator_model TO smart_model;
+    END IF;
+  END $$;
+
   CREATE TABLE IF NOT EXISTS agent_config (
     id text PRIMARY KEY DEFAULT 'singleton',
-    chat_model text NOT NULL DEFAULT 'anthropic/claude-haiku-4.5',
-    curator_model text,
+    fast_model text NOT NULL DEFAULT 'anthropic/claude-haiku-4.5',
+    smart_model text,
     provider_base_url text NOT NULL DEFAULT 'https://openrouter.ai/api/v1',
     provider_api_key_ct text,
     admin_api_key_ct text,
@@ -49,10 +65,26 @@ export const AGENT_HOST_SINGLETON_DDL = sql`
 `;
 
 export const AGENT_HOST_MULTI_TENANT_DDL = sql`
+  DO $$
+  BEGIN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'agent_config' AND column_name = 'chat_model'
+    ) THEN
+      ALTER TABLE agent_config RENAME COLUMN chat_model TO fast_model;
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'agent_config' AND column_name = 'curator_model'
+    ) THEN
+      ALTER TABLE agent_config RENAME COLUMN curator_model TO smart_model;
+    END IF;
+  END $$;
+
   CREATE TABLE IF NOT EXISTS agent_config (
     id text PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
-    chat_model text NOT NULL,
-    curator_model text,
+    fast_model text NOT NULL,
+    smart_model text,
     provider_base_url text NOT NULL,
     provider_api_key_ct text,
     admin_api_key_ct text,
@@ -64,7 +96,7 @@ export const AGENT_HOST_MULTI_TENANT_DDL = sql`
     updated_at timestamptz NOT NULL DEFAULT now()
   );
 
-  ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS curator_model text;
+  ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS smart_model text;
 
   DROP INDEX IF EXISTS agent_config_enabled_idx;
 

@@ -55,8 +55,8 @@ async function readRow(id: string, createIfMissing: boolean): Promise<AgentConfi
   const rows = await ctx.db
     .select({
       id: agentConfig.id,
-      chatModel: agentConfig.chatModel,
-      curatorModel: agentConfig.curatorModel,
+      fastModel: agentConfig.fastModel,
+      smartModel: agentConfig.smartModel,
       providerBaseUrl: agentConfig.providerBaseUrl,
       providerKeySet: sql<boolean>`(${agentConfig.providerApiKeyCt} IS NOT NULL)`,
       maxHistoryChars: agentConfig.maxHistoryChars,
@@ -73,8 +73,8 @@ async function readRow(id: string, createIfMissing: boolean): Promise<AgentConfi
   if (row) {
     return {
       id: row.id,
-      chatModel: row.chatModel,
-      curatorModel: row.curatorModel,
+      fastModel: row.fastModel,
+      smartModel: row.smartModel,
       providerBaseUrl: row.providerBaseUrl,
       providerApiKeySet: row.providerKeySet,
       maxHistoryChars: row.maxHistoryChars,
@@ -97,8 +97,8 @@ async function readRow(id: string, createIfMissing: boolean): Promise<AgentConfi
 async function applyPatch(id: string, patch: AgentConfigPatch): Promise<void> {
   const ctx = getCurrentContext();
   const setClauses: Record<string, unknown> = {};
-  if (patch.chatModel !== undefined) setClauses['chatModel'] = patch.chatModel;
-  if (patch.curatorModel !== undefined) setClauses['curatorModel'] = patch.curatorModel;
+  if (patch.fastModel !== undefined) setClauses['fastModel'] = patch.fastModel;
+  if (patch.smartModel !== undefined) setClauses['smartModel'] = patch.smartModel;
   if (patch.providerBaseUrl !== undefined) setClauses['providerBaseUrl'] = patch.providerBaseUrl;
   if (patch.maxHistoryChars !== undefined) setClauses['maxHistoryChars'] = patch.maxHistoryChars;
   if (patch.maxToolIterations !== undefined) setClauses['maxToolIterations'] = patch.maxToolIterations;

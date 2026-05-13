@@ -869,10 +869,17 @@ function SimplifiedConvDrawer({
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const age = useRelative();
+  const flaggedAtMs = detail.needsHumanAttentionAt
+    ? Date.parse(detail.needsHumanAttentionAt)
+    : null;
   const customer = detail.messages
     .slice()
     .reverse()
-    .find((m) => m.authorType === 'end_user' && !m.internal);
+    .find((m) => {
+      if (m.authorType !== 'end_user' || m.internal) return false;
+      if (flaggedAtMs == null) return true;
+      return Date.parse(m.createdAt) <= flaggedAtMs;
+    });
   const draft = detail.messages
     .slice()
     .reverse()

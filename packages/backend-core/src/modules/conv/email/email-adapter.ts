@@ -29,6 +29,8 @@ import {
   formatQuotedHistory,
   stripQuotedReplyHtml,
   stripQuotedReplyText,
+  stripSignatureHtml,
+  stripSignatureText,
   type QuotedPriorMessage,
 } from './reply-history.js';
 import type {
@@ -342,8 +344,8 @@ export class EmailAdapter implements ChannelAdapter {
           conversationId = newConv!.id;
         }
 
-        const cleanText = stripQuotedReplyText(parsed.bodyText);
-        const cleanHtml = stripQuotedReplyHtml(parsed.bodyHtml);
+        const cleanText = stripSignatureText(stripQuotedReplyText(parsed.bodyText));
+        const cleanHtml = stripSignatureHtml(stripQuotedReplyHtml(parsed.bodyHtml));
         const [msg] = await tx
           .insert(schema.convMessages)
           .values({

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -19,8 +19,16 @@ import {
   jsonbToStored,
   type StoredEmailChannelConfig,
 } from './email.service.js';
+import { smtpTransportOptions } from './email.tools.js';
 import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.js';
 import { resolveInbound, type ParsedInboundEmail } from './threading.js';
+import {
+  ensureReSubject,
+  formatQuotedHistory,
+  stripQuotedReplyHtml,
+  stripQuotedReplyText,
+  type QuotedPriorMessage,
+} from './reply-history.js';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -75,7 +83,7 @@ class ImapFlowFetcher implements ImapFetcher {
       await client.mailboxOpen(opts.mailbox);
       const range = opts.sinceUid ? `${opts.sinceUid + 1}:*` : '1:*';
       const out: ImapMessageMin[] = [];
-      for await (const msg of client.fetch(range, { uid: true, source: true })) {
+      for await (const msg of client.fetch(range, { uid: true, source: true }, { uid: true })) {
         if (!msg.source) continue;
         out.push({ uid: msg.uid, source: msg.source });
         if (out.length >= opts.limit) break;
@@ -122,12 +130,18 @@ export class EmailAdapter implements ChannelAdapter {
     const recipient = ctx.contact?.email ?? extractToFromMetadata(ctx.message.metadata);
     if (!recipient) throw new Error('no recipient on conversation contact');
 
+    const prior = await this.loadPriorMessagesForQuote(ctx, 3);
+    const quoted = formatQuotedHistory(prior, 3);
+    const body = quoted ? `${ctx.message.body}\n\n${quoted}` : ctx.message.body;
+
+    const subject = ensureReSubject(ctx.conversation.subject?.trim() || null);
+
     const built: BuiltMessage = buildOutbound({
       from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
       to: recipient,
       replyTo: this.composeReplyTo(config, ctx.conversation.id),
-      subject: ctx.conversation.subject?.trim() || `Re: ${ctx.conversation.id}`,
-      text: ctx.message.body,
+      subject,
+      text: body,
       html: ctx.message.bodyHtml ?? undefined,
       messageIdDomain: config.addressing.fromAddress,
       inReplyTo: ctx.delivery.inReplyToHeader ?? undefined,
@@ -141,12 +155,12 @@ export class EmailAdapter implements ChannelAdapter {
           config.outbound.provider === 'smtp' ? config.outbound.encryptedPassword : '',
         );
       });
-      const transport: Transporter = createTransport({
-        host: config.outbound.host,
-        port: config.outbound.port,
-        secure: config.outbound.secure,
-        auth: { user: config.outbound.username, pass: password },
-      });
+      const transport: Transporter = createTransport(
+        smtpTransportOptions(config.outbound.host, config.outbound.port, config.outbound.secure, {
+          user: config.outbound.username,
+          pass: password,
+        }),
+      );
       await transport.sendMail({
         envelope: { from: config.addressing.fromAddress, to: recipient },
         raw: built.raw,
@@ -167,6 +181,49 @@ export class EmailAdapter implements ChannelAdapter {
     }
 
     return { providerMessageId: built.messageId };
+  }
+
+  private async loadPriorMessagesForQuote(
+    ctx: SendContext,
+    limit: number,
+  ): Promise<QuotedPriorMessage[]> {
+    const contactName = ctx.contact?.name?.trim() || null;
+    const contactEmail = ctx.contact?.email ?? null;
+    const channelFromName = (() => {
+      const cfg = jsonbToStored(ctx.channel.config);
+      return cfg.addressing.fromName?.trim() || 'Support';
+    })();
+
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const rows = await tx
+        .select({
+          id: schema.convMessages.id,
+          authorType: schema.convMessages.authorType,
+          body: schema.convMessages.body,
+          createdAt: schema.convMessages.createdAt,
+        })
+        .from(schema.convMessages)
+        .where(
+          and(
+            eq(schema.convMessages.conversationId, ctx.conversation.id),
+            eq(schema.convMessages.internal, false),
+            sql`${schema.convMessages.id} <> ${ctx.message.id}`,
+          ),
+        )
+        .orderBy(desc(schema.convMessages.createdAt))
+        .limit(limit);
+
+      return rows.map((r) => {
+        const isContact = r.authorType === 'end_user';
+        return {
+          authorName: isContact ? contactName ?? 'User' : channelFromName,
+          authorEmail: isContact ? contactEmail : null,
+          createdAt: r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt),
+          body: r.body,
+        };
+      });
+    });
   }
 
   // ─── inbound poll ───────────────────────────────────────────────────────
@@ -225,6 +282,19 @@ export class EmailAdapter implements ChannelAdapter {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
       const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
       await withContext(ctx, async () => {
+        if (parsed.messageId) {
+          const dup = await tx
+            .select({ id: schema.convMessages.id })
+            .from(schema.convMessages)
+            .where(
+              and(
+                eq(schema.convMessages.orgId, orgId),
+                sql`${schema.convMessages.metadata}->>'inboundMessageId' = ${parsed.messageId}`,
+              ),
+            )
+            .limit(1);
+          if (dup[0]) return;
+        }
         const resolution = await resolveInbound(tx, orgId, parsed, replyDomain);
         const contact = await this.emailService.findOrCreateContactByEmail(
           tx,
@@ -236,6 +306,17 @@ export class EmailAdapter implements ChannelAdapter {
         let conversationId: string;
         if (resolution) {
           conversationId = resolution.conversationId;
+          if (contact.endUserId) {
+            await tx
+              .update(schema.convConversations)
+              .set({ endUserId: contact.endUserId })
+              .where(
+                and(
+                  eq(schema.convConversations.id, conversationId),
+                  sql`${schema.convConversations.endUserId} IS NULL`,
+                ),
+              );
+          }
         } else {
           const next = await tx.execute<{ next: number } & Record<string, unknown>>(
             sql`SELECT conv_next_display_id(${orgId}) AS next`,
@@ -257,6 +338,8 @@ export class EmailAdapter implements ChannelAdapter {
           conversationId = newConv!.id;
         }
 
+        const cleanText = stripQuotedReplyText(parsed.bodyText);
+        const cleanHtml = stripQuotedReplyHtml(parsed.bodyHtml);
         const [msg] = await tx
           .insert(schema.convMessages)
           .values({
@@ -264,8 +347,8 @@ export class EmailAdapter implements ChannelAdapter {
             conversationId,
             authorType: 'end_user',
             authorId: contact.id,
-            body: parsed.bodyText || '(no body)',
-            bodyHtml: parsed.bodyHtml,
+            body: cleanText || '(no body)',
+            bodyHtml: cleanHtml,
             internal: false,
             metadata: parsed.messageId ? { inboundMessageId: parsed.messageId } : {},
           })
@@ -289,12 +372,15 @@ export class EmailAdapter implements ChannelAdapter {
   }
 
   private async readCursor(channelId: string): Promise<Record<string, unknown>> {
-    const rows = await this.db
-      .select({ cursor: schema.convInboundState.cursor })
-      .from(schema.convInboundState)
-      .where(eq(schema.convInboundState.channelId, channelId))
-      .limit(1);
-    return rows[0]?.cursor ?? {};
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const rows = await tx
+        .select({ cursor: schema.convInboundState.cursor })
+        .from(schema.convInboundState)
+        .where(eq(schema.convInboundState.channelId, channelId))
+        .limit(1);
+      return rows[0]?.cursor ?? {};
+    });
   }
 
   private async writeCursor(
@@ -302,13 +388,16 @@ export class EmailAdapter implements ChannelAdapter {
     cursor: Record<string, unknown>,
     lastError: string | null,
   ): Promise<void> {
-    await this.db
-      .insert(schema.convInboundState)
-      .values({ channelId, cursor, lastPolledAt: new Date(), lastError })
-      .onConflictDoUpdate({
-        target: schema.convInboundState.channelId,
-        set: { cursor, lastPolledAt: new Date(), lastError, updatedAt: new Date() },
-      });
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      await tx
+        .insert(schema.convInboundState)
+        .values({ channelId, cursor, lastPolledAt: new Date(), lastError })
+        .onConflictDoUpdate({
+          target: schema.convInboundState.channelId,
+          set: { cursor, lastPolledAt: new Date(), lastError, updatedAt: new Date() },
+        });
+    });
   }
 
   private composeReplyTo(config: StoredEmailChannelConfig, conversationId: string): string | undefined {

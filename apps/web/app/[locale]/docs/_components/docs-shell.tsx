@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Link, usePathname } from '@/i18n/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { DocsSearch, type SearchIndex } from './search';
@@ -29,12 +30,10 @@ export function DocsShell({
           ☰
         </button>
         <Link href="/" className="mark" aria-label="Munin">
-          Munin
+          <Image src="/munin-logo.png" alt="Munin" width={28} height={28} priority />
         </Link>
         <div className="sep" aria-hidden />
-        <div className="org-name">
-          Munin <em>developer</em> portal
-        </div>
+        <div className="org-name">Munin developer portal</div>
         <div className="spacer" />
         <Link className="docs-btn primary" href="/setup">
           Get a key →

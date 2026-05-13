@@ -9,11 +9,13 @@ import {
   Mail,
   MessageSquare,
   MoreHorizontal,
+  Send,
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { api, ApiError } from '../api';
+import { authClient } from '../auth-client';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
 import { EmptyCallout } from '../components/empty-callout';
@@ -103,6 +105,7 @@ export function ChannelsPage() {
   const [rotated, setRotated] = useState<CreatedWidget | null>(null);
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
+  const [sendTestFor, setSendTestFor] = useState<EmailChannelDto | null>(null);
 
   const load = useCallback(async () => {
     const list = await api<{ items: ChannelDto[] }>('/api/v1/conversations/channels');
@@ -247,6 +250,10 @@ export function ChannelsPage() {
 
       {embedFor && <EmbedSnippetDialog channel={embedFor} onClose={() => setEmbedFor(null)} />}
 
+      {sendTestFor && (
+        <SendTestEmailDialog channel={sendTestFor} onClose={() => setSendTestFor(null)} />
+      )}
+
       <section className="space-y-4">
         <SectionHead
           title={
@@ -296,6 +303,7 @@ export function ChannelsPage() {
                 }}
                 onShowEmbed={() => setEmbedFor(c)}
                 onEdit={() => setEditEmail(c as EmailChannelDto)}
+                onSendTest={() => setSendTestFor(c as EmailChannelDto)}
               />
             ))}
           </ul>
@@ -313,6 +321,7 @@ function ChannelRow({
   onDelete,
   onShowEmbed,
   onEdit,
+  onSendTest,
 }: {
   channel: ChannelDto;
   onRotate: () => void;
@@ -320,6 +329,7 @@ function ChannelRow({
   onDelete: () => void;
   onShowEmbed: () => void;
   onEdit: () => void;
+  onSendTest: () => void;
 }) {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
@@ -405,6 +415,15 @@ function ChannelRow({
                     <DropdownMenuItem onClick={onRotateIdentity}>
                       <ShieldCheck className="size-4" />
                       {t('rotateIdentity')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {channel.type === 'email' && (
+                  <>
+                    <DropdownMenuItem onClick={onSendTest}>
+                      <Send className="size-4" />
+                      {t('sendTestEmail')}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
@@ -958,6 +977,7 @@ function EmailChannelDialog({
                     type="password"
                     value={imapPassword}
                     onChange={(e) => setImapPassword(e.target.value)}
+                    placeholder="••••••••"
                     required={!isEdit || !editChannel?.config.inbound}
                   />
                 </FormField>
@@ -1012,6 +1032,103 @@ function EmailChannelDialog({
   );
 }
 
+
+function SendTestEmailDialog({
+  channel,
+  onClose,
+}: {
+  channel: EmailChannelDto;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const { data: session } = authClient.useSession();
+  const defaultEmail = session?.user?.email ?? '';
+  const [to, setTo] = useState(defaultEmail);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    setTo(defaultEmail);
+    setError(null);
+    setSending(false);
+  }, [defaultEmail]);
+
+  async function submit() {
+    const trimmed = to.trim();
+    if (!trimmed) return;
+    setSending(true);
+    setError(null);
+    try {
+      await api(`/api/v1/conversations/channels/email/${channel.id}/send-test`, {
+        method: 'POST',
+        body: JSON.stringify({ to: trimmed }),
+      });
+      notify.success(t('sendTest.success', { to: trimmed }));
+      onClose();
+    } catch (err) {
+      setError(translate(err) || t('errors.sendTest'));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('sendTest.title')}</DialogTitle>
+          <DialogDescription>
+            {t('sendTest.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('sendTest.toLabel')} hint={t('sendTest.toHint')} error={error ?? undefined}>
+            <Input
+              type="email"
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                if (error) setError(null);
+              }}
+              required
+              autoFocus
+              aria-invalid={error ? true : undefined}
+            />
+          </FormField>
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={sending}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={sending || !to.trim()}
+              pending={sending}
+            >
+              {sending ? t('sendTest.sending') : t('sendTest.submit')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 interface CalloutRow {
   label: string;

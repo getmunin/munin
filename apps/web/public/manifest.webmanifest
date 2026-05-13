@@ -1,0 +1,14 @@
+{
+  "name": "Munin",
+  "short_name": "Munin",
+  "description": "Agent-native business apps. The AI agent is the UI.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafaf6",
+  "theme_color": "#fafaf6",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

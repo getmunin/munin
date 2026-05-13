@@ -1,13 +1,3 @@
-/**
- * Email reply history helpers — strip quoted blocks from inbound mail so we
- * store only the *new* content, and build quoted blocks for outbound replies
- * so the recipient sees a normal mail-client style thread.
- *
- * Conservative by design: when in doubt, keep more (we'd rather show a stray
- * quote line than drop a real sentence).
- */
-
-/** Standard "On … wrote:" markers across the languages our customers use. */
 const QUOTE_HEADER_PATTERNS: RegExp[] = [
   /^on .+ wrote:\s*$/i,
   /^den .+ skrev .+:\s*$/i,
@@ -20,11 +10,6 @@ const QUOTE_HEADER_PATTERNS: RegExp[] = [
   /^_{5,}\s*$/,
 ];
 
-/**
- * Strip the trailing quoted reply from a plain-text body. Cuts at the first
- * line that looks like a quote header (multi-language) or at a run of
- * `>`-prefixed lines that continues to the end of the message.
- */
 export function stripQuotedReplyText(body: string): string {
   if (!body) return body;
   const lines = body.split(/\r?\n/);
@@ -51,11 +36,6 @@ export function stripQuotedReplyText(body: string): string {
   return lines.slice(0, cut).join('\n').replace(/\s+$/g, '').trim();
 }
 
-/**
- * Strip common quoted-reply HTML containers. Targets Gmail's
- * `<blockquote class="gmail_quote">` / `<div class="gmail_quote">`, Outlook's
- * `divRplyFwdMsg` separator, and Apple Mail's `<blockquote type="cite">`.
- */
 export function stripQuotedReplyHtml(html: string | null): string | null {
   if (!html) return html;
   let out = html;
@@ -81,16 +61,6 @@ const SIGNATURE_OPENERS: RegExp[] = [
   /^von meinem (iphone|ipad) gesendet\b/i,
 ];
 
-/**
- * Strip an email signature off the end of an already-quote-stripped body.
- * Cuts at the first line that matches a known signature opener (RFC 3676
- * `-- `, mobile-client patterns across a few languages, or an underscore
- * separator). Always conservative — if cutting would leave the body empty
- * or near-empty, returns the input unchanged.
- *
- * Run AFTER `stripQuotedReplyText` so the openers aren't fighting the
- * quoted reply for the cut point.
- */
 export function stripSignatureText(body: string): string {
   if (!body) return body;
   const lines = body.split(/\r?\n/);
@@ -110,11 +80,6 @@ export function stripSignatureText(body: string): string {
   return kept.join('\n').replace(/\s+$/g, '').trim();
 }
 
-/**
- * HTML signature strip — narrowly targets containers mail clients reliably
- * mark up as signatures. Gmail's `<div class="gmail_signature">` is the
- * canonical case. Outlook leaves no class hook so we don't try to guess.
- */
 export function stripSignatureHtml(html: string | null): string | null {
   if (!html) return html;
   let out = html;
@@ -123,7 +88,6 @@ export function stripSignatureHtml(html: string | null): string | null {
   return out.replace(/\s+$/, '');
 }
 
-/** Prefix the subject with `Re: ` unless it already starts with one. */
 export function ensureReSubject(subject: string | null | undefined): string {
   const s = (subject ?? '').trim();
   if (!s) return 'Re: (no subject)';

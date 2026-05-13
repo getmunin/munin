@@ -346,7 +346,9 @@ export class EmailAdapter implements ChannelAdapter {
           conversationId = newConv!.id;
         }
 
-        const cleanText = stripSignatureText(stripQuotedReplyText(parsed.bodyText));
+        const quoteStrippedText = stripQuotedReplyText(parsed.bodyText);
+        const cleanText = stripSignatureText(quoteStrippedText);
+        const regexCutSignature = cleanText.length < quoteStrippedText.length;
         const cleanHtml = stripSignatureHtml(stripQuotedReplyHtml(parsed.bodyHtml));
         const [msg] = await tx
           .insert(schema.convMessages)
@@ -376,7 +378,7 @@ export class EmailAdapter implements ChannelAdapter {
           },
         });
 
-        if (cleanText && cleanText.length >= 80) {
+        if (!regexCutSignature && cleanText && cleanText.length >= 80) {
           await this.curatorJobs.enqueue({
             skillUri: 'skill://conv/strip-email-signature',
             userPrompt:

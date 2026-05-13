@@ -35,8 +35,8 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
 
-  const [chatModel, setChatModel] = useState(config.chatModel);
-  const [curatorModel, setCuratorModel] = useState(config.curatorModel ?? '');
+  const [fastModel, setFastModel] = useState(config.fastModel);
+  const [smartModel, setSmartModel] = useState(config.smartModel ?? '');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +54,8 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
       const updated = await api<AgentConfigDto>('/api/v1/agent-config', {
         method: 'PUT',
         body: JSON.stringify({
-          chatModel,
-          curatorModel: curatorModel || null,
+          fastModel,
+          smartModel: smartModel || null,
         }),
       });
       setMessage(t('saved'));
@@ -67,14 +67,14 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
     }
   }
 
-  const canSave = config.providerApiKeySet && chatModel.length > 0 && !saving;
+  const canSave = config.providerApiKeySet && fastModel.length > 0 && !saving;
   const label = saveLabel ?? tCommon('save');
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>{t('models.title')}</CardTitle>
-        <CardDescription>{t('models.curatorHint')}</CardDescription>
+        <CardDescription>{t('models.smartHint')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {!config.providerApiKeySet ? (
@@ -82,11 +82,12 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
         ) : models?.supported ? (
           <>
             <div className="space-y-1.5">
-              <Label htmlFor="chatModel">{t('models.chat')}</Label>
+              <Label htmlFor="fastModel">{t('models.fast')}</Label>
+              <p className="text-xs text-muted-foreground">{t('models.fastHint')}</p>
               <NativeSelect
-                id="chatModel"
-                value={chatModel}
-                onChange={(e) => setChatModel(e.target.value)}
+                id="fastModel"
+                value={fastModel}
+                onChange={(e) => setFastModel(e.target.value)}
               >
                 {sortedModels.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -96,13 +97,14 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
               </NativeSelect>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="curatorModel">{t('models.curator')}</Label>
+              <Label htmlFor="smartModel">{t('models.smart')}</Label>
+              <p className="text-xs text-muted-foreground">{t('models.smartUseHint')}</p>
               <NativeSelect
-                id="curatorModel"
-                value={curatorModel}
-                onChange={(e) => setCuratorModel(e.target.value)}
+                id="smartModel"
+                value={smartModel}
+                onChange={(e) => setSmartModel(e.target.value)}
               >
-                <option value="">{t('models.curatorSameAsChat')}</option>
+                <option value="">{t('models.smartSameAsFast')}</option>
                 {sortedModels.map((m) => (
                   <option key={m.id} value={m.id}>
                     {formatModel(m)}
@@ -115,21 +117,23 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
           <>
             <p className="text-sm text-muted-foreground">{t('models.unsupported')}</p>
             <div className="space-y-1.5">
-              <Label htmlFor="chatModelText">{t('models.chat')}</Label>
+              <Label htmlFor="fastModelText">{t('models.fast')}</Label>
+              <p className="text-xs text-muted-foreground">{t('models.fastHint')}</p>
               <Input
-                id="chatModelText"
-                value={chatModel}
-                onChange={(e) => setChatModel(e.target.value)}
+                id="fastModelText"
+                value={fastModel}
+                onChange={(e) => setFastModel(e.target.value)}
                 placeholder="provider/model-name"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="curatorModelText">{t('models.curator')}</Label>
+              <Label htmlFor="smartModelText">{t('models.smart')}</Label>
+              <p className="text-xs text-muted-foreground">{t('models.smartUseHint')}</p>
               <Input
-                id="curatorModelText"
-                value={curatorModel}
-                onChange={(e) => setCuratorModel(e.target.value)}
-                placeholder={t('models.curatorSameAsChat')}
+                id="smartModelText"
+                value={smartModel}
+                onChange={(e) => setSmartModel(e.target.value)}
+                placeholder={t('models.smartSameAsFast')}
               />
             </div>
           </>

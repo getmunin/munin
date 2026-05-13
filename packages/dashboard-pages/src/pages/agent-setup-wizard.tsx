@@ -136,8 +136,8 @@ function ReadyCard({ config, onBack }: ReadyCardProps) {
 
   const lines: string[] = [
     t('wizard.checklist.provider', { url: shortHost(config.providerBaseUrl) }),
-    t('wizard.checklist.chat', { model: config.chatModel }),
-    t('wizard.checklist.curator', { model: config.curatorModel ?? config.chatModel }),
+    t('wizard.checklist.fast', { model: config.fastModel }),
+    t('wizard.checklist.smart', { model: config.smartModel ?? config.fastModel }),
   ];
 
   return (

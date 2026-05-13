@@ -1,7 +1,7 @@
 export interface AgentConfigDto {
   id: string;
-  chatModel: string;
-  curatorModel: string | null;
+  fastModel: string;
+  smartModel: string | null;
   providerBaseUrl: string;
   providerApiKeySet: boolean;
   maxHistoryChars: number;
@@ -24,8 +24,8 @@ export interface ListModelsResult {
 export interface UpsertBody {
   providerBaseUrl?: string;
   providerApiKey?: string | null;
-  chatModel?: string;
-  curatorModel?: string | null;
+  fastModel?: string;
+  smartModel?: string | null;
 }
 
 export const PROVIDER_PRESETS = [

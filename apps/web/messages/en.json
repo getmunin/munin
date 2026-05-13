@@ -692,8 +692,8 @@
       "saveAndContinue": "Save & continue",
       "checklist": {
         "provider": "Provider configured ({url})",
-        "chat": "Chat model — {model}",
-        "curator": "Curator model — {model}"
+        "fast": "Fast model — {model}",
+        "smart": "Smart model — {model}"
       },
       "cta": {
         "goToDashboard": "Go to dashboard",
@@ -727,12 +727,14 @@
     },
     "models": {
       "title": "Models",
-      "curatorHint": "Curation runs less often but reasons over more text. Pick a stronger model than chat.",
+      "smartHint": "Munin runs two models. Pick a fast, cheap one for chat-bot replies and quick cleanup; pick a stronger one for jobs that need judgment.",
       "needKey": "Save an API key to load the model list.",
       "unsupported": "Provider didn't return a model list. Enter model ids manually (e.g. anthropic/claude-haiku-4.5).",
-      "chat": "Chat model",
-      "curator": "Curator model",
-      "curatorSameAsChat": "Same as chat"
+      "fast": "Fast model",
+      "fastHint": "Used for: chat-bot replies, signature stripping, classification, short summarization. Latency and cost matter more than smarts here.",
+      "smart": "Smart model",
+      "smartUseHint": "Used for: KB curation, CRM hygiene, outreach drafts — anywhere the agent needs to weigh judgment over many messages.",
+      "smartSameAsFast": "Same as fast model"
     }
   },
   "acceptInvite": {

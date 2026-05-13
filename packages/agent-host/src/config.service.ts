@@ -9,8 +9,8 @@ import type { AdminKeyProvider } from './admin-key-provider.js';
 
 export interface AgentConfigDto {
   id: string;
-  chatModel: string;
-  curatorModel: string | null;
+  fastModel: string;
+  smartModel: string | null;
   providerBaseUrl: string;
   providerApiKeySet: boolean;
   maxHistoryChars: number;
@@ -54,8 +54,8 @@ export class AgentConfigService {
 function toDto(row: AgentConfigRow): AgentConfigDto {
   return {
     id: row.id,
-    chatModel: row.chatModel,
-    curatorModel: row.curatorModel,
+    fastModel: row.fastModel,
+    smartModel: row.smartModel,
     providerBaseUrl: row.providerBaseUrl,
     providerApiKeySet: row.providerApiKeySet,
     maxHistoryChars: row.maxHistoryChars,

@@ -8,7 +8,7 @@ import type {
   AgentConfigRow,
 } from './config.repository.js';
 
-const DEFAULT_CHAT_MODEL = 'anthropic/claude-haiku-4.5';
+const DEFAULT_FAST_MODEL = 'anthropic/claude-haiku-4.5';
 const DEFAULT_PROVIDER_BASE_URL = 'https://openrouter.ai/api/v1';
 
 @Injectable()
@@ -52,8 +52,8 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
   const rows = await ctx.db
     .select({
       id: agentConfig.id,
-      chatModel: agentConfig.chatModel,
-      curatorModel: agentConfig.curatorModel,
+      fastModel: agentConfig.fastModel,
+      smartModel: agentConfig.smartModel,
       providerBaseUrl: agentConfig.providerBaseUrl,
       providerKeySet: sql<boolean>`(${agentConfig.providerApiKeyCt} IS NOT NULL)`,
       maxHistoryChars: agentConfig.maxHistoryChars,
@@ -70,8 +70,8 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
   if (row) {
     return {
       id: row.id,
-      chatModel: row.chatModel,
-      curatorModel: row.curatorModel,
+      fastModel: row.fastModel,
+      smartModel: row.smartModel,
       providerBaseUrl: row.providerBaseUrl,
       providerApiKeySet: row.providerKeySet,
       maxHistoryChars: row.maxHistoryChars,
@@ -86,15 +86,15 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
     .insert(agentConfig)
     .values({
       id,
-      chatModel: DEFAULT_CHAT_MODEL,
+      fastModel: DEFAULT_FAST_MODEL,
       providerBaseUrl: DEFAULT_PROVIDER_BASE_URL,
     })
     .returning();
   if (!created) throw new Error(`failed to materialize agent_config row for id=${id}`);
   return {
     id: created.id,
-    chatModel: created.chatModel,
-    curatorModel: created.curatorModel,
+    fastModel: created.fastModel,
+    smartModel: created.smartModel,
     providerBaseUrl: created.providerBaseUrl,
     providerApiKeySet: false,
     maxHistoryChars: created.maxHistoryChars,
@@ -109,8 +109,8 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
 async function applyPatch(id: string, patch: AgentConfigPatch): Promise<void> {
   const ctx = getCurrentContext();
   const setClauses: Record<string, unknown> = {};
-  if (patch.chatModel !== undefined) setClauses['chatModel'] = patch.chatModel;
-  if (patch.curatorModel !== undefined) setClauses['curatorModel'] = patch.curatorModel;
+  if (patch.fastModel !== undefined) setClauses['fastModel'] = patch.fastModel;
+  if (patch.smartModel !== undefined) setClauses['smartModel'] = patch.smartModel;
   if (patch.providerBaseUrl !== undefined) setClauses['providerBaseUrl'] = patch.providerBaseUrl;
   if (patch.maxHistoryChars !== undefined) setClauses['maxHistoryChars'] = patch.maxHistoryChars;
   if (patch.maxToolIterations !== undefined) setClauses['maxToolIterations'] = patch.maxToolIterations;

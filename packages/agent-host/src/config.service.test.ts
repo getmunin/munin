@@ -9,8 +9,8 @@ import type { AdminKeyProvider } from './admin-key-provider.js';
 
 const baseRow: AgentConfigRow = {
   id: 'singleton',
-  chatModel: 'anthropic/claude-haiku-4.5',
-  curatorModel: null,
+  fastModel: 'anthropic/claude-haiku-4.5',
+  smartModel: null,
   providerBaseUrl: 'https://provider.example/v1',
   providerApiKeySet: false,
   maxHistoryChars: 32_000,
@@ -103,7 +103,7 @@ describe('AgentConfigService', () => {
     const adminKey = makeAdminKey();
     const svc = new AgentConfigService(repo, adminKey);
 
-    await svc.upsertForCurrentActor({ chatModel: 'anthropic/claude-sonnet-4-6' });
+    await svc.upsertForCurrentActor({ fastModel: 'anthropic/claude-sonnet-4-6' });
 
     expect(adminKey.mint).not.toHaveBeenCalled();
     expect(adminKey.revoke).not.toHaveBeenCalled();
@@ -114,8 +114,8 @@ describe('AgentConfigService', () => {
     const svc = new AgentConfigService(repo, makeAdminKey());
 
     const patch: AgentConfigPatch = {
-      chatModel: 'a',
-      curatorModel: 'b',
+      fastModel: 'a',
+      smartModel: 'b',
       providerBaseUrl: 'https://x',
       maxHistoryChars: 64_000,
     };

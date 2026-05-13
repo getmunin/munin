@@ -1,11 +1,16 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { RealtimeStatus } from '../realtime';
 
 export function ConnectionBanner({ status }: { status: RealtimeStatus }) {
   const t = useTranslations('dashboard.connectionBanner');
-  if (status !== 'offline') return null;
+  const [hasBeenConnected, setHasBeenConnected] = useState(false);
+  useEffect(() => {
+    if (status === 'connected') setHasBeenConnected(true);
+  }, [status]);
+  if (!hasBeenConnected || status === 'connected') return null;
   return (
     <div
       role="status"

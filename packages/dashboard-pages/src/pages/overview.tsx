@@ -49,7 +49,7 @@ export function DashboardPage() {
     return (
       <>
         <ConnectionBanner status={inbox.connectionStatus} />
-        <div className="px-10 py-10 max-w-7xl mx-auto">
+        <div className="px-10 pt-11 pb-6 max-w-7xl mx-auto">
           <LoadFailed
             {...buildLoadFailedProps(inbox.loadError, () => void inbox.retryLoad(), inbox.retrying)}
           />
@@ -61,7 +61,7 @@ export function DashboardPage() {
   return (
     <>
       <ConnectionBanner status={inbox.connectionStatus} />
-      <div className="px-10 py-10 max-w-7xl mx-auto space-y-10">
+      <div className="px-10 pt-11 pb-6 max-w-7xl mx-auto space-y-9">
         <DashboardHero
         orgName={orgName}
         date={new Date()}

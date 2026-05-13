@@ -238,7 +238,7 @@
           "release": "Slipp feilet",
           "close": "Lukking feilet"
         },
-        "actionFailedReasonConnection": "Sjekk tilkoblingen",
+        "actionFailedReasonConnection": "sjekk tilkoblingen",
         "retryAction": {
           "send": "Send på nytt",
           "takeOver": "Prøv igjen",

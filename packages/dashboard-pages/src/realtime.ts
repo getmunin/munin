@@ -26,13 +26,11 @@ interface IncomingFrame {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-/**
- * Single WebSocket per hook instance. Each hook re-subscribes on mount
- * and closes on unmount. Auto-reconnects with capped exponential backoff
- * while the component is mounted. Fires `onEvent` for every matching
- * incoming event; the caller decides what to do with it.
- */
 export type RealtimeStatus = 'connecting' | 'connected' | 'offline';
+
+function subKey(sub: SubscriptionChannel): string {
+  return 'id' in sub ? `${sub.channel}:${sub.id}` : sub.channel;
+}
 
 export function useRealtime(
   subscriptions: readonly SubscriptionChannel[],
@@ -43,15 +41,14 @@ export function useRealtime(
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
 
-  const subsRef = useRef<readonly SubscriptionChannel[]>(subscriptions);
-  subsRef.current = subscriptions;
-  const subsKey = subscriptions
-    .map((s) => ('id' in s ? `${s.channel}:${s.id}` : s.channel))
-    .sort()
-    .join(',');
+  const wsRef = useRef<WebSocket | null>(null);
+  const activeSubsRef = useRef<Map<string, SubscriptionChannel>>(new Map());
+
+  const subsKey = subscriptions.map(subKey).sort().join(',');
+  const desiredSubsRef = useRef<readonly SubscriptionChannel[]>(subscriptions);
+  desiredSubsRef.current = subscriptions;
 
   useEffect(() => {
-    let ws: WebSocket | null = null;
     let backoffMs = 500;
     let cancelled = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -62,16 +59,20 @@ export function useRealtime(
     const connect = () => {
       if (cancelled) return;
       setStatus('connecting');
-      ws = new WebSocket(url);
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
       ws.onopen = () => {
-        if (cancelled || !ws) return;
+        if (cancelled || wsRef.current !== ws) return;
         backoffMs = 500;
         setStatus('connected');
-        for (const sub of subsRef.current) {
+        activeSubsRef.current = new Map();
+        for (const sub of desiredSubsRef.current) {
+          const key = subKey(sub);
           ws.send(JSON.stringify({ type: 'subscribe', ...sub }));
+          activeSubsRef.current.set(key, sub);
         }
         pingInterval = setInterval(() => {
-          if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+          if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
         }, 30_000);
       };
       ws.onmessage = (msg) => {
@@ -91,6 +92,8 @@ export function useRealtime(
         if (pingInterval) clearInterval(pingInterval);
         pingInterval = null;
         if (cancelled) return;
+        wsRef.current = null;
+        activeSubsRef.current = new Map();
         setStatus('offline');
         const delay = backoffMs;
         backoffMs = Math.min(backoffMs * 2, 30_000);
@@ -104,6 +107,9 @@ export function useRealtime(
       cancelled = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (pingInterval) clearInterval(pingInterval);
+      const ws = wsRef.current;
+      wsRef.current = null;
+      activeSubsRef.current = new Map();
       if (ws) {
         ws.onopen = null;
         ws.onmessage = null;
@@ -117,6 +123,26 @@ export function useRealtime(
         }
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== ws.OPEN) return;
+    const desired = new Map<string, SubscriptionChannel>();
+    for (const sub of desiredSubsRef.current) desired.set(subKey(sub), sub);
+    const active = activeSubsRef.current;
+    for (const [key, sub] of active) {
+      if (!desired.has(key)) {
+        ws.send(JSON.stringify({ type: 'unsubscribe', ...sub }));
+        active.delete(key);
+      }
+    }
+    for (const [key, sub] of desired) {
+      if (!active.has(key)) {
+        ws.send(JSON.stringify({ type: 'subscribe', ...sub }));
+        active.set(key, sub);
+      }
+    }
   }, [subsKey]);
 
   return { connected, status };

@@ -264,7 +264,6 @@ export function useInboxData(): InboxController {
       setHasLoadedOnce(true);
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
-      notify.error(messageOf(err));
     }
   }, [buildQueue]);
 
@@ -346,6 +345,21 @@ export function useInboxData(): InboxController {
       if (typeof eventConvId === 'string') void loadDetail(eventConvId);
     }
   });
+
+  const wasOfflineRef = useRef(false);
+  useEffect(() => {
+    if (connectionStatus === 'offline') {
+      wasOfflineRef.current = true;
+      return;
+    }
+    if (connectionStatus === 'connected' && wasOfflineRef.current) {
+      wasOfflineRef.current = false;
+      setActionError(null);
+      setDetailErrors({});
+      void loadInbox();
+      if (convDrawer) void loadDetail(convDrawer.id);
+    }
+  }, [connectionStatus, convDrawer, loadDetail, loadInbox]);
 
   const takeOver = useCallback(
     async (id: string, openFullAfter = true) => {
@@ -577,7 +591,6 @@ export function LiveNowSection({ controller }: { controller: InboxController }) 
     details,
     pending,
     actionError,
-    clearActionError,
     setConvDrawer,
     setReply,
     setDraftEdit,
@@ -609,7 +622,6 @@ export function LiveNowSection({ controller }: { controller: InboxController }) 
             detail={details[c.id]}
             pending={pending}
             actionError={actionError?.conversationId === c.id ? actionError : null}
-            onDismissError={clearActionError}
             onOpen={(mode) => {
               setReply('');
               setDraftEdit(null);
@@ -763,7 +775,6 @@ function LiveCard({
   detail,
   pending,
   actionError,
-  onDismissError,
   onOpen,
   onTakeOver,
 }: {
@@ -771,7 +782,6 @@ function LiveCard({
   detail: ConversationDetail | undefined;
   pending: boolean;
   actionError: ConvActionError;
-  onDismissError: () => void;
   onOpen: (mode: 'simplified' | 'full') => void;
   onTakeOver: () => void;
 }) {
@@ -844,7 +854,6 @@ function LiveCard({
               action={actionError.type}
               message={actionError.message}
               onRetry={retryAction}
-              onDismiss={onDismissError}
             />
           ) : claimed ? (
             <Button variant="accent" size="sm" onClick={() => onOpen('full')}>
@@ -875,43 +884,32 @@ function InlineActionError({
   action,
   message,
   onRetry,
-  onDismiss,
 }: {
   action: NonNullable<ConvActionError>['type'];
   message: string;
   onRetry: (() => void) | null;
-  onDismiss: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const reason = isConnectionMessage(message) ? t('actionFailedReasonConnection') : message;
   return (
     <div
-      className="flex items-center gap-3 border-[0.5px] border-cobalt/30 bg-destructive/5 px-3 py-2 dark:border-cobalt-soft/40"
+      className="flex items-center gap-[14px] whitespace-nowrap border-[0.5px] border-cobalt bg-[oklch(0.98_0.025_25)] px-3 py-1.5 text-[13px] font-medium text-cobalt dark:border-cobalt-soft dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
       role="alert"
     >
       <span
-        className="size-1.5 rounded-full bg-cobalt dark:bg-cobalt-soft"
+        className="size-1.5 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
         aria-hidden
       />
-      <span className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+      <span>
         {t(`actionFailedShort.${action}`)} · {reason}
       </span>
-      {onRetry ? (
+      {onRetry && (
         <button
           type="button"
-          className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt underline underline-offset-2 hover:no-underline dark:text-cobalt-soft"
+          className="cursor-pointer text-[13px] font-medium text-cobalt underline underline-offset-[3px] hover:text-cobalt-deep dark:text-cobalt-soft"
           onClick={onRetry}
         >
-          {t('retry')} <span aria-hidden>↵</span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt/70 hover:text-cobalt dark:text-cobalt-soft/70 dark:hover:text-cobalt-soft"
-          onClick={onDismiss}
-          aria-label="Dismiss"
-        >
-          ×
+          {t('retry')} <span aria-hidden>↻</span>
         </button>
       )}
     </div>
@@ -1122,43 +1120,52 @@ function SimplifiedConvDrawer({
         </section>
       </div>
 
-      {actionError && (
-        <div
-          className="flex items-center gap-3 border-t-[0.5px] border-cobalt/30 bg-destructive/5 px-6 py-2 dark:border-cobalt-soft/40"
-          role="alert"
-        >
-          <span
-            className="size-1.5 rounded-full bg-cobalt dark:bg-cobalt-soft"
-            aria-hidden
-          />
-          <span className="flex-1 font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
-            {t(`actionFailedShort.${actionError.type}`)} ·{' '}
-            {isConnectionMessage(actionError.message)
-              ? t('actionFailedReasonConnection')
-              : actionError.message}
-          </span>
-        </div>
-      )}
+      <div
+        className={
+          actionError
+            ? 'border-t-[0.5px] border-cobalt dark:border-cobalt-soft'
+            : undefined
+        }
+      >
+        {actionError && (
+          <div
+            className="flex items-center gap-3 border-b-[0.5px] border-rule-soft bg-[oklch(0.98_0.025_25)] px-[26px] py-3 text-[13px] font-medium text-cobalt dark:border-rule-on-dark dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
+            role="alert"
+          >
+            <span
+              className="size-1.5 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
+              aria-hidden
+            />
+            <span className="flex-1">
+              {t(`actionFailedShort.${actionError.type}`)} ·{' '}
+              {isConnectionMessage(actionError.message)
+                ? t('actionFailedReasonConnection')
+                : actionError.message}
+            </span>
+          </div>
+        )}
 
-      <DrawerFooter
-        primary={{
-          label: actionError?.type === 'send' ? t('retryAction.send') : t('sendDraft'),
-          onClick: () => onSendDraft(draftBody),
-          disabled: pending || !draftBody.trim(),
-        }}
-        secondary={[
-          draft
-            ? isEditing
-              ? { label: t('cancel'), onClick: () => setDraftEdit(null) }
-              : {
-                  label: t('edit'),
-                  onClick: () => setDraftEdit(draft.body),
-                }
-            : null,
-          { label: t('takeOver'), onClick: onTakeOver, disabled: pending },
-        ].filter((a): a is { label: string; onClick: () => void } => a !== null)}
-        shortcut={t('shortcutSend')}
-      />
+        <DrawerFooter
+          bordered={!actionError}
+          primary={{
+            label: actionError?.type === 'send' ? t('retryAction.send') : t('sendDraft'),
+            onClick: () => onSendDraft(draftBody),
+            disabled: pending || !draftBody.trim(),
+          }}
+          secondary={[
+            draft
+              ? isEditing
+                ? { label: t('cancel'), onClick: () => setDraftEdit(null) }
+                : {
+                    label: t('edit'),
+                    onClick: () => setDraftEdit(draft.body),
+                  }
+              : null,
+            { label: t('takeOver'), onClick: onTakeOver, disabled: pending },
+          ].filter((a): a is { label: string; onClick: () => void } => a !== null)}
+          shortcut={t('shortcutSend')}
+        />
+      </div>
     </>
   );
 }
@@ -1230,17 +1237,23 @@ function FullConvDrawer({
 
       <ActivityRail contactId={detail.contactId} conversationId={detail.id} />
 
-      <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+      <div
+        className={
+          actionError
+            ? 'border-t-[0.5px] border-cobalt dark:border-cobalt-soft'
+            : 'border-t-[0.5px] border-rule-soft dark:border-rule-on-dark'
+        }
+      >
         {actionError && (
           <div
-            className="flex items-center gap-3 border-b-[0.5px] border-cobalt/30 bg-destructive/5 px-4 py-2 dark:border-cobalt-soft/40"
+            className="flex items-center gap-3 border-b-[0.5px] border-rule-soft bg-[oklch(0.98_0.025_25)] px-[26px] py-3 text-[13px] font-medium text-cobalt dark:border-rule-on-dark dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
             role="alert"
           >
             <span
-              className="size-1.5 rounded-full bg-cobalt dark:bg-cobalt-soft"
+              className="size-1.5 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
               aria-hidden
             />
-            <span className="flex-1 font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+            <span className="flex-1">
               {t(`actionFailedShort.${actionError.type}`)} ·{' '}
               {isConnectionMessage(actionError.message)
                 ? t('actionFailedReasonConnection')
@@ -1249,7 +1262,7 @@ function FullConvDrawer({
             {retryHandler(actionError, onSend, onTakeOver, onRelease, onCloseConv) ? (
               <button
                 type="button"
-                className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt underline underline-offset-2 hover:no-underline dark:text-cobalt-soft"
+                className="cursor-pointer text-[13px] font-medium text-cobalt underline underline-offset-[3px] hover:text-cobalt-deep dark:text-cobalt-soft"
                 onClick={retryHandler(actionError, onSend, onTakeOver, onRelease, onCloseConv)!}
                 disabled={pending}
               >
@@ -1555,13 +1568,20 @@ function DrawerFooter({
   primary,
   secondary,
   shortcut,
+  bordered = true,
 }: {
   primary: { label: string; onClick: () => void; disabled?: boolean };
   secondary: Array<{ label: string; onClick: () => void; disabled?: boolean }>;
   shortcut?: string;
+  bordered?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t-[0.5px] border-rule-soft px-6 py-3 dark:border-rule-on-dark">
+    <div
+      className={cn(
+        'flex items-center justify-between gap-2 px-6 py-3',
+        bordered && 'border-t-[0.5px] border-rule-soft dark:border-rule-on-dark',
+      )}
+    >
       <div className="flex items-center gap-2">
         <Button variant="accent" size="sm" onClick={primary.onClick} disabled={primary.disabled}>
           {primary.label}

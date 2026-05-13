@@ -238,7 +238,7 @@
           "release": "Release failed",
           "close": "Close failed"
         },
-        "actionFailedReasonConnection": "Check connection",
+        "actionFailedReasonConnection": "check connection",
         "retryAction": {
           "send": "Retry send",
           "takeOver": "Retry",

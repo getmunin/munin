@@ -232,6 +232,19 @@
           "release": "Kunne ikke slippe",
           "close": "Kunne ikke lukke samtalen"
         },
+        "actionFailedShort": {
+          "send": "Sending feilet",
+          "takeOver": "Overtakelse feilet",
+          "release": "Slipp feilet",
+          "close": "Lukking feilet"
+        },
+        "actionFailedReasonConnection": "Sjekk tilkoblingen",
+        "retryAction": {
+          "send": "Send på nytt",
+          "takeOver": "Prøv igjen",
+          "release": "Prøv igjen",
+          "close": "Prøv igjen"
+        },
         "retry": "Prøv igjen",
         "activityConv": "Samtaleaktivitet",
         "activityContact": "Kontaktaktivitet",

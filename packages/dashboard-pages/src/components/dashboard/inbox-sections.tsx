@@ -799,6 +799,10 @@ function LiveCard({
       : '';
 
   const handleCardClick = () => onOpen(claimed ? 'full' : 'simplified');
+  const retryAction =
+    actionError?.type === 'takeOver'
+      ? onTakeOver
+      : null;
 
   return (
     <li className="space-y-0">
@@ -835,7 +839,14 @@ function LiveCard({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          {claimed ? (
+          {actionError ? (
+            <InlineActionError
+              action={actionError.type}
+              message={actionError.message}
+              onRetry={retryAction}
+              onDismiss={onDismissError}
+            />
+          ) : claimed ? (
             <Button variant="accent" size="sm" onClick={() => onOpen('full')}>
               {t('chat')}
             </Button>
@@ -849,32 +860,80 @@ function LiveCard({
               >
                 {t('reply')}
               </Button>
-              <Button size="sm" onClick={onTakeOver} disabled={pending}>
+              <Button size="sm" onClick={onTakeOver} disabled={pending} pending={pending}>
                 {t('takeOver')}
               </Button>
             </>
           )}
         </div>
       </div>
-      {actionError && (
-        <div
-          className="flex items-start gap-3 border-x-[0.5px] border-b-[0.5px] border-ink border-t-0 bg-destructive/5 px-5 py-2 text-sm text-destructive dark:border-rule-on-dark"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span className="flex-1">
-            {tDrawer(`actionFailed.${actionError.type}`)} — {actionError.message}
-          </span>
-          <button
-            type="button"
-            className="underline-offset-2 hover:underline"
-            onClick={onDismissError}
-          >
-            {tDrawer('close')}
-          </button>
-        </div>
-      )}
     </li>
   );
+}
+
+function InlineActionError({
+  action,
+  message,
+  onRetry,
+  onDismiss,
+}: {
+  action: NonNullable<ConvActionError>['type'];
+  message: string;
+  onRetry: (() => void) | null;
+  onDismiss: () => void;
+}) {
+  const t = useTranslations('dashboard.overview.drawer');
+  const reason = isConnectionMessage(message) ? t('actionFailedReasonConnection') : message;
+  return (
+    <div
+      className="flex items-center gap-3 border-[0.5px] border-cobalt/30 bg-destructive/5 px-3 py-2 dark:border-cobalt-soft/40"
+      role="alert"
+    >
+      <span
+        className="size-1.5 rounded-full bg-cobalt dark:bg-cobalt-soft"
+        aria-hidden
+      />
+      <span className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+        {t(`actionFailedShort.${action}`)} · {reason}
+      </span>
+      {onRetry ? (
+        <button
+          type="button"
+          className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt underline underline-offset-2 hover:no-underline dark:text-cobalt-soft"
+          onClick={onRetry}
+        >
+          {t('retry')} <span aria-hidden>↵</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt/70 hover:text-cobalt dark:text-cobalt-soft/70 dark:hover:text-cobalt-soft"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+function isConnectionMessage(msg: string): boolean {
+  return /reach munin|check your connection|network/i.test(msg);
+}
+
+function retryHandler(
+  err: NonNullable<ConvActionError>,
+  onSend: () => void,
+  onTakeOver: () => void,
+  onRelease: () => void,
+  onCloseConv: () => void,
+): (() => void) | null {
+  if (err.type === 'send') return onSend;
+  if (err.type === 'takeOver') return onTakeOver;
+  if (err.type === 'release') return onRelease;
+  if (err.type === 'close') return onCloseConv;
+  return null;
 }
 
 function QueueRow({
@@ -1064,14 +1123,26 @@ function SimplifiedConvDrawer({
       </div>
 
       {actionError && (
-        <div className="border-t-[0.5px] border-destructive/40 bg-destructive/5 px-6 py-3 text-xs text-destructive">
-          {t(`actionFailed.${actionError.type}`)} — {actionError.message}
+        <div
+          className="flex items-center gap-3 border-t-[0.5px] border-cobalt/30 bg-destructive/5 px-6 py-2 dark:border-cobalt-soft/40"
+          role="alert"
+        >
+          <span
+            className="size-1.5 rounded-full bg-cobalt dark:bg-cobalt-soft"
+            aria-hidden
+          />
+          <span className="flex-1 font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+            {t(`actionFailedShort.${actionError.type}`)} ·{' '}
+            {isConnectionMessage(actionError.message)
+              ? t('actionFailedReasonConnection')
+              : actionError.message}
+          </span>
         </div>
       )}
 
       <DrawerFooter
         primary={{
-          label: t('sendDraft'),
+          label: actionError?.type === 'send' ? t('retryAction.send') : t('sendDraft'),
           onClick: () => onSendDraft(draftBody),
           disabled: pending || !draftBody.trim(),
         }}
@@ -1159,52 +1230,69 @@ function FullConvDrawer({
 
       <ActivityRail contactId={detail.contactId} conversationId={detail.id} />
 
-      <div className="border-t-[0.5px] border-rule-soft p-4 dark:border-rule-on-dark">
-        <textarea
-          value={reply}
-          onChange={(e) => {
-            setReply(e.target.value);
-            if (actionError) onClearActionError();
-          }}
-          rows={3}
-          placeholder={t('replyPlaceholder')}
-          className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
-        />
+      <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
         {actionError && (
-          <div className="mt-2 flex items-start gap-2 rounded-input border-[0.5px] border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            <span className="flex-1">
-              {t(`actionFailed.${actionError.type}`)} — {actionError.message}
+          <div
+            className="flex items-center gap-3 border-b-[0.5px] border-cobalt/30 bg-destructive/5 px-4 py-2 dark:border-cobalt-soft/40"
+            role="alert"
+          >
+            <span
+              className="size-1.5 rounded-full bg-cobalt dark:bg-cobalt-soft"
+              aria-hidden
+            />
+            <span className="flex-1 font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+              {t(`actionFailedShort.${actionError.type}`)} ·{' '}
+              {isConnectionMessage(actionError.message)
+                ? t('actionFailedReasonConnection')
+                : actionError.message}
             </span>
-            {actionError.type === 'send' && (
+            {retryHandler(actionError, onSend, onTakeOver, onRelease, onCloseConv) ? (
               <button
                 type="button"
-                className="font-mono uppercase tracking-eyebrow underline-offset-2 hover:underline"
-                onClick={onSend}
-                disabled={pending || !reply.trim()}
+                className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt underline underline-offset-2 hover:no-underline dark:text-cobalt-soft"
+                onClick={retryHandler(actionError, onSend, onTakeOver, onRelease, onCloseConv)!}
+                disabled={pending}
               >
-                {t('retry')}
+                {t(`retryAction.${actionError.type}`)} <span aria-hidden>↵</span>
               </button>
-            )}
+            ) : null}
           </div>
         )}
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            {!claimed ? (
-              <Button size="sm" onClick={onTakeOver} disabled={pending}>
-                {t('takeOver')}
+        <div className="p-4">
+          <textarea
+            value={reply}
+            onChange={(e) => {
+              setReply(e.target.value);
+              if (actionError) onClearActionError();
+            }}
+            rows={3}
+            placeholder={t('replyPlaceholder')}
+            className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
+          />
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {!claimed ? (
+                <Button size="sm" onClick={onTakeOver} disabled={pending} pending={pending}>
+                  {t('takeOver')}
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" onClick={onRelease} disabled={pending}>
+                  <Unplug className="size-3.5" /> {t('release')}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={onCloseConv} disabled={pending}>
+                {t('closeConv')}
               </Button>
-            ) : (
-              <Button size="sm" variant="outline" onClick={onRelease} disabled={pending}>
-                <Unplug className="size-3.5" /> {t('release')}
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={onCloseConv} disabled={pending}>
-              {t('closeConv')}
+            </div>
+            <Button
+              variant="accent"
+              onClick={onSend}
+              disabled={pending || !reply.trim()}
+              pending={pending}
+            >
+              {actionError?.type === 'send' ? t('retryAction.send') : t('send')}
             </Button>
           </div>
-          <Button variant="accent" onClick={onSend} disabled={pending || !reply.trim()}>
-            {t('send')}
-          </Button>
         </div>
       </div>
     </>

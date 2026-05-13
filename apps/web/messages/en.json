@@ -232,6 +232,19 @@
           "release": "Couldn't release",
           "close": "Couldn't close the conversation"
         },
+        "actionFailedShort": {
+          "send": "Send failed",
+          "takeOver": "Take over failed",
+          "release": "Release failed",
+          "close": "Close failed"
+        },
+        "actionFailedReasonConnection": "Check connection",
+        "retryAction": {
+          "send": "Retry send",
+          "takeOver": "Retry",
+          "release": "Retry",
+          "close": "Retry"
+        },
         "retry": "Retry",
         "activityConv": "Conversation activity",
         "activityContact": "Contact activity",

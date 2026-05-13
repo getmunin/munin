@@ -11,6 +11,7 @@
     "saveChanges": "Lagre endringer",
     "saving": "Lagrer…",
     "creating": "Oppretter…",
+    "retry": "Prøv igjen",
     "retrying": "Prøver igjen…",
     "apply": "Bruk",
     "loadMore": "Last flere",
@@ -127,6 +128,9 @@
     "organization": "Organisasjon"
   },
   "dashboard": {
+    "connectionBanner": {
+      "offline": "Tilkoblingen er borte. Kobler til igjen…"
+    },
     "saveFailed": {
       "title": "Lagring feilet",
       "sub": "Ingenting ble lagret · trygt å prøve igjen",
@@ -220,6 +224,28 @@
         "crmMergeExplain": "Beholder hovedoppføringen; flytter referanser; arkiverer den andre. Ingen samtaler går tapt.",
         "internalLabel": "intern · {author}",
         "seenAt": "Sett {time}",
+        "loadFailedEyebrow": "Kunne ikke laste",
+        "loadFailedTitle": "Denne samtalen lot seg ikke laste.",
+        "actionFailed": {
+          "send": "Kunne ikke sende svaret ditt",
+          "takeOver": "Kunne ikke overta",
+          "release": "Kunne ikke slippe",
+          "close": "Kunne ikke lukke samtalen"
+        },
+        "actionFailedShort": {
+          "send": "Sending feilet",
+          "takeOver": "Overtakelse feilet",
+          "release": "Slipp feilet",
+          "close": "Lukking feilet"
+        },
+        "actionFailedReasonConnection": "sjekk tilkoblingen",
+        "retryAction": {
+          "send": "Send på nytt",
+          "takeOver": "Prøv igjen",
+          "release": "Prøv igjen",
+          "close": "Prøv igjen"
+        },
+        "retry": "Prøv igjen",
         "activityConv": "Samtaleaktivitet",
         "activityContact": "Kontaktaktivitet",
         "activityEmpty": "Ingen aktivitet ennå.",

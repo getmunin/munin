@@ -13,7 +13,7 @@ import {
 } from '@getmunin/ui';
 import { api, ApiError } from '../../api';
 import { notify } from '../../lib/notify';
-import { useRealtime, type SubscriptionChannel } from '../../realtime';
+import { useRealtime, type RealtimeStatus, type SubscriptionChannel } from '../../realtime';
 
 type Status = 'open' | 'snoozed' | 'closed' | 'spam';
 
@@ -201,6 +201,10 @@ function mergeLive(
   return next;
 }
 
+export type ConvActionError =
+  | { type: 'send' | 'takeOver' | 'release' | 'close'; conversationId: string; message: string }
+  | null;
+
 export interface InboxController {
   items: LiveSummary[];
   details: Record<string, ConversationDetail>;
@@ -219,6 +223,11 @@ export interface InboxController {
   draftEdit: string | null;
   setDraftEdit: (next: string | null) => void;
   kbBodies: Record<string, string>;
+  detailErrors: Record<string, string>;
+  reloadDetail: (id: string) => Promise<void>;
+  actionError: ConvActionError;
+  clearActionError: () => void;
+  connectionStatus: RealtimeStatus;
   takeOver: (id: string, openFullAfter?: boolean) => Promise<void>;
   release: (id: string) => Promise<void>;
   closeConv: (id: string) => Promise<void>;
@@ -242,6 +251,8 @@ export function useInboxData(): InboxController {
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
+  const [actionError, setActionError] = useState<ConvActionError>(null);
 
   const loadInbox = useCallback(async () => {
     try {
@@ -253,7 +264,6 @@ export function useInboxData(): InboxController {
       setHasLoadedOnce(true);
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
-      notify.error(messageOf(err));
     }
   }, [buildQueue]);
 
@@ -278,10 +288,25 @@ export function useInboxData(): InboxController {
     try {
       const d = await api<ConversationDetail>(`/api/v1/conversations/${id}`);
       setDetails((prev) => ({ ...prev, [id]: d }));
+      setDetailErrors((prev) => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     } catch (err) {
-      notify.error(messageOf(err));
+      setDetailErrors((prev) => ({ ...prev, [id]: messageOf(err) }));
     }
   }, []);
+
+  const reloadDetail = useCallback(
+    async (id: string) => {
+      await loadDetail(id);
+    },
+    [loadDetail],
+  );
+
+  const clearActionError = useCallback(() => setActionError(null), []);
 
   useEffect(() => {
     void loadInbox();
@@ -308,7 +333,7 @@ export function useInboxData(): InboxController {
     return subs;
   }, [convDrawer]);
 
-  useRealtime(subscriptions, (event) => {
+  const { status: connectionStatus } = useRealtime(subscriptions, (event) => {
     const matches =
       event.type.startsWith('conversation.') ||
       event.type.startsWith('kb.') ||
@@ -321,15 +346,31 @@ export function useInboxData(): InboxController {
     }
   });
 
+  const wasOfflineRef = useRef(false);
+  useEffect(() => {
+    if (connectionStatus === 'offline') {
+      wasOfflineRef.current = true;
+      return;
+    }
+    if (connectionStatus === 'connected' && wasOfflineRef.current) {
+      wasOfflineRef.current = false;
+      setActionError(null);
+      setDetailErrors({});
+      void loadInbox();
+      if (convDrawer) void loadDetail(convDrawer.id);
+    }
+  }, [connectionStatus, convDrawer, loadDetail, loadInbox]);
+
   const takeOver = useCallback(
     async (id: string, openFullAfter = true) => {
       setPending(true);
+      setActionError(null);
       try {
         await api(`/api/v1/conversations/${id}/take-over`, { method: 'POST', body: '{}' });
         await Promise.all([loadDetail(id), loadInbox()]);
         if (openFullAfter) setConvDrawer({ id, mode: 'full' });
       } catch (err) {
-        notify.error(messageOf(err));
+        setActionError({ type: 'takeOver', conversationId: id, message: messageOf(err) });
       } finally {
         setPending(false);
       }
@@ -340,11 +381,12 @@ export function useInboxData(): InboxController {
   const release = useCallback(
     async (id: string) => {
       setPending(true);
+      setActionError(null);
       try {
         await api(`/api/v1/conversations/${id}/release`, { method: 'POST', body: '{}' });
         await Promise.all([loadDetail(id), loadInbox()]);
       } catch (err) {
-        notify.error(messageOf(err));
+        setActionError({ type: 'release', conversationId: id, message: messageOf(err) });
       } finally {
         setPending(false);
       }
@@ -355,6 +397,7 @@ export function useInboxData(): InboxController {
   const closeConv = useCallback(
     async (id: string) => {
       setPending(true);
+      setActionError(null);
       try {
         await api(`/api/v1/conversations/${id}/status`, {
           method: 'POST',
@@ -364,7 +407,7 @@ export function useInboxData(): InboxController {
         setItems((prev) => prev.filter((it) => it.id !== id));
         await loadInbox();
       } catch (err) {
-        notify.error(messageOf(err));
+        setActionError({ type: 'close', conversationId: id, message: messageOf(err) });
       } finally {
         setPending(false);
       }
@@ -390,6 +433,7 @@ export function useInboxData(): InboxController {
         createdAt: new Date().toISOString(),
       };
       setReply('');
+      setActionError(null);
       setDetails((prev) => {
         const d = prev[id];
         if (!d) return prev;
@@ -412,7 +456,7 @@ export function useInboxData(): InboxController {
           await loadDetail(id);
         }
       } catch (err) {
-        notify.error(messageOf(err));
+        setActionError({ type: 'send', conversationId: id, message: messageOf(err) });
         setDetails((prev) => {
           const d = prev[id];
           if (!d) return prev;
@@ -525,6 +569,11 @@ export function useInboxData(): InboxController {
     draftEdit,
     setDraftEdit,
     kbBodies,
+    detailErrors,
+    reloadDetail,
+    actionError,
+    clearActionError,
+    connectionStatus,
     takeOver,
     release,
     closeConv,
@@ -537,7 +586,16 @@ export function useInboxData(): InboxController {
 
 export function LiveNowSection({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.liveNow');
-  const { items, details, pending, setConvDrawer, setReply, setDraftEdit, takeOver } = controller;
+  const {
+    items,
+    details,
+    pending,
+    actionError,
+    setConvDrawer,
+    setReply,
+    setDraftEdit,
+    takeOver,
+  } = controller;
   if (items.length === 0) return null;
 
   return (
@@ -563,6 +621,7 @@ export function LiveNowSection({ controller }: { controller: InboxController }) 
             conv={c}
             detail={details[c.id]}
             pending={pending}
+            actionError={actionError?.conversationId === c.id ? actionError : null}
             onOpen={(mode) => {
               setReply('');
               setDraftEdit(null);
@@ -621,6 +680,10 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     draftEdit,
     setDraftEdit,
     kbBodies,
+    detailErrors,
+    reloadDetail,
+    actionError,
+    clearActionError,
     send,
     takeOver,
     release,
@@ -630,6 +693,9 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     dismissQueue,
   } = controller;
   const selectedConv = convDrawer ? details[convDrawer.id] : null;
+  const convError = convDrawer ? detailErrors[convDrawer.id] : null;
+  const drawerActionError =
+    convDrawer && actionError?.conversationId === convDrawer.id ? actionError : null;
 
   return (
     <>
@@ -650,6 +716,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
                 pending={pending}
                 draftEdit={draftEdit}
                 setDraftEdit={setDraftEdit}
+                actionError={drawerActionError}
                 onSendDraft={(body) => void send(selectedConv.id, body, { claim: false, closeDrawer: true })}
                 onTakeOver={() => void takeOver(selectedConv.id, true)}
                 onClose={() => setConvDrawer(null)}
@@ -660,13 +727,22 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
                 reply={reply}
                 setReply={setReply}
                 pending={pending}
+                actionError={drawerActionError}
                 onSend={() => void send(selectedConv.id, reply)}
                 onTakeOver={() => void takeOver(selectedConv.id, false)}
                 onRelease={() => void release(selectedConv.id)}
                 onCloseConv={() => void closeConv(selectedConv.id)}
                 onClose={() => setConvDrawer(null)}
+                onClearActionError={clearActionError}
               />
             )
+          ) : convDrawer && convError ? (
+            <DrawerLoadFailed
+              message={convError}
+              retrying={pending}
+              onRetry={() => void reloadDetail(convDrawer.id)}
+              onClose={() => setConvDrawer(null)}
+            />
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-ink-mute">
               <MessageSquare className="mr-2 size-4" /> {t('loading')}
@@ -698,12 +774,14 @@ function LiveCard({
   conv,
   detail,
   pending,
+  actionError,
   onOpen,
   onTakeOver,
 }: {
   conv: ConversationSummary;
   detail: ConversationDetail | undefined;
   pending: boolean;
+  actionError: ConvActionError;
   onOpen: (mode: 'simplified' | 'full') => void;
   onTakeOver: () => void;
 }) {
@@ -711,10 +789,17 @@ function LiveCard({
   const tDrawer = useTranslations('dashboard.overview.drawer');
   const age = useRelative();
   const claimed = detail?.claim != null;
+  const flaggedAtMs = conv.needsHumanAttentionAt
+    ? Date.parse(conv.needsHumanAttentionAt)
+    : null;
   const lastEndUserMsg = detail?.messages
     .slice()
     .reverse()
-    .find((m) => m.authorType === 'end_user');
+    .find((m) => {
+      if (m.authorType !== 'end_user') return false;
+      if (flaggedAtMs == null) return true;
+      return Date.parse(m.createdAt) <= flaggedAtMs;
+    });
   const who = conv.endUserId ?? tDrawer('conversationFallback', { id: conv.displayId });
   const subject = conv.subject ?? tDrawer('conversationFallback', { id: conv.displayId });
   const waiting = conv.needsHumanAttentionAt
@@ -724,9 +809,13 @@ function LiveCard({
       : '';
 
   const handleCardClick = () => onOpen(claimed ? 'full' : 'simplified');
+  const retryAction =
+    actionError?.type === 'takeOver'
+      ? onTakeOver
+      : null;
 
   return (
-    <li>
+    <li className="space-y-0">
       <div
         className="group/livecard flex items-stretch gap-4 border-[0.5px] border-ink bg-paper px-5 py-4 cursor-pointer transition-colors duration-fast ease-munin hover:border-cobalt dark:border-rule-on-dark dark:bg-card dark:hover:border-cobalt-soft"
         onClick={handleCardClick}
@@ -760,7 +849,13 @@ function LiveCard({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          {claimed ? (
+          {actionError ? (
+            <InlineActionError
+              action={actionError.type}
+              message={actionError.message}
+              onRetry={retryAction}
+            />
+          ) : claimed ? (
             <Button variant="accent" size="sm" onClick={() => onOpen('full')}>
               {t('chat')}
             </Button>
@@ -774,7 +869,7 @@ function LiveCard({
               >
                 {t('reply')}
               </Button>
-              <Button size="sm" onClick={onTakeOver} disabled={pending}>
+              <Button size="sm" onClick={onTakeOver} disabled={pending} pending={pending}>
                 {t('takeOver')}
               </Button>
             </>
@@ -783,6 +878,60 @@ function LiveCard({
       </div>
     </li>
   );
+}
+
+function InlineActionError({
+  action,
+  message,
+  onRetry,
+}: {
+  action: NonNullable<ConvActionError>['type'];
+  message: string;
+  onRetry: (() => void) | null;
+}) {
+  const t = useTranslations('dashboard.overview.drawer');
+  const reason = isConnectionMessage(message) ? t('actionFailedReasonConnection') : message;
+  return (
+    <div
+      className="flex items-center gap-[14px] whitespace-nowrap border-[0.5px] border-cobalt bg-[oklch(0.98_0.025_25)] px-3 py-1.5 text-[13px] font-medium text-cobalt dark:border-cobalt-soft dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
+      role="alert"
+    >
+      <span
+        className="size-1.5 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
+        aria-hidden
+      />
+      <span>
+        {t(`actionFailedShort.${action}`)} · {reason}
+      </span>
+      {onRetry && (
+        <button
+          type="button"
+          className="cursor-pointer text-[13px] font-medium text-cobalt underline underline-offset-[3px] hover:text-cobalt-deep dark:text-cobalt-soft"
+          onClick={onRetry}
+        >
+          {t('retry')} <span aria-hidden>↻</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function isConnectionMessage(msg: string): boolean {
+  return /reach munin|check your connection|network/i.test(msg);
+}
+
+function retryHandler(
+  err: NonNullable<ConvActionError>,
+  onSend: () => void,
+  onTakeOver: () => void,
+  onRelease: () => void,
+  onCloseConv: () => void,
+): (() => void) | null {
+  if (err.type === 'send') return onSend;
+  if (err.type === 'takeOver') return onTakeOver;
+  if (err.type === 'release') return onRelease;
+  if (err.type === 'close') return onCloseConv;
+  return null;
 }
 
 function QueueRow({
@@ -843,11 +992,46 @@ function QueueRow({
   );
 }
 
+function DrawerLoadFailed({
+  message,
+  retrying,
+  onRetry,
+  onClose,
+}: {
+  message: string;
+  retrying: boolean;
+  onRetry: () => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.overview.drawer');
+  const tCommon = useTranslations('common');
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-6">
+      <div className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
+        {t('loadFailedEyebrow')}
+      </div>
+      <h2 className="font-serif text-xl leading-tight text-ink dark:text-foreground">
+        {t('loadFailedTitle')}
+      </h2>
+      <p className="text-sm text-ink-mute">{message}</p>
+      <div className="mt-2 flex items-center gap-3">
+        <Button type="button" variant="accent" onClick={onRetry} disabled={retrying}>
+          {retrying ? tCommon('retrying') : tCommon('retry')}
+        </Button>
+        <Button type="button" variant="outline" onClick={onClose}>
+          {tCommon('close')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SimplifiedConvDrawer({
   detail,
   pending,
   draftEdit,
   setDraftEdit,
+  actionError,
   onSendDraft,
   onTakeOver,
   onClose,
@@ -856,16 +1040,24 @@ function SimplifiedConvDrawer({
   pending: boolean;
   draftEdit: string | null;
   setDraftEdit: (v: string | null) => void;
+  actionError: ConvActionError;
   onSendDraft: (body: string) => void;
   onTakeOver: () => void;
   onClose: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const age = useRelative();
+  const flaggedAtMs = detail.needsHumanAttentionAt
+    ? Date.parse(detail.needsHumanAttentionAt)
+    : null;
   const customer = detail.messages
     .slice()
     .reverse()
-    .find((m) => m.authorType === 'end_user' && !m.internal);
+    .find((m) => {
+      if (m.authorType !== 'end_user' || m.internal) return false;
+      if (flaggedAtMs == null) return true;
+      return Date.parse(m.createdAt) <= flaggedAtMs;
+    });
   const draft = detail.messages
     .slice()
     .reverse()
@@ -928,25 +1120,52 @@ function SimplifiedConvDrawer({
         </section>
       </div>
 
-      <DrawerFooter
-        primary={{
-          label: t('sendDraft'),
-          onClick: () => onSendDraft(draftBody),
-          disabled: pending || !draftBody.trim(),
-        }}
-        secondary={[
-          draft
-            ? isEditing
-              ? { label: t('cancel'), onClick: () => setDraftEdit(null) }
-              : {
-                  label: t('edit'),
-                  onClick: () => setDraftEdit(draft.body),
-                }
-            : null,
-          { label: t('takeOver'), onClick: onTakeOver, disabled: pending },
-        ].filter((a): a is { label: string; onClick: () => void } => a !== null)}
-        shortcut={t('shortcutSend')}
-      />
+      <div
+        className={
+          actionError
+            ? 'border-t-[0.5px] border-cobalt dark:border-cobalt-soft'
+            : undefined
+        }
+      >
+        {actionError && (
+          <div
+            className="flex items-center gap-3 border-b-[0.5px] border-rule-soft bg-[oklch(0.98_0.025_25)] px-[26px] py-3 text-[13px] font-medium text-cobalt dark:border-rule-on-dark dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
+            role="alert"
+          >
+            <span
+              className="size-1.5 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
+              aria-hidden
+            />
+            <span className="flex-1">
+              {t(`actionFailedShort.${actionError.type}`)} ·{' '}
+              {isConnectionMessage(actionError.message)
+                ? t('actionFailedReasonConnection')
+                : actionError.message}
+            </span>
+          </div>
+        )}
+
+        <DrawerFooter
+          bordered={!actionError}
+          primary={{
+            label: actionError?.type === 'send' ? t('retryAction.send') : t('sendDraft'),
+            onClick: () => onSendDraft(draftBody),
+            disabled: pending || !draftBody.trim(),
+          }}
+          secondary={[
+            draft
+              ? isEditing
+                ? { label: t('cancel'), onClick: () => setDraftEdit(null) }
+                : {
+                    label: t('edit'),
+                    onClick: () => setDraftEdit(draft.body),
+                  }
+              : null,
+            { label: t('takeOver'), onClick: onTakeOver, disabled: pending },
+          ].filter((a): a is { label: string; onClick: () => void } => a !== null)}
+          shortcut={t('shortcutSend')}
+        />
+      </div>
     </>
   );
 }
@@ -956,21 +1175,25 @@ function FullConvDrawer({
   reply,
   setReply,
   pending,
+  actionError,
   onSend,
   onTakeOver,
   onRelease,
   onCloseConv,
   onClose,
+  onClearActionError,
 }: {
   detail: ConversationDetail;
   reply: string;
   setReply: (v: string) => void;
   pending: boolean;
+  actionError: ConvActionError;
   onSend: () => void;
   onTakeOver: () => void;
   onRelease: () => void;
   onCloseConv: () => void;
   onClose: () => void;
+  onClearActionError: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const claimed = detail.claim !== null;
@@ -1014,32 +1237,75 @@ function FullConvDrawer({
 
       <ActivityRail contactId={detail.contactId} conversationId={detail.id} />
 
-      <div className="border-t-[0.5px] border-rule-soft p-4 dark:border-rule-on-dark">
-        <textarea
-          value={reply}
-          onChange={(e) => setReply(e.target.value)}
-          rows={3}
-          placeholder={t('replyPlaceholder')}
-          className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
-        />
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            {!claimed ? (
-              <Button size="sm" onClick={onTakeOver} disabled={pending}>
-                {t('takeOver')}
+      <div
+        className={
+          actionError
+            ? 'border-t-[0.5px] border-cobalt dark:border-cobalt-soft'
+            : 'border-t-[0.5px] border-rule-soft dark:border-rule-on-dark'
+        }
+      >
+        {actionError && (
+          <div
+            className="flex items-center gap-3 border-b-[0.5px] border-rule-soft bg-[oklch(0.98_0.025_25)] px-[26px] py-3 text-[13px] font-medium text-cobalt dark:border-rule-on-dark dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
+            role="alert"
+          >
+            <span
+              className="size-1.5 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
+              aria-hidden
+            />
+            <span className="flex-1">
+              {t(`actionFailedShort.${actionError.type}`)} ·{' '}
+              {isConnectionMessage(actionError.message)
+                ? t('actionFailedReasonConnection')
+                : actionError.message}
+            </span>
+            {retryHandler(actionError, onSend, onTakeOver, onRelease, onCloseConv) ? (
+              <button
+                type="button"
+                className="cursor-pointer text-[13px] font-medium text-cobalt underline underline-offset-[3px] hover:text-cobalt-deep dark:text-cobalt-soft"
+                onClick={retryHandler(actionError, onSend, onTakeOver, onRelease, onCloseConv)!}
+                disabled={pending}
+              >
+                {t(`retryAction.${actionError.type}`)} <span aria-hidden>↵</span>
+              </button>
+            ) : null}
+          </div>
+        )}
+        <div className="p-4">
+          <textarea
+            value={reply}
+            onChange={(e) => {
+              setReply(e.target.value);
+              if (actionError) onClearActionError();
+            }}
+            rows={3}
+            placeholder={t('replyPlaceholder')}
+            className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
+          />
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {!claimed ? (
+                <Button size="sm" onClick={onTakeOver} disabled={pending} pending={pending}>
+                  {t('takeOver')}
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" onClick={onRelease} disabled={pending}>
+                  <Unplug className="size-3.5" /> {t('release')}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={onCloseConv} disabled={pending}>
+                {t('closeConv')}
               </Button>
-            ) : (
-              <Button size="sm" variant="outline" onClick={onRelease} disabled={pending}>
-                <Unplug className="size-3.5" /> {t('release')}
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={onCloseConv} disabled={pending}>
-              {t('closeConv')}
+            </div>
+            <Button
+              variant="accent"
+              onClick={onSend}
+              disabled={pending || !reply.trim()}
+              pending={pending}
+            >
+              {actionError?.type === 'send' ? t('retryAction.send') : t('send')}
             </Button>
           </div>
-          <Button variant="accent" onClick={onSend} disabled={pending || !reply.trim()}>
-            {t('send')}
-          </Button>
         </div>
       </div>
     </>
@@ -1302,13 +1568,20 @@ function DrawerFooter({
   primary,
   secondary,
   shortcut,
+  bordered = true,
 }: {
   primary: { label: string; onClick: () => void; disabled?: boolean };
   secondary: Array<{ label: string; onClick: () => void; disabled?: boolean }>;
   shortcut?: string;
+  bordered?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t-[0.5px] border-rule-soft px-6 py-3 dark:border-rule-on-dark">
+    <div
+      className={cn(
+        'flex items-center justify-between gap-2 px-6 py-3',
+        bordered && 'border-t-[0.5px] border-rule-soft dark:border-rule-on-dark',
+      )}
+    >
       <div className="flex items-center gap-2">
         <Button variant="accent" size="sm" onClick={primary.onClick} disabled={primary.disabled}>
           {primary.label}

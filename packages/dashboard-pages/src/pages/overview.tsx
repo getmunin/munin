@@ -47,18 +47,22 @@ export function DashboardPage() {
 
   if (inbox.loadError && !inbox.hasLoadedOnce) {
     return (
-      <div className="px-10 py-10 max-w-7xl mx-auto">
-        <LoadFailed
-          {...buildLoadFailedProps(inbox.loadError, () => void inbox.retryLoad(), inbox.retrying)}
-        />
-      </div>
+      <>
+        <ConnectionBanner status={inbox.connectionStatus} />
+        <div className="px-10 py-10 max-w-7xl mx-auto">
+          <LoadFailed
+            {...buildLoadFailedProps(inbox.loadError, () => void inbox.retryLoad(), inbox.retrying)}
+          />
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="px-10 py-10 max-w-7xl mx-auto space-y-10">
+    <>
       <ConnectionBanner status={inbox.connectionStatus} />
-      <DashboardHero
+      <div className="px-10 py-10 max-w-7xl mx-auto space-y-10">
+        <DashboardHero
         orgName={orgName}
         date={new Date()}
         liveCount={inbox.items.length}
@@ -73,6 +77,7 @@ export function DashboardPage() {
       <GetStarted />
 
       <InboxDrawers controller={inbox} />
-    </div>
+      </div>
+    </>
   );
 }

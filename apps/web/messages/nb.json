@@ -337,6 +337,18 @@
       "deleteChannelConfirm": "Slette {name}. Dette kan ikke angres.",
       "imapPolling": "imap · polling",
       "smtpServer": "smtp · {host}",
+      "sendTestEmail": "Send test-e-post",
+      "sendTest": {
+        "title": "Send en test-e-post",
+        "description": "Send en ekte melding gjennom {name} sin utgående transport for å bekrefte legitimasjon og leveranse.",
+        "toLabel": "Mottaker",
+        "toHint": "Forhåndsutfylt med e-postadressen din — endre den for å sende testen et annet sted.",
+        "submit": "Send test",
+        "sending": "Sender …",
+        "successTitle": "Test sendt",
+        "success": "Test-e-post sendt til {to}. Sjekk innboksen om et øyeblikk.",
+        "errorTitle": "Testen feilet"
+      },
       "inactive": "Inaktiv",
       "emptyTitle": "Ingen kanaler ennå",
       "emptyBody": "Legg til en chat-widget- eller e-post-kanal for å begynne å motta meldinger.",
@@ -370,6 +382,7 @@
         "rotate": "Kunne ikke rotere nøkkel.",
         "rotateIdentity": "Kunne ikke rotere identitetshemmelighet.",
         "test": "Kunne ikke teste e-postlegitimasjon.",
+        "sendTest": "Kunne ikke sende test-e-post.",
         "delete": "Kunne ikke slette kanalen.",
         "saveFailedEyebrow": "Lagring · feilet"
       }

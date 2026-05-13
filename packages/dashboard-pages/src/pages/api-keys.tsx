@@ -244,7 +244,7 @@ function MintKeyDialog({
               <DialogDescription>{t('revealSub')}</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-3 mt-2">
-              <p className="text-sm text-ink dark:text-foreground border-l-[0.5px] border-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+              <p className="text-sm text-ink dark:text-foreground border-l-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
                 {t('revealWarning')}
               </p>
               <KeyReveal value={created.key} copyLabel={t('copyClipboard')} />

@@ -753,7 +753,7 @@ function LiveCard({
             {subject}
           </h3>
           {lastEndUserMsg && (
-            <p className="border-l-[0.5px] border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
+            <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
               &ldquo;{truncate(lastEndUserMsg.body, 160)}&rdquo;
             </p>
           )}
@@ -901,7 +901,7 @@ function SimplifiedConvDrawer({
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
               {t('customer')}
             </p>
-            <p className="border-l-[0.5px] border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
+            <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
               &ldquo;{customer.body}&rdquo;
             </p>
           </section>
@@ -1166,7 +1166,7 @@ function QueueDrawer({
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
               {t('replyFrom')}
             </p>
-            <p className="border-l-[0.5px] border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
+            <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
               &ldquo;{item.snippet}&rdquo;
             </p>
           </section>

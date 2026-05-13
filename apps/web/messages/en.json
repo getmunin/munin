@@ -341,6 +341,18 @@
       "imapPolling": "imap · polling",
       "smtpServer": "smtp · {host}",
       "test": "Test",
+      "sendTestEmail": "Send test email",
+      "sendTest": {
+        "title": "Send a test email",
+        "description": "Send a real message through {name}'s outbound transport to confirm credentials and deliverability.",
+        "toLabel": "Recipient",
+        "toHint": "Defaults to your account email — change it to send the test somewhere else.",
+        "submit": "Send test",
+        "sending": "Sending…",
+        "successTitle": "Test sent",
+        "success": "Test email queued for {to}. Check the inbox in a moment.",
+        "errorTitle": "Test failed"
+      },
       "email": {
         "createTitle": "Add an email channel",
         "createDescription": "Bring your own SMTP credentials (and optionally IMAP for inbound replies). Passwords are encrypted server-side; we never show them again.",
@@ -370,6 +382,7 @@
         "rotate": "Could not rotate key.",
         "rotateIdentity": "Could not rotate identity secret.",
         "test": "Could not test email credentials.",
+        "sendTest": "Could not send test email.",
         "delete": "Could not delete channel.",
         "saveFailedEyebrow": "Save · failed"
       }

@@ -69,3 +69,9 @@ export const SetupEmailBody = z.object({
 });
 
 export type SetupEmailBodyT = z.infer<typeof SetupEmailBody>;
+
+export const SendEmailTestBody = z.object({
+  to: z.string().email(),
+});
+
+export type SendEmailTestBodyT = z.infer<typeof SendEmailTestBody>;

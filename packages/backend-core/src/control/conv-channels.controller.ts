@@ -21,6 +21,7 @@ import {
   CreateWidgetBody,
   UpdateWidgetBody,
   SetupEmailBody,
+  SendEmailTestBody,
 } from '@getmunin/types';
 
 interface ChannelListResponse {
@@ -94,6 +95,17 @@ export class ConvChannelsController {
     @Param('id') id: string,
   ): Promise<Awaited<ReturnType<EmailAdminTools['testChannel']>>> {
     return this.emailTools.testChannel({ channelId: id });
+  }
+
+  @Post('email/:id/send-test')
+  @HttpCode(200)
+  async sendTestEmail(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<EmailAdminTools['sendTest']>>> {
+    const parsed = SendEmailTestBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.emailTools.sendTest({ channelId: id, to: parsed.data.to });
   }
 
   @Delete(':id')

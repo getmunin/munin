@@ -13,4 +13,6 @@ export {
   type UpdateWidgetBodyT,
   SetupEmailBody,
   type SetupEmailBodyT,
+  SendEmailTestBody,
+  type SendEmailTestBodyT,
 } from './channels.js';

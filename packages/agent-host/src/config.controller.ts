@@ -16,8 +16,8 @@ import { AgentConfigService, type AgentConfigDto } from './config.service.js';
 import { AgentModelsService, type ListModelsResult } from './models.service.js';
 
 const UpsertDto = z.object({
-  chatModel: z.string().min(1).optional(),
-  curatorModel: z.string().min(1).nullable().optional(),
+  fastModel: z.string().min(1).optional(),
+  smartModel: z.string().min(1).nullable().optional(),
   providerBaseUrl: z.string().url().optional(),
   providerApiKey: z.string().min(1).nullable().optional(),
   maxHistoryChars: z.number().int().positive().optional(),

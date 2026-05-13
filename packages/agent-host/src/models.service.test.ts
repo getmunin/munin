@@ -4,8 +4,8 @@ import type { AgentConfigRepository, AgentConfigRow } from './config.repository.
 
 const baseRow: AgentConfigRow = {
   id: 'singleton',
-  chatModel: 'anthropic/claude-haiku-4.5',
-  curatorModel: null,
+  fastModel: 'anthropic/claude-haiku-4.5',
+  smartModel: null,
   providerBaseUrl: 'https://provider.example/v1',
   providerApiKeySet: true,
   maxHistoryChars: 32_000,

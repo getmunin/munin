@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useActiveMembership } from '../auth/use-active-role';
 import { useRealtime } from '../realtime';
+import { ConnectionBanner } from '../components/connection-banner';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { GetStarted } from '../components/dashboard/get-started';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
@@ -46,17 +47,22 @@ export function DashboardPage() {
 
   if (inbox.loadError && !inbox.hasLoadedOnce) {
     return (
-      <div className="px-10 py-10 max-w-7xl mx-auto">
-        <LoadFailed
-          {...buildLoadFailedProps(inbox.loadError, () => void inbox.retryLoad(), inbox.retrying)}
-        />
-      </div>
+      <>
+        <ConnectionBanner status={inbox.connectionStatus} />
+        <div className="px-10 pt-11 pb-6 max-w-7xl mx-auto">
+          <LoadFailed
+            {...buildLoadFailedProps(inbox.loadError, () => void inbox.retryLoad(), inbox.retrying)}
+          />
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="px-10 py-10 max-w-7xl mx-auto space-y-10">
-      <DashboardHero
+    <>
+      <ConnectionBanner status={inbox.connectionStatus} />
+      <div className="px-10 pt-11 pb-6 max-w-7xl mx-auto space-y-9">
+        <DashboardHero
         orgName={orgName}
         date={new Date()}
         liveCount={inbox.items.length}
@@ -71,6 +77,7 @@ export function DashboardPage() {
       <GetStarted />
 
       <InboxDrawers controller={inbox} />
-    </div>
+      </div>
+    </>
   );
 }

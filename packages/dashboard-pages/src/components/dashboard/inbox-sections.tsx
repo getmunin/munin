@@ -711,10 +711,17 @@ function LiveCard({
   const tDrawer = useTranslations('dashboard.overview.drawer');
   const age = useRelative();
   const claimed = detail?.claim != null;
+  const flaggedAtMs = conv.needsHumanAttentionAt
+    ? Date.parse(conv.needsHumanAttentionAt)
+    : null;
   const lastEndUserMsg = detail?.messages
     .slice()
     .reverse()
-    .find((m) => m.authorType === 'end_user');
+    .find((m) => {
+      if (m.authorType !== 'end_user') return false;
+      if (flaggedAtMs == null) return true;
+      return Date.parse(m.createdAt) <= flaggedAtMs;
+    });
   const who = conv.endUserId ?? tDrawer('conversationFallback', { id: conv.displayId });
   const subject = conv.subject ?? tDrawer('conversationFallback', { id: conv.displayId });
   const waiting = conv.needsHumanAttentionAt

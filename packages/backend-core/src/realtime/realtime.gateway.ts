@@ -12,7 +12,15 @@ import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { schema, type Db } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
-import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
+import {
+  ActorIdentity,
+  CredentialResolver,
+  WebhookDispatcher,
+  withContext,
+  type RequestContext,
+  type ResolvedCredential,
+} from '@getmunin/core';
+import { randomUUID } from 'node:crypto';
 import { DB } from '../common/db/db.module.js';
 import {
   ADDITIONAL_CREDENTIAL_RESOLVERS,
@@ -28,44 +36,30 @@ import { WidgetChannelConfig } from '../modules/conv/widget/widget.types.js';
 const PATH = '/api/v1/realtime';
 
 interface ClientMessage {
-  type: 'subscribe' | 'unsubscribe' | 'ping' | 'typing';
+  type: 'subscribe' | 'unsubscribe' | 'ping' | 'typing' | 'read';
   channel?: 'org' | 'conversation' | 'contact' | 'widget';
   id?: string;
-  /** widget channel: scoped subscription key. */
   channelId?: string;
   sessionId?: string;
-  /** typing: whether the sender is currently typing (false ⇒ stopped). */
   isTyping?: boolean;
+  messageIds?: string[];
 }
 
 interface WidgetConnectionContext {
-  /** apiKeys.channelId — the widget channel this connection is bound to. */
   channelId: string;
-  /** Set iff the upgrade carried a verified identity HMAC. Limits the
-   *  connection to events whose conversation contact matches. */
   verifiedExternalId?: string;
 }
 
 interface ConversationMetaCache {
-  /** null = looked up, not a widget conversation (don't re-query). */
   meta: { channelId: string; sessionId: string | null; contactExternalId: string | null } | null;
 }
 
-/**
- * Per-connection state needed for typing fanout. The gateway also
- * registers each entry in `subscribersByChannel` so cross-connection
- * lookup (visitor → operator and vice versa) is O(1) on the channel key.
- */
 interface ConnectionEntry {
   ws: WebSocket;
   widgetCtx: WidgetConnectionContext | null;
   orgId: string;
   conversationMetaCache: Map<string, ConversationMetaCache>;
-  /** Per-conversation timestamp of the last typing:true broadcast from
-   *  this sender — used to enforce the 1/1.5 s server-side throttle. */
   typingLastFiredAt: Map<string, number>;
-  /** Per-conversation auto-clear timer; fires typing:false at 5 s of
-   *  silence. Reset on every refresh. */
   typingAutoClearTimers: Map<string, NodeJS.Timeout>;
 }
 
@@ -81,11 +75,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     null;
   private readonly resolver: CredentialResolver;
   private readonly selfServiceSubscribersByOrg = new Map<string, Set<WebSocket>>();
-  /**
-   * Global registry of subscriptions keyed by encoded channel ID. Lets the
-   * typing handler fan out to every other connection subscribed to the
-   * target channel without a per-event DB query.
-   */
   private readonly subscribersByChannel = new Map<string, Set<ConnectionEntry>>();
 
   selfServiceSubscriberCount(orgId: string): number {
@@ -96,6 +85,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     private readonly adapterHost: HttpAdapterHost,
     private readonly listener: DbListenerService,
     @Inject(DB) private readonly db: Db,
+    @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Optional()
     @Inject(ADDITIONAL_CREDENTIAL_RESOLVERS)
     private readonly additionalResolvers: AdditionalCredentialResolver[] = [],
@@ -116,16 +106,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
     this.wss = new WebSocketServer({
       noServer: true,
-      // 64 KB cap on inbound frames. Typing payloads are small (<200 bytes);
-      // legitimate subscription messages are similarly tiny. Anything
-      // larger is either misuse or a slowloris-style abuse — let the ws
-      // library close the connection rather than buffer the data.
       maxPayload: WS_MAX_PAYLOAD_BYTES,
-      // Browsers can't set arbitrary HTTP headers on a WebSocket upgrade, so
-      // browser callers pass the bearer token via Sec-WebSocket-Protocol:
-      //   ['bearer', '<token>']  →  send 'bearer' back so the handshake
-      // completes. Native (Node ws) callers set the Authorization header and
-      // don't offer any subprotocol, so we just decline negotiation.
       handleProtocols: (protocols) => {
         if (protocols.has('bearer')) return 'bearer';
         return false;
@@ -168,10 +149,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       return;
     }
 
-    // Detect a widget API key: look up the apiKeys row and check type.
-    // Widget keys carry `channelId` and live behind originAllowlist + HMAC
-    // identity gates, so we authorize them at upgrade time before any
-    // application data crosses the socket.
     let widgetCtx: WidgetConnectionContext | null = null;
     try {
       widgetCtx = await this.gateWidgetUpgrade(req, credential);
@@ -193,13 +170,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     });
   }
 
-  /**
-   * If `credential` came from a widget API key, validate the upgrade
-   * against the channel's `originAllowlist` and `identityVerificationSecret`,
-   * and return a context object scoping the connection to that channel.
-   * Returns `null` for non-widget credentials. Throws on any widget gate
-   * failure so the caller responds with 401.
-   */
   private async gateWidgetUpgrade(
     req: IncomingMessage,
     credential: ResolvedCredential,
@@ -257,8 +227,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       typingLastFiredAt: new Map(),
       typingAutoClearTimers: new Map(),
     };
-    // Widget connections are visitor-side; they don't count toward the
-    // operator self-service subscriber pool.
     const isSelfServiceAgent = !isWidget && actor.type !== 'end_user_agent';
     if (isSelfServiceAgent) {
       let set = this.selfServiceSubscribersByOrg.get(actor.orgId);
@@ -319,10 +287,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       }
       for (const channel of subscriptions) {
         if (isWidget) {
-          // Widget subscriptions: resolve the event's conversation metadata
-          // (cached per-connection) and only forward when the (channelId,
-          // sessionId) pair matches AND, in verified mode, the contact's
-          // externalId matches the asserted one.
           void this.matchWidgetEvent(channel, event, conversationMetaCache, widgetCtx).then(
             (matched) => {
               if (matched) ws.send(JSON.stringify({ type: 'event', channel, event }));
@@ -354,13 +318,13 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
         void this.handleTyping(entry, msg);
         return;
       }
+      if (msg.type === 'read') {
+        void this.handleRead(entry, msg);
+        return;
+      }
       const key = encodeChannel(msg);
       if (!key) return;
       if (isWidget) {
-        // Widget keys can ONLY subscribe to their own channelId+sessionId
-        // pair. Any attempt to subscribe to org/conversation/contact, or to
-        // a different widget channel, is silently ignored — defense in
-        // depth alongside the upgrade-time gate.
         if (!key.startsWith(`widget:${widgetCtx.channelId}:`)) return;
       }
       if (msg.type === 'subscribe') addChannelSubscription(key);
@@ -383,23 +347,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     ws.send(JSON.stringify({ type: 'ready', orgId: actor.orgId }));
   }
 
-  /**
-   * Handle a `typing` message from a client.
-   *
-   * - Widget side (visitor): `{ type:'typing', channel:'widget', channelId,
-   *   sessionId, isTyping }`. The gateway resolves the (channelId, sessionId)
-   *   to a conversation, then fans out a `typing` notification on the
-   *   `conversation:<id>` channel so operator subscribers see it.
-   * - Operator side: `{ type:'typing', channel:'conversation', id, isTyping }`.
-   *   The gateway resolves the conversation's (channelId, sessionId) and
-   *   fans out on `widget:<channelId>:<sessionId>`.
-   *
-   * Server-side throttle: 1 typing:true per 1.5 s per (sender, conversation).
-   * Auto-clear: typing:true schedules a typing:false 5 s later if no refresh.
-   * Verified-mode widget receivers are filtered by externalId match against
-   * the conversation's contact (defense in depth — the channel binding
-   * already excludes other sessions).
-   */
   private async handleTyping(entry: ConnectionEntry, msg: ClientMessage): Promise<void> {
     if (typeof msg.isTyping !== 'boolean') return;
     const isWidget = !!entry.widgetCtx;
@@ -409,12 +356,11 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     let authorType: 'visitor' | 'operator' | null = null;
 
     if (msg.channel === 'widget') {
-      if (!isWidget) return; // operator can't impersonate widget side
+      if (!isWidget) return;
       if (!msg.channelId || !msg.sessionId) return;
       if (msg.channelId !== entry.widgetCtx!.channelId) return;
       const meta = await this.resolveWidgetSession(msg.channelId, msg.sessionId);
       if (!meta) return;
-      // Verified-mode senders must own the conversation.
       if (
         entry.widgetCtx!.verifiedExternalId &&
         meta.contactExternalId !== entry.widgetCtx!.verifiedExternalId
@@ -425,7 +371,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       outboundChannel = `conversation:${conversationId}`;
       authorType = 'visitor';
     } else if (msg.channel === 'conversation') {
-      if (isWidget) return; // widget side can't fire operator-style typing
+      if (isWidget) return;
       if (!msg.id) return;
       const meta = await this.resolveConversationMeta(msg.id);
       if (!meta || meta.sessionId === null) return;
@@ -436,9 +382,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       return;
     }
 
-    // Throttle typing:true to 1 per TYPING_MIN_INTERVAL_MS per sender per
-    // conversation. typing:false bypasses the throttle so a sender can
-    // explicitly retract before the auto-clear fires.
     if (msg.isTyping) {
       const now = Date.now();
       const last = entry.typingLastFiredAt.get(conversationId) ?? 0;
@@ -448,7 +391,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       entry.typingLastFiredAt.delete(conversationId);
     }
 
-    // Reset any in-flight auto-clear timer for this (sender, conversation).
     const existing = entry.typingAutoClearTimers.get(conversationId);
     if (existing) {
       clearTimeout(existing);
@@ -476,6 +418,95 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     }
   }
 
+  private async handleRead(entry: ConnectionEntry, msg: ClientMessage): Promise<void> {
+    if (!entry.widgetCtx) return;
+    if (msg.channel !== 'widget') return;
+    if (!msg.channelId || !msg.sessionId) return;
+    if (msg.channelId !== entry.widgetCtx.channelId) return;
+    if (!Array.isArray(msg.messageIds) || msg.messageIds.length === 0) return;
+    const messageIds = msg.messageIds.filter((m): m is string => typeof m === 'string' && m.length > 0);
+    if (messageIds.length === 0) return;
+
+    const meta = await this.resolveWidgetSession(msg.channelId, msg.sessionId);
+    if (!meta) return;
+    if (
+      entry.widgetCtx.verifiedExternalId &&
+      meta.contactExternalId !== entry.widgetCtx.verifiedExternalId
+    ) {
+      return;
+    }
+    const conversationId = meta.conversationId;
+
+    const conv = await this.db
+      .select({
+        orgId: schema.convConversations.orgId,
+        endUserId: schema.convConversations.endUserId,
+      })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId))
+      .limit(1);
+    const convRow = conv[0];
+    if (!convRow || !convRow.endUserId) return;
+    if (convRow.orgId !== entry.orgId) return;
+
+    const inserted = await this.db.execute<{
+      message_id: string;
+      read_at: Date;
+    }>(sql`
+      INSERT INTO conv_message_reads (id, org_id, conversation_id, message_id, end_user_id, read_at)
+      SELECT
+        'cmr_' || encode(gen_random_bytes(16), 'hex'),
+        ${convRow.orgId},
+        ${conversationId},
+        m.id,
+        ${convRow.endUserId},
+        NOW()
+      FROM conv_messages m
+      WHERE m.id = ANY(${messageIds}::text[])
+        AND m.conversation_id = ${conversationId}
+        AND m.author_type <> 'end_user'
+      ON CONFLICT (message_id, end_user_id) DO NOTHING
+      RETURNING message_id, read_at
+    `);
+
+    const rows: { message_id: string; read_at: Date }[] = Array.isArray(inserted)
+      ? (inserted as { message_id: string; read_at: Date }[])
+      : ((inserted as { rows?: { message_id: string; read_at: Date }[] }).rows ?? []);
+    if (rows.length === 0) return;
+
+    const actor = new ActorIdentity(
+      'system',
+      'widget-read-tracker',
+      convRow.orgId,
+      ['*'],
+      ['admin'],
+    );
+    const ctx: RequestContext = {
+      db: this.db,
+      actor,
+      correlationId: randomUUID(),
+    };
+    await withContext(ctx, async () => {
+      for (const row of rows) {
+        try {
+          await this.webhooks.emit({
+            type: 'conversation.message.read',
+            payload: {
+              conversationId,
+              messageId: row.message_id,
+              endUserId: convRow.endUserId,
+              readAt: row.read_at instanceof Date ? row.read_at.toISOString() : String(row.read_at),
+            },
+          });
+        } catch (err) {
+          this.logger.warn(
+            `conversation.message.read webhook emit failed for ${row.message_id}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    });
+  }
+
   private fanoutTyping(
     fromEntry: ConnectionEntry,
     outboundChannel: string,
@@ -494,8 +525,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     for (const sub of subs) {
       if (sub === fromEntry) continue;
       if (sub.orgId !== fromEntry.orgId) continue;
-      // Verified-mode widget receivers: confirm the conversation belongs
-      // to this connection's verified externalId. Cached per-connection.
       if (sub.widgetCtx?.verifiedExternalId) {
         const cached = sub.conversationMetaCache.get(conversationId);
         if (
@@ -503,8 +532,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
           !cached.meta ||
           cached.meta.contactExternalId !== sub.widgetCtx.verifiedExternalId
         ) {
-          // Resolve in-band so future events can also pass; but skip this
-          // typing event to avoid blocking the fanout loop on DB.
           void this.resolveConversationMeta(conversationId).then((meta) => {
             sub.conversationMetaCache.set(conversationId, { meta });
           });
@@ -514,16 +541,11 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       try {
         sub.ws.send(payload);
       } catch {
-        // socket may be mid-close; ignore
+        // socket mid-close
       }
     }
   }
 
-  /**
-   * Look up a widget session's (conversationId, contactExternalId) from
-   * (channelId, sessionId). Returns null if no conversation exists yet —
-   * common when the visitor types before sending their first message.
-   */
   private async resolveWidgetSession(
     channelId: string,
     sessionId: string,
@@ -547,12 +569,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     return { conversationId: row.id, contactExternalId: row.contactExternalId ?? null };
   }
 
-  /**
-   * Decide whether an event should be forwarded to a widget subscription
-   * `widget:<channelId>:<sessionId>`. Resolves the conversation metadata
-   * once per connection per conversationId and caches both hits and
-   * non-widget conversations (so we don't re-query for unrelated events).
-   */
   private async matchWidgetEvent(
     channel: string,
     event: EventRow,
@@ -665,12 +681,6 @@ function readBearerToken(value: string | undefined): string | null {
   return raw.length > 0 ? raw : null;
 }
 
-/**
- * Browser WebSocket clients pass the bearer token as the second value in
- * `Sec-WebSocket-Protocol: bearer, <token>`. The header may concatenate
- * multiple `Sec-WebSocket-Protocol` lines into a single comma-separated
- * value; we only honor the first `bearer + token` pair we find.
- */
 export function readBearerSubprotocol(value: string | undefined): string | null {
   if (!value) return null;
   const parts = value

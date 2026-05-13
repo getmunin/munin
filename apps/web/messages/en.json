@@ -368,6 +368,8 @@
         "username": "Username",
         "password": "Password",
         "secure": "Use TLS",
+        "trackOpens": "Track when recipients open emails",
+        "trackOpensHint": "Embeds a 1×1 tracking pixel in the HTML part. Best-effort — many clients block images, Apple Mail Privacy Protection pre-loads them.",
         "mailbox": "Mailbox (optional, defaults to INBOX)",
         "enableInbound": "Enable inbound (poll an IMAP mailbox)",
         "create": "Create email channel",

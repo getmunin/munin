@@ -23,6 +23,7 @@ import { RealtimeModule } from '../realtime/realtime.module.js';
 import { CrmMergeProposalsController } from './crm-merge-proposals.controller.js';
 import { CrmSegmentsController } from './crm-segments.controller.js';
 import { OutreachUnsubscribeController } from './outreach-unsubscribe.controller.js';
+import { EmailOpensController } from './email-opens.controller.js';
 import { OutreachProposalsController } from './outreach-proposals.controller.js';
 import { OutreachModule } from '../modules/outreach/outreach.module.js';
 import { PublicSkillsController } from './public-skills.controller.js';
@@ -84,6 +85,7 @@ import { InboxController } from './inbox.controller.js';
     CrmMergeProposalsController,
     CrmSegmentsController,
     OutreachUnsubscribeController,
+    EmailOpensController,
     OutreachProposalsController,
     CuratorJobsController,
     KbCandidatesController,

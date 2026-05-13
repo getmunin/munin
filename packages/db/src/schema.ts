@@ -886,6 +886,9 @@ export const convMessageDeliveries = pgTable(
     error: text('error'),
     messageIdHeader: text('message_id_header'),
     inReplyToHeader: text('in_reply_to_header'),
+    firstOpenedAt: timestamp('first_opened_at', { withTimezone: true }),
+    lastOpenedAt: timestamp('last_opened_at', { withTimezone: true }),
+    openCount: integer('open_count').notNull().default(0),
     createdAt,
     updatedAt,
   },
@@ -894,6 +897,37 @@ export const convMessageDeliveries = pgTable(
     orgIdx: index('conv_message_deliveries_org_idx').on(t.orgId),
     msgIdx: index('conv_message_deliveries_msg_idx').on(t.messageId),
     msgIdHeaderIdx: index('conv_message_deliveries_msgid_idx').on(t.messageIdHeader),
+  }),
+);
+
+// Per-end-user "this message was read" stamps. Chat-widget marks agent
+// messages as read when they enter the viewport with the panel open; the
+// dashboard surfaces these as "Seen at …" badges. One row per
+// (message, end_user) — `ON CONFLICT DO NOTHING` on the unique index keeps
+// re-emissions idempotent.
+export const convMessageReads = pgTable(
+  'conv_message_reads',
+  {
+    id: id('cmr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => convMessages.id, { onDelete: 'cascade' }),
+    endUserId: text('end_user_id')
+      .notNull()
+      .references(() => endUsers.id, { onDelete: 'cascade' }),
+    readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt,
+  },
+  (t) => ({
+    uq: uniqueIndex('conv_message_reads_message_user_uq').on(t.messageId, t.endUserId),
+    convIdx: index('conv_message_reads_conv_idx').on(t.orgId, t.conversationId),
+    msgIdx: index('conv_message_reads_msg_idx').on(t.messageId),
   }),
 );
 
@@ -1559,6 +1593,7 @@ export const allTables = {
   convConversations,
   convMessages,
   convMessageDeliveries,
+  convMessageReads,
   convInboundState,
   crmCompanies,
   crmContacts,

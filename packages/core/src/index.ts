@@ -38,6 +38,12 @@ export {
   verifyUnsubscribeToken,
 } from './outreach-tokens.js';
 export {
+  type EmailOpenTokenPayload,
+  EmailOpenTokenError,
+  signEmailOpenToken,
+  verifyEmailOpenToken,
+} from './email-open-token.js';
+export {
   type EmbeddingProvider,
   OpenAIEmbeddingProvider,
   StubEmbeddingProvider,

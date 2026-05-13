@@ -74,6 +74,7 @@ export interface RealtimeClient {
   close(): void;
   state(): ConnectionState;
   sendTyping(isTyping: boolean): void;
+  sendRead(messageIds: string[]): void;
   setSessionId(sessionId: string): void;
   onEvent(l: EventListener): () => void;
   onTyping(l: TypingListener): () => void;
@@ -81,6 +82,7 @@ export interface RealtimeClient {
 }
 
 const TYPING_MIN_INTERVAL_MS = 1500;
+const READ_FLUSH_MS = 200;
 const RECONNECT_INITIAL_MS = 250;
 const RECONNECT_MAX_MS = 30_000;
 const RECONNECT_MAX_JITTER_MS = 250;
@@ -97,6 +99,30 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
   let lastTypingSentAt = 0;
   let closedByCaller = false;
   let sessionId = deps.sessionId;
+  const pendingReadIds = new Set<string>();
+  let readFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function flushReads(): void {
+    readFlushTimer = null;
+    if (pendingReadIds.size === 0) return;
+    if (!ws || ws.readyState !== WS.OPEN) return;
+    const messageIds = Array.from(pendingReadIds);
+    pendingReadIds.clear();
+    try {
+      ws.send(
+        JSON.stringify({
+          type: 'read',
+          channel: 'widget',
+          channelId: deps.channelId,
+          sessionId,
+          messageIds,
+        }),
+      );
+    } catch {
+      // socket mid-close; re-queue so the next flush retries
+      for (const id of messageIds) pendingReadIds.add(id);
+    }
+  }
 
   const eventListeners = new Set<EventListener>();
   const typingListeners = new Set<TypingListener>();
@@ -257,6 +283,14 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
       } catch {
         // socket might be mid-close; ignore
       }
+    },
+    sendRead(messageIds) {
+      for (const id of messageIds) {
+        if (typeof id === 'string' && id.length > 0) pendingReadIds.add(id);
+      }
+      if (pendingReadIds.size === 0) return;
+      if (readFlushTimer) return;
+      readFlushTimer = setTimeoutFn(flushReads, READ_FLUSH_MS);
     },
     onEvent(l) {
       eventListeners.add(l);

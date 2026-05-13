@@ -193,6 +193,9 @@ function start(config: WidgetConfig): void {
     onSetVisitorEmail(email) {
       void setVisitorEmail(email);
     },
+    onMessageRead(messageId) {
+      realtime.sendRead([messageId]);
+    },
   });
 
   async function sendMessage(text: string): Promise<void> {

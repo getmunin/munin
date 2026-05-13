@@ -11,9 +11,23 @@ export function Footer() {
   if (pathname === '/login' || pathname === '/signup') return null;
   if (pathname?.startsWith('/accept-invite')) return null;
 
+  const isDocs = pathname?.startsWith('/docs');
+
   return (
-    <footer className="border-t-[0.5px] border-rule-soft px-6 py-5 text-xs text-ink-mute dark:border-rule-on-dark">
-      <nav className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
+    <footer
+      className={
+        isDocs
+          ? 'border-t-[0.5px] border-rule-soft px-14 py-5 text-xs text-ink-mute max-[880px]:px-5 dark:border-rule-on-dark'
+          : 'border-t-[0.5px] border-rule-soft px-6 py-5 text-xs text-ink-mute dark:border-rule-on-dark'
+      }
+    >
+      <nav
+        className={
+          isDocs
+            ? 'flex flex-wrap items-center justify-between gap-4'
+            : 'mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4'
+        }
+      >
         <span className="font-mono text-[10px] uppercase tracking-eyebrow">
           © {new Date().getFullYear()} Munin
         </span>

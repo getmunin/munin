@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { DB } from '../../../common/db/db.module.js';
@@ -22,6 +22,7 @@ const POLL_INTERVAL_MS = Number(
  */
 @Injectable()
 export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(InboundPollWorker.name);
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private disabled =
@@ -40,6 +41,7 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     if (this.disabled) return;
+    this.logger.log(`inbound poll worker starting (every ${POLL_INTERVAL_MS}ms)`);
     this.timer = setInterval(() => {
       void this.tick();
     }, POLL_INTERVAL_MS);
@@ -81,9 +83,18 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
         const result = await adapter.inbound.tick(channel);
         ingested += result.messagesIngested;
         polled += 1;
-      } catch {
-        // Adapter errors should already be persisted on convInboundState by
-        // the adapter itself; the worker keeps going.
+        if (result.messagesIngested > 0 || result.lastError) {
+          this.logger.log(
+            `poll ${channel.type} channel=${channel.id} ingested=${result.messagesIngested}` +
+              (result.lastError ? ` lastError=${result.lastError}` : ''),
+          );
+        } else {
+          this.logger.debug(`poll ${channel.type} channel=${channel.id} (no new messages)`);
+        }
+      } catch (err) {
+        this.logger.error(
+          `poll ${channel.type} channel=${channel.id} threw: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
     return { channelsPolled: polled, messagesIngested: ingested };

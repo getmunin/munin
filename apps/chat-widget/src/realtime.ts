@@ -84,7 +84,6 @@ const TYPING_MIN_INTERVAL_MS = 1500;
 const RECONNECT_INITIAL_MS = 250;
 const RECONNECT_MAX_MS = 30_000;
 const RECONNECT_MAX_JITTER_MS = 250;
-const MAX_COLD_ATTEMPTS = 6;
 
 export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
   const setTimeoutFn = deps.setTimeoutImpl ?? setTimeout;
@@ -94,8 +93,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
   let ws: WebSocketLike | null = null;
   let currentState: ConnectionState = 'idle';
   let attempt = 0;
-  let coldAttempts = 0;
-  let hasEverConnected = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let lastTypingSentAt = 0;
   let closedByCaller = false;
@@ -128,10 +125,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
 
   function scheduleReconnect(): void {
     if (closedByCaller) return;
-    if (!hasEverConnected && coldAttempts >= MAX_COLD_ATTEMPTS) {
-      setState('closed');
-      return;
-    }
     setState('reconnecting');
     const backoff = Math.min(
       RECONNECT_MAX_MS,
@@ -143,7 +136,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
       doConnect();
     }, backoff + jitter);
     attempt += 1;
-    if (!hasEverConnected) coldAttempts += 1;
   }
 
   function doConnect(): void {
@@ -161,8 +153,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     ws = socket;
     socket.addEventListener('open', () => {
       attempt = 0;
-      coldAttempts = 0;
-      hasEverConnected = true;
       setState('connected');
       // Subscribe to our (channelId, sessionId) tuple so the gateway
       // routes operator-side events back to us.

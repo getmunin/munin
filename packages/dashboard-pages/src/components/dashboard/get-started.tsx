@@ -107,7 +107,7 @@ export function GetStarted() {
             </div>
           </div>
 
-          <div className="mt-4 px-4 py-3.5 bg-paper-deep border-l-[0.5px] border-cobalt text-[13px] leading-[1.55] text-ink-soft dark:bg-secondary dark:text-foreground/80">
+          <div className="mt-4 px-4 py-3.5 bg-paper-deep border-l-2 border-cobalt text-[13px] leading-[1.55] text-ink-soft dark:bg-secondary dark:text-foreground/80">
             <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute mr-2">
               {t('then')}
             </span>

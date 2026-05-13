@@ -42,11 +42,16 @@
   z-index: 6;
 }
 .docs-topbar .mark {
-  font-family: var(--munin-serif);
-  font-size: 22px;
-  letter-spacing: -0.01em;
-  color: var(--docs-ink);
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
+  color: var(--docs-ink);
+}
+.docs-topbar .mark img {
+  display: block;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 .docs-topbar .sep {
   width: 1px;
@@ -58,10 +63,6 @@
   font-size: 18px;
   white-space: nowrap;
   color: var(--docs-ink);
-}
-.docs-topbar .org-name em {
-  color: var(--docs-accent);
-  font-style: italic;
 }
 .docs-topbar .spacer {
   flex: 1;

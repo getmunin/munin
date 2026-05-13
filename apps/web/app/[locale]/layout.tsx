@@ -19,6 +19,7 @@ export async function generateMetadata(props: {
   return {
     title: t('title'),
     description: t('description'),
+    manifest: '/manifest.webmanifest',
   };
 }
 
@@ -41,7 +42,7 @@ export default async function LocaleLayout({
         <NextIntlClientProvider locale={locale} messages={messages} now={now}>
           <div className="flex-1">{children}</div>
           <Footer />
-          <Toaster position="bottom-right" closeButton />
+          <Toaster position="bottom-right" />
         </NextIntlClientProvider>
       </body>
     </html>

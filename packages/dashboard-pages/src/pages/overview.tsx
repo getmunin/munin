@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useActiveMembership } from '../auth/use-active-role';
 import { useRealtime } from '../realtime';
+import { ConnectionBanner } from '../components/connection-banner';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { GetStarted } from '../components/dashboard/get-started';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
@@ -56,6 +57,7 @@ export function DashboardPage() {
 
   return (
     <div className="px-10 py-10 max-w-7xl mx-auto space-y-10">
+      <ConnectionBanner status={inbox.connectionStatus} />
       <DashboardHero
         orgName={orgName}
         date={new Date()}

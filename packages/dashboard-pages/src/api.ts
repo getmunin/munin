@@ -45,13 +45,16 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       },
     });
   } catch (err) {
+    if (typeof console !== 'undefined') {
+      console.debug('[munin/api] network error', { path, method, err });
+    }
     throw new ApiError({
       status: 0,
       statusText: 'network error',
       endpoint: path,
       method,
       requestId: null,
-      message: err instanceof Error ? err.message : 'Network request failed',
+      message: "Couldn't reach Munin. Check your connection.",
     });
   }
   if (!res.ok) {

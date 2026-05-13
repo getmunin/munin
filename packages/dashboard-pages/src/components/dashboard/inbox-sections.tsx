@@ -13,7 +13,7 @@ import {
 } from '@getmunin/ui';
 import { api, ApiError } from '../../api';
 import { notify } from '../../lib/notify';
-import { useRealtime, type SubscriptionChannel } from '../../realtime';
+import { useRealtime, type RealtimeStatus, type SubscriptionChannel } from '../../realtime';
 
 type Status = 'open' | 'snoozed' | 'closed' | 'spam';
 
@@ -201,6 +201,10 @@ function mergeLive(
   return next;
 }
 
+export type ConvActionError =
+  | { type: 'send' | 'takeOver' | 'release' | 'close'; conversationId: string; message: string }
+  | null;
+
 export interface InboxController {
   items: LiveSummary[];
   details: Record<string, ConversationDetail>;
@@ -219,6 +223,11 @@ export interface InboxController {
   draftEdit: string | null;
   setDraftEdit: (next: string | null) => void;
   kbBodies: Record<string, string>;
+  detailErrors: Record<string, string>;
+  reloadDetail: (id: string) => Promise<void>;
+  actionError: ConvActionError;
+  clearActionError: () => void;
+  connectionStatus: RealtimeStatus;
   takeOver: (id: string, openFullAfter?: boolean) => Promise<void>;
   release: (id: string) => Promise<void>;
   closeConv: (id: string) => Promise<void>;
@@ -242,6 +251,8 @@ export function useInboxData(): InboxController {
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
+  const [actionError, setActionError] = useState<ConvActionError>(null);
 
   const loadInbox = useCallback(async () => {
     try {
@@ -278,10 +289,25 @@ export function useInboxData(): InboxController {
     try {
       const d = await api<ConversationDetail>(`/api/v1/conversations/${id}`);
       setDetails((prev) => ({ ...prev, [id]: d }));
+      setDetailErrors((prev) => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     } catch (err) {
-      notify.error(messageOf(err));
+      setDetailErrors((prev) => ({ ...prev, [id]: messageOf(err) }));
     }
   }, []);
+
+  const reloadDetail = useCallback(
+    async (id: string) => {
+      await loadDetail(id);
+    },
+    [loadDetail],
+  );
+
+  const clearActionError = useCallback(() => setActionError(null), []);
 
   useEffect(() => {
     void loadInbox();
@@ -308,7 +334,7 @@ export function useInboxData(): InboxController {
     return subs;
   }, [convDrawer]);
 
-  useRealtime(subscriptions, (event) => {
+  const { status: connectionStatus } = useRealtime(subscriptions, (event) => {
     const matches =
       event.type.startsWith('conversation.') ||
       event.type.startsWith('kb.') ||
@@ -324,12 +350,13 @@ export function useInboxData(): InboxController {
   const takeOver = useCallback(
     async (id: string, openFullAfter = true) => {
       setPending(true);
+      setActionError(null);
       try {
         await api(`/api/v1/conversations/${id}/take-over`, { method: 'POST', body: '{}' });
         await Promise.all([loadDetail(id), loadInbox()]);
         if (openFullAfter) setConvDrawer({ id, mode: 'full' });
       } catch (err) {
-        notify.error(messageOf(err));
+        setActionError({ type: 'takeOver', conversationId: id, message: messageOf(err) });
       } finally {
         setPending(false);
       }
@@ -340,11 +367,12 @@ export function useInboxData(): InboxController {
   const release = useCallback(
     async (id: string) => {
       setPending(true);
+      setActionError(null);
       try {
         await api(`/api/v1/conversations/${id}/release`, { method: 'POST', body: '{}' });
         await Promise.all([loadDetail(id), loadInbox()]);
       } catch (err) {
-        notify.error(messageOf(err));
+        setActionError({ type: 'release', conversationId: id, message: messageOf(err) });
       } finally {
         setPending(false);
       }
@@ -355,6 +383,7 @@ export function useInboxData(): InboxController {
   const closeConv = useCallback(
     async (id: string) => {
       setPending(true);
+      setActionError(null);
       try {
         await api(`/api/v1/conversations/${id}/status`, {
           method: 'POST',
@@ -364,7 +393,7 @@ export function useInboxData(): InboxController {
         setItems((prev) => prev.filter((it) => it.id !== id));
         await loadInbox();
       } catch (err) {
-        notify.error(messageOf(err));
+        setActionError({ type: 'close', conversationId: id, message: messageOf(err) });
       } finally {
         setPending(false);
       }
@@ -390,6 +419,7 @@ export function useInboxData(): InboxController {
         createdAt: new Date().toISOString(),
       };
       setReply('');
+      setActionError(null);
       setDetails((prev) => {
         const d = prev[id];
         if (!d) return prev;
@@ -412,7 +442,7 @@ export function useInboxData(): InboxController {
           await loadDetail(id);
         }
       } catch (err) {
-        notify.error(messageOf(err));
+        setActionError({ type: 'send', conversationId: id, message: messageOf(err) });
         setDetails((prev) => {
           const d = prev[id];
           if (!d) return prev;
@@ -525,6 +555,11 @@ export function useInboxData(): InboxController {
     draftEdit,
     setDraftEdit,
     kbBodies,
+    detailErrors,
+    reloadDetail,
+    actionError,
+    clearActionError,
+    connectionStatus,
     takeOver,
     release,
     closeConv,
@@ -621,6 +656,10 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     draftEdit,
     setDraftEdit,
     kbBodies,
+    detailErrors,
+    reloadDetail,
+    actionError,
+    clearActionError,
     send,
     takeOver,
     release,
@@ -630,6 +669,9 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     dismissQueue,
   } = controller;
   const selectedConv = convDrawer ? details[convDrawer.id] : null;
+  const convError = convDrawer ? detailErrors[convDrawer.id] : null;
+  const drawerActionError =
+    convDrawer && actionError?.conversationId === convDrawer.id ? actionError : null;
 
   return (
     <>
@@ -650,6 +692,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
                 pending={pending}
                 draftEdit={draftEdit}
                 setDraftEdit={setDraftEdit}
+                actionError={drawerActionError}
                 onSendDraft={(body) => void send(selectedConv.id, body, { claim: false, closeDrawer: true })}
                 onTakeOver={() => void takeOver(selectedConv.id, true)}
                 onClose={() => setConvDrawer(null)}
@@ -660,13 +703,22 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
                 reply={reply}
                 setReply={setReply}
                 pending={pending}
+                actionError={drawerActionError}
                 onSend={() => void send(selectedConv.id, reply)}
                 onTakeOver={() => void takeOver(selectedConv.id, false)}
                 onRelease={() => void release(selectedConv.id)}
                 onCloseConv={() => void closeConv(selectedConv.id)}
                 onClose={() => setConvDrawer(null)}
+                onClearActionError={clearActionError}
               />
             )
+          ) : convDrawer && convError ? (
+            <DrawerLoadFailed
+              message={convError}
+              retrying={pending}
+              onRetry={() => void reloadDetail(convDrawer.id)}
+              onClose={() => setConvDrawer(null)}
+            />
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-ink-mute">
               <MessageSquare className="mr-2 size-4" /> {t('loading')}
@@ -850,11 +902,46 @@ function QueueRow({
   );
 }
 
+function DrawerLoadFailed({
+  message,
+  retrying,
+  onRetry,
+  onClose,
+}: {
+  message: string;
+  retrying: boolean;
+  onRetry: () => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.overview.drawer');
+  const tCommon = useTranslations('common');
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-6">
+      <div className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
+        {t('loadFailedEyebrow')}
+      </div>
+      <h2 className="font-serif text-xl leading-tight text-ink dark:text-foreground">
+        {t('loadFailedTitle')}
+      </h2>
+      <p className="text-sm text-ink-mute">{message}</p>
+      <div className="mt-2 flex items-center gap-3">
+        <Button type="button" variant="accent" onClick={onRetry} disabled={retrying}>
+          {retrying ? tCommon('retrying') : tCommon('retry')}
+        </Button>
+        <Button type="button" variant="outline" onClick={onClose}>
+          {tCommon('close')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SimplifiedConvDrawer({
   detail,
   pending,
   draftEdit,
   setDraftEdit,
+  actionError,
   onSendDraft,
   onTakeOver,
   onClose,
@@ -863,6 +950,7 @@ function SimplifiedConvDrawer({
   pending: boolean;
   draftEdit: string | null;
   setDraftEdit: (v: string | null) => void;
+  actionError: ConvActionError;
   onSendDraft: (body: string) => void;
   onTakeOver: () => void;
   onClose: () => void;
@@ -942,6 +1030,12 @@ function SimplifiedConvDrawer({
         </section>
       </div>
 
+      {actionError && (
+        <div className="border-t-[0.5px] border-destructive/40 bg-destructive/5 px-6 py-3 text-xs text-destructive">
+          {t(`actionFailed.${actionError.type}`)} — {actionError.message}
+        </div>
+      )}
+
       <DrawerFooter
         primary={{
           label: t('sendDraft'),
@@ -970,21 +1064,25 @@ function FullConvDrawer({
   reply,
   setReply,
   pending,
+  actionError,
   onSend,
   onTakeOver,
   onRelease,
   onCloseConv,
   onClose,
+  onClearActionError,
 }: {
   detail: ConversationDetail;
   reply: string;
   setReply: (v: string) => void;
   pending: boolean;
+  actionError: ConvActionError;
   onSend: () => void;
   onTakeOver: () => void;
   onRelease: () => void;
   onCloseConv: () => void;
   onClose: () => void;
+  onClearActionError: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const claimed = detail.claim !== null;
@@ -1031,11 +1129,31 @@ function FullConvDrawer({
       <div className="border-t-[0.5px] border-rule-soft p-4 dark:border-rule-on-dark">
         <textarea
           value={reply}
-          onChange={(e) => setReply(e.target.value)}
+          onChange={(e) => {
+            setReply(e.target.value);
+            if (actionError) onClearActionError();
+          }}
           rows={3}
           placeholder={t('replyPlaceholder')}
           className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
         />
+        {actionError && (
+          <div className="mt-2 flex items-start gap-2 rounded-input border-[0.5px] border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <span className="flex-1">
+              {t(`actionFailed.${actionError.type}`)} — {actionError.message}
+            </span>
+            {actionError.type === 'send' && (
+              <button
+                type="button"
+                className="font-mono uppercase tracking-eyebrow underline-offset-2 hover:underline"
+                onClick={onSend}
+                disabled={pending || !reply.trim()}
+              >
+                {t('retry')}
+              </button>
+            )}
+          </div>
+        )}
         <div className="mt-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {!claimed ? (

@@ -11,6 +11,7 @@
     "saveChanges": "Save changes",
     "saving": "Saving…",
     "creating": "Creating…",
+    "retry": "Retry",
     "retrying": "Retrying…",
     "apply": "Apply",
     "loadMore": "Load more",
@@ -127,6 +128,9 @@
     "organization": "Organization"
   },
   "dashboard": {
+    "connectionBanner": {
+      "offline": "Connection lost. Reconnecting…"
+    },
     "saveFailed": {
       "title": "Save failed",
       "sub": "Nothing was saved · safe to retry",
@@ -220,6 +224,15 @@
         "crmMergeExplain": "Keeps the primary; rewrites foreign keys; archives the loser. No conversations are lost.",
         "internalLabel": "internal · {author}",
         "seenAt": "Seen {time}",
+        "loadFailedEyebrow": "Couldn't load",
+        "loadFailedTitle": "This conversation didn't load.",
+        "actionFailed": {
+          "send": "Couldn't send your reply",
+          "takeOver": "Couldn't take over",
+          "release": "Couldn't release",
+          "close": "Couldn't close the conversation"
+        },
+        "retry": "Retry",
         "activityConv": "Conversation activity",
         "activityContact": "Contact activity",
         "activityEmpty": "No activity yet.",

@@ -80,6 +80,14 @@ CREATE POLICY tenant_isolation ON agents
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
+-- ───────────────────────── assistants ──────────────────────────────────────
+ALTER TABLE assistants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assistants FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON assistants;
+CREATE POLICY tenant_isolation ON assistants
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
 -- ───────────────────────── oauth_clients ───────────────────────────────────
 -- oauth_clients can be either org-scoped (after consent links them) or
 -- nullable-org (during pre-consent registration). Allow null org reads

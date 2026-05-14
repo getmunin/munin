@@ -402,7 +402,12 @@
         "enableInbound": "Aktiver innkommende (poll en IMAP-postboks)",
         "create": "Opprett e-postkanal",
         "editTitle": "Rediger e-postkanal",
-        "editDescription": "Oppdater kanalens navn eller transport. La et passord stå tomt for å beholde det lagrede — skriv et nytt for å erstatte det."
+        "editDescription": "Oppdater kanalens navn eller transport. La et passord stå tomt for å beholde det lagrede — skriv et nytt for å erstatte det.",
+        "sendLimitsLabel": "Sendegrenser",
+        "sendLimitsHelp": "Valgfrie tak på utgående e-post for å beskytte domenets omdømme. Meldinger over grensen forblir i køen og sendes automatisk når kapasiteten åpner seg. La feltet stå tomt for ingen grense.",
+        "sendLimitsPlaceholder": "ingen grense",
+        "perDayMax": "Maks per dag (rullende 24 t)",
+        "perHourMax": "Maks per time (rullende 60 min)"
       },
       "errors": {
         "load": "Kunne ikke laste kanaler.",

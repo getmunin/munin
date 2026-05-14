@@ -212,9 +212,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       ? deps.prompts.channel(detail.channelType)
       : '';
     const conversationContext = `\n\n[Conversation context]\nYou are replying in conversationId: ${conversationId}. Pass this exact value to any tool that asks for \`conversationId\` — never substitute placeholders like "current" or "this".`;
-    const systemPrompt = channelDescriptor
+    const namePreamble = assistantNamePreamble(detail.assistantName);
+    const systemBody = channelDescriptor
       ? `${baseSystem}\n\n${channelDescriptor}${conversationContext}`
       : `${baseSystem}${conversationContext}`;
+    const systemPrompt = `${namePreamble}${systemBody}`;
 
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
@@ -468,6 +470,13 @@ function lastInbound(detail: ConversationDetail): ConversationMessage | null {
     }
   }
   return null;
+}
+
+export function assistantNamePreamble(name: string | null | undefined): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  if (trimmed === '') return '';
+  return `Your name is ${trimmed}.\n\n`;
 }
 
 const defaultScheduler = {

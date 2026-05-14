@@ -9,6 +9,7 @@
     "revoke": "Tilbakekall",
     "save": "Lagre",
     "saveChanges": "Lagre endringer",
+    "saved": "Lagret.",
     "saving": "Lagrer…",
     "creating": "Oppretter…",
     "retry": "Prøv igjen",
@@ -110,7 +111,7 @@
     "settings": "Innstillinger",
     "account": "Konto",
     "team": "Team",
-    "builtInAi": "Innebygd AI",
+    "assistants": "Assistenter",
     "agents": "Agenter",
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
@@ -707,9 +708,9 @@
       }
     },
     "settings": {
-      "eyebrow": "Arbeidsområde · Innebygd AI",
+      "eyebrow": "Arbeidsområde · Assistenter",
       "title": "Flokkens <em>sinn</em>.",
-      "lede": "Leverandør, API-nøkkel og modell-valg for den innebygde agent-runneren."
+      "lede": "Alt som tenker på dine vegne — chatassistenten som snakker med kundene, og bakgrunnsoppgavene som holder dataene dine ryddige. Leverandør, API-nøkkel og modell-valg ligger øverst; selve assistentene ligger under."
     },
     "wizard": {
       "stepEyebrow": "Steg {step} av {total}",
@@ -778,6 +779,54 @@
         "done": "Ferdig. Åpne kunnskapsbasen for å se hva som ble importert.",
         "failed": "Vi klarte ikke å fullføre importen. Åpne Innstillinger → Kurator-jobber for detaljer, eller legg til dokumenter manuelt.",
         "stillRunning": "Jobber fortsatt. Det tar lenger enn vanlig; sjekk innom om et minutt."
+      }
+    }
+  },
+  "assistants": {
+    "list": {
+      "engine": {
+        "title": "Motor",
+        "blurb": "Modellleverandør og legitimasjon. Brukes av chatassistenten og alle bakgrunnsoppgavene under."
+      },
+      "conversational": {
+        "title": "Samtale",
+        "blurb": "Snakker direkte med kundene dine."
+      },
+      "background": {
+        "title": "Bakgrunn",
+        "blurb": "Kjører i bakgrunnen for å holde dataene dine ryddige og innboksen rutet riktig.",
+        "empty": "Ingen bakgrunnsferdigheter konfigurert.",
+        "tierLabel": "{tier}",
+        "neverRan": "Aldri kjørt for denne organisasjonen ennå.",
+        "statuses": {
+          "pending": "venter",
+          "running": "kjører",
+          "done": "ferdig",
+          "failed": "feilet",
+          "dead": "død"
+        }
+      },
+      "chatAssistant": {
+        "title": "Chatassistent",
+        "description": "Svarer kundene i chat, e-post, og alle andre samtalekanaler.",
+        "tierLabel": "{tier}",
+        "nameLabel": "Navn",
+        "unnamed": "(uten navn)"
+      }
+    },
+    "chat": {
+      "eyebrow": "Arbeidsområde · Assistenter · Chat",
+      "title": "Chatassistent",
+      "lede": "Hvordan chatboten presenterer seg selv på tvers av alle kanalene der den snakker med kundene."
+    },
+    "identity": {
+      "title": "Identitet",
+      "blurb": "Hva assistenten kaller seg selv. Vises i chathodet og brukes som en navneintro i systemforespørselen slik at agenten vet hva den svarer på.",
+      "nameLabel": "Navn",
+      "namePlaceholder": "f.eks. Munin",
+      "nameHelp": "La stå tomt for å utelate et navn. Assistenten snakker fortsatt i din merkevarestemme; den introduserer seg bare ikke ved navn.",
+      "errors": {
+        "save": "Kunne ikke lagre assistentnavnet."
       }
     }
   },

@@ -97,6 +97,13 @@ export interface ConversationSummary {
 
 export interface ConversationDetail extends ConversationSummary {
   messages: MessageDto[];
+  /**
+   * The assistant's configured name (`assistants.name`) for the owning org,
+   * or null if unset. Runtime consumers fall back to no name preamble when
+   * null; the wire format carries the configured value verbatim so each
+   * caller controls its own fallback policy.
+   */
+  assistantName: string | null;
 }
 
 @Injectable()
@@ -332,9 +339,11 @@ export class ConvService {
       .select({
         conv: schema.convConversations,
         channelType: schema.convChannels.type,
+        assistantName: schema.assistants.name,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
+      .leftJoin(schema.assistants, eq(schema.assistants.orgId, schema.convConversations.orgId))
       .where(eq(schema.convConversations.id, id))
       .limit(1);
     const row = conversations[0];
@@ -365,6 +374,7 @@ export class ConvService {
     return {
       ...toConversationSummary(row.conv, row.channelType),
       messages: rows.map((r) => toMessageDto(r.msg, authorNames, r.seenAt)),
+      assistantName: row.assistantName ?? null,
     };
   }
 

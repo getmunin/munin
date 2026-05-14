@@ -13,6 +13,11 @@ export interface ConversationDetail {
   } | null;
   agentMode?: 'auto' | 'draft_only' | 'off';
   outreachCampaignId?: string | null;
+  /**
+   * Configured assistant name for the owning org (from the `assistants` table).
+   * Null when unset; the runtime omits the name preamble in that case.
+   */
+  assistantName?: string | null;
   messages: Array<{
     id: string;
     authorType: 'user' | 'agent' | 'end_user' | 'system';

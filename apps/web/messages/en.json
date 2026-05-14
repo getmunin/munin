@@ -9,6 +9,7 @@
     "revoke": "Revoke",
     "save": "Save",
     "saveChanges": "Save changes",
+    "saved": "Saved.",
     "saving": "Saving…",
     "creating": "Creating…",
     "retry": "Retry",
@@ -110,7 +111,7 @@
     "settings": "Settings",
     "account": "Account",
     "team": "Team",
-    "builtInAi": "Built-in AI",
+    "assistants": "Assistants",
     "agents": "Agents",
     "apiKeys": "API keys",
     "channels": "Channels",
@@ -712,9 +713,9 @@
       }
     },
     "settings": {
-      "eyebrow": "Workspace · Built-in AI",
+      "eyebrow": "Workspace · Assistants",
       "title": "Mind of the <em>flock</em>.",
-      "lede": "Provider, API key, and model selection for the in-process agent runner."
+      "lede": "Everything that thinks on your behalf — the chat assistant that talks to customers, and the background tasks that keep your data tidy. Provider, API key, and model selection live up top; the assistants themselves live below."
     },
     "wizard": {
       "stepEyebrow": "Step {step} of {total}",
@@ -783,6 +784,54 @@
         "done": "Done. Open the knowledge base to see what was imported.",
         "failed": "We couldn't finish the import. Open Settings → Curator jobs for details, or add documents manually.",
         "stillRunning": "Still working. It's taking longer than usual; check back in a minute."
+      }
+    }
+  },
+  "assistants": {
+    "list": {
+      "engine": {
+        "title": "Engine",
+        "blurb": "Model provider and credentials. Used by the chat assistant and every background task below."
+      },
+      "conversational": {
+        "title": "Conversational",
+        "blurb": "Speaks to your customers directly."
+      },
+      "background": {
+        "title": "Background",
+        "blurb": "Runs silently to keep your data tidy and your inbox routed.",
+        "empty": "No background skills configured.",
+        "tierLabel": "{tier}",
+        "neverRan": "Never run for this org yet.",
+        "statuses": {
+          "pending": "pending",
+          "running": "running",
+          "done": "done",
+          "failed": "failed",
+          "dead": "dead"
+        }
+      },
+      "chatAssistant": {
+        "title": "Chat assistant",
+        "description": "Replies to customers across chat, email, and any other conversation channel.",
+        "tierLabel": "{tier}",
+        "nameLabel": "Name",
+        "unnamed": "(unnamed)"
+      }
+    },
+    "chat": {
+      "eyebrow": "Workspace · Assistants · Chat",
+      "title": "Chat assistant",
+      "lede": "How the chatbot introduces itself across every channel where it talks to customers."
+    },
+    "identity": {
+      "title": "Identity",
+      "blurb": "What the assistant calls itself. Shown in chat headers and used as a name preamble in the system prompt so the agent knows what to answer to.",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Munin",
+      "nameHelp": "Leave blank to omit a name. The assistant will still talk in your brand voice; it just won't introduce itself by name.",
+      "errors": {
+        "save": "Couldn't save the assistant name."
       }
     }
   },

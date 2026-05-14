@@ -47,7 +47,7 @@ export type CuratorJobStatus = 'pending' | 'done' | 'failed' | 'dead';
 export interface CuratorJob {
   id: string;
   orgId: string;
-  skillUri: string;
+  jobUri: string;
   userPrompt: string;
   sourceEventType: string | null;
   sourceEventPayload: unknown;
@@ -68,7 +68,7 @@ export interface CuratorJob {
 }
 
 export interface EnqueueCuratorJobInput {
-  skillUri: string;
+  jobUri: string;
   userPrompt: string;
   sourceEventType?: string;
   sourceEventPayload?: unknown;

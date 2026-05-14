@@ -45,19 +45,19 @@ export class SkillsController {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const rows = await ctx.db.execute<{
-      skill_uri: string;
+      job_uri: string;
       status: string;
       done_at: Date | string | null;
       updated_at: Date | string;
     }>(sql`
-      SELECT DISTINCT ON (skill_uri) skill_uri, status, done_at, updated_at
+      SELECT DISTINCT ON (job_uri) job_uri, status, done_at, updated_at
       FROM ${schema.curatorJobs}
       WHERE org_id = ${actor.orgId}
-      ORDER BY skill_uri, updated_at DESC
+      ORDER BY job_uri, updated_at DESC
     `);
     const latestByUri = new Map<string, { lastRunAt: string | null; status: string }>();
     for (const r of rows) {
-      latestByUri.set(r.skill_uri, {
+      latestByUri.set(r.job_uri, {
         lastRunAt: toIsoString(r.done_at ?? r.updated_at),
         status: r.status,
       });

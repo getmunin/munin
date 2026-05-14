@@ -81,8 +81,10 @@ function parseSkill(file: string, src: SkillSource): RegisteredSkill | null {
   const body = raw.slice(match[0].length);
   const slug = basename(file, '.md');
   const moduleSegment = deriveModule(file, src);
-  const uri = `skill://${moduleSegment}/${slug}`;
+  const scheme = fm.kind === 'task' ? 'task' : 'skill';
+  const uri = `${scheme}://${moduleSegment}/${slug}`;
   const audiences = normalizeAudiences(fm.audiences ?? fm.audience);
+  const publicDefault = scheme === 'skill';
   return {
     uri,
     name: typeof fm.title === 'string' && fm.title ? fm.title : slug,
@@ -90,7 +92,10 @@ function parseSkill(file: string, src: SkillSource): RegisteredSkill | null {
     audiences,
     mimeType: typeof fm.mimeType === 'string' ? fm.mimeType : 'text/markdown',
     content: body.trimStart(),
-    public: fm.public === undefined ? true : fm.public !== false && fm.public !== 'false',
+    public:
+      fm.public === undefined
+        ? publicDefault
+        : fm.public !== false && fm.public !== 'false',
   };
 }
 

@@ -33,7 +33,7 @@ export function ChatAssistantCard({ assistant }: ChatAssistantCardProps) {
               <CardDescription className="mt-1">{t('description')}</CardDescription>
             </div>
             <span className="font-mono text-xs uppercase tracking-eyebrow text-muted-foreground">
-              {t('tierLabel', { tier: 'smart' })}
+              {t('tierLabel', { tier: 'fast' })}
             </span>
           </div>
         </CardHeader>

@@ -37,6 +37,7 @@
     "@getmunin/backend-core": "workspace:*",
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",
+    "@getmunin/types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^11.1.19",
     "@nestjs/core": "^11.1.19",

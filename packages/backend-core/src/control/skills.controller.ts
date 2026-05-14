@@ -8,20 +8,26 @@ import {
 import { schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
+import {
+  KNOWN_SKILL_URIS,
+  KNOWN_TASK_URIS,
+  tierFor,
+  type JobKind,
+  type ModelTier,
+} from '@getmunin/types';
 import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.js';
 import { toIsoString } from '../common/iso.js';
 
-export type SkillTier = 'fast' | 'smart';
-
 interface SkillDto {
   uri: string;
+  kind: JobKind;
   name: string;
   description: string;
   audiences: readonly string[];
-  tier: SkillTier;
+  tier: ModelTier;
   lastRunAt: string | null;
   lastRunStatus: 'pending' | 'running' | 'done' | 'failed' | 'dead' | null;
 }
@@ -39,50 +45,65 @@ export class SkillsController {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const rows = await ctx.db.execute<{
-      skill_uri: string;
+      job_uri: string;
       status: string;
       done_at: Date | string | null;
       updated_at: Date | string;
     }>(sql`
-      SELECT DISTINCT ON (skill_uri) skill_uri, status, done_at, updated_at
+      SELECT DISTINCT ON (job_uri) job_uri, status, done_at, updated_at
       FROM ${schema.curatorJobs}
       WHERE org_id = ${actor.orgId}
-      ORDER BY skill_uri, updated_at DESC
+      ORDER BY job_uri, updated_at DESC
     `);
     const latestByUri = new Map<string, { lastRunAt: string | null; status: string }>();
     for (const r of rows) {
-      latestByUri.set(r.skill_uri, {
+      latestByUri.set(r.job_uri, {
         lastRunAt: toIsoString(r.done_at ?? r.updated_at),
         status: r.status,
       });
     }
 
-    return this.registry.list('admin').map((skill): SkillDto => {
+    const dtos: SkillDto[] = [];
+    for (const skill of this.registry.list('admin')) {
+      if (!KNOWN_SKILL_URIS.has(skill.uri)) continue;
       const latest = latestByUri.get(skill.uri);
-      return {
+      dtos.push({
         uri: skill.uri,
+        kind: 'skill',
         name: skill.name,
         description: skill.description,
         audiences: skill.audiences,
         tier: tierFor(skill.uri),
         lastRunAt: latest?.lastRunAt ?? null,
         lastRunStatus: latest ? normalizeStatus(latest.status) : null,
-      };
-    });
+      });
+    }
+    for (const uri of KNOWN_TASK_URIS) {
+      const meta = TASK_METADATA[uri];
+      if (!meta) continue;
+      const latest = latestByUri.get(uri);
+      dtos.push({
+        uri,
+        kind: 'task',
+        name: meta.name,
+        description: meta.description,
+        audiences: ['admin'],
+        tier: tierFor(uri),
+        lastRunAt: latest?.lastRunAt ?? null,
+        lastRunStatus: latest ? normalizeStatus(latest.status) : null,
+      });
+    }
+    return dtos;
   }
 }
 
-/**
- * Mirror of `modelTierFor` in `packages/agent-host/src/runner.service.ts`.
- * That function is the source of truth for actual routing decisions at
- * runtime; this duplicate exists because `agent-host` depends on
- * `backend-core` (importing the other way would be circular). Keep in sync —
- * if you add a fast-tier skill in `runner.service.ts`, mirror it here.
- */
-export function tierFor(skillUri: string): SkillTier {
-  if (skillUri === 'skill://conv/strip-email-signature') return 'fast';
-  return 'smart';
-}
+const TASK_METADATA: Record<string, { name: string; description: string }> = {
+  'task://web/scrape-site': {
+    name: 'Website import',
+    description:
+      "Crawl a customer's public website, populate the KB with per-page docs, and synthesize a company-profile document.",
+  },
+};
 
 function normalizeStatus(s: string): SkillDto['lastRunStatus'] {
   switch (s) {
@@ -96,4 +117,3 @@ function normalizeStatus(s: string): SkillDto['lastRunStatus'] {
       return null;
   }
 }
-

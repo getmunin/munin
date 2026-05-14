@@ -802,9 +802,6 @@
         "blurb": "Speaks to your customers directly."
       },
       "background": {
-        "title": "Background",
-        "blurb": "Runs silently to keep your data tidy and your inbox routed.",
-        "empty": "No background skills configured.",
         "tierLabel": "{tier}",
         "neverRan": "Never run for this org yet.",
         "statuses": {
@@ -814,6 +811,16 @@
           "failed": "failed",
           "dead": "dead"
         }
+      },
+      "aiDriven": {
+        "title": "AI-driven",
+        "blurb": "Run silently. The assistant decides what to do using the same model as the chat assistant.",
+        "empty": "No AI-driven skills configured."
+      },
+      "tasks": {
+        "title": "Scheduled tasks",
+        "blurb": "Deterministic background jobs. May call the model for a single step, but the flow is fixed.",
+        "empty": "No scheduled tasks configured."
       },
       "chatAssistant": {
         "title": "Chat assistant",

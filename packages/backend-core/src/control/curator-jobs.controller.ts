@@ -23,7 +23,7 @@ import {
 const StatusSchema = z.enum(CURATOR_JOB_STATUSES);
 
 const EnqueueBody = z.object({
-  skillUri: z.string().min(1),
+  jobUri: z.string().min(1),
   userPrompt: z.string().min(1),
   sourceEventType: z.string().optional(),
   sourceEventPayload: z.unknown().optional(),

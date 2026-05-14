@@ -137,7 +137,7 @@ describe('createRealtimeClient', () => {
     const nextAttemptAt = new Date().toISOString();
     send('curator_job.pending', {
       jobId: 'cjob_xyz',
-      skillUri: 'skill://kb/curation',
+      jobUri: 'skill://kb/curation',
       dedupeKey: 'kb-curation:msg:cvm_1',
       nextAttemptAt,
     });
@@ -146,7 +146,7 @@ describe('createRealtimeClient', () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({
       jobId: 'cjob_xyz',
-      skillUri: 'skill://kb/curation',
+      jobUri: 'skill://kb/curation',
       dedupeKey: 'kb-curation:msg:cvm_1',
       nextAttemptAt,
     });

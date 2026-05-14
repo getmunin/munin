@@ -24,6 +24,10 @@ export interface ParsedInboundEmail {
   bodyText: string;
   /** HTML body, when the message had one. */
   bodyHtml: string | null;
+  /** Raw `Authentication-Results` header lines (one per header, value only — key prefix stripped). */
+  authenticationResults: string[];
+  /** Raw `ARC-Authentication-Results` header lines (one per header, value only). */
+  arcAuthenticationResults: string[];
 }
 
 export interface ThreadResolution {

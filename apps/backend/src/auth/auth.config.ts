@@ -224,6 +224,10 @@ async function ensureSingletonOrgMembershipFor(
         .insert(schema.orgs)
         .values({ name: SINGLETON_ORG_NAME, slug: SINGLETON_ORG_SLUG })
         .returning({ id: schema.orgs.id });
+      await tx
+        .insert(schema.assistants)
+        .values({ orgId: orgRow!.id })
+        .onConflictDoNothing({ target: schema.assistants.orgId });
     }
     const memberCount = await tx
       .select({ c: sql<number>`count(*)::int` })

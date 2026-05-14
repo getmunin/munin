@@ -35,6 +35,13 @@ export const ImapInboundSchema = z.object({
   mailbox: z.string().max(120).optional(),
 });
 
+export const SendLimitsSchema = z.object({
+  perDayMax: z.number().int().positive().max(1_000_000).optional(),
+  perHourMax: z.number().int().positive().max(1_000_000).optional(),
+});
+
+export type SendLimits = z.infer<typeof SendLimitsSchema>;
+
 export const EmailChannelConfigInput = z.object({
   addressing: z.object({
     fromAddress: z.string().email(),
@@ -43,6 +50,7 @@ export const EmailChannelConfigInput = z.object({
   }),
   outbound: OutboundConfigSchema,
   inbound: ImapInboundSchema.optional(),
+  sendLimits: SendLimitsSchema.optional(),
 });
 
 export type EmailChannelConfigInputT = z.infer<typeof EmailChannelConfigInput>;

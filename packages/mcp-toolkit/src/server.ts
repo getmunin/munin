@@ -130,13 +130,16 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
 
   if (skills) {
     server.setRequestHandler(ListResourcesRequestSchema, () => ({
-      resources: skills.list(audience).map((s) => ({
-        uri: s.uri,
-        name: s.name,
-        description: s.description,
-        mimeType: s.mimeType,
-        annotations: { audience: ['assistant'] as const, priority: 0.9 },
-      })),
+      resources: skills
+        .list(audience)
+        .filter((s) => s.uri.startsWith('skill://'))
+        .map((s) => ({
+          uri: s.uri,
+          name: s.name,
+          description: s.description,
+          mimeType: s.mimeType,
+          annotations: { audience: ['assistant'] as const, priority: 0.9 },
+        })),
     }));
 
     server.setRequestHandler(ReadResourceRequestSchema, (req) => {

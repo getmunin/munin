@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   KNOWN_SKILL_URIS,
-  KNOWN_TASK_URIS,
   jobKindOf,
   tierFor,
   toolPrefixesFor,
@@ -43,9 +42,8 @@ describe('toolPrefixesFor', () => {
   });
 });
 
-describe('known URI sets', () => {
-  it('separates skill vs task URIs by scheme', () => {
+describe('KNOWN_SKILL_URIS', () => {
+  it('only contains skill:// URIs', () => {
     for (const uri of KNOWN_SKILL_URIS) expect(uri.startsWith('skill://')).toBe(true);
-    for (const uri of KNOWN_TASK_URIS) expect(uri.startsWith('task://')).toBe(true);
   });
 });

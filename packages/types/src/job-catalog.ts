@@ -17,10 +17,6 @@ export const KNOWN_SKILL_URIS: ReadonlySet<string> = new Set([
   'skill://conv/strip-email-signature',
 ]);
 
-export const KNOWN_TASK_URIS: ReadonlySet<string> = new Set([
-  'task://web/scrape-site',
-]);
-
 export const WEB_SCRAPE_SITE_TASK_URI = 'task://web/scrape-site';
 
 const TIER_BY_URI: ReadonlyMap<string, ModelTier> = new Map([

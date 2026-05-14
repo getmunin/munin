@@ -50,7 +50,7 @@ export function pickLocale(prefer?: string | null): { locale: string; strings: S
       }
     }
   }
-  return { locale: DEFAULT_LOCALE, strings: LOCALES[DEFAULT_LOCALE] };
+  return { locale: DEFAULT_LOCALE, strings: en };
 }
 
 function normalizeTag(raw: string | null | undefined): string | null {

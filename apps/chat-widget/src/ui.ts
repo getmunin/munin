@@ -4,6 +4,7 @@ import { WIDGET_END_USER_BODY_MAX_CHARS } from './config.js';
 import { buildWidgetCss } from './styles.js';
 import { registerBundledFonts } from './fonts.js';
 import type { Strings } from './strings/index.js';
+import { renderMarkdownInto } from './markdown.js';
 
 export type ConnectionLabel = 'connected' | 'reconnecting' | 'closed' | 'idle' | 'connecting';
 
@@ -406,7 +407,11 @@ function renderMessage(m: ListedMessage, strings: Strings): HTMLElement {
   }
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.textContent = m.body;
+  if (mine) {
+    bubble.textContent = m.body;
+  } else {
+    renderMarkdownInto(bubble, m.body);
+  }
   wrap.appendChild(bubble);
   if (mine) {
     const t = document.createElement('div');

@@ -215,6 +215,10 @@ button {
   text-transform: uppercase;
   color: var(--munin-ink-mute);
 }
+.welcome-eyebrow strong { font-weight: 500; }
+.welcome-eyebrow a { color: inherit; text-decoration: none; }
+.welcome-eyebrow a:hover, .welcome-eyebrow a:hover strong { color: var(--munin-ink); }
+.welcome-eyebrow a:hover strong { text-decoration: underline; text-underline-offset: 2px; }
 .welcome-h1 {
   font-family: var(--munin-serif);
   font-weight: 400;
@@ -621,6 +625,10 @@ button {
   flex-shrink: 0;
 }
 .footer-credit strong { color: var(--munin-ink); font-weight: 500; }
+.footer-credit a { color: inherit; text-decoration: none; }
+.footer-credit a:hover { color: var(--munin-ink); }
+.footer-credit a:hover strong { text-decoration: underline; text-underline-offset: 2px; }
+.composer textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* ─── Responsive + reduced motion ────────────────────── */
 @media (max-width: 480px) {

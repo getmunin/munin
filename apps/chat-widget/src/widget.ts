@@ -9,6 +9,7 @@ import {
 import { createApiClient, WidgetApiError, type ConversationSummary } from './api.js';
 import { createRealtimeClient, type IncomingTyping } from './realtime.js';
 import { mount, type UiController } from './ui.js';
+import { pickLocale } from './strings/index.js';
 
 function bootstrap(): void {
   const scriptEl = currentScript();
@@ -174,7 +175,8 @@ function start(config: WidgetConfig): void {
     }
   }
 
-  const ui: UiController = mount(config, {
+  const { strings } = pickLocale(config.locale);
+  const ui: UiController = mount(config, strings, {
     onSend(text) {
       void sendMessage(text);
     },

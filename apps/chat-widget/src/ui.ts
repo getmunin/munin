@@ -3,6 +3,7 @@ import type { WidgetConfig } from './config.js';
 import { WIDGET_END_USER_BODY_MAX_CHARS } from './config.js';
 import { buildWidgetCss } from './styles.js';
 import { registerBundledFonts } from './fonts.js';
+import type { Strings } from './strings/index.js';
 
 export type ConnectionLabel = 'connected' | 'reconnecting' | 'closed' | 'idle' | 'connecting';
 
@@ -40,7 +41,7 @@ export interface UiController {
 const TYPING_IDLE_MS = 800;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
+export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): UiController {
   if (config.fonts === 'bundled') registerBundledFonts();
   const host = document.createElement('div');
   host.style.all = 'initial';
@@ -59,8 +60,8 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
   root.style.setProperty('--munin-theme', config.themeColor);
   shadow.appendChild(root);
 
-  const launcher = renderLauncher();
-  const panel = renderPanel(config);
+  const launcher = renderLauncher(strings);
+  const panel = renderPanel(config, strings);
   root.append(launcher, panel.el);
   panel.el.hidden = true;
 
@@ -139,7 +140,7 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
     for (const m of messages) {
       if (seenIds.has(m.id)) continue;
       seenIds.add(m.id);
-      const el = renderMessage(m);
+      const el = renderMessage(m, strings);
       panel.messagesEl.appendChild(el);
       if (readObserver && m.role !== 'end_user' && m.role !== 'system') {
         readObserver.observe(el);
@@ -156,7 +157,7 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
     pastConvs = convs;
     renderPastList(panel.pastListEl, panel.emptyEl, panel.sectionHeadEl, pastConvs, (c) => {
       hooks.onOpenConversation?.(c);
-    }, config.showHistory);
+    }, config.showHistory, strings);
   }
 
   function setConversation(envelope: ConversationEnvelope | null): void {
@@ -168,9 +169,9 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
     const env = conversationEnvelope;
     const handedOver = !!env?.handedOver;
     const sub = handedOver
-      ? `${env?.assigneeName ?? 'Teammate'} · typically replies in a few minutes`
-      : 'Online now';
-    const defaultTitle = chatKind === 'new' ? 'New conversation' : 'Conversation';
+      ? `${env?.assigneeName ?? strings.defaultTeammateName} · ${strings.typicallyReplies}`
+      : strings.onlineNow;
+    const defaultTitle = chatKind === 'new' ? strings.newConversation : strings.conversation;
     panel.chatTitle.textContent = env?.subject ?? defaultTitle;
     panel.chatSubLabel.textContent = sub;
   }
@@ -191,22 +192,29 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
     }
   }
 
+  let connectionDisabled = false;
+  let sendingNow = false;
+
   function setConnectionState(state: ConnectionLabel): void {
     if (state === 'connected' || state === 'idle' || state === 'connecting') {
       panel.statusEl.hidden = true;
       panel.statusEl.textContent = '';
+      connectionDisabled = false;
     } else if (state === 'reconnecting') {
       panel.statusEl.hidden = false;
-      panel.statusEl.textContent = 'Reconnecting…';
+      panel.statusEl.textContent = strings.statusReconnecting;
+      connectionDisabled = true;
     } else if (state === 'closed') {
       panel.statusEl.hidden = false;
-      panel.statusEl.textContent = 'Disconnected.';
+      panel.statusEl.textContent = strings.statusDisconnected;
+      connectionDisabled = true;
     }
+    refreshComposerState();
   }
 
   function setSending(sending: boolean): void {
-    panel.sendBtn.disabled = sending || !canSend();
-    panel.textarea.disabled = sending;
+    sendingNow = sending;
+    refreshComposerState();
   }
 
   function canSend(): boolean {
@@ -218,7 +226,9 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
     const len = panel.textarea.value.length;
     panel.counterEl.textContent = `${len}/${WIDGET_END_USER_BODY_MAX_CHARS}`;
     panel.counterEl.classList.toggle('over', len > WIDGET_END_USER_BODY_MAX_CHARS);
-    const enabled = canSend();
+    const composerLocked = connectionDisabled || sendingNow;
+    panel.textarea.disabled = composerLocked;
+    const enabled = canSend() && !composerLocked;
     panel.sendBtn.disabled = !enabled;
     panel.sendBtn.classList.toggle('active', enabled);
   }
@@ -244,7 +254,7 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
 
   function showEmailCard(): void {
     if (emailCardEl || emailSaved) return;
-    emailCardEl = renderEmailCard({
+    emailCardEl = renderEmailCard(strings, {
       onSubmit: (email) => {
         if (!EMAIL_RE.test(email)) return;
         hooks.onSetVisitorEmail?.(email);
@@ -264,7 +274,7 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
   function setEmailSaved(email: string): void {
     emailSaved = { email };
     if (!emailCardEl) return;
-    const replacement = renderEmailCardDone(email);
+    const replacement = renderEmailCardDone(strings, email);
     emailCardEl.replaceWith(replacement);
     emailCardEl = replacement;
   }
@@ -316,8 +326,12 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
     host.remove();
   }
 
-  panel.welcomeEyebrowEl.textContent = config.eyebrow;
-  panel.welcomeH1.innerHTML = renderGreeting(config.greeting);
+  if (config.eyebrow === null) {
+    panel.welcomeEyebrowEl.innerHTML = `<a href="https://getmunin.com" target="_blank" rel="noopener noreferrer">${escapeHtml(strings.poweredBy)} <strong>Munin</strong></a>`;
+  } else {
+    panel.welcomeEyebrowEl.textContent = config.eyebrow;
+  }
+  panel.welcomeH1.innerHTML = renderGreeting(config.greeting ?? strings.defaultGreeting);
   setPastConversations([]);
   paintChatHead();
 
@@ -342,15 +356,23 @@ export function mount(config: WidgetConfig, hooks: UiHooks): UiController {
 function renderGreeting(raw: string): string {
   const trimmed = raw.trim();
   const m = /^(.*?[.?!])\s+(.+)$/.exec(trimmed);
-  const esc = (s: string) =>
-    s.replace(/[&<>"]/g, (c) =>
-      c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;',
-    );
-  if (m) return `${esc(m[1]!)} <em>${esc(m[2]!)}</em>`;
-  return esc(trimmed);
+  if (m) return `${escapeHtml(m[1]!)} <em>${escapeHtml(m[2]!)}</em>`;
+  return escapeHtml(trimmed);
 }
 
-function renderMessage(m: ListedMessage): HTMLElement {
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"]/g, (c) =>
+    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;',
+  );
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/[&"<>]/g, (c) =>
+    c === '&' ? '&amp;' : c === '"' ? '&quot;' : c === '<' ? '&lt;' : '&gt;',
+  );
+}
+
+function renderMessage(m: ListedMessage, strings: Strings): HTMLElement {
   if (m.role === 'system') {
     const el = document.createElement('div');
     el.className = 'system';
@@ -368,12 +390,12 @@ function renderMessage(m: ListedMessage): HTMLElement {
     head.className = 'msg-head';
     const who = document.createElement('span');
     who.className = 'msg-who';
-    who.textContent = m.authorName ?? 'Agent';
+    who.textContent = m.authorName ?? strings.defaultAuthorName;
     head.appendChild(who);
     if (m.authorKind === 'ai' || m.authorKind === 'human') {
       const role = document.createElement('span');
       role.className = 'msg-role';
-      role.textContent = `· ${m.authorKind === 'ai' ? 'AI' : 'human'}`;
+      role.textContent = `· ${m.authorKind === 'ai' ? strings.roleAi : strings.roleHuman}`;
       head.appendChild(role);
     }
     const t = document.createElement('span');
@@ -402,6 +424,7 @@ function renderPastList(
   convs: ConversationSummary[],
   onClick: (c: ConversationSummary) => void,
   showHistory: boolean,
+  strings: Strings,
 ): void {
   listEl.innerHTML = '';
   if (!showHistory) {
@@ -444,7 +467,7 @@ function renderPastList(
     tag.textContent = statusTag(c.status);
     const when = document.createElement('span');
     when.className = 'past-when';
-    when.textContent = c.lastMessageAt ? formatRelative(c.lastMessageAt) : '';
+    when.textContent = c.lastMessageAt ? formatRelative(c.lastMessageAt, strings) : '';
     meta.append(tag, when);
 
     btn.append(text, meta);
@@ -453,21 +476,34 @@ function renderPastList(
   }
 }
 
-function renderEmailCard(opts: { onSubmit: (email: string) => void; onDismiss: () => void }): HTMLDivElement {
+function renderEmailCard(
+  strings: Strings,
+  opts: { onSubmit: (email: string) => void; onDismiss: () => void },
+): HTMLDivElement {
   const card = document.createElement('div');
   card.className = 'card';
-  card.innerHTML = `
-    <div class="card-eyebrow">Save this thread</div>
-    <div class="card-title">Drop an email and we'll keep this conversation around if you close the window.</div>
-    <form class="card-form">
-      <input type="email" placeholder="you@company.com" autocomplete="email" required>
-      <button type="submit">Save →</button>
-    </form>
-    <button type="button" class="card-skip">Not now</button>
-  `;
-  const form = card.querySelector('form') as HTMLFormElement;
-  const input = card.querySelector('input') as HTMLInputElement;
-  const skip = card.querySelector('.card-skip') as HTMLButtonElement;
+  const eyebrow = document.createElement('div');
+  eyebrow.className = 'card-eyebrow';
+  eyebrow.textContent = strings.saveThreadEyebrow;
+  const title = document.createElement('div');
+  title.className = 'card-title';
+  title.textContent = strings.saveThreadBlurb;
+  const form = document.createElement('form');
+  form.className = 'card-form';
+  const input = document.createElement('input');
+  input.type = 'email';
+  input.placeholder = strings.emailPlaceholder;
+  input.autocomplete = 'email';
+  input.required = true;
+  const submit = document.createElement('button');
+  submit.type = 'submit';
+  submit.textContent = strings.saveThreadCta;
+  form.append(input, submit);
+  const skip = document.createElement('button');
+  skip.type = 'button';
+  skip.className = 'card-skip';
+  skip.textContent = strings.saveThreadSkip;
+  card.append(eyebrow, title, form, skip);
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const v = input.value.trim();
@@ -477,22 +513,29 @@ function renderEmailCard(opts: { onSubmit: (email: string) => void; onDismiss: (
   return card;
 }
 
-function renderEmailCardDone(email: string): HTMLDivElement {
+function renderEmailCardDone(strings: Strings, email: string): HTMLDivElement {
   const card = document.createElement('div');
   card.className = 'card card-done';
-  card.innerHTML = `
-    <div class="card-eyebrow">● Saved</div>
-    <div class="card-title">We'll email you at <strong></strong> if anything new lands here.</div>
-  `;
-  (card.querySelector('strong') as HTMLElement).textContent = email;
+  const eyebrow = document.createElement('div');
+  eyebrow.className = 'card-eyebrow';
+  eyebrow.textContent = strings.saveThreadDoneEyebrow;
+  const title = document.createElement('div');
+  title.className = 'card-title';
+  const [before, after = ''] = strings.saveThreadDoneTemplate.split('{email}');
+  title.appendChild(document.createTextNode(before ?? ''));
+  const strong = document.createElement('strong');
+  strong.textContent = email;
+  title.appendChild(strong);
+  title.appendChild(document.createTextNode(after));
+  card.append(eyebrow, title);
   return card;
 }
 
-function renderLauncher(): HTMLButtonElement {
+function renderLauncher(strings: Strings): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'launcher';
-  btn.setAttribute('aria-label', 'Open chat');
+  btn.setAttribute('aria-label', strings.launcherAriaLabel);
   btn.innerHTML =
     '<svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">' +
     '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" /></svg>';
@@ -522,11 +565,11 @@ interface PanelHandles {
   sendBtn: HTMLButtonElement;
 }
 
-function renderPanel(config: WidgetConfig): PanelHandles {
+function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
   const el = document.createElement('div');
   el.className = 'panel';
   el.setAttribute('role', 'dialog');
-  el.setAttribute('aria-label', config.title);
+  el.setAttribute('aria-label', config.title ?? strings.defaultTitle);
 
   const header = document.createElement('div');
   header.className = 'panel-head';
@@ -542,12 +585,13 @@ function renderPanel(config: WidgetConfig): PanelHandles {
       </div>
     </div>
     <div class="panel-head-right">
-      <button type="button" class="icon-btn" data-act="close" aria-label="Close">
+      <button type="button" class="icon-btn" data-act="close" aria-label="${escapeAttr(strings.closeAriaLabel)}">
         <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
       </button>
     </div>
   `;
-  (header.querySelector('.panel-head-org') as HTMLElement).textContent = config.title;
+  (header.querySelector('.panel-head-org') as HTMLElement).textContent =
+    config.title ?? strings.defaultTitle;
   const closeBtn = header.querySelector('[data-act="close"]') as HTMLButtonElement;
 
   const statusEl = document.createElement('div');
@@ -564,17 +608,17 @@ function renderPanel(config: WidgetConfig): PanelHandles {
     <h2 class="welcome-h1"></h2>
     <div class="welcome-status">
       <span class="welcome-status-dot"></span>
-      <span class="welcome-status-text">Replies in about <strong>2 min</strong></span>
+      <span class="welcome-status-text">${strings.welcomeRepliesAboutHtml}</span>
     </div>
     <button type="button" class="cta" data-act="start">
       <span class="cta-label">
-        <span class="cta-eyebrow">Start a conversation</span>
-        <span class="cta-sub">We'll get an agent on it right away.</span>
+        <span class="cta-eyebrow"></span>
+        <span class="cta-sub"></span>
       </span>
       <span class="cta-arrow">→</span>
     </button>
     <div class="section-head" hidden>
-      <span>Your conversations</span>
+      <span class="section-label"></span>
       <span class="section-meta">0</span>
     </div>
     <ul class="past" hidden></ul>
@@ -584,10 +628,15 @@ function renderPanel(config: WidgetConfig): PanelHandles {
           <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" />
         </svg>
       </div>
-      <div class="empty-title">No conversations yet</div>
-      <div class="empty-sub">Start one above and it'll show up here for next time.</div>
+      <div class="empty-title"></div>
+      <div class="empty-sub"></div>
     </div>
   `;
+  (welcomeEl.querySelector('.cta-eyebrow') as HTMLElement).textContent = strings.startConversationLabel;
+  (welcomeEl.querySelector('.cta-sub') as HTMLElement).textContent = strings.startConversationSub;
+  (welcomeEl.querySelector('.section-label') as HTMLElement).textContent = strings.conversationsHeader;
+  (welcomeEl.querySelector('.empty-title') as HTMLElement).textContent = strings.emptyConversationsTitle;
+  (welcomeEl.querySelector('.empty-sub') as HTMLElement).textContent = strings.emptyConversationsSub;
   const welcomeEyebrowEl = welcomeEl.querySelector('.welcome-eyebrow') as HTMLDivElement;
   const welcomeH1 = welcomeEl.querySelector('.welcome-h1') as HTMLHeadingElement;
   const startBtn = welcomeEl.querySelector('[data-act="start"]') as HTMLButtonElement;
@@ -600,7 +649,7 @@ function renderPanel(config: WidgetConfig): PanelHandles {
   chatEl.hidden = true;
   chatEl.innerHTML = `
     <div class="chat-head">
-      <button type="button" class="back-btn" aria-label="Back">
+      <button type="button" class="back-btn" aria-label="${escapeAttr(strings.backAriaLabel)}">
         <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" /></svg>
       </button>
       <div class="chat-head-text">
@@ -610,9 +659,9 @@ function renderPanel(config: WidgetConfig): PanelHandles {
     </div>
     <div class="messages"></div>
     <form class="composer">
-      <textarea rows="1" placeholder="Type a message…" aria-label="Message"></textarea>
+      <textarea rows="1" placeholder="${escapeAttr(strings.composerPlaceholder)}" aria-label="${escapeAttr(strings.messageAriaLabel)}"></textarea>
       <div class="composer-row">
-        <button type="submit" class="send" aria-label="Send" disabled>
+        <button type="submit" class="send" aria-label="${escapeAttr(strings.sendAriaLabel)}" disabled>
           <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12h14M13 6l6 6-6 6" />
           </svg>
@@ -620,7 +669,7 @@ function renderPanel(config: WidgetConfig): PanelHandles {
         <span class="counter"></span>
       </div>
     </form>
-    <div class="footer-credit">Powered by <strong>Munin</strong></div>
+    <div class="footer-credit"><a href="https://getmunin.com" target="_blank" rel="noopener noreferrer">${escapeHtml(strings.poweredBy)} <strong>Munin</strong></a></div>
   `;
   const backBtn = chatEl.querySelector('.back-btn') as HTMLButtonElement;
   const chatTitle = chatEl.querySelector('.chat-title') as HTMLDivElement;
@@ -635,7 +684,7 @@ function renderPanel(config: WidgetConfig): PanelHandles {
   const typingEl = document.createElement('div');
   typingEl.className = 'msg theirs';
   typingEl.hidden = true;
-  typingEl.setAttribute('aria-label', 'Agent is typing');
+  typingEl.setAttribute('aria-label', strings.agentTypingAriaLabel);
   typingEl.innerHTML =
     '<div class="bubble typing"><span></span><span></span><span></span></div>';
   messagesEl.appendChild(typingEl);
@@ -684,19 +733,19 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function formatRelative(iso: string): string {
+function formatRelative(iso: string, strings: Strings): string {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return '';
   const diffMs = Date.now() - t;
   const min = Math.round(diffMs / 60_000);
-  if (min < 1) return 'now';
-  if (min < 60) return `${min}m`;
+  if (min < 1) return strings.timeNow;
+  if (min < 60) return strings.timeMin.replace('{n}', String(min));
   const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h`;
+  if (hr < 24) return strings.timeHour.replace('{n}', String(hr));
   const day = Math.round(hr / 24);
-  if (day < 7) return `${day}d`;
+  if (day < 7) return strings.timeDay.replace('{n}', String(day));
   const wk = Math.round(day / 7);
-  if (wk < 6) return `${wk}w`;
+  if (wk < 6) return strings.timeWeek.replace('{n}', String(wk));
   const mo = Math.round(day / 30);
-  return `${mo}mo`;
+  return strings.timeMonth.replace('{n}', String(mo));
 }

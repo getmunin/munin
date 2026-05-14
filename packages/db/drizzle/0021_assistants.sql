@@ -10,12 +10,10 @@ CREATE TABLE IF NOT EXISTS "assistants" (
 CREATE UNIQUE INDEX IF NOT EXISTS "assistants_org_uq"
   ON "assistants" ("org_id");
 
-ALTER TABLE "assistants" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "assistants" FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "tenant_isolation" ON "assistants";
-CREATE POLICY "tenant_isolation" ON "assistants"
-  USING (app_bypass_rls() OR org_id = app_org_id())
-  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+-- RLS enable + tenant_isolation policy are applied by src/sql/rls.sql,
+-- which runs AFTER drizzle migrations and is the only place the
+-- app_bypass_rls() / app_org_id() helpers are defined. Don't inline the
+-- policy here — the helpers don't exist yet at migration time.
 
 -- Backfill: one assistant row per existing org (name/greeting null = use defaults).
 INSERT INTO "assistants" ("id", "org_id")

@@ -46,6 +46,23 @@ export const orgs = pgTable('orgs', {
   updatedAt,
 });
 
+export const assistants = pgTable(
+  'assistants',
+  {
+    id: id('ast'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    name: text('name'),
+    greeting: text('greeting'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgUnique: uniqueIndex('assistants_org_uq').on(t.orgId),
+  }),
+);
+
 // Identity tables managed by BetterAuth (email/password + Google OAuth in M0).
 // Names match BetterAuth's default schema; the auth adapter is wired in
 // apps/backend/src/auth/.

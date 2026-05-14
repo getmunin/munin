@@ -114,7 +114,14 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     });
     const listener = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
       if (!req.url || !req.url.startsWith(PATH)) return;
-      void this.handleUpgrade(req, socket, head);
+      this.handleUpgrade(req, socket, head).catch((err: unknown) => {
+        this.logger.warn(`handleUpgrade failed: ${describeError(err)}`);
+        try {
+          socket.destroy();
+        } catch (destroyErr) {
+          this.logger.debug?.(`socket destroy after upgrade failure raised: ${describeError(destroyErr)}`);
+        }
+      });
     };
     this.upgradeListener = listener;
     httpServer.on('upgrade', listener);
@@ -315,11 +322,15 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
         return;
       }
       if (msg.type === 'typing') {
-        void this.handleTyping(entry, msg);
+        this.handleTyping(entry, msg).catch((err: unknown) =>
+          this.logger.warn(`handleTyping failed: ${describeError(err)}`),
+        );
         return;
       }
       if (msg.type === 'read') {
-        void this.handleRead(entry, msg);
+        this.handleRead(entry, msg).catch((err: unknown) =>
+          this.logger.warn(`handleRead failed: ${describeError(err)}`),
+        );
         return;
       }
       const key = encodeChannel(msg);
@@ -744,4 +755,8 @@ function ownsEvent(event: EventRow, endUserId: string): boolean {
   const owner = event.payload?.['endUserId'];
   if (typeof owner === 'string') return owner === endUserId;
   return event.type.startsWith('conversation.');
+}
+
+function describeError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

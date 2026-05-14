@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import type { AuditLogger, ActorIdentity, Audience } from '@getmunin/core';
+import { getCurrentContext, type AuditLogger, type ActorIdentity, type Audience } from '@getmunin/core';
 import type { McpToolRegistry } from './registry.js';
 import type { SkillRegistry } from './skill-registry.js';
 
@@ -94,19 +94,21 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
     }
 
     const startedAt = Date.now();
+    let value: unknown;
+    let thrown: unknown = null;
     try {
-      const value = await tool.handler(parseResult.data);
-      await audit.record({
-        tool: tool.meta.name,
-        args: parseResult.data,
-        result: 'ok',
-        durationMs: Date.now() - startedAt,
-      });
-      return {
-        content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }],
-      };
+      const ctx = getCurrentContext();
+      value = await ctx.db.transaction(() => Promise.resolve(tool.handler(parseResult.data)));
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      thrown = err;
+    }
+    if (thrown !== null) {
+      const message =
+        thrown instanceof Error
+          ? thrown.message
+          : typeof thrown === 'string'
+            ? thrown
+            : JSON.stringify(thrown);
       await audit.record({
         tool: tool.meta.name,
         result: 'error',
@@ -115,6 +117,15 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
       });
       return errorResult(message);
     }
+    await audit.record({
+      tool: tool.meta.name,
+      args: parseResult.data,
+      result: 'ok',
+      durationMs: Date.now() - startedAt,
+    });
+    return {
+      content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }],
+    };
   });
 
   if (skills) {

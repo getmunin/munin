@@ -4,6 +4,7 @@ import { EndUsersController } from './end-users.controller.js';
 import { DelegatedTokenController } from './delegated-token.controller.js';
 import { TokensController } from './tokens.controller.js';
 import { OrgsController } from './orgs.controller.js';
+import { SkillsController } from './skills.controller.js';
 import { AssistantsController } from './assistants.controller.js';
 import { AuditLogController } from './audit-log.controller.js';
 import { UsageController } from './usage.controller.js';
@@ -65,6 +66,7 @@ import { InboxController } from './inbox.controller.js';
     DelegatedTokenController,
     TokensController,
     OrgsController,
+    SkillsController,
     AssistantsController,
     AuditLogController,
     UsageController,

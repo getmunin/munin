@@ -22,6 +22,7 @@ import {
 } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../common/db/db.module.js';
+import { toIsoString } from '../common/iso.js';
 import {
   ADDITIONAL_CREDENTIAL_RESOLVERS,
   type AdditionalCredentialResolver,
@@ -462,7 +463,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
     const inserted = await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.org_id', ${convRow.orgId}, true)`);
-      return tx.execute<{ message_id: string; read_at: Date }>(sql`
+      return tx.execute<{ message_id: string; read_at: Date | string }>(sql`
         INSERT INTO conv_message_reads (id, org_id, conversation_id, message_id, end_user_id, read_at)
         SELECT
           'cmr_' || encode(gen_random_bytes(16), 'hex'),
@@ -480,9 +481,9 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       `);
     });
 
-    const rows: { message_id: string; read_at: Date }[] = Array.isArray(inserted)
-      ? (inserted as { message_id: string; read_at: Date }[])
-      : ((inserted as { rows?: { message_id: string; read_at: Date }[] }).rows ?? []);
+    const rows: { message_id: string; read_at: Date | string }[] = Array.isArray(inserted)
+      ? (inserted as { message_id: string; read_at: Date | string }[])
+      : ((inserted as { rows?: { message_id: string; read_at: Date | string }[] }).rows ?? []);
     if (rows.length === 0) return;
 
     const actor = new ActorIdentity(
@@ -506,7 +507,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
               conversationId,
               messageId: row.message_id,
               endUserId: convRow.endUserId,
-              readAt: row.read_at instanceof Date ? row.read_at.toISOString() : String(row.read_at),
+              readAt: toIsoString(row.read_at),
             },
           });
         } catch (err) {

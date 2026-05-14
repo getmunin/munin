@@ -12,6 +12,7 @@ import { AuthGuard } from '../common/auth/auth.guard.js';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.js';
+import { toIsoString } from '../common/iso.js';
 
 export type SkillTier = 'fast' | 'smart';
 
@@ -40,18 +41,18 @@ export class SkillsController {
     const rows = await ctx.db.execute<{
       skill_uri: string;
       status: string;
-      done_at: Date | null;
-      updated_at: Date;
+      done_at: Date | string | null;
+      updated_at: Date | string;
     }>(sql`
       SELECT DISTINCT ON (skill_uri) skill_uri, status, done_at, updated_at
       FROM ${schema.curatorJobs}
       WHERE org_id = ${actor.orgId}
       ORDER BY skill_uri, updated_at DESC
     `);
-    const latestByUri = new Map<string, { lastRunAt: Date; status: string }>();
+    const latestByUri = new Map<string, { lastRunAt: string | null; status: string }>();
     for (const r of rows) {
       latestByUri.set(r.skill_uri, {
-        lastRunAt: r.done_at ?? r.updated_at,
+        lastRunAt: toIsoString(r.done_at ?? r.updated_at),
         status: r.status,
       });
     }
@@ -64,7 +65,7 @@ export class SkillsController {
         description: skill.description,
         audiences: skill.audiences,
         tier: tierFor(skill.uri),
-        lastRunAt: latest?.lastRunAt.toISOString() ?? null,
+        lastRunAt: latest?.lastRunAt ?? null,
         lastRunStatus: latest ? normalizeStatus(latest.status) : null,
       };
     });
@@ -95,3 +96,4 @@ function normalizeStatus(s: string): SkillDto['lastRunStatus'] {
       return null;
   }
 }
+

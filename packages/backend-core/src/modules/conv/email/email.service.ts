@@ -15,7 +15,9 @@ import {
 import { z } from 'zod';
 import {
   EmailChannelConfigInput,
+  SendLimitsSchema,
   type EmailChannelConfigInputT,
+  type SendLimits,
 } from '@getmunin/types';
 
 export { EmailChannelConfigInput };
@@ -49,6 +51,7 @@ export interface EmailChannelConfigDto {
     password: typeof REDACTED_PASSWORD;
     mailbox?: string;
   };
+  sendLimits?: SendLimits;
 }
 
 const StoredSmtpOutboundSchema = z.object({
@@ -87,6 +90,7 @@ export const StoredEmailChannelConfigSchema = z.object({
     StoredMailerOutboundSchema,
   ]),
   inbound: StoredImapInboundSchema.optional(),
+  sendLimits: SendLimitsSchema.optional(),
 });
 
 export type StoredEmailChannelConfig = z.infer<typeof StoredEmailChannelConfigSchema>;
@@ -131,6 +135,12 @@ export class EmailService {
         mailbox: input.inbound.mailbox,
       };
     }
+    if (input.sendLimits) {
+      const trimmed: SendLimits = {};
+      if (input.sendLimits.perDayMax !== undefined) trimmed.perDayMax = input.sendLimits.perDayMax;
+      if (input.sendLimits.perHourMax !== undefined) trimmed.perHourMax = input.sendLimits.perHourMax;
+      if (Object.keys(trimmed).length > 0) out.sendLimits = trimmed;
+    }
     return out;
   }
 
@@ -168,6 +178,7 @@ export class EmailService {
         mailbox: stored.inbound.mailbox,
       };
     }
+    if (stored.sendLimits) out.sendLimits = { ...stored.sendLimits };
     return out;
   }
 

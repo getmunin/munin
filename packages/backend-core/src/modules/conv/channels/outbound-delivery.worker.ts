@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNotNull, lt, lte, sql } from 'drizzle-orm';
 import {
@@ -7,6 +7,7 @@ import {
   withContext,
   type RequestContext,
 } from '@getmunin/core';
+import type { SendLimits } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../../../common/db/db.module.js';
 import {
@@ -15,6 +16,11 @@ import {
   type ChannelAdapter,
   type SendContext,
 } from './adapter.js';
+import {
+  decideRateLimit,
+  rateLimitDeferralError,
+  type SendCounts,
+} from './send-rate-limit.js';
 
 const POLL_INTERVAL_MS = Number(
   process.env.MUNIN_OUTBOUND_DELIVERY_WORKER_INTERVAL_MS ??
@@ -34,8 +40,11 @@ const BACKOFF_BASE_MS = 30_000;
  * Disabled in tests via `MUNIN_OUTBOUND_DELIVERY_WORKER_DISABLED=1` (or
  * legacy `MUNIN_EMAIL_OUTBOUND_WORKER_DISABLED=1`) or `NODE_ENV=test`.
  */
+type AttemptOutcome = 'sent' | 'deferred' | 'failed';
+
 @Injectable()
 export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(OutboundDeliveryWorker.name);
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private disabled =
@@ -65,8 +74,8 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
     this.timer = null;
   }
 
-  async tick(): Promise<{ attempted: number; sent: number; failed: number }> {
-    if (this.running) return { attempted: 0, sent: 0, failed: 0 };
+  async tick(): Promise<{ attempted: number; sent: number; deferred: number; failed: number }> {
+    if (this.running) return { attempted: 0, sent: 0, deferred: 0, failed: 0 };
     this.running = true;
     try {
       return await this.drain();
@@ -75,7 +84,7 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async drain(): Promise<{ attempted: number; sent: number; failed: number }> {
+  private async drain(): Promise<{ attempted: number; sent: number; deferred: number; failed: number }> {
     const now = new Date();
     const rows = await this.db
       .select({ id: schema.convMessageDeliveries.id })
@@ -91,23 +100,38 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
       .limit(BATCH_SIZE);
 
     let sent = 0;
+    let deferred = 0;
     let failed = 0;
     for (const row of rows) {
-      const ok = await this.attemptOne(row.id);
-      if (ok) sent += 1;
+      const outcome = await this.attemptOne(row.id);
+      if (outcome === 'sent') sent += 1;
+      else if (outcome === 'deferred') deferred += 1;
       else failed += 1;
     }
-    return { attempted: rows.length, sent, failed };
+    return { attempted: rows.length, sent, deferred, failed };
   }
 
-  private async attemptOne(deliveryId: string): Promise<boolean> {
+  private async attemptOne(deliveryId: string): Promise<AttemptOutcome> {
     const ctx = await this.loadContext(deliveryId);
-    if (!ctx) return false;
+    if (!ctx) return 'failed';
 
     const adapter = this.registry.get(ctx.channel.type);
     if (!adapter) {
       await this.recordFailure(deliveryId, ctx.attempt, `no adapter registered for channel type '${ctx.channel.type}'`);
-      return false;
+      return 'failed';
+    }
+
+    const limits = extractSendLimits(ctx.channel.config);
+    if (limits) {
+      const counts = await this.countRecentSends(ctx.channel.id);
+      const decision = decideRateLimit(limits, counts, new Date());
+      if (decision.kind === 'deferred') {
+        await this.recordDeferral(deliveryId, decision.nextAttemptAt, rateLimitDeferralError(decision));
+        this.logger.log(
+          `delivery ${deliveryId} on channel ${ctx.channel.id} deferred (${decision.reason}) until ${decision.nextAttemptAt.toISOString()}`,
+        );
+        return 'deferred';
+      }
     }
 
     let result;
@@ -123,7 +147,7 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
       result = await adapter.send(sendCtx);
     } catch (err) {
       await this.recordFailure(deliveryId, ctx.attempt, errorMessage(err));
-      return false;
+      return 'failed';
     }
 
     await this.db
@@ -145,7 +169,65 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
       messageId: ctx.message.id,
       channelId: ctx.channel.id,
     });
-    return true;
+    return 'sent';
+  }
+
+  private async recordDeferral(
+    deliveryId: string,
+    nextAttemptAt: Date,
+    encodedReason: string,
+  ): Promise<void> {
+    await this.db
+      .update(schema.convMessageDeliveries)
+      .set({
+        status: 'queued',
+        nextAttemptAt,
+        error: encodedReason,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.convMessageDeliveries.id, deliveryId));
+  }
+
+  private async countRecentSends(channelId: string): Promise<SendCounts> {
+    const now = new Date();
+    const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const rows = await this.db.execute<{
+      hour_count: string | number;
+      hour_oldest: Date | string | null;
+      day_count: string | number;
+      day_oldest: Date | string | null;
+    }>(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE sent_at >= ${hourAgo.toISOString()}::timestamptz) AS hour_count,
+        MIN(sent_at) FILTER (WHERE sent_at >= ${hourAgo.toISOString()}::timestamptz) AS hour_oldest,
+        COUNT(*) AS day_count,
+        MIN(sent_at) AS day_oldest
+      FROM conv_message_deliveries
+      WHERE channel_id = ${channelId}
+        AND status = 'sent'
+        AND sent_at IS NOT NULL
+        AND sent_at >= ${dayAgo.toISOString()}::timestamptz
+    `);
+    const row = Array.isArray(rows)
+      ? rows[0]
+      : ((rows as { rows?: unknown[] }).rows?.[0] as
+          | { hour_count: string | number; hour_oldest: Date | string | null; day_count: string | number; day_oldest: Date | string | null }
+          | undefined);
+    if (!row) {
+      return {
+        lastHourSentCount: 0,
+        oldestSentAtInLastHour: null,
+        lastDaySentCount: 0,
+        oldestSentAtInLastDay: null,
+      };
+    }
+    return {
+      lastHourSentCount: Number(row.hour_count),
+      oldestSentAtInLastHour: toDate(row.hour_oldest),
+      lastDaySentCount: Number(row.day_count),
+      oldestSentAtInLastDay: toDate(row.day_oldest),
+    };
   }
 
   private async recordFailure(deliveryId: string, priorAttempts: number, error: string): Promise<void> {
@@ -252,4 +334,26 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function extractSendLimits(config: unknown): SendLimits | null {
+  if (!config || typeof config !== 'object') return null;
+  const limits = (config as { sendLimits?: unknown }).sendLimits;
+  if (!limits || typeof limits !== 'object') return null;
+  const out: SendLimits = {};
+  const candidate = limits as { perHourMax?: unknown; perDayMax?: unknown };
+  if (typeof candidate.perHourMax === 'number' && candidate.perHourMax > 0) {
+    out.perHourMax = candidate.perHourMax;
+  }
+  if (typeof candidate.perDayMax === 'number' && candidate.perDayMax > 0) {
+    out.perDayMax = candidate.perDayMax;
+  }
+  return out.perHourMax === undefined && out.perDayMax === undefined ? null : out;
+}
+
+function toDate(value: Date | string | null): Date | null {
+  if (value === null) return null;
+  if (value instanceof Date) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

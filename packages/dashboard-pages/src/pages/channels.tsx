@@ -76,6 +76,7 @@ interface EmailChannelDto extends ChannelDto {
       username?: string;
       mailbox?: string;
     };
+    sendLimits?: { perDayMax?: number; perHourMax?: number };
   };
 }
 
@@ -688,6 +689,14 @@ function toSaveErrorDetail(
   };
 }
 
+function parsePositiveInt(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
 function EmailChannelDialog({
   open,
   onOpenChange,
@@ -719,6 +728,8 @@ function EmailChannelDialog({
   const [imapUsername, setImapUsername] = useState('');
   const [imapPassword, setImapPassword] = useState('');
   const [imapMailbox, setImapMailbox] = useState('');
+  const [perDayMax, setPerDayMax] = useState('');
+  const [perHourMax, setPerHourMax] = useState('');
   const [creating, setCreating] = useState(false);
   const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -750,6 +761,12 @@ function EmailChannelDialog({
     setImapUsername(cfg?.inbound?.username ?? '');
     setImapPassword('');
     setImapMailbox(cfg?.inbound?.mailbox ?? '');
+    setPerDayMax(
+      cfg?.sendLimits?.perDayMax != null ? String(cfg.sendLimits.perDayMax) : '',
+    );
+    setPerHourMax(
+      cfg?.sendLimits?.perHourMax != null ? String(cfg.sendLimits.perHourMax) : '',
+    );
     setSubmitError(null);
     setFieldErrors({});
     setCreating(false);
@@ -788,6 +805,14 @@ function EmailChannelDialog({
               },
             }
           : {}),
+        ...(() => {
+          const sendLimits: { perDayMax?: number; perHourMax?: number } = {};
+          const day = parsePositiveInt(perDayMax);
+          const hour = parsePositiveInt(perHourMax);
+          if (day !== null) sendLimits.perDayMax = day;
+          if (hour !== null) sendLimits.perHourMax = hour;
+          return Object.keys(sendLimits).length > 0 ? { sendLimits } : {};
+        })(),
       },
     };
     const parsed = SetupEmailBody.safeParse(payload);
@@ -1017,6 +1042,37 @@ function EmailChannelDialog({
                 </label>
               </div>
             )}
+          </fieldset>
+
+          <fieldset className="rounded-md border border-rule-soft px-4 pb-4 pt-3">
+            <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+              {t('email.sendLimitsLabel')}
+            </legend>
+            <p className="text-xs text-muted-foreground">{t('email.sendLimitsHelp')}</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField label={t('email.perDayMax')}>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  value={perDayMax}
+                  onChange={(e) => setPerDayMax(e.target.value)}
+                  placeholder={t('email.sendLimitsPlaceholder')}
+                />
+              </FormField>
+              <FormField label={t('email.perHourMax')}>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  value={perHourMax}
+                  onChange={(e) => setPerHourMax(e.target.value)}
+                  placeholder={t('email.sendLimitsPlaceholder')}
+                />
+              </FormField>
+            </div>
           </fieldset>
 
           <DialogFooter className={dialogFooterClass}>

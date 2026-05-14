@@ -24,25 +24,25 @@ interface RouteMap {
 }
 
 function makeFetcher(routes: RouteMap): HtmlFetcher {
-  return async (url) => {
+  return (url) => {
     const route = routes[url];
     if (!route) {
-      return { finalUrl: url, status: 404, body: '', contentType: 'text/html' };
+      return Promise.resolve({ finalUrl: url, status: 404, body: '', contentType: 'text/html' });
     }
-    if (route.throws) throw route.throws;
-    return {
+    if (route.throws) return Promise.reject(route.throws);
+    return Promise.resolve({
       finalUrl: route.finalUrl ?? url,
       status: route.status ?? 200,
       body: route.body ?? '',
       contentType: route.contentType ?? 'text/html; charset=utf-8',
-    };
+    });
   };
 }
 
 const goodBody = (title: string, paragraphs = 4): string =>
   `<html><head><title>${title}</title></head><body>${'<p>'.repeat(paragraphs)}${'The quick brown fox jumps over the lazy dog and considers carefully whether to leap again. '.repeat(8)}</p>${'</p>'.repeat(0)}</body></html>`;
 
-const passthroughExtractor: Extractor = async (html) => {
+const passthroughExtractor: Extractor = (html) => {
   const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
   const title = titleMatch ? titleMatch[1]!.trim() : 'Untitled';
   const text = html
@@ -51,7 +51,7 @@ const passthroughExtractor: Extractor = async (html) => {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  return { title, markdown: text };
+  return Promise.resolve({ title, markdown: text });
 };
 
 describe('normalizeStartUrl', () => {

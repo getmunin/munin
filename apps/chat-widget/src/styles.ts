@@ -215,6 +215,10 @@ button {
   text-transform: uppercase;
   color: var(--munin-ink-mute);
 }
+.welcome-eyebrow strong { font-weight: 500; }
+.welcome-eyebrow a { color: inherit; text-decoration: none; }
+.welcome-eyebrow a:hover, .welcome-eyebrow a:hover strong { color: var(--munin-ink); }
+.welcome-eyebrow a:hover strong { text-decoration: underline; text-underline-offset: 2px; }
 .welcome-h1 {
   font-family: var(--munin-serif);
   font-weight: 400;
@@ -450,7 +454,6 @@ button {
   font-size: 13.5px;
   line-height: 1.45;
   max-width: 100%;
-  white-space: pre-wrap;
   word-wrap: break-word;
 }
 .msg.mine .bubble {
@@ -459,7 +462,42 @@ button {
   color: var(--munin-theme-fg);
   border-bottom-left-radius: 14px;
   border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
 }
+.bubble p { margin: 0; }
+.bubble p + p { margin-top: 8px; }
+.bubble ul, .bubble ol { margin: 6px 0 0; padding-left: 20px; }
+.bubble li { margin: 2px 0; }
+.bubble code {
+  font-family: var(--munin-mono);
+  font-size: 12px;
+  background: rgba(15, 20, 25, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.bubble pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: rgba(15, 20, 25, 0.06);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: var(--munin-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre;
+}
+.bubble pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+.bubble a {
+  color: var(--munin-theme);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bubble strong { font-weight: 600; }
+.bubble em { font-style: italic; }
 
 .bubble.typing { display: inline-flex; gap: 4px; padding: 12px 14px; }
 .bubble.typing span {
@@ -621,6 +659,10 @@ button {
   flex-shrink: 0;
 }
 .footer-credit strong { color: var(--munin-ink); font-weight: 500; }
+.footer-credit a { color: inherit; text-decoration: none; }
+.footer-credit a:hover { color: var(--munin-ink); }
+.footer-credit a:hover strong { text-decoration: underline; text-underline-offset: 2px; }
+.composer textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* ─── Responsive + reduced motion ────────────────────── */
 @media (max-width: 480px) {

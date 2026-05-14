@@ -11,7 +11,8 @@
  *           data-munin-theme-color="#10b981"
  *           data-munin-position="bottom-right"
  *           data-munin-greeting="Hi! How can we help?"
- *           data-munin-title="Chat"
+ *           data-munin-title="Chat with us"
+ *           data-munin-locale="en"
  *           data-munin-visitor-name="Ada"
  *           data-munin-visitor-email="ada@example.com"
  *           data-munin-visitor-meta='{"plan":"pro"}'
@@ -63,9 +64,10 @@ export interface WidgetConfig {
   userHash?: string;
   themeColor: string;
   position: Position;
-  greeting: string;
-  title: string;
-  eyebrow: string;
+  greeting: string | null;
+  title: string | null;
+  eyebrow: string | null;
+  locale: string | null;
   size: Size;
   fonts: Fonts;
   showHistory: boolean;
@@ -84,9 +86,6 @@ export type ParseResult =
 const DEFAULTS = {
   themeColor: '#0066FF',
   position: 'bottom-right' as Position,
-  greeting: 'Hi there. How can we help?',
-  title: 'Chat',
-  eyebrow: 'Powered by Munin',
   size: 'standard' as Size,
   fonts: 'bundled' as Fonts,
   showHistory: true,
@@ -115,15 +114,13 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
     });
   }
 
-  const themeColor =
-    optColor(scriptEl, 'data-munin-theme-color', warnings) ?? DEFAULTS.themeColor;
+  const themeColor = optColor(scriptEl, 'data-munin-theme-color', warnings) ?? DEFAULTS.themeColor;
   const position = optPosition(scriptEl, warnings) ?? DEFAULTS.position;
-  const greeting = scriptEl.getAttribute('data-munin-greeting') ?? DEFAULTS.greeting;
+  const greeting = scriptEl.getAttribute('data-munin-greeting');
   const title =
-    scriptEl.getAttribute('data-munin-org-name') ??
-    scriptEl.getAttribute('data-munin-title') ??
-    DEFAULTS.title;
-  const eyebrow = scriptEl.getAttribute('data-munin-eyebrow') ?? DEFAULTS.eyebrow;
+    scriptEl.getAttribute('data-munin-org-name') ?? scriptEl.getAttribute('data-munin-title');
+  const eyebrow = scriptEl.getAttribute('data-munin-eyebrow');
+  const locale = scriptEl.getAttribute('data-munin-locale');
   const size = optEnum(scriptEl, 'data-munin-size', VALID_SIZES, warnings) ?? DEFAULTS.size;
   const fonts = optEnum(scriptEl, 'data-munin-fonts', VALID_FONTS, warnings) ?? DEFAULTS.fonts;
   const showHistory =
@@ -149,6 +146,7 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
       greeting,
       title,
       eyebrow,
+      locale,
       size,
       fonts,
       showHistory,

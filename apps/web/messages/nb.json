@@ -802,9 +802,6 @@
         "blurb": "Snakker direkte med kundene dine."
       },
       "background": {
-        "title": "Bakgrunn",
-        "blurb": "Kjører i bakgrunnen for å holde dataene dine ryddige og innboksen rutet riktig.",
-        "empty": "Ingen bakgrunnsferdigheter konfigurert.",
         "tierLabel": "{tier}",
         "neverRan": "Aldri kjørt for denne organisasjonen ennå.",
         "statuses": {
@@ -814,6 +811,16 @@
           "failed": "feilet",
           "dead": "død"
         }
+      },
+      "aiDriven": {
+        "title": "AI-drevet",
+        "blurb": "Kjører i bakgrunnen. Assistenten bestemmer selv hva som skal gjøres, med samme modell som chatassistenten.",
+        "empty": "Ingen AI-drevne ferdigheter konfigurert."
+      },
+      "tasks": {
+        "title": "Planlagte oppgaver",
+        "blurb": "Deterministiske bakgrunnsjobber. Kan kalle modellen for ett enkelt steg, men flyten er fast.",
+        "empty": "Ingen planlagte oppgaver konfigurert."
       },
       "chatAssistant": {
         "title": "Chatassistent",

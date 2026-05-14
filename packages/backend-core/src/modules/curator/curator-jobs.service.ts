@@ -11,7 +11,7 @@ const BACKOFF_BASE_MS = 30_000;
 export interface CuratorJobDto {
   id: string;
   orgId: string;
-  skillUri: string;
+  jobUri: string;
   userPrompt: string;
   sourceEventType: string | null;
   sourceEventPayload: unknown;
@@ -32,7 +32,7 @@ export interface CuratorJobDto {
 }
 
 export interface EnqueueInput {
-  skillUri: string;
+  jobUri: string;
   userPrompt: string;
   sourceEventType?: string;
   sourceEventPayload?: unknown;
@@ -72,8 +72,8 @@ export class CuratorJobsService {
   ) {}
 
   async enqueue(input: EnqueueInput): Promise<EnqueueResult> {
-    if (!input.skillUri.startsWith('skill://')) {
-      throw new BadRequestException('skillUri must start with skill://');
+    if (!input.jobUri.startsWith('skill://') && !input.jobUri.startsWith('task://')) {
+      throw new BadRequestException('jobUri must start with skill:// or task://');
     }
     if (!input.userPrompt.trim()) {
       throw new BadRequestException('userPrompt is required');
@@ -89,7 +89,7 @@ export class CuratorJobsService {
           .insert(schema.curatorJobs)
           .values({
             orgId: ctx.actor!.orgId,
-            skillUri: input.skillUri,
+            jobUri: input.jobUri,
             userPrompt: input.userPrompt,
             sourceEventType: input.sourceEventType ?? null,
             sourceEventPayload: input.sourceEventPayload ?? null,
@@ -128,7 +128,7 @@ export class CuratorJobsService {
       type: 'curator_job.pending',
       payload: {
         jobId: row.id,
-        skillUri: row.skillUri,
+        jobUri: row.jobUri,
         dedupeKey: row.dedupeKey,
         nextAttemptAt: toIso(row.nextAttemptAt),
       },
@@ -221,7 +221,7 @@ export class CuratorJobsService {
         type: 'curator_job.pending',
         payload: {
           jobId: row.id,
-          skillUri: row.skillUri,
+          jobUri: row.jobUri,
           dedupeKey: row.dedupeKey,
           nextAttemptAt: toIso(row.nextAttemptAt),
         },
@@ -280,7 +280,7 @@ function toDto(row: Row): CuratorJobDto {
   return {
     id: row.id,
     orgId: row.orgId,
-    skillUri: row.skillUri,
+    jobUri: row.jobUri,
     userPrompt: row.userPrompt,
     sourceEventType: row.sourceEventType,
     sourceEventPayload: row.sourceEventPayload ?? null,
@@ -319,7 +319,7 @@ function rowFromSql(raw: Record<string, unknown>): Row {
   return {
     id: raw.id as string,
     orgId: raw.org_id as string,
-    skillUri: raw.skill_uri as string,
+    jobUri: raw.job_uri as string,
     userPrompt: raw.user_prompt as string,
     sourceEventType: (raw.source_event_type as string | null) ?? null,
     sourceEventPayload: raw.source_event_payload ?? null,

@@ -10,7 +10,6 @@ import {
   type SkillPassResult,
 } from '@getmunin/agent-runtime';
 
-export const WEB_IMPORT_SKILL_URI = 'skill://web/scrape-site';
 const TARGET_SPACE_SLUG = 'website-import';
 const MAX_PAGES_TO_INSERT = 30;
 const PROFILE_CONTEXT_PAGES = 8;

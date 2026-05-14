@@ -41,7 +41,9 @@ export function AssistantsSettingsPage() {
   }
 
   const conversationalSkills = skills?.filter(isConversational) ?? [];
-  const backgroundSkills = skills?.filter((s) => !isConversational(s)) ?? [];
+  const remainingSkills = skills?.filter((s) => !isConversational(s)) ?? [];
+  const aiDrivenSkills = remainingSkills.filter((s) => s.kind === 'skill');
+  const scheduledTasks = remainingSkills.filter((s) => s.kind === 'task');
 
   return (
     <>
@@ -86,16 +88,34 @@ export function AssistantsSettingsPage() {
 
           <section className="space-y-4">
             <SectionHeader
-              title={tList('background.title')}
-              blurb={tList('background.blurb')}
+              title={tList('aiDriven.title')}
+              blurb={tList('aiDriven.blurb')}
             />
             <div className="space-y-3">
               {skills === null ? (
                 <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
-              ) : backgroundSkills.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{tList('background.empty')}</p>
+              ) : aiDrivenSkills.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{tList('aiDriven.empty')}</p>
               ) : (
-                backgroundSkills.map((skill) => (
+                aiDrivenSkills.map((skill) => (
+                  <BackgroundSkillCard key={skill.uri} skill={skill} />
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <SectionHeader
+              title={tList('tasks.title')}
+              blurb={tList('tasks.blurb')}
+            />
+            <div className="space-y-3">
+              {skills === null ? (
+                <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
+              ) : scheduledTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{tList('tasks.empty')}</p>
+              ) : (
+                scheduledTasks.map((skill) => (
                   <BackgroundSkillCard key={skill.uri} skill={skill} />
                 ))
               )}

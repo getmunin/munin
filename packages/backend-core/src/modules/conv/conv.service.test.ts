@@ -416,10 +416,10 @@ const skipReason = TEST_URL
     it('changeStatus to closed enqueues a CRM contact-extract curator job', async () => {
       const conv = await seedConv();
       await run(() => svc.changeStatus({ id: conv.id, status: 'closed' }));
-      const rows = await db.execute<{ skill_uri: string; dedupe_key: string | null }>(
-        sql`SELECT skill_uri, dedupe_key FROM curator_jobs WHERE org_id = ${orgId}`,
+      const rows = await db.execute<{ job_uri: string; dedupe_key: string | null }>(
+        sql`SELECT job_uri, dedupe_key FROM curator_jobs WHERE org_id = ${orgId}`,
       );
-      const extractJob = rows.find((r) => r.skill_uri === 'skill://crm/contact-extract');
+      const extractJob = rows.find((r) => r.job_uri === 'skill://crm/contact-extract');
       expect(extractJob).toBeDefined();
       expect(extractJob!.dedupe_key).toBe(`crm-contact-extract:conv:${conv.id}`);
     });
@@ -468,8 +468,8 @@ const skipReason = TEST_URL
           authorId: 'eu_test',
         }),
       );
-      const rows = await db.execute<{ skill_uri: string; dedupe_key: string | null }>(
-        sql`SELECT skill_uri, dedupe_key FROM curator_jobs WHERE org_id = ${orgId} AND skill_uri = 'skill://outreach/draft-reply'`,
+      const rows = await db.execute<{ job_uri: string; dedupe_key: string | null }>(
+        sql`SELECT job_uri, dedupe_key FROM curator_jobs WHERE org_id = ${orgId} AND job_uri = 'skill://outreach/draft-reply'`,
       );
       expect(rows.length).toBe(1);
       expect(rows[0]!.dedupe_key).toMatch(/^outreach-draft-reply:msg:cvm_/);
@@ -485,8 +485,8 @@ const skipReason = TEST_URL
           authorId: 'eu_test',
         }),
       );
-      const rows = await db.execute<{ skill_uri: string }>(
-        sql`SELECT skill_uri FROM curator_jobs WHERE org_id = ${orgId} AND skill_uri = 'skill://outreach/draft-reply'`,
+      const rows = await db.execute<{ job_uri: string }>(
+        sql`SELECT job_uri FROM curator_jobs WHERE org_id = ${orgId} AND job_uri = 'skill://outreach/draft-reply'`,
       );
       expect(rows.length).toBe(0);
     });
@@ -500,10 +500,10 @@ const skipReason = TEST_URL
           snoozeUntil: new Date(Date.now() + 60_000).toISOString(),
         }),
       );
-      const rows = await db.execute<{ skill_uri: string }>(
-        sql`SELECT skill_uri FROM curator_jobs WHERE org_id = ${orgId}`,
+      const rows = await db.execute<{ job_uri: string }>(
+        sql`SELECT job_uri FROM curator_jobs WHERE org_id = ${orgId}`,
       );
-      expect(rows.find((r) => r.skill_uri === 'skill://crm/contact-extract')).toBeUndefined();
+      expect(rows.find((r) => r.job_uri === 'skill://crm/contact-extract')).toBeUndefined();
     });
 
     it('changeStatus snoozed requires snoozeUntil', async () => {

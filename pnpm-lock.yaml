@@ -284,6 +284,9 @@ importers:
       '@getmunin/db':
         specifier: workspace:*
         version: link:../db
+      '@getmunin/types':
+        specifier: workspace:*
+        version: link:../types
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)

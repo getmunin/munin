@@ -1434,12 +1434,11 @@ export const cmsReferences = pgTable(
 );
 
 // ───────────────────────────── Curator jobs ──────────────────────────
-// Persistent queue for curator skill passes. The bundled in-process
+// Persistent queue for curator background jobs. The bundled in-process
 // runner (or any admin-authenticated runner) claims pending rows via
-// SELECT … FOR UPDATE SKIP LOCKED, runs the skill, and acks/fails.
-// Survives restarts; provides at-least-once delivery of (skillUri,
-// userPrompt) work that originated from a backend event
-// (handover_resolved → KB curation) or a scheduled sweep enqueue.
+// SELECT … FOR UPDATE SKIP LOCKED, runs the job, and acks/fails.
+// `job_uri` is the dispatch key — `skill://...` for LLM-driven
+// markdown skills, `task://...` for code-defined deterministic tasks.
 export const curatorJobs = pgTable(
   'curator_jobs',
   {
@@ -1447,7 +1446,7 @@ export const curatorJobs = pgTable(
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
-    skillUri: text('skill_uri').notNull(),
+    jobUri: text('job_uri').notNull(),
     userPrompt: text('user_prompt').notNull(),
     sourceEventType: text('source_event_type'),
     sourceEventPayload: jsonb('source_event_payload'),

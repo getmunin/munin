@@ -5,6 +5,8 @@ export {
   MailerOutboundSchema,
   OutboundConfigSchema,
   ImapInboundSchema,
+  SendLimitsSchema,
+  type SendLimits,
   EmailChannelConfigInput,
   type EmailChannelConfigInputT,
   CreateWidgetBody,

@@ -401,7 +401,12 @@
         "enableInbound": "Enable inbound (poll an IMAP mailbox)",
         "create": "Create email channel",
         "editTitle": "Edit email channel",
-        "editDescription": "Update the channel's name or transport. Leave a password blank to keep the stored credential — type a new one to replace it."
+        "editDescription": "Update the channel's name or transport. Leave a password blank to keep the stored credential — type a new one to replace it.",
+        "sendLimitsLabel": "Send limits",
+        "sendLimitsHelp": "Optional caps on outbound email volume to protect domain reputation. Messages over the limit stay queued and send automatically when capacity opens. Leave blank for no limit.",
+        "sendLimitsPlaceholder": "no limit",
+        "perDayMax": "Max per day (rolling 24h)",
+        "perHourMax": "Max per hour (rolling 60min)"
       },
       "errors": {
         "load": "Could not load channels.",

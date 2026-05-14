@@ -100,7 +100,11 @@ const SIGNATURE_OPENERS: RegExp[] = [
 ];
 
 export function stripSignatureText(body: string): string {
-  if (!body) return body;
+  return splitSignatureText(body).clean;
+}
+
+export function splitSignatureText(body: string): { clean: string; signature: string | null } {
+  if (!body) return { clean: body, signature: null };
   const lines = body.split(/\r?\n/);
   let cut = -1;
   for (let i = 0; i < lines.length; i += 1) {
@@ -110,12 +114,14 @@ export function stripSignatureText(body: string): string {
       break;
     }
   }
-  if (cut < 0) return body;
+  if (cut < 0) return { clean: body, signature: null };
   const kept = lines.slice(0, cut);
   let nonEmpty = 0;
   for (const l of kept) if (l.trim() !== '') nonEmpty += 1;
-  if (nonEmpty === 0) return body;
-  return kept.join('\n').replace(/\s+$/g, '').trim();
+  if (nonEmpty === 0) return { clean: body, signature: null };
+  const clean = kept.join('\n').replace(/\s+$/g, '').trim();
+  const signature = lines.slice(cut).join('\n').replace(/^\s+|\s+$/g, '');
+  return { clean, signature: signature.length > 0 ? signature : null };
 }
 
 export function stripSignatureHtml(html: string | null): string | null {

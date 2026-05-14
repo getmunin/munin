@@ -28,12 +28,13 @@ import { resolveInbound, type ParsedInboundEmail } from './threading.js';
 import {
   ensureReSubject,
   formatQuotedHistory,
+  splitSignatureText,
   stripQuotedReplyHtml,
   stripQuotedReplyText,
   stripSignatureHtml,
-  stripSignatureText,
   type QuotedPriorMessage,
 } from './reply-history.js';
+import { classifySender, hasAnyClassification } from './classify-sender.js';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -347,8 +348,8 @@ export class EmailAdapter implements ChannelAdapter {
         }
 
         const quoteStrippedText = stripQuotedReplyText(parsed.bodyText);
-        const cleanText = stripSignatureText(quoteStrippedText);
-        const regexCutSignature = cleanText.length < quoteStrippedText.length;
+        const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
+        const regexCutSignature = regexSignature !== null;
         const cleanHtml = stripSignatureHtml(stripQuotedReplyHtml(parsed.bodyHtml));
         const [msg] = await tx
           .insert(schema.convMessages)
@@ -360,7 +361,10 @@ export class EmailAdapter implements ChannelAdapter {
             body: cleanText || '(no body)',
             bodyHtml: cleanHtml,
             internal: false,
-            metadata: parsed.messageId ? { inboundMessageId: parsed.messageId } : {},
+            metadata: buildInboundMetadata(parsed, {
+              regexSignatureText: regexSignature,
+              preStripBody: regexCutSignature ? quoteStrippedText : null,
+            }),
           })
           .returning();
         await tx
@@ -460,6 +464,7 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
   const text = (parsed.text ?? '').trim() || stripHtml(html ?? '');
   const refs = parsed.references;
   const referencesText = Array.isArray(refs) ? refs.join(' ') : refs;
+  const senderClassification = classifySender(parsed.headerLines, fromAddress);
   return {
     recipients,
     fromAddress,
@@ -470,7 +475,22 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
     references: parseMessageIdHeader(referencesText),
     bodyText: text,
     bodyHtml: html,
+    senderClassification,
   };
+}
+
+function buildInboundMetadata(
+  parsed: ParsedInboundEmail,
+  extras: { regexSignatureText: string | null; preStripBody: string | null },
+): Record<string, unknown> {
+  const meta: Record<string, unknown> = {};
+  if (parsed.messageId) meta.inboundMessageId = parsed.messageId;
+  if (extras.regexSignatureText) meta.signatureText = extras.regexSignatureText;
+  if (extras.preStripBody) meta.preStripBody = extras.preStripBody;
+  if (hasAnyClassification(parsed.senderClassification)) {
+    meta.senderClassification = parsed.senderClassification;
+  }
+  return meta;
 }
 
 function collectAddresses(field: AddressObject | AddressObject[] | undefined): string[] {

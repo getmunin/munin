@@ -1,5 +1,6 @@
 import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, desc, eq, gte, ilike, inArray } from 'drizzle-orm';
+import type { SenderClassification } from './classify-sender.js';
 import {
   extractPlusAddressedConvId,
   normalizeSubject,
@@ -24,6 +25,8 @@ export interface ParsedInboundEmail {
   bodyText: string;
   /** HTML body, when the message had one. */
   bodyHtml: string | null;
+  /** Sender type classification from RFC headers + From local-part. */
+  senderClassification: SenderClassification;
 }
 
 export interface ThreadResolution {

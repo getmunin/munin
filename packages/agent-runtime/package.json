@@ -36,6 +36,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "defuddle": "^0.6.6",
+    "jsdom": "^24.0.0",
     "ws": "^8.18.0",
     "zod": "^4.3.6"
   },

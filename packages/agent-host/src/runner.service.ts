@@ -32,6 +32,7 @@ import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.js';
 import type { AgentConfigRepository, AgentConfigRow } from './config.repository.js';
 import { runWithServiceContext } from './service-context.js';
 import { ReplicaLockManager } from './replica-lock.js';
+import { runWebImportJob, WEB_IMPORT_SKILL_URI } from './web-import.handler.js';
 
 const RECONCILE_INTERVAL_MS = 30_000;
 const CURATOR_LEASE_SECONDS = 600;
@@ -298,23 +299,39 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       log.info(`running ${job.skillUri} for ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
       let result: SkillPassResult;
       try {
-        const tier = modelTierFor(job.skillUri);
-        result = await runSkillPass({
-          baseUrl: this.baseUrl,
-          adminApiKey: (await runWithServiceContext(this.db, opts.id, () =>
+        const adminKey =
+          (await runWithServiceContext(this.db, opts.id, () =>
             this.repo.readDecryptedAdminKey(opts.id),
-          )) ?? this.fallbackAdminApiKey ?? '',
-          providerBaseUrl: opts.config.providerBaseUrl,
-          providerApiKey: opts.providerApiKey,
-          model: tier === 'fast' ? fastModel : smartModel,
-          skillUri: job.skillUri,
-          userPrompt: job.userPrompt,
-          maxToolIterations: 24,
-          maxHistoryChars: opts.config.maxHistoryChars,
-          clientName: `agent-host-curator-${job.id.slice(-6)}`,
-          allowedToolPrefixes: toolPrefixesFor(job.skillUri),
-          logger: log,
-        });
+          )) ?? this.fallbackAdminApiKey ?? '';
+        const tier = modelTierFor(job.skillUri);
+        const model = tier === 'fast' ? fastModel : smartModel;
+
+        if (job.skillUri === WEB_IMPORT_SKILL_URI) {
+          result = await runWebImportJob({
+            job,
+            baseUrl: this.baseUrl,
+            adminApiKey: adminKey,
+            providerBaseUrl: opts.config.providerBaseUrl,
+            providerApiKey: opts.providerApiKey,
+            model,
+            logger: log,
+          });
+        } else {
+          result = await runSkillPass({
+            baseUrl: this.baseUrl,
+            adminApiKey: adminKey,
+            providerBaseUrl: opts.config.providerBaseUrl,
+            providerApiKey: opts.providerApiKey,
+            model,
+            skillUri: job.skillUri,
+            userPrompt: job.userPrompt,
+            maxToolIterations: 24,
+            maxHistoryChars: opts.config.maxHistoryChars,
+            clientName: `agent-host-curator-${job.id.slice(-6)}`,
+            allowedToolPrefixes: toolPrefixesFor(job.skillUri),
+            logger: log,
+          });
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         await opts.rest

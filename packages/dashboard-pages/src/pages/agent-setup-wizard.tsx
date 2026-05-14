@@ -9,10 +9,12 @@ import { useAgentConfig } from '../components/agent-config/use-agent-config';
 import { OrgNameCard } from '../components/agent-config/org-name-card';
 import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
+import { WebsiteImportCard } from '../components/agent-config/website-import-card';
 import type { AgentConfigDto } from '../components/agent-config/types';
+import { api } from '../api';
 
-type Step = 1 | 2 | 3 | 4;
-const TOTAL_STEPS = 4;
+type Step = 1 | 2 | 3 | 4 | 5;
+const TOTAL_STEPS = 5;
 
 export function AgentSetupWizard() {
   const t = useTranslations('agentSetup');
@@ -21,6 +23,7 @@ export function AgentSetupWizard() {
   const { membership, loading: membershipLoading } = useActiveMembership();
 
   const [step, setStep] = useState<Step | null>(null);
+  const [importJobId, setImportJobId] = useState<string | null>(null);
 
   useEffect(() => {
     if (step !== null) return;
@@ -32,7 +35,7 @@ export function AgentSetupWizard() {
     } else if (!config.providerApiKeySet) {
       setStep(2);
     } else {
-      setStep(4);
+      setStep(5);
     }
   }, [config, step, membership, membershipLoading]);
 
@@ -67,7 +70,7 @@ export function AgentSetupWizard() {
       />
 
       <div className="mt-6 flex items-center gap-2">
-        {[1, 2, 3, 4].map((n) => (
+        {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             type="button"
@@ -119,7 +122,20 @@ export function AgentSetupWizard() {
           />
         )}
 
-        {step === 4 && <ReadyCard config={config} onBack={() => setStep(3)} />}
+        {step === 4 && (
+          <WebsiteImportCard
+            onEnqueued={(id) => {
+              setImportJobId(id);
+              setStep(5);
+            }}
+            onSkip={() => setStep(5)}
+            onBack={() => setStep(3)}
+          />
+        )}
+
+        {step === 5 && (
+          <ReadyCard config={config} importJobId={importJobId} onBack={() => setStep(4)} />
+        )}
       </div>
     </main>
   );
@@ -127,10 +143,11 @@ export function AgentSetupWizard() {
 
 interface ReadyCardProps {
   config: AgentConfigDto;
+  importJobId: string | null;
   onBack: () => void;
 }
 
-function ReadyCard({ config, onBack }: ReadyCardProps) {
+function ReadyCard({ config, importJobId, onBack }: ReadyCardProps) {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
 
@@ -157,6 +174,7 @@ function ReadyCard({ config, onBack }: ReadyCardProps) {
             </li>
           ))}
         </ul>
+        {importJobId && <WebsiteImportStatus jobId={importJobId} />}
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <Button render={<Link href="/dashboard" />}>
             {t('wizard.cta.goToDashboard')}
@@ -173,6 +191,71 @@ function ReadyCard({ config, onBack }: ReadyCardProps) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+type JobStatus = 'pending' | 'done' | 'failed' | 'dead';
+
+interface CuratorJobDto {
+  id: string;
+  status: JobStatus;
+  lastError: string | null;
+}
+
+function WebsiteImportStatus({ jobId }: { jobId: string }) {
+  const t = useTranslations('agentSetup.websiteImport.status');
+  const [job, setJob] = useState<CuratorJobDto | null>(null);
+  const [stopped, setStopped] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 36;
+
+    const tick = async (): Promise<void> => {
+      if (cancelled) return;
+      attempts += 1;
+      try {
+        const res = await api<CuratorJobDto>(`/api/v1/curation/jobs/${jobId}`);
+        if (cancelled) return;
+        setJob(res);
+        if (res.status !== 'pending' || attempts >= MAX_ATTEMPTS) {
+          setStopped(true);
+          return;
+        }
+      } catch (err) {
+        console.debug('[agent-setup] curator job poll failed', { jobId, attempts, err });
+        if (attempts >= MAX_ATTEMPTS) {
+          setStopped(true);
+          return;
+        }
+      }
+      window.setTimeout(() => {
+        void tick();
+      }, 5000);
+    };
+
+    void tick();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
+
+  const status: JobStatus = job?.status ?? 'pending';
+  const message =
+    status === 'done'
+      ? t('done')
+      : status === 'failed' || status === 'dead'
+        ? t('failed')
+        : stopped
+          ? t('stillRunning')
+          : t('running');
+
+  return (
+    <div className="rounded-md border border-rule-soft px-4 py-3 text-sm">
+      <p className="font-medium text-ink dark:text-foreground">{t('label')}</p>
+      <p className="mt-1 text-muted-foreground">{message}</p>
+    </div>
   );
 }
 

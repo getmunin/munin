@@ -352,7 +352,7 @@ export class ConvService {
     const reads = ctx.db
       .select({
         messageId: schema.convMessageReads.messageId,
-        seenAt: sql<Date | null>`MIN(${schema.convMessageReads.readAt})`.as('seen_at'),
+        seenAt: sql<string | null>`MIN(${schema.convMessageReads.readAt})`.as('seen_at'),
       })
       .from(schema.convMessageReads)
       .where(eq(schema.convMessageReads.conversationId, id))
@@ -1084,7 +1084,7 @@ function toConversationSummary(
 function toMessageDto(
   row: typeof schema.convMessages.$inferSelect,
   authorNames: Map<string, string> = new Map(),
-  seenAt: Date | null = null,
+  seenAt: Date | string | null = null,
 ): MessageDto {
   return {
     id: row.id,
@@ -1097,9 +1097,16 @@ function toMessageDto(
     inReplyToId: row.inReplyToId,
     attachments: row.attachments,
     metadata: row.metadata,
-    createdAt: row.createdAt.toISOString(),
-    seenAt: seenAt ? seenAt.toISOString() : null,
+    createdAt: toIsoString(row.createdAt) ?? new Date(0).toISOString(),
+    seenAt: toIsoString(seenAt),
   };
+}
+
+function toIsoString(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
 function isValidSlug(slug: string): boolean {

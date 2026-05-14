@@ -4,6 +4,7 @@ import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, 
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { CuratorJobsService } from '../curator/curator-jobs.service.js';
 import { ConversationClaimsService } from './conv.claims.service.js';
+import { toIsoString } from '../../common/iso.js';
 
 export class ConvInvalidError extends Error {
   readonly code = 'conv_invalid';
@@ -1102,12 +1103,6 @@ function toMessageDto(
   };
 }
 
-function toIsoString(value: Date | string | null | undefined): string | null {
-  if (value == null) return null;
-  if (value instanceof Date) return value.toISOString();
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-}
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);

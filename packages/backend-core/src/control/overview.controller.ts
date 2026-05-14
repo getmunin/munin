@@ -7,6 +7,7 @@ import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import { CURATION_INBOX_SLUG } from '../modules/kb/kb.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
+import { toIsoString } from '../common/iso.js';
 
 export interface OverviewBacklog {
   conversationsNeedingAttention: number;
@@ -62,22 +63,17 @@ export class OverviewController {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const [lastInbound] = await ctx.db
-      .select({ at: sql<Date | null>`max(${schema.convMessages.createdAt})` })
+      .select({ at: sql<Date | string | null>`max(${schema.convMessages.createdAt})` })
       .from(schema.convMessages)
       .where(eq(schema.convMessages.authorType, 'end_user'));
     const [lastAgent] = await ctx.db
-      .select({ at: sql<Date | null>`max(${schema.convMessages.createdAt})` })
+      .select({ at: sql<Date | string | null>`max(${schema.convMessages.createdAt})` })
       .from(schema.convMessages)
       .where(eq(schema.convMessages.authorType, 'agent'));
     return {
       selfServiceAgentSubscriberCount: this.realtime.selfServiceSubscriberCount(orgId),
-      lastInboundEndUserMessageAt: lastInbound?.at ? toIso(lastInbound.at) : null,
-      lastAgentMessageAt: lastAgent?.at ? toIso(lastAgent.at) : null,
+      lastInboundEndUserMessageAt: toIsoString(lastInbound?.at ?? null),
+      lastAgentMessageAt: toIsoString(lastAgent?.at ?? null),
     };
   }
-}
-
-function toIso(value: Date | string): string {
-  if (value instanceof Date) return value.toISOString();
-  return new Date(value).toISOString();
 }

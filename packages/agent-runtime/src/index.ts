@@ -53,6 +53,15 @@ export {
   type SkillPassResult,
 } from './skill-pass.js';
 export {
+  WebCrawler,
+  type CrawlOptions,
+  type CrawlResult,
+  type CrawledPage,
+  type SkippedPage,
+  type SkipReason,
+  type WebCrawlerOptions,
+} from './web-crawl.js';
+export {
   createRealtimeClient,
   type CuratorJobPendingEvent,
   type GreetRequestedEvent,

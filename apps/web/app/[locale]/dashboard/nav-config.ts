@@ -4,7 +4,7 @@ export type SettingsItemKey =
   | 'account'
   | 'team'
   | 'channels'
-  | 'builtInAi'
+  | 'assistants'
   | 'apiKeys'
   | 'agents'
   | 'endUsers'
@@ -30,7 +30,7 @@ export const SETTINGS_GROUPS: SettingsSubNavGroup[] = [
       { href: '/dashboard/settings/account', labelKey: 'account' },
       { href: '/dashboard/settings/team', labelKey: 'team' },
       { href: '/dashboard/settings/channels', labelKey: 'channels' },
-      { href: '/dashboard/settings/builtin-ai', labelKey: 'builtInAi' },
+      { href: '/dashboard/settings/assistants', labelKey: 'assistants' },
       { href: '/dashboard/settings/export', labelKey: 'dataExport' },
     ],
   },

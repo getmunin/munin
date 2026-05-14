@@ -460,25 +460,25 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     if (!convRow || !convRow.endUserId) return;
     if (convRow.orgId !== entry.orgId) return;
 
-    const inserted = await this.db.execute<{
-      message_id: string;
-      read_at: Date;
-    }>(sql`
-      INSERT INTO conv_message_reads (id, org_id, conversation_id, message_id, end_user_id, read_at)
-      SELECT
-        'cmr_' || encode(gen_random_bytes(16), 'hex'),
-        ${convRow.orgId},
-        ${conversationId},
-        m.id,
-        ${convRow.endUserId},
-        NOW()
-      FROM conv_messages m
-      WHERE m.id = ANY(${messageIds}::text[])
-        AND m.conversation_id = ${conversationId}
-        AND m.author_type <> 'end_user'
-      ON CONFLICT (message_id, end_user_id) DO NOTHING
-      RETURNING message_id, read_at
-    `);
+    const inserted = await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.org_id', ${convRow.orgId}, true)`);
+      return tx.execute<{ message_id: string; read_at: Date }>(sql`
+        INSERT INTO conv_message_reads (id, org_id, conversation_id, message_id, end_user_id, read_at)
+        SELECT
+          'cmr_' || encode(gen_random_bytes(16), 'hex'),
+          ${convRow.orgId},
+          ${conversationId},
+          m.id,
+          ${convRow.endUserId},
+          NOW()
+        FROM conv_messages m
+        WHERE m.id = ANY(${messageIds}::text[])
+          AND m.conversation_id = ${conversationId}
+          AND m.author_type <> 'end_user'
+        ON CONFLICT (message_id, end_user_id) DO NOTHING
+        RETURNING message_id, read_at
+      `);
+    });
 
     const rows: { message_id: string; read_at: Date }[] = Array.isArray(inserted)
       ? (inserted as { message_id: string; read_at: Date }[])
@@ -758,5 +758,10 @@ function ownsEvent(event: EventRow, endUserId: string): boolean {
 }
 
 function describeError(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  if (!(err instanceof Error)) return String(err);
+  const cause = (err as { cause?: unknown }).cause;
+  if (cause instanceof Error && cause.message && cause.message !== err.message) {
+    return `${err.message} (cause: ${cause.message})`;
+  }
+  return err.message;
 }

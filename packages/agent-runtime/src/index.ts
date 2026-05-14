@@ -3,6 +3,7 @@ export { openAiCompatibleProvider, ProviderError } from './providers/openai-comp
 export { createStubProvider, type StubProviderHandle, type StubScript } from './providers/stub.js';
 export { mcpToolsToChatTools, flattenToolResult } from './mcp-tool-translation.js';
 export {
+  BRAND_VOICE_SLUG,
   CHANNEL_PROMPT_PREFIX,
   PROMPT_SPACE_SLUG,
   SYSTEM_PROMPT_SLUG,

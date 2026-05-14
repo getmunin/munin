@@ -1,4 +1,6 @@
 import {
+  BRAND_VOICE_SLUG,
+  PROMPT_SPACE_SLUG,
   WebCrawler,
   openAiCompatibleProvider,
   openMcpClient,
@@ -15,6 +17,7 @@ const TARGET_SPACE_SLUG = 'website-import';
 const MAX_PAGES_TO_INSERT = 30;
 const PROFILE_CONTEXT_PAGES = 8;
 const PROFILE_MAX_TOKENS = 1200;
+const BRAND_VOICE_MAX_TOKENS = 600;
 
 export interface WebImportHandlerOpts {
   job: CuratorJob;
@@ -77,6 +80,7 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
     }
 
     let profileTokens = 0;
+    let brandVoiceWritten = false;
     if (crawl.pages.length > 0) {
       const profile = await generateCompanyProfile({
         provider: { baseUrl: opts.providerBaseUrl, apiKey: opts.providerApiKey },
@@ -90,10 +94,23 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
         profileTokens = profile.totalTokens;
         const ok = await createProfileDocument(mcp, spaceId, profile.markdown, opts.logger);
         if (ok) created++;
+
+        const brandVoice = await generateBrandVoice({
+          provider: { baseUrl: opts.providerBaseUrl, apiKey: opts.providerApiKey },
+          model: opts.model,
+          profileMarkdown: profile.markdown,
+          logger: opts.logger,
+        });
+        if (brandVoice) {
+          profileTokens += brandVoice.totalTokens;
+          brandVoiceWritten = await upsertBrandVoiceDocument(mcp, brandVoice.markdown, opts.logger);
+          if (brandVoiceWritten) created++;
+        }
       }
     }
 
-    const replyText = `Imported ${created} document(s) from ${crawl.siteUrl}; ${crawl.skipped.length} URL(s) skipped.`;
+    const suffix = brandVoiceWritten ? ' Brand voice applied to agent prompt.' : '';
+    const replyText = `Imported ${created} document(s) from ${crawl.siteUrl}; ${crawl.skipped.length} URL(s) skipped.${suffix}`;
     return {
       ok: true,
       toolCalls: created,
@@ -232,6 +249,128 @@ async function generateCompanyProfile(opts: {
     opts.logger.warn(`company profile generation failed: ${describe(err)}`);
     return null;
   }
+}
+
+interface BrandVoiceResult {
+  markdown: string;
+  totalTokens: number;
+}
+
+async function generateBrandVoice(opts: {
+  provider: { baseUrl: string; apiKey: string };
+  model: string;
+  profileMarkdown: string;
+  logger: WebImportHandlerOpts['logger'];
+}): Promise<BrandVoiceResult | null> {
+  const systemPrompt = [
+    "You produce a short brand-voice instruction that gets appended to a chat assistant's system prompt.",
+    'It tells the assistant how to write as this specific company across every channel (chat widget, email, voice).',
+    'Read the company profile and produce 100-200 words of plain markdown. Cover:',
+    '- The company in one short sentence (without naming the company explicitly — the assistant already speaks for them).',
+    '- Tone, voice, vocabulary cues. Concrete: short sentences? technical jargon ok? warm and informal? formal and precise?',
+    '- Who the assistant is speaking with (audience).',
+    '- What to avoid: phrasings or claims that are off-brand or unsupported.',
+    'Write in the imperative ("Be direct.", "Avoid jargon.", etc.) — instructions to the assistant, not a description of the company.',
+    'Output markdown only. No headings, no preamble, no closing remark.',
+  ].join('\n');
+
+  try {
+    const response = await openAiCompatibleProvider({
+      config: {
+        provider: { baseUrl: opts.provider.baseUrl, apiKey: opts.provider.apiKey },
+        model: opts.model,
+        systemPrompt,
+        maxTokens: BRAND_VOICE_MAX_TOKENS,
+      },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: `Company profile:\n\n${truncate(opts.profileMarkdown, 6000)}`,
+        },
+      ],
+      tools: [],
+    });
+    const text = (response.message.content ?? '').toString().trim();
+    if (!text) return null;
+    return { markdown: text, totalTokens: response.usage?.total_tokens ?? 0 };
+  } catch (err) {
+    opts.logger.warn(`brand voice generation failed: ${describe(err)}`);
+    return null;
+  }
+}
+
+async function upsertBrandVoiceDocument(
+  mcp: McpToolHandle,
+  body: string,
+  logger: WebImportHandlerOpts['logger'],
+): Promise<boolean> {
+  const listed = await mcp.callTool('kb_list_spaces', {}).catch((err: unknown) => toolError(err));
+  if (listed.isError) {
+    logger.warn(`brand-voice kb_list_spaces failed: ${stringifyToolResult(listed)}`);
+    return false;
+  }
+  const spaceId = findSpaceIdInResult(listed, PROMPT_SPACE_SLUG);
+  if (!spaceId) {
+    logger.warn(`brand-voice skipped: KB space '${PROMPT_SPACE_SLUG}' not found yet`);
+    return false;
+  }
+
+  const existing = await mcp
+    .callTool('kb_get_document_by_slug', {
+      spaceSlug: PROMPT_SPACE_SLUG,
+      slug: BRAND_VOICE_SLUG,
+    })
+    .catch((err: unknown) => toolError(err));
+  const current = existing.isError ? null : parseExistingDocument(existing);
+
+  if (!current) {
+    const created = await mcp
+      .callTool('kb_create_document', {
+        spaceId,
+        slug: BRAND_VOICE_SLUG,
+        title: 'Brand voice',
+        body,
+        audiences: ['admin'],
+        tags: ['agent-runtime', 'generated', 'brand-voice'],
+      })
+      .catch((err: unknown) => toolError(err));
+    if (created.isError) {
+      logger.warn(`brand-voice kb_create_document failed: ${stringifyToolResult(created)}`);
+      return false;
+    }
+    return true;
+  }
+
+  const updated = await mcp
+    .callTool('kb_update_document', {
+      id: current.id,
+      ifVersion: current.version,
+      body,
+    })
+    .catch((err: unknown) => toolError(err));
+  if (updated.isError) {
+    logger.warn(`brand-voice kb_update_document failed: ${stringifyToolResult(updated)}`);
+    return false;
+  }
+  return true;
+}
+
+function parseExistingDocument(res: McpToolResult): { id: string; version: number } | null {
+  for (const item of res.content) {
+    if (item.type !== 'text') continue;
+    const text = (item as { text?: string }).text;
+    if (!text || text === 'null') continue;
+    try {
+      const parsed = JSON.parse(text) as { id?: string; version?: number } | null;
+      if (parsed && typeof parsed.id === 'string' && typeof parsed.version === 'number') {
+        return { id: parsed.id, version: parsed.version };
+      }
+    } catch {
+      // fall through to next content block
+    }
+  }
+  return null;
 }
 
 function buildProfileUserPrompt(

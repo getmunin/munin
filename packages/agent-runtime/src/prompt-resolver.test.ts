@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  BRAND_VOICE_SLUG,
   CHANNEL_PROMPT_PREFIX,
   PROMPT_SPACE_SLUG,
   SYSTEM_PROMPT_SLUG,
@@ -171,10 +172,65 @@ describe('createPromptResolver', () => {
     const mcp = fakeMcp();
     const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
     expect(resolver.isPromptDocument(SYSTEM_PROMPT_SLUG)).toBe(true);
+    expect(resolver.isPromptDocument(BRAND_VOICE_SLUG)).toBe(true);
     expect(resolver.isPromptDocument(`${CHANNEL_PROMPT_PREFIX}email`)).toBe(true);
     expect(resolver.isPromptDocument('some-other-doc')).toBe(false);
     expect(resolver.isPromptDocument(null)).toBe(false);
     expect(resolver.isPromptDocument(undefined)).toBe(false);
+  });
+
+  it('system() returns the base prompt when no brand-voice doc exists', async () => {
+    const dir = writePrompts({ system: 'SYS_BASE' });
+    const mcp = fakeMcp();
+    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
+    expect(resolver.system()).toBe('SYS_BASE');
+  });
+
+  it('system() appends a Brand voice section when the doc is present at boot', async () => {
+    const dir = writePrompts({ system: 'SYS_BASE' });
+    const mcp = fakeMcp({ existingDocs: { [BRAND_VOICE_SLUG]: 'Be warm.\nUse short sentences.' } });
+    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
+    const out = resolver.system();
+    expect(out.startsWith('SYS_BASE')).toBe(true);
+    expect(out).toContain('## Brand voice');
+    expect(out).toContain('Be warm.');
+    expect(out).toContain('Use short sentences.');
+  });
+
+  it('system() updates after refresh when brand-voice is added to the KB', async () => {
+    const dir = writePrompts({ system: 'SYS' });
+    const mcp = fakeMcp();
+    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
+    expect(resolver.system()).toBe('SYS');
+
+    const callTool = vi.spyOn(mcp, 'callTool');
+    callTool.mockImplementationOnce(() =>
+      Promise.resolve({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ slug: BRAND_VOICE_SLUG, body: 'Be direct.' }),
+          },
+        ],
+      }),
+    );
+    await resolver.refresh(BRAND_VOICE_SLUG);
+    expect(resolver.system()).toContain('## Brand voice');
+    expect(resolver.system()).toContain('Be direct.');
+  });
+
+  it('refresh() clears brand-voice from system() when the doc is deleted', async () => {
+    const dir = writePrompts({ system: 'SYS' });
+    const mcp = fakeMcp({ existingDocs: { [BRAND_VOICE_SLUG]: 'Be playful.' } });
+    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
+    expect(resolver.system()).toContain('Be playful.');
+
+    const callTool = vi.spyOn(mcp, 'callTool');
+    callTool.mockImplementationOnce(() =>
+      Promise.resolve({ content: [{ type: 'text', text: 'null' }] }),
+    );
+    await resolver.refresh(BRAND_VOICE_SLUG);
+    expect(resolver.system()).toBe('SYS');
   });
 
   it('throws when system.md is missing from disk', async () => {

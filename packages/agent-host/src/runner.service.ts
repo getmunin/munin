@@ -249,7 +249,6 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       onCuratorJobPending: (event) => curatorWorker.onPending(event),
       onConnected: () => curatorWorker.onConnected(),
       onKbDocumentChanged: (event: KbDocumentChangedEvent) => {
-        if (event.type === 'deleted') return;
         if (!event.slug || !prompts.isPromptDocument(event.slug)) return;
         void prompts.refresh(event.slug);
       },

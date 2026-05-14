@@ -6,6 +6,9 @@ import type { McpToolHandle, McpToolResult } from './types.js';
 export const PROMPT_SPACE_SLUG = 'agent-runtime';
 export const SYSTEM_PROMPT_SLUG = 'system-prompt';
 export const CHANNEL_PROMPT_PREFIX = 'channel-';
+export const BRAND_VOICE_SLUG = 'brand-voice';
+
+const BRAND_VOICE_HEADER = '\n\n## Brand voice\n\n';
 
 export function defaultPromptsDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -63,9 +66,15 @@ export async function createPromptResolver(
     cache.set(p.slug, seeded);
   }
 
+  // brand-voice is not seeded from disk — it's generated at onboarding by
+  // the website-import job. Read it lazily; absent is the common case.
+  const initialBrandVoice = await readBySlug(opts.mcp, BRAND_VOICE_SLUG);
+  if (initialBrandVoice) cache.set(BRAND_VOICE_SLUG, initialBrandVoice);
+
   function isPromptSlug(slug: string | null | undefined): boolean {
     if (!slug) return false;
     if (slug === SYSTEM_PROMPT_SLUG) return true;
+    if (slug === BRAND_VOICE_SLUG) return true;
     return slug.startsWith(CHANNEL_PROMPT_PREFIX);
   }
 
@@ -74,6 +83,16 @@ export async function createPromptResolver(
     if (body !== null) {
       cache.set(slug, body);
       log.info(`refreshed ${slug} from KB`);
+      return;
+    }
+    // Doc deleted in KB. For brand-voice this is meaningful — admins
+    // remove it to disable customization. For seeded prompts the on-disk
+    // fallback still lives in cache (untouched here), so a deletion
+    // simply leaves the runner with the body we had at boot until it
+    // restarts and re-seeds.
+    if (slug === BRAND_VOICE_SLUG) {
+      cache.delete(slug);
+      log.info(`cleared ${slug} (deleted in KB)`);
     }
   }
 
@@ -83,7 +102,10 @@ export async function createPromptResolver(
 
   return {
     system(): string {
-      return cache.get(SYSTEM_PROMPT_SLUG) ?? '';
+      const base = cache.get(SYSTEM_PROMPT_SLUG) ?? '';
+      const voice = cache.get(BRAND_VOICE_SLUG)?.trim();
+      if (!voice) return base;
+      return `${base}${BRAND_VOICE_HEADER}${voice}`;
     },
     channel(kind: string): string {
       const slug = `${CHANNEL_PROMPT_PREFIX}${kind}`;

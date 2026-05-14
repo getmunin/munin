@@ -26,6 +26,7 @@ import { smtpTransportOptions } from './email.tools.js';
 import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.js';
 import { resolveInbound, type ParsedInboundEmail } from './threading.js';
 import {
+  detectSignatureBlock,
   ensureReSubject,
   formatQuotedHistory,
   splitSignatureText,
@@ -350,6 +351,8 @@ export class EmailAdapter implements ChannelAdapter {
         const quoteStrippedText = stripQuotedReplyText(parsed.bodyText);
         const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
         const regexCutSignature = regexSignature !== null;
+        const detectedSignatureForMeta =
+          regexSignature ?? detectSignatureBlock(quoteStrippedText, parsed.bodyHtml);
         const cleanHtml = stripSignatureHtml(stripQuotedReplyHtml(parsed.bodyHtml));
         const [msg] = await tx
           .insert(schema.convMessages)
@@ -362,7 +365,7 @@ export class EmailAdapter implements ChannelAdapter {
             bodyHtml: cleanHtml,
             internal: false,
             metadata: buildInboundMetadata(parsed, {
-              regexSignatureText: regexSignature,
+              regexSignatureText: detectedSignatureForMeta,
               preStripBody: regexCutSignature ? quoteStrippedText : null,
             }),
           })

@@ -132,6 +132,81 @@ export function stripSignatureHtml(html: string | null): string | null {
   return out.replace(/\s+$/, '');
 }
 
+const SIGNATURE_INFO_HINTS: RegExp[] = [
+  /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
+  /(^|\s)\+?\d[\d\s().-]{6,}\d(\s|$)/,
+  /(https?:\/\/|www\.)\S+\.[a-z]{2,}/i,
+  /^\s*(mobile|phone|tel|email|e-mail|web|www)\s*[:.]/i,
+];
+const SIGNATURE_DETECT_MAX_LINES = 30;
+
+export function detectSignatureBlock(body: string, html: string | null = null): string | null {
+  const fromHtml = detectSignatureBlockFromHtml(html);
+  if (fromHtml) return fromHtml;
+  return detectSignatureBlockFromText(body);
+}
+
+function detectSignatureBlockFromText(body: string): string | null {
+  if (!body) return null;
+  const lines = body.split(/\r?\n/);
+  let end = lines.length - 1;
+  while (end >= 0 && lines[end]!.trim() === '') end -= 1;
+  if (end < 0) return null;
+  let start = end;
+  while (start > 0 && lines[start - 1]!.trim() !== '') start -= 1;
+  if (start === 0) return null;
+  if (end - start + 1 > SIGNATURE_DETECT_MAX_LINES) return null;
+  const block = lines.slice(start, end + 1);
+  const hasHint = block.some((l) => SIGNATURE_INFO_HINTS.some((re) => re.test(l)));
+  if (!hasHint) return null;
+  const keptHasContent = lines.slice(0, start).some((l) => l.trim().length > 0);
+  if (!keptHasContent) return null;
+  return block.join('\n').trim() || null;
+}
+
+function detectSignatureBlockFromHtml(html: string | null): string | null {
+  if (!html) return null;
+  const openRe =
+    /<div[^>]*(?:class="[^"]*gmail_signature[^"]*"|data-smartmail="gmail_signature")[^>]*>/i;
+  const openMatch = openRe.exec(html);
+  if (!openMatch) return null;
+  const innerStart = openMatch.index + openMatch[0].length;
+  let depth = 1;
+  let i = innerStart;
+  const tagRe = /<(\/?)div\b[^>]*>/gi;
+  tagRe.lastIndex = innerStart;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(html)) !== null) {
+    if (m[1] === '/') {
+      depth -= 1;
+      if (depth === 0) {
+        i = m.index;
+        break;
+      }
+    } else {
+      depth += 1;
+    }
+  }
+  if (depth !== 0) return null;
+  const inner = html.slice(innerStart, i);
+  const text = inner
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .split('\n')
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter((l) => l.length > 0)
+    .join('\n')
+    .trim();
+  return text.length > 0 ? text : null;
+}
+
 export function ensureReSubject(subject: string | null | undefined): string {
   const s = (subject ?? '').trim();
   if (!s) return 'Re: (no subject)';

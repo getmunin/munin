@@ -739,7 +739,11 @@ export class ConvService {
     const originalBody = row.body;
     if (newBody === originalBody) return { updated: false, reason: 'no_change' };
 
-    if (originalBody.length > 0 && newBody.length < originalBody.length * 0.5) {
+    if (
+      originalBody.length > 0 &&
+      newBody.length < originalBody.length * 0.5 &&
+      !looksLikeCompleteProse(newBody)
+    ) {
       return { updated: false, reason: 'too_aggressive' };
     }
 
@@ -1105,4 +1109,11 @@ function isValidSlug(slug: string): boolean {
 function clampLimit(value: number | undefined, fallback: number, max: number): number {
   if (value === undefined || value <= 0) return fallback;
   return Math.min(value, max);
+}
+
+function looksLikeCompleteProse(text: string): boolean {
+  const trimmed = text.trim();
+  if (!/[.!?]['")\]]*\s*$/.test(trimmed)) return false;
+  const wordCount = trimmed.split(/\s+/).filter((w) => /\w/.test(w)).length;
+  return wordCount >= 4;
 }

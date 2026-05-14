@@ -706,6 +706,9 @@
       "nameLabel": "Organisasjonsnavn",
       "namePlaceholder": "Acme AS",
       "nameHint": "Inntil 128 tegn.",
+      "chatbotNameLabel": "Chatbotnavn (valgfritt)",
+      "chatbotNamePlaceholder": "f.eks. Munin",
+      "chatbotNameHint": "Hva assistenten kaller seg selv når den snakker med kundene. La stå tomt så går den uten navn — du kan sette det senere i Innstillinger · Assistenter · Chat.",
       "continue": "Fortsett",
       "errors": {
         "load": "Kunne ikke laste organisasjonen.",
@@ -729,6 +732,7 @@
       },
       "cta": {
         "goToDashboard": "Gå til dashbord",
+        "customizeChatbot": "Tilpass chatbot",
         "tweakSettings": "Endre innstillinger"
       }
     },

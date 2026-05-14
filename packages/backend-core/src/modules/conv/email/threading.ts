@@ -1,5 +1,6 @@
 import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, eq, inArray } from 'drizzle-orm';
+import type { SenderClassification } from './classify-sender.js';
 import {
   extractPlusAddressedConvId,
   parseMessageIdHeader,
@@ -15,6 +16,7 @@ export interface ParsedInboundEmail {
   references: string[];
   bodyText: string;
   bodyHtml: string | null;
+  senderClassification: SenderClassification;
   authenticationResults: string[];
   arcAuthenticationResults: string[];
 }

@@ -360,7 +360,7 @@ export class EmailAdapter implements ChannelAdapter {
             body: cleanText || '(no body)',
             bodyHtml: cleanHtml,
             internal: false,
-            metadata: parsed.messageId ? { inboundMessageId: parsed.messageId } : {},
+            metadata: buildInboundMetadata(parsed),
           })
           .returning();
         await tx
@@ -460,6 +460,11 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
   const text = (parsed.text ?? '').trim() || stripHtml(html ?? '');
   const refs = parsed.references;
   const referencesText = Array.isArray(refs) ? refs.join(' ') : refs;
+  const authenticationResults = extractHeaderValues(parsed.headerLines, 'authentication-results');
+  const arcAuthenticationResults = extractHeaderValues(
+    parsed.headerLines,
+    'arc-authentication-results',
+  );
   return {
     recipients,
     fromAddress,
@@ -470,7 +475,35 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
     references: parseMessageIdHeader(referencesText),
     bodyText: text,
     bodyHtml: html,
+    authenticationResults,
+    arcAuthenticationResults,
   };
+}
+
+function extractHeaderValues(
+  headerLines: ReadonlyArray<{ key: string; line: string }>,
+  name: string,
+): string[] {
+  const lower = name.toLowerCase();
+  const out: string[] = [];
+  for (const h of headerLines) {
+    if (h.key.toLowerCase() !== lower) continue;
+    const value = h.line.split(':').slice(1).join(':').trim();
+    if (value) out.push(value);
+  }
+  return out;
+}
+
+function buildInboundMetadata(parsed: ParsedInboundEmail): Record<string, unknown> {
+  const meta: Record<string, unknown> = {};
+  if (parsed.messageId) meta.inboundMessageId = parsed.messageId;
+  if (parsed.authenticationResults.length > 0) {
+    meta.authenticationResults = parsed.authenticationResults;
+  }
+  if (parsed.arcAuthenticationResults.length > 0) {
+    meta.arcAuthenticationResults = parsed.arcAuthenticationResults;
+  }
+  return meta;
 }
 
 function collectAddresses(field: AddressObject | AddressObject[] | undefined): string[] {

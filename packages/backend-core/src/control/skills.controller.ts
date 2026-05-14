@@ -10,7 +10,7 @@ import { sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import {
   KNOWN_SKILL_URIS,
-  KNOWN_TASK_URIS,
+  jobKindOf,
   tierFor,
   type JobKind,
   type ModelTier,
@@ -64,46 +64,33 @@ export class SkillsController {
     }
 
     const dtos: SkillDto[] = [];
-    for (const skill of this.registry.list('admin')) {
-      if (!KNOWN_SKILL_URIS.has(skill.uri)) continue;
-      const latest = latestByUri.get(skill.uri);
+    for (const entry of this.registry.list('admin')) {
+      const kind = jobKindOf(entry.uri);
+      if (kind === 'skill' && !KNOWN_SKILL_URIS.has(entry.uri)) continue;
+      if (!kind) continue;
+      const latest = latestByUri.get(entry.uri);
       dtos.push({
-        uri: skill.uri,
-        kind: 'skill',
-        name: skill.name,
-        description: skill.description,
-        audiences: skill.audiences,
-        tier: tierFor(skill.uri),
+        uri: entry.uri,
+        kind,
+        name: entry.name,
+        description: firstSentence(entry.description),
+        audiences: entry.audiences,
+        tier: tierFor(entry.uri),
         lastRunAt: latest?.lastRunAt ?? null,
         lastRunStatus: latest ? normalizeStatus(latest.status) : null,
       });
     }
-    for (const uri of KNOWN_TASK_URIS) {
-      const meta = TASK_METADATA[uri];
-      if (!meta) continue;
-      const latest = latestByUri.get(uri);
-      dtos.push({
-        uri,
-        kind: 'task',
-        name: meta.name,
-        description: meta.description,
-        audiences: ['admin'],
-        tier: tierFor(uri),
-        lastRunAt: latest?.lastRunAt ?? null,
-        lastRunStatus: latest ? normalizeStatus(latest.status) : null,
-      });
-    }
+    dtos.sort((a, b) => a.name.localeCompare(b.name));
     return dtos;
   }
 }
 
-const TASK_METADATA: Record<string, { name: string; description: string }> = {
-  'task://web/scrape-site': {
-    name: 'Website import',
-    description:
-      "Crawl a customer's public website, populate the KB with per-page docs, and synthesize a company-profile document.",
-  },
-};
+function firstSentence(description: string): string {
+  const trimmed = description.trim();
+  if (!trimmed) return '';
+  const match = /^.+?[.!?](?=\s|$)/.exec(trimmed);
+  return (match ? match[0] : trimmed).trim();
+}
 
 function normalizeStatus(s: string): SkillDto['lastRunStatus'] {
   switch (s) {

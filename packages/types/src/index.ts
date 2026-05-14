@@ -20,7 +20,6 @@ export {
 } from './channels.js';
 export {
   KNOWN_SKILL_URIS,
-  KNOWN_TASK_URIS,
   WEB_SCRAPE_SITE_TASK_URI,
   jobKindOf,
   tierFor,

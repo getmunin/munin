@@ -16,7 +16,9 @@ export class McpSkillRegistryService extends SkillRegistry implements OnModuleIn
     for (const skill of loadSkills(sources)) {
       this.register(skill);
     }
-    this.cachedInstructions = buildInstructions(this.list('admin'));
+    this.cachedInstructions = buildInstructions(
+      this.list('admin').filter((s) => s.uri.startsWith('skill://')),
+    );
   }
 
   instructions(): string {

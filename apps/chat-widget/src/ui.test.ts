@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mount, type UiController } from './ui.js';
 import type { ListedMessage, ConversationSummary } from './api.js';
 import type { WidgetConfig } from './config.js';
+import strings from './strings/en.js';
 
 const baseConfig: WidgetConfig = {
   host: 'https://munin.example',
@@ -9,9 +10,10 @@ const baseConfig: WidgetConfig = {
   channelId: 'cnv_chan',
   themeColor: '#10b981',
   position: 'bottom-right',
-  greeting: 'Hi there. How can we help?',
-  title: 'Chat',
-  eyebrow: 'Powered by Munin',
+  greeting: null,
+  title: null,
+  eyebrow: null,
+  locale: null,
   size: 'standard',
   fonts: 'system',
   showHistory: true,
@@ -56,7 +58,7 @@ function msg(partial: Partial<ListedMessage> & { id: string; role: ListedMessage
 
 describe('ui: mount + lifecycle', () => {
   it('attaches an open Shadow DOM host and renders the launcher visible, panel hidden', () => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     const host = document.querySelector('[data-munin-widget]');
     expect(host).not.toBeNull();
     expect(host!.shadowRoot).not.toBeNull();
@@ -66,7 +68,7 @@ describe('ui: mount + lifecycle', () => {
 
   it('opens the panel on launcher click, lands on the welcome screen', () => {
     const onOpen = vi.fn();
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {}, onOpen });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {}, onOpen });
     ($('.launcher')).click();
     expect(($('.panel')).hidden).toBe(false);
     expect(($('.launcher')).hidden).toBe(true);
@@ -76,7 +78,7 @@ describe('ui: mount + lifecycle', () => {
   });
 
   it('renders the configured greeting and eyebrow on the welcome screen', () => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     ($('.launcher')).click();
     expect($('.welcome-eyebrow').textContent).toBe('Powered by Munin');
     // First sentence renders plain, second renders italic <em>.
@@ -86,7 +88,7 @@ describe('ui: mount + lifecycle', () => {
   });
 
   it('destroy() removes the host element', () => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     expect(document.querySelector('[data-munin-widget]')).not.toBeNull();
     controller.destroy();
     controller = null;
@@ -96,14 +98,14 @@ describe('ui: mount + lifecycle', () => {
 
 describe('ui: welcome → chat transitions', () => {
   beforeEach(() => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     ($('.launcher')).click();
   });
 
   it('fires onStartConversation when the CTA is clicked', () => {
     const onStart = vi.fn();
     controller!.destroy();
-    controller = mount(baseConfig, {
+    controller = mount(baseConfig, strings, {
       onSend: () => {},
       onTypingIntent: () => {},
       onStartConversation: onStart,
@@ -124,7 +126,7 @@ describe('ui: welcome → chat transitions', () => {
   it('back button on the chat fires onBackToWelcome and returns to welcome', () => {
     const onBack = vi.fn();
     controller!.destroy();
-    controller = mount(baseConfig, {
+    controller = mount(baseConfig, strings, {
       onSend: () => {},
       onTypingIntent: () => {},
       onBackToWelcome: onBack,
@@ -139,7 +141,7 @@ describe('ui: welcome → chat transitions', () => {
 
 describe('ui: past conversations', () => {
   beforeEach(() => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     ($('.launcher')).click();
   });
 
@@ -152,7 +154,7 @@ describe('ui: past conversations', () => {
   it('renders rows with status tag and fires onOpenConversation on click', () => {
     const onOpen = vi.fn();
     controller!.destroy();
-    controller = mount(baseConfig, {
+    controller = mount(baseConfig, strings, {
       onSend: () => {},
       onTypingIntent: () => {},
       onOpenConversation: onOpen,
@@ -182,6 +184,7 @@ describe('ui: past conversations', () => {
     controller!.destroy();
     controller = mount(
       { ...baseConfig, showHistory: false },
+      strings,
       { onSend: () => {}, onTypingIntent: () => {} },
     );
     ($('.launcher')).click();
@@ -203,7 +206,7 @@ describe('ui: past conversations', () => {
 
 describe('ui: addMessages', () => {
   beforeEach(() => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     ($('.launcher')).click();
     controller.setView('chat');
   });
@@ -253,7 +256,7 @@ describe('ui: addMessages', () => {
 
 describe('ui: handover envelope', () => {
   beforeEach(() => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     ($('.launcher')).click();
     controller.setView('chat');
   });
@@ -285,7 +288,7 @@ describe('ui: handover envelope', () => {
 
 describe('ui: email-save card', () => {
   beforeEach(() => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     ($('.launcher')).click();
     controller.setView('chat');
   });
@@ -300,7 +303,7 @@ describe('ui: email-save card', () => {
   it('submitting fires onSetVisitorEmail with the entered email', () => {
     const onEmail = vi.fn();
     controller!.destroy();
-    controller = mount(baseConfig, {
+    controller = mount(baseConfig, strings, {
       onSend: () => {},
       onTypingIntent: () => {},
       onSetVisitorEmail: onEmail,
@@ -324,7 +327,7 @@ describe('ui: email-save card', () => {
 
 describe('ui: agent typing', () => {
   beforeEach(() => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     ($('.launcher')).click();
     controller.setView('chat');
   });
@@ -355,7 +358,7 @@ describe('ui: composer', () => {
   beforeEach(() => {
     onSend = vi.fn();
     onTypingIntent = vi.fn();
-    controller = mount(baseConfig, { onSend, onTypingIntent });
+    controller = mount(baseConfig, strings, { onSend, onTypingIntent });
     ($('.launcher')).click();
     controller.setView('chat');
   });
@@ -417,7 +420,7 @@ describe('ui: composer', () => {
 
 describe('ui: connection state banner', () => {
   beforeEach(() => {
-    controller = mount(baseConfig, { onSend: () => {}, onTypingIntent: () => {} });
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     ($('.launcher')).click();
   });
 

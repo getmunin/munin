@@ -465,6 +465,11 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
   const refs = parsed.references;
   const referencesText = Array.isArray(refs) ? refs.join(' ') : refs;
   const senderClassification = classifySender(parsed.headerLines, fromAddress);
+  const authenticationResults = extractHeaderValues(parsed.headerLines, 'authentication-results');
+  const arcAuthenticationResults = extractHeaderValues(
+    parsed.headerLines,
+    'arc-authentication-results',
+  );
   return {
     recipients,
     fromAddress,
@@ -476,7 +481,23 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
     bodyText: text,
     bodyHtml: html,
     senderClassification,
+    authenticationResults,
+    arcAuthenticationResults,
   };
+}
+
+function extractHeaderValues(
+  headerLines: ReadonlyArray<{ key: string; line: string }>,
+  name: string,
+): string[] {
+  const lower = name.toLowerCase();
+  const out: string[] = [];
+  for (const h of headerLines) {
+    if (h.key.toLowerCase() !== lower) continue;
+    const value = h.line.split(':').slice(1).join(':').trim();
+    if (value) out.push(value);
+  }
+  return out;
 }
 
 function buildInboundMetadata(
@@ -489,6 +510,12 @@ function buildInboundMetadata(
   if (extras.preStripBody) meta.preStripBody = extras.preStripBody;
   if (hasAnyClassification(parsed.senderClassification)) {
     meta.senderClassification = parsed.senderClassification;
+  }
+  if (parsed.authenticationResults.length > 0) {
+    meta.authenticationResults = parsed.authenticationResults;
+  }
+  if (parsed.arcAuthenticationResults.length > 0) {
+    meta.arcAuthenticationResults = parsed.arcAuthenticationResults;
   }
   return meta;
 }

@@ -761,6 +761,24 @@
       "smart": "Smart model",
       "smartUseHint": "Used for: KB curation, CRM hygiene, outreach drafts — anywhere the agent needs to weigh judgment over many messages.",
       "smartSameAsFast": "Same as fast model"
+    },
+    "websiteImport": {
+      "title": "Seed from your website",
+      "lede": "Optional: paste your public website URL and we'll read a few key pages — home, about, pricing, FAQ — into the knowledge base so the widget can answer real questions on day one.",
+      "urlLabel": "Website URL",
+      "urlHint": "Public marketing site. We read up to 25 pages, no JavaScript rendering. Takes about a minute.",
+      "import": "Import and continue",
+      "skip": "Skip for now",
+      "errors": {
+        "enqueue": "Couldn't start the import. Please check the URL and try again."
+      },
+      "status": {
+        "label": "Website import",
+        "running": "Reading your site — this usually takes under a minute. You can leave this page; we'll keep going in the background.",
+        "done": "Done. Open the knowledge base to see what was imported.",
+        "failed": "We couldn't finish the import. Open Settings → Curator jobs for details, or add documents manually.",
+        "stillRunning": "Still working. It's taking longer than usual; check back in a minute."
+      }
     }
   },
   "acceptInvite": {

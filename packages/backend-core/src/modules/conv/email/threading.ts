@@ -27,6 +27,10 @@ export interface ParsedInboundEmail {
   bodyHtml: string | null;
   /** Sender type classification from RFC headers + From local-part. */
   senderClassification: SenderClassification;
+  /** Raw `Authentication-Results` header lines (one per header, value only — key prefix stripped). */
+  authenticationResults: string[];
+  /** Raw `ARC-Authentication-Results` header lines (one per header, value only). */
+  arcAuthenticationResults: string[];
 }
 
 export interface ThreadResolution {

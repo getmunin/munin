@@ -72,7 +72,7 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
     let created = 0;
     const pagesToInsert = crawl.pages.slice(0, MAX_PAGES_TO_INSERT);
     for (const page of pagesToInsert) {
-      const ok = await createPageDocument(mcp, spaceId, page, opts.logger);
+      const ok = await upsertPageDocument(mcp, spaceId, page, opts.logger);
       if (ok) created++;
     }
 
@@ -88,7 +88,7 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
       });
       if (profile) {
         profileTokens = profile.totalTokens;
-        const ok = await createProfileDocument(mcp, spaceId, profile.markdown, opts.logger);
+        const ok = await upsertProfileDocument(mcp, spaceId, profile.markdown, opts.logger);
         if (ok) created++;
       }
     }
@@ -125,60 +125,98 @@ async function ensureSpace(mcp: McpToolHandle): Promise<string> {
   return id;
 }
 
-async function createPageDocument(
+interface KbDocFields {
+  spaceId: string;
+  title: string;
+  body: string;
+  audiences: string[];
+  tags: string[];
+}
+
+async function upsertKbDocumentBySlug(
+  mcp: McpToolHandle,
+  spaceSlug: string,
+  slug: string,
+  fields: KbDocFields,
+  label: string,
+  logger: WebImportHandlerOpts['logger'],
+): Promise<boolean> {
+  const existing = await mcp
+    .callTool('kb_get_document_by_slug', { spaceSlug, slug })
+    .catch((err: unknown) => toolError(err));
+  const current = existing.isError ? null : parseExistingDocument(existing);
+
+  if (!current) {
+    const created = await mcp
+      .callTool('kb_create_document', { ...fields, slug })
+      .catch((err: unknown) => toolError(err));
+    if (!created.isError) return true;
+    logger.warn(`${label}: kb_create_document failed: ${stringifyToolResult(created)}`);
+    return false;
+  }
+
+  const updated = await mcp
+    .callTool('kb_update_document', {
+      id: current.id,
+      ifVersion: current.version,
+      title: fields.title,
+      body: fields.body,
+      audiences: fields.audiences,
+      tags: fields.tags,
+    })
+    .catch((err: unknown) => toolError(err));
+  if (!updated.isError) return true;
+  logger.warn(`${label}: kb_update_document failed: ${stringifyToolResult(updated)}`);
+  return false;
+}
+
+async function upsertPageDocument(
   mcp: McpToolHandle,
   spaceId: string,
   page: CrawledPage,
   logger: WebImportHandlerOpts['logger'],
 ): Promise<boolean> {
   const slug = slugifyUrl(page.url);
-  const baseArgs = {
-    spaceId,
-    title: page.title,
-    body: page.markdown,
-    audiences: ['admin', 'self_service'],
-    tags: ['imported-from-website'],
-  };
-  const first = await mcp
-    .callTool('kb_create_document', slug ? { ...baseArgs, slug } : baseArgs)
-    .catch((err: unknown) => toolError(err));
-  if (!first.isError) return true;
-
-  if (slug) {
-    const second = await mcp
-      .callTool('kb_create_document', baseArgs)
-      .catch((err: unknown) => toolError(err));
-    if (!second.isError) return true;
-    logger.warn(`kb_create_document failed for ${page.url}: ${stringifyToolResult(second)}`);
-  } else {
-    logger.warn(`kb_create_document failed for ${page.url}: ${stringifyToolResult(first)}`);
+  if (!slug) {
+    logger.warn(`skipping ${page.url}: no valid slug`);
+    return false;
   }
-  return false;
+  return upsertKbDocumentBySlug(
+    mcp,
+    TARGET_SPACE_SLUG,
+    slug,
+    {
+      spaceId,
+      title: page.title,
+      body: page.markdown,
+      audiences: ['admin', 'self_service'],
+      tags: ['imported-from-website'],
+    },
+    `page ${page.url}`,
+    logger,
+  );
 }
 
-async function createProfileDocument(
+async function upsertProfileDocument(
   mcp: McpToolHandle,
   spaceId: string,
   body: string,
   logger: WebImportHandlerOpts['logger'],
 ): Promise<boolean> {
-  const baseArgs = {
-    spaceId,
-    title: 'Company profile',
-    body,
-    audiences: ['admin', 'self_service'],
-    tags: ['imported-from-website', 'company-profile'],
-  };
-  const first = await mcp
-    .callTool('kb_create_document', { ...baseArgs, slug: 'company-profile' })
-    .catch((err: unknown) => toolError(err));
-  if (!first.isError) return true;
-  const second = await mcp
-    .callTool('kb_create_document', baseArgs)
-    .catch((err: unknown) => toolError(err));
-  if (!second.isError) return true;
-  logger.warn(`company-profile kb_create_document failed: ${stringifyToolResult(second)}`);
-  return false;
+  return upsertKbDocumentBySlug(
+    mcp,
+    TARGET_SPACE_SLUG,
+    'company-profile',
+    {
+      spaceId,
+      title: 'Company profile',
+      body,
+      audiences: ['admin', 'self_service'],
+      tags: ['imported-from-website', 'company-profile'],
+    },
+    'company profile',
+    logger,
+  );
 }
 
 interface ProfileResult {
@@ -260,8 +298,9 @@ function slugifyUrl(url: string): string | undefined {
       .replace(/[^a-z0-9]+/gi, '-')
       .toLowerCase()
       .replace(/^-+|-+$/g, '');
-    if (!raw || raw.length > 64) return undefined;
-    return raw;
+    if (!raw) return 'home';
+    const truncated = raw.length > 64 ? raw.slice(0, 64).replace(/-+$/g, '') : raw;
+    return truncated || undefined;
   } catch (err) {
     console.debug(`[web-import] slugify failed for ${url}: ${describe(err)}`);
     return undefined;
@@ -328,6 +367,22 @@ function tryParseJson(s: string): unknown {
   } catch {
     return s;
   }
+}
+
+function parseExistingDocument(res: McpToolResult): { id: string; version: number } | null {
+  for (const item of res.content) {
+    if (item.type !== 'text') continue;
+    const text = (item as { text?: string }).text;
+    if (!text || text === 'null') continue;
+    const parsed = tryParseJson(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as { id?: unknown; version?: unknown };
+      if (typeof obj.id === 'string' && typeof obj.version === 'number') {
+        return { id: obj.id, version: obj.version };
+      }
+    }
+  }
+  return null;
 }
 
 function toolError(err: unknown): McpToolResult {

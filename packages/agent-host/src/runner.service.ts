@@ -28,11 +28,33 @@ import {
   type PromptResolver,
   type SkillPassResult,
 } from '@getmunin/agent-runtime';
+import {
+  jobKindOf,
+  tierFor,
+  toolPrefixesFor,
+  WEB_SCRAPE_SITE_TASK_URI,
+} from '@getmunin/types';
 import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.js';
 import type { AgentConfigRepository, AgentConfigRow } from './config.repository.js';
 import { runWithServiceContext } from './service-context.js';
 import { ReplicaLockManager } from './replica-lock.js';
-import { runWebImportJob, WEB_IMPORT_SKILL_URI } from './web-import.handler.js';
+import { runWebImportJob } from './web-import.handler.js';
+
+interface TaskHandlerContext {
+  job: CuratorJob;
+  baseUrl: string;
+  adminApiKey: string;
+  providerBaseUrl: string;
+  providerApiKey: string;
+  model: string;
+  logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
+}
+
+type TaskHandler = (ctx: TaskHandlerContext) => Promise<SkillPassResult>;
+
+const TASK_HANDLERS: ReadonlyMap<string, TaskHandler> = new Map([
+  [WEB_SCRAPE_SITE_TASK_URI, (ctx: TaskHandlerContext) => runWebImportJob(ctx)],
+]);
 
 const RECONCILE_INTERVAL_MS = 30_000;
 const CURATOR_LEASE_SECONDS = 600;
@@ -303,20 +325,27 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           (await runWithServiceContext(this.db, opts.id, () =>
             this.repo.readDecryptedAdminKey(opts.id),
           )) ?? this.fallbackAdminApiKey ?? '';
-        const tier = modelTierFor(job.skillUri);
+        const tier = tierFor(job.skillUri);
         const model = tier === 'fast' ? fastModel : smartModel;
-
-        if (job.skillUri === WEB_IMPORT_SKILL_URI) {
-          result = await runWebImportJob({
-            job,
-            baseUrl: this.baseUrl,
-            adminApiKey: adminKey,
-            providerBaseUrl: opts.config.providerBaseUrl,
-            providerApiKey: opts.providerApiKey,
-            model,
-            logger: log,
-          });
-        } else {
+        const ctx: TaskHandlerContext = {
+          job,
+          baseUrl: this.baseUrl,
+          adminApiKey: adminKey,
+          providerBaseUrl: opts.config.providerBaseUrl,
+          providerApiKey: opts.providerApiKey,
+          model,
+          logger: log,
+        };
+        const kind = jobKindOf(job.skillUri);
+        if (kind === 'task') {
+          const handler = TASK_HANDLERS.get(job.skillUri);
+          if (!handler) {
+            result = { ok: false, skipped: 'agent_error', error: `no handler for ${job.skillUri}` };
+          } else {
+            result = await handler(ctx);
+          }
+        } else if (kind === 'skill') {
+          const prefixes = toolPrefixesFor(job.skillUri);
           result = await runSkillPass({
             baseUrl: this.baseUrl,
             adminApiKey: adminKey,
@@ -328,9 +357,11 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             maxToolIterations: 24,
             maxHistoryChars: opts.config.maxHistoryChars,
             clientName: `agent-host-curator-${job.id.slice(-6)}`,
-            allowedToolPrefixes: toolPrefixesFor(job.skillUri),
+            allowedToolPrefixes: prefixes ? [...prefixes] : undefined,
             logger: log,
           });
+        } else {
+          result = { ok: false, skipped: 'agent_error', error: `unknown job uri scheme: ${job.skillUri}` };
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -437,22 +468,6 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       error: (m) => this.logger.error(`${id} ${sub}: ${m}`),
     };
   }
-}
-
-function toolPrefixesFor(skillUri: string): string[] | undefined {
-  if (skillUri === 'skill://kb/curation') return ['conv_', 'kb_'];
-  if (skillUri === 'skill://crm/hygiene') return ['conv_', 'crm_'];
-  if (skillUri === 'skill://crm/contact-extract') return ['conv_', 'crm_'];
-  if (skillUri === 'skill://outreach/draft-initial') return ['conv_', 'kb_', 'crm_', 'outreach_'];
-  if (skillUri === 'skill://outreach/draft-reply') return ['conv_', 'kb_', 'crm_', 'outreach_'];
-  if (skillUri === 'skill://cms/stale-content-review') return ['cms_'];
-  if (skillUri === 'skill://conv/strip-email-signature') return ['conv_strip_message_signature'];
-  return undefined;
-}
-
-function modelTierFor(skillUri: string): 'fast' | 'smart' {
-  if (skillUri === 'skill://conv/strip-email-signature') return 'fast';
-  return 'smart';
 }
 
 function describe(err: unknown): string {

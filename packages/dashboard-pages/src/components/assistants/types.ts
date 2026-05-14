@@ -9,6 +9,7 @@ export interface AssistantDto {
 
 export interface SkillDto {
   uri: string;
+  kind: 'skill' | 'task';
   name: string;
   description: string;
   audiences: readonly string[];

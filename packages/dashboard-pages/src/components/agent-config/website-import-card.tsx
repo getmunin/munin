@@ -15,7 +15,7 @@ import {
 import { api } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
 
-const SKILL_URI = 'skill://web/scrape-site';
+const JOB_URI = 'task://web/scrape-site';
 
 interface CuratorJobDto {
   id: string;
@@ -52,7 +52,7 @@ export function WebsiteImportCard({ onEnqueued, onSkip, onBack }: WebsiteImportC
       const res = await api<EnqueueResponse>('/api/v1/curation/jobs', {
         method: 'POST',
         body: JSON.stringify({
-          skillUri: SKILL_URI,
+          skillUri: JOB_URI,
           userPrompt: normalized,
           dedupeKey: `onboarding-import:${normalized}`,
           maxAttempts: 3,

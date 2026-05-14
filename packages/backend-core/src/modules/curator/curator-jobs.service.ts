@@ -72,8 +72,8 @@ export class CuratorJobsService {
   ) {}
 
   async enqueue(input: EnqueueInput): Promise<EnqueueResult> {
-    if (!input.skillUri.startsWith('skill://')) {
-      throw new BadRequestException('skillUri must start with skill://');
+    if (!input.skillUri.startsWith('skill://') && !input.skillUri.startsWith('task://')) {
+      throw new BadRequestException('skillUri must start with skill:// or task://');
     }
     if (!input.userPrompt.trim()) {
       throw new BadRequestException('userPrompt is required');

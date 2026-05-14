@@ -524,11 +524,13 @@ const defaultFetcher: HtmlFetcher = async (url) => {
   }
 };
 
+const DEFUDDLE_NOISE = /^Initial parse returned very little content/;
+
 const defaultExtractor: Extractor = async (html, url) => {
   const fn = await loadDefuddle();
   if (!fn) return extractBasic(html);
   try {
-    const result = await fn(html, url, { markdown: true });
+    const result = await withSilencedDefuddleLogs(() => fn(html, url, { markdown: true }));
     const md = (result?.content ?? '').toString().trim();
     if (!md) return null;
     return { title: (result?.title ?? '').toString().trim(), markdown: md };
@@ -539,6 +541,20 @@ const defaultExtractor: Extractor = async (html, url) => {
     return extractBasic(html);
   }
 };
+
+async function withSilencedDefuddleLogs<T>(fn: () => Promise<T>): Promise<T> {
+  const original = console.log;
+  console.log = (...args: unknown[]) => {
+    const first = args[0];
+    if (typeof first === 'string' && DEFUDDLE_NOISE.test(first)) return;
+    original(...args);
+  };
+  try {
+    return await fn();
+  } finally {
+    console.log = original;
+  }
+}
 
 type DefuddleFn = (
   html: string,

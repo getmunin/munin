@@ -315,8 +315,9 @@ function visit(value: unknown, fn: (node: unknown) => void): void {
     return;
   }
   if (typeof value === 'object' && value !== null) {
-    for (const key of Object.keys(value as Record<string, unknown>)) {
-      visit((value as Record<string, unknown>)[key], fn);
+    const obj = value as Record<string, unknown>;
+    for (const key of Object.keys(obj)) {
+      visit(obj[key], fn);
     }
   }
 }

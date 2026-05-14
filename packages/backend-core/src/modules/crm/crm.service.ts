@@ -309,15 +309,32 @@ export class CrmService {
       customFields: Record<string, unknown>;
       doNotContact: boolean;
     }>;
+    mode?: 'fill-null' | 'overwrite';
   }): Promise<ContactDto> {
     const ctx = getCurrentContext();
+    const mode = input.mode ?? 'overwrite';
+
+    let effectivePatch: Record<string, unknown> = input.patch;
+    if (mode === 'fill-null') {
+      const existing = await ctx.db
+        .select()
+        .from(schema.crmContacts)
+        .where(eq(schema.crmContacts.id, input.id))
+        .limit(1);
+      if (!existing[0]) throw new NotFoundException(`crm_not_found: contact ${input.id}`);
+      effectivePatch = computeBackfillPatch(existing[0], input.patch).apply;
+      if (Object.keys(effectivePatch).length === 0) {
+        return toContactDto(existing[0]);
+      }
+    }
+
     const updates: Record<string, unknown> = { updatedAt: new Date() };
-    for (const [k, v] of Object.entries(input.patch)) {
+    for (const [k, v] of Object.entries(effectivePatch)) {
       if (v !== undefined) updates[k] = v;
     }
-    if (input.patch.doNotContact === false) {
+    if (effectivePatch.doNotContact === false) {
       updates.unsubscribedAt = null;
-    } else if (input.patch.doNotContact === true) {
+    } else if (effectivePatch.doNotContact === true) {
       updates.unsubscribedAt = new Date();
     }
     const result = await ctx.db
@@ -330,7 +347,7 @@ export class CrmService {
       type: 'crm.contact.updated',
       payload: {
         contactId: result[0].id,
-        fields: Object.keys(input.patch),
+        fields: Object.keys(effectivePatch),
       },
     });
     return toContactDto(result[0]);
@@ -1158,6 +1175,24 @@ export class CrmService {
 }
 
 // ─── DTO mappers / helpers ─────────────────────────────────────────────────
+
+export function computeBackfillPatch(
+  existing: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): { apply: Record<string, unknown>; skipped: string[] } {
+  const apply: Record<string, unknown> = {};
+  const skipped: string[] = [];
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) continue;
+    const current = existing[k];
+    if (current === null || current === undefined || current === '') {
+      apply[k] = v;
+    } else {
+      skipped.push(k);
+    }
+  }
+  return { apply, skipped };
+}
 
 function toContactDto(row: typeof schema.crmContacts.$inferSelect): ContactDto {
   return {

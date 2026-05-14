@@ -57,6 +57,12 @@ const CreateContactInput = z.object({
 const UpdateContactInput = z.object({
   id: z.string(),
   patch: ContactPatchSchema,
+  mode: z
+    .enum(['fill-null', 'overwrite'])
+    .optional()
+    .describe(
+      "When 'fill-null', only applies patch keys whose existing value on the contact is null or empty — non-null fields are left untouched. Default 'overwrite' applies the patch as-is. Curator skills that backfill automated data should pass 'fill-null'; human-driven dashboard edits should use the default.",
+    ),
 });
 
 const BulkCreateInput = z.object({
@@ -278,7 +284,7 @@ export class CrmAdminTools {
     name: 'crm_update_contact',
     title: 'Update contact',
     description:
-      'Update fields on a contact. Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it.',
+      "Update fields on a contact. Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: UpdateContactInput,

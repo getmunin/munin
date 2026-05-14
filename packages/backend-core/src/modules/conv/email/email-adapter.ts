@@ -26,14 +26,16 @@ import { smtpTransportOptions } from './email.tools.js';
 import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.js';
 import { resolveInbound, type ParsedInboundEmail } from './threading.js';
 import {
+  detectSignatureBlock,
   ensureReSubject,
   formatQuotedHistory,
+  splitSignatureText,
   stripQuotedReplyHtml,
   stripQuotedReplyText,
   stripSignatureHtml,
-  stripSignatureText,
   type QuotedPriorMessage,
 } from './reply-history.js';
+import { classifySender, hasAnyClassification } from './classify-sender.js';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -347,8 +349,10 @@ export class EmailAdapter implements ChannelAdapter {
         }
 
         const quoteStrippedText = stripQuotedReplyText(parsed.bodyText);
-        const cleanText = stripSignatureText(quoteStrippedText);
-        const regexCutSignature = cleanText.length < quoteStrippedText.length;
+        const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
+        const regexCutSignature = regexSignature !== null;
+        const detectedSignatureForMeta =
+          regexSignature ?? detectSignatureBlock(quoteStrippedText, parsed.bodyHtml);
         const cleanHtml = stripSignatureHtml(stripQuotedReplyHtml(parsed.bodyHtml));
         const [msg] = await tx
           .insert(schema.convMessages)
@@ -360,7 +364,10 @@ export class EmailAdapter implements ChannelAdapter {
             body: cleanText || '(no body)',
             bodyHtml: cleanHtml,
             internal: false,
-            metadata: buildInboundMetadata(parsed),
+            metadata: buildInboundMetadata(parsed, {
+              regexSignatureText: detectedSignatureForMeta,
+              preStripBody: regexCutSignature ? quoteStrippedText : null,
+            }),
           })
           .returning();
         await tx
@@ -460,6 +467,7 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
   const text = (parsed.text ?? '').trim() || stripHtml(html ?? '');
   const refs = parsed.references;
   const referencesText = Array.isArray(refs) ? refs.join(' ') : refs;
+  const senderClassification = classifySender(parsed.headerLines, fromAddress);
   const authenticationResults = extractHeaderValues(parsed.headerLines, 'authentication-results');
   const arcAuthenticationResults = extractHeaderValues(
     parsed.headerLines,
@@ -475,6 +483,7 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
     references: parseMessageIdHeader(referencesText),
     bodyText: text,
     bodyHtml: html,
+    senderClassification,
     authenticationResults,
     arcAuthenticationResults,
   };
@@ -494,9 +503,17 @@ function extractHeaderValues(
   return out;
 }
 
-function buildInboundMetadata(parsed: ParsedInboundEmail): Record<string, unknown> {
+function buildInboundMetadata(
+  parsed: ParsedInboundEmail,
+  extras: { regexSignatureText: string | null; preStripBody: string | null },
+): Record<string, unknown> {
   const meta: Record<string, unknown> = {};
   if (parsed.messageId) meta.inboundMessageId = parsed.messageId;
+  if (extras.regexSignatureText) meta.signatureText = extras.regexSignatureText;
+  if (extras.preStripBody) meta.preStripBody = extras.preStripBody;
+  if (hasAnyClassification(parsed.senderClassification)) {
+    meta.senderClassification = parsed.senderClassification;
+  }
   if (parsed.authenticationResults.length > 0) {
     meta.authenticationResults = parsed.authenticationResults;
   }

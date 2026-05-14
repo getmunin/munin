@@ -107,17 +107,20 @@ Add the `from-chat` tag so operators can filter contacts that came in via this c
   "name": "crm_update_contact",
   "arguments": {
     "id": "cct_existing",
-    "patch": { "phone": "+47 555-1234" }
+    "patch": { "phone": "+47 555-1234", "title": "Head of Ops" },
+    "mode": "fill-null"
   }
 }
 ```
 
-**Only fill fields that are currently empty / null on the existing contact.** Read the row from `crm_find_contact`'s response (it returns the full contact). For each extracted field:
+**Always pass `mode: "fill-null"`** from this skill. That tells the service to apply patch keys only where the existing contact's field is null/empty; non-null fields are left untouched server-side. This is defense-in-depth on top of your own filtering — if you accidentally include a field that's already populated, the service refuses to overwrite rather than clobbering operator-curated data.
+
+You should still pre-filter the patch yourself (it's cleaner and avoids a no-op write): read the row from `crm_find_contact`'s response and, for each extracted field:
 
 - existing field is `null` or empty string → include it in `patch`
-- existing field has a value → leave it alone, even if the user's new value looks "better"
+- existing field has a value → leave it out of `patch`, even if the user's new value looks "better"
 
-Never call `crm_update_contact` with an empty patch; if every extracted field is already populated, finish silently.
+If every extracted field is already populated, finish silently without calling `crm_update_contact` at all.
 
 ## What NOT to do
 

@@ -52,7 +52,7 @@ export function WebsiteImportCard({ onEnqueued, onSkip, onBack }: WebsiteImportC
       const res = await api<EnqueueResponse>('/api/v1/curation/jobs', {
         method: 'POST',
         body: JSON.stringify({
-          skillUri: JOB_URI,
+          jobUri: JOB_URI,
           userPrompt: normalized,
           dedupeKey: `onboarding-import:${normalized}`,
           maxAttempts: 3,

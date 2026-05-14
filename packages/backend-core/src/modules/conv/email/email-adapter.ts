@@ -387,7 +387,7 @@ export class EmailAdapter implements ChannelAdapter {
 
         if (!regexCutSignature && cleanText && cleanText.length >= 80) {
           await this.curatorJobs.enqueue({
-            skillUri: 'skill://conv/strip-email-signature',
+            jobUri: 'skill://conv/strip-email-signature',
             userPrompt:
               `Run the signature-stripping skill on this inbound email message.\n\n` +
               `Message ID: ${msg!.id}\n` +

@@ -617,7 +617,7 @@ export class ConvService {
         conv.agentMode === 'draft_only'
       ) {
         await this.curatorJobs.enqueue({
-          skillUri: 'skill://outreach/draft-reply',
+          jobUri: 'skill://outreach/draft-reply',
           userPrompt:
             `Run an outreach reply-draft pass for conversation ${input.conversationId}. ` +
             `Follow skill://outreach/draft-reply exactly. Read the thread, identify the prospect's ` +
@@ -643,7 +643,7 @@ export class ConvService {
           },
         });
         await this.curatorJobs.enqueue({
-          skillUri: 'skill://kb/curation',
+          jobUri: 'skill://kb/curation',
           userPrompt:
             `Run a KB curation pass for conversation ${input.conversationId}. ` +
             `Follow the skill exactly. Per-conversation mode: skip the conv_list_conversations ` +
@@ -834,7 +834,7 @@ export class ConvService {
     });
     if (input.status === 'closed') {
       await this.curatorJobs.enqueue({
-        skillUri: 'skill://crm/contact-extract',
+        jobUri: 'skill://crm/contact-extract',
         userPrompt:
           `Run a CRM contact-extraction pass for conversation ${input.id}. ` +
           `Follow the skill exactly: read the conversation, extract identifying info ` +

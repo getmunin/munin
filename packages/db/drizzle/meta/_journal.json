@@ -162,6 +162,13 @@
       "when": 1779300000000,
       "tag": "0022_curator_jobs_web_task_uri",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779400000000,
+      "tag": "0023_curator_jobs_rename_skill_uri",
+      "breakpoints": true
     }
   ]
 }

@@ -21,7 +21,7 @@ interface SweepDef {
   name: string;
   envCron: string | undefined;
   defaultCron: string;
-  skillUri: string;
+  jobUri: string;
   userPrompt: string;
   dedupeKey: string;
 }
@@ -50,7 +50,7 @@ export class CuratorSchedulerService implements OnModuleInit {
         name: 'curator-kb-sweep',
         envCron: process.env.MUNIN_CURATOR_KB_SWEEP_CRON,
         defaultCron: CronExpression.EVERY_WEEK,
-        skillUri: 'skill://kb/curation',
+        jobUri: 'skill://kb/curation',
         userPrompt: KB_SWEEP_PROMPT,
         dedupeKey: 'kb-sweep:scheduled',
       },
@@ -58,7 +58,7 @@ export class CuratorSchedulerService implements OnModuleInit {
         name: 'curator-crm-hygiene',
         envCron: process.env.MUNIN_CURATOR_CRM_HYGIENE_CRON,
         defaultCron: CronExpression.EVERY_WEEK,
-        skillUri: 'skill://crm/hygiene',
+        jobUri: 'skill://crm/hygiene',
         userPrompt: CRM_HYGIENE_PROMPT,
         dedupeKey: 'crm-hygiene:scheduled',
       },
@@ -66,7 +66,7 @@ export class CuratorSchedulerService implements OnModuleInit {
         name: 'curator-cms-stale',
         envCron: process.env.MUNIN_CURATOR_CMS_STALE_CRON,
         defaultCron: CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT,
-        skillUri: 'skill://cms/stale-content-review',
+        jobUri: 'skill://cms/stale-content-review',
         userPrompt: CMS_STALE_PROMPT,
         dedupeKey: 'cms-stale:scheduled',
       },
@@ -74,7 +74,7 @@ export class CuratorSchedulerService implements OnModuleInit {
         name: 'curator-outreach-draft-initial',
         envCron: process.env.MUNIN_CURATOR_OUTREACH_INITIAL_CRON,
         defaultCron: CronExpression.EVERY_WEEK,
-        skillUri: 'skill://outreach/draft-initial',
+        jobUri: 'skill://outreach/draft-initial',
         userPrompt: OUTREACH_DRAFT_INITIAL_PROMPT,
         dedupeKey: 'outreach-draft-initial:scheduled',
       },
@@ -121,7 +121,7 @@ export class CuratorSchedulerService implements OnModuleInit {
       const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
       await RequestContextStore.run(ctx, async () => {
         const result = await this.jobs.enqueue({
-          skillUri: sweep.skillUri,
+          jobUri: sweep.jobUri,
           userPrompt: sweep.userPrompt,
           sourceEventType: `scheduler.${sweep.name}`,
           dedupeKey: sweep.dedupeKey,

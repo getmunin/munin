@@ -23,7 +23,7 @@ export interface HandoverResolvedEvent {
 
 export interface CuratorJobPendingEvent {
   jobId: string;
-  skillUri: string;
+  jobUri: string;
   dedupeKey: string | null;
   nextAttemptAt: string;
 }
@@ -174,12 +174,12 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
 
         if (opts.onCuratorJobPending && eventType === 'curator_job.pending') {
           const jobId = payload['jobId'];
-          const skillUri = payload['skillUri'];
+          const jobUri = payload['jobUri'];
           const nextAttemptAt = payload['nextAttemptAt'];
-          if (typeof jobId !== 'string' || typeof skillUri !== 'string') return;
+          if (typeof jobId !== 'string' || typeof jobUri !== 'string') return;
           opts.onCuratorJobPending({
             jobId,
-            skillUri,
+            jobUri,
             dedupeKey: typeof payload['dedupeKey'] === 'string' ? payload['dedupeKey'] : null,
             nextAttemptAt: typeof nextAttemptAt === 'string' ? nextAttemptAt : new Date().toISOString(),
           });

@@ -318,14 +318,14 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     const fastModel = opts.config.fastModel;
 
     const executeOne = async (job: CuratorJob): Promise<void> => {
-      log.info(`running ${job.skillUri} for ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
+      log.info(`running ${job.jobUri} for ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
       let result: SkillPassResult;
       try {
         const adminKey =
           (await runWithServiceContext(this.db, opts.id, () =>
             this.repo.readDecryptedAdminKey(opts.id),
           )) ?? this.fallbackAdminApiKey ?? '';
-        const tier = tierFor(job.skillUri);
+        const tier = tierFor(job.jobUri);
         const model = tier === 'fast' ? fastModel : smartModel;
         const ctx: TaskHandlerContext = {
           job,
@@ -336,23 +336,23 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           model,
           logger: log,
         };
-        const kind = jobKindOf(job.skillUri);
+        const kind = jobKindOf(job.jobUri);
         if (kind === 'task') {
-          const handler = TASK_HANDLERS.get(job.skillUri);
+          const handler = TASK_HANDLERS.get(job.jobUri);
           if (!handler) {
-            result = { ok: false, skipped: 'agent_error', error: `no handler for ${job.skillUri}` };
+            result = { ok: false, skipped: 'agent_error', error: `no handler for ${job.jobUri}` };
           } else {
             result = await handler(ctx);
           }
         } else if (kind === 'skill') {
-          const prefixes = toolPrefixesFor(job.skillUri);
+          const prefixes = toolPrefixesFor(job.jobUri);
           result = await runSkillPass({
             baseUrl: this.baseUrl,
             adminApiKey: adminKey,
             providerBaseUrl: opts.config.providerBaseUrl,
             providerApiKey: opts.providerApiKey,
             model,
-            skillUri: job.skillUri,
+            skillUri: job.jobUri,
             userPrompt: job.userPrompt,
             maxToolIterations: 24,
             maxHistoryChars: opts.config.maxHistoryChars,
@@ -361,7 +361,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             logger: log,
           });
         } else {
-          result = { ok: false, skipped: 'agent_error', error: `unknown job uri scheme: ${job.skillUri}` };
+          result = { ok: false, skipped: 'agent_error', error: `unknown job uri scheme: ${job.jobUri}` };
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

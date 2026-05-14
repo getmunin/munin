@@ -761,6 +761,24 @@
       "smart": "Smart modell",
       "smartUseHint": "Brukes til: KB-kurering, CRM-hygiene, utgående utkast — overalt der agenten må vurdere på tvers av mange meldinger.",
       "smartSameAsFast": "Samme som rask modell"
+    },
+    "websiteImport": {
+      "title": "Hent innhold fra nettstedet",
+      "lede": "Valgfritt: lim inn nettsted-URL-en din, så leser vi et knippe nøkkelsider — forside, om oss, priser, ofte stilte spørsmål — inn i kunnskapsbasen, slik at chat-widgeten kan svare på ekte spørsmål fra første dag.",
+      "urlLabel": "Nettsted-URL",
+      "urlHint": "Offentlig nettsted. Vi leser opptil 25 sider, uten JavaScript-rendering. Tar omtrent ett minutt.",
+      "import": "Importer og fortsett",
+      "skip": "Hopp over",
+      "errors": {
+        "enqueue": "Klarte ikke å starte importen. Sjekk URL-en og prøv igjen."
+      },
+      "status": {
+        "label": "Nettsted-import",
+        "running": "Leser nettstedet ditt — dette tar vanligvis under ett minutt. Du kan forlate siden; vi fortsetter i bakgrunnen.",
+        "done": "Ferdig. Åpne kunnskapsbasen for å se hva som ble importert.",
+        "failed": "Vi klarte ikke å fullføre importen. Åpne Innstillinger → Kurator-jobber for detaljer, eller legg til dokumenter manuelt.",
+        "stillRunning": "Jobber fortsatt. Det tar lenger enn vanlig; sjekk innom om et minutt."
+      }
     }
   },
   "acceptInvite": {

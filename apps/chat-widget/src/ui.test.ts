@@ -103,12 +103,12 @@ describe('ui: launcher unread badge', () => {
   });
 
   it('hides the badge by default', () => {
-    expect(($('.launcher-badge') as HTMLElement).hidden).toBe(true);
+    expect($('.launcher-badge').hidden).toBe(true);
   });
 
   it('shows the count when setLauncherUnread is called with a positive number', () => {
     controller!.setLauncherUnread(3);
-    const badge = $('.launcher-badge') as HTMLElement;
+    const badge = $('.launcher-badge');
     expect(badge.hidden).toBe(false);
     expect(badge.textContent).toBe('3');
   });
@@ -121,7 +121,7 @@ describe('ui: launcher unread badge', () => {
   it('hides the badge again when count drops to 0', () => {
     controller!.setLauncherUnread(2);
     controller!.setLauncherUnread(0);
-    expect(($('.launcher-badge') as HTMLElement).hidden).toBe(true);
+    expect($('.launcher-badge').hidden).toBe(true);
   });
 });
 

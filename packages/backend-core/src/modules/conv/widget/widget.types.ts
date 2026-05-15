@@ -108,6 +108,7 @@ export interface WidgetListedMessage {
   body: string;
   bodyHtml: string | null;
   at: string;
+  readAt: string | null;
 }
 
 export interface WidgetConversationEnvelope {

@@ -8,6 +8,11 @@ import { MAILER } from '../../../common/mail/mail.module.js';
 import { EmailService, jsonbToStored, type StoredEmailChannelConfig } from '../email/email.service.js';
 import { smtpTransportOptions } from '../email/email.tools.js';
 import { buildOutbound, type BuiltMessage } from '../email/mime.js';
+import {
+  formatQuotedHistory,
+  loadPriorMessagesForQuote,
+  type QuotedPriorMessage,
+} from '../email/reply-history.js';
 
 const DEFAULT_INTERVAL_MS = 60_000;
 const DEFAULT_THRESHOLD_MS = 10 * 60_000;
@@ -29,6 +34,7 @@ type UnreadRow = {
   body: string;
   body_html: string | null;
   author_type: string;
+  author_id: string;
   created_at: Date | string;
 } & Record<string, unknown>;
 
@@ -138,10 +144,14 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
           WHERE m.conversation_id = c.id
             AND m.author_type <> 'end_user'
             AND m.internal = false
-            AND m.created_at < ${cutoff.toISOString()}::timestamptz
+            AND m.created_at <= ${cutoff.toISOString()}::timestamptz
             AND NOT EXISTS (
               SELECT 1 FROM conv_message_reads r
               WHERE r.message_id = m.id AND r.end_user_id = c.end_user_id
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM conv_message_deliveries d
+              WHERE d.message_id = m.id
             )
         )
       ORDER BY c.last_message_at ASC NULLS LAST
@@ -198,6 +208,31 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
     }
 
     const replyTo = this.composeReplyTo(config, cand.conversation_id);
+    const latestUnread = stillUnread[stillUnread.length - 1]!;
+    const channelFromName = (config.addressing.fromName ?? '').trim() || 'Support';
+    let prior: QuotedPriorMessage[];
+    try {
+      prior = await loadPriorMessagesForQuote(this.db, {
+        conversationId: cand.conversation_id,
+        excludeMessageId: latestUnread.id,
+        contactName: cand.end_user_name,
+        contactEmail: cand.end_user_email,
+        channelFromName,
+        limit: 3,
+      });
+    } catch (err) {
+      await this.markStatus(fallbackId, 'failed', `quote-history load failed: ${describeError(err)}`);
+      return 'failed';
+    }
+
+    let signoffName: string;
+    try {
+      signoffName = await this.resolveSignoffName(cand.org_id, latestUnread, channelFromName);
+    } catch (err) {
+      await this.markStatus(fallbackId, 'failed', `signoff resolution failed: ${describeError(err)}`);
+      return 'failed';
+    }
+
     let built: BuiltMessage;
     try {
       built = this.buildDigest({
@@ -206,7 +241,9 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
         subject: cand.conv_subject,
         recipientEmail: cand.end_user_email,
         recipientName: cand.end_user_name,
-        unread: stillUnread,
+        latest: latestUnread,
+        prior,
+        signoffName,
       });
     } catch (err) {
       await this.markStatus(fallbackId, 'failed', `digest build failed: ${describeError(err)}`);
@@ -272,15 +309,19 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
   private async loadUnread(conversationId: string, endUserId: string): Promise<UnreadRow[]> {
     const cutoff = new Date(Date.now() - this.thresholdMs);
     const rows = await this.db.execute<UnreadRow>(sql`
-      SELECT m.id, m.body, m.body_html, m.author_type, m.created_at
+      SELECT m.id, m.body, m.body_html, m.author_type, m.author_id, m.created_at
       FROM conv_messages m
       WHERE m.conversation_id = ${conversationId}
         AND m.author_type <> 'end_user'
         AND m.internal = false
-        AND m.created_at < ${cutoff.toISOString()}::timestamptz
+        AND m.created_at <= ${cutoff.toISOString()}::timestamptz
         AND NOT EXISTS (
           SELECT 1 FROM conv_message_reads r
           WHERE r.message_id = m.id AND r.end_user_id = ${endUserId}
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM conv_message_deliveries d
+          WHERE d.message_id = m.id
         )
       ORDER BY m.created_at ASC
     `);
@@ -314,39 +355,53 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
       .where(eq(schema.convWidgetEmailFallbacks.id, fallbackId));
   }
 
+  private async resolveSignoffName(
+    orgId: string,
+    latest: UnreadRow,
+    channelFromName: string,
+  ): Promise<string> {
+    if (latest.author_type === 'user' && latest.author_id) {
+      const [u] = await this.db
+        .select({ name: schema.users.name })
+        .from(schema.users)
+        .where(eq(schema.users.id, latest.author_id))
+        .limit(1);
+      const first = firstWord(u?.name);
+      if (first) return first;
+      return channelFromName;
+    }
+    if (latest.author_type === 'agent') {
+      const [a] = await this.db
+        .select({ name: schema.assistants.name })
+        .from(schema.assistants)
+        .where(eq(schema.assistants.orgId, orgId))
+        .limit(1);
+      const trimmed = a?.name?.trim();
+      if (trimmed) return trimmed;
+      return channelFromName;
+    }
+    return channelFromName;
+  }
+
   private buildDigest(params: {
     config: StoredEmailChannelConfig;
     replyTo: string | undefined;
     subject: string | null;
     recipientEmail: string;
     recipientName: string | null;
-    unread: UnreadRow[];
+    latest: UnreadRow;
+    prior: QuotedPriorMessage[];
+    signoffName: string;
   }): BuiltMessage {
-    const { config, replyTo, recipientEmail, recipientName, unread } = params;
+    const { config, replyTo, recipientEmail, recipientName, latest, prior, signoffName } = params;
     const fromName = (config.addressing.fromName ?? '').trim() || 'Support';
-    const subjectBase = params.subject?.trim() || `New message from ${fromName}`;
-    const subject = unread.length > 1 ? `${subjectBase} (${unread.length} new messages)` : subjectBase;
+    const subject = params.subject?.trim() || `New message from ${fromName}`;
 
-    const textParts: string[] = [];
-    textParts.push(
-      recipientName
-        ? `Hi ${recipientName.split(/\s+/)[0]},`
-        : 'Hi,',
-    );
-    textParts.push('');
-    textParts.push(
-      unread.length === 1
-        ? `${fromName} sent you a message you haven't seen yet:`
-        : `${fromName} sent you ${unread.length} messages you haven't seen yet:`,
-    );
-    textParts.push('');
-    for (const m of unread) {
-      textParts.push(stripHtml(m.body).trim() || '(no message)');
-      textParts.push('');
-    }
-    textParts.push('—');
-    textParts.push('Reply to this email to continue the conversation.');
-    const text = textParts.join('\n');
+    const latestBody = stripHtml(latest.body).trim() || '(no message)';
+    const quoted = formatQuotedHistory(prior, 3);
+    const sections = [latestBody, `— ${signoffName}`];
+    if (quoted) sections.push(quoted);
+    const text = sections.join('\n\n');
 
     return buildOutbound({
       from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
@@ -411,6 +466,12 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
       });
     }
   }
+}
+
+function firstWord(name: string | null | undefined): string | null {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+  return trimmed.split(/\s+/)[0]!;
 }
 
 function composeFrom(name: string | undefined, address: string): string {

@@ -1,3 +1,6 @@
+import { schema, type Db } from '@getmunin/db';
+import { and, desc, eq, sql } from 'drizzle-orm';
+
 const QUOTE_HEADER_PATTERNS: RegExp[] = [
   /^on .+ wrote:\s*$/i,
   /^op .+ schreef .+:\s*$/i,
@@ -219,6 +222,47 @@ export interface QuotedPriorMessage {
   authorEmail: string | null;
   createdAt: Date;
   body: string;
+}
+
+export async function loadPriorMessagesForQuote(
+  db: Db,
+  args: {
+    conversationId: string;
+    excludeMessageId: string;
+    contactName: string | null;
+    contactEmail: string | null;
+    channelFromName: string;
+    limit: number;
+  },
+): Promise<QuotedPriorMessage[]> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const rows = await tx
+      .select({
+        authorType: schema.convMessages.authorType,
+        body: schema.convMessages.body,
+        createdAt: schema.convMessages.createdAt,
+      })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, args.conversationId),
+          eq(schema.convMessages.internal, false),
+          sql`${schema.convMessages.id} <> ${args.excludeMessageId}`,
+        ),
+      )
+      .orderBy(desc(schema.convMessages.createdAt))
+      .limit(args.limit);
+    return rows.map((r) => {
+      const isContact = r.authorType === 'end_user';
+      return {
+        authorName: isContact ? args.contactName ?? 'User' : args.channelFromName,
+        authorEmail: isContact ? args.contactEmail : null,
+        createdAt: r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt),
+        body: r.body,
+      };
+    });
+  });
 }
 
 export function formatQuotedHistory(prior: QuotedPriorMessage[], limit = 3): string {

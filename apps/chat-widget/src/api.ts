@@ -39,6 +39,7 @@ export interface ListedMessage {
   body: string;
   bodyHtml: string | null;
   at: string;
+  readAt: string | null;
 }
 
 export interface ConversationEnvelope {

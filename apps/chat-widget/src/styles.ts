@@ -48,6 +48,7 @@ button {
 
 /* ─── Launcher ───────────────────────────────────────── */
 .launcher {
+  position: relative;
   width: 60px;
   height: 60px;
   border-radius: 50%;
@@ -74,19 +75,22 @@ button {
   position: absolute;
   top: -2px;
   right: -2px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
   border-radius: 999px;
   background: var(--munin-theme);
   color: #fff;
   font-family: var(--munin-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 2px solid var(--munin-bone);
+  pointer-events: none;
 }
 
 /* ─── Panel ──────────────────────────────────────────── */

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ComponentType, type SVGProps } from 'react';
 import { useTranslations } from 'next-intl';
+import { Plug } from 'lucide-react';
 import {
   Button,
   Card,
@@ -14,6 +15,7 @@ import {
 } from '@getmunin/ui';
 import { api } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
+import { AnthropicIcon, OpenAiIcon, OpenRouterIcon } from './provider-icons';
 import {
   PROVIDER_PRESETS,
   presetForUrl,
@@ -22,6 +24,13 @@ import {
   type PresetId,
   type UpsertBody,
 } from './types';
+
+const PROVIDER_ICONS: Record<PresetId, ComponentType<SVGProps<SVGSVGElement>>> = {
+  openrouter: OpenRouterIcon,
+  anthropic: AnthropicIcon,
+  openai: OpenAiIcon,
+  custom: Plug,
+};
 
 interface ProviderCardProps {
   config: AgentConfigDto;
@@ -84,21 +93,25 @@ export function ProviderCard({ config, onSaved }: ProviderCardProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PROVIDER_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => selectPreset(p.id)}
-              className={
-                'rounded-input border-[0.5px] px-3 py-2 text-sm transition-colors ' +
-                (preset === p.id
-                  ? 'border-cobalt bg-cobalt/5 text-ink dark:text-foreground'
-                  : 'border-rule-soft text-muted-foreground hover:text-ink dark:hover:text-foreground')
-              }
-            >
-              {p.name}
-            </button>
-          ))}
+          {PROVIDER_PRESETS.map((p) => {
+            const Icon = PROVIDER_ICONS[p.id];
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => selectPreset(p.id)}
+                className={
+                  'flex items-center justify-center gap-2 rounded-input border-[0.5px] px-3 py-2 text-sm transition-colors ' +
+                  (preset === p.id
+                    ? 'border-cobalt bg-cobalt/5 text-ink dark:text-foreground'
+                    : 'border-rule-soft text-muted-foreground hover:text-ink dark:hover:text-foreground')
+                }
+              >
+                <Icon className="size-4 shrink-0" aria-hidden />
+                <span>{p.name}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="providerBaseUrl">{t('provider.urlLabel')}</Label>

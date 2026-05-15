@@ -169,6 +169,13 @@
       "when": 1779400000000,
       "tag": "0023_curator_jobs_rename_skill_uri",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1779500000000,
+      "tag": "0024_widget_email_fallbacks",
+      "breakpoints": true
     }
   ]
 }

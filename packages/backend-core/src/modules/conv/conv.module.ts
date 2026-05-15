@@ -13,6 +13,7 @@ import { OutboundDeliveryWorker } from './channels/outbound-delivery.worker.js';
 import { WidgetAdapter } from './widget/widget-adapter.js';
 import { WidgetIngestService } from './widget/widget-ingest.service.js';
 import { WidgetController } from './widget/widget.controller.js';
+import { WidgetEmailFallbackWorker } from './widget/widget-email-fallback.worker.js';
 import { WidgetAdminTools } from './widget/widget.tools.js';
 
 @Module({
@@ -29,6 +30,7 @@ import { WidgetAdminTools } from './widget/widget.tools.js';
     InboundPollWorker,
     OutboundDeliveryWorker,
     WidgetAdapter,
+    WidgetEmailFallbackWorker,
     WidgetIngestService,
     WidgetAdminTools,
     {
@@ -45,6 +47,7 @@ import { WidgetAdminTools } from './widget/widget.tools.js';
     EmailAdminTools,
     WidgetAdapter,
     WidgetAdminTools,
+    WidgetEmailFallbackWorker,
     InboundPollWorker,
     OutboundDeliveryWorker,
     CHANNEL_ADAPTERS,

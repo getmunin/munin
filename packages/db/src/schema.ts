@@ -948,6 +948,51 @@ export const convMessageReads = pgTable(
   }),
 );
 
+// Ledger for widget→email fallback sends. When an agent message on a widget
+// conversation is unread by the end-user for the fallback threshold, the
+// sweeper claims a row here (unique on conversation_id + last_engagement_at,
+// so at most one fallback fires per "quiet period"), composes a digest of
+// all unread agent messages, and emails it. Replies thread back through
+// `conv_message_deliveries.message_id_header` written by the sweeper.
+export const convWidgetEmailFallbacks = pgTable(
+  'conv_widget_email_fallbacks',
+  {
+    id: id('cwf'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    endUserId: text('end_user_id')
+      .notNull()
+      .references(() => endUsers.id, { onDelete: 'cascade' }),
+    emailChannelId: text('email_channel_id')
+      .notNull()
+      .references(() => convChannels.id, { onDelete: 'cascade' }),
+    triggerMessageId: text('trigger_message_id')
+      .notNull()
+      .references(() => convMessages.id, { onDelete: 'cascade' }),
+    lastEngagementAt: timestamp('last_engagement_at', { withTimezone: true }).notNull(),
+    messageIdHeader: text('message_id_header'),
+    messageCount: integer('message_count').notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('queued'),
+    // 'queued' | 'sent' | 'failed' | 'cancelled'
+    error: text('error'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    convEngagementUq: uniqueIndex('conv_widget_email_fallbacks_conv_engagement_uq').on(
+      t.conversationId,
+      t.lastEngagementAt,
+    ),
+    orgIdx: index('conv_widget_email_fallbacks_org_idx').on(t.orgId),
+    statusIdx: index('conv_widget_email_fallbacks_status_idx').on(t.status),
+  }),
+);
+
 // One row per poll-mode channel for inbound bookkeeping. `cursor` is the
 // adapter-specific high-water mark (email: { lastUid }; future SMS-poll
 // or other adapters use whatever shape they need). RLS inherits from the
@@ -1610,6 +1655,7 @@ export const allTables = {
   convMessages,
   convMessageDeliveries,
   convMessageReads,
+  convWidgetEmailFallbacks,
   convInboundState,
   crmCompanies,
   crmContacts,

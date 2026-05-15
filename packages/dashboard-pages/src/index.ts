@@ -108,3 +108,10 @@ export {
   createSettingsIndexRedirect,
   type CreateSettingsIndexRedirectOptions,
 } from './shells/settings-index-redirect';
+export {
+  loadBaseMessages,
+  mergeMessages,
+  BASE_LOCALES,
+  type BaseLocale,
+  type MessagesTree,
+} from './messages';

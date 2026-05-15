@@ -94,3 +94,17 @@ export {
   type RealtimeStatus,
   type SubscriptionChannel,
 } from './realtime';
+
+export {
+  OSS_SETTINGS_GROUPS,
+  extendSettingsGroups,
+  type SettingsSubNavItem,
+  type SettingsSubNavGroup,
+  type SettingsGroupExtension,
+} from './nav/settings-groups';
+export { SettingsShell, type SettingsShellProps } from './shells/settings-shell';
+export { DashboardShell, type DashboardShellProps } from './shells/dashboard-shell';
+export {
+  createSettingsIndexRedirect,
+  type CreateSettingsIndexRedirectOptions,
+} from './shells/settings-index-redirect';

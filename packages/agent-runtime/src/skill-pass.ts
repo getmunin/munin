@@ -1,5 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { assistantNamePreamble } from './conversation-handler.js';
 import { runAgent } from './runtime.js';
 import type { McpTool, McpToolHandle, McpToolResult, Provider } from './types.js';
 
@@ -11,6 +12,7 @@ export interface SkillPassOptions {
   model: string;
   skillUri: string;
   userPrompt: string;
+  assistantName?: string | null;
   maxToolIterations?: number;
   maxHistoryChars?: number;
   clientName?: string;
@@ -84,7 +86,7 @@ export async function runSkillPass(opts: SkillPassOptions): Promise<SkillPassRes
         config: {
           provider: { baseUrl: opts.providerBaseUrl, apiKey: opts.providerApiKey },
           model: opts.model,
-          systemPrompt: skill,
+          systemPrompt: assistantNamePreamble(opts.assistantName) + skill,
           maxToolIterations: opts.maxToolIterations ?? 24,
           maxHistoryChars: opts.maxHistoryChars ?? 32_000,
         },

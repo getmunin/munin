@@ -29,6 +29,7 @@ export interface CuratorJobDto {
   createdAt: string;
   updatedAt: string;
   doneAt: string | null;
+  assistantName: string | null;
 }
 
 export interface EnqueueInput {
@@ -164,7 +165,15 @@ export class CuratorJobsService {
       RETURNING *;
     `);
     const list = Array.isArray(rows) ? rows : (rows as { rows?: unknown[] }).rows ?? [];
-    return (list as Record<string, unknown>[]).map(rowFromSql).map(toDto);
+    const claimed = (list as Record<string, unknown>[]).map(rowFromSql);
+    if (claimed.length === 0) return [];
+    const [assistant] = await ctx.db
+      .select({ name: schema.assistants.name })
+      .from(schema.assistants)
+      .where(eq(schema.assistants.orgId, ctx.actor.orgId))
+      .limit(1);
+    const assistantName = assistant?.name ?? null;
+    return claimed.map((row) => toDto(row, assistantName));
   }
 
   async ack(input: AckInput): Promise<CuratorJobDto> {
@@ -270,13 +279,13 @@ export class CuratorJobsService {
       .where(where)
       .orderBy(schema.curatorJobs.createdAt)
       .limit(limit);
-    return rows.map(toDto);
+    return rows.map((row) => toDto(row));
   }
 }
 
 type Row = typeof schema.curatorJobs.$inferSelect;
 
-function toDto(row: Row): CuratorJobDto {
+function toDto(row: Row, assistantName: string | null = null): CuratorJobDto {
   return {
     id: row.id,
     orgId: row.orgId,
@@ -298,6 +307,7 @@ function toDto(row: Row): CuratorJobDto {
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
     doneAt: row.doneAt ? toIso(row.doneAt) : null,
+    assistantName,
   };
 }
 

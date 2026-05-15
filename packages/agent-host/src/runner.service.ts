@@ -354,6 +354,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             model,
             skillUri: job.jobUri,
             userPrompt: job.userPrompt,
+            assistantName: job.assistantName,
             maxToolIterations: 24,
             maxHistoryChars: opts.config.maxHistoryChars,
             clientName: `agent-host-curator-${job.id.slice(-6)}`,

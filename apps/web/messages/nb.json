@@ -111,7 +111,7 @@
     "settings": "Innstillinger",
     "account": "Konto",
     "team": "Team",
-    "assistants": "Assistenter",
+    "ai": "AI",
     "agents": "Agenter",
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
@@ -708,7 +708,7 @@
       "nameHint": "Inntil 128 tegn.",
       "chatbotNameLabel": "Chatbotnavn (valgfritt)",
       "chatbotNamePlaceholder": "f.eks. Munin",
-      "chatbotNameHint": "Hva assistenten kaller seg selv når den snakker med kundene. La stå tomt så går den uten navn — du kan sette det senere i Innstillinger · Assistenter · Chat.",
+      "chatbotNameHint": "Hva AI-en kaller seg selv når den snakker med kundene. La stå tomt så går den uten navn — du kan sette det senere i Innstillinger · AI.",
       "continue": "Fortsett",
       "errors": {
         "load": "Kunne ikke laste organisasjonen.",
@@ -716,9 +716,9 @@
       }
     },
     "settings": {
-      "eyebrow": "Arbeidsområde · Assistenter",
-      "title": "Flokkens <em>sinn</em>.",
-      "lede": "Alt som tenker på dine vegne — chatassistenten som snakker med kundene, og bakgrunnsoppgavene som holder dataene dine ryddige. Leverandør, API-nøkkel og modell-valg ligger øverst; selve assistentene ligger under."
+      "eyebrow": "Arbeidsområde · AI",
+      "title": "Instruer <em>ravnen</em>.",
+      "lede": "Alt som tenker på dine vegne — personaen, modell-leverandøren, og hver jobb AI-en håndterer, fra chatsvar til utgående utkast."
     },
     "wizard": {
       "stepEyebrow": "Steg {step} av {total}",
@@ -793,13 +793,17 @@
   },
   "assistants": {
     "list": {
-      "engine": {
-        "title": "Motor",
-        "blurb": "Modellleverandør og legitimasjon. Brukes av chatassistenten og alle bakgrunnsoppgavene under."
+      "persona": {
+        "title": "Persona",
+        "blurb": "Brukes overalt der AI-en snakker eller skriver til kundene dine — chatsvar, utgående utkast, utgående svar."
+      },
+      "models": {
+        "title": "Modeller",
+        "blurb": "Modell-leverandør og legitimasjon. Brukes av alle jobbene under."
       },
       "conversational": {
         "title": "Samtale",
-        "blurb": "Snakker direkte med kundene dine."
+        "blurb": "Snakker direkte med kundene dine, i den konfigurerte personaen."
       },
       "background": {
         "tierLabel": "{tier}",
@@ -814,7 +818,7 @@
       },
       "aiDriven": {
         "title": "AI-drevet",
-        "blurb": "Kjører i bakgrunnen. Assistenten bestemmer selv hva som skal gjøres, med samme modell som chatassistenten.",
+        "blurb": "Kjører i bakgrunnen. AI-en bestemmer selv hva som skal gjøres, med samme modell som chatassistenten.",
         "empty": "Ingen AI-drevne ferdigheter konfigurert."
       },
       "tasks": {
@@ -825,24 +829,17 @@
       "chatAssistant": {
         "title": "Chatassistent",
         "description": "Svarer kundene i chat, e-post, og alle andre samtalekanaler.",
-        "tierLabel": "{tier}",
-        "nameLabel": "Navn",
-        "unnamed": "(uten navn)"
+        "tierLabel": "{tier}"
       }
     },
-    "chat": {
-      "eyebrow": "Arbeidsområde · Assistenter · Chat",
-      "title": "Chatassistent",
-      "lede": "Hvordan chatboten presenterer seg selv på tvers av alle kanalene der den snakker med kundene."
-    },
     "identity": {
-      "title": "Identitet",
-      "blurb": "Hva assistenten kaller seg selv. Vises i chathodet og brukes som en navneintro i systemforespørselen slik at agenten vet hva den svarer på.",
+      "title": "Navn",
+      "blurb": "Hva AI-en kaller seg selv. Legges inn som en navneintro i hver systemforespørsel der AI-en skriver til kundene.",
       "nameLabel": "Navn",
       "namePlaceholder": "f.eks. Munin",
-      "nameHelp": "La stå tomt for å utelate et navn. Assistenten snakker fortsatt i din merkevarestemme; den introduserer seg bare ikke ved navn.",
+      "nameHelp": "La stå tomt for å utelate et navn. AI-en snakker fortsatt i din merkevarestemme; den introduserer seg bare ikke ved navn.",
       "errors": {
-        "save": "Kunne ikke lagre assistentnavnet."
+        "save": "Kunne ikke lagre AI-navnet."
       }
     }
   },

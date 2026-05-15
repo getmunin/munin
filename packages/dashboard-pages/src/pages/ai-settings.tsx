@@ -7,12 +7,13 @@ import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
 import { ChatAssistantCard } from '../components/assistants/chat-assistant-card';
 import { BackgroundSkillCard } from '../components/assistants/background-skill-card';
+import { IdentityCard } from '../components/assistants/identity-card';
 import { useAssistant } from '../components/assistants/use-assistant';
 import { useSkills } from '../components/assistants/use-skills';
 import { LoadFailed } from '../components/load-failed';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 
-export function AssistantsSettingsPage() {
+export function AiSettingsPage() {
   const t = useTranslations('agentSetup');
   const tList = useTranslations('assistants.list');
   const tCommon = useTranslations('common');
@@ -27,7 +28,7 @@ export function AssistantsSettingsPage() {
     setConfig,
     setModels,
   } = useAgentConfig();
-  const { assistant } = useAssistant();
+  const { assistant, setAssistant } = useAssistant();
   const { skills } = useSkills();
 
   const buildLoadFailedProps = useSettingsLoadFailedProps();
@@ -35,7 +36,7 @@ export function AssistantsSettingsPage() {
   if (configError && !configLoaded) {
     return (
       <LoadFailed
-        {...buildLoadFailedProps('assistants', configError, () => void retry(), retrying)}
+        {...buildLoadFailedProps('ai', configError, () => void retry(), retrying)}
       />
     );
   }
@@ -60,7 +61,18 @@ export function AssistantsSettingsPage() {
       {config && (
         <div className="mt-8 space-y-10">
           <section className="space-y-4">
-            <SectionHeader title={tList('engine.title')} blurb={tList('engine.blurb')} />
+            <SectionHeader title={tList('persona.title')} blurb={tList('persona.blurb')} />
+            <div className="space-y-6">
+              {assistant ? (
+                <IdentityCard assistant={assistant} onSaved={setAssistant} />
+              ) : (
+                <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <SectionHeader title={tList('models.title')} blurb={tList('models.blurb')} />
             <div className="space-y-6">
               <ProviderCard
                 config={config}
@@ -79,7 +91,7 @@ export function AssistantsSettingsPage() {
               blurb={tList('conversational.blurb')}
             />
             <div className="space-y-3">
-              <ChatAssistantCard assistant={assistant} />
+              <ChatAssistantCard />
               {conversationalSkills.map((skill) => (
                 <BackgroundSkillCard key={skill.uri} skill={skill} />
               ))}
@@ -136,12 +148,6 @@ function SectionHeader({ title, blurb }: { title: string; blurb: string }) {
   );
 }
 
-/**
- * Skills that *speak* to end-users in a conversation surface (chat, email
- * replies, outreach drafts) rather than running silently in the background.
- * Today this is just the outreach drafters; the main chat assistant is its
- * own card. As we add more user-facing surfaces, list their URIs here.
- */
 function isConversational(skill: { uri: string }): boolean {
   return (
     skill.uri === 'skill://outreach/draft-reply' ||

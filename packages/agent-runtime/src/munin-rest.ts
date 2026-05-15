@@ -65,6 +65,7 @@ export interface CuratorJob {
   createdAt: string;
   updatedAt: string;
   doneAt: string | null;
+  assistantName: string | null;
 }
 
 export interface EnqueueCuratorJobInput {

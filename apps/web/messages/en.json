@@ -111,7 +111,7 @@
     "settings": "Settings",
     "account": "Account",
     "team": "Team",
-    "assistants": "Assistants",
+    "ai": "AI",
     "agents": "Agents",
     "apiKeys": "API keys",
     "channels": "Channels",
@@ -708,7 +708,7 @@
       "nameHint": "Up to 128 characters.",
       "chatbotNameLabel": "Chatbot name (optional)",
       "chatbotNamePlaceholder": "e.g. Munin",
-      "chatbotNameHint": "What the assistant calls itself when talking to customers. Leave blank and it'll go nameless — you can set it later in Settings · Assistants · Chat.",
+      "chatbotNameHint": "What the AI calls itself when talking to customers. Leave blank and it'll go nameless — you can set it later in Settings · AI.",
       "continue": "Continue",
       "errors": {
         "load": "Could not load organization.",
@@ -716,9 +716,9 @@
       }
     },
     "settings": {
-      "eyebrow": "Workspace · Assistants",
-      "title": "Mind of the <em>flock</em>.",
-      "lede": "Everything that thinks on your behalf — the chat assistant that talks to customers, and the background tasks that keep your data tidy. Provider, API key, and model selection live up top; the assistants themselves live below."
+      "eyebrow": "Workspace · AI",
+      "title": "Brief the <em>raven</em>.",
+      "lede": "Everything that thinks on your behalf — the persona, the model provider, and every job the AI handles, from chat replies to outreach drafts."
     },
     "wizard": {
       "stepEyebrow": "Step {step} of {total}",
@@ -793,13 +793,17 @@
   },
   "assistants": {
     "list": {
-      "engine": {
-        "title": "Engine",
-        "blurb": "Model provider and credentials. Used by the chat assistant and every background task below."
+      "persona": {
+        "title": "Persona",
+        "blurb": "Used wherever the AI speaks or writes to your customers — chat replies, outreach drafts, outreach replies."
+      },
+      "models": {
+        "title": "Models",
+        "blurb": "Model provider and credentials. Used by every job below."
       },
       "conversational": {
         "title": "Conversational",
-        "blurb": "Speaks to your customers directly."
+        "blurb": "Speaks to your customers directly, in the configured persona."
       },
       "background": {
         "tierLabel": "{tier}",
@@ -814,7 +818,7 @@
       },
       "aiDriven": {
         "title": "AI-driven",
-        "blurb": "Run silently. The assistant decides what to do using the same model as the chat assistant.",
+        "blurb": "Run silently. The AI decides what to do using the same model as the chat assistant.",
         "empty": "No AI-driven skills configured."
       },
       "tasks": {
@@ -825,24 +829,17 @@
       "chatAssistant": {
         "title": "Chat assistant",
         "description": "Replies to customers across chat, email, and any other conversation channel.",
-        "tierLabel": "{tier}",
-        "nameLabel": "Name",
-        "unnamed": "(unnamed)"
+        "tierLabel": "{tier}"
       }
     },
-    "chat": {
-      "eyebrow": "Workspace · Assistants · Chat",
-      "title": "Chat assistant",
-      "lede": "How the chatbot introduces itself across every channel where it talks to customers."
-    },
     "identity": {
-      "title": "Identity",
-      "blurb": "What the assistant calls itself. Shown in chat headers and used as a name preamble in the system prompt so the agent knows what to answer to.",
+      "title": "Name",
+      "blurb": "What the AI calls itself. Injected as a name preamble in every system prompt the AI uses to write to customers.",
       "nameLabel": "Name",
       "namePlaceholder": "e.g. Munin",
-      "nameHelp": "Leave blank to omit a name. The assistant will still talk in your brand voice; it just won't introduce itself by name.",
+      "nameHelp": "Leave blank to omit a name. The AI will still talk in your brand voice; it just won't introduce itself by name.",
       "errors": {
-        "save": "Couldn't save the assistant name."
+        "save": "Couldn't save the AI name."
       }
     }
   },

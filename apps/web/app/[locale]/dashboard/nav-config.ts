@@ -3,8 +3,8 @@ export type SettingsGroupKey = 'workspace' | 'access' | 'monitoring';
 export type SettingsItemKey =
   | 'account'
   | 'team'
+  | 'ai'
   | 'channels'
-  | 'assistants'
   | 'apiKeys'
   | 'agents'
   | 'endUsers'
@@ -29,8 +29,8 @@ export const SETTINGS_GROUPS: SettingsSubNavGroup[] = [
     items: [
       { href: '/dashboard/settings/account', labelKey: 'account' },
       { href: '/dashboard/settings/team', labelKey: 'team' },
+      { href: '/dashboard/settings/ai', labelKey: 'ai' },
       { href: '/dashboard/settings/channels', labelKey: 'channels' },
-      { href: '/dashboard/settings/assistants', labelKey: 'assistants' },
       { href: '/dashboard/settings/export', labelKey: 'dataExport' },
     ],
   },

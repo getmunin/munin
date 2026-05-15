@@ -75,8 +75,7 @@ export { useSetupGate } from './auth/use-setup-gate';
 
 export { AcceptInvitePage } from './pages/accept-invite';
 export { AccountPage, type AccountPageProps } from './pages/account';
-export { AssistantsSettingsPage } from './pages/assistants-settings';
-export { AssistantChatSettingsPage } from './pages/assistant-chat-settings';
+export { AiSettingsPage } from './pages/ai-settings';
 export { OAuthConsentPage } from './pages/oauth-consent';
 export { AgentSetupWizard } from './pages/agent-setup-wizard';
 export { AgentsPage } from './pages/agents';

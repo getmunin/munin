@@ -181,13 +181,13 @@ function ReadyCard({ config, importJobId, onBack }: ReadyCardProps) {
           </Button>
           <Button
             variant="outline"
-            render={<Link href="/dashboard/settings/assistants/chat" />}
+            render={<Link href="/dashboard/settings/ai" />}
           >
             {t('wizard.cta.customizeChatbot')}
           </Button>
           <Button
             variant="outline"
-            render={<Link href="/dashboard/settings/assistants" />}
+            render={<Link href="/dashboard/settings/ai" />}
           >
             {t('wizard.cta.tweakSettings')}
           </Button>

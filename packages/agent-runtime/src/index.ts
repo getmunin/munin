@@ -12,6 +12,7 @@ export {
   type PromptResolver,
 } from './prompt-resolver.js';
 export {
+  assistantNamePreamble,
   createConversationHandler,
   type ConversationHandler,
   type ConversationHandlerDeps,

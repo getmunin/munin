@@ -1016,8 +1016,150 @@ const skipReason = TEST_URL
     };
     const agent = body.messages.find((m) => m.role === 'agent')!;
     expect(agent.authorKind).toBe('ai');
+    // No assistants row for this org → falls back to 'Munin'.
     expect(agent.authorName).toBe('Munin');
     expect(body.conversation?.status).toBe('open');
+  });
+
+  it('uses the configured assistants.name for agent authorName when set', async () => {
+    await db
+      .insert(schema.assistants)
+      .values({ orgId, name: 'Jens' })
+      .onConflictDoUpdate({
+        target: schema.assistants.orgId,
+        set: { name: 'Jens', updatedAt: new Date() },
+      });
+    try {
+      const sid = `vis_assistant_${Date.now()}`;
+      await call('POST', '/api/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: sid,
+        messages: [
+          { role: 'end_user', body: 'hi' },
+          { role: 'agent', body: 'hello there' },
+        ],
+      });
+      const res = await call(
+        'GET',
+        `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+        widgetKey,
+      );
+      const body = res.json as {
+        messages: Array<{ role: string; authorName: string | null }>;
+      };
+      const agent = body.messages.find((m) => m.role === 'agent')!;
+      expect(agent.authorName).toBe('Jens');
+    } finally {
+      await db.delete(schema.assistants).where(eq(schema.assistants.orgId, orgId));
+    }
+  });
+
+  it('returns first-name only for human-author messages', async () => {
+    const [op] = await db
+      .insert(schema.users)
+      .values({ email: `widget-op-${Date.now()}@example.test`, name: 'Maja Hansen' })
+      .returning();
+    const opId = op!.id;
+    try {
+      const sid = `vis_human_${Date.now()}`;
+      await call('POST', '/api/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: sid,
+        messages: [{ role: 'end_user', body: 'hi' }],
+      });
+      const conv = (
+        await db
+          .select({ id: schema.convConversations.id })
+          .from(schema.convConversations)
+          .where(
+            and(
+              eq(schema.convConversations.orgId, orgId),
+              sql`${schema.convConversations.metadata}->>'sessionId' = ${sid}`,
+            ),
+          )
+          .limit(1)
+      )[0]!;
+      await db.insert(schema.convMessages).values({
+        orgId,
+        conversationId: conv.id,
+        authorType: 'user',
+        authorId: opId,
+        body: 'Hi — Maja here, let me look.',
+      });
+
+      const res = await call(
+        'GET',
+        `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+        widgetKey,
+      );
+      const body = res.json as {
+        messages: Array<{ role: string; authorKind: string | null; authorName: string | null }>;
+      };
+      const human = body.messages.find((m) => m.authorKind === 'human')!;
+      expect(human.authorName).toBe('Maja');
+    } finally {
+      await db
+        .delete(schema.convMessages)
+        .where(and(eq(schema.convMessages.orgId, orgId), eq(schema.convMessages.authorId, opId)));
+      await db.delete(schema.users).where(eq(schema.users.id, opId));
+    }
+  });
+
+  it('returns readAt on listed messages, null until a conv_message_reads row exists', async () => {
+    const sid = `vis_read_${Date.now()}`;
+    await call('POST', '/api/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sid,
+      messages: [
+        { role: 'end_user', body: 'hello there' },
+        { role: 'agent', body: 'an agent reply for read-state test' },
+      ],
+    });
+
+    const firstRes = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+      widgetKey,
+    );
+    const firstBody = firstRes.json as {
+      messages: Array<{ id: string; role: string; readAt: string | null }>;
+    };
+    for (const m of firstBody.messages) expect(m.readAt).toBeNull();
+
+    const agent = firstBody.messages.find((m) => m.role === 'agent')!;
+    expect(agent).toBeDefined();
+
+    const conv = (
+      await db
+        .select({ id: schema.convConversations.id, endUserId: schema.convConversations.endUserId })
+        .from(schema.convConversations)
+        .where(
+          and(
+            eq(schema.convConversations.orgId, orgId),
+            sql`${schema.convConversations.metadata}->>'sessionId' = ${sid}`,
+          ),
+        )
+        .limit(1)
+    )[0]!;
+    await db.insert(schema.convMessageReads).values({
+      orgId,
+      conversationId: conv.id,
+      messageId: agent.id,
+      endUserId: conv.endUserId!,
+    });
+
+    const secondRes = await call(
+      'GET',
+      `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+      widgetKey,
+    );
+    const secondBody = secondRes.json as {
+      messages: Array<{ id: string; role: string; readAt: string | null }>;
+    };
+    const markedAgent = secondBody.messages.find((m) => m.id === agent.id)!;
+    expect(markedAgent.readAt).not.toBeNull();
+    const visitorMsg = secondBody.messages.find((m) => m.role === 'end_user')!;
+    expect(visitorMsg.readAt).toBeNull();
   });
 
   it('redirects GET /widget.js to the current hashed bundle with a short revalidate cache', async () => {

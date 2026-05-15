@@ -66,6 +66,7 @@ export class WidgetIngestService {
       .select({
         id: schema.convConversations.id,
         contactId: schema.convConversations.contactId,
+        endUserId: schema.convConversations.endUserId,
         subject: schema.convConversations.subject,
         status: schema.convConversations.status,
         assigneeUserId: schema.convConversations.assigneeUserId,
@@ -137,8 +138,20 @@ export class WidgetIngestService {
         ? await this.loadUserNames(tx, Array.from(userIdSet))
         : new Map<string, string>();
     const assigneeName = conv[0].assigneeUserId
-      ? userNames.get(conv[0].assigneeUserId) ?? null
+      ? firstWord(userNames.get(conv[0].assigneeUserId)) ?? null
       : null;
+
+    const hasAgentMessage = visible.some((r) => r.authorType === 'agent');
+    const assistantName = hasAgentMessage ? await this.loadAssistantName(tx, orgId) : null;
+    const agentDisplayName = assistantName ?? 'Munin';
+
+    const readableIds = visible
+      .filter((r) => r.authorType !== 'end_user')
+      .map((r) => r.id);
+    const readsByMessageId =
+      conv[0].endUserId && readableIds.length > 0
+        ? await this.loadReadsForEndUser(tx, readableIds, conv[0].endUserId)
+        : new Map<string, Date>();
 
     const messages: WidgetListedMessage[] = visible.map((r) => ({
       id: r.id,
@@ -146,13 +159,14 @@ export class WidgetIngestService {
       authorKind: authorKindFor(r.authorType),
       authorName:
         r.authorType === 'user'
-          ? userNames.get(r.authorId) ?? null
+          ? firstWord(userNames.get(r.authorId)) ?? null
           : r.authorType === 'agent'
-            ? 'Munin'
+            ? agentDisplayName
             : null,
       body: r.body,
       bodyHtml: r.bodyHtml,
       at: r.createdAt.toISOString(),
+      readAt: readsByMessageId.get(r.id)?.toISOString() ?? null,
     }));
 
     const envelope: WidgetConversationEnvelope = {
@@ -459,6 +473,40 @@ export class WidgetIngestService {
       displayId: created!.displayId,
       contactId: contact.id,
     };
+  }
+
+  private async loadAssistantName(tx: Tx, orgId: string): Promise<string | null> {
+    const [row] = await tx
+      .select({ name: schema.assistants.name })
+      .from(schema.assistants)
+      .where(eq(schema.assistants.orgId, orgId))
+      .limit(1);
+    return row?.name?.trim() || null;
+  }
+
+  private async loadReadsForEndUser(
+    tx: Tx,
+    messageIds: string[],
+    endUserId: string,
+  ): Promise<Map<string, Date>> {
+    if (messageIds.length === 0) return new Map();
+    const rows = await tx
+      .select({
+        messageId: schema.convMessageReads.messageId,
+        readAt: schema.convMessageReads.readAt,
+      })
+      .from(schema.convMessageReads)
+      .where(
+        and(
+          eq(schema.convMessageReads.endUserId, endUserId),
+          inArray(schema.convMessageReads.messageId, messageIds),
+        ),
+      );
+    const out = new Map<string, Date>();
+    for (const r of rows) {
+      out.set(r.messageId, r.readAt instanceof Date ? r.readAt : new Date(r.readAt));
+    }
+    return out;
   }
 
   private async loadUserNames(tx: Tx, userIds: string[]): Promise<Map<string, string>> {
@@ -850,6 +898,12 @@ export class WidgetIngestService {
     });
     return created!;
   }
+}
+
+function firstWord(name: string | null | undefined): string | null {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+  return trimmed.split(/\s+/)[0]!;
 }
 
 function normalizeRole(authorType: string): WidgetListedMessage['role'] {

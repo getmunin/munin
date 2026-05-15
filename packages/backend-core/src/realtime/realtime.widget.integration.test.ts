@@ -878,6 +878,75 @@ const skipReason = TEST_URL
       wsOperator.terminate();
     }
   });
+
+  it('persists conv_message_reads rows for both single and multiple message-id reads', async () => {
+    const sessionId = `rt_read_${Date.now()}`;
+    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${widgetKey}`,
+        Origin: ALLOWED_ORIGIN,
+      },
+      body: JSON.stringify({
+        channelId,
+        sessionId,
+        messages: [
+          { role: 'end_user', body: 'hello' },
+          { role: 'agent', body: 'first reply' },
+          { role: 'agent', body: 'second reply' },
+          { role: 'agent', body: 'third reply' },
+        ],
+      }),
+    });
+    const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const agentRows = await db
+      .select({ id: schema.convMessages.id })
+      .from(schema.convMessages)
+      .where(sql`${schema.convMessages.conversationId} = ${conversationId} AND ${schema.convMessages.authorType} = 'agent'`);
+    expect(agentRows.length).toBe(3);
+    const [firstId, secondId, thirdId] = agentRows.map((r) => r.id);
+
+    const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    await waitForOpen(wsVisitor);
+    try {
+      // Single-id read — exercises the IN (...) path with one element.
+      wsVisitor.send(
+        JSON.stringify({
+          type: 'read',
+          channel: 'widget',
+          channelId,
+          sessionId,
+          messageIds: [firstId],
+        }),
+      );
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Multi-id read — exercises sql.join with multiple elements.
+      wsVisitor.send(
+        JSON.stringify({
+          type: 'read',
+          channel: 'widget',
+          channelId,
+          sessionId,
+          messageIds: [secondId, thirdId],
+        }),
+      );
+      await new Promise((r) => setTimeout(r, 200));
+
+      const readRows = await db
+        .select({ messageId: schema.convMessageReads.messageId })
+        .from(schema.convMessageReads)
+        .where(sql`${schema.convMessageReads.conversationId} = ${conversationId}`);
+      expect(readRows.map((r) => r.messageId).sort()).toEqual(
+        [firstId, secondId, thirdId].sort(),
+      );
+    } finally {
+      wsVisitor.terminate();
+    }
+  });
 });
 
 function decodeWsData(data: WebSocket.RawData): string {

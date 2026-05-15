@@ -6,7 +6,7 @@ import {
   mintNewSession,
   setCurrentSession,
 } from './session.js';
-import { createApiClient, WidgetApiError, type ConversationSummary } from './api.js';
+import { createApiClient, WidgetApiError, type ConversationSummary, type ListedMessage } from './api.js';
 import { createRealtimeClient, type IncomingTyping } from './realtime.js';
 import { mount, type UiController } from './ui.js';
 import { pickLocale } from './strings/index.js';
@@ -61,6 +61,29 @@ function start(config: WidgetConfig): void {
   let agentTurnsThisSession = 0;
   let visitorHasEmail = !!config.visitor?.email;
   let emailCardShown = false;
+  const messagesById = new Map<string, ListedMessage>();
+  const locallyRead = new Set<string>();
+
+  function recordMessages(messages: ListedMessage[]): void {
+    for (const m of messages) messagesById.set(m.id, m);
+    refreshUnreadBadge();
+  }
+
+  function markLocallyRead(messageId: string): void {
+    locallyRead.add(messageId);
+    refreshUnreadBadge();
+  }
+
+  function refreshUnreadBadge(): void {
+    let n = 0;
+    for (const m of messagesById.values()) {
+      if (m.role !== 'agent') continue;
+      if (m.readAt) continue;
+      if (locallyRead.has(m.id)) continue;
+      n += 1;
+    }
+    ui.setLauncherUnread(n);
+  }
 
   async function backfill(): Promise<void> {
     if (backfillInFlight) {
@@ -74,6 +97,7 @@ function start(config: WidgetConfig): void {
         const res = await api.backfillSince(lastSeenAt);
         if (res.messages.length > 0) {
           ui.addMessages(res.messages);
+          recordMessages(res.messages);
           for (const m of res.messages) {
             if (m.role === 'agent') {
               agentTurnsThisSession += 1;
@@ -197,6 +221,7 @@ function start(config: WidgetConfig): void {
     },
     onMessageRead(messageId) {
       realtime.sendRead([messageId]);
+      markLocallyRead(messageId);
     },
   });
 

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -29,11 +29,11 @@ import {
   detectSignatureBlock,
   ensureReSubject,
   formatQuotedHistory,
+  loadPriorMessagesForQuote,
   splitSignatureText,
   stripQuotedReplyHtml,
   stripQuotedReplyText,
   stripSignatureHtml,
-  type QuotedPriorMessage,
 } from './reply-history.js';
 import { classifySender, hasAnyClassification } from './classify-sender.js';
 import type {
@@ -138,7 +138,15 @@ export class EmailAdapter implements ChannelAdapter {
     const recipient = ctx.contact?.email ?? extractToFromMetadata(ctx.message.metadata);
     if (!recipient) throw new Error('no recipient on conversation contact');
 
-    const prior = await this.loadPriorMessagesForQuote(ctx, 3);
+    const channelFromName = config.addressing.fromName?.trim() || 'Support';
+    const prior = await loadPriorMessagesForQuote(this.db, {
+      conversationId: ctx.conversation.id,
+      excludeMessageId: ctx.message.id,
+      contactName: ctx.contact?.name?.trim() || null,
+      contactEmail: ctx.contact?.email ?? null,
+      channelFromName,
+      limit: 3,
+    });
     const quoted = formatQuotedHistory(prior, 3);
     const body = quoted ? `${ctx.message.body}\n\n${quoted}` : ctx.message.body;
 
@@ -191,49 +199,6 @@ export class EmailAdapter implements ChannelAdapter {
     }
 
     return { providerMessageId: built.messageId };
-  }
-
-  private async loadPriorMessagesForQuote(
-    ctx: SendContext,
-    limit: number,
-  ): Promise<QuotedPriorMessage[]> {
-    const contactName = ctx.contact?.name?.trim() || null;
-    const contactEmail = ctx.contact?.email ?? null;
-    const channelFromName = (() => {
-      const cfg = jsonbToStored(ctx.channel.config);
-      return cfg.addressing.fromName?.trim() || 'Support';
-    })();
-
-    return this.db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-      const rows = await tx
-        .select({
-          id: schema.convMessages.id,
-          authorType: schema.convMessages.authorType,
-          body: schema.convMessages.body,
-          createdAt: schema.convMessages.createdAt,
-        })
-        .from(schema.convMessages)
-        .where(
-          and(
-            eq(schema.convMessages.conversationId, ctx.conversation.id),
-            eq(schema.convMessages.internal, false),
-            sql`${schema.convMessages.id} <> ${ctx.message.id}`,
-          ),
-        )
-        .orderBy(desc(schema.convMessages.createdAt))
-        .limit(limit);
-
-      return rows.map((r) => {
-        const isContact = r.authorType === 'end_user';
-        return {
-          authorName: isContact ? contactName ?? 'User' : channelFromName,
-          authorEmail: isContact ? contactEmail : null,
-          createdAt: r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt),
-          body: r.body,
-        };
-      });
-    });
   }
 
   // ─── inbound poll ───────────────────────────────────────────────────────

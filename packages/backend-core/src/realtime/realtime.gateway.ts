@@ -461,6 +461,10 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     if (!convRow || !convRow.endUserId) return;
     if (convRow.orgId !== entry.orgId) return;
 
+    const messageIdList = sql.join(
+      messageIds.map((id) => sql`${id}`),
+      sql`, `,
+    );
     const inserted = await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.org_id', ${convRow.orgId}, true)`);
       return tx.execute<{ message_id: string; read_at: Date | string }>(sql`
@@ -473,7 +477,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
           ${convRow.endUserId},
           NOW()
         FROM conv_messages m
-        WHERE m.id = ANY(${messageIds}::text[])
+        WHERE m.id IN (${messageIdList})
           AND m.conversation_id = ${conversationId}
           AND m.author_type <> 'end_user'
         ON CONFLICT (message_id, end_user_id) DO NOTHING

@@ -52,6 +52,7 @@ function msg(partial: Partial<ListedMessage> & { id: string; role: ListedMessage
     authorName: partial.role === 'agent' ? 'Munin' : null,
     bodyHtml: null,
     at: '2026-01-01T00:00:00Z',
+    readAt: null,
     ...partial,
   };
 }
@@ -93,6 +94,34 @@ describe('ui: mount + lifecycle', () => {
     controller.destroy();
     controller = null;
     expect(document.querySelector('[data-munin-widget]')).toBeNull();
+  });
+});
+
+describe('ui: launcher unread badge', () => {
+  beforeEach(() => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+  });
+
+  it('hides the badge by default', () => {
+    expect(($('.launcher-badge') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('shows the count when setLauncherUnread is called with a positive number', () => {
+    controller!.setLauncherUnread(3);
+    const badge = $('.launcher-badge') as HTMLElement;
+    expect(badge.hidden).toBe(false);
+    expect(badge.textContent).toBe('3');
+  });
+
+  it('caps the displayed count at 9+', () => {
+    controller!.setLauncherUnread(42);
+    expect($('.launcher-badge').textContent).toBe('9+');
+  });
+
+  it('hides the badge again when count drops to 0', () => {
+    controller!.setLauncherUnread(2);
+    controller!.setLauncherUnread(0);
+    expect(($('.launcher-badge') as HTMLElement).hidden).toBe(true);
   });
 });
 
@@ -226,8 +255,8 @@ describe('ui: addMessages', () => {
 
   it('tags agent messages with the human/AI chip', () => {
     controller!.addMessages([
-      { id: 'm1', role: 'agent', body: 'hi', bodyHtml: null, at: '2026-01-01T00:00:00Z', authorKind: 'ai', authorName: 'Munin' },
-      { id: 'm2', role: 'agent', body: 'taking over', bodyHtml: null, at: '2026-01-01T00:00:01Z', authorKind: 'human', authorName: 'Maja' },
+      { id: 'm1', role: 'agent', body: 'hi', bodyHtml: null, at: '2026-01-01T00:00:00Z', authorKind: 'ai', authorName: 'Munin', readAt: null },
+      { id: 'm2', role: 'agent', body: 'taking over', bodyHtml: null, at: '2026-01-01T00:00:01Z', authorKind: 'human', authorName: 'Maja', readAt: null },
     ]);
     const heads = $$('.msg-head');
     const labels = heads.map((h) => h.textContent ?? '');

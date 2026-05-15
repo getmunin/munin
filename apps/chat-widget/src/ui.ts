@@ -29,6 +29,7 @@ export interface UiController {
   setSending(sending: boolean): void;
   setPastConversations(convs: ConversationSummary[]): void;
   setConversation(envelope: ConversationEnvelope | null): void;
+  setLauncherUnread(count: number): void;
   showEmailCard(): void;
   setEmailSaved(email: string): void;
   setView(view: 'welcome' | 'chat'): void;
@@ -61,7 +62,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   root.style.setProperty('--munin-theme', config.themeColor);
   shadow.appendChild(root);
 
-  const launcher = renderLauncher(strings);
+  const { btn: launcher, badge: launcherBadge } = renderLauncher(strings);
   const panel = renderPanel(config, strings);
   root.append(launcher, panel.el);
   panel.el.hidden = true;
@@ -336,6 +337,16 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   setPastConversations([]);
   paintChatHead();
 
+  function setLauncherUnread(count: number): void {
+    if (count <= 0) {
+      launcherBadge.hidden = true;
+      launcherBadge.textContent = '';
+      return;
+    }
+    launcherBadge.hidden = false;
+    launcherBadge.textContent = count > 9 ? '9+' : String(count);
+  }
+
   return {
     addMessages,
     setAgentTyping,
@@ -343,6 +354,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     setSending,
     setPastConversations,
     setConversation,
+    setLauncherUnread,
     showEmailCard,
     setEmailSaved,
     setView,
@@ -536,7 +548,7 @@ function renderEmailCardDone(strings: Strings, email: string): HTMLDivElement {
   return card;
 }
 
-function renderLauncher(strings: Strings): HTMLButtonElement {
+function renderLauncher(strings: Strings): { btn: HTMLButtonElement; badge: HTMLSpanElement } {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'launcher';
@@ -544,7 +556,11 @@ function renderLauncher(strings: Strings): HTMLButtonElement {
   btn.innerHTML =
     '<svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">' +
     '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" /></svg>';
-  return btn;
+  const badge = document.createElement('span');
+  badge.className = 'launcher-badge';
+  badge.hidden = true;
+  btn.appendChild(badge);
+  return { btn, badge };
 }
 
 interface PanelHandles {

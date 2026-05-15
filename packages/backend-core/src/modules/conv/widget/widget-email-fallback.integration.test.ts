@@ -131,18 +131,21 @@ const REPLY_DOMAIN = 'reply.example.test';
 
   async function insertMsg(
     convId: string,
-    authorType: 'end_user' | 'agent',
+    authorType: 'end_user' | 'agent' | 'user',
     body: string,
     ageMs = 30_000,
+    authorIdOverride?: string,
   ): Promise<string> {
     const createdAt = new Date(Date.now() - ageMs);
+    const fallbackAuthorId =
+      authorType === 'end_user' ? contactId : authorType === 'user' ? 'system' : 'system';
     const [m] = await db
       .insert(schema.convMessages)
       .values({
         orgId,
         conversationId: convId,
         authorType,
-        authorId: authorType === 'end_user' ? contactId : 'system',
+        authorId: authorIdOverride ?? fallbackAuthorId,
         body,
         createdAt,
       })
@@ -150,7 +153,7 @@ const REPLY_DOMAIN = 'reply.example.test';
     return m!.id;
   }
 
-  it('sends a digest when an agent message is unread and writes a delivery row for threading', async () => {
+  it('sends the latest unread agent message with quoted history, signoff, and no digest framing', async () => {
     const convId = await newConv('Login help');
     await insertMsg(convId, 'end_user', 'Hi, I need help.', 60_000);
     const agentMsgId = await insertMsg(convId, 'agent', 'Sure — what are you stuck on?', 30_000);
@@ -166,6 +169,18 @@ const REPLY_DOMAIN = 'reply.example.test';
     expect(sent.replyTo).toBe(`support+conv-${convId}@${REPLY_DOMAIN}`);
     const stamped = sent.headers?.['Message-ID'];
     expect(stamped).toMatch(/^<[^<>]+@acme\.test>$/);
+
+    const body = sent.text!;
+    expect(body).not.toMatch(/^Hi,/m);
+    expect(body).not.toContain('sent you');
+    expect(body).not.toContain('Reply to this email');
+    expect(body).not.toContain('Best regards,');
+    // No assistants row for this org → agent signoff falls back to the channel fromName.
+    expect(body).toContain('— Acme Support');
+    expect(body).toContain('> Hi, I need help.');
+    expect(body.indexOf('— Acme Support')).toBeGreaterThan(body.indexOf('Sure — what are you stuck on?'));
+    expect(body.indexOf('— Acme Support')).toBeLessThan(body.indexOf('> Hi, I need help.'));
+    expect(sent.subject).toBe('Login help');
 
     const fallbacks = await db
       .select()
@@ -187,7 +202,7 @@ const REPLY_DOMAIN = 'reply.example.test';
     expect(deliveries[0]!.messageIdHeader).toBe(fallbacks[0]!.messageIdHeader);
   });
 
-  it('bundles multiple unread agent messages into one digest with N delivery rows', async () => {
+  it('emails only the latest of multiple unread agent messages, quoting earlier ones, with N delivery rows', async () => {
     const convId = await newConv();
     await insertMsg(convId, 'end_user', 'Hi.', 90_000);
     const m1 = await insertMsg(convId, 'agent', 'First reply.', 60_000);
@@ -197,8 +212,10 @@ const REPLY_DOMAIN = 'reply.example.test';
     expect(result.sent).toBe(1);
 
     expect(mailer.outbox).toHaveLength(1);
-    expect(mailer.outbox[0]!.text).toContain('First reply.');
-    expect(mailer.outbox[0]!.text).toContain('And a follow-up.');
+    const body = mailer.outbox[0]!.text!;
+    expect(body).toContain('And a follow-up.');
+    expect(body).toContain('> First reply.');
+    expect(body.indexOf('And a follow-up.')).toBeLessThan(body.indexOf('> First reply.'));
 
     const fb = (
       await db.select().from(schema.convWidgetEmailFallbacks).where(eq(schema.convWidgetEmailFallbacks.conversationId, convId))
@@ -239,6 +256,74 @@ const REPLY_DOMAIN = 'reply.example.test';
     const r = await worker.tick();
     expect(r.sent).toBe(0);
     expect(mailer.outbox).toHaveLength(0);
+  });
+
+  it('does not re-email an already-delivered agent message even if it stays unread', async () => {
+    const convId = await newConv();
+    await insertMsg(convId, 'end_user', 'Hi.', 90_000);
+    await insertMsg(convId, 'agent', 'Old agent reply.', 60_000);
+
+    const r1 = await worker.tick();
+    expect(r1.sent).toBe(1);
+    expect(mailer.outbox[0]!.text!).toContain('Old agent reply.');
+
+    // Engage via a new end-user message (resetting the quiet period) and
+    // an agent reply. The old reply remains unread server-side. The
+    // end-user message must be later than `conv_created_at` so r2's
+    // engagement timestamp differs from r1's (otherwise the unique
+    // `(conversation_id, last_engagement_at)` constraint blocks the
+    // second fallback row). The agent message gets a small age so its
+    // `created_at` lands reliably before `tick`'s cutoff.
+    await insertMsg(convId, 'end_user', 'Followup question.', 0);
+    await insertMsg(convId, 'agent', 'Fresh agent reply.', 50);
+
+    const r2 = await worker.tick();
+    expect(r2.sent).toBe(1);
+    expect(mailer.outbox).toHaveLength(2);
+
+    const secondBody = mailer.outbox[1]!.text!;
+    const beforeSignoff = secondBody.split('\n— ')[0]!;
+    expect(beforeSignoff).toContain('Fresh agent reply.');
+    expect(beforeSignoff).not.toContain('Old agent reply.');
+  });
+
+  it('signs off with the assistants.name when the latest unread is from the AI', async () => {
+    await db
+      .insert(schema.assistants)
+      .values({ orgId, name: 'Jens' })
+      .onConflictDoUpdate({ target: schema.assistants.orgId, set: { name: 'Jens', updatedAt: new Date() } });
+
+    const convId = await newConv('Login help');
+    await insertMsg(convId, 'end_user', 'Hi.', 90_000);
+    await insertMsg(convId, 'agent', 'Sure — what are you stuck on?', 30_000);
+
+    const result = await worker.tick();
+    expect(result.sent).toBe(1);
+    const body = mailer.outbox[0]!.text!;
+    expect(body).toContain('— Jens');
+    expect(body).not.toContain('— Acme Support');
+
+    await db.delete(schema.assistants).where(eq(schema.assistants.orgId, orgId));
+  });
+
+  it('signs off with the human operator first name when the latest unread is from a human', async () => {
+    const [op] = await db
+      .insert(schema.users)
+      .values({ email: `op-${Date.now()}@example.test`, name: 'Maja Hansen' })
+      .returning();
+    const opId = op!.id;
+
+    const convId = await newConv('Login help');
+    await insertMsg(convId, 'end_user', 'Hi.', 90_000);
+    await insertMsg(convId, 'user', 'Hi — Maja here, let me look.', 30_000, opId);
+
+    const result = await worker.tick();
+    expect(result.sent).toBe(1);
+    const body = mailer.outbox[0]!.text!;
+    expect(body).toContain('— Maja');
+    expect(body).not.toContain('— Maja Hansen');
+
+    await db.delete(schema.users).where(eq(schema.users.id, opId));
   });
 
   it('fires again once the end-user engages (resetting the quiet period)', async () => {

@@ -36,4 +36,8 @@ export default {
     'pnpm -F @getmunin/backend-core openapi:generate',
     'git add packages/backend-core/openapi.json',
   ],
+  'pnpm-lock.yaml': () => [
+    'pnpm licenses:generate',
+    'git add THIRD_PARTY_LICENSES.md',
+  ],
 };

@@ -133,7 +133,7 @@ const skipReason = TEST_URL
       transcript: 'Hello, my account is locked.',
       call: { id: callId, customer: { number: '+14155551212' } },
     });
-    expect(r1.status).toBe(200);
+    expect(r1.status).toBe(204);
 
     const r2 = await postEvent({
       type: 'transcript',
@@ -142,7 +142,7 @@ const skipReason = TEST_URL
       transcript: "I can help with that. Let's verify a few details.",
       call: { id: callId, customer: { number: '+14155551212' } },
     });
-    expect(r2.status).toBe(200);
+    expect(r2.status).toBe(204);
 
     const convs = await db
       .select({
@@ -208,7 +208,7 @@ const skipReason = TEST_URL
       call: { id: callId },
       artifact: { recordingUrl: 'https://vapi.example/recordings/abc.mp3', transcript: 'full text' },
     });
-    expect(r.status).toBe(200);
+    expect(r.status).toBe(204);
 
     const conv = await db
       .select()

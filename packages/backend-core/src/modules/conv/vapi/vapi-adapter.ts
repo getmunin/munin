@@ -379,6 +379,7 @@ export class VapiAdapter implements ChannelAdapter {
         .update(schema.convConversations)
         .set({
           metadata: nextMeta,
+          status: 'closed',
           updatedAt: new Date(),
         })
         .where(eq(schema.convConversations.id, conversation.id));

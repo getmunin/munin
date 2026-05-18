@@ -174,7 +174,7 @@ const skipReason = TEST_URL
     expect(body.descriptor?.assistantId).toBe('asst_wv');
     expect(body.descriptor?.metadata).toEqual({
       conversationId: aliceConvId,
-      endUserId: expect.any(String),
+      endUserId: expect.any(String) as unknown,
     });
   });
 

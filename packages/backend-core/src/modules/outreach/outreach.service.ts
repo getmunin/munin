@@ -698,7 +698,7 @@ export class OutreachService {
           .update(schema.convConversations)
           .set({
             outreachCampaignId: args.campaign.id,
-            metadata: { ...(existing[0].metadata as Record<string, unknown>), ...stubMetadata },
+            metadata: { ...(existing[0].metadata), ...stubMetadata },
             updatedAt: new Date(),
           })
           .where(eq(schema.convConversations.id, existing[0].id));

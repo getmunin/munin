@@ -221,7 +221,7 @@ const skipReason = TEST_URL
       )
       .limit(1);
     expect(conv[0]!.status).toBe('closed');
-    const meta = conv[0]!.metadata as Record<string, unknown>;
+    const meta = conv[0]!.metadata;
     const vapiCall = meta.vapiCall as Record<string, unknown>;
     expect(vapiCall.recordingUrl).toBe('https://vapi.example/recordings/abc.mp3');
     expect(vapiCall.endedReason).toBe('customer-ended-call');

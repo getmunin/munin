@@ -88,7 +88,9 @@ export class VapiAdapter implements ChannelAdapter {
 
     let envelope: { message?: VapiServerMessage } | VapiServerMessage;
     try {
-      envelope = JSON.parse(req.rawBody.toString('utf8'));
+      envelope = JSON.parse(req.rawBody.toString('utf8')) as
+        | { message?: VapiServerMessage }
+        | VapiServerMessage;
     } catch {
       throw new Error('vapi_body_not_json');
     }

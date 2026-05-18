@@ -65,8 +65,8 @@ export class TwilioClientService {
       const json = (await res.json()) as Record<string, unknown>;
       return {
         ok: true,
-        friendlyName: String(json.friendly_name ?? ''),
-        status: String(json.status ?? ''),
+        friendlyName: typeof json.friendly_name === 'string' ? json.friendly_name : '',
+        status: typeof json.status === 'string' ? json.status : '',
       };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -101,8 +101,8 @@ export class TwilioClientService {
       throw new Error(`twilio_${code}: ${message}`);
     }
     return {
-      sid: String(json.sid ?? ''),
-      status: String(json.status ?? ''),
+      sid: typeof json.sid === 'string' ? json.sid : '',
+      status: typeof json.status === 'string' ? json.status : '',
       errorCode: typeof json.error_code === 'number' ? json.error_code : null,
       errorMessage: typeof json.error_message === 'string' ? json.error_message : null,
     };

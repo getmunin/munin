@@ -57,7 +57,7 @@ export class VapiClientService {
     return {
       ok: true,
       assistant: {
-        id: String(json.id ?? opts.assistantId),
+        id: typeof json.id === 'string' ? json.id : opts.assistantId,
         name: typeof json.name === 'string' ? json.name : null,
       },
     };
@@ -108,8 +108,8 @@ export class VapiClientService {
       throw new Error(`vapi_${res.status}: ${message}`);
     }
     return {
-      id: String(json.id ?? ''),
-      status: String(json.status ?? ''),
+      id: typeof json.id === 'string' ? json.id : '',
+      status: typeof json.status === 'string' ? json.status : '',
     };
   }
 }

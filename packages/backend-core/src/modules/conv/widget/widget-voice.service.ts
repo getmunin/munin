@@ -203,7 +203,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `voice/start convId=${conv.id} seededMessages=${seededMessages.length} inlineKeys=${Object.keys(inlineAssistant).join(',')} modelKeys=${
           inlineAssistant.model && typeof inlineAssistant.model === 'object'
-            ? Object.keys(inlineAssistant.model as Record<string, unknown>).join(',')
+            ? Object.keys(inlineAssistant.model).join(',')
             : 'none'
         }`,
       );

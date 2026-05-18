@@ -88,7 +88,7 @@ export class TwilioSmsAdminTools {
           authToken: args.authToken,
           fromNumber: args.fromNumber,
           messagingServiceSid: args.messagingServiceSid,
-        } as Parameters<TwilioSmsService['updateChannel']>[0]['config'],
+        },
       });
     }
     if (!args.name) throw new BadRequestException('name is required when creating a channel');

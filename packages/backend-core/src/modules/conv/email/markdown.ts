@@ -4,7 +4,7 @@ import type { QuotedPriorMessage } from './reply-history.js';
 marked.setOptions({ gfm: true, breaks: true });
 
 export function renderMarkdownToHtml(markdown: string): string {
-  return marked.parse(markdown, { async: false }) as string;
+  return marked.parse(markdown, { async: false });
 }
 
 export function renderEmailHtml(

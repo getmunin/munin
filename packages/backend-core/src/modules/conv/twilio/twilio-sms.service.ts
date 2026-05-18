@@ -124,7 +124,7 @@ export class TwilioSmsService {
   }
 
   async rotateAuthToken(input: { channelId: string; authToken: string }): Promise<TwilioSmsChannelDto> {
-    return this.updateChannel({ channelId: input.channelId, config: { authToken: input.authToken } as TwilioSmsConfigInput });
+    return this.updateChannel({ channelId: input.channelId, config: { authToken: input.authToken } });
   }
 
   private async toStored(input: TwilioSmsConfigInput): Promise<StoredTwilioSmsConfig> {

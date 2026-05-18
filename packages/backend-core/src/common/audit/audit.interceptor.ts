@@ -47,7 +47,7 @@ export class AuditInterceptor implements NestInterceptor {
     const userAgent = Array.isArray(rawUa) ? rawUa[0] : rawUa;
 
     return next.handle().pipe(
-      mergeMap(async (value) => {
+      mergeMap(async (value: unknown) => {
         await this.audit.record({
           method,
           result: 'ok',

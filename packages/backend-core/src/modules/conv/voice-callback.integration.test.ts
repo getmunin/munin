@@ -204,7 +204,7 @@ const skipReason = TEST_URL
     type FetchArgs = Parameters<typeof globalThis.fetch>;
     globalThis.fetch = (async (...args: FetchArgs) => {
       const [input, init] = args;
-      const url = typeof input === 'string' ? input : String(input);
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       if (url.startsWith('https://api.vapi.ai/call')) {
         const body = init && typeof init.body === 'string' ? init.body : null;
         calls.push({ url, body });
@@ -214,7 +214,7 @@ const skipReason = TEST_URL
         });
       }
       return realFetch(...args);
-    }) as typeof globalThis.fetch;
+    });
     return { calls };
   }
 

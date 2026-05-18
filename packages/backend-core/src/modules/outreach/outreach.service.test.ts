@@ -485,7 +485,7 @@ const skipReason = TEST_URL
       type FetchArgs = Parameters<typeof globalThis.fetch>;
       globalThis.fetch = (async (...args: FetchArgs) => {
         const [input, init] = args;
-        const url = typeof input === 'string' ? input : String(input);
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
         if (url.startsWith('https://api.vapi.ai/call')) {
           calls.push({ url, body: init && typeof init.body === 'string' ? init.body : null });
           return new Response(JSON.stringify(response), {
@@ -494,7 +494,7 @@ const skipReason = TEST_URL
           });
         }
         return realFetch(...args);
-      }) as typeof globalThis.fetch;
+      });
       return { calls };
     }
 
@@ -643,7 +643,7 @@ const skipReason = TEST_URL
       );
       expect(approved.status).toBe('sent');
       expect(approved.conversationId).toBeTruthy();
-      expect((approved.evidence as Record<string, unknown>).vapiCallId).toBe('call_test_42');
+      expect((approved.evidence).vapiCallId).toBe('call_test_42');
 
       expect(calls.length).toBe(1);
       expect(calls[0]!.body ?? '').toContain('"+14155559999"');
@@ -655,7 +655,7 @@ const skipReason = TEST_URL
         .from(schema.convConversations)
         .where(eq(schema.convConversations.id, approved.conversationId!));
       expect(convs[0]!.channelId).toBe(voiceChannelId);
-      const meta = convs[0]!.metadata as Record<string, unknown>;
+      const meta = convs[0]!.metadata;
       expect(meta.vapiCallId).toBe('call_test_42');
       expect(meta.outreachProposalId).toBe(p.id);
       expect(meta.outreachCampaignId).toBe(c.id);
@@ -711,7 +711,7 @@ const skipReason = TEST_URL
         .from(schema.convConversations)
         .where(eq(schema.convConversations.id, preexistingId))
         .limit(1);
-      const meta = merged[0]!.metadata as Record<string, unknown>;
+      const meta = merged[0]!.metadata;
       expect(meta.outreachProposalId).toBe(p.id);
       expect(meta.outreachCampaignId).toBe(c.id);
     });

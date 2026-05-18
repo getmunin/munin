@@ -86,7 +86,7 @@ export class MessageBirdClientService {
       throw new Error(`messagebird_${code}: ${desc}`);
     }
     return {
-      id: String(json.id ?? ''),
+      id: typeof json.id === 'string' ? json.id : '',
       status: extractRecipientStatus(json),
       href: typeof json.href === 'string' ? json.href : null,
     };
@@ -114,8 +114,8 @@ export function verifyMessageBirdJwt(opts: JwtVerifyOptions): JwtVerifyResult {
   let header: { alg?: string; typ?: string };
   let payload: Record<string, unknown>;
   try {
-    header = JSON.parse(base64UrlDecode(headerB64).toString('utf8'));
-    payload = JSON.parse(base64UrlDecode(payloadB64).toString('utf8'));
+    header = JSON.parse(base64UrlDecode(headerB64).toString('utf8')) as { alg?: string; typ?: string };
+    payload = JSON.parse(base64UrlDecode(payloadB64).toString('utf8')) as Record<string, unknown>;
   } catch {
     return { ok: false, error: 'jwt_decode_failed' };
   }

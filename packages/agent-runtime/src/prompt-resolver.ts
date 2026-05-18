@@ -12,7 +12,6 @@ import {
   createPromptCache,
   type KbDocLocation,
   type KbDocReader,
-  type PromptCache,
   type PromptCacheEntry,
   type SeedablePrompt,
 } from '@getmunin/core';

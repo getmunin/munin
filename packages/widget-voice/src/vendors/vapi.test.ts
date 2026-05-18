@@ -30,10 +30,10 @@ vi.mock('@vapi-ai/web', () => {
       return this;
     }
 
-    async start(assistantId?: string, overrides?: unknown): Promise<null> {
+    start(assistantId?: string, overrides?: unknown): Promise<null> {
       this.startedWith = { assistantId, overrides };
-      if (FakeVapi.startError) throw FakeVapi.startError;
-      return null;
+      if (FakeVapi.startError) return Promise.reject(FakeVapi.startError);
+      return Promise.resolve(null);
     }
 
     stop(): Promise<void> {

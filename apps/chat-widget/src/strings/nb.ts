@@ -41,6 +41,21 @@ const nb: Strings = {
   timeDay: '{n}d',
   timeWeek: '{n}u',
   timeMonth: '{n}mnd',
+  voiceCallLabel: 'Ring',
+  voiceStartAriaLabel: 'Start taleanrop',
+  voiceEndAriaLabel: 'Avslutt taleanrop',
+  voiceMinimizeAriaLabel: 'Tilbake til chat (behold anrop aktivt)',
+  voiceResumeAriaLabel: 'Tilbake til anropet',
+  voiceConnecting: 'Kobler til…',
+  voiceLive: 'Live',
+  voiceHint: 'Tale går gjennom denne widgeten — ingen telefonnummer, ingen app.',
+  voiceMute: 'Demp',
+  voiceMuted: 'Dempet',
+  voiceEnd: 'Avslutt',
+  voiceBackToChat: 'Tilbake til chat',
+  voiceOnCallWithTemplate: 'I anrop med {who}',
+  voiceTapToReturn: 'Trykk for å gå tilbake',
+  voiceFailed: 'Taleanrop mislyktes',
 };
 
 export default nb;

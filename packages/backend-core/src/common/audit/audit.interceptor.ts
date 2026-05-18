@@ -4,7 +4,7 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
-import { Observable, catchError, tap, throwError } from 'rxjs';
+import { Observable, catchError, from, mergeMap, throwError } from 'rxjs';
 import { AuditLogger, getCurrentContext } from '@getmunin/core';
 
 /**
@@ -32,10 +32,14 @@ export class AuditInterceptor implements NestInterceptor {
       .switchToHttp()
       .getRequest<{ method: string; url: string; headers: Record<string, string | string[] | undefined> }>();
     const verb = request.method.toUpperCase();
-    const method = `${verb} ${request.url.split('?')[0]}`;
+    const path = request.url.split('?')[0] ?? request.url;
+    const method = `${verb} ${path}`;
     const startedAt = Date.now();
 
     if (verb === 'HEAD' || verb === 'OPTIONS') {
+      return next.handle();
+    }
+    if (verb === 'GET' && path === '/mcp') {
       return next.handle();
     }
 
@@ -43,24 +47,26 @@ export class AuditInterceptor implements NestInterceptor {
     const userAgent = Array.isArray(rawUa) ? rawUa[0] : rawUa;
 
     return next.handle().pipe(
-      tap(() => {
-        void this.audit.record({
+      mergeMap(async (value) => {
+        await this.audit.record({
           method,
           result: 'ok',
           durationMs: Date.now() - startedAt,
           userAgent,
         });
+        return value;
       }),
-      catchError((err: unknown) => {
-        void this.audit.record({
-          method,
-          result: 'error',
-          error: err instanceof Error ? err.message : String(err),
-          durationMs: Date.now() - startedAt,
-          userAgent,
-        });
-        return throwError(() => err);
-      }),
+      catchError((err: unknown) =>
+        from(
+          this.audit.record({
+            method,
+            result: 'error',
+            error: err instanceof Error ? err.message : String(err),
+            durationMs: Date.now() - startedAt,
+            userAgent,
+          }),
+        ).pipe(mergeMap(() => throwError(() => err))),
+      ),
     );
   }
 }

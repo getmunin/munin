@@ -23,6 +23,9 @@ export interface ChannelAdapter {
   /** Matches `conv_channels.type`. */
   readonly kind: ChannelKind;
 
+  /** Matches `conv_channels.vendor`. One adapter may declare multiple vendors when it serves them internally (e.g. email handles 'smtp' + 'mailer'). */
+  readonly vendors: readonly string[];
+
   /** Send one outbound message. Throws on transport failure. */
   send(ctx: SendContext): Promise<SendResult>;
 
@@ -34,13 +37,24 @@ export type ChannelKind = 'email' | 'chat' | 'sms' | 'voice';
 
 export type InboundMode =
   | { mode: 'poll'; intervalMs: number; tick(channel: ChannelRow): Promise<PollTickResult> }
-  | { mode: 'webhook'; verify(req: IncomingWebhookRequest, channel: ChannelRow): Promise<InboundBatch> }
+  | {
+      mode: 'webhook';
+      verify(req: IncomingWebhookRequest, channel: ChannelRow): Promise<InboundBatch>;
+      toResponse?(batch: InboundBatch, channel: ChannelRow): WebhookResponse;
+    }
   | { mode: 'push' };
+
+export interface WebhookResponse {
+  status: number;
+  contentType?: string;
+  body?: string;
+}
 
 export interface ChannelRow {
   id: string;
   orgId: string;
   type: string;
+  vendor: string;
   name: string;
   config: Record<string, unknown>;
   active: boolean;
@@ -85,6 +99,7 @@ export interface InboundBatch {
     receivedAt: Date;
     raw?: Record<string, unknown>;
   }>;
+  responseOverride?: WebhookResponse;
 }
 
 /**
@@ -103,28 +118,33 @@ export type DbOrTx = Db | Tx;
 export const CHANNEL_ADAPTERS = Symbol('CHANNEL_ADAPTERS');
 
 /**
- * Registry: looks up an adapter by `channel.type`. Throws if none registered
- * for the kind. The generic workers tolerate misses by marking the delivery
- * 'dead' instead — they don't call this function directly.
+ * Registry: looks up an adapter by `(channel.type, channel.vendor)`. The
+ * generic workers tolerate misses by marking the delivery 'dead' instead —
+ * they don't throw on lookup failure.
  */
 export class ChannelAdapterRegistry {
-  private readonly byKind = new Map<string, ChannelAdapter>();
+  private readonly byKey = new Map<string, ChannelAdapter>();
+  private readonly adapters: ChannelAdapter[];
 
   constructor(adapters: ChannelAdapter[]) {
+    this.adapters = [...adapters];
     for (const a of adapters) {
-      if (this.byKind.has(a.kind)) {
-        throw new Error(`duplicate ChannelAdapter for kind '${a.kind}'`);
+      for (const vendor of a.vendors) {
+        const key = `${a.kind}:${vendor}`;
+        if (this.byKey.has(key)) {
+          throw new Error(`duplicate ChannelAdapter for '${key}'`);
+        }
+        this.byKey.set(key, a);
       }
-      this.byKind.set(a.kind, a);
     }
   }
 
-  get(kind: string): ChannelAdapter | null {
-    return this.byKind.get(kind) ?? null;
+  get(kind: string, vendor: string): ChannelAdapter | null {
+    return this.byKey.get(`${kind}:${vendor}`) ?? null;
   }
 
   pollAdapters(): Array<ChannelAdapter & { inbound: Extract<InboundMode, { mode: 'poll' }> }> {
-    return [...this.byKind.values()].filter(
+    return this.adapters.filter(
       (a): a is ChannelAdapter & { inbound: Extract<InboundMode, { mode: 'poll' }> } =>
         a.inbound?.mode === 'poll',
     );

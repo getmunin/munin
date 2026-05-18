@@ -17,11 +17,20 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
 import { ConvService, type ChannelDto } from '../modules/conv/conv.service.js';
 import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.js';
 import { EmailAdminTools } from '../modules/conv/email/email.tools.js';
+import { TwilioSmsAdminTools } from '../modules/conv/twilio/twilio-sms.tools.js';
+import { MessageBirdSmsAdminTools } from '../modules/conv/messagebird/messagebird-sms.tools.js';
+import { VapiAdminTools } from '../modules/conv/vapi/vapi.tools.js';
 import {
   CreateWidgetBody,
   UpdateWidgetBody,
   SetupEmailBody,
   SendEmailTestBody,
+  ConfigureTwilioSmsBody,
+  SendTwilioSmsTestBody,
+  ConfigureMessageBirdSmsBody,
+  SendMessageBirdSmsTestBody,
+  ConfigureVapiBody,
+  VapiCallInitiateBody,
 } from '@getmunin/types';
 
 interface ChannelListResponse {
@@ -36,6 +45,9 @@ export class ConvChannelsController {
     private readonly conv: ConvService,
     private readonly widgetTools: WidgetAdminTools,
     private readonly emailTools: EmailAdminTools,
+    private readonly twilioSmsTools: TwilioSmsAdminTools,
+    private readonly messageBirdSmsTools: MessageBirdSmsAdminTools,
+    private readonly vapiTools: VapiAdminTools,
   ) {}
 
   @Get()
@@ -106,6 +118,105 @@ export class ConvChannelsController {
     const parsed = SendEmailTestBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.emailTools.sendTest({ channelId: id, to: parsed.data.to });
+  }
+
+  @Post('twilio-sms')
+  @HttpCode(200)
+  async configureTwilioSms(
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<TwilioSmsAdminTools['configure']>>> {
+    const parsed = ConfigureTwilioSmsBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.twilioSmsTools.configure(parsed.data);
+  }
+
+  @Post('twilio-sms/:id/test')
+  @HttpCode(200)
+  async testTwilioSms(
+    @Param('id') id: string,
+  ): Promise<Awaited<ReturnType<TwilioSmsAdminTools['testChannel']>>> {
+    return this.twilioSmsTools.testChannel({ channelId: id });
+  }
+
+  @Post('twilio-sms/:id/send-test')
+  @HttpCode(200)
+  async sendTwilioSmsTest(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<TwilioSmsAdminTools['sendTest']>>> {
+    const parsed = SendTwilioSmsTestBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.twilioSmsTools.sendTest({
+      channelId: id,
+      to: parsed.data.to,
+      body: parsed.data.body,
+    });
+  }
+
+  @Post('messagebird-sms')
+  @HttpCode(200)
+  async configureMessageBirdSms(
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<MessageBirdSmsAdminTools['configure']>>> {
+    const parsed = ConfigureMessageBirdSmsBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.messageBirdSmsTools.configure(parsed.data);
+  }
+
+  @Post('messagebird-sms/:id/test')
+  @HttpCode(200)
+  async testMessageBirdSms(
+    @Param('id') id: string,
+  ): Promise<Awaited<ReturnType<MessageBirdSmsAdminTools['testChannel']>>> {
+    return this.messageBirdSmsTools.testChannel({ channelId: id });
+  }
+
+  @Post('messagebird-sms/:id/send-test')
+  @HttpCode(200)
+  async sendMessageBirdSmsTest(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<MessageBirdSmsAdminTools['sendTest']>>> {
+    const parsed = SendMessageBirdSmsTestBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.messageBirdSmsTools.sendTest({
+      channelId: id,
+      to: parsed.data.to,
+      body: parsed.data.body,
+    });
+  }
+
+  @Post('vapi')
+  @HttpCode(200)
+  async configureVapi(
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<VapiAdminTools['configure']>>> {
+    const parsed = ConfigureVapiBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.vapiTools.configure(parsed.data);
+  }
+
+  @Post('vapi/:id/test')
+  @HttpCode(200)
+  async testVapi(
+    @Param('id') id: string,
+  ): Promise<Awaited<ReturnType<VapiAdminTools['testChannel']>>> {
+    return this.vapiTools.testChannel({ channelId: id });
+  }
+
+  @Post('vapi/:id/call')
+  @HttpCode(200)
+  async vapiCall(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<VapiAdminTools['callInitiate']>>> {
+    const parsed = VapiCallInitiateBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.vapiTools.callInitiate({
+      channelId: id,
+      to: parsed.data.to,
+      customerName: parsed.data.customerName,
+    });
   }
 
   @Delete(':id')

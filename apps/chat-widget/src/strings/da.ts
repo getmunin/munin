@@ -41,6 +41,21 @@ const da: Strings = {
   timeDay: '{n}d',
   timeWeek: '{n}u',
   timeMonth: '{n}mdr',
+  voiceCallLabel: 'Ring',
+  voiceStartAriaLabel: 'Start taleopkald',
+  voiceEndAriaLabel: 'Afslut taleopkald',
+  voiceMinimizeAriaLabel: 'Tilbage til chat (behold opkaldet aktivt)',
+  voiceResumeAriaLabel: 'Tilbage til opkaldet',
+  voiceConnecting: 'Forbinder…',
+  voiceLive: 'Live',
+  voiceHint: 'Tale går gennem denne widget — intet telefonnummer, ingen app.',
+  voiceMute: 'Mute',
+  voiceMuted: 'Mutet',
+  voiceEnd: 'Afslut',
+  voiceBackToChat: 'Tilbage til chat',
+  voiceOnCallWithTemplate: 'I opkald med {who}',
+  voiceTapToReturn: 'Tryk for at vende tilbage',
+  voiceFailed: 'Taleopkald mislykkedes',
 };
 
 export default da;

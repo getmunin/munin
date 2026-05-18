@@ -1,4 +1,4 @@
-import { signHmac, timingSafeEqual } from './crypto.js';
+import { signHmac, timingSafeEqual } from './primitives.js';
 
 const VERSION = 'v1';
 

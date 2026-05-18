@@ -12,6 +12,8 @@ import { ConflictException } from '@nestjs/common';
 import { OutreachService, OutreachInvalidError } from './outreach.service.js';
 import { CrmService } from '../crm/crm.service.js';
 import { ConvService } from '../conv/conv.service.js';
+import { VapiClientService } from '../conv/vapi/vapi-client.service.js';
+import { VapiService } from '../conv/vapi/vapi.service.js';
 import { ConversationClaimsService } from '../conv/conv.claims.service.js';
 import { CuratorJobsService } from '../curator/curator-jobs.service.js';
 import { EmailService } from '../conv/email/email.service.js';
@@ -54,7 +56,8 @@ const skipReason = TEST_URL
     const curatorJobs = new CuratorJobsService(dispatcher);
     conv = new ConvService(dispatcher, claims, curatorJobs);
     const email = new EmailService();
-    svc = new OutreachService(dispatcher, conv, crm, email);
+    const vapi = new VapiClientService(db);
+    svc = new OutreachService(dispatcher, conv, crm, email, vapi, db);
   });
 
   afterAll(async () => {
@@ -84,6 +87,7 @@ const skipReason = TEST_URL
       .values({
         orgId,
         type: 'email',
+        vendor: 'smtp',
         name: 'support',
         active: true,
         config: { addressing: { fromAddress: 'support@example.com' } },
@@ -150,7 +154,7 @@ const skipReason = TEST_URL
     it('rejects a campaign whose channel is not email', async () => {
       const [ch] = await db
         .insert(schema.convChannels)
-        .values({ orgId, type: 'chat', name: 'web-widget', active: true, config: {} })
+        .values({ orgId, type: 'chat', vendor: 'munin', name: 'web-widget', active: true, config: {} })
         .returning();
       await expect(
         run(() =>
@@ -447,6 +451,301 @@ const skipReason = TEST_URL
       );
       expect(dismissed.status).toBe('dismissed');
       expect(dismissed.dismissReason).toBe('tone is off');
+    });
+  });
+
+  describe('voice campaigns', () => {
+    let voiceChannelId: string;
+    let voiceContactId: string;
+    let realFetch: typeof globalThis.fetch;
+
+    beforeAll(() => {
+      realFetch = globalThis.fetch;
+    });
+
+    afterAll(() => {
+      globalThis.fetch = realFetch;
+    });
+
+    function runAsSystem<T>(fn: () => Promise<T>): Promise<T> {
+      return db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+        await tx.execute(
+          sql`SELECT set_config('app.crypt_key', ${process.env.MUNIN_ENCRYPTION_KEY ?? ''}, true)`,
+        );
+        const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+        return withContext(ctx, fn);
+      });
+    }
+
+    function stubVapiPlaceCall(
+      response: { id: string; status: string } = { id: 'call_outreach_1', status: 'queued' },
+    ): { calls: Array<{ url: string; body: string | null }> } {
+      const calls: Array<{ url: string; body: string | null }> = [];
+      type FetchArgs = Parameters<typeof globalThis.fetch>;
+      globalThis.fetch = (async (...args: FetchArgs) => {
+        const [input, init] = args;
+        const url = typeof input === 'string' ? input : String(input);
+        if (url.startsWith('https://api.vapi.ai/call')) {
+          calls.push({ url, body: init && typeof init.body === 'string' ? init.body : null });
+          return new Response(JSON.stringify(response), {
+            status: 201,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        return realFetch(...args);
+      }) as typeof globalThis.fetch;
+      return { calls };
+    }
+
+    beforeEach(async () => {
+      process.env.MUNIN_ENCRYPTION_KEY ??=
+        'dGVzdC1lbmNyeXB0aW9uLWtleS1tdXN0LWJlLWxvbmctZW5vdWdoLWZvci1wZ2NyeXB0bw==';
+      globalThis.fetch = realFetch;
+
+      const vapiSvc = new VapiService(db);
+      const voiceChannel = await runAsSystem(() =>
+        vapiSvc.createChannel({
+          name: 'Vapi voice',
+          config: {
+            apiKey: 'vapi-test-api-key',
+            webhookSecret: 'vapi-test-webhook-secret',
+            assistantId: 'asst_outreach',
+            phoneNumberId: 'pn_outreach',
+          },
+        }),
+      );
+      voiceChannelId = voiceChannel.id;
+
+      const [crm] = await db
+        .insert(schema.crmContacts)
+        .values({
+          orgId,
+          name: 'Voice Contact',
+          email: 'voice@example.com',
+          phone: '+14155559999',
+          consentLawfulBasis: 'legitimate_interest',
+          doNotContact: false,
+        })
+        .returning();
+      voiceContactId = crm!.id;
+    });
+
+    it('rejects creating a campaign on a non-email, non-voice channel', async () => {
+      const [otherChannel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'chat',
+          vendor: 'munin',
+          name: 'web-widget',
+          active: true,
+          config: {},
+        })
+        .returning();
+      await expect(
+        run(() =>
+          svc.createCampaign({
+            name: 'bad',
+            brief: 'b',
+            segmentId,
+            channelId: otherChannel!.id,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('allows creating a campaign on a voice:vapi channel', async () => {
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-campaign',
+          brief: 'reach out by phone',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+        }),
+      );
+      expect(c.channelId).toBe(voiceChannelId);
+    });
+
+    it('proposeInitial omits draftSubject for voice campaigns', async () => {
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-no-subject',
+          brief: 'b',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: voiceContactId,
+          draftBody: 'Hi! Quick check-in about your recent order.',
+        }),
+      );
+      expect(p.draftSubject).toBeNull();
+      expect(p.draftBody).toMatch(/check-in/);
+    });
+
+    it('proposeInitial rejects voice proposals when contact has no phone', async () => {
+      const [phoneless] = await db
+        .insert(schema.crmContacts)
+        .values({
+          orgId,
+          name: 'No Phone',
+          email: 'np@example.com',
+          consentLawfulBasis: 'legitimate_interest',
+          doNotContact: false,
+        })
+        .returning();
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-no-phone',
+          brief: 'b',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+        }),
+      );
+      await expect(
+        run(() =>
+          svc.proposeInitial({
+            campaignId: c.id,
+            contactId: phoneless!.id,
+            draftBody: 'Hi.',
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('approveProposal on a voice initial places a Vapi call and creates a stub conversation', async () => {
+      const { calls } = stubVapiPlaceCall({ id: 'call_test_42', status: 'queued' });
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-approve',
+          brief: 'b',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: voiceContactId,
+          draftBody: 'Quick follow-up call.',
+        }),
+      );
+      const approved = await runAsSystem(() =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+      );
+      expect(approved.status).toBe('sent');
+      expect(approved.conversationId).toBeTruthy();
+      expect((approved.evidence as Record<string, unknown>).vapiCallId).toBe('call_test_42');
+
+      expect(calls.length).toBe(1);
+      expect(calls[0]!.body ?? '').toContain('"+14155559999"');
+      expect(calls[0]!.body ?? '').toContain('asst_outreach');
+      expect(calls[0]!.body ?? '').toContain('outreachProposalId');
+
+      const convs = await db
+        .select()
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, approved.conversationId!));
+      expect(convs[0]!.channelId).toBe(voiceChannelId);
+      const meta = convs[0]!.metadata as Record<string, unknown>;
+      expect(meta.vapiCallId).toBe('call_test_42');
+      expect(meta.outreachProposalId).toBe(p.id);
+      expect(meta.outreachCampaignId).toBe(c.id);
+
+      const msgs = await db
+        .select()
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.conversationId, approved.conversationId!));
+      expect(msgs).toEqual([]);
+    });
+
+    it('reuses an existing conversation when the Vapi adapter raced and inserted it first', async () => {
+      const sharedCallId = 'call_race_winner';
+      stubVapiPlaceCall({ id: sharedCallId, status: 'queued' });
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-race',
+          brief: 'b',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+        }),
+      );
+      const [pre] = await db
+        .insert(schema.convConversations)
+        .values({
+          orgId,
+          displayId: 9000,
+          channelId: voiceChannelId,
+          status: 'open',
+          metadata: { vapiCallId: sharedCallId },
+        })
+        .returning();
+      const preexistingId = pre!.id;
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: voiceContactId,
+          draftBody: 'Hi.',
+        }),
+      );
+      const approved = await runAsSystem(() =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+      );
+      expect(approved.conversationId).toBe(preexistingId);
+      const all = await db
+        .select({ id: schema.convConversations.id })
+        .from(schema.convConversations)
+        .where(sql`${schema.convConversations.metadata}->>'vapiCallId' = ${sharedCallId}`);
+      expect(all).toHaveLength(1);
+      const merged = await db
+        .select()
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, preexistingId))
+        .limit(1);
+      const meta = merged[0]!.metadata as Record<string, unknown>;
+      expect(meta.outreachProposalId).toBe(p.id);
+      expect(meta.outreachCampaignId).toBe(c.id);
+    });
+
+    it('proposeReply rejects on a voice campaign conversation', async () => {
+      const { calls: _calls } = stubVapiPlaceCall({ id: 'call_reply_block', status: 'queued' });
+      void _calls;
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-no-reply',
+          brief: 'b',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: voiceContactId,
+          draftBody: 'Quick call.',
+        }),
+      );
+      const approved = await runAsSystem(() =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+      );
+      await expect(
+        run(() =>
+          svc.proposeReply({
+            conversationId: approved.conversationId!,
+            draftBody: 'follow-up',
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
     });
   });
 });

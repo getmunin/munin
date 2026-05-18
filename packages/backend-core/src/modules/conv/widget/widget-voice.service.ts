@@ -1,0 +1,490 @@
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { schema, type Db, type Tx } from '@getmunin/db';
+import {
+  AGENT_RUNTIME_PROMPT_SPACE_SLUG,
+  COMPANY_PROFILE_SLUG,
+  COMPANY_PROFILE_SPACE_SLUG,
+  DEFAULT_VOICE_OPENER_COLD,
+  DEFAULT_VOICE_OPENER_CONTINUATION,
+  DEFAULT_VOICE_SYSTEM_PROMPT,
+  VOICE_OPENER_COLD_SLUG,
+  VOICE_OPENER_CONTINUATION_SLUG,
+  VOICE_SYSTEM_PROMPT_SLUG,
+  WebhookDispatcher,
+  createPromptCache,
+  type KbDocLocation,
+  type KbDocReader,
+  type PromptCache,
+} from '@getmunin/core';
+import { DB } from '../../../common/db/db.module.js';
+import { DbListenerService, type EventRow } from '../../../realtime/db-listener.service.js';
+import { jsonbToStored } from '../vapi/vapi.service.js';
+import { VapiClientService } from '../vapi/vapi-client.service.js';
+import { VapiToolBridge, type VapiFunctionTool } from '../vapi/vapi-tool-bridge.js';
+import type {
+  WidgetVoiceEventInputT,
+  WidgetVoiceEventResult,
+  WidgetVoiceStartInputT,
+  WidgetVoiceStartResult,
+} from './widget.types.js';
+
+const HISTORY_TURN_LIMIT = 20;
+const PROMPT_CACHE_TTL_MS = 60_000;
+
+interface ChatMessageSeed {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface CachedPromptBundle {
+  cache: PromptCache;
+  expiresAt: number;
+}
+
+const INVALIDATING_KB_SLUGS = new Set<string>([
+  COMPANY_PROFILE_SLUG,
+  VOICE_SYSTEM_PROMPT_SLUG,
+  VOICE_OPENER_COLD_SLUG,
+  VOICE_OPENER_CONTINUATION_SLUG,
+]);
+
+@Injectable()
+export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(WidgetVoiceService.name);
+  private readonly promptCacheByOrg = new Map<string, CachedPromptBundle>();
+  private unsubscribeKbEvents: (() => void) | null = null;
+
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(VapiClientService) private readonly vapi: VapiClientService,
+    @Inject(VapiToolBridge) private readonly toolBridge: VapiToolBridge,
+    @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
+    @Inject(DbListenerService) private readonly dbListener: DbListenerService,
+  ) {}
+
+  onModuleInit(): void {
+    this.unsubscribeKbEvents = this.dbListener.subscribe((row) => this.handleKbEvent(row));
+  }
+
+  onModuleDestroy(): void {
+    this.unsubscribeKbEvents?.();
+    this.unsubscribeKbEvents = null;
+  }
+
+  private handleKbEvent(row: EventRow): void {
+    if (!row.type.startsWith('kb.document.')) return;
+    const slug = typeof row.payload['slug'] === 'string' ? row.payload['slug'] : null;
+    if (!slug || !INVALIDATING_KB_SLUGS.has(slug)) return;
+    const cached = this.promptCacheByOrg.get(row.org_id);
+    if (!cached) return;
+    void cached.cache.refresh(slug).catch((err) => {
+      this.logger.warn(
+        `voice prompt-cache refresh failed for org=${row.org_id} slug=${slug}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    });
+  }
+
+  async startSession(
+    orgId: string,
+    boundChannelId: string,
+    input: WidgetVoiceStartInputT,
+  ): Promise<WidgetVoiceStartResult> {
+    if (input.channelId !== boundChannelId) {
+      throw new ForbiddenException('widget_channel_mismatch');
+    }
+
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+
+      const convRows = await tx
+        .select({
+          id: schema.convConversations.id,
+          channelId: schema.convConversations.channelId,
+          endUserId: schema.convConversations.endUserId,
+          orgId: schema.convConversations.orgId,
+          metadata: schema.convConversations.metadata,
+        })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, input.conversationId))
+        .limit(1);
+      const conv = convRows[0];
+      if (!conv || conv.orgId !== orgId) {
+        throw new NotFoundException(`conversation ${input.conversationId} not found`);
+      }
+      if (conv.channelId !== input.channelId) {
+        throw new ForbiddenException('conversation_channel_mismatch');
+      }
+      if (!conv.endUserId) {
+        return { available: false, reason: 'conversation_has_no_end_user' };
+      }
+
+      const channelRows = await tx
+        .select()
+        .from(schema.convChannels)
+        .where(
+          and(
+            eq(schema.convChannels.orgId, orgId),
+            eq(schema.convChannels.type, 'voice'),
+            eq(schema.convChannels.vendor, 'vapi'),
+            eq(schema.convChannels.active, true),
+            isNull(schema.convChannels.archivedAt),
+          ),
+        )
+        .limit(1);
+      const channel = channelRows[0];
+      if (!channel) {
+        return { available: false, reason: 'no_active_voice_channel' };
+      }
+      const storedConfig = jsonbToStored(channel.config);
+      if (!storedConfig.publicKey) {
+        return { available: false, reason: 'voice_channel_missing_public_key' };
+      }
+
+      const apiKey = await this.vapi.loadSecret(storedConfig.encryptedApiKey);
+      const fetched = await this.vapi.fetchAssistantConfig({
+        apiKey,
+        assistantId: storedConfig.assistantId,
+      });
+      if (!fetched.ok) {
+        this.logger.warn(`vapi fetchAssistant failed: ${fetched.error}`);
+        return { available: false, reason: `vapi_fetch_assistant_failed:${fetched.error}` };
+      }
+
+      const historyRows = await tx
+        .select({
+          authorType: schema.convMessages.authorType,
+          body: schema.convMessages.body,
+          internal: schema.convMessages.internal,
+        })
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.conversationId, conv.id))
+        .orderBy(asc(schema.convMessages.createdAt))
+        .limit(HISTORY_TURN_LIMIT * 2);
+
+      const turns: ChatMessageSeed[] = [];
+      for (const row of historyRows) {
+        if (row.internal) continue;
+        const role = mapAuthorToRole(row.authorType);
+        if (!role) continue;
+        const text = row.body?.trim();
+        if (!text) continue;
+        turns.push({ role, content: text });
+      }
+      const trimmedHistory = turns.slice(-HISTORY_TURN_LIMIT);
+
+      const prompts = await this.getPromptCache(tx, orgId);
+      const hadAgentTurn = trimmedHistory.some((m) => m.role === 'assistant');
+      const systemPrompt = composeVoiceSystemPrompt(prompts, conv.id);
+      const openerInstruction = prompts.get(
+        hadAgentTurn ? VOICE_OPENER_CONTINUATION_SLUG : VOICE_OPENER_COLD_SLUG,
+      );
+      const seededMessages: ChatMessageSeed[] = [
+        { role: 'system', content: systemPrompt },
+        ...trimmedHistory,
+        { role: 'system', content: openerInstruction },
+      ];
+
+      const inlineAssistant = buildInlineAssistantConfig({
+        baseConfig: fetched.config,
+        messages: seededMessages,
+        tools: this.toolBridge.buildToolList(),
+      });
+      this.logger.log(
+        `voice/start convId=${conv.id} seededMessages=${seededMessages.length} inlineKeys=${Object.keys(inlineAssistant).join(',')} modelKeys=${
+          inlineAssistant.model && typeof inlineAssistant.model === 'object'
+            ? Object.keys(inlineAssistant.model as Record<string, unknown>).join(',')
+            : 'none'
+        }`,
+      );
+
+      return {
+        available: true,
+        descriptor: {
+          vendor: 'vapi',
+          publicKey: storedConfig.publicKey,
+          assistantId: storedConfig.assistantId,
+          metadata: {
+            conversationId: conv.id,
+            endUserId: conv.endUserId,
+          },
+          assistant: inlineAssistant,
+        },
+      };
+    });
+  }
+
+  async recordEvent(
+    orgId: string,
+    boundChannelId: string,
+    input: WidgetVoiceEventInputT,
+  ): Promise<WidgetVoiceEventResult> {
+    if (input.channelId !== boundChannelId) {
+      throw new ForbiddenException('widget_channel_mismatch');
+    }
+
+    const messageId = await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+
+      const [conv] = await tx
+        .select({
+          id: schema.convConversations.id,
+          channelId: schema.convConversations.channelId,
+          orgId: schema.convConversations.orgId,
+          assigneeUserId: schema.convConversations.assigneeUserId,
+          metadata: schema.convConversations.metadata,
+        })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, input.conversationId))
+        .limit(1);
+      if (!conv || conv.orgId !== orgId) {
+        throw new NotFoundException(`conversation ${input.conversationId} not found`);
+      }
+      if (conv.channelId !== input.channelId) {
+        throw new ForbiddenException('conversation_channel_mismatch');
+      }
+
+      let body: string;
+      if (input.kind === 'started') {
+        const who = await this.resolveCallWho(tx, orgId, conv.assigneeUserId);
+        body = `Voice call started · ${who}`;
+      } else {
+        body = `Call ended · ${formatDuration(input.durationSeconds ?? 0)}`;
+      }
+
+      const inserts = await tx
+        .insert(schema.convMessages)
+        .values({
+          orgId,
+          conversationId: conv.id,
+          authorType: 'system',
+          authorId: 'widget-voice',
+          body,
+          internal: false,
+          metadata: {
+            kind: input.kind === 'started' ? 'voice_call_started' : 'voice_call_ended',
+            durationSeconds: input.durationSeconds,
+          },
+        })
+        .returning({ id: schema.convMessages.id });
+
+      const updatedMetadata = { ...conv.metadata };
+      if (input.kind === 'started') {
+        updatedMetadata.voiceActive = true;
+        updatedMetadata.voiceStartedAt = new Date().toISOString();
+      } else {
+        updatedMetadata.voiceActive = false;
+        updatedMetadata.voiceEndedAt = new Date().toISOString();
+        if (typeof input.durationSeconds === 'number') {
+          updatedMetadata.voiceLastDurationSeconds = input.durationSeconds;
+        }
+      }
+      await tx
+        .update(schema.convConversations)
+        .set({ metadata: updatedMetadata, lastMessageAt: new Date(), updatedAt: new Date() })
+        .where(eq(schema.convConversations.id, conv.id));
+
+      return inserts[0]!.id;
+    });
+
+    await this.webhooks.emit({
+      type: 'conversation.message.sent',
+      payload: {
+        conversationId: input.conversationId,
+        messageId,
+        authorType: 'system',
+        internal: false,
+      },
+    });
+
+    return { ok: true };
+  }
+
+  private async getPromptCache(tx: Tx, orgId: string): Promise<PromptCache> {
+    const cached = this.promptCacheByOrg.get(orgId);
+    if (cached && cached.expiresAt > Date.now()) return cached.cache;
+
+    const [org] = await tx
+      .select({ name: schema.orgs.name })
+      .from(schema.orgs)
+      .where(eq(schema.orgs.id, orgId))
+      .limit(1);
+    const orgName = org?.name?.trim() ?? '';
+    const companyFallback = orgName ? `Company name: ${orgName}` : '';
+
+    const reader = new OrgScopedKbDocReader(this.db, orgId);
+    const cache = await createPromptCache({
+      reader,
+      entries: {
+        [VOICE_SYSTEM_PROMPT_SLUG]: {
+          location: { spaceSlug: AGENT_RUNTIME_PROMPT_SPACE_SLUG, slug: VOICE_SYSTEM_PROMPT_SLUG },
+          fallback: DEFAULT_VOICE_SYSTEM_PROMPT,
+        },
+        [VOICE_OPENER_COLD_SLUG]: {
+          location: { spaceSlug: AGENT_RUNTIME_PROMPT_SPACE_SLUG, slug: VOICE_OPENER_COLD_SLUG },
+          fallback: DEFAULT_VOICE_OPENER_COLD,
+        },
+        [VOICE_OPENER_CONTINUATION_SLUG]: {
+          location: {
+            spaceSlug: AGENT_RUNTIME_PROMPT_SPACE_SLUG,
+            slug: VOICE_OPENER_CONTINUATION_SLUG,
+          },
+          fallback: DEFAULT_VOICE_OPENER_CONTINUATION,
+        },
+        [COMPANY_PROFILE_SLUG]: {
+          location: { spaceSlug: COMPANY_PROFILE_SPACE_SLUG, slug: COMPANY_PROFILE_SLUG },
+          fallback: companyFallback,
+        },
+      },
+      logger: {
+        info: (m) => this.logger.debug(m),
+        warn: (m) => this.logger.warn(m),
+      },
+    });
+
+    this.promptCacheByOrg.set(orgId, {
+      cache,
+      expiresAt: Date.now() + PROMPT_CACHE_TTL_MS,
+    });
+    return cache;
+  }
+
+  private async resolveCallWho(
+    tx: Tx,
+    orgId: string,
+    assigneeUserId: string | null,
+  ): Promise<string> {
+    if (assigneeUserId) {
+      const [user] = await tx
+        .select({ name: schema.users.name, email: schema.users.email })
+        .from(schema.users)
+        .where(eq(schema.users.id, assigneeUserId))
+        .limit(1);
+      if (user) {
+        const display = user.name?.trim() || user.email.split('@')[0] || 'Agent';
+        return firstWord(display);
+      }
+    }
+    const [assistant] = await tx
+      .select({ name: schema.assistants.name })
+      .from(schema.assistants)
+      .where(eq(schema.assistants.orgId, orgId))
+      .limit(1);
+    return assistant?.name?.trim() || 'Munin';
+  }
+}
+
+function firstWord(s: string): string {
+  return s.split(/\s+/)[0] ?? s;
+}
+
+function formatDuration(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const mm = String(Math.floor(safe / 60)).padStart(2, '0');
+  const ss = String(safe % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
+function mapAuthorToRole(authorType: string): 'user' | 'assistant' | null {
+  if (authorType === 'end_user') return 'user';
+  if (authorType === 'agent') return 'assistant';
+  return null;
+}
+
+function composeVoiceSystemPrompt(prompts: PromptCache, conversationId: string): string {
+  const base = prompts.get(VOICE_SYSTEM_PROMPT_SLUG);
+  const idLine = `When a tool asks for a conversationId, pass exactly: ${conversationId} — never substitute placeholders.`;
+  const companyContext = prompts.get(COMPANY_PROFILE_SLUG);
+  const head = `${base} ${idLine}`;
+  return companyContext ? `${head}\n\n[Company context]\n${companyContext}` : head;
+}
+
+class OrgScopedKbDocReader implements KbDocReader {
+  constructor(
+    private readonly db: Db,
+    private readonly orgId: string,
+  ) {}
+
+  async getBody(location: KbDocLocation): Promise<string | null> {
+    const rows = await this.db
+      .select({ body: schema.kbDocuments.body })
+      .from(schema.kbDocuments)
+      .innerJoin(schema.kbSpaces, eq(schema.kbDocuments.spaceId, schema.kbSpaces.id))
+      .where(
+        and(
+          eq(schema.kbDocuments.orgId, this.orgId),
+          eq(schema.kbSpaces.slug, location.spaceSlug),
+          eq(schema.kbDocuments.slug, location.slug),
+        ),
+      )
+      .limit(1);
+    const body = rows[0]?.body?.trim() ?? null;
+    return body && body.length > 0 ? body : null;
+  }
+}
+
+const INHERITED_ASSISTANT_FIELDS = [
+  'voice',
+  'transcriber',
+  'voicemailDetection',
+  'voicemailMessage',
+  'endCallMessage',
+  'endCallPhrases',
+  'maxDurationSeconds',
+  'silenceTimeoutSeconds',
+  'backgroundSound',
+  'backgroundDenoisingEnabled',
+  'modelOutputInMessagesEnabled',
+  'recordingEnabled',
+  'server',
+] as const;
+
+function buildInlineAssistantConfig(opts: {
+  baseConfig: Record<string, unknown>;
+  messages: ChatMessageSeed[];
+  tools: VapiFunctionTool[];
+}): Record<string, unknown> {
+  const inline: Record<string, unknown> = {};
+  for (const key of INHERITED_ASSISTANT_FIELDS) {
+    if (opts.baseConfig[key] !== undefined) inline[key] = opts.baseConfig[key];
+  }
+
+  const baseModel =
+    opts.baseConfig.model && typeof opts.baseConfig.model === 'object'
+      ? (opts.baseConfig.model as Record<string, unknown>)
+      : {};
+  const baseTools = Array.isArray(baseModel.tools) ? (baseModel.tools as unknown[]) : [];
+  const model: Record<string, unknown> = {
+    provider: typeof baseModel.provider === 'string' ? baseModel.provider : 'openai',
+    model: typeof baseModel.model === 'string' ? baseModel.model : 'gpt-4o-mini',
+    messages: opts.messages,
+    tools: [...baseTools, ...opts.tools],
+  };
+  if (typeof baseModel.temperature === 'number') model.temperature = baseModel.temperature;
+  if (typeof baseModel.maxTokens === 'number') model.maxTokens = baseModel.maxTokens;
+  if (typeof baseModel.emotionRecognitionEnabled === 'boolean') {
+    model.emotionRecognitionEnabled = baseModel.emotionRecognitionEnabled;
+  }
+  if (typeof baseModel.numFastTurns === 'number') model.numFastTurns = baseModel.numFastTurns;
+
+  inline.model = model;
+  inline.firstMessageMode = 'assistant-speaks-first-with-model-generated-message';
+  inline.serverMessages = [
+    'conversation-update',
+    'tool-calls',
+    'end-of-call-report',
+    'status-update',
+  ];
+
+  return inline;
+}

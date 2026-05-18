@@ -10,7 +10,7 @@ import {
   setEncryptionKeySql,
   encryptSecretSql,
   decryptSecretSql,
-} from './crypto.js';
+} from './primitives.js';
 
 describe('hashSecret', () => {
   it('produces deterministic output for the same input', () => {

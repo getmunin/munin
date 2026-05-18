@@ -67,7 +67,6 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
     const pollAdapters = this.registry.pollAdapters();
     if (pollAdapters.length === 0) return { channelsPolled: 0, messagesIngested: 0 };
 
-    const kinds = pollAdapters.map((a) => a.kind);
     const channels = await this.db
       .select()
       .from(schema.convChannels)
@@ -76,9 +75,8 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
     let polled = 0;
     let ingested = 0;
     for (const channel of channels) {
-      if (!kinds.includes(channel.type as ChannelAdapter['kind'])) continue;
-      const adapter = this.registry.get(channel.type)!;
-      if (adapter.inbound?.mode !== 'poll') continue;
+      const adapter = this.registry.get(channel.type, channel.vendor);
+      if (!adapter || adapter.inbound?.mode !== 'poll') continue;
       try {
         const result = await adapter.inbound.tick(channel);
         ingested += result.messagesIngested;

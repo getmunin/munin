@@ -41,6 +41,21 @@ const sv: Strings = {
   timeDay: '{n}d',
   timeWeek: '{n}v',
   timeMonth: '{n}mån',
+  voiceCallLabel: 'Ring',
+  voiceStartAriaLabel: 'Starta röstsamtal',
+  voiceEndAriaLabel: 'Avsluta röstsamtal',
+  voiceMinimizeAriaLabel: 'Tillbaka till chatten (behåll samtalet aktivt)',
+  voiceResumeAriaLabel: 'Tillbaka till samtalet',
+  voiceConnecting: 'Ansluter…',
+  voiceLive: 'Live',
+  voiceHint: 'Rösten går genom denna widget — inget telefonnummer, ingen app.',
+  voiceMute: 'Tysta',
+  voiceMuted: 'Tystad',
+  voiceEnd: 'Avsluta',
+  voiceBackToChat: 'Tillbaka till chatten',
+  voiceOnCallWithTemplate: 'I samtal med {who}',
+  voiceTapToReturn: 'Tryck för att återgå',
+  voiceFailed: 'Röstsamtal misslyckades',
 };
 
 export default sv;

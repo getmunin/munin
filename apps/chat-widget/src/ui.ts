@@ -18,7 +18,12 @@ export interface UiHooks {
   onBackToWelcome?: () => void;
   onSetVisitorEmail?: (email: string) => void;
   onMessageRead?: (messageId: string) => void;
+  onVoiceStart?: () => void;
+  onVoiceEnd?: () => void;
+  onVoiceMuteToggle?: (muted: boolean) => void;
 }
+
+export type VoiceUiState = 'idle' | 'connecting' | 'listening' | 'speaking' | 'ended' | 'error';
 
 export type ChatKind = 'new' | 'existing';
 
@@ -35,6 +40,10 @@ export interface UiController {
   setView(view: 'welcome' | 'chat'): void;
   setChatKind(kind: ChatKind): void;
   resetChat(): void;
+  setVoiceAvailable(available: boolean): void;
+  setVoiceState(state: VoiceUiState): void;
+  setVoiceMuted(muted: boolean): void;
+  setVoiceCallWho(who: string): void;
   open(): void;
   close(): void;
   destroy(): void;
@@ -102,6 +111,154 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   panel.startBtn.addEventListener('click', () => {
     hooks.onStartConversation?.();
   });
+  panel.voiceTrigger.addEventListener('click', () => {
+    hooks.onVoiceStart?.();
+  });
+  panel.voiceCallMin.addEventListener('click', () => {
+    setCallOverlayOpen(false);
+  });
+  panel.voiceBanner.addEventListener('click', () => {
+    setCallOverlayOpen(true);
+  });
+  panel.voiceMuteBtn.addEventListener('click', () => {
+    const next = !voiceMuted;
+    voiceMuted = next;
+    applyMuteUi();
+    hooks.onVoiceMuteToggle?.(next);
+  });
+  panel.voiceCallEndBtn.addEventListener('click', () => {
+    hooks.onVoiceEnd?.();
+  });
+
+  let voiceAvailable = false;
+  let voiceState: VoiceUiState = 'idle';
+  let voiceCallOpen = false;
+  let voiceMuted = false;
+  let voiceCallWho = strings.defaultAuthorName;
+  let voiceCallStartMs: number | null = null;
+  let voiceTimerId: ReturnType<typeof setInterval> | null = null;
+
+  function isVoiceActive(state: VoiceUiState): boolean {
+    return state === 'connecting' || state === 'listening' || state === 'speaking';
+  }
+
+  function formatCallTime(ms: number): string {
+    const total = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+    const mm = String(Math.floor(total / 60)).padStart(2, '0');
+    const ss = String(total % 60).padStart(2, '0');
+    return `${mm}:${ss}`;
+  }
+
+  function tickCallTimers(): void {
+    if (voiceCallStartMs === null) return;
+    const text = formatCallTime(voiceCallStartMs);
+    panel.voiceCallTimer.textContent = text;
+    panel.voiceBannerTimer.textContent = text;
+  }
+
+  function startCallTimer(): void {
+    if (voiceTimerId !== null) return;
+    if (voiceCallStartMs === null) voiceCallStartMs = Date.now();
+    tickCallTimers();
+    voiceTimerId = setInterval(tickCallTimers, 1000);
+  }
+
+  function stopCallTimer(): void {
+    if (voiceTimerId !== null) {
+      clearInterval(voiceTimerId);
+      voiceTimerId = null;
+    }
+  }
+
+  function setCallOverlayOpen(open: boolean): void {
+    voiceCallOpen = open && isVoiceActive(voiceState);
+    panel.voiceCall.hidden = !voiceCallOpen;
+    panel.voiceBanner.hidden = !isVoiceActive(voiceState) || voiceCallOpen;
+  }
+
+  function applyMuteUi(): void {
+    panel.voiceMuteBtn.classList.toggle('on', voiceMuted);
+    panel.voiceMuteBtn.setAttribute('aria-pressed', voiceMuted ? 'true' : 'false');
+    panel.voiceMuteLabel.textContent = voiceMuted ? strings.voiceMuted : strings.voiceMute;
+    panel.voiceMuteIcon.innerHTML = micIconSvg(voiceMuted);
+    panel.voiceBanner.setAttribute('data-muted', voiceMuted ? 'true' : 'false');
+    panel.voiceBannerMutedTag.hidden = !voiceMuted;
+  }
+
+  function applyCallWho(): void {
+    panel.voiceCallName.textContent = voiceCallWho;
+    panel.voiceBannerLabel.textContent = strings.voiceOnCallWithTemplate.replace('{who}', voiceCallWho);
+  }
+
+  function setVoiceCallWho(who: string): void {
+    voiceCallWho = who && who.length > 0 ? who : strings.defaultAuthorName;
+    applyCallWho();
+  }
+
+  function setVoiceAvailable(available: boolean): void {
+    voiceAvailable = available;
+    if (!isVoiceActive(voiceState)) {
+      panel.voiceTrigger.hidden = !available;
+    }
+  }
+
+  function setVoiceState(state: VoiceUiState): void {
+    const wasActive = isVoiceActive(voiceState);
+    voiceState = state;
+    const active = isVoiceActive(state);
+
+    panel.voiceCall.setAttribute('data-state', state);
+    panel.voiceBanner.setAttribute('data-state', state);
+
+    if (active && !wasActive) {
+      voiceMuted = false;
+      voiceCallOpen = true;
+      voiceCallStartMs = null;
+      applyMuteUi();
+      applyCallWho();
+    }
+
+    if (state === 'listening' || state === 'speaking') {
+      panel.voiceCallAvatar.classList.remove('pulsing');
+      panel.voiceCallDot.classList.add('blink');
+      panel.voiceCallStatusLabel.textContent = strings.voiceLive;
+      panel.voiceCallTimerSep.hidden = false;
+      panel.voiceCallTimer.hidden = false;
+      startCallTimer();
+    } else if (state === 'connecting') {
+      panel.voiceCallAvatar.classList.add('pulsing');
+      panel.voiceCallDot.classList.add('blink');
+      panel.voiceCallStatusLabel.textContent = strings.voiceConnecting;
+      panel.voiceCallTimerSep.hidden = true;
+      panel.voiceCallTimer.hidden = true;
+    } else {
+      panel.voiceCallAvatar.classList.remove('pulsing');
+      panel.voiceCallDot.classList.remove('blink');
+      stopCallTimer();
+      if (state === 'error') {
+        panel.voiceCallStatusLabel.textContent = strings.voiceFailed;
+        panel.voiceCallTimerSep.hidden = true;
+        panel.voiceCallTimer.hidden = true;
+      }
+    }
+
+    if (active) {
+      panel.voiceTrigger.hidden = true;
+      panel.voiceCall.hidden = !voiceCallOpen;
+      panel.voiceBanner.hidden = voiceCallOpen;
+    } else {
+      voiceCallOpen = false;
+      voiceCallStartMs = null;
+      panel.voiceCall.hidden = true;
+      panel.voiceBanner.hidden = true;
+      panel.voiceTrigger.hidden = !voiceAvailable;
+    }
+  }
+
+  function setVoiceMuted(muted: boolean): void {
+    voiceMuted = muted;
+    applyMuteUi();
+  }
 
   function open(): void {
     panel.el.hidden = false;
@@ -324,6 +481,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   function destroy(): void {
     if (agentTypingTimer) clearTimeout(agentTypingTimer);
     if (typingIdleTimer) clearTimeout(typingIdleTimer);
+    stopCallTimer();
     readObserver?.disconnect();
     host.remove();
   }
@@ -360,6 +518,10 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     setView,
     setChatKind,
     resetChat,
+    setVoiceAvailable,
+    setVoiceState,
+    setVoiceMuted,
+    setVoiceCallWho,
     open,
     close,
     destroy,
@@ -584,6 +746,23 @@ interface PanelHandles {
   textarea: HTMLTextAreaElement;
   counterEl: HTMLSpanElement;
   sendBtn: HTMLButtonElement;
+  voiceTrigger: HTMLButtonElement;
+  voiceBanner: HTMLButtonElement;
+  voiceBannerLabel: HTMLSpanElement;
+  voiceBannerTimer: HTMLSpanElement;
+  voiceBannerMutedTag: HTMLSpanElement;
+  voiceCall: HTMLDivElement;
+  voiceCallMin: HTMLButtonElement;
+  voiceCallAvatar: HTMLDivElement;
+  voiceCallName: HTMLDivElement;
+  voiceCallDot: HTMLSpanElement;
+  voiceCallStatusLabel: HTMLSpanElement;
+  voiceCallTimerSep: HTMLSpanElement;
+  voiceCallTimer: HTMLSpanElement;
+  voiceMuteBtn: HTMLButtonElement;
+  voiceMuteIcon: HTMLSpanElement;
+  voiceMuteLabel: HTMLSpanElement;
+  voiceCallEndBtn: HTMLButtonElement;
 }
 
 function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
@@ -677,7 +856,21 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
         <div class="chat-title"></div>
         <div class="chat-sub"><span class="chat-sub-dot"></span><span class="chat-sub-label"></span></div>
       </div>
+      <button type="button" class="voice-trigger" data-act="voice-start" aria-label="${escapeAttr(strings.voiceStartAriaLabel)}" title="${escapeAttr(strings.voiceStartAriaLabel)}" hidden>
+        ${phoneIconSvg()}
+        <span>${escapeHtml(strings.voiceCallLabel)}</span>
+      </button>
     </div>
+    <button type="button" class="voice-banner" data-act="voice-resume" aria-label="${escapeAttr(strings.voiceResumeAriaLabel)}" hidden>
+      <span class="voice-banner-left">
+        <span class="voice-banner-dot" aria-hidden="true"></span>
+        <span class="voice-banner-label"></span>
+        <span class="voice-banner-sep" aria-hidden="true">·</span>
+        <span class="voice-banner-timer">00:00</span>
+        <span class="voice-banner-muted-tag" hidden>· ${escapeHtml(strings.voiceMuted)}</span>
+      </span>
+      <span class="voice-banner-right">${escapeHtml(strings.voiceTapToReturn)} ↗</span>
+    </button>
     <div class="messages"></div>
     <form class="composer">
       <textarea rows="1" placeholder="${escapeAttr(strings.composerPlaceholder)}" aria-label="${escapeAttr(strings.messageAriaLabel)}"></textarea>
@@ -691,6 +884,32 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
       </div>
     </form>
     <div class="footer-credit"><a href="https://getmunin.com" target="_blank" rel="noopener noreferrer">${escapeHtml(strings.poweredBy)} <strong>Munin</strong></a></div>
+    <div class="voice-call" hidden>
+      <button type="button" class="voice-call-min" aria-label="${escapeAttr(strings.voiceMinimizeAriaLabel)}">↙ ${escapeHtml(strings.voiceBackToChat)}</button>
+      <div class="voice-call-stage">
+        <div class="voice-call-avatar" aria-hidden="true">
+          ${ravenAvatarSvg()}
+        </div>
+        <div class="voice-call-name"></div>
+        <div class="voice-call-status">
+          <span class="voice-call-dot blink" aria-hidden="true"></span>
+          <span class="voice-call-status-label">${escapeHtml(strings.voiceConnecting)}</span>
+          <span class="voice-call-sep" hidden>·</span>
+          <span class="voice-call-timer" hidden>00:00</span>
+        </div>
+        <div class="voice-call-hint">${escapeHtml(strings.voiceHint)}</div>
+      </div>
+      <div class="voice-call-controls">
+        <button type="button" class="voice-call-btn voice-mute-btn" aria-pressed="false">
+          <span class="voice-mute-icon" aria-hidden="true">${micIconSvg(false)}</span>
+          <span class="voice-mute-label">${escapeHtml(strings.voiceMute)}</span>
+        </button>
+        <button type="button" class="voice-call-btn voice-call-btn-end" aria-label="${escapeAttr(strings.voiceEndAriaLabel)}">
+          ${hangUpIconSvg()}
+          <span>${escapeHtml(strings.voiceEnd)}</span>
+        </button>
+      </div>
+    </div>
   `;
   const backBtn = chatEl.querySelector('.back-btn') as HTMLButtonElement;
   const chatTitle = chatEl.querySelector('.chat-title') as HTMLDivElement;
@@ -701,6 +920,23 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
   textarea.maxLength = WIDGET_END_USER_BODY_MAX_CHARS + 200;
   const counterEl = chatEl.querySelector('.counter') as HTMLSpanElement;
   const sendBtn = chatEl.querySelector('.send') as HTMLButtonElement;
+  const voiceTrigger = chatEl.querySelector('.voice-trigger') as HTMLButtonElement;
+  const voiceBanner = chatEl.querySelector('.voice-banner') as HTMLButtonElement;
+  const voiceBannerLabel = chatEl.querySelector('.voice-banner-label') as HTMLSpanElement;
+  const voiceBannerTimer = chatEl.querySelector('.voice-banner-timer') as HTMLSpanElement;
+  const voiceBannerMutedTag = chatEl.querySelector('.voice-banner-muted-tag') as HTMLSpanElement;
+  const voiceCall = chatEl.querySelector('.voice-call') as HTMLDivElement;
+  const voiceCallMin = chatEl.querySelector('.voice-call-min') as HTMLButtonElement;
+  const voiceCallAvatar = chatEl.querySelector('.voice-call-avatar') as HTMLDivElement;
+  const voiceCallName = chatEl.querySelector('.voice-call-name') as HTMLDivElement;
+  const voiceCallDot = chatEl.querySelector('.voice-call-dot') as HTMLSpanElement;
+  const voiceCallStatusLabel = chatEl.querySelector('.voice-call-status-label') as HTMLSpanElement;
+  const voiceCallTimerSep = chatEl.querySelector('.voice-call-sep') as HTMLSpanElement;
+  const voiceCallTimer = chatEl.querySelector('.voice-call-timer') as HTMLSpanElement;
+  const voiceMuteBtn = chatEl.querySelector('.voice-mute-btn') as HTMLButtonElement;
+  const voiceMuteIcon = chatEl.querySelector('.voice-mute-icon') as HTMLSpanElement;
+  const voiceMuteLabel = chatEl.querySelector('.voice-mute-label') as HTMLSpanElement;
+  const voiceCallEndBtn = chatEl.querySelector('.voice-call-btn-end') as HTMLButtonElement;
 
   const typingEl = document.createElement('div');
   typingEl.className = 'msg theirs';
@@ -734,7 +970,52 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
     textarea,
     counterEl,
     sendBtn,
+    voiceTrigger,
+    voiceBanner,
+    voiceBannerLabel,
+    voiceBannerTimer,
+    voiceBannerMutedTag,
+    voiceCall,
+    voiceCallMin,
+    voiceCallAvatar,
+    voiceCallName,
+    voiceCallDot,
+    voiceCallStatusLabel,
+    voiceCallTimerSep,
+    voiceCallTimer,
+    voiceMuteBtn,
+    voiceMuteIcon,
+    voiceMuteLabel,
+    voiceCallEndBtn,
   };
+}
+
+function phoneIconSvg(): string {
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" fill="none" stroke="currentColor">'
+    + '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c1 .3 1.9.6 2.8.7A2 2 0 0 1 22 16.9z"/>'
+    + '</svg>';
+}
+
+function hangUpIconSvg(): string {
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" fill="none" stroke="currentColor" style="transform:rotate(135deg)">'
+    + '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c1 .3 1.9.6 2.8.7A2 2 0 0 1 22 16.9z"/>'
+    + '</svg>';
+}
+
+function micIconSvg(muted: boolean): string {
+  const slash = muted ? '<line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" />' : '';
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" fill="none" stroke="currentColor">'
+    + '<rect x="9" y="2" width="6" height="12" rx="3" />'
+    + '<path d="M19 10v2a7 7 0 0 1-14 0v-2" />'
+    + '<line x1="12" y1="19" x2="12" y2="22" />'
+    + slash
+    + '</svg>';
+}
+
+function ravenAvatarSvg(): string {
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" fill="none" stroke="currentColor">'
+    + '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" />'
+    + '</svg>';
 }
 
 function statusTag(status: string): 'open' | 'closed' | 'snoozed' {
@@ -745,7 +1026,7 @@ function statusTag(status: string): 'open' | 'closed' | 'snoozed' {
 
 function autoGrow(ta: HTMLTextAreaElement): void {
   ta.style.height = 'auto';
-  ta.style.height = Math.min(ta.scrollHeight, 110) + 'px';
+  ta.style.height = Math.min(Math.max(ta.scrollHeight, 56), 110) + 'px';
 }
 
 function formatTime(iso: string): string {

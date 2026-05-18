@@ -85,6 +85,7 @@ export class WidgetAdminTools {
       .values({
         orgId: actor.orgId,
         type: 'chat',
+        vendor: 'munin',
         name: args.name,
         config: config,
       })

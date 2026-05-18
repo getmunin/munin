@@ -58,6 +58,7 @@ const skipReason = TEST_URL
       .values({
         orgId,
         type: 'chat',
+        vendor: 'munin',
         name: 'rc-chat',
         config: { provider: 'widget', originAllowlist: [] },
       })

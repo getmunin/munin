@@ -83,6 +83,41 @@ export interface WidgetIngestResult {
   skipped: number;
 }
 
+export const WidgetVoiceStartInput = z.object({
+  channelId: z.string().min(1),
+  conversationId: z.string().min(1),
+});
+
+export type WidgetVoiceStartInputT = z.infer<typeof WidgetVoiceStartInput>;
+
+export const WidgetVoiceEventInput = z.object({
+  channelId: z.string().min(1),
+  conversationId: z.string().min(1),
+  kind: z.enum(['started', 'ended']),
+  durationSeconds: z.number().int().min(0).max(60 * 60 * 12).optional(),
+});
+
+export type WidgetVoiceEventInputT = z.infer<typeof WidgetVoiceEventInput>;
+
+export interface WidgetVoiceEventResult {
+  ok: true;
+}
+
+export type WidgetVoiceStartResult =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      descriptor:
+        | {
+            vendor: 'vapi';
+            publicKey: string;
+            assistantId: string;
+            metadata: { conversationId: string; endUserId: string };
+            assistant?: Record<string, unknown>;
+            assistantOverrides?: Record<string, unknown>;
+          };
+    };
+
 export const WidgetListMessagesQuery = z.object({
   channelId: z.string().min(1),
   sessionId: z.string().min(1).max(200),

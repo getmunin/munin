@@ -136,7 +136,7 @@ const skipReason = TEST_URL
       return parseToolResult<{ id: string }>(
         await c.callTool({
           name: 'conv_create_channel',
-          arguments: { type: 'chat', name: 'Web chat' },
+          arguments: { type: 'chat', vendor: 'munin', name: 'Web chat' },
         }),
       );
     });

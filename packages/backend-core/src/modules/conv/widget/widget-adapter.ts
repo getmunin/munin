@@ -15,6 +15,7 @@ import type { ChannelAdapter, InboundMode, SendContext, SendResult } from '../ch
 @Injectable()
 export class WidgetAdapter implements ChannelAdapter {
   readonly kind = 'chat' as const;
+  readonly vendors = ['munin'] as const;
 
   readonly inbound: InboundMode = { mode: 'push' };
 

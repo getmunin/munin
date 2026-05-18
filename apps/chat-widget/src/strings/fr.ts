@@ -41,6 +41,21 @@ const fr: Strings = {
   timeDay: '{n} j',
   timeWeek: '{n} sem',
   timeMonth: '{n} mois',
+  voiceCallLabel: 'Appeler',
+  voiceStartAriaLabel: "Démarrer l'appel vocal",
+  voiceEndAriaLabel: "Terminer l'appel vocal",
+  voiceMinimizeAriaLabel: "Retour au chat (l'appel continue)",
+  voiceResumeAriaLabel: "Revenir à l'appel",
+  voiceConnecting: 'Connexion…',
+  voiceLive: 'En direct',
+  voiceHint: 'La voix passe par ce widget — aucun numéro, aucune appli.',
+  voiceMute: 'Couper',
+  voiceMuted: 'Coupé',
+  voiceEnd: 'Terminer',
+  voiceBackToChat: 'Retour au chat',
+  voiceOnCallWithTemplate: 'En appel avec {who}',
+  voiceTapToReturn: 'Touchez pour revenir',
+  voiceFailed: "L'appel vocal a échoué",
 };
 
 export default fr;

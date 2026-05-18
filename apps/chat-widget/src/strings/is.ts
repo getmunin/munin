@@ -41,6 +41,21 @@ const is: Strings = {
   timeDay: '{n}d',
   timeWeek: '{n}v',
   timeMonth: '{n}mán',
+  voiceCallLabel: 'Hringja',
+  voiceStartAriaLabel: 'Hefja talsímtal',
+  voiceEndAriaLabel: 'Slíta talsímtali',
+  voiceMinimizeAriaLabel: 'Til baka í spjall (halda símtali áfram)',
+  voiceResumeAriaLabel: 'Til baka í símtalið',
+  voiceConnecting: 'Tengist…',
+  voiceLive: 'Í gangi',
+  voiceHint: 'Talið fer í gegnum þessa græju — ekkert símanúmer, ekkert forrit.',
+  voiceMute: 'Þagga',
+  voiceMuted: 'Þaggað',
+  voiceEnd: 'Slíta',
+  voiceBackToChat: 'Til baka í spjall',
+  voiceOnCallWithTemplate: 'Í símtali við {who}',
+  voiceTapToReturn: 'Pikkaðu til að snúa aftur',
+  voiceFailed: 'Talsímtal mistókst',
 };
 
 export default is;

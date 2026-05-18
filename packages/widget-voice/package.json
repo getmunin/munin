@@ -1,0 +1,37 @@
+{
+  "name": "@getmunin/widget-voice",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Vendor-agnostic browser voice SDK for embedding into the Munin chat widget. Wraps Vapi (and future vendors) behind a common VoiceSession interface.",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@vapi-ai/web": "^2.4.0"
+  },
+  "devDependencies": {
+    "@getmunin/eslint-config": "workspace:*",
+    "@getmunin/tsconfig": "workspace:*",
+    "eslint": "^9.10.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

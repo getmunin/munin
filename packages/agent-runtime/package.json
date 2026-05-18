@@ -25,7 +25,6 @@
   "files": [
     "README.md",
     "dist",
-    "prompts",
     "src"
   ],
   "scripts": {
@@ -35,6 +34,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@getmunin/core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "defuddle": "^0.6.6",
     "jsdom": "^24.0.0",

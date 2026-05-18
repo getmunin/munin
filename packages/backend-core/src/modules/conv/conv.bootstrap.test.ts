@@ -90,7 +90,7 @@ const skipReason = TEST_URL
   it('skips first_channel when one already exists', async () => {
     await db
       .insert(schema.convChannels)
-      .values({ orgId, type: 'email', name: 'Pre-existing', active: true });
+      .values({ orgId, type: 'email', vendor: 'smtp', name: 'Pre-existing', active: true });
     const status = await run(() => convBootstrap.status());
     expect(status.nextStepId).toBe('seed_topics');
     expect(status.completedSteps).toContain('first_channel');

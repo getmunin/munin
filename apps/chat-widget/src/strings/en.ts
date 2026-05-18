@@ -41,6 +41,21 @@ const en: Strings = {
   timeDay: '{n}d',
   timeWeek: '{n}w',
   timeMonth: '{n}mo',
+  voiceCallLabel: 'Call',
+  voiceStartAriaLabel: 'Start voice call',
+  voiceEndAriaLabel: 'End voice call',
+  voiceMinimizeAriaLabel: 'Back to chat (keep call running)',
+  voiceResumeAriaLabel: 'Return to call',
+  voiceConnecting: 'Connecting…',
+  voiceLive: 'Live',
+  voiceHint: 'Voice runs through this widget — no phone number, no app install.',
+  voiceMute: 'Mute',
+  voiceMuted: 'Muted',
+  voiceEnd: 'End',
+  voiceBackToChat: 'Back to chat',
+  voiceOnCallWithTemplate: 'On call with {who}',
+  voiceTapToReturn: 'Tap to return',
+  voiceFailed: 'Voice call failed',
 };
 
 export default en;

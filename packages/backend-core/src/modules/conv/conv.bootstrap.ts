@@ -10,6 +10,13 @@ const FirstChannelSchema = z.object({
   name: z.string().min(1).max(120).default('Web chat'),
 });
 
+const BOOTSTRAP_VENDOR: Record<'chat' | 'email' | 'voice' | 'sms', string> = {
+  chat: 'munin',
+  email: 'smtp',
+  voice: 'twilio',
+  sms: 'twilio',
+};
+
 const SeedTopicsSchema = z.object({
   /** Pass `false` to skip seeding starter topics. */
   seed: z.boolean().default(true),
@@ -36,6 +43,7 @@ const firstChannel = defineStep({
     await ctx.db.insert(schema.convChannels).values({
       orgId,
       type: value.type,
+      vendor: BOOTSTRAP_VENDOR[value.type],
       name: value.name,
       active: true,
     });

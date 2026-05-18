@@ -55,7 +55,7 @@ export async function createApp(
   opts: CreateAppOptions = {},
 ): Promise<INestApplication> {
   const { widgetAssetDir, ...nestOpts } = opts;
-  const app = await NestFactory.create(appModule, nestOpts);
+  const app = await NestFactory.create(appModule, { rawBody: true, ...nestOpts });
   app.use(corsMiddleware(readAllowedOrigins()));
   app.use(requestIdMiddleware);
 

@@ -47,6 +47,7 @@ const SearchInput = z.object({
 
 const CreateChannelInput = z.object({
   type: ChannelTypeSchema,
+  vendor: z.string().min(1).max(32),
   name: z.string().min(1).max(120),
   config: z.record(z.string(), z.unknown()).optional(),
 });

@@ -19,6 +19,8 @@ import { TenancyInterceptor } from '../../../common/tenancy/tenancy.interceptor.
 import { AuditInterceptor } from '../../../common/audit/audit.interceptor.js';
 import {
   WidgetIngestInput,
+  WidgetVoiceEventInput,
+  WidgetVoiceStartInput,
   WidgetListConversationsQuery,
   WidgetListMessagesQuery,
   WidgetSetVisitorInput,
@@ -31,8 +33,11 @@ import type {
   WidgetListMessagesResult,
   WidgetSetVisitorResult,
   WidgetStartConversationResult,
+  WidgetVoiceEventResult,
+  WidgetVoiceStartResult,
 } from './widget.types.js';
 import { WidgetIngestService } from './widget-ingest.service.js';
+import { WidgetVoiceService } from './widget-voice.service.js';
 
 /**
  * Public ingest endpoint for chat-widget channels. Authenticated by a
@@ -50,7 +55,10 @@ import { WidgetIngestService } from './widget-ingest.service.js';
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class WidgetController {
-  constructor(@Inject(WidgetIngestService) private readonly ingestService: WidgetIngestService) {}
+  constructor(
+    @Inject(WidgetIngestService) private readonly ingestService: WidgetIngestService,
+    @Inject(WidgetVoiceService) private readonly voiceService: WidgetVoiceService,
+  ) {}
 
   @Post('messages')
   async ingest(
@@ -218,5 +226,55 @@ export class WidgetController {
 
     const orgId = key.orgId ?? actor.orgId;
     return this.ingestService.startConversation(orgId, input, { origin });
+  }
+
+  @Post('voice/start')
+  async startVoice(@Body() rawBody: unknown): Promise<WidgetVoiceStartResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor) throw new ForbiddenException('widget_auth_required');
+
+    const keyRow = await ctx.db
+      .select({ channelId: schema.apiKeys.channelId, orgId: schema.apiKeys.orgId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, actor.id))
+      .limit(1);
+    const key = keyRow[0];
+    if (!key || !key.channelId) {
+      throw new ForbiddenException('widget_key_required');
+    }
+
+    const parsed = WidgetVoiceStartInput.safeParse(rawBody);
+    if (!parsed.success) {
+      throw new ForbiddenException(`invalid_widget_voice_start: ${parsed.error.message}`);
+    }
+
+    const orgId = key.orgId ?? actor.orgId;
+    return this.voiceService.startSession(orgId, key.channelId, parsed.data);
+  }
+
+  @Post('voice/event')
+  async voiceEvent(@Body() rawBody: unknown): Promise<WidgetVoiceEventResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor) throw new ForbiddenException('widget_auth_required');
+
+    const keyRow = await ctx.db
+      .select({ channelId: schema.apiKeys.channelId, orgId: schema.apiKeys.orgId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, actor.id))
+      .limit(1);
+    const key = keyRow[0];
+    if (!key || !key.channelId) {
+      throw new ForbiddenException('widget_key_required');
+    }
+
+    const parsed = WidgetVoiceEventInput.safeParse(rawBody);
+    if (!parsed.success) {
+      throw new ForbiddenException(`invalid_widget_voice_event: ${parsed.error.message}`);
+    }
+
+    const orgId = key.orgId ?? actor.orgId;
+    return this.voiceService.recordEvent(orgId, key.channelId, parsed.data);
   }
 }

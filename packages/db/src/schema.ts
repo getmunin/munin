@@ -728,7 +728,7 @@ export const convChannels = pgTable(
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
     type: varchar('type', { length: 16 }).notNull(),
-    // 'email' | 'voice' | 'chat' | 'sms'
+    vendor: varchar('vendor', { length: 32 }).notNull(),
     name: text('name').notNull(),
     config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
     active: boolean('active').notNull().default(true),
@@ -739,6 +739,7 @@ export const convChannels = pgTable(
   (t) => ({
     orgIdx: index('conv_channels_org_idx').on(t.orgId),
     typeIdx: index('conv_channels_type_idx').on(t.orgId, t.type),
+    typeVendorIdx: index('conv_channels_type_vendor_idx').on(t.orgId, t.type, t.vendor),
   }),
 );
 

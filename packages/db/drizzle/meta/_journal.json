@@ -176,6 +176,20 @@
       "when": 1779500000000,
       "tag": "0024_widget_email_fallbacks",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779600000000,
+      "tag": "0025_conv_channels_vendor",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779700000000,
+      "tag": "0026_conv_conversations_vapi_call_uq",
+      "breakpoints": true
     }
   ]
 }

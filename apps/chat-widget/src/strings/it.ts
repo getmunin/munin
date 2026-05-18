@@ -41,6 +41,21 @@ const it: Strings = {
   timeDay: '{n} g',
   timeWeek: '{n} sett',
   timeMonth: '{n} mese',
+  voiceCallLabel: 'Chiama',
+  voiceStartAriaLabel: 'Avvia chiamata vocale',
+  voiceEndAriaLabel: 'Termina chiamata vocale',
+  voiceMinimizeAriaLabel: 'Torna alla chat (mantieni la chiamata attiva)',
+  voiceResumeAriaLabel: 'Torna alla chiamata',
+  voiceConnecting: 'Connessione…',
+  voiceLive: 'In diretta',
+  voiceHint: 'La voce passa per questo widget — nessun numero, nessuna app.',
+  voiceMute: 'Muto',
+  voiceMuted: 'Mutato',
+  voiceEnd: 'Termina',
+  voiceBackToChat: 'Torna alla chat',
+  voiceOnCallWithTemplate: 'In chiamata con {who}',
+  voiceTapToReturn: 'Tocca per tornare',
+  voiceFailed: 'Chiamata vocale fallita',
 };
 
 export default it;

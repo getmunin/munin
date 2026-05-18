@@ -143,7 +143,7 @@ const skipReason = TEST_URL
     // Seed channels + conversations directly (service-role).
     const [chanA] = await db
       .insert(schema.convChannels)
-      .values({ orgId: orgAId, type: 'chat', name: 'A chat', config: {} })
+      .values({ orgId: orgAId, type: 'chat', vendor: 'munin', name: 'A chat', config: {} })
       .returning();
     await db.insert(schema.convConversations).values({
       orgId: orgAId,

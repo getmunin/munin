@@ -14,7 +14,6 @@ import {
   createMuninRestClient,
   createPromptResolver,
   createRealtimeClient,
-  defaultPromptsDir,
   openMcpClient,
   runSkillPass,
   type ConversationHandler,
@@ -63,7 +62,6 @@ const CURATOR_MAX_SCHEDULED_DELAY_MS = 24 * 60 * 60 * 1000;
 export interface AgentHostRunnerOptions {
   baseUrl?: string;
   fallbackAdminApiKey?: string;
-  promptsDir?: string;
   databaseUrl?: string;
 }
 
@@ -90,7 +88,6 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   private stopped = false;
   private readonly baseUrl: string;
   private readonly fallbackAdminApiKey: string | undefined;
-  private readonly promptsDir: string;
   private readonly holderId: string;
   private readonly lockManager: ReplicaLockManager | null;
 
@@ -101,7 +98,6 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   ) {
     this.baseUrl = options?.baseUrl ?? process.env.MUNIN_BASE_URL ?? 'http://localhost:3001';
     this.fallbackAdminApiKey = options?.fallbackAdminApiKey ?? process.env.MUNIN_ADMIN_API_KEY;
-    this.promptsDir = options?.promptsDir ?? defaultPromptsDir();
     this.holderId =
       process.env.MUNIN_AGENT_HOLDER_ID ??
       `agent-host-${hostname()}-${randomUUID().slice(0, 8)}`;
@@ -237,7 +233,6 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     });
 
     const prompts = await createPromptResolver({
-      promptsDir: this.promptsDir,
       mcp: adminMcp,
       logger: this.scopedLogger(id, 'prompts'),
     });

@@ -17,6 +17,18 @@ export {
   type SetupEmailBodyT,
   SendEmailTestBody,
   type SendEmailTestBodyT,
+  ConfigureTwilioSmsBody,
+  type ConfigureTwilioSmsBodyT,
+  SendTwilioSmsTestBody,
+  type SendTwilioSmsTestBodyT,
+  ConfigureMessageBirdSmsBody,
+  type ConfigureMessageBirdSmsBodyT,
+  SendMessageBirdSmsTestBody,
+  type SendMessageBirdSmsTestBodyT,
+  ConfigureVapiBody,
+  type ConfigureVapiBodyT,
+  VapiCallInitiateBody,
+  type VapiCallInitiateBodyT,
 } from './channels.js';
 export {
   KNOWN_SKILL_URIS,

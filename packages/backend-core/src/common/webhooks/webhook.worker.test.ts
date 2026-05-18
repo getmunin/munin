@@ -125,7 +125,7 @@ interface ReceivedRequest {
     // Set up a chat channel so end-user start_conversation can pick one up.
     const [channel] = await db
       .insert(schema.convChannels)
-      .values({ orgId, type: 'chat', name: 'Web' })
+      .values({ orgId, type: 'chat', vendor: 'munin', name: 'Web' })
       .returning();
     // Provision an end-user + token, then start a conversation through the
     // service layer directly (we already exercised the MCP path elsewhere).

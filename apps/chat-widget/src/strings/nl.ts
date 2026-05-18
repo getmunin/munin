@@ -41,6 +41,21 @@ const nl: Strings = {
   timeDay: '{n}d',
   timeWeek: '{n}w',
   timeMonth: '{n}mnd',
+  voiceCallLabel: 'Bellen',
+  voiceStartAriaLabel: 'Spraakoproep starten',
+  voiceEndAriaLabel: 'Spraakoproep beëindigen',
+  voiceMinimizeAriaLabel: 'Terug naar chat (oproep blijft actief)',
+  voiceResumeAriaLabel: 'Terug naar de oproep',
+  voiceConnecting: 'Verbinden…',
+  voiceLive: 'Live',
+  voiceHint: 'Stem loopt via deze widget — geen telefoonnummer, geen app.',
+  voiceMute: 'Dempen',
+  voiceMuted: 'Gedempt',
+  voiceEnd: 'Beëindigen',
+  voiceBackToChat: 'Terug naar chat',
+  voiceOnCallWithTemplate: 'In gesprek met {who}',
+  voiceTapToReturn: 'Tik om terug te keren',
+  voiceFailed: 'Spraakoproep mislukt',
 };
 
 export default nl;

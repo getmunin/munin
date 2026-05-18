@@ -53,7 +53,7 @@ const REPLY_DOMAIN = 'reply.example.test';
 
     const [widget] = await db
       .insert(schema.convChannels)
-      .values({ orgId, type: 'chat', name: 'Widget', active: true, config: {} })
+      .values({ orgId, type: 'chat', vendor: 'munin', name: 'Widget', active: true, config: {} })
       .returning();
     widgetChannelId = widget!.id;
 
@@ -62,6 +62,7 @@ const REPLY_DOMAIN = 'reply.example.test';
       .values({
         orgId,
         type: 'email',
+        vendor: 'mailer',
         name: 'Acme Support',
         active: true,
         config: {

@@ -11,6 +11,9 @@
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests"
   },
+  "dependencies": {
+    "@getmunin/widget-voice": "workspace:*"
+  },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",

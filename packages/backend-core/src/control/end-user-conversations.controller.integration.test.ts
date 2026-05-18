@@ -86,6 +86,7 @@ const skipReason = TEST_URL
     await db.insert(schema.convChannels).values({
       orgId,
       type: 'chat',
+      vendor: 'munin',
       name: 'Web chat',
     });
 

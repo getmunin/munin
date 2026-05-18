@@ -339,9 +339,6 @@ const skipReason = TEST_URL
         expect(second.content?.[0]?.text ?? '').toMatch(/rate_limited/);
       });
     } finally {
-      // Give the async audit interceptor a tick to finish before we drop the org,
-      // otherwise its INSERT races the cascading cleanup and logs a noisy FK error.
-      await new Promise((r) => setTimeout(r, 50));
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       await db.delete(schema.orgs).where(sql`id = ${rlOrg!.id}`);
     }

@@ -41,6 +41,21 @@ const fi: Strings = {
   timeDay: '{n}p',
   timeWeek: '{n}vk',
   timeMonth: '{n}kk',
+  voiceCallLabel: 'Soita',
+  voiceStartAriaLabel: 'Aloita äänipuhelu',
+  voiceEndAriaLabel: 'Lopeta äänipuhelu',
+  voiceMinimizeAriaLabel: 'Takaisin chatiin (jätä puhelu päälle)',
+  voiceResumeAriaLabel: 'Takaisin puheluun',
+  voiceConnecting: 'Yhdistetään…',
+  voiceLive: 'Käynnissä',
+  voiceHint: 'Ääni kulkee tämän widgetin kautta — ei puhelinnumeroa, ei sovellusta.',
+  voiceMute: 'Mykistä',
+  voiceMuted: 'Mykistetty',
+  voiceEnd: 'Lopeta',
+  voiceBackToChat: 'Takaisin chatiin',
+  voiceOnCallWithTemplate: 'Puhelussa: {who}',
+  voiceTapToReturn: 'Palaa napauttamalla',
+  voiceFailed: 'Äänipuhelu epäonnistui',
 };
 
 export default fi;

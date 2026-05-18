@@ -373,6 +373,7 @@ button {
 .empty-sub { font-size: 12.5px; color: var(--munin-ink-mute); }
 
 /* ─── Chat ───────────────────────────────────────────── */
+.screen.chat { position: relative; }
 .chat-head {
   display: flex;
   align-items: center;
@@ -595,7 +596,7 @@ button {
 /* ─── Composer ───────────────────────────────────────── */
 .composer {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 6px;
   padding: 12px 14px;
   border-top: 1px solid var(--munin-rule);
@@ -604,6 +605,7 @@ button {
 }
 .composer textarea {
   flex: 1;
+  box-sizing: border-box;
   border: 1px solid var(--munin-rule);
   background: var(--munin-paper-deep);
   border-radius: 12px;
@@ -616,13 +618,14 @@ button {
   outline: none;
   max-height: 110px;
   overflow-y: auto;
-  min-height: 38px;
+  min-height: 56px;
 }
 .composer textarea:focus { border-color: var(--munin-ink); background: var(--munin-paper); }
 .composer-row {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  justify-content: flex-end;
   gap: 4px;
 }
 .counter {
@@ -648,6 +651,213 @@ button {
 .send:disabled { opacity: 0.55; cursor: not-allowed; }
 .send.active { color: var(--munin-theme); border-color: var(--munin-theme); }
 .send svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+/* ─── Voice — header trigger pill ────────────────────── */
+.voice-trigger {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--munin-rule);
+  border-radius: 999px;
+  padding: 6px 12px 6px 10px;
+  color: var(--munin-ink-soft);
+  background: transparent;
+  font-family: var(--munin-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: border-color 120ms, background 120ms, color 120ms;
+}
+.voice-trigger:hover { border-color: var(--munin-ink); color: var(--munin-ink); background: var(--munin-paper-deep); }
+.voice-trigger:disabled { opacity: 0.55; cursor: not-allowed; }
+.voice-trigger svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; }
+.voice-trigger[hidden] { display: none; }
+
+/* ─── Voice — minimized banner above messages ────────── */
+.voice-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--munin-ink);
+  color: var(--munin-paper);
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 9px 16px;
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  flex-shrink: 0;
+  text-align: left;
+  transition: background 120ms;
+}
+.voice-banner:hover { background: #1a1815; }
+.voice-banner[hidden] { display: none; }
+.voice-banner-left { display: inline-flex; align-items: center; gap: 8px; }
+.voice-banner-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--munin-theme);
+  animation: voice-blink 1.4s ease-in-out infinite;
+}
+.voice-banner[data-muted='true'] .voice-banner-dot {
+  background: #E0A93B;
+  animation: none;
+}
+.voice-banner[data-state='error'] .voice-banner-dot { background: #B91C1C; animation: none; }
+.voice-banner-timer { color: var(--munin-paper); font-variant-numeric: tabular-nums; }
+.voice-banner-muted-tag {
+  margin-left: 6px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: #E0A93B;
+}
+.voice-banner-muted-tag[hidden] { display: none; }
+.voice-banner-right { color: rgba(251, 250, 247, 0.55); }
+
+/* ─── Voice — full-overlay call screen ───────────────── */
+.voice-call {
+  position: absolute;
+  inset: 0;
+  background: var(--munin-ink);
+  color: var(--munin-paper);
+  display: flex;
+  flex-direction: column;
+  z-index: 5;
+}
+.voice-call[hidden] { display: none; }
+.voice-call-min {
+  align-self: flex-start;
+  margin: 14px 0 0 12px;
+  color: rgba(251, 250, 247, 0.55);
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: transparent;
+}
+.voice-call-min:hover { color: var(--munin-paper); background: rgba(255, 255, 255, 0.06); }
+.voice-call-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 24px 24px;
+  text-align: center;
+}
+.voice-call-avatar {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+  color: var(--munin-paper);
+}
+.voice-call-avatar svg { width: 48px; height: 48px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.voice-call-avatar.pulsing::before,
+.voice-call-avatar.pulsing::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  animation: voice-callpulse 2s ease-out infinite;
+  pointer-events: none;
+}
+.voice-call-avatar.pulsing::after { animation-delay: 1s; }
+.voice-call-name {
+  font-family: var(--munin-serif);
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.voice-call-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(251, 250, 247, 0.7);
+}
+.voice-call-status .voice-call-sep { color: rgba(251, 250, 247, 0.35); }
+.voice-call-status .voice-call-timer { color: var(--munin-paper); font-variant-numeric: tabular-nums; }
+.voice-call-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--munin-theme);
+}
+.voice-call-dot.blink { animation: voice-blink 1.4s ease-in-out infinite; }
+.voice-call[data-state='error'] .voice-call-dot { background: #B91C1C; animation: none; }
+.voice-call-hint {
+  max-width: 240px;
+  margin-top: 6px;
+  font-family: var(--munin-sans);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: rgba(251, 250, 247, 0.5);
+}
+.voice-call-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px 18px 26px;
+}
+.voice-call-btn {
+  flex: 0 1 110px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--munin-paper);
+  border-radius: 14px;
+  padding: 14px 8px 12px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--munin-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: background 120ms, border-color 120ms;
+}
+.voice-call-btn:hover { background: rgba(255, 255, 255, 0.12); }
+.voice-call-btn.on {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.voice-call-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.voice-call-btn-end {
+  background: #B8493A;
+  border-color: #B8493A;
+  color: #FBFAF7;
+}
+.voice-call-btn-end:hover { background: #A23E30; border-color: #A23E30; }
+
+@keyframes voice-blink {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+@keyframes voice-callpulse {
+  0%   { transform: scale(1);   opacity: 1; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
 
 /* ─── Footer credit ──────────────────────────────────── */
 .footer-credit {

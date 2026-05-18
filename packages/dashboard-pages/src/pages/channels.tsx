@@ -5,13 +5,12 @@ import {
   ChevronDown,
   Code,
   Copy,
-  KeyRound,
   Mail,
+  MessageCircle,
   MessageSquare,
   MoreHorizontal,
-  Send,
-  ShieldCheck,
-  Trash2,
+  Phone,
+  RefreshCw,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { api, ApiError } from '../api';
@@ -25,7 +24,16 @@ import { FormField } from '../components/form-field';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
-import { CreateWidgetBody, SetupEmailBody } from '@getmunin/types';
+import {
+  CreateWidgetBody,
+  SetupEmailBody,
+  ConfigureTwilioSmsBody,
+  SendTwilioSmsTestBody,
+  ConfigureMessageBirdSmsBody,
+  SendMessageBirdSmsTestBody,
+  ConfigureVapiBody,
+  VapiCallInitiateBody,
+} from '@getmunin/types';
 import { dialogButtonClass, dialogFooterClass, dialogHintClass, dialogLabelClass } from '../lib/dialog-style';
 import {
   Button,
@@ -46,10 +54,12 @@ import {
   SectionHead,
   cn,
 } from '@getmunin/ui';
+import { MessageBirdLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
 
 interface ChannelDto {
   id: string;
   type: 'email' | 'voice' | 'chat' | 'sms';
+  vendor: string;
   name: string;
   active: boolean;
   config: Record<string, unknown>;
@@ -80,6 +90,39 @@ interface EmailChannelDto extends ChannelDto {
   };
 }
 
+interface TwilioSmsChannelDto extends ChannelDto {
+  type: 'sms';
+  vendor: 'twilio';
+  config: {
+    accountSid?: string;
+    authToken?: string;
+    fromNumber?: string | null;
+    messagingServiceSid?: string | null;
+  };
+}
+
+interface MessageBirdSmsChannelDto extends ChannelDto {
+  type: 'sms';
+  vendor: 'messagebird';
+  config: {
+    accessKey?: string;
+    signingKey?: string;
+    originator?: string;
+  };
+}
+
+interface VapiChannelDto extends ChannelDto {
+  type: 'voice';
+  vendor: 'vapi';
+  config: {
+    apiKey?: string;
+    webhookSecret?: string;
+    assistantId?: string;
+    phoneNumberId?: string | null;
+    publicKey?: string | null;
+  };
+}
+
 interface CreatedWidget {
   id: string;
   name: string;
@@ -104,10 +147,19 @@ export function ChannelsPage() {
   const [widgetOpen, setWidgetOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [editEmail, setEditEmail] = useState<EmailChannelDto | null>(null);
+  const [addSmsOpen, setAddSmsOpen] = useState(false);
+  const [editTwilioSms, setEditTwilioSms] = useState<TwilioSmsChannelDto | null>(null);
+  const [editMessageBirdSms, setEditMessageBirdSms] = useState<MessageBirdSmsChannelDto | null>(null);
+  const [addVoiceOpen, setAddVoiceOpen] = useState(false);
+  const [editVapi, setEditVapi] = useState<VapiChannelDto | null>(null);
+  const [placeVapiCallFor, setPlaceVapiCallFor] = useState<VapiChannelDto | null>(null);
   const [rotated, setRotated] = useState<CreatedWidget | null>(null);
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
   const [sendTestFor, setSendTestFor] = useState<EmailChannelDto | null>(null);
+  const [sendSmsTestFor, setSendSmsTestFor] = useState<TwilioSmsChannelDto | null>(null);
+  const [sendMessageBirdTestFor, setSendMessageBirdTestFor] =
+    useState<MessageBirdSmsChannelDto | null>(null);
 
   const load = useCallback(async () => {
     const list = await api<{ items: ChannelDto[] }>('/api/v1/conversations/channels');
@@ -218,6 +270,40 @@ export function ChannelsPage() {
         }}
       />
 
+      <AddSmsDialog
+        open={addSmsOpen}
+        onOpenChange={setAddSmsOpen}
+        onSaved={() => {
+          void tryLoad();
+        }}
+      />
+
+      {editTwilioSms && (
+        <TwilioSmsChannelDialog
+          open
+          editChannel={editTwilioSms}
+          onOpenChange={(next) => {
+            if (!next) setEditTwilioSms(null);
+          }}
+          onSaved={() => {
+            void tryLoad();
+          }}
+        />
+      )}
+
+      {editMessageBirdSms && (
+        <MessageBirdSmsChannelDialog
+          open
+          editChannel={editMessageBirdSms}
+          onOpenChange={(next) => {
+            if (!next) setEditMessageBirdSms(null);
+          }}
+          onSaved={() => {
+            void tryLoad();
+          }}
+        />
+      )}
+
       <RotatedSecretDialog
         open={rotated !== null}
         title={t('rotatedTitle')}
@@ -256,6 +342,48 @@ export function ChannelsPage() {
         <SendTestEmailDialog channel={sendTestFor} onClose={() => setSendTestFor(null)} />
       )}
 
+      {sendSmsTestFor && (
+        <SendTestSmsDialog
+          channel={sendSmsTestFor}
+          onClose={() => setSendSmsTestFor(null)}
+        />
+      )}
+
+      {sendMessageBirdTestFor && (
+        <SendTestMessageBirdSmsDialog
+          channel={sendMessageBirdTestFor}
+          onClose={() => setSendMessageBirdTestFor(null)}
+        />
+      )}
+
+      <AddVoiceDialog
+        open={addVoiceOpen}
+        onOpenChange={setAddVoiceOpen}
+        onSaved={() => {
+          void tryLoad();
+        }}
+      />
+
+      {editVapi && (
+        <VapiChannelDialog
+          open
+          editChannel={editVapi}
+          onOpenChange={(next) => {
+            if (!next) setEditVapi(null);
+          }}
+          onSaved={() => {
+            void tryLoad();
+          }}
+        />
+      )}
+
+      {placeVapiCallFor && (
+        <PlaceVapiCallDialog
+          channel={placeVapiCallFor}
+          onClose={() => setPlaceVapiCallFor(null)}
+        />
+      )}
+
       <section className="space-y-4">
         <SectionHead
           title={
@@ -277,6 +405,14 @@ export function ChannelsPage() {
                 <DropdownMenuItem onClick={() => setEmailOpen(true)}>
                   <Mail className="size-4" />
                   {t('addEmail')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAddSmsOpen(true)}>
+                  <MessageCircle className="size-4" />
+                  {t('addSms')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAddVoiceOpen(true)}>
+                  <Phone className="size-4" />
+                  {t('addVoice')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -304,8 +440,28 @@ export function ChannelsPage() {
                   void deleteChannel(c);
                 }}
                 onShowEmbed={() => setEmbedFor(c)}
-                onEdit={() => setEditEmail(c as EmailChannelDto)}
-                onSendTest={() => setSendTestFor(c as EmailChannelDto)}
+                onEdit={() => {
+                  if (c.type === 'sms' && c.vendor === 'twilio') {
+                    setEditTwilioSms(c as TwilioSmsChannelDto);
+                  } else if (c.type === 'sms' && c.vendor === 'messagebird') {
+                    setEditMessageBirdSms(c as MessageBirdSmsChannelDto);
+                  } else if (c.type === 'voice' && c.vendor === 'vapi') {
+                    setEditVapi(c as VapiChannelDto);
+                  } else if (c.type === 'email') {
+                    setEditEmail(c as EmailChannelDto);
+                  }
+                }}
+                onSendTest={() => {
+                  if (c.type === 'sms' && c.vendor === 'twilio') {
+                    setSendSmsTestFor(c as TwilioSmsChannelDto);
+                  } else if (c.type === 'sms' && c.vendor === 'messagebird') {
+                    setSendMessageBirdTestFor(c as MessageBirdSmsChannelDto);
+                  } else if (c.type === 'voice' && c.vendor === 'vapi') {
+                    setPlaceVapiCallFor(c as VapiChannelDto);
+                  } else if (c.type === 'email') {
+                    setSendTestFor(c as EmailChannelDto);
+                  }
+                }}
               />
             ))}
           </ul>
@@ -336,18 +492,39 @@ function ChannelRow({
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const isChat = channel.type === 'chat';
+  const isTwilioSms = channel.type === 'sms' && channel.vendor === 'twilio';
+  const isMessageBirdSms = channel.type === 'sms' && channel.vendor === 'messagebird';
+  const isVapiVoice = channel.type === 'voice' && channel.vendor === 'vapi';
   const widgetConfig = isChat
     ? (channel.config as { originAllowlist?: string[] } | null)
     : null;
   const emailConfig = channel.type === 'email' ? (channel.config as EmailChannelDto['config']) : null;
+  const smsConfig = isTwilioSms ? (channel.config as TwilioSmsChannelDto['config']) : null;
+  const mbSmsConfig = isMessageBirdSms
+    ? (channel.config as MessageBirdSmsChannelDto['config'])
+    : null;
+  const vapiConfig = isVapiVoice ? (channel.config as VapiChannelDto['config']) : null;
   const origins = widgetConfig?.originAllowlist ?? [];
+
+  const badgeKind = channel.type;
+  const badgeLabel = isChat
+    ? t('typeChat')
+    : isTwilioSms
+      ? t('typeTwilioSms')
+      : isMessageBirdSms
+        ? t('typeMessageBirdSms')
+        : isVapiVoice
+          ? t('typeVapi')
+          : channel.type === 'email'
+            ? t('typeEmail')
+            : channel.type;
 
   return (
     <li className="border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex items-center gap-3 flex-wrap">
-            <TypeBadge kind={channel.type} label={isChat ? t('typeChat') : t('typeEmail')} />
+            <TypeBadge kind={badgeKind} label={badgeLabel} />
             <h3 className="font-serif text-lg leading-none text-ink dark:text-foreground">
               {channel.name}
             </h3>
@@ -365,6 +542,40 @@ function ChannelRow({
               ) : (
                 <OriginChip text={t('anyOrigin')} muted />
               )
+            ) : isTwilioSms ? (
+              <>
+                <VendorLogo vendor="twilio" className="size-4" />
+                {smsConfig?.fromNumber && (
+                  <span className="font-mono text-[11px] text-ink dark:text-foreground">
+                    {smsConfig.fromNumber}
+                  </span>
+                )}
+                {smsConfig?.messagingServiceSid && (
+                  <OriginChip text={t('twilioSms.messagingService', { sid: smsConfig.messagingServiceSid })} />
+                )}
+                {smsConfig?.accountSid && (
+                  <OriginChip text={t('twilioSms.accountSidChip', { sid: smsConfig.accountSid })} />
+                )}
+              </>
+            ) : isMessageBirdSms ? (
+              <>
+                <VendorLogo vendor="messagebird" className="size-4" />
+                {mbSmsConfig?.originator && (
+                  <span className="font-mono text-[11px] text-ink dark:text-foreground">
+                    {mbSmsConfig.originator}
+                  </span>
+                )}
+              </>
+            ) : isVapiVoice ? (
+              <>
+                <VendorLogo vendor="vapi" className="size-4" />
+                {vapiConfig?.assistantId && (
+                  <OriginChip text={t('vapi.assistantChip', { id: shortenId(vapiConfig.assistantId) })} />
+                )}
+                {vapiConfig?.phoneNumberId && (
+                  <OriginChip text={t('vapi.phoneChip', { id: shortenId(vapiConfig.phoneNumberId) })} />
+                )}
+              </>
             ) : (
               <>
                 {emailConfig?.addressing?.fromAddress && (
@@ -390,11 +601,11 @@ function ChannelRow({
                 <Code className="size-3.5" />
                 {t('showEmbed')}
               </Button>
-            ) : (
+            ) : channel.type === 'email' || isTwilioSms || isMessageBirdSms || isVapiVoice ? (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 {tCommon('edit')}
               </Button>
-            )}
+            ) : null}
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -411,11 +622,9 @@ function ChannelRow({
                 {isChat && (
                   <>
                     <DropdownMenuItem onClick={onRotate}>
-                      <KeyRound className="size-4" />
                       {t('rotateKey')}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={onRotateIdentity}>
-                      <ShieldCheck className="size-4" />
                       {t('rotateIdentity')}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -424,14 +633,36 @@ function ChannelRow({
                 {channel.type === 'email' && (
                   <>
                     <DropdownMenuItem onClick={onSendTest}>
-                      <Send className="size-4" />
                       {t('sendTestEmail')}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
                 )}
+                {isTwilioSms && (
+                  <>
+                    <DropdownMenuItem onClick={onSendTest}>
+                      {t('twilioSms.sendTest')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {isMessageBirdSms && (
+                  <>
+                    <DropdownMenuItem onClick={onSendTest}>
+                      {t('messageBirdSms.sendTest')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {isVapiVoice && (
+                  <>
+                    <DropdownMenuItem onClick={onSendTest}>
+                      {t('vapi.placeCall')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem className="text-destructive" onClick={onDelete}>
-                  <Trash2 className="size-4" />
                   {t('deleteChannel')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -450,12 +681,80 @@ function TypeBadge({ kind, label }: { kind: 'chat' | 'email' | 'voice' | 'sms'; 
         'inline-flex items-center px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow rounded',
         kind === 'chat'
           ? 'bg-cobalt/15 text-cobalt-deep dark:bg-cobalt-soft/20 dark:text-cobalt-soft'
-          : 'bg-auth-navy/15 text-auth-navy dark:bg-auth-navy/30 dark:text-paper',
+          : kind === 'sms'
+            ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100'
+            : kind === 'voice'
+              ? 'bg-violet-100 text-violet-900 dark:bg-violet-900/30 dark:text-violet-100'
+              : 'bg-auth-navy/15 text-auth-navy dark:bg-auth-navy/30 dark:text-paper',
       )}
     >
       {label}
     </span>
   );
+}
+
+type ChannelVendor = 'twilio' | 'messagebird' | 'vapi';
+
+function VendorLogo({
+  vendor,
+  className,
+}: {
+  vendor: ChannelVendor;
+  className?: string;
+}) {
+  const Logo =
+    vendor === 'twilio' ? TwilioLogo : vendor === 'messagebird' ? MessageBirdLogo : VapiLogo;
+  const colorClass =
+    vendor === 'twilio'
+      ? ''
+      : 'text-ink dark:text-foreground';
+  return <Logo className={cn('shrink-0', colorClass, className)} />;
+}
+
+interface VendorPickerOption<V extends string> {
+  id: V;
+  label: string;
+}
+
+function VendorPicker<V extends ChannelVendor>({
+  options,
+  value,
+  onChange,
+}: {
+  options: ReadonlyArray<VendorPickerOption<V>>;
+  value: V;
+  onChange: (next: V) => void;
+}) {
+  const cols = options.length >= 4 ? 'sm:grid-cols-4' : options.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2';
+  return (
+    <div className={cn('grid grid-cols-2 gap-2', cols)}>
+      {options.map((opt) => {
+        const selected = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onChange(opt.id)}
+            aria-pressed={selected}
+            className={cn(
+              'flex items-center justify-center gap-2 rounded-input border-[0.5px] px-3 py-2 text-sm transition-colors',
+              selected
+                ? 'border-cobalt bg-cobalt/5 text-ink dark:text-foreground'
+                : 'border-rule-soft text-muted-foreground hover:text-ink dark:hover:text-foreground',
+            )}
+          >
+            <VendorLogo vendor={opt.id} className="size-4" />
+            <span>{opt.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function shortenId(id: string): string {
+  if (id.length <= 14) return id;
+  return `${id.slice(0, 6)}…${id.slice(-4)}`;
 }
 
 function OriginChip({ text, muted }: { text: string; muted?: boolean }) {
@@ -969,6 +1268,34 @@ function EmailChannelDialog({
                   </span>
                 </span>
               </label>
+              <div className="space-y-2 border-t border-rule-soft pt-3 sm:col-span-2">
+                <div className="text-sm font-medium">{t('email.sendLimitsLabel')}</div>
+                <p className="text-xs text-muted-foreground">{t('email.sendLimitsHelp')}</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <FormField label={t('email.perDayMax')}>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      value={perDayMax}
+                      onChange={(e) => setPerDayMax(e.target.value)}
+                      placeholder={t('email.sendLimitsPlaceholder')}
+                    />
+                  </FormField>
+                  <FormField label={t('email.perHourMax')}>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      value={perHourMax}
+                      onChange={(e) => setPerHourMax(e.target.value)}
+                      placeholder={t('email.sendLimitsPlaceholder')}
+                    />
+                  </FormField>
+                </div>
+              </div>
             </div>
           </fieldset>
 
@@ -1042,37 +1369,6 @@ function EmailChannelDialog({
                 </label>
               </div>
             )}
-          </fieldset>
-
-          <fieldset className="rounded-md border border-rule-soft px-4 pb-4 pt-3">
-            <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-              {t('email.sendLimitsLabel')}
-            </legend>
-            <p className="text-xs text-muted-foreground">{t('email.sendLimitsHelp')}</p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <FormField label={t('email.perDayMax')}>
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  step={1}
-                  value={perDayMax}
-                  onChange={(e) => setPerDayMax(e.target.value)}
-                  placeholder={t('email.sendLimitsPlaceholder')}
-                />
-              </FormField>
-              <FormField label={t('email.perHourMax')}>
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  step={1}
-                  value={perHourMax}
-                  onChange={(e) => setPerHourMax(e.target.value)}
-                  placeholder={t('email.sendLimitsPlaceholder')}
-                />
-              </FormField>
-            </div>
           </fieldset>
 
           <DialogFooter className={dialogFooterClass}>
@@ -1272,6 +1568,71 @@ function CopyableSecret({ label, value, hint }: { label: string; value: string; 
   );
 }
 
+function generateWebhookSecret(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function WebhookSecretField({
+  value,
+  onChange,
+  generateLabel,
+  regenerateLabel,
+  emptyHint,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  generateLabel: string;
+  regenerateLabel: string;
+  emptyHint?: string;
+}) {
+  const tCommon = useTranslations('common');
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    if (!value) return;
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), KEY_DISPLAY_TIMEOUT_MS);
+    });
+  }
+  function regenerate() {
+    onChange(generateWebhookSecret());
+    setCopied(false);
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {value ? (
+        <div className="flex items-center gap-2">
+          <code className="flex-1 truncate rounded-md border-[0.5px] bg-background px-3 py-2 font-mono text-sm">
+            {value}
+          </code>
+          <Button type="button" variant="outline" size="sm" onClick={copy}>
+            <Copy className="size-4" />
+            {copied ? tCommon('copied') : tCommon('copy')}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={regenerate}>
+            <RefreshCw className="size-4" />
+            {regenerateLabel}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 truncate rounded-md border-[0.5px] border-dashed bg-background px-3 py-2 font-mono text-sm text-muted-foreground">
+            {emptyHint ?? '••••'}
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={regenerate}>
+            <RefreshCw className="size-4" />
+            {generateLabel}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const HASH_SNIPPETS: Array<{ language: string; label: string; build: (channelId: string) => string }> = [
   {
     language: 'node',
@@ -1410,6 +1771,1412 @@ function EmbedSnippetDialog({
             {tCommon('done')}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TwilioSmsChannelDialog({
+  open,
+  onOpenChange,
+  onSaved,
+  editChannel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+  editChannel: TwilioSmsChannelDto;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [name, setName] = useState(editChannel.name);
+  const [accountSid, setAccountSid] = useState(editChannel.config?.accountSid ?? '');
+  const [authToken, setAuthToken] = useState('');
+  const [fromNumber, setFromNumber] = useState(editChannel.config?.fromNumber ?? '');
+  const [messagingServiceSid, setMessagingServiceSid] = useState(
+    editChannel.config?.messagingServiceSid ?? '',
+  );
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    setName(editChannel.name);
+    setAccountSid(editChannel.config?.accountSid ?? '');
+    setAuthToken('');
+    setFromNumber(editChannel.config?.fromNumber ?? '');
+    setMessagingServiceSid(editChannel.config?.messagingServiceSid ?? '');
+    setSubmitError(null);
+    setFieldErrors({});
+    setSaving(false);
+  }, [open, editChannel]);
+
+  async function submit() {
+    const payload: Record<string, unknown> = {
+      channelId: editChannel.id,
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(accountSid.trim() ? { accountSid: accountSid.trim() } : {}),
+      ...(authToken ? { authToken } : {}),
+      ...(fromNumber.trim() ? { fromNumber: fromNumber.trim() } : {}),
+      ...(messagingServiceSid.trim() ? { messagingServiceSid: messagingServiceSid.trim() } : {}),
+    };
+    const parsed = ConfigureTwilioSmsBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/api/v1/conversations/channels/twilio-sms', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.updateTwilioSms'), {
+          endpoint: '/api/v1/conversations/channels/twilio-sms',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        {submitError ? (
+          <SaveErrorStage
+            detail={submitError}
+            onBack={() => setSubmitError(null)}
+            onRetry={() => void submit()}
+            retrying={saving}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('twilioSms.editTitle')}</DialogTitle>
+              <DialogDescription>{t('twilioSms.editDescription')}</DialogDescription>
+            </DialogHeader>
+            <form
+              className="mt-4 flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submit();
+              }}
+            >
+              <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. main-twilio"
+                  maxLength={120}
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.accountSidLabel')}
+                hint={t('twilioSms.accountSidHint')}
+                error={fieldErrors.accountSid}
+              >
+                <Input
+                  value={accountSid}
+                  onChange={(e) => setAccountSid(e.target.value)}
+                  placeholder="AC…"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.authTokenLabel')}
+                hint={t('twilioSms.authTokenHintEdit')}
+              >
+                <Input
+                  type="password"
+                  value={authToken}
+                  onChange={(e) => setAuthToken(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.fromNumberLabel')}
+                hint={t('twilioSms.fromNumberHint')}
+                error={fieldErrors.fromNumber}
+              >
+                <Input
+                  value={fromNumber}
+                  onChange={(e) => setFromNumber(e.target.value)}
+                  placeholder="+15551234567"
+                  maxLength={32}
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.messagingServiceSidLabel')}
+                hint={t('twilioSms.messagingServiceSidHint')}
+                error={fieldErrors.messagingServiceSid}
+              >
+                <Input
+                  value={messagingServiceSid}
+                  onChange={(e) => setMessagingServiceSid(e.target.value)}
+                  placeholder="MG…"
+                  maxLength={64}
+                />
+              </FormField>
+              <p className={dialogHintClass}>{t('twilioSms.fromOrServiceHint')}</p>
+              <DialogFooter className={dialogFooterClass}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={dialogButtonClass}
+                  onClick={() => onOpenChange(false)}
+                  disabled={saving}
+                >
+                  {tCommon('cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="accent"
+                  className={dialogButtonClass}
+                  disabled={saving}
+                  pending={saving}
+                >
+                  {saving ? tCommon('saving') : tCommon('saveChanges')}
+                  <span aria-hidden className="ml-1 font-mono">↵</span>
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SendTestSmsDialog({
+  channel,
+  onClose,
+}: {
+  channel: TwilioSmsChannelDto;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [to, setTo] = useState('');
+  const [body, setBody] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  async function submit() {
+    const trimmed = to.trim();
+    if (!trimmed) return;
+    const payload: Record<string, unknown> = { to: trimmed };
+    if (body.trim()) payload.body = body.trim();
+    const parsed = SendTwilioSmsTestBody.safeParse(payload);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      return;
+    }
+    setSending(true);
+    setError(null);
+    try {
+      await api(`/api/v1/conversations/channels/twilio-sms/${channel.id}/send-test`, {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      notify.success(t('twilioSms.sendTestDialog.success', { to: trimmed }));
+      onClose();
+    } catch (err) {
+      setError(translate(err) || t('errors.sendTestSms'));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('twilioSms.sendTestDialog.title')}</DialogTitle>
+          <DialogDescription>
+            {t('twilioSms.sendTestDialog.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField
+            label={t('twilioSms.sendTestDialog.toLabel')}
+            hint={t('twilioSms.sendTestDialog.toHint')}
+            error={error ?? undefined}
+          >
+            <Input
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                if (error) setError(null);
+              }}
+              required
+              autoFocus
+              placeholder="+15551234567"
+              aria-invalid={error ? true : undefined}
+            />
+          </FormField>
+          <FormField
+            label={t('twilioSms.sendTestDialog.bodyLabel')}
+            hint={t('twilioSms.sendTestDialog.bodyHint')}
+          >
+            <Input
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              maxLength={1600}
+              placeholder={t('twilioSms.sendTestDialog.bodyPlaceholder')}
+            />
+          </FormField>
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={sending}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={sending || !to.trim()}
+              pending={sending}
+            >
+              {sending
+                ? t('twilioSms.sendTestDialog.sending')
+                : t('twilioSms.sendTestDialog.submit')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MessageBirdSmsChannelDialog({
+  open,
+  onOpenChange,
+  onSaved,
+  editChannel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+  editChannel: MessageBirdSmsChannelDto;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [name, setName] = useState(editChannel.name);
+  const [accessKey, setAccessKey] = useState('');
+  const [signingKey, setSigningKey] = useState('');
+  const [originator, setOriginator] = useState(editChannel.config?.originator ?? '');
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    setName(editChannel.name);
+    setAccessKey('');
+    setSigningKey('');
+    setOriginator(editChannel.config?.originator ?? '');
+    setSubmitError(null);
+    setFieldErrors({});
+    setSaving(false);
+  }, [open, editChannel]);
+
+  async function submit() {
+    const payload: Record<string, unknown> = {
+      channelId: editChannel.id,
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(accessKey ? { accessKey } : {}),
+      ...(signingKey ? { signingKey } : {}),
+      ...(originator.trim() ? { originator: originator.trim() } : {}),
+    };
+    const parsed = ConfigureMessageBirdSmsBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/api/v1/conversations/channels/messagebird-sms', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.updateMessageBirdSms'), {
+          endpoint: '/api/v1/conversations/channels/messagebird-sms',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        {submitError ? (
+          <SaveErrorStage
+            detail={submitError}
+            onBack={() => setSubmitError(null)}
+            onRetry={() => void submit()}
+            retrying={saving}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('messageBirdSms.editTitle')}</DialogTitle>
+              <DialogDescription>{t('messageBirdSms.editDescription')}</DialogDescription>
+            </DialogHeader>
+            <form
+              className="mt-4 flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submit();
+              }}
+            >
+              <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. nordic-messagebird"
+                  maxLength={120}
+                />
+              </FormField>
+              <FormField
+                label={t('messageBirdSms.accessKeyLabel')}
+                hint={t('messageBirdSms.accessKeyHintEdit')}
+              >
+                <Input
+                  type="password"
+                  value={accessKey}
+                  onChange={(e) => setAccessKey(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('messageBirdSms.signingKeyLabel')}
+                hint={t('messageBirdSms.signingKeyHintEdit')}
+              >
+                <Input
+                  type="password"
+                  value={signingKey}
+                  onChange={(e) => setSigningKey(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('messageBirdSms.originatorLabel')}
+                hint={t('messageBirdSms.originatorHint')}
+                error={fieldErrors.originator}
+              >
+                <Input
+                  value={originator}
+                  onChange={(e) => setOriginator(e.target.value)}
+                  placeholder="+15551234567 or AcmeSupport"
+                  maxLength={32}
+                />
+              </FormField>
+              <DialogFooter className={dialogFooterClass}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={dialogButtonClass}
+                  onClick={() => onOpenChange(false)}
+                  disabled={saving}
+                >
+                  {tCommon('cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="accent"
+                  className={dialogButtonClass}
+                  disabled={saving}
+                  pending={saving}
+                >
+                  {saving ? tCommon('saving') : tCommon('saveChanges')}
+                  <span aria-hidden className="ml-1 font-mono">↵</span>
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SendTestMessageBirdSmsDialog({
+  channel,
+  onClose,
+}: {
+  channel: MessageBirdSmsChannelDto;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [to, setTo] = useState('');
+  const [body, setBody] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  async function submit() {
+    const trimmed = to.trim();
+    if (!trimmed) return;
+    const payload: Record<string, unknown> = { to: trimmed };
+    if (body.trim()) payload.body = body.trim();
+    const parsed = SendMessageBirdSmsTestBody.safeParse(payload);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      return;
+    }
+    setSending(true);
+    setError(null);
+    try {
+      await api(`/api/v1/conversations/channels/messagebird-sms/${channel.id}/send-test`, {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      notify.success(t('messageBirdSms.sendTestDialog.success', { to: trimmed }));
+      onClose();
+    } catch (err) {
+      setError(translate(err) || t('errors.sendTestMessageBirdSms'));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('messageBirdSms.sendTestDialog.title')}</DialogTitle>
+          <DialogDescription>
+            {t('messageBirdSms.sendTestDialog.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField
+            label={t('messageBirdSms.sendTestDialog.toLabel')}
+            hint={t('messageBirdSms.sendTestDialog.toHint')}
+            error={error ?? undefined}
+          >
+            <Input
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                if (error) setError(null);
+              }}
+              required
+              autoFocus
+              placeholder="+15551234567"
+              aria-invalid={error ? true : undefined}
+            />
+          </FormField>
+          <FormField
+            label={t('messageBirdSms.sendTestDialog.bodyLabel')}
+            hint={t('messageBirdSms.sendTestDialog.bodyHint')}
+          >
+            <Input
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              maxLength={1600}
+              placeholder={t('messageBirdSms.sendTestDialog.bodyPlaceholder')}
+            />
+          </FormField>
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={sending}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={sending || !to.trim()}
+              pending={sending}
+            >
+              {sending
+                ? t('messageBirdSms.sendTestDialog.sending')
+                : t('messageBirdSms.sendTestDialog.submit')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type SmsVendor = 'twilio' | 'messagebird';
+
+function AddSmsDialog({
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [vendor, setVendor] = useState<SmsVendor>('twilio');
+  const [name, setName] = useState('');
+  const [accountSid, setAccountSid] = useState('');
+  const [authToken, setAuthToken] = useState('');
+  const [fromNumber, setFromNumber] = useState('');
+  const [messagingServiceSid, setMessagingServiceSid] = useState('');
+  const [accessKey, setAccessKey] = useState('');
+  const [signingKey, setSigningKey] = useState('');
+  const [originator, setOriginator] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    setVendor('twilio');
+    setName('');
+    setAccountSid('');
+    setAuthToken('');
+    setFromNumber('');
+    setMessagingServiceSid('');
+    setAccessKey('');
+    setSigningKey('');
+    setOriginator('');
+    setSubmitError(null);
+    setFieldErrors({});
+    setSaving(false);
+  }, [open]);
+
+  async function submitTwilio(): Promise<void> {
+    const payload: Record<string, unknown> = {
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(accountSid.trim() ? { accountSid: accountSid.trim() } : {}),
+      ...(authToken ? { authToken } : {}),
+      ...(fromNumber.trim() ? { fromNumber: fromNumber.trim() } : {}),
+      ...(messagingServiceSid.trim() ? { messagingServiceSid: messagingServiceSid.trim() } : {}),
+    };
+    const parsed = ConfigureTwilioSmsBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/api/v1/conversations/channels/twilio-sms', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.createTwilioSms'), {
+          endpoint: '/api/v1/conversations/channels/twilio-sms',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitMessageBird(): Promise<void> {
+    const payload: Record<string, unknown> = {
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(accessKey ? { accessKey } : {}),
+      ...(signingKey ? { signingKey } : {}),
+      ...(originator.trim() ? { originator: originator.trim() } : {}),
+    };
+    const parsed = ConfigureMessageBirdSmsBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/api/v1/conversations/channels/messagebird-sms', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.createMessageBirdSms'), {
+          endpoint: '/api/v1/conversations/channels/messagebird-sms',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function submit(): void {
+    setFieldErrors({});
+    if (vendor === 'twilio') void submitTwilio();
+    else void submitMessageBird();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        {submitError ? (
+          <SaveErrorStage
+            detail={submitError}
+            onBack={() => setSubmitError(null)}
+            onRetry={() => submit()}
+            retrying={saving}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('addSmsDialog.title')}</DialogTitle>
+              <DialogDescription>{t('addSmsDialog.description')}</DialogDescription>
+            </DialogHeader>
+            <form
+              className="mt-4 flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submit();
+              }}
+            >
+              <VendorPicker
+                options={[
+                  { id: 'twilio', label: t('typeTwilioSms') },
+                  { id: 'messagebird', label: t('typeMessageBirdSms') },
+                ]}
+                value={vendor}
+                onChange={(next) => setVendor(next)}
+              />
+              {vendor === 'twilio' ? (
+                <>
+                  <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. main-twilio"
+                      maxLength={120}
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('twilioSms.accountSidLabel')}
+                    hint={t('twilioSms.accountSidHint')}
+                    error={fieldErrors.accountSid}
+                  >
+                    <Input
+                      value={accountSid}
+                      onChange={(e) => setAccountSid(e.target.value)}
+                      placeholder="AC…"
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('twilioSms.authTokenLabel')}
+                    hint={t('twilioSms.authTokenHintCreate')}
+                  >
+                    <Input
+                      type="password"
+                      value={authToken}
+                      onChange={(e) => setAuthToken(e.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('twilioSms.fromNumberLabel')}
+                    hint={t('twilioSms.fromNumberHint')}
+                    error={fieldErrors.fromNumber}
+                  >
+                    <Input
+                      value={fromNumber}
+                      onChange={(e) => setFromNumber(e.target.value)}
+                      placeholder="+15551234567"
+                      maxLength={32}
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('twilioSms.messagingServiceSidLabel')}
+                    hint={t('twilioSms.messagingServiceSidHint')}
+                    error={fieldErrors.messagingServiceSid}
+                  >
+                    <Input
+                      value={messagingServiceSid}
+                      onChange={(e) => setMessagingServiceSid(e.target.value)}
+                      placeholder="MG…"
+                      maxLength={64}
+                    />
+                  </FormField>
+                  <p className={dialogHintClass}>{t('twilioSms.fromOrServiceHint')}</p>
+                </>
+              ) : (
+                <>
+                  <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. nordic-messagebird"
+                      maxLength={120}
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('messageBirdSms.accessKeyLabel')}
+                    hint={t('messageBirdSms.accessKeyHintCreate')}
+                  >
+                    <Input
+                      type="password"
+                      value={accessKey}
+                      onChange={(e) => setAccessKey(e.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('messageBirdSms.signingKeyLabel')}
+                    hint={t('messageBirdSms.signingKeyHintCreate')}
+                  >
+                    <Input
+                      type="password"
+                      value={signingKey}
+                      onChange={(e) => setSigningKey(e.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('messageBirdSms.originatorLabel')}
+                    hint={t('messageBirdSms.originatorHint')}
+                    error={fieldErrors.originator}
+                  >
+                    <Input
+                      value={originator}
+                      onChange={(e) => setOriginator(e.target.value)}
+                      placeholder="+15551234567 or AcmeSupport"
+                      maxLength={32}
+                      required
+                    />
+                  </FormField>
+                </>
+              )}
+              <DialogFooter className={dialogFooterClass}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={dialogButtonClass}
+                  onClick={() => onOpenChange(false)}
+                  disabled={saving}
+                >
+                  {tCommon('cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="accent"
+                  className={dialogButtonClass}
+                  disabled={saving}
+                  pending={saving}
+                >
+                  {saving ? tCommon('creating') : t('addSmsDialog.create')}
+                  <span aria-hidden className="ml-1 font-mono">↵</span>
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type VoiceVendor = 'vapi';
+
+function AddVoiceDialog({
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [vendor, setVendor] = useState<VoiceVendor>('vapi');
+  const [name, setName] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [assistantId, setAssistantId] = useState('');
+  const [phoneNumberId, setPhoneNumberId] = useState('');
+  const [publicKey, setPublicKey] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [createdChannelId, setCreatedChannelId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setVendor('vapi');
+    setName('');
+    setApiKey('');
+    setWebhookSecret('');
+    setAssistantId('');
+    setPhoneNumberId('');
+    setPublicKey('');
+    setSubmitError(null);
+    setFieldErrors({});
+    setSaving(false);
+    setCreatedChannelId(null);
+  }, [open]);
+
+  async function submitVapi(): Promise<void> {
+    const generatedSecret = generateWebhookSecret();
+    const payload: Record<string, unknown> = {
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(apiKey ? { apiKey } : {}),
+      webhookSecret: generatedSecret,
+      ...(assistantId.trim() ? { assistantId: assistantId.trim() } : {}),
+      ...(phoneNumberId.trim() ? { phoneNumberId: phoneNumberId.trim() } : {}),
+      ...(publicKey.trim() ? { publicKey: publicKey.trim() } : {}),
+    };
+    const parsed = ConfigureVapiBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      const created = await api<{ id: string }>('/api/v1/conversations/channels/vapi', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      setWebhookSecret(generatedSecret);
+      setCreatedChannelId(created.id);
+      onSaved();
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.createVapi'), {
+          endpoint: '/api/v1/conversations/channels/vapi',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function submit(): void {
+    setFieldErrors({});
+    if (vendor === 'vapi') void submitVapi();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        {submitError ? (
+          <SaveErrorStage
+            detail={submitError}
+            onBack={() => setSubmitError(null)}
+            onRetry={() => submit()}
+            retrying={saving}
+          />
+        ) : createdChannelId ? (
+          <VapiConnectionStage
+            channelId={createdChannelId}
+            webhookSecret={webhookSecret}
+            onDone={() => onOpenChange(false)}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('addVoiceDialog.title')}</DialogTitle>
+              <DialogDescription>{t('addVoiceDialog.description')}</DialogDescription>
+            </DialogHeader>
+            <form
+              className="mt-4 flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submit();
+              }}
+            >
+              <VendorPicker
+                options={[{ id: 'vapi', label: t('typeVapi') }]}
+                value={vendor}
+                onChange={(next) => setVendor(next)}
+              />
+              <FormField label={t('nameLabel')} hint={t('vapi.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. main-vapi"
+                  maxLength={120}
+                  required
+                />
+              </FormField>
+              <FormField label={t('vapi.apiKeyLabel')} hint={t('vapi.apiKeyHintCreate')}>
+                <Input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  autoComplete="off"
+                  required
+                />
+              </FormField>
+              <FormField
+                label={t('vapi.publicKeyLabel')}
+                hint={t('vapi.publicKeyHintCreate')}
+                error={fieldErrors.publicKey}
+              >
+                <Input
+                  value={publicKey}
+                  onChange={(e) => setPublicKey(e.target.value)}
+                  maxLength={256}
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('vapi.assistantIdLabel')}
+                hint={t('vapi.assistantIdHint')}
+                error={fieldErrors.assistantId}
+              >
+                <Input
+                  value={assistantId}
+                  onChange={(e) => setAssistantId(e.target.value)}
+                  maxLength={128}
+                  required
+                />
+              </FormField>
+              <FormField
+                label={t('vapi.phoneNumberIdLabel')}
+                hint={t('vapi.phoneNumberIdHint')}
+                error={fieldErrors.phoneNumberId}
+              >
+                <Input
+                  value={phoneNumberId}
+                  onChange={(e) => setPhoneNumberId(e.target.value)}
+                  maxLength={128}
+                />
+              </FormField>
+              <DialogFooter className={dialogFooterClass}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={dialogButtonClass}
+                  onClick={() => onOpenChange(false)}
+                  disabled={saving}
+                >
+                  {tCommon('cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="accent"
+                  className={dialogButtonClass}
+                  disabled={saving}
+                  pending={saving}
+                >
+                  {saving ? tCommon('creating') : t('addVoiceDialog.create')}
+                  <span aria-hidden className="ml-1 font-mono">↵</span>
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function vapiWebhookUrl(channelId: string): string {
+  const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  return `${host}/api/v1/conversations/channels/${channelId}/webhook`;
+}
+
+function VapiConnectionStage({
+  channelId,
+  webhookSecret,
+  onDone,
+}: {
+  channelId: string;
+  webhookSecret: string;
+  onDone: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{t('vapi.connectionStage.title')}</DialogTitle>
+        <DialogDescription>{t('vapi.connectionStage.description')}</DialogDescription>
+      </DialogHeader>
+      <div className="mt-2 flex flex-col gap-4">
+        <CopyableSecret
+          label={t('vapi.connectionStage.serverUrlLabel')}
+          value={vapiWebhookUrl(channelId)}
+          hint={t('vapi.connectionStage.serverUrlHint')}
+        />
+        <CopyableSecret
+          label={t('vapi.connectionStage.webhookSecretLabel')}
+          value={webhookSecret}
+          hint={t('vapi.connectionStage.webhookSecretHint')}
+        />
+      </div>
+      <DialogFooter className={dialogFooterClass}>
+        <Button variant="accent" className={dialogButtonClass} onClick={onDone}>
+          {tCommon('done')}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function VapiChannelDialog({
+  open,
+  onOpenChange,
+  onSaved,
+  editChannel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+  editChannel: VapiChannelDto;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [name, setName] = useState(editChannel.name);
+  const [apiKey, setApiKey] = useState('');
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [assistantId, setAssistantId] = useState(editChannel.config?.assistantId ?? '');
+  const [phoneNumberId, setPhoneNumberId] = useState(editChannel.config?.phoneNumberId ?? '');
+  const [publicKey, setPublicKey] = useState(editChannel.config?.publicKey ?? '');
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    setName(editChannel.name);
+    setApiKey('');
+    setWebhookSecret('');
+    setAssistantId(editChannel.config?.assistantId ?? '');
+    setPhoneNumberId(editChannel.config?.phoneNumberId ?? '');
+    setPublicKey(editChannel.config?.publicKey ?? '');
+    setSubmitError(null);
+    setFieldErrors({});
+    setSaving(false);
+  }, [open, editChannel]);
+
+  async function submit() {
+    const payload: Record<string, unknown> = {
+      channelId: editChannel.id,
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(apiKey ? { apiKey } : {}),
+      ...(webhookSecret ? { webhookSecret } : {}),
+      ...(assistantId.trim() ? { assistantId: assistantId.trim() } : {}),
+      ...(phoneNumberId.trim() ? { phoneNumberId: phoneNumberId.trim() } : {}),
+      ...(publicKey.trim() ? { publicKey: publicKey.trim() } : {}),
+    };
+    const parsed = ConfigureVapiBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/api/v1/conversations/channels/vapi', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.updateVapi'), {
+          endpoint: '/api/v1/conversations/channels/vapi',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        {submitError ? (
+          <SaveErrorStage
+            detail={submitError}
+            onBack={() => setSubmitError(null)}
+            onRetry={() => void submit()}
+            retrying={saving}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('vapi.editTitle')}</DialogTitle>
+              <DialogDescription>{t('vapi.editDescription')}</DialogDescription>
+            </DialogHeader>
+            <form
+              className="mt-4 flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submit();
+              }}
+            >
+              <FormField label={t('nameLabel')} hint={t('vapi.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. main-vapi"
+                  maxLength={120}
+                />
+              </FormField>
+              <FormField label={t('vapi.apiKeyLabel')} hint={t('vapi.apiKeyHintEdit')}>
+                <Input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('vapi.publicKeyLabel')}
+                hint={t('vapi.publicKeyHintEdit')}
+                error={fieldErrors.publicKey}
+              >
+                <Input
+                  value={publicKey}
+                  onChange={(e) => setPublicKey(e.target.value)}
+                  maxLength={256}
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField label={t('vapi.webhookSecretLabel')} hint={t('vapi.webhookSecretHintEdit')}>
+                <WebhookSecretField
+                  value={webhookSecret}
+                  onChange={setWebhookSecret}
+                  generateLabel={t('vapi.webhookSecretGenerate')}
+                  regenerateLabel={t('vapi.webhookSecretRegenerate')}
+                  emptyHint={t('vapi.webhookSecretKeepHint')}
+                />
+              </FormField>
+              <FormField
+                label={t('vapi.assistantIdLabel')}
+                hint={t('vapi.assistantIdHint')}
+                error={fieldErrors.assistantId}
+              >
+                <Input
+                  value={assistantId}
+                  onChange={(e) => setAssistantId(e.target.value)}
+                  maxLength={128}
+                />
+              </FormField>
+              <FormField
+                label={t('vapi.phoneNumberIdLabel')}
+                hint={t('vapi.phoneNumberIdHint')}
+                error={fieldErrors.phoneNumberId}
+              >
+                <Input
+                  value={phoneNumberId}
+                  onChange={(e) => setPhoneNumberId(e.target.value)}
+                  maxLength={128}
+                />
+              </FormField>
+              <DialogFooter className={dialogFooterClass}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={dialogButtonClass}
+                  onClick={() => onOpenChange(false)}
+                  disabled={saving}
+                >
+                  {tCommon('cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="accent"
+                  className={dialogButtonClass}
+                  disabled={saving}
+                  pending={saving}
+                >
+                  {saving ? tCommon('saving') : tCommon('saveChanges')}
+                  <span aria-hidden className="ml-1 font-mono">↵</span>
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PlaceVapiCallDialog({
+  channel,
+  onClose,
+}: {
+  channel: VapiChannelDto;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [to, setTo] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [placing, setPlacing] = useState(false);
+
+  async function submit() {
+    const trimmed = to.trim();
+    if (!trimmed) return;
+    const payload: Record<string, unknown> = { to: trimmed };
+    if (customerName.trim()) payload.customerName = customerName.trim();
+    const parsed = VapiCallInitiateBody.safeParse(payload);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      return;
+    }
+    setPlacing(true);
+    setError(null);
+    try {
+      await api(`/api/v1/conversations/channels/vapi/${channel.id}/call`, {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      notify.success(t('vapi.placeCallDialog.success', { to: trimmed }));
+      onClose();
+    } catch (err) {
+      setError(translate(err) || t('errors.placeVapiCall'));
+    } finally {
+      setPlacing(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('vapi.placeCallDialog.title')}</DialogTitle>
+          <DialogDescription>
+            {t('vapi.placeCallDialog.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField
+            label={t('vapi.placeCallDialog.toLabel')}
+            hint={t('vapi.placeCallDialog.toHint')}
+            error={error ?? undefined}
+          >
+            <Input
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                if (error) setError(null);
+              }}
+              required
+              autoFocus
+              placeholder="+15551234567"
+              aria-invalid={error ? true : undefined}
+            />
+          </FormField>
+          <FormField
+            label={t('vapi.placeCallDialog.customerNameLabel')}
+            hint={t('vapi.placeCallDialog.customerNameHint')}
+          >
+            <Input
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              maxLength={120}
+            />
+          </FormField>
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={placing}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={placing || !to.trim()}
+              pending={placing}
+            >
+              {placing
+                ? t('vapi.placeCallDialog.placing')
+                : t('vapi.placeCallDialog.submit')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

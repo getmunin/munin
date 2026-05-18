@@ -6,10 +6,17 @@ import {
   mintNewSession,
   setCurrentSession,
 } from './session.js';
-import { createApiClient, WidgetApiError, type ConversationSummary, type ListedMessage } from './api.js';
+import {
+  createApiClient,
+  WidgetApiError,
+  type ConversationEnvelope,
+  type ConversationSummary,
+  type ListedMessage,
+} from './api.js';
 import { createRealtimeClient, type IncomingTyping } from './realtime.js';
 import { mount, type UiController } from './ui.js';
 import { pickLocale } from './strings/index.js';
+import { createVoiceSession, type VoiceSession } from '@getmunin/widget-voice';
 
 function bootstrap(): void {
   const scriptEl = currentScript();
@@ -109,7 +116,13 @@ function start(config: WidgetConfig): void {
         }
         if (res.conversation) {
           ui.setConversation(res.conversation);
+          currentEnvelope = res.conversation;
+          ui.setVoiceCallWho(callWhoFromEnvelope(res.conversation));
           if (res.conversation.contactEmail) visitorHasEmail = true;
+          if (currentConversationId !== res.conversation.id) {
+            currentConversationId = res.conversation.id;
+            void probeVoiceAvailability(res.conversation.id);
+          }
         }
         hasMore = res.hasMore;
       }
@@ -156,6 +169,14 @@ function start(config: WidgetConfig): void {
     lastSeenAt = undefined;
     agentTurnsThisSession = 0;
     emailCardShown = false;
+    currentConversationId = null;
+    currentEnvelope = null;
+    voiceProbedFor = null;
+    if (voiceSession) {
+      void endVoice();
+    }
+    ui.setVoiceAvailable(false);
+    ui.setVoiceState('idle');
     ui.resetChat();
     ui.setView('chat');
     if (realtime.state() === 'connected') {
@@ -199,6 +220,128 @@ function start(config: WidgetConfig): void {
     }
   }
 
+  let currentConversationId: string | null = null;
+  let currentEnvelope: ConversationEnvelope | null = null;
+  let voiceSession: VoiceSession | null = null;
+  let voiceProbedFor: string | null = null;
+  let voiceCallStartedAt: number | null = null;
+  let voiceStartedEmitted = false;
+
+  function callWhoFromEnvelope(env: ConversationEnvelope | null): string {
+    if (env?.handedOver) {
+      return env.assigneeName ?? strings.defaultTeammateName;
+    }
+    return strings.defaultAuthorName;
+  }
+
+  async function probeVoiceAvailability(conversationId: string): Promise<void> {
+    if (voiceProbedFor === conversationId) return;
+    voiceProbedFor = conversationId;
+    try {
+      const res = await api.voiceStart(conversationId);
+      ui.setVoiceAvailable(res.available);
+    } catch (err) {
+      if (err instanceof WidgetApiError) {
+        console.warn(`[munin-widget] voice probe failed: ${err.status}`);
+      } else {
+        console.warn('[munin-widget] voice probe failed:', err);
+      }
+      ui.setVoiceAvailable(false);
+    }
+  }
+
+  function emitVoiceStarted(): void {
+    if (voiceStartedEmitted) return;
+    if (!currentConversationId) return;
+    voiceStartedEmitted = true;
+    voiceCallStartedAt = Date.now();
+    api
+      .voiceEvent({ conversationId: currentConversationId, kind: 'started' })
+      .catch((err) => console.warn('[munin-widget] voice event (started) failed:', err));
+  }
+
+  function emitVoiceEnded(): void {
+    if (!voiceStartedEmitted) return;
+    if (!currentConversationId) {
+      voiceStartedEmitted = false;
+      voiceCallStartedAt = null;
+      return;
+    }
+    const durationSeconds =
+      voiceCallStartedAt !== null
+        ? Math.max(0, Math.floor((Date.now() - voiceCallStartedAt) / 1000))
+        : 0;
+    const convId = currentConversationId;
+    voiceStartedEmitted = false;
+    voiceCallStartedAt = null;
+    api
+      .voiceEvent({ conversationId: convId, kind: 'ended', durationSeconds })
+      .catch((err) => console.warn('[munin-widget] voice event (ended) failed:', err));
+  }
+
+  async function startVoice(): Promise<void> {
+    if (voiceSession) return;
+    if (!currentConversationId) {
+      console.warn('[munin-widget] voice start: no active conversation');
+      return;
+    }
+    ui.setVoiceCallWho(callWhoFromEnvelope(currentEnvelope));
+    ui.setVoiceState('connecting');
+    let res;
+    try {
+      res = await api.voiceStart(currentConversationId);
+    } catch (err) {
+      ui.setVoiceState('error');
+      console.warn('[munin-widget] voice start request failed:', err);
+      return;
+    }
+    if (!res.available) {
+      ui.setVoiceState('error');
+      ui.setVoiceAvailable(false);
+      console.warn(`[munin-widget] voice unavailable: ${res.reason}`);
+      return;
+    }
+    const session = createVoiceSession(res.descriptor);
+    voiceSession = session;
+    voiceStartedEmitted = false;
+    voiceCallStartedAt = null;
+    session.subscribe((event) => {
+      if (event.type === 'state') {
+        ui.setVoiceState(event.state);
+        if (event.state === 'listening' || event.state === 'speaking') {
+          emitVoiceStarted();
+        }
+        if (event.state === 'ended' || event.state === 'error') {
+          emitVoiceEnded();
+          voiceSession = null;
+        }
+      } else if (event.type === 'error') {
+        console.warn('[munin-widget] voice error:', event.error);
+      }
+    });
+    try {
+      await session.start();
+    } catch (err) {
+      console.warn('[munin-widget] voice session start failed:', err);
+      voiceSession = null;
+    }
+  }
+
+  async function endVoice(): Promise<void> {
+    if (!voiceSession) return;
+    try {
+      await voiceSession.end();
+    } finally {
+      voiceSession = null;
+      ui.setVoiceState('ended');
+      emitVoiceEnded();
+    }
+  }
+
+  function toggleVoiceMute(muted: boolean): void {
+    voiceSession?.setMuted(muted);
+  }
+
   const { strings } = pickLocale(config.locale);
   const ui: UiController = mount(config, strings, {
     onSend(text) {
@@ -222,6 +365,15 @@ function start(config: WidgetConfig): void {
     onMessageRead(messageId) {
       realtime.sendRead([messageId]);
       markLocallyRead(messageId);
+    },
+    onVoiceStart() {
+      void startVoice();
+    },
+    onVoiceEnd() {
+      void endVoice();
+    },
+    onVoiceMuteToggle(muted) {
+      toggleVoiceMute(muted);
     },
   });
 

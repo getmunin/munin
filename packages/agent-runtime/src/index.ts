@@ -7,7 +7,6 @@ export {
   PROMPT_SPACE_SLUG,
   SYSTEM_PROMPT_SLUG,
   createPromptResolver,
-  defaultPromptsDir,
   type CreatePromptResolverOptions,
   type PromptResolver,
 } from './prompt-resolver.js';

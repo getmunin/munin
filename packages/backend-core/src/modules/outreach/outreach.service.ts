@@ -1,10 +1,21 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { schema } from '@getmunin/db';
-import { and, desc, eq, type SQL } from 'drizzle-orm';
-import { getCurrentContext, signUnsubscribeToken, WebhookDispatcher } from '@getmunin/core';
+import { makeId, schema, type Db } from '@getmunin/db';
+import { DB } from '../../common/db/db.module.js';
+import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import {
+  ActorIdentity,
+  getCurrentContext,
+  signUnsubscribeToken,
+  WebhookDispatcher,
+  withContext,
+  type RequestContext,
+} from '@getmunin/core';
+import { randomUUID } from 'node:crypto';
 import { ConvService } from '../conv/conv.service.js';
 import { CrmService, CrmInvalidError } from '../crm/crm.service.js';
 import { EmailService } from '../conv/email/email.service.js';
+import { VapiClientService } from '../conv/vapi/vapi-client.service.js';
+import { jsonbToStored as vapiJsonbToStored } from '../conv/vapi/vapi.service.js';
 
 export class OutreachInvalidError extends Error {
   readonly code = 'outreach_invalid';
@@ -85,6 +96,8 @@ export class OutreachService {
     @Inject(ConvService) private readonly conv: ConvService,
     @Inject(CrmService) private readonly crm: CrmService,
     @Inject(EmailService) private readonly email: EmailService,
+    @Inject(VapiClientService) private readonly vapi: VapiClientService,
+    @Inject(DB) private readonly db: Db,
   ) {}
 
   // ─── Campaigns ──────────────────────────────────────────────────────────
@@ -125,7 +138,7 @@ export class OutreachService {
     if (!input.brief.trim()) throw new OutreachInvalidError('brief must be non-empty');
     // Validate FK targets in this org.
     await this.assertSegmentExists(input.segmentId);
-    await this.assertEmailChannelExists(input.channelId);
+    await this.loadOutreachChannel(input.channelId);
     try {
       const [row] = await ctx.db
         .insert(schema.outreachCampaigns)
@@ -167,7 +180,7 @@ export class OutreachService {
   }): Promise<CampaignDto> {
     const ctx = getCurrentContext();
     if (input.patch.segmentId) await this.assertSegmentExists(input.patch.segmentId);
-    if (input.patch.channelId) await this.assertEmailChannelExists(input.patch.channelId);
+    if (input.patch.channelId) await this.loadOutreachChannel(input.patch.channelId);
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     for (const [k, v] of Object.entries(input.patch)) {
       if (v !== undefined) updates[k] = v;
@@ -254,17 +267,21 @@ export class OutreachService {
   async proposeInitial(input: {
     campaignId: string;
     contactId: string;
-    draftSubject: string;
+    draftSubject?: string | null;
     draftBody: string;
     evidence?: Record<string, unknown>;
     proposedSendAt?: string;
   }): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (!input.draftSubject.trim()) throw new OutreachInvalidError('draftSubject must be non-empty');
     if (!input.draftBody.trim()) throw new OutreachInvalidError('draftBody must be non-empty');
-    // Validate FKs.
-    await this.getCampaign(input.campaignId);
+    const campaign = await this.getCampaign(input.campaignId);
+    const channel = await this.loadOutreachChannel(campaign.channelId);
+    if (channel.type === 'email') {
+      if (!input.draftSubject?.trim()) {
+        throw new OutreachInvalidError('draftSubject must be non-empty for email campaigns');
+      }
+    }
     const contact = await this.crm.getContact(input.contactId).catch((err) => {
       if (err instanceof CrmInvalidError) throw new OutreachInvalidError(err.message);
       throw err;
@@ -272,6 +289,11 @@ export class OutreachService {
     if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
       throw new OutreachInvalidError(
         `contact ${input.contactId} is suppressed or has no recorded lawful basis`,
+      );
+    }
+    if (channel.type === 'voice' && !contact.phone) {
+      throw new OutreachInvalidError(
+        `contact ${input.contactId} has no phone number — required for voice campaigns`,
       );
     }
     try {
@@ -282,7 +304,7 @@ export class OutreachService {
           campaignId: input.campaignId,
           contactId: input.contactId,
           kind: 'initial',
-          draftSubject: input.draftSubject,
+          draftSubject: input.draftSubject?.trim() || null,
           draftBody: input.draftBody,
           evidence: input.evidence ?? {},
           proposedSendAt: input.proposedSendAt ? new Date(input.proposedSendAt) : null,
@@ -323,6 +345,13 @@ export class OutreachService {
     if (!conv.outreachCampaignId) {
       throw new OutreachInvalidError(
         `conversation ${input.conversationId} is not outreach-originated (no campaign attached)`,
+      );
+    }
+    const replyCampaign = await this.getCampaign(conv.outreachCampaignId);
+    const replyChannel = await this.loadOutreachChannel(replyCampaign.channelId);
+    if (replyChannel.type !== 'email') {
+      throw new OutreachInvalidError(
+        `reply proposals are only supported on email campaigns; this conversation is on ${replyChannel.type}:${replyChannel.vendor}`,
       );
     }
     if (!conv.contactId) {
@@ -410,6 +439,8 @@ export class OutreachService {
       throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
     }
 
+    const channel = await this.loadOutreachChannel(campaign.channelId);
+
     // Re-check suppression+consent at approve-time (the contact may have
     // unsubscribed between draft generation and operator approval).
     const contact = await this.crm.getContact(proposal.contactId);
@@ -418,6 +449,11 @@ export class OutreachService {
         `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
       );
     }
+
+    if (channel.type === 'voice') {
+      return this.approveInitialVoice(proposal, campaign, contact, channel, actor);
+    }
+
     if (!contact.email) {
       throw new OutreachInvalidError(`contact ${contact.id} has no email — cannot send`);
     }
@@ -490,6 +526,185 @@ export class OutreachService {
     });
 
     return toProposalDto(updated!);
+  }
+
+  private async approveInitialVoice(
+    proposal: ProposalDto,
+    campaign: CampaignDto,
+    contact: { id: string; name: string | null; phone: string | null },
+    channel: typeof schema.convChannels.$inferSelect,
+    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    if (!contact.phone) {
+      throw new OutreachInvalidError(`contact ${contact.id} has no phone — cannot call`);
+    }
+    const config = vapiJsonbToStored(channel.config);
+    if (!config.phoneNumberId) {
+      throw new OutreachInvalidError(
+        'voice channel has no phoneNumberId — set one to place outbound PSTN calls',
+      );
+    }
+    const apiKey = await this.vapi.loadSecret(config.encryptedApiKey);
+    const callRes = await this.vapi
+      .placeCall({
+        apiKey,
+        assistantId: config.assistantId,
+        phoneNumberId: config.phoneNumberId,
+        toNumber: contact.phone,
+        customer: contact.name ? { name: contact.name } : undefined,
+        assistantOverrides: {
+          metadata: {
+            outreachCampaignId: campaign.id,
+            outreachProposalId: proposal.id,
+            contactId: contact.id,
+            draftOpening: proposal.draftBody,
+          },
+        },
+      })
+      .catch((err) => {
+        throw new OutreachInvalidError(
+          `voice call failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+
+    const conv = await this.createVoiceStubConversation({
+      orgId: actor.orgId,
+      channel,
+      contact: { id: contact.id, name: contact.name, phone: contact.phone },
+      proposal,
+      campaign,
+      vapiCallId: callRes.id,
+    });
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'sent',
+        conversationId: conv.id,
+        sentMessageId: null,
+        sentAt: new Date(),
+        decidedByActorType: actor.type,
+        decidedByActorId: actor.id,
+        decidedAt: new Date(),
+        evidence: {
+          ...(proposal.evidence ?? {}),
+          vapiCallId: callRes.id,
+          vapiStatus: callRes.status,
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.crmContacts.id, contact.id));
+
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: campaign.id,
+        contactId: contact.id,
+        conversationId: conv.id,
+        messageId: null,
+        vapiCallId: callRes.id,
+      },
+    });
+
+    return toProposalDto(updated!);
+  }
+
+  private async createVoiceStubConversation(args: {
+    orgId: string;
+    channel: typeof schema.convChannels.$inferSelect;
+    contact: { id: string; name: string | null; phone: string };
+    proposal: ProposalDto;
+    campaign: CampaignDto;
+    vapiCallId: string;
+  }): Promise<{ id: string }> {
+    const actor = new ActorIdentity('system', 'outreach-voice', args.orgId, ['*'], ['admin']);
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const requestCtx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+      return withContext(requestCtx, async () => {
+        const convContactRows = await tx
+          .select()
+          .from(schema.convContacts)
+          .where(
+            and(
+              eq(schema.convContacts.orgId, args.orgId),
+              eq(schema.convContacts.phone, args.contact.phone),
+            ),
+          )
+          .limit(1);
+        let convContactId = convContactRows[0]?.id ?? null;
+        if (!convContactId) {
+          const [created] = await tx
+            .insert(schema.convContacts)
+            .values({
+              orgId: args.orgId,
+              phone: args.contact.phone,
+              name: args.contact.name,
+              metadata: { source: 'outreach-voice', crmContactId: args.contact.id },
+            })
+            .returning();
+          convContactId = created!.id;
+        }
+
+        const next = await tx.execute<{ next: number } & Record<string, unknown>>(
+          sql`SELECT conv_next_display_id(${args.orgId}) AS next`,
+        );
+        const displayId = next[0]!.next;
+        const stubMetadata = {
+          vapiCallId: args.vapiCallId,
+          outreachProposalId: args.proposal.id,
+          outreachCampaignId: args.campaign.id,
+          crmContactId: args.contact.id,
+        };
+        const newId = makeId('ccv');
+        const inserted = await tx.execute<{ id: string }>(sql`
+          INSERT INTO conv_conversations
+            (id, org_id, display_id, channel_id, contact_id, status, subject,
+             outreach_campaign_id, agent_mode, last_message_at, metadata)
+          VALUES
+            (${newId}, ${args.orgId}, ${displayId}, ${args.channel.id}, ${convContactId},
+             'open', NULL, ${args.campaign.id}, 'off',
+             ${new Date().toISOString()}, ${JSON.stringify(stubMetadata)}::jsonb)
+          ON CONFLICT (org_id, channel_id, ((metadata ->> 'vapiCallId')))
+            WHERE (metadata ->> 'vapiCallId') IS NOT NULL
+          DO NOTHING
+          RETURNING id
+        `);
+        const insertedId = inserted[0]?.id;
+        if (insertedId) return { id: insertedId };
+        const existing = await tx
+          .select()
+          .from(schema.convConversations)
+          .where(
+            and(
+              eq(schema.convConversations.orgId, args.orgId),
+              eq(schema.convConversations.channelId, args.channel.id),
+              sql`${schema.convConversations.metadata}->>'vapiCallId' = ${args.vapiCallId}`,
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) {
+          throw new OutreachInvalidError('voice_stub_conv_race_lost_but_missing');
+        }
+        await tx
+          .update(schema.convConversations)
+          .set({
+            outreachCampaignId: args.campaign.id,
+            metadata: { ...(existing[0].metadata), ...stubMetadata },
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.convConversations.id, existing[0].id));
+        return { id: existing[0].id };
+      });
+    });
   }
 
   private async approveReply(
@@ -619,19 +834,22 @@ export class OutreachService {
     if (!rows[0]) throw new OutreachInvalidError(`segment ${segmentId} does not exist`);
   }
 
-  private async assertEmailChannelExists(channelId: string): Promise<void> {
+  private async loadOutreachChannel(
+    channelId: string,
+  ): Promise<typeof schema.convChannels.$inferSelect> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
-      .select({ id: schema.convChannels.id, type: schema.convChannels.type })
+      .select()
       .from(schema.convChannels)
       .where(eq(schema.convChannels.id, channelId))
       .limit(1);
-    if (!rows[0]) throw new OutreachInvalidError(`channel ${channelId} does not exist`);
-    if (rows[0].type !== 'email') {
-      throw new OutreachInvalidError(
-        `channel ${channelId} is type=${rows[0].type}; outreach campaigns require an email channel`,
-      );
-    }
+    const channel = rows[0];
+    if (!channel) throw new OutreachInvalidError(`channel ${channelId} does not exist`);
+    if (channel.type === 'email') return channel;
+    if (channel.type === 'voice' && channel.vendor === 'vapi') return channel;
+    throw new OutreachInvalidError(
+      `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email or voice:vapi channel`,
+    );
   }
 }
 

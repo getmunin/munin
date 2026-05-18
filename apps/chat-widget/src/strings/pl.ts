@@ -41,6 +41,21 @@ const pl: Strings = {
   timeDay: '{n} dn',
   timeWeek: '{n} tyg',
   timeMonth: '{n} mies',
+  voiceCallLabel: 'Zadzwoń',
+  voiceStartAriaLabel: 'Rozpocznij rozmowę głosową',
+  voiceEndAriaLabel: 'Zakończ rozmowę głosową',
+  voiceMinimizeAriaLabel: 'Wróć do czatu (zachowaj rozmowę aktywną)',
+  voiceResumeAriaLabel: 'Wróć do rozmowy',
+  voiceConnecting: 'Łączenie…',
+  voiceLive: 'Na żywo',
+  voiceHint: 'Głos idzie przez ten widget — bez numeru telefonu, bez aplikacji.',
+  voiceMute: 'Wycisz',
+  voiceMuted: 'Wyciszono',
+  voiceEnd: 'Zakończ',
+  voiceBackToChat: 'Wróć do czatu',
+  voiceOnCallWithTemplate: 'Rozmowa z {who}',
+  voiceTapToReturn: 'Dotknij, aby wrócić',
+  voiceFailed: 'Rozmowa głosowa nieudana',
 };
 
 export default pl;

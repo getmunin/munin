@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import {
   CHANNEL_PROMPT_PREFIX,
+  DEFAULT_CHANNEL_DEFAULT_PROMPT,
+  DEFAULT_CHANNEL_EMAIL_PROMPT,
+  DEFAULT_SYSTEM_PROMPT,
+  DEFAULT_VOICE_OPENER_COLD,
+  DEFAULT_VOICE_OPENER_CONTINUATION,
+  DEFAULT_VOICE_SYSTEM_PROMPT,
+  SEEDABLE_PROMPTS,
+} from '@getmunin/core';
+import {
   PROMPT_SPACE_SLUG,
   SYSTEM_PROMPT_SLUG,
   createPromptResolver,
@@ -72,46 +78,27 @@ function fakeMcp(opts: {
   return handle;
 }
 
-function writePrompts(opts: {
-  system?: string;
-  channels?: Record<string, string>;
-} = {}): string {
-  const dir = mkdtempSync(join(tmpdir(), 'prompts-test-'));
-  mkdirSync(join(dir, 'channels'), { recursive: true });
-  writeFileSync(join(dir, 'system.md'), opts.system ?? 'BASE_SYSTEM_PROMPT');
-  for (const [kind, body] of Object.entries(opts.channels ?? {})) {
-    writeFileSync(join(dir, 'channels', `${kind}.md`), body);
-  }
-  return dir;
-}
-
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} };
 
 describe('createPromptResolver', () => {
-  it('creates the space and seeds missing docs from disk on boot', async () => {
-    const dir = writePrompts({
-      system: 'SYS_DEFAULT',
-      channels: { email: 'EMAIL_DEFAULT', chat: 'CHAT_DEFAULT' },
-    });
+  it('creates the space and seeds every default prompt on boot', async () => {
     const mcp = fakeMcp();
-    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
+    const resolver = await createPromptResolver({ mcp, logger: silentLogger });
 
     const created = mcp.calls.filter((c) => c.name === 'kb_create_document');
     const slugs = created.map((c) => c.args['slug']);
-    expect(slugs).toContain(SYSTEM_PROMPT_SLUG);
-    expect(slugs).toContain(`${CHANNEL_PROMPT_PREFIX}email`);
-    expect(slugs).toContain(`${CHANNEL_PROMPT_PREFIX}chat`);
+    for (const seed of SEEDABLE_PROMPTS) {
+      expect(slugs).toContain(seed.slug);
+    }
 
-    expect(resolver.system()).toBe('SYS_DEFAULT');
-    expect(resolver.channel('email')).toBe('EMAIL_DEFAULT');
-    expect(resolver.channel('chat')).toBe('CHAT_DEFAULT');
+    expect(resolver.system()).toBe(DEFAULT_SYSTEM_PROMPT);
+    expect(resolver.channel('email')).toBe(DEFAULT_CHANNEL_EMAIL_PROMPT);
+    expect(resolver.voiceSystem()).toBe(DEFAULT_VOICE_SYSTEM_PROMPT);
+    expect(resolver.voiceOpener(false)).toBe(DEFAULT_VOICE_OPENER_COLD);
+    expect(resolver.voiceOpener(true)).toBe(DEFAULT_VOICE_OPENER_CONTINUATION);
   });
 
   it('does not overwrite an operator-edited doc that already exists in the KB', async () => {
-    const dir = writePrompts({
-      system: 'SHIPPED_DEFAULT',
-      channels: { email: 'SHIPPED_EMAIL' },
-    });
     const mcp = fakeMcp({
       spaceExistsBeforeBoot: true,
       existingDocs: {
@@ -119,37 +106,27 @@ describe('createPromptResolver', () => {
         [`${CHANNEL_PROMPT_PREFIX}email`]: 'OPERATOR_EDITED_EMAIL',
       },
     });
-    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
+    const resolver = await createPromptResolver({ mcp, logger: silentLogger });
 
     const created = mcp.calls.filter((c) => c.name === 'kb_create_document');
-    expect(created).toHaveLength(0);
+    const createdSlugs = created.map((c) => c.args['slug']);
+    expect(createdSlugs).not.toContain(SYSTEM_PROMPT_SLUG);
+    expect(createdSlugs).not.toContain(`${CHANNEL_PROMPT_PREFIX}email`);
 
     expect(resolver.system()).toBe('OPERATOR_EDITED_SYSTEM');
     expect(resolver.channel('email')).toBe('OPERATOR_EDITED_EMAIL');
   });
 
   it('falls back to channel-default when an unknown channel kind is queried', async () => {
-    const dir = writePrompts({
-      system: 'SYS',
-      channels: { default: 'GENERIC_DESCRIPTOR' },
-    });
     const mcp = fakeMcp();
-    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
-    expect(resolver.channel('made-up-kind')).toBe('GENERIC_DESCRIPTOR');
-  });
-
-  it('returns empty string for an unknown channel when no default is on disk', async () => {
-    const dir = writePrompts({ system: 'SYS', channels: { email: 'E' } });
-    const mcp = fakeMcp();
-    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
-    expect(resolver.channel('voice')).toBe('');
+    const resolver = await createPromptResolver({ mcp, logger: silentLogger });
+    expect(resolver.channel('made-up-kind')).toBe(DEFAULT_CHANNEL_DEFAULT_PROMPT);
   });
 
   it('refresh() re-fetches a doc body from the KB', async () => {
-    const dir = writePrompts({ system: 'SYS' });
     const mcp = fakeMcp();
-    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
-    expect(resolver.system()).toBe('SYS');
+    const resolver = await createPromptResolver({ mcp, logger: silentLogger });
+    expect(resolver.system()).toBe(DEFAULT_SYSTEM_PROMPT);
 
     const callTool = vi.spyOn(mcp, 'callTool');
     callTool.mockImplementationOnce(() =>
@@ -167,21 +144,12 @@ describe('createPromptResolver', () => {
   });
 
   it('isPromptDocument recognizes our slugs only', async () => {
-    const dir = writePrompts({ system: 'SYS' });
     const mcp = fakeMcp();
-    const resolver = await createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger });
+    const resolver = await createPromptResolver({ mcp, logger: silentLogger });
     expect(resolver.isPromptDocument(SYSTEM_PROMPT_SLUG)).toBe(true);
     expect(resolver.isPromptDocument(`${CHANNEL_PROMPT_PREFIX}email`)).toBe(true);
     expect(resolver.isPromptDocument('some-other-doc')).toBe(false);
     expect(resolver.isPromptDocument(null)).toBe(false);
     expect(resolver.isPromptDocument(undefined)).toBe(false);
-  });
-
-  it('throws when system.md is missing from disk', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'prompts-empty-'));
-    const mcp = fakeMcp();
-    await expect(
-      createPromptResolver({ promptsDir: dir, mcp, logger: silentLogger }),
-    ).rejects.toThrow(/system\.md/);
   });
 });

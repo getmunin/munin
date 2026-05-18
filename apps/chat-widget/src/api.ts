@@ -85,12 +85,34 @@ export class WidgetApiError extends Error {
   }
 }
 
+export type VoiceStartResult =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      descriptor: {
+        vendor: 'vapi';
+        publicKey: string;
+        assistantId: string;
+        metadata: { conversationId: string; endUserId: string };
+        assistant?: Record<string, unknown>;
+        assistantOverrides?: Record<string, unknown>;
+      };
+    };
+
+export interface VoiceEventInput {
+  conversationId: string;
+  kind: 'started' | 'ended';
+  durationSeconds?: number;
+}
+
 export interface ApiClient {
   postMessage(text: string): Promise<PostResult>;
   backfillSince(since: Date | undefined): Promise<BackfillResult>;
   listConversations(sessionIds: string[]): Promise<ConversationSummary[]>;
   setVisitorEmail(email: string): Promise<void>;
   startConversation(): Promise<{ conversationId: string; displayId: number; contactId: string }>;
+  voiceStart(conversationId: string): Promise<VoiceStartResult>;
+  voiceEvent(input: VoiceEventInput): Promise<void>;
   setSessionId(sessionId: string): void;
 }
 
@@ -209,6 +231,31 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       }
       const res = await fetchImpl(visitorUrl, {
         method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
+    },
+
+    async voiceStart(conversationId) {
+      const res = await fetchImpl(`${base}/voice/start`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ channelId: deps.channelId, conversationId }),
+      });
+      if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
+      return (await res.json()) as VoiceStartResult;
+    },
+
+    async voiceEvent({ conversationId, kind, durationSeconds }) {
+      const payload: Record<string, unknown> = {
+        channelId: deps.channelId,
+        conversationId,
+        kind,
+      };
+      if (typeof durationSeconds === 'number') payload.durationSeconds = durationSeconds;
+      const res = await fetchImpl(`${base}/voice/event`, {
+        method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify(payload),
       });

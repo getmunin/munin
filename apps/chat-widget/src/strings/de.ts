@@ -41,6 +41,21 @@ const de: Strings = {
   timeDay: '{n}T',
   timeWeek: '{n}W',
   timeMonth: '{n}Mon',
+  voiceCallLabel: 'Anrufen',
+  voiceStartAriaLabel: 'Sprachanruf starten',
+  voiceEndAriaLabel: 'Sprachanruf beenden',
+  voiceMinimizeAriaLabel: 'Zurück zum Chat (Anruf läuft weiter)',
+  voiceResumeAriaLabel: 'Zurück zum Anruf',
+  voiceConnecting: 'Verbinde…',
+  voiceLive: 'Live',
+  voiceHint: 'Sprache läuft über dieses Widget — keine Rufnummer, keine App.',
+  voiceMute: 'Stumm',
+  voiceMuted: 'Stummgeschaltet',
+  voiceEnd: 'Beenden',
+  voiceBackToChat: 'Zurück zum Chat',
+  voiceOnCallWithTemplate: 'Im Gespräch mit {who}',
+  voiceTapToReturn: 'Tippen, um zurückzukehren',
+  voiceFailed: 'Sprachanruf fehlgeschlagen',
 };
 
 export default de;

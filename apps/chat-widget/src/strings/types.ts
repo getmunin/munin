@@ -50,6 +50,21 @@ export interface Strings {
   timeDay: string;
   timeWeek: string;
   timeMonth: string;
+  voiceCallLabel: string;
+  voiceStartAriaLabel: string;
+  voiceEndAriaLabel: string;
+  voiceMinimizeAriaLabel: string;
+  voiceResumeAriaLabel: string;
+  voiceConnecting: string;
+  voiceLive: string;
+  voiceHint: string;
+  voiceMute: string;
+  voiceMuted: string;
+  voiceEnd: string;
+  voiceBackToChat: string;
+  voiceOnCallWithTemplate: string;
+  voiceTapToReturn: string;
+  voiceFailed: string;
 }
 
 const PLURAL_KEYS: readonly (keyof PluralValue)[] = ['zero', 'one', 'two', 'few', 'many', 'other'];

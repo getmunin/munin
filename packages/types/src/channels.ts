@@ -85,3 +85,92 @@ export const SendEmailTestBody = z.object({
 });
 
 export type SendEmailTestBodyT = z.infer<typeof SendEmailTestBody>;
+
+const E164 = /^\+[1-9]\d{4,18}$/;
+
+export const ConfigureTwilioSmsBody = z
+  .object({
+    channelId: z.string().optional(),
+    name: z.string().min(1).max(120).optional(),
+    accountSid: z.string().min(2).max(64).optional(),
+    authToken: z.string().min(1).max(256).optional(),
+    fromNumber: z.string().regex(E164, 'must be E.164').max(32).optional(),
+    messagingServiceSid: z.string().min(2).max(64).optional(),
+  })
+  .refine(
+    (v) =>
+      v.channelId !== undefined ||
+      (v.name &&
+        v.accountSid &&
+        v.authToken &&
+        (v.fromNumber || v.messagingServiceSid)),
+    {
+      message:
+        'name, accountSid, authToken, and either fromNumber or messagingServiceSid are required when creating',
+    },
+  );
+
+export type ConfigureTwilioSmsBodyT = z.infer<typeof ConfigureTwilioSmsBody>;
+
+export const SendTwilioSmsTestBody = z.object({
+  to: z.string().regex(E164, 'must be E.164').max(32),
+  body: z.string().min(1).max(1600).optional(),
+});
+
+export type SendTwilioSmsTestBodyT = z.infer<typeof SendTwilioSmsTestBody>;
+
+export const ConfigureMessageBirdSmsBody = z
+  .object({
+    channelId: z.string().optional(),
+    name: z.string().min(1).max(120).optional(),
+    accessKey: z.string().min(1).max(256).optional(),
+    signingKey: z.string().min(1).max(256).optional(),
+    originator: z.string().min(1).max(32).optional(),
+  })
+  .refine(
+    (v) =>
+      v.channelId !== undefined ||
+      (v.name && v.accessKey && v.signingKey && v.originator),
+    {
+      message:
+        'name, accessKey, signingKey, and originator are required when creating',
+    },
+  );
+
+export type ConfigureMessageBirdSmsBodyT = z.infer<typeof ConfigureMessageBirdSmsBody>;
+
+export const SendMessageBirdSmsTestBody = z.object({
+  to: z.string().regex(E164, 'must be E.164').max(32),
+  body: z.string().min(1).max(1600).optional(),
+});
+
+export type SendMessageBirdSmsTestBodyT = z.infer<typeof SendMessageBirdSmsTestBody>;
+
+export const ConfigureVapiBody = z
+  .object({
+    channelId: z.string().optional(),
+    name: z.string().min(1).max(120).optional(),
+    apiKey: z.string().min(1).max(256).optional(),
+    webhookSecret: z.string().min(1).max(256).optional(),
+    assistantId: z.string().min(1).max(128).optional(),
+    phoneNumberId: z.string().min(1).max(128).optional(),
+    publicKey: z.string().min(1).max(256).optional(),
+  })
+  .refine(
+    (v) =>
+      v.channelId !== undefined ||
+      (v.name && v.apiKey && v.webhookSecret && v.assistantId),
+    {
+      message:
+        'name, apiKey, webhookSecret, and assistantId are required when creating',
+    },
+  );
+
+export type ConfigureVapiBodyT = z.infer<typeof ConfigureVapiBody>;
+
+export const VapiCallInitiateBody = z.object({
+  to: z.string().regex(E164, 'must be E.164').max(32),
+  customerName: z.string().min(1).max(120).optional(),
+});
+
+export type VapiCallInitiateBodyT = z.infer<typeof VapiCallInitiateBody>;

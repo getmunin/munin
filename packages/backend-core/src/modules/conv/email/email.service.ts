@@ -207,6 +207,7 @@ export class EmailService {
       .values({
         orgId: actor.orgId,
         type: 'email',
+        vendor: stored.outbound.provider,
         name: input.name,
         config: storedToJsonb(stored),
       })
@@ -248,6 +249,7 @@ export class EmailService {
       .update(schema.convChannels)
       .set({
         ...(input.name && { name: input.name }),
+        vendor: merged.outbound.provider,
         config: storedToJsonb(merged),
         updatedAt: new Date(),
       })

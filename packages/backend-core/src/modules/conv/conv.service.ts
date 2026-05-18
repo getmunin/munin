@@ -42,6 +42,7 @@ export type AgentMode = (typeof AGENT_MODES)[number];
 export interface ChannelDto {
   id: string;
   type: ChannelType;
+  vendor: string;
   name: string;
   active: boolean;
   config: Record<string, unknown>;
@@ -92,6 +93,15 @@ export interface ConversationSummary {
   needsHumanAttentionAt: string | null;
   agentMode: AgentMode;
   outreachCampaignId: string | null;
+  /**
+   * True while a voice call is in progress for this conversation. The chat
+   * agent runner uses this to skip auto-replies — the voice channel owns the
+   * conversation's reply loop until the call ends, regardless of vendor. Set
+   * by `WidgetVoiceService` on call start (writes `voiceActive: true` +
+   * `voiceStartedAt` into `conv_conversations.metadata`); cleared by the
+   * active voice adapter when the call ends.
+   */
+  voiceActive: boolean;
   updatedAt: string;
   createdAt: string;
 }
@@ -155,6 +165,7 @@ export class ConvService {
 
   async createChannel(input: {
     type: ChannelType;
+    vendor: string;
     name: string;
     config?: Record<string, unknown>;
   }): Promise<ChannelDto> {
@@ -165,6 +176,7 @@ export class ConvService {
       .values({
         orgId: actor.orgId,
         type: input.type,
+        vendor: input.vendor,
         name: input.name,
         config: input.config ?? {},
       })
@@ -1046,6 +1058,7 @@ function toChannelDto(row: typeof schema.convChannels.$inferSelect): ChannelDto 
   return {
     id: row.id,
     type: row.type as ChannelType,
+    vendor: row.vendor,
     name: row.name,
     active: row.active,
     config: row.config,
@@ -1077,6 +1090,7 @@ function toConversationSummary(
     needsHumanAttentionAt: row.needsHumanAttentionAt?.toISOString() ?? null,
     agentMode: row.agentMode as AgentMode,
     outreachCampaignId: row.outreachCampaignId,
+    voiceActive: row.metadata.voiceActive === true,
     updatedAt: row.updatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };

@@ -50,8 +50,18 @@ const ListProposalsInput = z.object({
 const ProposeInitialInput = z.object({
   campaignId: z.string().min(1).max(64),
   contactId: z.string().min(1).max(64),
-  draftSubject: z.string().min(1).max(300),
-  draftBody: z.string().min(1).max(20_000),
+  draftSubject: z
+    .string()
+    .max(300)
+    .optional()
+    .describe('Required for email campaigns; omit for voice campaigns where the call has no subject.'),
+  draftBody: z
+    .string()
+    .min(1)
+    .max(20_000)
+    .describe(
+      'For email campaigns: the email body. For voice campaigns: the opening line / talking-points the AI agent should use when the call connects.',
+    ),
   evidence: z.record(z.string(), z.unknown()).optional(),
   proposedSendAt: z.string().datetime().optional(),
 });

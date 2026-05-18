@@ -101,7 +101,7 @@ const skipReason = TEST_URL
   describe('channels', () => {
     it('createChannel persists with type, name, config', async () => {
       const ch = await run(() =>
-        svc.createChannel({ type: 'email', name: 'Support', config: { foo: 'bar' } }),
+        svc.createChannel({ type: 'email', vendor: 'smtp', name: 'Support', config: { foo: 'bar' } }),
       );
       expect(ch.type).toBe('email');
       expect(ch.name).toBe('Support');
@@ -110,8 +110,8 @@ const skipReason = TEST_URL
     });
 
     it('listChannels returns rows in name order', async () => {
-      await run(() => svc.createChannel({ type: 'email', name: 'B' }));
-      await run(() => svc.createChannel({ type: 'chat', name: 'A' }));
+      await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'B' }));
+      await run(() => svc.createChannel({ type: 'chat', vendor: 'munin', name: 'A' }));
       const list = await run(() => svc.listChannels());
       expect(list.map((c) => c.name)).toEqual(['A', 'B']);
     });
@@ -119,21 +119,21 @@ const skipReason = TEST_URL
     it('firstActiveChannel returns first by createdAt; null when none', async () => {
       const empty = await run(() => svc.firstActiveChannel());
       expect(empty).toBeNull();
-      const ch1 = await run(() => svc.createChannel({ type: 'email', name: 'First' }));
-      await run(() => svc.createChannel({ type: 'chat', name: 'Second' }));
+      const ch1 = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'First' }));
+      await run(() => svc.createChannel({ type: 'chat', vendor: 'munin', name: 'Second' }));
       const found = await run(() => svc.firstActiveChannel());
       expect(found!.id).toBe(ch1.id);
     });
 
     it('firstActiveChannel filters by typeHint', async () => {
-      await run(() => svc.createChannel({ type: 'email', name: 'E' }));
-      const chatCh = await run(() => svc.createChannel({ type: 'chat', name: 'C' }));
+      await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'E' }));
+      const chatCh = await run(() => svc.createChannel({ type: 'chat', vendor: 'munin', name: 'C' }));
       const found = await run(() => svc.firstActiveChannel('chat'));
       expect(found!.id).toBe(chatCh.id);
     });
 
     it('firstActiveChannel ignores inactive channels', async () => {
-      const ch = await run(() => svc.createChannel({ type: 'email', name: 'E' }));
+      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'E' }));
       await db
         .update(schema.convChannels)
         .set({ active: false })
@@ -167,7 +167,7 @@ const skipReason = TEST_URL
 
   describe('conversations', () => {
     async function seedChannel() {
-      return run(() => svc.createChannel({ type: 'email', name: 'Support' }));
+      return run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'Support' }));
     }
 
     it('createConversation rejects unknown channel and inactive channel', async () => {
@@ -279,8 +279,9 @@ const skipReason = TEST_URL
 
   describe('messaging', () => {
     async function seedConversation(channelType: 'email' | 'chat' = 'email') {
+      const vendor = channelType === 'email' ? 'smtp' : 'munin';
       const ch = await run(() =>
-        svc.createChannel({ type: channelType, name: 'X' }),
+        svc.createChannel({ type: channelType, vendor, name: 'X' }),
       );
       const conv = await run(() =>
         svc.createConversation({
@@ -380,7 +381,7 @@ const skipReason = TEST_URL
 
   describe('assignment and status', () => {
     async function seedConv() {
-      const ch = await run(() => svc.createChannel({ type: 'email', name: 'X' }));
+      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'X' }));
       return run(() =>
         svc.createConversation({
           channelId: ch.id,
@@ -425,7 +426,7 @@ const skipReason = TEST_URL
     });
 
     it('inbound end_user message on outreach conv (draft_only) enqueues outreach reply-draft', async () => {
-      const ch = await run(() => svc.createChannel({ type: 'email', name: 'outreach-ch' }));
+      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'outreach-ch' }));
       const [seg] = await db
         .insert(schema.crmSegments)
         .values({
@@ -532,7 +533,7 @@ const skipReason = TEST_URL
 
   describe('search', () => {
     it('searchMessages matches case-insensitively on body', async () => {
-      const ch = await run(() => svc.createChannel({ type: 'email', name: 'X' }));
+      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'X' }));
       const conv = await run(() =>
         svc.createConversation({
           channelId: ch.id,
@@ -556,7 +557,7 @@ const skipReason = TEST_URL
 
   describe('RLS', () => {
     it('cross-org isolation: another org cannot see this org\'s channels', async () => {
-      const mine = await run(() => svc.createChannel({ type: 'email', name: 'mine' }));
+      const mine = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'mine' }));
       const ts = Date.now();
       const [otherOrg] = await db
         .insert(schema.orgs)

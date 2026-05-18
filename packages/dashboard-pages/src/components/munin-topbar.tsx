@@ -26,7 +26,7 @@ export function DashboardTopbar({
   settingsLabel,
 }: DashboardTopbarProps) {
   return (
-    <header className="relative flex h-14 items-stretch gap-6 border-b-[0.5px] border-ink bg-paper px-4 dark:border-rule-on-dark dark:bg-card md:px-10">
+    <header className="sticky top-0 z-40 flex h-14 items-stretch gap-6 border-b-[0.5px] border-ink bg-paper px-4 dark:border-rule-on-dark dark:bg-card md:px-10">
       <Link
         href={brandHref}
         className="flex items-center gap-1 self-center text-ink dark:text-foreground"
@@ -79,7 +79,7 @@ export function SettingsTopbar({
   openMenuLabel,
 }: SettingsTopbarProps) {
   return (
-    <header className="relative flex h-14 items-stretch gap-4 border-b-[0.5px] border-ink bg-paper px-4 dark:border-rule-on-dark dark:bg-card md:gap-5 md:px-10">
+    <header className="sticky top-0 z-40 flex h-14 items-stretch gap-4 border-b-[0.5px] border-ink bg-paper px-4 dark:border-rule-on-dark dark:bg-card md:gap-5 md:px-10">
       <Link
         href={backHref}
         aria-label={backLabel}

@@ -17,11 +17,26 @@ const baseConfig: HandlerConfig = {
   maxHistoryChars: 32_000,
 };
 
-function buildPrompts(overrides: Partial<{ system: string; channels: Record<string, string> }> = {}): PromptResolver {
+function buildPrompts(
+  overrides: Partial<{
+    system: string;
+    channels: Record<string, string>;
+    companyContext: string;
+    voiceSystem: string;
+    voiceOpenerCold: string;
+    voiceOpenerContinuation: string;
+  }> = {},
+): PromptResolver {
   const channels = overrides.channels ?? {};
   return {
     system: () => overrides.system ?? 'sys',
     channel: (kind: string) => channels[kind] ?? channels['default'] ?? '',
+    companyContext: () => overrides.companyContext ?? '',
+    voiceSystem: () => overrides.voiceSystem ?? '',
+    voiceOpener: (hasPriorAgentTurn: boolean) =>
+      hasPriorAgentTurn
+        ? overrides.voiceOpenerContinuation ?? ''
+        : overrides.voiceOpenerCold ?? '',
     isPromptDocument: () => false,
     refresh: () => Promise.resolve(),
     refreshAll: () => Promise.resolve(),

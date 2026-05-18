@@ -108,6 +108,14 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
   }
 
   function shouldRespond(detail: ConversationDetail, mode: 'reply' | 'greet'): boolean {
+    if (detail.channelType === 'voice') {
+      log.info(`skip ${detail.id}: voice channel (vendor owns the response loop)`);
+      return false;
+    }
+    if (detail.voiceActive) {
+      log.info(`skip ${detail.id}: voice call in progress (vendor owns the response loop)`);
+      return false;
+    }
     if (detail.status !== 'open') {
       log.info(`skip ${detail.id}: status=${detail.status}`);
       return false;
@@ -211,11 +219,15 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const channelDescriptor = detail.channelType
       ? deps.prompts.channel(detail.channelType)
       : '';
+    const companyContext = deps.prompts.companyContext();
+    const companyBlock = companyContext
+      ? `\n\n[Company context]\n${companyContext}`
+      : '';
     const conversationContext = `\n\n[Conversation context]\nYou are replying in conversationId: ${conversationId}. Pass this exact value to any tool that asks for \`conversationId\` — never substitute placeholders like "current" or "this".`;
     const namePreamble = assistantNamePreamble(detail.assistantName);
     const systemBody = channelDescriptor
-      ? `${baseSystem}\n\n${channelDescriptor}${conversationContext}`
-      : `${baseSystem}${conversationContext}`;
+      ? `${baseSystem}${companyBlock}\n\n${channelDescriptor}${conversationContext}`
+      : `${baseSystem}${companyBlock}${conversationContext}`;
     const systemPrompt = `${namePreamble}${systemBody}`;
 
     let lastError: Error | null = null;

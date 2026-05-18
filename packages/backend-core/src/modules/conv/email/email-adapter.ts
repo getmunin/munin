@@ -24,6 +24,7 @@ import {
 } from './email.service.js';
 import { smtpTransportOptions } from './email.tools.js';
 import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.js';
+import { renderEmailHtml } from './markdown.js';
 import { resolveInbound, type ParsedInboundEmail } from './threading.js';
 import {
   detectSignatureBlock,
@@ -111,6 +112,7 @@ class ImapFlowFetcher implements ImapFetcher {
 @Injectable()
 export class EmailAdapter implements ChannelAdapter {
   readonly kind = 'email' as const;
+  readonly vendors = ['smtp', 'mailer'] as const;
 
   private fetcher: ImapFetcher = new ImapFlowFetcher();
 
@@ -149,9 +151,10 @@ export class EmailAdapter implements ChannelAdapter {
     });
     const quoted = formatQuotedHistory(prior, 3);
     const body = quoted ? `${ctx.message.body}\n\n${quoted}` : ctx.message.body;
+    const html = ctx.message.bodyHtml ?? renderEmailHtml(ctx.message.body, prior, 3);
 
     const subject = ensureReSubject(ctx.conversation.subject?.trim() || null);
-    const trackerUrl = trackerUrlFor(config, ctx);
+    const trackerUrl = trackerUrlFor(config, ctx, html);
 
     const built: BuiltMessage = buildOutbound({
       from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
@@ -159,7 +162,7 @@ export class EmailAdapter implements ChannelAdapter {
       replyTo: this.composeReplyTo(config, ctx.conversation.id),
       subject,
       text: body,
-      html: ctx.message.bodyHtml ?? undefined,
+      html,
       messageIdDomain: config.addressing.fromAddress,
       inReplyTo: ctx.delivery.inReplyToHeader ?? undefined,
       references: ctx.delivery.inReplyToHeader ? [ctx.delivery.inReplyToHeader] : undefined,
@@ -526,9 +529,10 @@ function extractTextBody(raw: string): string {
 function trackerUrlFor(
   config: StoredEmailChannelConfig,
   ctx: SendContext,
+  html: string | undefined,
 ): string | undefined {
   if (!config.outbound.trackOpens) return undefined;
-  if (!ctx.message.bodyHtml) return undefined;
+  if (!html) return undefined;
   if (!process.env.MUNIN_KEY_PEPPER) return undefined;
   try {
     const token = signEmailOpenToken({

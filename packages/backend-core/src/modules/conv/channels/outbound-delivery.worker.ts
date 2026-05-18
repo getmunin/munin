@@ -115,9 +115,13 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
     const ctx = await this.loadContext(deliveryId);
     if (!ctx) return 'failed';
 
-    const adapter = this.registry.get(ctx.channel.type);
+    const adapter = this.registry.get(ctx.channel.type, ctx.channel.vendor);
     if (!adapter) {
-      await this.recordFailure(deliveryId, ctx.attempt, `no adapter registered for channel type '${ctx.channel.type}'`);
+      await this.recordFailure(
+        deliveryId,
+        ctx.attempt,
+        `no adapter registered for channel '${ctx.channel.type}:${ctx.channel.vendor}'`,
+      );
       return 'failed';
     }
 

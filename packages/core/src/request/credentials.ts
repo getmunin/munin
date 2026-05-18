@@ -2,7 +2,7 @@ import type { Db } from '@getmunin/db';
 import { schema } from '@getmunin/db';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { ActorIdentity, type Audience } from './context.js';
-import { hashSecret } from './crypto.js';
+import { hashSecret } from '../crypto/primitives.js';
 
 export interface ResolvedCredential {
   actor: ActorIdentity;

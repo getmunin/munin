@@ -48,7 +48,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'MessageBird IT Org', slug: `mb-it-${ts}` })
+      .values({ name: 'MessageBird IT Org' })
       .returning();
     orgId = org!.id;
 

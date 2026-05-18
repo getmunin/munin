@@ -28,7 +28,6 @@ const skipReason = TEST_URL
       .insert(schema.orgs)
       .values({
         name: 'Quota Test Org',
-        slug: `quota-${ts}`,
         // Tight cap to make the test fast.
         settings: { quotas: { kb_spaces: 2 } },
       })
@@ -79,7 +78,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [defaultOrg] = await db
       .insert(schema.orgs)
-      .values({ name: 'Default Org', slug: `quota-def-${ts}` })
+      .values({ name: 'Default Org' })
       .returning();
     const defaultActor = new ActorIdentity(
       'admin_agent',

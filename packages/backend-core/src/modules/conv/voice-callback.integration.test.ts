@@ -51,7 +51,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Voice Callback Org', slug: `vcb-${ts}` })
+      .values({ name: 'Voice Callback Org' })
       .returning();
     orgId = org!.id;
 

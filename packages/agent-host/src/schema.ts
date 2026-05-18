@@ -40,9 +40,9 @@ export const AGENT_HOST_SINGLETON_DDL = sql`
 
   CREATE TABLE IF NOT EXISTS agent_config (
     id text PRIMARY KEY DEFAULT 'singleton',
-    fast_model text NOT NULL DEFAULT 'anthropic/claude-haiku-4.5',
+    fast_model text NOT NULL DEFAULT 'claude-haiku-4-5-20251001',
     smart_model text,
-    provider_base_url text NOT NULL DEFAULT 'https://openrouter.ai/api/v1',
+    provider_base_url text NOT NULL DEFAULT 'https://api.anthropic.com/v1',
     provider_api_key_ct text,
     admin_api_key_ct text,
     admin_api_key_id text,

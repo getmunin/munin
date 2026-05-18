@@ -16,7 +16,6 @@ const skipReason = TEST_URL
 
 interface OrgFixture {
   id: string;
-  slug: string;
   adminKey: string;
   adminKeyId: string;
   endUserId: string;
@@ -70,10 +69,10 @@ interface OrgFixture {
 
   async function seedOrg(prefix: string): Promise<OrgFixture> {
     const ts = Date.now();
-    const slug = `${prefix}-${ts}-${Math.floor(Math.random() * 1e6)}`;
+    const label = `${prefix}-${ts}-${Math.floor(Math.random() * 1e6)}`;
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: `Org ${slug}`, slug })
+      .values({ name: `Org ${label}` })
       .returning();
     const orgId = org!.id;
 
@@ -92,12 +91,12 @@ interface OrgFixture {
 
     const [eu] = await db
       .insert(schema.endUsers)
-      .values({ orgId, externalId: `eu-${slug}`, name: 'End User One' })
+      .values({ orgId, externalId: `eu-${label}`, name: 'End User One' })
       .returning();
 
     const [user] = await db
       .insert(schema.users)
-      .values({ email: `${slug}@example.com`, name: 'Owner User' })
+      .values({ email: `${label}@example.com`, name: 'Owner User' })
       .returning();
     await db
       .insert(schema.orgMembers)
@@ -112,7 +111,6 @@ interface OrgFixture {
 
     return {
       id: orgId,
-      slug,
       adminKey,
       adminKeyId: keyRow!.id,
       endUserId: eu!.id,
@@ -342,9 +340,8 @@ interface OrgFixture {
     it('returns the calling org', async () => {
       const res = await fetch(`${baseUrl}/api/v1/orgs/me`, { headers: authHeaders(orgA.adminKey) });
       expect(res.status).toBe(200);
-      const body = (await res.json()) as { id: string; slug: string };
+      const body = (await res.json()) as { id: string };
       expect(body.id).toBe(orgA.id);
-      expect(body.slug).toBe(orgA.slug);
     });
 
     it('updates name and settings', async () => {
@@ -744,13 +741,13 @@ interface OrgFixture {
   // ─── cms-delivery (anonymous) ────────────────────────────────────────
 
   describe('GET /api/v1/cms/:orgSlug/...', () => {
-    it('returns 404 for unknown org slug', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/cms/no-such-org/collections`);
+    it('returns 404 for unknown org id', async () => {
+      const res = await fetch(`${baseUrl}/api/v1/cms/org_no_such/collections`);
       expect(res.status).toBe(404);
     });
 
     it('returns the org\'s collections without auth (public delivery)', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/cms/${orgA.slug}/collections`);
+      const res = await fetch(`${baseUrl}/api/v1/cms/${orgA.id}/collections`);
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(Array.isArray(body)).toBe(true);

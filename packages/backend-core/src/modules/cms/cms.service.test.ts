@@ -60,7 +60,7 @@ class StubStorage implements AssetStorage {
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'CMS Service Test Org', slug: `cms-svc-${ts}` })
+      .values({ name: 'CMS Service Test Org' })
       .returning();
     orgId = org!.id;
     actor = new ActorIdentity('admin_agent', 'agt_cms_test', orgId, ['*'], ['admin']);
@@ -667,7 +667,7 @@ class StubStorage implements AssetStorage {
       const ts = Date.now();
       const [otherOrg] = await db
         .insert(schema.orgs)
-        .values({ name: 'Other Org', slug: `cms-svc-other-${ts}` })
+        .values({ name: 'Other Org' })
         .returning();
       const otherActor = new ActorIdentity('admin_agent', 'agt_other', otherOrg!.id, ['*'], ['admin']);
       try {

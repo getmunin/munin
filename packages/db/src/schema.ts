@@ -40,7 +40,6 @@ const updatedAt = timestamp('updated_at', { withTimezone: true }).notNull().defa
 export const orgs = pgTable('orgs', {
   id: id('org'),
   name: text('name').notNull(),
-  slug: varchar('slug', { length: 64 }).notNull().unique(),
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
   createdAt,
   updatedAt,

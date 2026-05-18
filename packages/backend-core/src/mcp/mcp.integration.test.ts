@@ -42,7 +42,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'MCP IT Org', slug: `mcp-it-${ts}` })
+      .values({ name: 'MCP IT Org' })
       .returning();
     orgId = org!.id;
 
@@ -312,7 +312,6 @@ const skipReason = TEST_URL
       .insert(schema.orgs)
       .values({
         name: 'RL Org',
-        slug: `mcp-rl-${ts}`,
         settings: { rateLimits: { perMinute: 1, perDay: 1000 } },
       })
       .returning();

@@ -63,6 +63,7 @@ export {
 } from './web-crawl.js';
 export {
   createRealtimeClient,
+  type AgentConfigChangedEvent,
   type CuratorJobPendingEvent,
   type GreetRequestedEvent,
   type HandoverResolvedEvent,

@@ -189,9 +189,6 @@ async function assertSignupAllowed(
   });
 }
 
-const SINGLETON_ORG_SLUG = 'munin';
-const SINGLETON_ORG_NAME = 'Munin';
-
 /**
  * OSS single-tenant: ensure the one shared org exists, then attach the
  * user as a member. The first user becomes `owner`; subsequent users
@@ -222,7 +219,7 @@ async function ensureSingletonOrgMembershipFor(
     if (!orgRow) {
       [orgRow] = await tx
         .insert(schema.orgs)
-        .values({ name: SINGLETON_ORG_NAME, slug: SINGLETON_ORG_SLUG })
+        .values({ name: '' })
         .returning({ id: schema.orgs.id });
       await tx
         .insert(schema.assistants)

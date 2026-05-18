@@ -93,10 +93,10 @@ const skipReason = TEST_URL
     expect(memberships[0]!.role).toBe('owner');
 
     const org = await db
-      .select({ id: schema.orgs.id, slug: schema.orgs.slug })
+      .select({ id: schema.orgs.id })
       .from(schema.orgs)
       .where(sql`id = ${memberships[0]!.orgId}`);
-    expect(org[0]!.slug).toBe('munin');
+    expect(org[0]).toBeDefined();
     orgIdsToCleanup.push(org[0]!.id);
   });
 
@@ -117,12 +117,6 @@ const skipReason = TEST_URL
       .where(sql`user_id = ${userId!}`);
     expect(memberships).toHaveLength(1);
     expect(memberships[0]!.role).toBe('member');
-
-    const org = await db
-      .select({ slug: schema.orgs.slug })
-      .from(schema.orgs)
-      .where(sql`id = ${memberships[0]!.orgId}`);
-    expect(org[0]!.slug).toBe('munin');
   });
 
   it('signup with a valid pending invitation succeeds even outside the allowlist', async () => {

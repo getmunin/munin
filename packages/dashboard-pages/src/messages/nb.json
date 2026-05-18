@@ -829,9 +829,6 @@
       "nameLabel": "Organisasjonsnavn",
       "namePlaceholder": "Acme AS",
       "nameHint": "Inntil 128 tegn.",
-      "chatbotNameLabel": "Chatbotnavn (valgfritt)",
-      "chatbotNamePlaceholder": "f.eks. Munin",
-      "chatbotNameHint": "Hva AI-en kaller seg selv når den snakker med kundene. La stå tomt så går den uten navn — du kan sette det senere i Innstillinger · AI.",
       "continue": "Fortsett",
       "errors": {
         "load": "Kunne ikke laste organisasjonen.",

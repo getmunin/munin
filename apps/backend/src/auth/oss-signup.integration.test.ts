@@ -125,7 +125,6 @@ const skipReason = TEST_URL
     const [orgRow] = await db
       .select({ id: schema.orgs.id })
       .from(schema.orgs)
-      .where(sql`slug = ${'munin'}`)
       .limit(1);
     expect(orgRow).toBeTruthy();
 

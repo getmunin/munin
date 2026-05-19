@@ -38,7 +38,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Unsub Org', slug: `unsub-${ts}` })
+      .values({ name: 'Unsub Org' })
       .returning();
     orgId = org!.id;
 

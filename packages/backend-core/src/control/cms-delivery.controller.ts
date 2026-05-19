@@ -20,9 +20,8 @@ import { projectData, type FieldDef } from '../modules/cms/cms.fields.js';
 
 /**
  * Public delivery API — anonymous JSON for external websites / mobile
- * apps / external integrations. Multi-tenant via path: each route opens
- * with `{orgSlug}` so a CDN can cache cleanly per (org, collection)
- * without per-request auth or header negotiation.
+ * apps / external integrations. Routes open with `{orgId}` so a CDN can
+ * cache cleanly per (org, collection) without per-request auth.
  *
  * Always returns `status='published'`. Drafts and scheduled entries
  * are visible only via the admin MCP surface or `/preview`.
@@ -39,10 +38,10 @@ export class CmsDeliveryController {
     @Inject(CmsSearchService) private readonly search: CmsSearchService,
   ) {}
 
-  @Get(':orgSlug/collections')
+  @Get(':orgId/collections')
   @Header('cache-control', 'public, max-age=60, stale-while-revalidate=600')
-  async listCollections(@Param('orgSlug') orgSlug: string) {
-    const org = await this.resolveOrg(orgSlug);
+  async listCollections(@Param('orgId') orgId: string) {
+    const org = await this.resolveOrg(orgId);
     const rows = await this.db
       .select()
       .from(schema.cmsCollections)
@@ -57,17 +56,17 @@ export class CmsDeliveryController {
     }));
   }
 
-  @Get(':orgSlug/search')
+  @Get(':orgId/search')
   @Header('cache-control', 'public, max-age=30, stale-while-revalidate=300')
   async searchPublic(
-    @Param('orgSlug') orgSlug: string,
+    @Param('orgId') orgId: string,
     @Query('q') q?: string,
     @Query('collection') collection?: string,
     @Query('locale') locale?: string,
     @Query('limit') limit?: string,
   ) {
     if (!q || !q.trim()) return [];
-    const org = await this.resolveOrg(orgSlug);
+    const org = await this.resolveOrg(orgId);
     return this.search.search(
       {
         query: q,
@@ -80,9 +79,9 @@ export class CmsDeliveryController {
     );
   }
 
-  @Get(':orgSlug/:collectionSlug')
+  @Get(':orgId/:collectionSlug')
   async listEntries(
-    @Param('orgSlug') orgSlug: string,
+    @Param('orgId') orgId: string,
     @Param('collectionSlug') collectionSlug: string,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -90,7 +89,7 @@ export class CmsDeliveryController {
     @Query('limit') limit?: string,
     @Query('before') before?: string,
   ) {
-    const { org, collection } = await this.resolveOrgCollection(orgSlug, collectionSlug);
+    const { org, collection } = await this.resolveOrgCollection(orgId, collectionSlug);
     const filters: SQL[] = [
       eq(schema.cmsEntries.orgId, org.id),
       eq(schema.cmsEntries.collectionId, collection.id),
@@ -125,16 +124,16 @@ export class CmsDeliveryController {
     return { collection: { slug: collection.slug, name: collection.name }, items };
   }
 
-  @Get(':orgSlug/:collectionSlug/:entrySlug')
+  @Get(':orgId/:collectionSlug/:entrySlug')
   async getEntry(
-    @Param('orgSlug') orgSlug: string,
+    @Param('orgId') orgId: string,
     @Param('collectionSlug') collectionSlug: string,
     @Param('entrySlug') entrySlug: string,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
     @Query('locale') locale?: string,
   ) {
-    const { org, collection } = await this.resolveOrgCollection(orgSlug, collectionSlug);
+    const { org, collection } = await this.resolveOrgCollection(orgId, collectionSlug);
     const filters: SQL[] = [
       eq(schema.cmsEntries.orgId, org.id),
       eq(schema.cmsEntries.collectionId, collection.id),
@@ -168,24 +167,24 @@ export class CmsDeliveryController {
 
   // ─── helpers ─────────────────────────────────────────────────────────
 
-  private async resolveOrg(orgSlug: string): Promise<{ id: string; slug: string }> {
+  private async resolveOrg(orgId: string): Promise<{ id: string }> {
     const rows = await this.db
-      .select({ id: schema.orgs.id, slug: schema.orgs.slug })
+      .select({ id: schema.orgs.id })
       .from(schema.orgs)
-      .where(eq(schema.orgs.slug, orgSlug))
+      .where(eq(schema.orgs.id, orgId))
       .limit(1);
-    if (!rows[0]) throw new NotFoundException(`cms_not_found: org ${orgSlug}`);
+    if (!rows[0]) throw new NotFoundException(`cms_not_found: org ${orgId}`);
     return rows[0];
   }
 
   private async resolveOrgCollection(
-    orgSlug: string,
+    orgId: string,
     collectionSlug: string,
   ): Promise<{
-    org: { id: string; slug: string };
+    org: { id: string };
     collection: typeof schema.cmsCollections.$inferSelect;
   }> {
-    const org = await this.resolveOrg(orgSlug);
+    const org = await this.resolveOrg(orgId);
     const rows = await this.db
       .select()
       .from(schema.cmsCollections)
@@ -222,3 +221,4 @@ function handleEtag(req: Request, res: Response, etag: string): boolean {
 function setCdnHeaders(res: Response): void {
   res.setHeader('cache-control', 'public, max-age=60, stale-while-revalidate=600');
 }
+

@@ -35,7 +35,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Conv Service Test Org', slug: `conv-svc-${ts}` })
+      .values({ name: 'Conv Service Test Org' })
       .returning();
     orgId = org!.id;
     const [user] = await db
@@ -561,7 +561,7 @@ const skipReason = TEST_URL
       const ts = Date.now();
       const [otherOrg] = await db
         .insert(schema.orgs)
-        .values({ name: 'Other', slug: `conv-svc-other-${ts}` })
+        .values({ name: 'Other' })
         .returning();
       const otherActor = new ActorIdentity('admin_agent', 'agt_other', otherOrg!.id, ['*'], ['admin']);
       try {

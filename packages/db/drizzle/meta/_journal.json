@@ -190,6 +190,13 @@
       "when": 1779700000000,
       "tag": "0026_conv_conversations_vapi_call_uq",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1779800000000,
+      "tag": "0027_orgs_drop_slug",
+      "breakpoints": true
     }
   ]
 }

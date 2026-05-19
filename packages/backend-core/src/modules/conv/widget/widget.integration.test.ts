@@ -53,7 +53,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Widget IT Org', slug: `widget-it-${ts}` })
+      .values({ name: 'Widget IT Org' })
       .returning();
     orgId = org!.id;
 
@@ -413,7 +413,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [otherOrg] = await db
       .insert(schema.orgs)
-      .values({ name: 'Widget IT Org B', slug: `widget-it-b-${ts}` })
+      .values({ name: 'Widget IT Org B' })
       .returning();
     const otherAdminKey = buildApiKey('admin');
     await db.insert(schema.apiKeys).values({

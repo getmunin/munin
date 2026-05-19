@@ -16,6 +16,7 @@ import {
   createRealtimeClient,
   openMcpClient,
   runSkillPass,
+  type AgentConfigChangedEvent,
   type ConversationHandler,
   type CuratorJob,
   type CuratorJobPendingEvent,
@@ -191,6 +192,48 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     }
   }
 
+  private readonly respawnInFlight = new Set<string>();
+  private readonly respawnPending = new Set<string>();
+
+  private async respawnRunner(id: string): Promise<void> {
+    if (this.stopped) return;
+    if (this.respawnInFlight.has(id)) {
+      this.respawnPending.add(id);
+      return;
+    }
+    this.respawnInFlight.add(id);
+    try {
+      const existing = this.runners.get(id);
+      if (existing) {
+        this.logger.log(`respawn: stopping runner for ${id}`);
+        try {
+          await existing.realtime.stop();
+          await existing.handler.stop();
+          await existing.curatorWorker.stop();
+          await existing.adminMcp.close();
+        } catch (err) {
+          this.logger.warn(`respawn: teardown failed for ${id}: ${describe(err)}`);
+        }
+        this.runners.delete(id);
+      }
+      try {
+        const runner = await this.spawnRunner(id);
+        if (runner) {
+          this.runners.set(id, runner);
+          this.failedSpawns.delete(id);
+          this.logger.log(`respawn: started runner for ${id}`);
+        }
+      } catch (err) {
+        this.recordSpawnFailure(id, describe(err));
+      }
+    } finally {
+      this.respawnInFlight.delete(id);
+      if (this.respawnPending.delete(id) && !this.stopped) {
+        void this.respawnRunner(id);
+      }
+    }
+  }
+
   private recordSpawnFailure(id: string, error: string): void {
     const now = Date.now();
     const RELOG_MS = 10 * 60 * 1000;
@@ -269,6 +312,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         if (event.type === 'deleted') return;
         if (!event.slug || !prompts.isPromptDocument(event.slug)) return;
         void prompts.refresh(event.slug);
+      },
+      onAgentConfigChanged: (event: AgentConfigChangedEvent) => {
+        if (event.configId !== id) return;
+        setImmediate(() => void this.respawnRunner(id));
       },
       logger: this.scopedLogger(id, 'realtime'),
     });

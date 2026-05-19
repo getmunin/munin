@@ -25,7 +25,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'CRM Boot Org', slug: `crm-boot-${ts}` })
+      .values({ name: 'CRM Boot Org' })
       .returning();
     orgId = org!.id;
     actor = new ActorIdentity('admin_agent', 'agt_test', orgId, ['*'], ['admin']);

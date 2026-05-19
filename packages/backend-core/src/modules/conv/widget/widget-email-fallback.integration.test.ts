@@ -47,7 +47,7 @@ const REPLY_DOMAIN = 'reply.example.test';
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Fallback IT', slug: `wfb-it-${ts}` })
+      .values({ name: 'Fallback IT' })
       .returning();
     orgId = org!.id;
 

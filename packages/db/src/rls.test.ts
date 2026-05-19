@@ -26,12 +26,12 @@ const skipReason = TEST_URL
       await sql`SELECT set_config('app.bypass_rls', 'on', true)`;
       const ts = Date.now();
       const a = await sql`
-        INSERT INTO orgs (id, name, slug)
-        VALUES ('org_test_a' || ${ts}, 'Org A', 'a-' || ${ts}::text)
+        INSERT INTO orgs (id, name)
+        VALUES ('org_test_a' || ${ts}, 'Org A')
         RETURNING id`;
       const b = await sql`
-        INSERT INTO orgs (id, name, slug)
-        VALUES ('org_test_b' || ${ts}, 'Org B', 'b-' || ${ts}::text)
+        INSERT INTO orgs (id, name)
+        VALUES ('org_test_b' || ${ts}, 'Org B')
         RETURNING id`;
       orgA = a[0]!.id as string;
       orgB = b[0]!.id as string;

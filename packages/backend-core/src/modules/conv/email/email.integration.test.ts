@@ -80,7 +80,7 @@ class StubImapFetcher implements ImapFetcher {
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Email IT Org', slug: `email-it-${ts}` })
+      .values({ name: 'Email IT Org' })
       .returning();
     orgId = org!.id;
 

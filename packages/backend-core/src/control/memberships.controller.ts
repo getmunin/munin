@@ -24,7 +24,6 @@ const ActiveDto = z.object({
 interface MembershipDto {
   orgId: string;
   name: string;
-  slug: string;
   role: string;
   isDefault: boolean;
 }
@@ -47,7 +46,6 @@ export class MembershipsController {
       .select({
         orgId: schema.orgs.id,
         name: schema.orgs.name,
-        slug: schema.orgs.slug,
         role: schema.orgMembers.role,
         isDefault: schema.orgMembers.isDefault,
         createdAt: schema.orgMembers.createdAt,
@@ -60,7 +58,6 @@ export class MembershipsController {
     return rows.map((r) => ({
       orgId: r.orgId,
       name: r.name,
-      slug: r.slug,
       role: r.role,
       isDefault: r.isDefault,
     }));

@@ -147,8 +147,7 @@ function start(config: WidgetConfig): void {
     try {
       const recent = getRecentSessionIds(config.channelId);
       const convs = await api.listConversations(recent);
-      const filtered = convs.filter((c) => c.sessionId !== sessionId);
-      ui.setPastConversations(filtered);
+      ui.setPastConversations(convs);
     } catch (err) {
       if (err instanceof WidgetApiError && err.status === 404) return;
       console.warn('[munin-widget] list conversations failed:', err);

@@ -43,7 +43,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'CRM IT Org', slug: `crm-it-${ts}` })
+      .values({ name: 'CRM IT Org' })
       .returning();
     orgId = org!.id;
 

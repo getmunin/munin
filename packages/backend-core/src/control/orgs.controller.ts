@@ -23,7 +23,6 @@ const PatchDto = z.object({
 interface OrgDto {
   id: string;
   name: string;
-  slug: string;
   settings: Record<string, unknown>;
   createdAt: string;
 }
@@ -45,7 +44,6 @@ export class OrgsController {
     return {
       id: row.id,
       name: row.name,
-      slug: row.slug,
       settings: row.settings,
       createdAt: row.createdAt.toISOString(),
     };
@@ -69,7 +67,6 @@ export class OrgsController {
     return {
       id: updated!.id,
       name: updated!.name,
-      slug: updated!.slug,
       settings: updated!.settings,
       createdAt: updated!.createdAt.toISOString(),
     };

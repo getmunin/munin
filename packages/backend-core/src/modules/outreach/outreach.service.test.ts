@@ -45,7 +45,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Outreach Test Org', slug: `outreach-${ts}` })
+      .values({ name: 'Outreach Test Org' })
       .returning();
     orgId = org!.id;
     actor = new ActorIdentity('admin_agent', 'agt_outreach_test', orgId, ['*'], ['admin']);

@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.js';
 import type { AgentConfigRepository } from './config.repository.js';
+import { authHeaders } from './provider-auth.js';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -128,20 +129,6 @@ function parsePerMillion(raw: unknown): number | null {
   const n = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : null;
   if (n === null || !Number.isFinite(n)) return null;
   return n * 1_000_000;
-}
-
-function authHeaders(baseUrl: string, apiKey: string): Record<string, string> {
-  if (/api\.anthropic\.com/i.test(baseUrl)) {
-    return {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      accept: 'application/json',
-    };
-  }
-  return {
-    authorization: `Bearer ${apiKey}`,
-    accept: 'application/json',
-  };
 }
 
 function describe(err: unknown): string {

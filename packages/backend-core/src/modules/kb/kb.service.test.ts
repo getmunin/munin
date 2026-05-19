@@ -34,7 +34,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'KB Test Org', slug: `kb-test-${ts}` })
+      .values({ name: 'KB Test Org' })
       .returning();
     orgId = org!.id;
     actor = new ActorIdentity('admin_agent', 'agt_test', orgId, ['*'], ['admin']);

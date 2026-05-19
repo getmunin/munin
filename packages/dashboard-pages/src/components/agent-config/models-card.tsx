@@ -46,6 +46,10 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
     return [...models.models].sort((a, b) => a.id.localeCompare(b.id));
   }, [models]);
 
+  const knownIds = useMemo(() => new Set(sortedModels.map((m) => m.id)), [sortedModels]);
+  const effectiveFast = knownIds.has(fastModel) ? fastModel : sortedModels[0]?.id ?? fastModel;
+  const effectiveSmart = !smartModel || knownIds.has(smartModel) ? smartModel : '';
+
   async function save() {
     setError(null);
     setMessage(null);
@@ -54,8 +58,8 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
       const updated = await api<AgentConfigDto>('/api/v1/agent-config', {
         method: 'PUT',
         body: JSON.stringify({
-          fastModel,
-          smartModel: smartModel || null,
+          fastModel: effectiveFast,
+          smartModel: effectiveSmart || null,
         }),
       });
       setMessage(t('saved'));
@@ -86,7 +90,7 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
               <p className="text-xs text-muted-foreground">{t('models.fastHint')}</p>
               <NativeSelect
                 id="fastModel"
-                value={fastModel}
+                value={effectiveFast}
                 onChange={(e) => setFastModel(e.target.value)}
               >
                 {sortedModels.map((m) => (
@@ -101,7 +105,7 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
               <p className="text-xs text-muted-foreground">{t('models.smartUseHint')}</p>
               <NativeSelect
                 id="smartModel"
-                value={smartModel}
+                value={effectiveSmart}
                 onChange={(e) => setSmartModel(e.target.value)}
               >
                 <option value="">{t('models.smartSameAsFast')}</option>

@@ -829,9 +829,6 @@
       "nameLabel": "Organization name",
       "namePlaceholder": "Acme Corp",
       "nameHint": "Up to 128 characters.",
-      "chatbotNameLabel": "Chatbot name (optional)",
-      "chatbotNamePlaceholder": "e.g. Munin",
-      "chatbotNameHint": "What the AI calls itself when talking to customers. Leave blank and it'll go nameless — you can set it later in Settings · AI.",
       "continue": "Continue",
       "errors": {
         "load": "Could not load organization.",

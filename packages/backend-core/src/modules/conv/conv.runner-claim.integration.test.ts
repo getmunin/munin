@@ -39,7 +39,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Runner Claim Org', slug: `rc-${ts}` })
+      .values({ name: 'Runner Claim Org' })
       .returning();
     orgId = org!.id;
 

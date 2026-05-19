@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { WebhookDispatcher } from '@getmunin/core';
 import { AgentConfigService } from './config.service.js';
 import type {
   AgentConfigPatch,
@@ -46,10 +47,22 @@ function makeAdminKey(): AdminKeyProvider & {
   };
 }
 
+function makeWebhooks(): WebhookDispatcher & { emit: ReturnType<typeof vi.fn> } {
+  const stub = { emit: vi.fn().mockResolvedValue('evt_stub') };
+  return stub;
+}
+
 describe('AgentConfigService', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ data: [] }) }),
+    );
+  });
+
   it('reads + serialises the row into a DTO with ISO timestamps', async () => {
     const repo = makeRepo({ before: baseRow, after: baseRow });
-    const svc = new AgentConfigService(repo, makeAdminKey());
+    const svc = new AgentConfigService(repo, makeAdminKey(), makeWebhooks());
     const dto = await svc.getForCurrentActor();
     expect(dto.id).toBe('singleton');
     expect(dto.createdAt).toBe('2026-01-01T00:00:00.000Z');
@@ -60,7 +73,7 @@ describe('AgentConfigService', () => {
     const after: AgentConfigRow = { ...baseRow, providerApiKeySet: true };
     const repo = makeRepo({ before: baseRow, after });
     const adminKey = makeAdminKey();
-    const svc = new AgentConfigService(repo, adminKey);
+    const svc = new AgentConfigService(repo, adminKey, makeWebhooks());
 
     await svc.upsertForCurrentActor({ providerApiKey: 'sk-test' });
 
@@ -73,7 +86,7 @@ describe('AgentConfigService', () => {
     const after: AgentConfigRow = { ...before, providerApiKeySet: true };
     const repo = makeRepo({ before, after });
     const adminKey = makeAdminKey();
-    const svc = new AgentConfigService(repo, adminKey);
+    const svc = new AgentConfigService(repo, adminKey, makeWebhooks());
 
     await svc.upsertForCurrentActor({ providerApiKey: 'sk-test' });
 
@@ -90,7 +103,7 @@ describe('AgentConfigService', () => {
     const after: AgentConfigRow = { ...before, providerApiKeySet: false };
     const repo = makeRepo({ before, after });
     const adminKey = makeAdminKey();
-    const svc = new AgentConfigService(repo, adminKey);
+    const svc = new AgentConfigService(repo, adminKey, makeWebhooks());
 
     await svc.upsertForCurrentActor({ providerApiKey: null });
 
@@ -101,7 +114,7 @@ describe('AgentConfigService', () => {
   it('skips mint/revoke when patches do not change provider-key presence', async () => {
     const repo = makeRepo({ before: baseRow, after: baseRow });
     const adminKey = makeAdminKey();
-    const svc = new AgentConfigService(repo, adminKey);
+    const svc = new AgentConfigService(repo, adminKey, makeWebhooks());
 
     await svc.upsertForCurrentActor({ fastModel: 'anthropic/claude-sonnet-4-6' });
 
@@ -111,7 +124,7 @@ describe('AgentConfigService', () => {
 
   it('passes the patch through to the repo verbatim', async () => {
     const repo = makeRepo({ before: baseRow, after: baseRow });
-    const svc = new AgentConfigService(repo, makeAdminKey());
+    const svc = new AgentConfigService(repo, makeAdminKey(), makeWebhooks());
 
     const patch: AgentConfigPatch = {
       fastModel: 'a',

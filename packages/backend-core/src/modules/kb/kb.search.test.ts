@@ -39,7 +39,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Search Test Org', slug: `kb-search-${ts}` })
+      .values({ name: 'Search Test Org' })
       .returning();
     orgId = org!.id;
 

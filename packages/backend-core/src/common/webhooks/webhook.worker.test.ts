@@ -51,7 +51,7 @@ interface ReceivedRequest {
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Webhook Org', slug: `wh-${ts}` })
+      .values({ name: 'Webhook Org' })
       .returning();
     orgId = org!.id;
 

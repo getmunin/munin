@@ -28,7 +28,6 @@ const skipReason = TEST_URL
       .insert(schema.orgs)
       .values({
         name: 'Rate Test Org',
-        slug: `rate-${ts}`,
         // Tight limits for fast tests.
         settings: { rateLimits: { perMinute: 5, perDay: 10 } },
       })
@@ -83,7 +82,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [defaultOrg] = await db
       .insert(schema.orgs)
-      .values({ name: 'Default Org', slug: `def-${ts}` })
+      .values({ name: 'Default Org' })
       .returning();
     const defaultActor = new ActorIdentity(
       'admin_agent',
@@ -117,7 +116,6 @@ const skipReason = TEST_URL
       .insert(schema.orgs)
       .values({
         name: 'Other Rate Org',
-        slug: `rate-other-${ts}`,
         settings: { rateLimits: { perMinute: 5, perDay: 10 } },
       })
       .returning();

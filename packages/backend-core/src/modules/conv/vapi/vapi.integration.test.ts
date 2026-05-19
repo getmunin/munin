@@ -49,7 +49,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Vapi IT Org', slug: `vapi-it-${ts}` })
+      .values({ name: 'Vapi IT Org' })
       .returning();
     orgId = org!.id;
 

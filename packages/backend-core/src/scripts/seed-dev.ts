@@ -22,13 +22,10 @@ async function main() {
   // intent explicit.
   await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
 
-  const ts = Date.now();
-  const orgSlug = `dev-${ts}`;
-
   const [org] = await db
     .insert(schema.orgs)
-    .values({ name: 'Local Dev Org', slug: orgSlug })
-    .returning({ id: schema.orgs.id, slug: schema.orgs.slug });
+    .values({ name: 'Local Dev Org' })
+    .returning({ id: schema.orgs.id });
 
   const rawKey = buildApiKey('admin');
   await db.insert(schema.apiKeys).values({
@@ -41,7 +38,7 @@ async function main() {
   });
 
   console.log('');
-  console.log('  ✓ Seeded org:        ', org!.id, `(${org!.slug})`);
+  console.log('  ✓ Seeded org:        ', org!.id);
   console.log('  ✓ Created admin key: ', rawKey);
   console.log('');
   console.log('  Try it out:');

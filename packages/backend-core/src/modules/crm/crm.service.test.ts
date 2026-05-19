@@ -28,7 +28,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'CRM Service Test Org', slug: `crm-svc-${ts}` })
+      .values({ name: 'CRM Service Test Org' })
       .returning();
     orgId = org!.id;
     const [eu] = await db
@@ -828,7 +828,7 @@ const skipReason = TEST_URL
       const ts = Date.now();
       const [otherOrg] = await db
         .insert(schema.orgs)
-        .values({ name: 'Other', slug: `crm-svc-other-${ts}` })
+        .values({ name: 'Other' })
         .returning();
       const otherActor = new ActorIdentity('admin_agent', 'agt_other', otherOrg!.id, ['*'], ['admin']);
       try {

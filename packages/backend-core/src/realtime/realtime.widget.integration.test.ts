@@ -53,7 +53,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Widget RT IT Org', slug: `widget-rt-it-${ts}` })
+      .values({ name: 'Widget RT IT Org' })
       .returning();
     orgId = org!.id;
 

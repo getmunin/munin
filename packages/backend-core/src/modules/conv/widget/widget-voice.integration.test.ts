@@ -47,7 +47,7 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
-      .values({ name: 'Widget Voice Org', slug: `wv-${ts}` })
+      .values({ name: 'Widget Voice Org' })
       .returning();
     orgId = org!.id;
 

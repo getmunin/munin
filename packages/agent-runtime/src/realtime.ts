@@ -33,6 +33,10 @@ export interface GreetRequestedEvent {
   endUserId?: string;
 }
 
+export interface AgentConfigChangedEvent {
+  configId: string;
+}
+
 export interface RealtimeClientOptions {
   baseUrl: string;
   adminApiKey: string;
@@ -41,6 +45,7 @@ export interface RealtimeClientOptions {
   onHandoverResolved?: (event: HandoverResolvedEvent) => void;
   onCuratorJobPending?: (event: CuratorJobPendingEvent) => void;
   onGreetRequested?: (event: GreetRequestedEvent) => void;
+  onAgentConfigChanged?: (event: AgentConfigChangedEvent) => void;
   onConnected?: () => void;
   logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void };
 }
@@ -183,6 +188,13 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
             dedupeKey: typeof payload['dedupeKey'] === 'string' ? payload['dedupeKey'] : null,
             nextAttemptAt: typeof nextAttemptAt === 'string' ? nextAttemptAt : new Date().toISOString(),
           });
+          return;
+        }
+
+        if (opts.onAgentConfigChanged && eventType === 'agent.config.updated') {
+          const configId = payload['configId'];
+          if (typeof configId !== 'string') return;
+          opts.onAgentConfigChanged({ configId });
           return;
         }
 

@@ -41,12 +41,12 @@ const skipReason = TEST_URL
     const ts = Date.now();
     const [orgA] = await db
       .insert(schema.orgs)
-      .values({ name: 'Overview Org A', slug: `ov-a-${ts}` })
+      .values({ name: 'Overview Org A' })
       .returning();
     orgAId = orgA!.id;
     const [orgB] = await db
       .insert(schema.orgs)
-      .values({ name: 'Overview Org B', slug: `ov-b-${ts}` })
+      .values({ name: 'Overview Org B' })
       .returning();
     orgBId = orgB!.id;
 

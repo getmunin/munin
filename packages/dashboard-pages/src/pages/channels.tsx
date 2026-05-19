@@ -1641,7 +1641,7 @@ const HASH_SNIPPETS: Array<{ language: string; label: string; build: (channelId:
 import crypto from 'node:crypto';
 const userHash = crypto
   .createHmac('sha256', process.env.MUNIN_IDENTITY_SECRET)
-  .update(externalId)        // your stable user id
+  .update(externalId) // your stable user id
   .digest('hex');`,
   },
   {

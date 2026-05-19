@@ -28748,7 +28748,7 @@ THE SOFTWARE.
 
 ---
 
-## nodemailer@8.0.5, 8.0.7
+## nodemailer@7.0.13, 8.0.5, 8.0.7
 
 > Easy as cake e-mail sending from your Node.js applications
 - Homepage: https://nodemailer.com/

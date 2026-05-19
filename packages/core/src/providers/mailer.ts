@@ -86,6 +86,52 @@ export class ResendMailer implements Mailer {
   }
 }
 
+// ─── Generic SMTP (covers Scaleway TEM, Postmark, Mailgun, etc.) ────────────
+
+import { createTransport, type Transporter, type SendMailOptions } from 'nodemailer';
+
+export interface SmtpMailerOptions {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  from: string;
+  /** When true, uses TLS from the start (implicit TLS, typically port 465). When false (default), starts plain and upgrades via STARTTLS. */
+  secure?: boolean;
+}
+
+export class SmtpMailer implements Mailer {
+  readonly name = 'smtp';
+  readonly from: string;
+  private readonly transporter: Transporter;
+
+  constructor(opts: SmtpMailerOptions) {
+    this.from = opts.from;
+    this.transporter = createTransport({
+      host: opts.host,
+      port: opts.port,
+      secure: opts.secure ?? false,
+      auth: { user: opts.user, pass: opts.password },
+    });
+  }
+
+  async send(msg: MailMessage): Promise<void> {
+    if (!msg.text && !msg.html) {
+      throw new Error('mailer: at least one of `text` or `html` is required');
+    }
+    const mail: SendMailOptions = {
+      from: msg.from ?? this.from,
+      to: msg.to,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
+      replyTo: msg.replyTo,
+      headers: msg.headers,
+    };
+    await this.transporter.sendMail(mail);
+  }
+}
+
 // ─── Stub (collects in-memory; for tests + offline dev) ──────────────────────
 
 export interface SentMessage extends MailMessage {
@@ -128,6 +174,10 @@ export class StubMailer implements Mailer {
  *
  * `MUNIN_MAIL_PROVIDER`:
  *   `resend` — HTTP send via Resend (requires RESEND_API_KEY).
+ *   `smtp`   — Generic SMTP (Scaleway TEM, Postmark, Mailgun, …). Requires
+ *              MUNIN_SMTP_HOST, MUNIN_SMTP_PORT, MUNIN_SMTP_USER,
+ *              MUNIN_SMTP_PASSWORD. Optional MUNIN_SMTP_SECURE=1 forces
+ *              implicit TLS (port 465); otherwise STARTTLS is used.
  *   `stub`   — in-memory; default when no provider is configured.
  *
  * `MUNIN_MAIL_FROM` — sender address (e.g. "Munin <hello@getmunin.com>").
@@ -136,6 +186,25 @@ export function readMailerFromEnv(): Mailer {
   const provider = process.env.MUNIN_MAIL_PROVIDER?.toLowerCase();
   const from = process.env.MUNIN_MAIL_FROM ?? 'Munin <no-reply@getmunin.com>';
   if (provider === 'stub') return new StubMailer(from);
+  if (provider === 'smtp') {
+    const host = process.env.MUNIN_SMTP_HOST;
+    const port = Number(process.env.MUNIN_SMTP_PORT);
+    const user = process.env.MUNIN_SMTP_USER;
+    const password = process.env.MUNIN_SMTP_PASSWORD;
+    if (!host || !Number.isFinite(port) || !user || !password) {
+      throw new Error(
+        'MUNIN_MAIL_PROVIDER=smtp requires MUNIN_SMTP_HOST, MUNIN_SMTP_PORT, MUNIN_SMTP_USER, MUNIN_SMTP_PASSWORD',
+      );
+    }
+    return new SmtpMailer({
+      host,
+      port,
+      user,
+      password,
+      from,
+      secure: process.env.MUNIN_SMTP_SECURE === '1',
+    });
+  }
   const apiKey = process.env.RESEND_API_KEY;
   if (apiKey || provider === 'resend') {
     if (!apiKey) {

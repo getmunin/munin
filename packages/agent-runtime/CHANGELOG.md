@@ -1,5 +1,11 @@
 # @getmunin/agent-runtime
 
+## 3.9.1
+
+### Patch Changes
+
+- @getmunin/core@3.9.1
+
 ## 3.9.0
 
 ### Minor Changes

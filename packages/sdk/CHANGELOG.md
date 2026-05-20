@@ -1,5 +1,7 @@
 # @getmunin/sdk
 
+## 3.9.1
+
 ## 3.9.0
 
 ### Minor Changes

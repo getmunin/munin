@@ -40,8 +40,9 @@ export function DashboardTopbar({
       <span className="my-auto hidden h-5 w-px bg-rule-soft md:block dark:bg-rule-on-dark" aria-hidden />
 
       <div className="hidden items-center gap-3 self-center md:flex">
-        <span className="text-[13px] font-medium text-ink dark:text-foreground">{brand}</span>
-        {leftSlot}
+        {leftSlot ?? (
+          <span className="text-[13px] font-medium text-ink dark:text-foreground">{brand}</span>
+        )}
       </div>
 
       <div className="ml-auto flex items-center self-center">

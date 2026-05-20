@@ -1,5 +1,13 @@
 # @getmunin/dashboard-pages
 
+## 3.9.1
+
+### Patch Changes
+
+- 90ffd9c: Fix the org switcher dropdown throwing `Base UI error #31` (MenuGroupRootContext missing) when opened. Wrap the label, separator and items in a `<DropdownMenuGroup>` so `Menu.GroupLabel` has the group context it now requires under base-ui 1.4.
+  - @getmunin/types@3.9.1
+  - @getmunin/ui@3.9.1
+
 ## 3.9.0
 
 ### Minor Changes

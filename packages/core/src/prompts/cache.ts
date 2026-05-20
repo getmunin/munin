@@ -80,7 +80,9 @@ export async function createPromptCache(opts: PromptCacheOptions): Promise<Promp
     }
   }
 
-  await Promise.all(Object.keys(opts.entries).map((slug) => load(slug)));
+  for (const slug of Object.keys(opts.entries)) {
+    await load(slug);
+  }
 
   return {
     get(slug) {
@@ -95,7 +97,9 @@ export async function createPromptCache(opts: PromptCacheOptions): Promise<Promp
       log.info?.(`prompt-cache: refreshed ${slug}`);
     },
     async refreshAll() {
-      await Promise.all(Object.keys(opts.entries).map((slug) => load(slug)));
+      for (const slug of Object.keys(opts.entries)) {
+        await load(slug);
+      }
     },
   };
 }

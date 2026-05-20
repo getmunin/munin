@@ -7,6 +7,7 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -73,25 +74,27 @@ export function OrgSwitcher() {
         <ChevronDown className="size-3.5 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">{t('yourOrgs')}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {memberships.map((m) => (
-          <DropdownMenuItem
-            key={m.orgId}
-            onClick={() => void onSwitch(m.orgId)}
-            disabled={switching === m.orgId}
-            className="flex items-center justify-between gap-2"
-          >
-            <div className="flex flex-col">
-              <span className="text-sm">{m.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {m.role}
-                {switching === m.orgId ? t('switching') : ''}
-              </span>
-            </div>
-            {m.orgId === active.orgId && <Check className="size-4 text-muted-foreground" />}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs text-muted-foreground">{t('yourOrgs')}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {memberships.map((m) => (
+            <DropdownMenuItem
+              key={m.orgId}
+              onClick={() => void onSwitch(m.orgId)}
+              disabled={switching === m.orgId}
+              className="flex items-center justify-between gap-2"
+            >
+              <div className="flex flex-col">
+                <span className="text-sm">{m.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {m.role}
+                  {switching === m.orgId ? t('switching') : ''}
+                </span>
+              </div>
+              {m.orgId === active.orgId && <Check className="size-4 text-muted-foreground" />}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

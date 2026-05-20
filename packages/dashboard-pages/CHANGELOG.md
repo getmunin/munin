@@ -1,5 +1,16 @@
 # @getmunin/dashboard-pages
 
+## 4.0.0
+
+### Major Changes
+
+- b5dce5d: Remove `OrgSwitcher` from `@getmunin/dashboard-pages`. OSS is single-tenant and never used it; cloud should ship its own switcher into the existing `leftSlot` on `DashboardShell` / `DashboardTopbar`. Also: when `leftSlot` is provided, it now replaces the brand text in the topbar instead of rendering alongside it.
+
+### Patch Changes
+
+- @getmunin/types@4.0.0
+- @getmunin/ui@4.0.0
+
 ## 3.9.1
 
 ### Patch Changes

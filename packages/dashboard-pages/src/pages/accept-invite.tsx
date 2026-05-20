@@ -75,7 +75,7 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
             primary={
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2.5 rounded-[12px] border-[0.5px] border-auth-navy bg-auth-navy px-[22px] py-3.5 text-[15px] font-medium text-white transition-colors duration-fast ease-munin hover:border-auth-navy-hover hover:bg-auth-navy-hover"
+                className="inline-flex items-center gap-2.5 border-[0.5px] border-ink bg-ink px-[22px] py-3.5 text-[15px] font-medium text-paper transition-colors duration-fast ease-munin hover:border-cobalt-deep hover:bg-cobalt-deep"
               >
                 {t('goToDashboard')}
                 <ArrowRight className="size-4" strokeWidth={2} />
@@ -101,7 +101,7 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
             primary={
               <Link
                 href={session ? '/dashboard' : '/login'}
-                className="inline-flex items-center gap-2 rounded-[12px] border-[0.5px] border-ink bg-transparent px-[18px] py-3 text-[14px] text-ink transition-colors duration-fast ease-munin hover:bg-ink hover:text-paper"
+                className="inline-flex items-center gap-2 border-[0.5px] border-ink bg-transparent px-[18px] py-3 text-[14px] text-ink transition-colors duration-fast ease-munin hover:bg-ink hover:text-paper"
               >
                 <ArrowLeft className="size-3.5" strokeWidth={2} />
                 {session ? t('backToDashboard') : t('errors.expired')}

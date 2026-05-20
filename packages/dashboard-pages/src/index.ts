@@ -31,7 +31,6 @@ export {
   useInboxLoadFailedProps,
 } from './lib/use-load-failed-props';
 export { authClient } from './auth-client';
-export { OrgSwitcher } from './components/org-switcher';
 export {
   DashboardTopbar,
   type DashboardTopbarProps,

@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/ui",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "license": "MIT",
   "description": "Munin design-system primitives (shadcn-style) shared between OSS and cloud Next apps.",
   "publishConfig": {

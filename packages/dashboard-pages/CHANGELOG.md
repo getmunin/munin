@@ -1,5 +1,16 @@
 # @getmunin/dashboard-pages
 
+## 4.1.1
+
+### Patch Changes
+
+- 8c11b50: Rename the Account settings page title from "Your workspace." to "Your perch." (en) / "Din grein." (nb), aligning with the raven/flock metaphor used on the rest of the dashboard pages.
+- 1f7ea3d: Two polish fixes:
+  - Settings sidebar (nav + sign-out) is now `sticky` under the topbar so scrolling the main content area no longer hides the nav or the sign-out button.
+  - Account page's save button label and confirmation message now match the rest of the dashboard: `Save` (not `Save changes`) and a muted-gray `Saved` toast (matching `identity-card`/`models-card`) instead of the previous cobalt-blue confirmation.
+  - @getmunin/types@4.1.1
+  - @getmunin/ui@4.1.1
+
 ## 4.1.0
 
 ### Minor Changes

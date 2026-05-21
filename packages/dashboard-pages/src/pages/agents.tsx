@@ -85,15 +85,16 @@ export function AgentsPage() {
         ) : tokens.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
+          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full">
             <thead>
               <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tableToken')}</Th>
-                <Th>{t('tableOrigin')}</Th>
+                <Th className="hidden md:table-cell">{t('tableOrigin')}</Th>
                 <Th>{t('tableStatus')}</Th>
-                <Th>{t('tableIssued')}</Th>
-                <Th>{t('tableLastUsed')}</Th>
-                <Th>{t('tableExpires')}</Th>
+                <Th className="hidden md:table-cell">{t('tableIssued')}</Th>
+                <Th className="hidden md:table-cell">{t('tableLastUsed')}</Th>
+                <Th className="hidden md:table-cell">{t('tableExpires')}</Th>
                 <Th className="text-right" />
               </tr>
             </thead>
@@ -138,15 +139,15 @@ export function AgentsPage() {
                         {token.scopes.length > 0 ? token.scopes.join(' ') : t('noScopes')}
                       </div>
                     </td>
-                    <td className="py-4 pr-4 font-mono text-xs text-ink-mute">
+                    <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">
                       {token.audiences.join(', ') || '—'}
                     </td>
                     <td className="py-4 pr-4">
                       <StatusChip status={status} t={t} />
                     </td>
-                    <td className="py-4 pr-4 font-mono text-xs text-ink-mute">{issued}</td>
-                    <td className="py-4 pr-4 font-mono text-xs text-ink-mute">{lastUsed}</td>
-                    <td className="py-4 pr-4 font-mono text-xs text-ink-mute">{expires}</td>
+                    <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">{issued}</td>
+                    <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">{lastUsed}</td>
+                    <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">{expires}</td>
                     <td className="py-4 text-right">
                       {status === 'active' && (
                         <Button
@@ -164,6 +165,7 @@ export function AgentsPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </>

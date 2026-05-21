@@ -164,15 +164,16 @@ export function AuditLogPage() {
         {items.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
+          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full">
             <thead>
               <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tableTime')}</Th>
-                <Th>{t('tableActor')}</Th>
-                <Th>{t('tableClient')}</Th>
+                <Th className="hidden md:table-cell">{t('tableActor')}</Th>
+                <Th className="hidden md:table-cell">{t('tableClient')}</Th>
                 <Th>{t('tableToolMethod')}</Th>
                 <Th>{t('tableResult')}</Th>
-                <Th>{t('tableCorrelation')}</Th>
+                <Th className="hidden md:table-cell">{t('tableCorrelation')}</Th>
               </tr>
             </thead>
             <tbody>
@@ -189,11 +190,11 @@ export function AuditLogPage() {
                       minute: '2-digit',
                     })}
                   </td>
-                  <td className="py-3 pr-4 font-mono text-[11px] text-ink dark:text-foreground">
+                  <td className="hidden md:table-cell py-3 pr-4 font-mono text-[11px] text-ink dark:text-foreground">
                     {row.actorType}
                   </td>
                   <td
-                    className="py-3 pr-4 font-mono text-[11px] text-ink-mute"
+                    className="hidden md:table-cell py-3 pr-4 font-mono text-[11px] text-ink-mute"
                     title={row.userAgent ?? undefined}
                   >
                     {row.client}
@@ -204,13 +205,14 @@ export function AuditLogPage() {
                   <td className="py-3 pr-4">
                     <ResultChip result={row.result} />
                   </td>
-                  <td className="py-3 pr-4 font-mono text-[11px] text-ink-mute">
+                  <td className="hidden md:table-cell py-3 pr-4 font-mono text-[11px] text-ink-mute">
                     {row.correlationId?.slice(0, 8) ?? '—'}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {!exhausted && items.length > 0 && (

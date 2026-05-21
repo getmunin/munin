@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { Link } from '../i18n-navigation';
 import { Settings as SettingsIcon, ArrowLeft, Menu } from 'lucide-react';
-import { cn } from '@getmunin/ui';
+import { Button } from '@getmunin/ui';
 import type { ReactNode } from 'react';
 
 export interface DashboardTopbarProps {
@@ -43,6 +43,10 @@ export function DashboardTopbar({
         {leftSlot ?? (
           <span className="text-[13px] font-medium text-ink dark:text-foreground">{brand}</span>
         )}
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex h-14 items-center justify-center md:hidden">
+        <span className="text-[13px] font-medium text-ink dark:text-foreground">{brand}</span>
       </div>
 
       <div className="ml-auto flex items-center self-center">
@@ -100,19 +104,18 @@ export function SettingsTopbar({
         {title}
       </h1>
 
-      <div className="ml-auto flex items-center self-center">
+      <div className="ml-auto flex h-full items-center">
         {onMenuToggle ? (
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="icon"
             onClick={onMenuToggle}
             aria-label={openMenuLabel ?? 'Open menu'}
             aria-expanded={menuOpen}
-            className={cn(
-              'inline-flex size-9 items-center justify-center border-[0.5px] border-ink text-ink transition-colors hover:bg-paper-deep md:hidden dark:border-rule-on-dark dark:text-foreground',
-            )}
+            className="md:hidden"
           >
             <Menu className="size-4" />
-          </button>
+          </Button>
         ) : null}
       </div>
     </header>

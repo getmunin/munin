@@ -115,11 +115,12 @@ export function EndUsersPage() {
             }
           />
         ) : (
+          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full">
             <thead>
               <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tablePerson')}</Th>
-                <Th>{t('tableExternalId')}</Th>
+                <Th className="hidden md:table-cell">{t('tableExternalId')}</Th>
                 <Th>{t('tableLastContact')}</Th>
                 <Th className="text-right" />
               </tr>
@@ -140,7 +141,7 @@ export function EndUsersPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="py-4 pr-4 font-mono text-xs text-ink-mute">
+                  <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">
                     {eu.externalId ?? '—'}
                   </td>
                   <td className="py-4 pr-4 font-mono text-xs text-ink-mute">
@@ -160,6 +161,7 @@ export function EndUsersPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </>

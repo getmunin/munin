@@ -807,7 +807,7 @@
     },
     "account": {
       "eyebrow": "Workspace · Account",
-      "title": "Your <em>workspace</em>.",
+      "title": "Your <em>perch</em>.",
       "subtitle": "Settings that apply to the whole organization.",
       "orgSectionTitle": "Organization",
       "orgNameLabel": "Organization name",

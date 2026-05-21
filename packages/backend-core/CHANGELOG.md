@@ -1,5 +1,15 @@
 # @getmunin/backend-core
 
+## 4.4.0
+
+### Patch Changes
+
+- @getmunin/core@4.4.0
+- @getmunin/db@4.4.0
+- @getmunin/types@4.4.0
+- @getmunin/mcp-toolkit@4.4.0
+- @getmunin/bootstrap@4.4.0
+
 ## 4.3.0
 
 ### Minor Changes

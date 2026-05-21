@@ -1,4 +1,4 @@
-import openapiSpec from '../../../../../../packages/backend-core/openapi.json';
+import openapiSpec from '@getmunin/backend-core/openapi.json';
 
 export type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export const METHODS: Method[] = ['get', 'post', 'put', 'patch', 'delete'];

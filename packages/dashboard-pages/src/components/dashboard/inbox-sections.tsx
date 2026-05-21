@@ -13,6 +13,7 @@ import {
 } from '@getmunin/ui';
 import { api, ApiError } from '../../api';
 import { notify } from '../../lib/notify';
+import { useRelative } from '../../lib/use-relative';
 import { useRealtime, type RealtimeStatus, type SubscriptionChannel } from '../../realtime';
 
 type Status = 'open' | 'snoozed' | 'closed' | 'spam';
@@ -1770,20 +1771,6 @@ function useCmdEnter(handler: () => void) {
   }, [handler]);
 }
 
-function useRelative() {
-  const t = useTranslations('dashboard.overview.relative');
-  return useCallback(
-    (iso: string): string => {
-      const d = new Date(iso).getTime();
-      const diff = Date.now() - d;
-      if (diff < 60_000) return t('justNow');
-      if (diff < 3_600_000) return t('minutes', { n: Math.floor(diff / 60_000) });
-      if (diff < 86_400_000) return t('hours', { n: Math.floor(diff / 3_600_000) });
-      return t('days', { n: Math.floor(diff / 86_400_000) });
-    },
-    [t],
-  );
-}
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + '…' : s;

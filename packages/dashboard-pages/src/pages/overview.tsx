@@ -7,6 +7,7 @@ import { useRealtime } from '../realtime';
 import { ConnectionBanner } from '../components/connection-banner';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { GetStarted } from '../components/dashboard/get-started';
+import { LatestActivitySection } from '../components/dashboard/latest-activity';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
@@ -71,6 +72,8 @@ export function DashboardPage() {
 
       <LiveNowSection controller={inbox} />
       <QueueSection controller={inbox} />
+
+      <LatestActivitySection />
 
       <UsageKpis summary={summary} />
 

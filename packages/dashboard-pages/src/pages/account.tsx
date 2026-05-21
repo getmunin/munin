@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Hero, Input, SectionHead, cn } from '@getmunin/ui';
+import { Button, Hero, Input, SectionHead } from '@getmunin/ui';
 import { api } from '../api';
 import { invalidateActiveMembershipCache } from '../auth/use-active-role';
 import { useTranslateError } from '../i18n/translate-error';
@@ -104,16 +104,11 @@ export function AccountPage({ extraSections }: AccountPageProps) {
 
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={!dirty || saving}>
-              {saving ? tCommon('saving') : tCommon('saveChanges')}
+              {saving ? tCommon('saving') : tCommon('save')}
             </Button>
             {savedAt && !dirty && !error ? (
-              <span
-                key={savedAt}
-                className={cn(
-                  'font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft',
-                )}
-              >
-                {t('saved')}
+              <span key={savedAt} className="text-sm text-muted-foreground">
+                {tCommon('saved')}
               </span>
             ) : null}
           </div>

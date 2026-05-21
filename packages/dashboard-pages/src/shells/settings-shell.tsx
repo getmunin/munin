@@ -97,7 +97,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
       />
 
       <div className="flex min-h-[calc(100vh-3.5rem)]">
-        <aside className="hidden w-72 shrink-0 flex-col border-r-[0.5px] border-rule-soft bg-bone md:flex dark:border-rule-on-dark dark:bg-secondary">
+        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-72 shrink-0 flex-col self-start border-r-[0.5px] border-rule-soft bg-bone md:flex dark:border-rule-on-dark dark:bg-secondary">
           <div className="flex-1 overflow-y-auto px-6 py-10">{navTree}</div>
           <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
             {signOutButton}

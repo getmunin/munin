@@ -7,6 +7,7 @@ import { useRealtime } from '../realtime';
 import { ConnectionBanner } from '../components/connection-banner';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { GetStarted } from '../components/dashboard/get-started';
+import { RecentConversationsSection } from '../components/dashboard/recent-conversations';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
@@ -73,6 +74,8 @@ export function DashboardPage() {
       <QueueSection controller={inbox} />
 
       <UsageKpis summary={summary} />
+
+      <RecentConversationsSection controller={inbox} />
 
       <GetStarted />
 

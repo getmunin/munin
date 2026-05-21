@@ -89,6 +89,7 @@ export interface ConversationSummary {
   assigneeUserId: string | null;
   subject: string | null;
   lastMessageAt: string | null;
+  lastInboundPreview?: string | null;
   needsHumanAttention: boolean;
   needsHumanAttentionAt: string | null;
   agentMode: AgentMode;
@@ -329,7 +330,17 @@ export class ConvService {
     }
 
     const rows = await ctx.db
-      .select()
+      .select({
+        conv: schema.convConversations,
+        lastInboundPreview: sql<string | null>`(
+          SELECT body FROM conv_messages
+          WHERE conversation_id = "conv_conversations"."id"
+            AND author_type = 'end_user'
+            AND internal = false
+          ORDER BY created_at DESC
+          LIMIT 1
+        )`,
+      })
       .from(schema.convConversations)
       .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(
@@ -339,7 +350,9 @@ export class ConvService {
       )
       .limit(limit + 1);
 
-    const items = rows.slice(0, limit).map((row) => toConversationSummary(row));
+    const items = rows
+      .slice(0, limit)
+      .map((row) => toConversationSummary(row.conv, undefined, row.lastInboundPreview));
     const last = items[items.length - 1];
     const nextCursor =
       rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
@@ -1070,9 +1083,17 @@ function toTopicDto(row: typeof schema.convTopics.$inferSelect): TopicDto {
   return { id: row.id, name: row.name, slug: row.slug, color: row.color };
 }
 
+function previewText(body: string | null): string | null {
+  if (body === null) return null;
+  const collapsed = body.replace(/\s+/g, ' ').trim();
+  if (collapsed.length === 0) return null;
+  return collapsed.length > 200 ? `${collapsed.slice(0, 199)}…` : collapsed;
+}
+
 function toConversationSummary(
   row: typeof schema.convConversations.$inferSelect,
   channelType?: string,
+  lastInboundPreview?: string | null,
 ): ConversationSummary {
   return {
     id: row.id,
@@ -1086,6 +1107,9 @@ function toConversationSummary(
     assigneeUserId: row.assigneeUserId,
     subject: row.subject,
     lastMessageAt: row.lastMessageAt?.toISOString() ?? null,
+    ...(lastInboundPreview !== undefined
+      ? { lastInboundPreview: previewText(lastInboundPreview) }
+      : {}),
     needsHumanAttention: row.needsHumanAttention,
     needsHumanAttentionAt: row.needsHumanAttentionAt?.toISOString() ?? null,
     agentMode: row.agentMode as AgentMode,

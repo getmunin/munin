@@ -1,6 +1,6 @@
 'use client';
 
-import { Link, usePathname } from '@/i18n/navigation';
+import { Link, usePathname } from '../i18n-navigation';
 import { GUIDE_GROUPS, GUIDES, guidesByCategory } from '../guides/_lib/guides';
 
 export function GuidesSidebar() {

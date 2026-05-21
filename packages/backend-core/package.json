@@ -20,11 +20,16 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./docs-fixtures/mcp-tools.json": "./docs-fixtures/mcp-tools.json",
+    "./docs-fixtures/skills.json": "./docs-fixtures/skills.json",
+    "./openapi.json": "./openapi.json"
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "docs-fixtures",
+    "openapi.json"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node ./scripts/copy-skills.mjs",

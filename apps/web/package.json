@@ -17,6 +17,7 @@
   "dependencies": {
     "@base-ui/react": "^1.4.1",
     "@getmunin/dashboard-pages": "workspace:*",
+    "@getmunin/docs-pages": "workspace:*",
     "@getmunin/sdk": "workspace:*",
     "@getmunin/types": "workspace:*",
     "@getmunin/ui": "workspace:*",

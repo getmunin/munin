@@ -1,4 +1,4 @@
-import skillsFixture from '../../../../../../packages/backend-core/docs-fixtures/skills.json';
+import skillsFixture from '@getmunin/backend-core/docs-fixtures/skills.json';
 
 export interface Skill {
   uri: string;

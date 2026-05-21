@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Link, usePathname } from '@/i18n/navigation';
+import { Link, usePathname } from '../i18n-navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { DocsSearch, type SearchIndex } from './search';
 

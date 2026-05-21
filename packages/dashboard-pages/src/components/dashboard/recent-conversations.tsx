@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Pill } from '@getmunin/ui';
 import { api } from '../../api';
 import { useRelative } from '../../lib/use-relative';
 import type { InboxController } from './inbox-sections';
@@ -128,9 +127,6 @@ function ConversationRow({
           }
         }}
       >
-        <span className="shrink-0">
-          <Pill tone="conv">CONV</Pill>
-        </span>
         <div className="min-w-0 flex-1">
           <span className="text-sm font-medium text-ink dark:text-foreground">{title}</span>
           {preview ? (

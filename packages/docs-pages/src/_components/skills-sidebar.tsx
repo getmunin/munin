@@ -1,6 +1,6 @@
 'use client';
 
-import { Link, usePathname } from '@/i18n/navigation';
+import { Link, usePathname } from '../i18n-navigation';
 import type { Skill } from '../_lib/skills';
 
 export function SkillsSidebar({ groups }: { groups: Array<{ module: string; skills: Skill[] }> }) {

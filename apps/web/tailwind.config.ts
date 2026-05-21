@@ -3,6 +3,9 @@ import typography from '@tailwindcss/typography';
 
 const config: Config = {
   darkMode: 'class',
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',

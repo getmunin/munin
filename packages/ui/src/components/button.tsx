@@ -10,17 +10,17 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "border-[0.5px] border-ink bg-ink text-paper hover:bg-cobalt-deep hover:border-cobalt-deep dark:border-paper dark:bg-paper dark:text-ink dark:hover:bg-cobalt-soft dark:hover:border-cobalt-soft dark:hover:text-ink",
+          "bg-ink text-paper shadow-[inset_0_0_0_0.5px_rgb(var(--munin-ink))] hover:bg-cobalt-deep hover:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-accent-deep))] dark:bg-paper dark:text-ink dark:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-paper))] dark:hover:bg-cobalt-soft dark:hover:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-accent-soft))] dark:hover:text-ink",
         outline:
-          "border-[0.5px] border-ink bg-transparent text-ink hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink",
+          "bg-transparent text-ink shadow-[inset_0_0_0_0.5px_rgb(var(--munin-ink))] hover:bg-ink hover:text-paper dark:text-paper dark:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-paper))] dark:hover:bg-paper dark:hover:text-ink",
         secondary:
-          "border-[0.5px] border-rule-soft bg-paper-deep text-ink hover:bg-ink hover:text-paper hover:border-ink dark:bg-secondary dark:text-foreground dark:border-rule-on-dark dark:hover:bg-paper dark:hover:text-ink",
+          "bg-paper-deep text-ink shadow-[inset_0_0_0_0.5px_rgb(var(--munin-ink)/0.145)] hover:bg-ink hover:text-paper hover:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-ink))] dark:bg-secondary dark:text-foreground dark:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-fg-on-dark-2)/0.2)] dark:hover:bg-paper dark:hover:text-ink",
         ghost:
-          "border-[0.5px] border-transparent text-ink hover:bg-paper-deep dark:text-foreground dark:hover:bg-secondary",
+          "text-ink hover:bg-paper-deep dark:text-foreground dark:hover:bg-secondary",
         accent:
-          "border-[0.5px] border-cobalt bg-cobalt text-paper hover:bg-cobalt-deep hover:border-cobalt-deep",
+          "bg-cobalt text-paper shadow-[inset_0_0_0_0.5px_rgb(var(--munin-accent))] hover:bg-cobalt-deep hover:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-accent-deep))]",
         destructive:
-          "border-[0.5px] border-destructive bg-transparent text-destructive hover:bg-destructive hover:text-destructive-foreground",
+          "bg-transparent text-destructive shadow-[inset_0_0_0_0.5px_var(--destructive)] hover:bg-destructive hover:text-destructive-foreground",
         link:
           "border-0 border-b-[0.5px] border-cobalt bg-transparent text-cobalt font-serif italic normal-case tracking-normal text-[15px] hover:text-cobalt-deep hover:border-cobalt-deep h-auto px-0 py-0 dark:text-cobalt-soft dark:border-cobalt-soft",
       },

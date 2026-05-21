@@ -18,7 +18,7 @@ export function DashboardHero({ orgName, date, liveCount, queueCount }: Dashboar
     day: 'numeric',
     year: 'numeric',
   }).format(date);
-  const eyebrow = [orgName, dateLabel].filter(Boolean).join(' · ');
+  const eyebrow = dateLabel;
 
   let lede: string;
   if (liveCount === 0 && queueCount === 0) {

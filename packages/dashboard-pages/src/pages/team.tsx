@@ -195,7 +195,8 @@ export function TeamPage() {
         {members === null ? (
           <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
         ) : (
-          <table className="w-full">
+          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('membersTableName')}</Th>
@@ -244,6 +245,7 @@ export function TeamPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -257,7 +259,8 @@ export function TeamPage() {
         ) : invites.length === 0 ? (
           <EmptyCallout title={t('invitesEmptyTitle')} body={t('invitesEmptyBody')} />
         ) : (
-          <table className="w-full">
+          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('invitesTable.email')}</Th>
@@ -291,6 +294,7 @@ export function TeamPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -385,7 +389,7 @@ function RoleSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as MemberRole)}
-        className="appearance-none border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:border-cobalt focus-visible:outline-none"
+        className="appearance-none shadow-[inset_0_0_0_0.5px_rgb(var(--munin-ink)/0.145)] dark:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-fg-on-dark-2)/0.2)] focus-visible:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-accent))] bg-paper dark:bg-card font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:outline-none"
       >
         <option value="owner">{labelOwner}</option>
         <option value="admin">{labelAdmin}</option>

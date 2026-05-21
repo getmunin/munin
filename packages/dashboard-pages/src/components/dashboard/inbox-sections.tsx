@@ -600,7 +600,7 @@ export function LiveNowSection({ controller }: { controller: InboxController }) 
   if (items.length === 0) return null;
 
   return (
-    <section className="bg-paper-deep -mx-10 px-10 py-6 dark:bg-secondary">
+    <section className="bg-paper-deep -mx-4 px-4 py-6 md:-mx-10 md:px-10 dark:bg-secondary">
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
           <span
@@ -954,7 +954,7 @@ function QueueRow({
   const labelKey =
     item.kind === 'outreach' ? 'kindOutreach' : item.kind === 'kb' ? 'kindKb' : 'kindCrm';
   return (
-    <li className="border-b-[0.5px] border-rule-soft last:border-b-0 dark:border-rule-on-dark">
+    <li className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
       <div
         className="group/qrow relative flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
         onClick={onOpen}

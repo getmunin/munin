@@ -1,5 +1,17 @@
 # @getmunin/agent-host
 
+## 4.3.0
+
+### Patch Changes
+
+- Updated dependencies [21a8189]
+- Updated dependencies [21a8189]
+  - @getmunin/backend-core@4.3.0
+  - @getmunin/core@4.3.0
+  - @getmunin/db@4.3.0
+  - @getmunin/types@4.3.0
+  - @getmunin/agent-runtime@4.3.0
+
 ## 4.2.0
 
 ### Patch Changes

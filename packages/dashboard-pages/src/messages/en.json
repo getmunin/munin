@@ -261,9 +261,15 @@
         "hours": "{n}h",
         "days": "{n}d"
       },
-      "latestActivity": {
-        "eyebrow": "Latest activity",
-        "meta": "Last 7 days · all channels"
+      "recentConversations": {
+        "eyebrow": "Last conversations",
+        "meta": "All channels",
+        "untitled": "Conversation #{displayId}",
+        "status": {
+          "snoozed": "snoozed",
+          "closed": "closed",
+          "spam": "spam"
+        }
       }
     },
     "activity": {
@@ -276,65 +282,7 @@
       "colType": "Type",
       "colActor": "Actor",
       "colDetail": "Detail",
-      "empty": "No events yet.",
-      "types": {
-        "conversation": {
-          "created": "Started a conversation",
-          "assigned": "Conversation assigned",
-          "status_changed": "Conversation status changed",
-          "handover_requested": "Handover requested",
-          "handover_resolved": "Handover resolved",
-          "agent_mode_changed": "Agent mode changed",
-          "taken_over": "Conversation taken over",
-          "released": "Conversation released",
-          "greet_requested": "Greeting requested",
-          "message": {
-            "received": "Message received",
-            "sent": "Message sent",
-            "read": "Message read",
-            "opened": "Email opened"
-          },
-          "voice": {
-            "call_ended": "Voice call ended"
-          }
-        },
-        "kb": {
-          "document": {
-            "created": "KB doc created",
-            "updated": "KB doc updated",
-            "deleted": "KB doc deleted"
-          }
-        },
-        "crm": {
-          "contact": {
-            "created": "Contact created",
-            "updated": "Contact updated"
-          },
-          "company": {
-            "created": "Company created"
-          },
-          "deal": {
-            "created": "Deal created",
-            "stage_changed": "Deal stage changed"
-          },
-          "activity": {
-            "logged": "CRM activity logged"
-          },
-          "merge_proposal": {
-            "proposed": "Merge proposed",
-            "applied": "Merge applied",
-            "dismissed": "Merge dismissed"
-          }
-        },
-        "outreach": {
-          "proposal": {
-            "created": "Outreach drafted",
-            "sent": "Outreach sent",
-            "updated": "Outreach updated",
-            "dismissed": "Outreach dismissed"
-          }
-        }
-      }
+      "empty": "No events yet."
     },
     "agents": {
       "eyebrow": "Access · Agents",

@@ -261,9 +261,15 @@
         "hours": "{n}t",
         "days": "{n}d"
       },
-      "latestActivity": {
-        "eyebrow": "Siste aktivitet",
-        "meta": "Siste 7 dager · alle kanaler"
+      "recentConversations": {
+        "eyebrow": "Siste samtaler",
+        "meta": "Alle kanaler",
+        "untitled": "Samtale #{displayId}",
+        "status": {
+          "snoozed": "utsatt",
+          "closed": "lukket",
+          "spam": "spam"
+        }
       }
     },
     "activity": {
@@ -276,65 +282,7 @@
       "colType": "Type",
       "colActor": "Aktør",
       "colDetail": "Detalj",
-      "empty": "Ingen hendelser ennå.",
-      "types": {
-        "conversation": {
-          "created": "Startet en samtale",
-          "assigned": "Samtale tildelt",
-          "status_changed": "Samtalestatus endret",
-          "handover_requested": "Overlevering forespurt",
-          "handover_resolved": "Overlevering løst",
-          "agent_mode_changed": "Agentmodus endret",
-          "taken_over": "Samtale overtatt",
-          "released": "Samtale frigjort",
-          "greet_requested": "Hilsen forespurt",
-          "message": {
-            "received": "Melding mottatt",
-            "sent": "Melding sendt",
-            "read": "Melding lest",
-            "opened": "E-post åpnet"
-          },
-          "voice": {
-            "call_ended": "Talesamtale avsluttet"
-          }
-        },
-        "kb": {
-          "document": {
-            "created": "KB-dokument opprettet",
-            "updated": "KB-dokument oppdatert",
-            "deleted": "KB-dokument slettet"
-          }
-        },
-        "crm": {
-          "contact": {
-            "created": "Kontakt opprettet",
-            "updated": "Kontakt oppdatert"
-          },
-          "company": {
-            "created": "Selskap opprettet"
-          },
-          "deal": {
-            "created": "Avtale opprettet",
-            "stage_changed": "Avtalefase endret"
-          },
-          "activity": {
-            "logged": "CRM-aktivitet loggført"
-          },
-          "merge_proposal": {
-            "proposed": "Sammenslåing foreslått",
-            "applied": "Sammenslåing utført",
-            "dismissed": "Sammenslåing avvist"
-          }
-        },
-        "outreach": {
-          "proposal": {
-            "created": "Utgående utkast laget",
-            "sent": "Utgående sendt",
-            "updated": "Utgående oppdatert",
-            "dismissed": "Utgående avvist"
-          }
-        }
-      }
+      "empty": "Ingen hendelser ennå."
     },
     "agents": {
       "eyebrow": "Tilgang · Agenter",

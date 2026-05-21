@@ -260,6 +260,16 @@
         "minutes": "{n}m",
         "hours": "{n}h",
         "days": "{n}d"
+      },
+      "recentConversations": {
+        "eyebrow": "Last conversations",
+        "meta": "All channels",
+        "untitled": "Conversation #{displayId}",
+        "status": {
+          "snoozed": "snoozed",
+          "closed": "closed",
+          "spam": "spam"
+        }
       }
     },
     "activity": {

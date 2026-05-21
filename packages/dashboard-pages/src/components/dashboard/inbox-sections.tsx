@@ -13,6 +13,7 @@ import {
 } from '@getmunin/ui';
 import { api, ApiError } from '../../api';
 import { notify } from '../../lib/notify';
+import { useRelative } from '../../lib/use-relative';
 import { useRealtime, type RealtimeStatus, type SubscriptionChannel } from '../../realtime';
 
 type Status = 'open' | 'snoozed' | 'closed' | 'spam';
@@ -642,15 +643,15 @@ export function QueueSection({ controller }: { controller: InboxController }) {
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <div className="flex items-baseline justify-between gap-4 border-b-[0.5px] border-rule-soft pb-2.5 dark:border-rule-on-dark">
+        <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground">
           {t('eyebrow')} · {queue.length}
         </h2>
         <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
           {t('sortedByRecency')}
         </span>
       </div>
-      <ul className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+      <ul>
         {queue.map((q) => (
           <QueueRow
             key={`${q.kind}-${q.id}`}
@@ -953,9 +954,9 @@ function QueueRow({
   const labelKey =
     item.kind === 'outreach' ? 'kindOutreach' : item.kind === 'kb' ? 'kindKb' : 'kindCrm';
   return (
-    <li>
+    <li className="border-b-[0.5px] border-rule-soft last:border-b-0 dark:border-rule-on-dark">
       <div
-        className="group/qrow relative flex items-center gap-4 border-b-[0.5px] border-rule-soft px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:border-rule-on-dark dark:hover:bg-secondary"
+        className="group/qrow relative flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
         onClick={onOpen}
         role="button"
         tabIndex={0}
@@ -1770,20 +1771,6 @@ function useCmdEnter(handler: () => void) {
   }, [handler]);
 }
 
-function useRelative() {
-  const t = useTranslations('dashboard.overview.relative');
-  return useCallback(
-    (iso: string): string => {
-      const d = new Date(iso).getTime();
-      const diff = Date.now() - d;
-      if (diff < 60_000) return t('justNow');
-      if (diff < 3_600_000) return t('minutes', { n: Math.floor(diff / 60_000) });
-      if (diff < 86_400_000) return t('hours', { n: Math.floor(diff / 3_600_000) });
-      return t('days', { n: Math.floor(diff / 86_400_000) });
-    },
-    [t],
-  );
-}
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + '…' : s;

@@ -27,7 +27,7 @@ export function UsageKpis({ summary }: UsageKpisProps) {
 
   return (
     <section className="min-w-0">
-      <div className="flex items-baseline justify-between gap-4 border-b-[0.5px] border-ink pb-2.5 mb-3.5 dark:border-foreground">
+      <div className="flex items-baseline justify-between gap-4 border-b-[0.5px] border-rule-soft pb-2.5 mb-3.5 dark:border-rule-on-dark">
         <Eyebrow tone="ink" size="sm" className="font-medium">
           {t('headline')}
         </Eyebrow>

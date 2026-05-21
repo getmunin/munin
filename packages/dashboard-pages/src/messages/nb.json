@@ -260,6 +260,16 @@
         "minutes": "{n}m",
         "hours": "{n}t",
         "days": "{n}d"
+      },
+      "recentConversations": {
+        "eyebrow": "Siste samtaler",
+        "meta": "Alle kanaler",
+        "untitled": "Samtale #{displayId}",
+        "status": {
+          "snoozed": "utsatt",
+          "closed": "lukket",
+          "spam": "spam"
+        }
       }
     },
     "activity": {

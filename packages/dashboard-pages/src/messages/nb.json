@@ -807,7 +807,7 @@
     },
     "account": {
       "eyebrow": "Arbeidsområde · Konto",
-      "title": "Ditt <em>arbeidsområde</em>.",
+      "title": "Din <em>grein</em>.",
       "subtitle": "Innstillinger som gjelder hele organisasjonen.",
       "orgSectionTitle": "Organisasjon",
       "orgNameLabel": "Organisasjonsnavn",

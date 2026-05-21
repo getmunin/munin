@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '../i18n-navigation';
 
 export interface SearchHit {
   kind: 'rest' | 'mcp' | 'skill';

@@ -1,4 +1,4 @@
-import mcpFixture from '../../../../../../packages/backend-core/docs-fixtures/mcp-tools.json';
+import mcpFixture from '@getmunin/backend-core/docs-fixtures/mcp-tools.json';
 
 export interface McpTool {
   name: string;

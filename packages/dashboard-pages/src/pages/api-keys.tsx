@@ -115,12 +115,13 @@ export function ApiKeysPage() {
         ) : keys.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
+          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full">
             <thead>
               <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tableName')}</Th>
-                <Th>{t('tablePrefix')}</Th>
-                <Th>{t('tableCreated')}</Th>
+                <Th className="hidden md:table-cell">{t('tablePrefix')}</Th>
+                <Th className="hidden md:table-cell">{t('tableCreated')}</Th>
                 <Th>{t('tableLastUsed')}</Th>
                 <Th className="text-right" />
               </tr>
@@ -131,8 +132,8 @@ export function ApiKeysPage() {
                   <td className="py-4 pr-4 text-sm font-medium text-ink dark:text-foreground">
                     {k.name}
                   </td>
-                  <td className="py-4 pr-4 font-mono text-xs text-ink-mute">{k.prefix}…</td>
-                  <td className="py-4 pr-4 font-mono text-xs text-ink-mute">
+                  <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">{k.prefix}…</td>
+                  <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">
                     {format.dateTime(new Date(k.createdAt), {
                       month: 'short',
                       day: 'numeric',
@@ -162,6 +163,7 @@ export function ApiKeysPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 

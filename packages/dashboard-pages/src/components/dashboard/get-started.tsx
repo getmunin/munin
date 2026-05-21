@@ -25,7 +25,7 @@ export function GetStarted() {
   }
 
   return (
-    <section className="border-t-[0.5px] border-rule-soft pt-14 dark:border-rule-on-dark">
+    <section className="pt-14">
       <header className="mb-8 max-w-xl space-y-2">
         <Eyebrow tone="muted">{t('eyebrow')}</Eyebrow>
         <h2 className="font-serif text-3xl md:text-4xl leading-[1.0] font-normal tracking-tight text-ink dark:text-foreground">
@@ -42,7 +42,7 @@ export function GetStarted() {
 
       <div className="grid gap-9 md:grid-cols-[1.05fr_1fr] items-start">
         {/* MCP setup column */}
-        <div>
+        <div className="min-w-0">
           <div className="flex justify-between items-baseline border-b-[0.5px] border-ink pb-2.5 mb-4 dark:border-foreground">
             <Eyebrow tone="ink" size="sm" className="font-medium">
               {t('connectMcp')}
@@ -125,7 +125,7 @@ export function GetStarted() {
         </div>
 
         {/* Recipes column */}
-        <div>
+        <div className="min-w-0">
           <div className="flex justify-between items-baseline border-b-[0.5px] border-ink pb-2.5 mb-4 dark:border-foreground">
             <Eyebrow tone="ink" size="sm" className="font-medium">
               {t('recipesEyebrow')}

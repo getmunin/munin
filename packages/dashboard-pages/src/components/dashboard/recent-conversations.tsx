@@ -114,7 +114,7 @@ function ConversationRow({
   const ts = conv.lastMessageAt ?? conv.updatedAt;
 
   return (
-    <li className="border-b-[0.5px] border-rule-soft last:border-b-0 dark:border-rule-on-dark">
+    <li className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
       <div
         className="group/cnvrow relative flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
         onClick={onOpen}
@@ -127,10 +127,10 @@ function ConversationRow({
           }
         }}
       >
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 truncate">
           <span className="text-sm font-medium text-ink dark:text-foreground">{title}</span>
           {preview ? (
-            <span className="ml-2 truncate text-sm text-ink-mute"> — {preview}</span>
+            <span className="ml-2 text-sm text-ink-mute"> — {preview}</span>
           ) : conv.status !== 'open' ? (
             <span className="ml-2 text-sm text-ink-mute"> — {t(`status.${conv.status}`)}</span>
           ) : null}

@@ -587,6 +587,15 @@ const skipReason = TEST_URL
         arguments: { channelId, requireVerifiedIdentity: true },
       });
     });
+    await waitFor(async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, channelId));
+      const c = rows[0]!.config as { requireVerifiedIdentity?: boolean };
+      return c.requireVerifiedIdentity === true;
+    });
     try {
       const anon = await call('POST', '/api/v1/widget/messages', widgetKey, {
         channelId,
@@ -611,6 +620,15 @@ const skipReason = TEST_URL
           name: 'conv_widget_update_channel',
           arguments: { channelId, requireVerifiedIdentity: false },
         });
+      });
+      await waitFor(async () => {
+        await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+        const rows = await db
+          .select({ config: schema.convChannels.config })
+          .from(schema.convChannels)
+          .where(eq(schema.convChannels.id, channelId));
+        const c = rows[0]!.config as { requireVerifiedIdentity?: boolean };
+        return c.requireVerifiedIdentity === false;
       });
     }
   });

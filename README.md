@@ -2,17 +2,20 @@
 
 > MCP-first headless business app suite. The agent is the UI.
 
-Munin is an open-source business app suite (Knowledge Base, Conversations, CRM, CMS) where the only interface is via AI agents. There is no traditional admin UI for the apps themselves — agents bootstrap each app by asking you configuration questions in conversation.
+Munin is an open-source business app suite (Knowledge Base, Conversations, CRM, CMS, Outreach) where the only interface is via AI agents. There is no traditional admin UI for the apps themselves — every action runs through MCP tools, callable from any MCP-compatible client.
 
 **Status:** v0.4 in active development. Private during initial build; flips public at first release.
 
 ## What's in the box
 
-- **Knowledge Base** — markdown documents, hybrid search (BM25 + pgvector embeddings)
-- **Conversations** — multi-channel threads (email, voice, chat) routed through end-users, assignable, agent-resolvable
-- **CRM** — contacts, companies, deals, activities, with relationship graph and AI-native fields
-- **CMS** — agent-authored content collections with scheduled publishing and a public delivery API
-- **Cross-cutting** — agent-driven feedback/voting, audit log, webhooks, team invites
+- **Knowledge Base** — markdown documents, hybrid search (BM25 + pgvector embeddings), per-document audience scoping.
+- **Conversations** — multi-channel threads (email, voice via Vapi, SMS via Twilio/MessageBird, chat widget) routed to end-users, assignable, agent-resolvable, with handover state and webhook fan-out.
+- **CRM** — contacts, companies, deals, activities, pipelines, segments, plus a merge-proposal queue the `clean-contact-data` curator runs against.
+- **CMS** — agent-authored content collections with field schemas, localized entries, scheduled publishing, an asset library backed by S3-compatible storage, and a public delivery API.
+- **Outreach** — propose-only outbound emails: campaigns + segments + drafts queued for human approval; never auto-sends.
+- **Curator** — durable background job queue running skills (KB curation, CRM hygiene, contact extraction, stale-content review, outreach drafts) on a schedule with retry + dead-letter.
+- **Playbooks + skills** — packaged markdown procedures (`skill://module/<verb-object>`) the agent reads via MCP resources to follow multi-step flows.
+- **Cross-cutting** — audit log, webhooks, team invites, OAuth 2.1 dynamic-client registration, BetterAuth-backed sign-in.
 
 ## Two ways to run
 
@@ -20,10 +23,10 @@ Munin is an open-source business app suite (Knowledge Base, Conversations, CRM, 
 ```bash
 git clone https://github.com/getmunin/munin.git
 cd munin
-cp .env.example .env  # edit MUNIN_AUTH_SECRET + MUNIN_KEY_PEPPER
+cp .env.example .env  # edit MUNIN_AUTH_SECRET + MUNIN_KEY_PEPPER + MUNIN_ENCRYPTION_KEY
 docker compose up
 ```
-The first user to sign up becomes the org admin; subsequent users need an invitation token. Optional `MUNIN_ALLOWED_EMAIL_DOMAINS` allows a trusted-domain allowlist.
+The first user to sign up becomes the org admin; subsequent users need an invitation token or an email whose domain is in `MUNIN_ALLOWED_EMAIL_DOMAINS`.
 
 **Hosted** (https://getmunin.com): multi-tenant, one signup per org.
 
@@ -31,7 +34,7 @@ The first user to sign up becomes the org admin; subsequent users need an invita
 
 Once you've signed up (hosted) or run `docker compose up` (self-host), point your MCP client at the URL.
 
-**Claude Desktop / Code** — add to your `claude_desktop_config.json`:
+**Claude Desktop / Code** — add to your MCP config:
 
 ```json
 {
@@ -43,34 +46,33 @@ Once you've signed up (hosted) or run `docker compose up` (self-host), point you
 }
 ```
 
-(For the hosted version, swap in `https://mcp.getmunin.com`.) The first call triggers an OAuth consent screen in your browser, then your agent has the full tool surface (KB, conversations, CRM, CMS, suggestions).
+(For the hosted version, swap in `https://mcp.getmunin.com`.) The first call triggers an OAuth consent screen in your browser, then your agent has the full tool surface — Knowledge Base, Conversations, CRM, CMS, Outreach.
 
 ## Two trust contexts, one MCP endpoint
 
 The same `/mcp` endpoint serves two distinct callers, audience-aware:
 
-- **Admin agents** (Claude Desktop, Cursor, internal automation) — OAuth-authorized by you. Full tool surface.
+- **Admin agents** (Claude Desktop, Cursor, internal automation) — OAuth-authorized by you. Full tool surface, scope-gated per `kb:*`, `conv:*`, `crm:*`, `cms:*`, `outreach:*`.
 - **End-user agents** (your voice AI, web chatbot, mobile app helper) — short-lived delegated tokens minted server-side from your backend, scoped to one of your end-users. Only self-service tools (read your own contact, send a message in your own conversation).
 
 See `packages/backend-core/src/control/delegated-token.controller.ts` for the token-mint API. The `@getmunin/sdk` Node client wraps it.
 
-## Community ideas
-
-Public ideas the community has voted on: https://getmunin.com/suggestions — agents file these via the `suggestion_create` MCP tool and orgs publish the ones worth sharing.
-
 ## Architecture sketch
 
-- `apps/backend` — thin NestJS entry composing `@getmunin/backend-core` modules with single-tenant `AuthModule`. Exposes MCP server (Streamable HTTP), OAuth 2.1 server, and control-plane REST API on port 3001.
+- `apps/backend` — thin NestJS entry composing `@getmunin/backend-core` modules with single-tenant `AuthModule`. Exposes the MCP server (Streamable HTTP), OAuth 2.1 + OIDC discovery, and the control-plane REST API on port 3001.
 - `apps/web` — Next.js dashboard + landing on port 3000.
-- `packages/backend-core` — every shared NestJS module (KB, conversations, CRM, CMS, suggestions, MCP, control plane, audit, tenancy, RLS, mailer, storage, webhooks, rate limit, quotas) plus `createApp` and the `createAuthController` helper. Cloud composes the same modules with multi-tenant auth.
+- `apps/chat-widget` — embeddable browser widget that consumes a `mn_widget_*` key and the widget ingest API.
+- `packages/backend-core` — every shared NestJS module (KB, Conversations, CRM, CMS, Outreach, Curator, Web, Playbooks, MCP, control plane, audit, tenancy, RLS, mailer, storage, webhooks, rate limit, quotas, OAuth) plus `createApp` and the `createAuthController` helper. Cloud composes the same modules with multi-tenant auth.
 - `packages/dashboard-pages` — dashboard page components shared between OSS and cloud webs.
 - `packages/ui` — design-system primitives (shadcn-style).
-- `packages/{core, db, types, sdk, mcp-toolkit, bootstrap}` — non-Nest building blocks (actor identity, schema, MCP toolkit, etc.)
+- `packages/{core, db, types, sdk, mcp-toolkit}` — non-Nest building blocks: actor identity + tenancy GUCs, Drizzle schema + migrations, shared types, Node client SDK, MCP `@McpTool` / `@SkillRegistry` decorators.
+- `packages/{agent-host, agent-runtime}` — durable per-org agent runner that picks curator jobs off the queue and executes them against the configured LLM provider.
+- `packages/widget-voice` — Vapi-backed voice glue for the chat widget.
 - All `@getmunin/*` packages are published to GitHub Packages.
 
 ## Stack
 
-TypeScript · Node 24 LTS · Turborepo · pnpm · NestJS · Next.js · Drizzle · Postgres + pgvector · MCP Streamable HTTP · BetterAuth
+TypeScript · Node 24 LTS · Turborepo · pnpm · NestJS · Next.js · Drizzle · Postgres + pgvector · MCP Streamable HTTP · BetterAuth + OAuth 2.1 dynamic client registration
 
 ## License
 

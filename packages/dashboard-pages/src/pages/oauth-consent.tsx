@@ -12,6 +12,51 @@ interface OAuthConsentResponse {
   redirect_uri?: string;
 }
 
+interface OAuthClientInfo {
+  client_id: string;
+  name: string | null;
+  uri: string | null;
+  icon: string | null;
+}
+
+const HIDDEN_SCOPES = new Set([
+  'openid',
+  'profile',
+  'email',
+  'offline_access',
+  'mcp:tools',
+  'mcp:admin',
+  'mcp:self_service',
+]);
+
+const MODULE_ORDER = ['kb', 'conv', 'crm', 'cms', 'outreach'] as const;
+type ModuleKey = (typeof MODULE_ORDER)[number];
+
+interface ModuleScopes {
+  module: ModuleKey;
+  read: boolean;
+  write: boolean;
+}
+
+function groupScopes(scopes: string[]): ModuleScopes[] {
+  const known = new Set<string>(MODULE_ORDER);
+  const map = new Map<ModuleKey, ModuleScopes>();
+  for (const scope of scopes) {
+    if (HIDDEN_SCOPES.has(scope)) continue;
+    const [mod, action] = scope.split(':', 2);
+    if (!mod || !action || !known.has(mod)) continue;
+    const key = mod as ModuleKey;
+    let entry = map.get(key);
+    if (!entry) {
+      entry = { module: key, read: false, write: false };
+      map.set(key, entry);
+    }
+    if (action === 'read') entry.read = true;
+    if (action === 'write') entry.write = true;
+  }
+  return MODULE_ORDER.filter((m) => map.has(m)).map((m) => map.get(m)!);
+}
+
 export function OAuthConsentPage() {
   const t = useTranslations('dashboard.oauthConsent');
   const translate = useTranslateError();
@@ -29,7 +74,9 @@ export function OAuthConsentPage() {
     () => (scopeRaw ? scopeRaw.split(/\s+/).filter(Boolean) : []),
     [scopeRaw],
   );
+  const groupedScopes = useMemo(() => groupScopes(scopes), [scopes]);
 
+  const [clientInfo, setClientInfo] = useState<OAuthClientInfo | null>(null);
   const [busy, setBusy] = useState<'allow' | 'deny' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +86,22 @@ export function OAuthConsentPage() {
       window.location.assign(`/login?next=${next}`);
     }
   }, [isPending, session]);
+
+  useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const info = await api<OAuthClientInfo>(`/api/v1/oauth/clients/${encodeURIComponent(clientId)}`);
+        if (!cancelled) setClientInfo(info);
+      } catch {
+        // 404 or other failure — fall back to displaying the client_id verbatim.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
 
   if (isPending || !session) {
     return <PageSpinner className="min-h-screen bg-bone dark:bg-background" />;
@@ -53,6 +116,8 @@ export function OAuthConsentPage() {
       </div>
     );
   }
+
+  const displayName = clientInfo?.name?.trim() ? clientInfo.name : clientId;
 
   async function submit(accept: boolean) {
     setBusy(accept ? 'allow' : 'deny');
@@ -78,7 +143,7 @@ export function OAuthConsentPage() {
           title={
             <>
               {t.rich('title', {
-                client: () => <em>{clientId}</em>,
+                client: () => <em>{displayName}</em>,
               })}
             </>
           }
@@ -91,24 +156,39 @@ export function OAuthConsentPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 {t('applicationLabel')}
               </p>
-              <p className="mt-1 font-mono text-sm">{clientId}</p>
+              <p className="mt-1 text-sm">
+                {clientInfo?.name?.trim() ? clientInfo.name : <span className="font-mono">{clientId}</span>}
+              </p>
+              {clientInfo?.uri && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  <a className="underline" href={clientInfo.uri} target="_blank" rel="noreferrer">
+                    {clientInfo.uri}
+                  </a>
+                </p>
+              )}
             </div>
 
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 {t('scopesLabel')}
               </p>
-              {scopes.length === 0 ? (
-                <p className="mt-1 text-sm text-muted-foreground">{t('noScopes')}</p>
+              {groupedScopes.length === 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">{t('noModuleScopes')}</p>
               ) : (
-                <ul className="mt-2 space-y-1">
-                  {scopes.map((scope) => (
-                    <li key={scope} className="font-mono text-sm">
-                      {scope}
+                <ul className="mt-2 space-y-2">
+                  {groupedScopes.map(({ module, read, write }) => (
+                    <li key={module} className="text-sm">
+                      <span className="font-medium">{t(`modules.${module}`)}</span>
+                      <span className="ml-2 text-muted-foreground">
+                        {[read ? t('actions.read') : null, write ? t('actions.write') : null]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
                     </li>
                   ))}
                 </ul>
               )}
+              <p className="mt-3 text-xs text-muted-foreground">{t('standardDisclosure')}</p>
             </div>
 
             {error && (

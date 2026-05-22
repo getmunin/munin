@@ -1,11 +1,10 @@
 ---
-title: KB bulk article import (CSV / JSON)
+title: Import articles in bulk from CSV or JSON
 description: Generalized bulk import pipeline for KB articles from any structured source. Companion to import-from-google-docs — that one covers chunking; this one covers source handling and idempotency.
 audiences: [admin]
 ---
 
-# KB bulk article import (CSV / JSON)
-
+# Import articles in bulk from CSV or JSON
 Import a list of articles into the knowledge base from any structured source — CSV export, JSON dump, scraped help-center pages. The hard part isn't calling `kb_create_document`; it's making the import idempotent so a partial run can resume, and applying the right chunking so search performs well later.
 
 > **Read first:** `skill://kb/import-from-google-docs` covers the chunking strategy (whole-doc vs split-by-H2), tagging conventions, and what the embedding pipeline actually does. This skill assumes you've absorbed that and focuses on the source-format and idempotency layers.
@@ -24,7 +23,7 @@ Import a list of articles into the knowledge base from any structured source —
 { "name": "kb_list_spaces", "arguments": {} }
 ```
 
-If none fits the source's audience, `kb_create_space` first (or guide through `skill://kb/kb-onboarding`).
+If none fits the source's audience, `kb_create_space` first (or guide through `skill://kb/create-first-space`).
 
 ## Step 2 — validate the source
 
@@ -101,4 +100,4 @@ Then count: search by the import-tag prefix and confirm the count matches your s
 ## Related
 
 - `skill://kb/import-from-google-docs` — chunking + embedding details (read first).
-- `skill://kb/kb-onboarding` — creating the space if you don't have one.
+- `skill://kb/create-first-space` — creating the space if you don't have one.

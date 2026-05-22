@@ -1,11 +1,10 @@
 ---
-title: KB onboarding (first space + welcome doc)
+title: Create the first knowledge-base space
 description: Stand up a fresh org's knowledge base — pick a space taxonomy, create the first space, optionally seed a welcome doc.
 audiences: [admin]
 ---
 
-# KB onboarding (first space + welcome doc)
-
+# Create the first knowledge-base space
 A new org has zero KB spaces. Before the team can write articles or an agent can call `kb_search`, at least one space must exist.
 
 ## TL;DR
@@ -13,7 +12,7 @@ A new org has zero KB spaces. Before the team can write articles or an agent can
 1. `kb_list_spaces` — see whether a space already exists.
 2. If empty: `kb_create_space({ name, slug, description? })`.
 3. (Optional) `kb_create_document({ spaceId, title, body, audiences })` to seed a welcome doc.
-4. Hand off to `skill://kb/article-bulk-import` or `skill://kb/import-from-google-docs` for content.
+4. Hand off to `skill://kb/import-articles-in-bulk` or `skill://kb/import-from-google-docs` for content.
 
 ## Step 1 — check current state
 
@@ -62,7 +61,7 @@ The body is markdown; chunking and tagging guidance lives in `skill://kb/import-
 For more spaces, call `kb_create_space` again. For bulk content seeding, follow:
 
 - `skill://kb/import-from-google-docs` — chunking strategy, embedding behavior, FTS performance.
-- `skill://kb/article-bulk-import` — generalized CSV/JSON pipeline.
+- `skill://kb/import-articles-in-bulk` — generalized CSV/JSON pipeline.
 
 ## What NOT to do
 
@@ -73,4 +72,4 @@ For more spaces, call `kb_create_space` again. For bulk content seeding, follow:
 ## Related
 
 - `skill://kb/import-from-google-docs` — chunking + embeddings deep-dive.
-- `skill://kb/article-bulk-import` — generalized bulk pipeline.
+- `skill://kb/import-articles-in-bulk` — generalized bulk pipeline.

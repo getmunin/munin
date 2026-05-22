@@ -1,11 +1,10 @@
 ---
-title: Customer onboarding (CRM)
+title: Onboard a new customer
 description: Recommended sequence for capturing a new customer, attaching them to a company, and seeding the AI summary that drives later prioritization.
 audiences: [admin]
 ---
 
-# Customer onboarding (CRM)
-
+# Onboard a new customer
 ## TL;DR sequence
 
 1. `crm_find_contact` by email — avoid duplicates.

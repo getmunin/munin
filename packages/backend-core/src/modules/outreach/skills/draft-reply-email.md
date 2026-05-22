@@ -1,14 +1,13 @@
 ---
-title: Outreach — draft replies
+title: Draft an outreach reply
 description: Per-message curator pass that drafts a suggested reply when an inbound message lands on an outreach-originated conversation. Drafts go to the operator review queue — never auto-send. Triggered event-driven from `conversation.message.received` whenever the conversation has an `outreachCampaignId` and `agentMode='draft_only'`.
 audiences: [admin]
 ---
 
-# Outreach — draft replies
-
+# Draft an outreach reply
 When a prospect replies to an outreach email, that reply lands as an inbound message on the conversation we created from the approved initial. **The AI runner is configured to skip these conversations** (`agentMode='draft_only'`), so without this curator the conversation just sits there. Your job is to read the thread, draft a sensible reply, and file it as a `kind: 'reply'` proposal for human approval — same Review tab, same approve/dismiss flow as initials.
 
-This is fundamentally different from `skill://outreach/draft-initial`:
+This is fundamentally different from `skill://outreach/draft-initial-email`:
 
 - **Initial** is generative: campaign brief + KB context → personalized first email per contact.
 - **Reply** is reactive: read the inbound message + thread context → addressed-to-the-message reply.
@@ -102,6 +101,6 @@ Behavior:
 
 ## Related
 
-- `skill://outreach/draft-initial` — the symmetric pattern for first-touch emails.
-- `skill://kb/curation` — the original "drafted candidates, human approves" pattern this skill follows.
+- `skill://outreach/draft-initial-email` — the symmetric pattern for first-touch emails.
+- `skill://kb/review-content` — the original "drafted candidates, human approves" pattern this skill follows.
 - `agentMode` on `conv_conversations` — `'draft_only'` is what gates the AI runner from auto-replying. Outreach conversations get this set automatically when their initial is approved.

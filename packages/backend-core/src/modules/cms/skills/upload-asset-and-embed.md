@@ -1,11 +1,10 @@
 ---
-title: CMS asset upload + embed workflow
+title: Upload an asset and embed it
 description: Two-phase asset upload (request presigned URL → PUT binary → complete), embed in entries, and audit unused assets.
 audiences: [admin]
 ---
 
-# CMS asset upload + embed workflow
-
+# Upload an asset and embed it
 CMS assets are uploaded out-of-band: the server hands you a **presigned URL**, you PUT the file directly to object storage, then you tell the server the upload is done. This avoids streaming binaries through the MCP/HTTP layer.
 
 ## TL;DR
@@ -82,7 +81,7 @@ Asset references in entries are stored as the asset id (or a structured `{ asset
 }
 ```
 
-(Use `skill://cms/entry-publish-workflow` for the full update + publish dance.)
+(Use `skill://cms/publish-entry` for the full update + publish dance.)
 
 ## Auditing unused assets
 
@@ -110,5 +109,5 @@ Then inspect those entries to confirm.
 
 ## Related
 
-- `skill://cms/entry-publish-workflow` — the update + publish dance for the entry that embeds the asset.
-- `skill://cms/content-migration` — when you're moving assets along with entries.
+- `skill://cms/publish-entry` — the update + publish dance for the entry that embeds the asset.
+- `skill://cms/migrate-content` — when you're moving assets along with entries.

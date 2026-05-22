@@ -1,11 +1,10 @@
 ---
-title: CRM hygiene pass
+title: Clean up contact data
 description: Periodic curator pass — find duplicate / inconsistent contacts, file high-confidence pairs as structured merge proposals via crm_propose_merge_candidate. Designed to be run on a cadence by an admin agent (weekly is a good default). The operator reviews via crm_list_merge_proposals and resolves with crm_apply_merge_proposal / crm_dismiss_merge_proposal.
 audiences: [admin]
 ---
 
-# CRM hygiene pass
-
+# Clean up contact data
 CRM data drifts. Imports re-add contacts under a slightly different email. Humans type the same person's name three different ways. Two reps log activity against the same prospect under separate rows because neither searched first. Left alone, this turns the CRM into a haystack — searches return three half-rows where there should be one complete one, segments under-count, and the next bulk import re-creates duplicates because the dedup key drifted.
 
 This skill walks an admin agent through one periodic hygiene pass: pull contacts, find suspect pairs, judge each pair, and file high-confidence pairs as **structured merge proposals** via `crm_propose_merge_candidate`. A human (or trusted admin agent) then reviews each pending proposal and resolves it with `crm_apply_merge_proposal` (atomic patch + archive) or `crm_dismiss_merge_proposal` (records the rejection so the next curator pass skips the pair).
@@ -133,5 +132,5 @@ The dashboard "Needs attention" backlog card surfaces the count of pending propo
 
 ## Related
 
-- `skill://crm/contact-deduplication` — manual reconcile pattern (no proposals table). Documents the same archive convention `crm_apply_merge_proposal` uses, so the manual and automated paths produce identical end states.
-- `skill://kb/curation` — sibling curator pass for conversation → KB document proposals. Different domain, same "propose, don't apply" philosophy.
+- `skill://crm/deduplicate-contacts` — manual reconcile pattern (no proposals table). Documents the same archive convention `crm_apply_merge_proposal` uses, so the manual and automated paths produce identical end states.
+- `skill://kb/review-content` — sibling curator pass for conversation → KB document proposals. Different domain, same "propose, don't apply" philosophy.

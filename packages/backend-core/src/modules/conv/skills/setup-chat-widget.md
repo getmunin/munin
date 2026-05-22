@@ -1,11 +1,10 @@
 ---
-title: Chat-widget onboarding
+title: Set up a chat widget
 description: Provision a per-channel widget API key, push transcripts via POST /api/v1/widget/messages, and wire the human-handoff webhook.
 audiences: [admin]
 ---
 
-# Chat-widget onboarding
-
+# Set up a chat widget
 Lets an external AI agent running as a chat widget on a customer's website push transcripts into Munin's conversation module. Once the conversation is in Munin, a human in the dashboard can reply, and the customer's webhook receiver tells the external agent to step back.
 
 ## 1. Create the channel and mint a widget key

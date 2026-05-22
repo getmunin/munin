@@ -1,11 +1,10 @@
 ---
-title: CMS entry publish workflow
+title: Publish a CMS entry
 description: Move a CMS entry through draft → published — immediate, scheduled, or rolled back — without losing work to optimistic-lock conflicts.
 audiences: [admin]
 ---
 
-# CMS entry publish workflow
-
+# Publish a CMS entry
 Every CMS entry has a `status` (`draft | published | scheduled | archived`) and a monotonic `version`. Updates use **optimistic locking**: every write requires the `ifVersion` you read. If somebody else (human or worker) updated the entry between your read and write, the write fails and you must re-read.
 
 ## TL;DR
@@ -104,6 +103,6 @@ Restore is itself a write — it creates a *new* version (10) carrying the data 
 
 ## Related
 
-- `skill://cms/multilingual-content` — managing per-locale entries.
-- `skill://cms/asset-media-workflow` — how to embed assets in entry data.
-- `skill://cms/content-migration` — moving entries between collections.
+- `skill://cms/localize-entry` — managing per-locale entries.
+- `skill://cms/upload-asset-and-embed` — how to embed assets in entry data.
+- `skill://cms/migrate-content` — moving entries between collections.

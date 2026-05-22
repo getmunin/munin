@@ -1,11 +1,10 @@
 ---
-title: Multilingual CMS content
+title: Localize an entry
 description: Configure locales, author entries per language, and switch the org's default locale without breaking already-published entries.
 audiences: [admin]
 ---
 
-# Multilingual CMS content
-
+# Localize an entry
 Locales are org-scoped. Every entry stores its `locale` as a string column; if the locale is omitted on create, the org's default locale is used. There is **no automatic translation** — each locale is its own entry row, written by hand or imported.
 
 ## TL;DR
@@ -73,7 +72,7 @@ Repeat for each locale. Translations live in `data` — the field schema is per-
 
 ## Step 5 — publish per locale
 
-Use `skill://cms/entry-publish-workflow` for each entry. There is **no atomic "publish all locales" tool** — publish each one individually. If the order matters (e.g. you don't want the English version live while the Norwegian one is still missing), publish the secondary locales first and the canonical one last.
+Use `skill://cms/publish-entry` for each entry. There is **no atomic "publish all locales" tool** — publish each one individually. If the order matters (e.g. you don't want the English version live while the Norwegian one is still missing), publish the secondary locales first and the canonical one last.
 
 ## Switching the org's default locale
 
@@ -96,5 +95,5 @@ This atomically clears `isDefault` on every locale for the org and sets it on th
 
 ## Related
 
-- `skill://cms/entry-publish-workflow` — publishing each per-locale entry.
-- `skill://cms/content-migration` — bulk copying entries between locales.
+- `skill://cms/publish-entry` — publishing each per-locale entry.
+- `skill://cms/migrate-content` — bulk copying entries between locales.

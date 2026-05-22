@@ -1,11 +1,10 @@
 ---
-title: Lead import and scoring (CRM)
+title: Import and score leads
 description: Bulk-import contacts, attach them to companies and a deal pipeline, log the source touchpoint, and seed AI summaries for downstream prioritization.
 audiences: [admin]
 ---
 
-# Lead import and scoring (CRM)
-
+# Import and score leads
 When a customer hands you a list of leads (CSV from a webinar, scraped from an event registration, exported from a marketing tool), you want to land them in the CRM **without duplicates**, attach them to companies, link them to a sales pipeline, and seed an AI summary that drives later prioritization.
 
 ## TL;DR
@@ -90,7 +89,7 @@ Pick the right pipeline. For each lead worth pursuing:
 }
 ```
 
-If `stageId` is omitted, the deal lands in the pipeline's first stage. Use `crm_change_stage` later to advance — see `skill://crm/deal-progression`.
+If `stageId` is omitted, the deal lands in the pipeline's first stage. Use `crm_change_stage` later to advance — see `skill://crm/progress-deal-through-pipeline`.
 
 ## Step 4 — log the source touchpoint
 
@@ -136,7 +135,7 @@ Both `summary` and `nextAction` are free-text. `null` clears the field. Also set
 
 ## Related
 
-- `skill://crm/customer-onboarding` — slower path for a single named customer.
-- `skill://crm/contact-deduplication` — what to do when a list has overlap with existing contacts.
-- `skill://crm/deal-progression` — moving the new deals through stages.
+- `skill://crm/onboard-new-customer` — slower path for a single named customer.
+- `skill://crm/deduplicate-contacts` — what to do when a list has overlap with existing contacts.
+- `skill://crm/progress-deal-through-pipeline` — moving the new deals through stages.
 - `skill://playbooks/customer-acquisition` — end-to-end CRM + Conv flow that starts from this import.

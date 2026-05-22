@@ -1,16 +1,15 @@
 ---
-title: Outreach — draft initial emails
+title: Draft an initial outreach email
 description: Periodic curator pass that drafts personalised first-touch outreach emails for every enabled campaign. One pending proposal per (campaign, contact). Drafts go into the operator review queue — never auto-send. Runs weekly by default; the operator approves each draft before it leaves the org.
 audiences: [admin]
 ---
 
-# Outreach — draft initial emails
-
+# Draft an initial outreach email
 Operators set up campaigns (`outreach_create_campaign`) with a one-paragraph **brief** and a target **CRM segment**. Your job in a pass is to materialise the segment, draft a personalised first-touch email per contact, and file each draft as a pending **proposal** for human review. **You never send anything.** The operator approves each proposal one by one (or a trusted admin agent does on their behalf), at which point the system sends via the campaign's email channel and threads any reply back into the same conversation.
 
-This pass is symmetric with `skill://kb/curation` (drafted candidates) but for outreach instead of KB. Always-propose is non-negotiable: an LLM-drafted cold email going straight to a prospect is exactly how you ship a tone-deaf message you can't take back. Human approval is the system invariant.
+This pass is symmetric with `skill://kb/review-content` (drafted candidates) but for outreach instead of KB. Always-propose is non-negotiable: an LLM-drafted cold email going straight to a prospect is exactly how you ship a tone-deaf message you can't take back. Human approval is the system invariant.
 
-A separate `skill://crm/hygiene` runs weekly to merge any duplicate contacts this and other curators leave behind. Don't try to do hygiene's job here — keep the per-campaign pass narrow.
+A separate `skill://crm/clean-contact-data` runs weekly to merge any duplicate contacts this and other curators leave behind. Don't try to do hygiene's job here — keep the per-campaign pass narrow.
 
 ## TL;DR
 
@@ -110,10 +109,10 @@ Out of scope for this skill. The operator (or a trusted admin agent acting on th
 - **Don't fabricate facts.** If the brief says "we shipped feature X" and KB has no doc on X, write at a higher level. Better to send a vaguer email than a confidently wrong one.
 - **Don't write headings or pseudo-templates.** No `# Hello {name}` or `## About us`. Real emails are plain prose.
 - **Don't include an unsubscribe link in the draft body.** The system appends one. If you write your own, the operator will see two and the system one is the only signed/verifiable one.
-- **Don't propose a reply.** PR3 ships `outreach_propose_reply` and a separate skill (`skill://outreach/draft-reply`). For now, you only file `kind: "initial"`.
+- **Don't propose a reply.** PR3 ships `outreach_propose_reply` and a separate skill (`skill://outreach/draft-reply-email`). For now, you only file `kind: "initial"`.
 
 ## Related
 
-- `skill://kb/curation` — symmetric pattern (per-conversation curator that proposes, human approves) for KB instead of outreach.
-- `skill://crm/hygiene` — population-level dedup that catches duplicates this and other curators create.
-- `skill://crm/contact-extract` — auto-applied (NOT propose-and-review) per-conversation contact creation. The asymmetry vs this skill: extracting what the user typed is faithful transcription; drafting outreach is generative — different risk profiles.
+- `skill://kb/review-content` — symmetric pattern (per-conversation curator that proposes, human approves) for KB instead of outreach.
+- `skill://crm/clean-contact-data` — population-level dedup that catches duplicates this and other curators create.
+- `skill://crm/extract-contact-from-message` — auto-applied (NOT propose-and-review) per-conversation contact creation. The asymmetry vs this skill: extracting what the user typed is faithful transcription; drafting outreach is generative — different risk profiles.

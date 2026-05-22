@@ -1,17 +1,16 @@
 ---
-title: Bulk channel setup (email + widget)
+title: Set up email and chat-widget channels together
 description: Stand up email + widget conversation channels for a new tenant in one pass — configure, test, hand off.
 audiences: [admin]
 ---
 
-# Bulk channel setup (email + widget)
-
+# Set up email and chat-widget channels together
 A common onboarding shape for a new customer: they want both an email channel for ticket-style threads and a chat-widget channel for their website. This skill orchestrates both — it doesn't reproduce the per-channel detail, it points to the per-channel skills for the specifics.
 
 > **Read alongside:**
-> - `skill://conv/email-channel-setup` — full SMTP/IMAP config detail.
-> - `skill://conv/widget-onboarding` — widget key minting + push transcript flow.
-> - `skill://conv/handoff-from-ai-agent` — once a human is involved, how the external bot yields.
+> - `skill://conv/setup-email-channel` — full SMTP/IMAP config detail.
+> - `skill://conv/setup-chat-widget` — widget key minting + push transcript flow.
+> - `skill://conv/escalate-to-human` — once a human is involved, how the external bot yields.
 
 ## TL;DR
 
@@ -31,7 +30,7 @@ Lists existing channels and their `active` flag. If the org already has an email
 
 ## Step 2 — email channel
 
-Per `skill://conv/email-channel-setup`, gather:
+Per `skill://conv/setup-email-channel`, gather:
 - `fromAddress` — the real mailbox the customer controls.
 - Outbound mode: `smtp` (host, port, secure, username, password) or `mailer` (Munin's configured Resend).
 - Inbound mode: `imap` (host, port, secure, username, password, mailbox), or skip if the customer will forward to a `MUNIN_EMAIL_REPLY_DOMAIN` address.
@@ -64,7 +63,7 @@ Returns `{ smtp: 'ok'|'error: …', imap: 'ok'|'error: …'|'not configured' }`.
 
 ## Step 3 — widget channel
 
-Per `skill://conv/widget-onboarding`:
+Per `skill://conv/setup-chat-widget`:
 
 ```jsonc
 {
@@ -80,7 +79,7 @@ Response includes `widgetKey: "mn_widget_..."` — **shown once**. Hand it to th
 
 `originAllowlist` is enforced on every push from the widget endpoint; setting it correctly here saves a CORS bug report later.
 
-If the customer wants escalation webhooks (their bot should yield when a human in Munin replies), point them at `skill://conv/handoff-from-ai-agent` — handoff uses the standard `conversation.message.sent` webhook, not a widget-specific one.
+If the customer wants escalation webhooks (their bot should yield when a human in Munin replies), point them at `skill://conv/escalate-to-human` — handoff uses the standard `conversation.message.sent` webhook, not a widget-specific one.
 
 ## Step 4 — confirm
 
@@ -110,7 +109,7 @@ Topics are conversation labels that route inbound messages to the right humans. 
 
 ## Related
 
-- `skill://conv/email-channel-setup` — detailed SMTP/IMAP config.
-- `skill://conv/widget-onboarding` — push transcript flow + key minting.
-- `skill://conv/handoff-from-ai-agent` — webhook-based handoff.
+- `skill://conv/setup-email-channel` — detailed SMTP/IMAP config.
+- `skill://conv/setup-chat-widget` — push transcript flow + key minting.
+- `skill://conv/escalate-to-human` — webhook-based handoff.
 - `skill://playbooks/support-desk-launch` — full support desk stand-up across conv + crm + kb.

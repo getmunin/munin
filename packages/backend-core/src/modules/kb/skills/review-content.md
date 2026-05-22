@@ -1,11 +1,10 @@
 ---
-title: KB curation pass
+title: Review and curate content
 description: How an admin agent turns resolved-handover conversations into KB documents, so the next end-user with the same question gets a real answer instead of another handover.
 audiences: [admin]
 ---
 
-# KB curation pass
-
+# Review and curate content
 The self-service AI agent flags a conversation with `conv_request_handover_in_my_conversation` whenever it can't answer from the KB. A human (or another admin agent) then takes over and replies. That reply is the durable answer, but today it stays trapped in one conversation — the next end-user with the same question hits the same dead-end. Your job in a curation pass is to turn those (question, human-reply) pairs into KB documents so the agent can answer them next time.
 
 This skill walks through one pass. It supports two modes:
@@ -142,5 +141,5 @@ That moves the doc into the target space, drops the candidate tags, and sets the
 
 ## Related
 
-- `skill://kb/kb-onboarding` — populating an empty KB from scratch.
-- `skill://conv/handoff-from-ai-agent` — the symmetric flow from the chat-widget bot's side.
+- `skill://kb/create-first-space` — populating an empty KB from scratch.
+- `skill://conv/escalate-to-human` — the symmetric flow from the chat-widget bot's side.

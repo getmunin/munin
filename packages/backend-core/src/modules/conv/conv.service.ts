@@ -642,10 +642,10 @@ export class ConvService {
         conv.agentMode === 'draft_only'
       ) {
         await this.curatorJobs.enqueue({
-          jobUri: 'skill://outreach/draft-reply',
+          jobUri: 'skill://outreach/draft-reply-email',
           userPrompt:
             `Run an outreach reply-draft pass for conversation ${input.conversationId}. ` +
-            `Follow skill://outreach/draft-reply exactly. Read the thread, identify the prospect's ` +
+            `Follow skill://outreach/draft-reply-email exactly. Read the thread, identify the prospect's ` +
             `intent on the latest end-user message, and file a draft via outreach_propose_reply. ` +
             `Do NOT send anything — drafts go to the operator review queue.`,
           sourceEventType: 'conversation.message.received',
@@ -668,7 +668,7 @@ export class ConvService {
           },
         });
         await this.curatorJobs.enqueue({
-          jobUri: 'skill://kb/curation',
+          jobUri: 'skill://kb/review-content',
           userPrompt:
             `Run a KB curation pass for conversation ${input.conversationId}. ` +
             `Follow the skill exactly. Per-conversation mode: skip the conv_list_conversations ` +
@@ -859,7 +859,7 @@ export class ConvService {
     });
     if (input.status === 'closed') {
       await this.curatorJobs.enqueue({
-        jobUri: 'skill://crm/contact-extract',
+        jobUri: 'skill://crm/extract-contact-from-message',
         userPrompt:
           `Run a CRM contact-extraction pass for conversation ${input.id}. ` +
           `Follow the skill exactly: read the conversation, extract identifying info ` +

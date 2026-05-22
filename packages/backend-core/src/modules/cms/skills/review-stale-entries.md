@@ -1,11 +1,10 @@
 ---
-title: CMS stale-content review
+title: Review stale entries
 description: Periodic curator pass — find drafts that have stalled, published entries that haven't been touched in months, and orphaned assets. Reports findings with recommended actions. No persistence layer; the operator reviews the curator-runner's log/reply and acts manually via existing CMS tools.
 audiences: [admin]
 ---
 
-# CMS stale-content review
-
+# Review stale entries
 CMS data accumulates: drafts that someone started but never published, articles that were great two years ago but reference a product that's been retired, asset uploads from a campaign that ended last quarter. None of this is wrong individually — together it makes search worse, makes the editorial team trust the CMS less, and makes "is this current?" the first question every consumer asks.
 
 This skill walks an admin agent through one periodic stale-content pass. The agent finds suspect items, judges each one against the org's velocity and content style, and produces a structured report. There's no proposal queue or merge-table for v1 — the report goes back as the curator-runner's reply, the operator reads it, and they (or their admin agent) act on it via the existing `cms_*` tools.
@@ -136,5 +135,5 @@ The operator reviews this report and runs the recommended commands. None of the 
 
 ## Related
 
-- `skill://kb/curation` — sibling curator pass for conversation → KB document candidates. Different domain, similar "propose, don't apply" philosophy. KB curation has a persistent inbox; CMS stale-content review v1 does not.
-- `skill://crm/hygiene` — sibling curator pass for CRM merge proposals. Different domain, structured proposals table.
+- `skill://kb/review-content` — sibling curator pass for conversation → KB document candidates. Different domain, similar "propose, don't apply" philosophy. KB curation has a persistent inbox; CMS stale-content review v1 does not.
+- `skill://crm/clean-contact-data` — sibling curator pass for CRM merge proposals. Different domain, structured proposals table.

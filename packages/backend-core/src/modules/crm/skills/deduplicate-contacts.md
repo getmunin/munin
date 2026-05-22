@@ -1,11 +1,10 @@
 ---
-title: CRM contact deduplication
+title: Deduplicate contacts
 description: Find duplicate contacts (same person, multiple rows) and consolidate them. There is no merge tool — this skill documents the manual reconcile pattern.
 audiences: [admin]
 ---
 
-# CRM contact deduplication
-
+# Deduplicate contacts
 `crm_bulk_create_contacts` skips on email/phone match, but legacy data and human entry create overlap anyway. There is **no `crm_merge_contacts` tool today** — duplicates must be reconciled manually by promoting one row as the keeper, copying useful fields onto it, and re-pointing activities/deals.
 
 ## TL;DR
@@ -125,5 +124,5 @@ If this skill is being run frequently, propose a first-class `crm_merge_contacts
 
 ## Related
 
-- `skill://crm/lead-import-and-scoring` — bulk import that already dedupes against existing contacts.
-- `skill://crm/customer-onboarding` — single-contact dedupe pattern using `crm_find_contact`.
+- `skill://crm/import-and-score-leads` — bulk import that already dedupes against existing contacts.
+- `skill://crm/onboard-new-customer` — single-contact dedupe pattern using `crm_find_contact`.

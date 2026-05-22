@@ -1,11 +1,10 @@
 ---
-title: CRM deal progression
+title: Progress a deal through the pipeline
 description: Move a deal through pipeline stages with the right activity log at each gate, then refresh AI summary so prioritization stays fresh.
 audiences: [admin]
 ---
 
-# CRM deal progression
-
+# Progress a deal through the pipeline
 A deal lives in one stage of one pipeline. Pipelines are per-org, stages are ordered, and terminal stages are flagged `winLoss: 'won' | 'lost'`. Moving to a terminal stage **auto-stamps `closedAt`** — there's no "close the deal" tool separate from `crm_change_stage`.
 
 ## TL;DR
@@ -112,5 +111,5 @@ When the stage move closes the deal:
 
 ## Related
 
-- `skill://crm/lead-import-and-scoring` — how the deals got into the pipeline in the first place.
-- `skill://crm/customer-onboarding` — the dedup + create flow before any pipeline work.
+- `skill://crm/import-and-score-leads` — how the deals got into the pipeline in the first place.
+- `skill://crm/onboard-new-customer` — the dedup + create flow before any pipeline work.

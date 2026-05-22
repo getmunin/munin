@@ -1,11 +1,10 @@
 ---
-title: Email channel setup
+title: Set up an email channel
 description: Configure SMTP outbound and optional IMAP inbound for an email channel, then verify the credentials.
 audiences: [admin]
 ---
 
-# Email channel setup
-
+# Set up an email channel
 Use this when a customer wants Munin to send and receive email under one of their addresses (e.g. `support@acme.com`).
 
 ## TL;DR

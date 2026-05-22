@@ -1,11 +1,10 @@
 ---
-title: Handoff from an AI agent to a human
+title: Escalate a conversation to a human
 description: How an external chat-widget bot detects that a human/agent in Munin has replied and yields the conversation.
 audiences: [admin]
 ---
 
-# Handoff from an AI agent to a human
-
+# Escalate a conversation to a human
 The chat-widget channel pushes transcripts into Munin in real time. Eventually a human (or a different Munin agent) replies via `conv_send_message`. The external bot needs to know so it stops responding.
 
 ## Mechanism: standard `conversation.message.sent` webhook

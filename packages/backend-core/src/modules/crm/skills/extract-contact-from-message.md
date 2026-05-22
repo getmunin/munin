@@ -1,14 +1,13 @@
 ---
-title: CRM contact extraction
+title: Extract a contact from a message
 description: When a conversation closes, read the thread for identifying info the end-user volunteered (name, email, phone, company, title) and persist it to the CRM as a contact — auto-applied, no proposal queue. Designed to fire on every `conversation.closed` event so visitor-volunteered identity becomes structured CRM data without operator intervention.
 audiences: [admin]
 ---
 
-# CRM contact extraction
-
+# Extract a contact from a message
 People volunteer identity in chat. "Hi, this is Jane from Acme — could you …", "ping me at jane@acme.com", "my number is +47 555-1234". That information is the difference between a row called "anonymous visitor #4912" and a real CRM contact you can re-engage later. Your job is to read one closed conversation, extract whatever the end-user actually said about themselves, and write it through to the CRM — no proposal queue, no review step. The data source is the user's own message; if they typed it, that's authoritative enough.
 
-A separate, scheduled `skill://crm/hygiene` curator runs weekly to merge any duplicates this pass creates (e.g. visitor gives email in conv #1 and phone in conv #2 with no overlap). Don't try to do hygiene's job here — keep the per-conversation pass narrow.
+A separate, scheduled `skill://crm/clean-contact-data` curator runs weekly to merge any duplicates this pass creates (e.g. visitor gives email in conv #1 and phone in conv #2 with no overlap). Don't try to do hygiene's job here — keep the per-conversation pass narrow.
 
 ## TL;DR
 
@@ -127,10 +126,10 @@ If every extracted field is already populated, finish silently without calling `
 - **Don't overwrite human-curated data.** The operator typed something, then the user typed something different in chat — trust the operator. Backfill empty fields only.
 - **Don't extract from agent messages.** "Sure, jane@acme.com is on file" is the agent quoting back something it remembers; treating it as an identity claim creates feedback loops.
 - **Don't infer.** `j.doe@acme.com` does not mean their name is "Jane Doe" or "John Doe". Names come from explicit self-introduction; everything else stays null.
-- **Don't propose merges.** That's `skill://crm/hygiene`'s job and runs weekly across the whole population. Per-conversation extraction is narrow on purpose.
+- **Don't propose merges.** That's `skill://crm/clean-contact-data`'s job and runs weekly across the whole population. Per-conversation extraction is narrow on purpose.
 - **Don't open multiple records.** One contact per pass — either one create or one update, never both.
 
 ## Related
 
-- `skill://crm/hygiene` — population-level merge pass that catches dupes this skill missed (e.g. visitor gave email in one conv, phone in another).
-- `skill://kb/curation` — the symmetric pattern: per-conversation event-driven extraction, but for KB candidates instead of CRM contacts. Note that KB *proposes* (because LLM-drafted facts can be wrong); CRM contact extraction *auto-applies* (because the data source is the user's own typed words).
+- `skill://crm/clean-contact-data` — population-level merge pass that catches dupes this skill missed (e.g. visitor gave email in one conv, phone in another).
+- `skill://kb/review-content` — the symmetric pattern: per-conversation event-driven extraction, but for KB candidates instead of CRM contacts. Note that KB *proposes* (because LLM-drafted facts can be wrong); CRM contact extraction *auto-applies* (because the data source is the user's own typed words).

@@ -1,11 +1,10 @@
 ---
-title: Bulk CMS content migration
+title: Migrate content in bulk
 description: Move entries from an external CMS (or between Munin collections) idempotently — preserve references, rewrite assets, reconcile schema drift.
 audiences: [admin]
 ---
 
-# Bulk CMS content migration
-
+# Migrate content in bulk
 Importing a customer's existing content (Webflow, Contentful, headless WordPress, an old Munin collection) into a Munin CMS collection. Designed to be **idempotent** so a partial run can resume.
 
 ## TL;DR
@@ -90,7 +89,7 @@ for row in source:
     cms_create_entry(collection="blog", slug=row.slug, locale=row.locale, data=payload, status="draft")
 ```
 
-For assets referenced inline (images in body, hero images): use `skill://cms/asset-media-workflow` to upload, then put the new asset id in the entry's `data`. Build a `sourceAssetUrl → muninAssetId` map as you go so you don't re-upload duplicates.
+For assets referenced inline (images in body, hero images): use `skill://cms/upload-asset-and-embed` to upload, then put the new asset id in the entry's `data`. Build a `sourceAssetUrl → muninAssetId` map as you go so you don't re-upload duplicates.
 
 For body content with rich-text references to other entries (cross-links), defer until step 4.
 
@@ -119,7 +118,7 @@ Verify with `cms_list_inbound_references` on a few entries — outbound links fr
 { "name": "cms_list_entries", "arguments": { "collection": "blog", "limit": 200 } }
 ```
 
-Sanity-check the count against the source. Spot-check 2–3 entries (`cms_get_entry`) for body fidelity. Then publish in batches per `skill://cms/entry-publish-workflow`.
+Sanity-check the count against the source. Spot-check 2–3 entries (`cms_get_entry`) for body fidelity. Then publish in batches per `skill://cms/publish-entry`.
 
 ## What NOT to do
 
@@ -130,6 +129,6 @@ Sanity-check the count against the source. Spot-check 2–3 entries (`cms_get_en
 
 ## Related
 
-- `skill://cms/entry-publish-workflow` — publishing entries after import.
-- `skill://cms/asset-media-workflow` — uploading images referenced from imported content.
-- `skill://cms/multilingual-content` — when source content is per-locale.
+- `skill://cms/publish-entry` — publishing entries after import.
+- `skill://cms/upload-asset-and-embed` — uploading images referenced from imported content.
+- `skill://cms/localize-entry` — when source content is per-locale.

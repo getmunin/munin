@@ -53,8 +53,11 @@
       "invalid": {
         "title": "That email and password don't match.",
         "hint": "Check the address, or try again.",
-        "hintWithReset": "Check the address, or {resetLink}.",
-        "resetLinkLabel": "reset your password"
+        "hintWithReset": "Check the address, or <resetLink>reset your password</resetLink>."
+      },
+      "unreachable": {
+        "title": "Couldn't reach the server.",
+        "hint": "Check your connection and try again."
       }
     },
     "signUp": {

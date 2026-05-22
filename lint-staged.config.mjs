@@ -29,7 +29,8 @@ export default {
   '*.{ts,tsx,mjs,cjs,js,jsx}': (files) => {
     const groups = groupByPackage(files);
     return [...groups.entries()].map(
-      ([pkgDir, rel]) => `bash -c "cd ${pkgDir} && pnpm exec eslint --fix --no-warn-ignored ${rel.join(' ')}"`,
+      ([pkgDir, rel]) =>
+        `bash -c "cd ${pkgDir} && pnpm exec eslint --fix --no-warn-ignored ${rel.map((p) => `'${p}'`).join(' ')}"`,
     );
   },
   'packages/backend-core/src/**/*.ts': () => [

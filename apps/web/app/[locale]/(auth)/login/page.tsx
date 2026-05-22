@@ -25,9 +25,12 @@ function safeRedirect(raw: string | null): string {
   return '/dashboard';
 }
 
+type SignInError = { kind: 'invalid' | 'unreachable'; detail: string };
+
 function LoginForm() {
   const t = useTranslations('auth.signIn');
   const tInvalid = useTranslations('auth.signIn.invalid');
+  const tUnreachable = useTranslations('auth.signIn.unreachable');
   const tFields = useTranslations('auth.fields');
   const tCommon = useTranslations('common');
   const translateError = useTranslateError();
@@ -41,7 +44,7 @@ function LoginForm() {
   const { refetch } = authClient.useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<SignInError | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(event: React.FormEvent) {
@@ -51,19 +54,27 @@ function LoginForm() {
     try {
       const result = await authClient.signIn.email({ email, password });
       if (result.error) {
-        setError(translateError(result.error, 'unknownError') || t('failed'));
+        setError({
+          kind: 'invalid',
+          detail: translateError(result.error, 'unknownError') || t('failed'),
+        });
         return;
       }
       await refetch();
       router.push(redirectTo);
     } catch (err) {
-      setError(translateError(err) || tCommon('networkError'));
+      setError({
+        kind: 'unreachable',
+        detail: translateError(err) || tCommon('networkError'),
+      });
     } finally {
       setSubmitting(false);
     }
   }
 
   const epigraphState = error ? 'login-error' : 'login';
+  const alertTitle = error?.kind === 'unreachable' ? tUnreachable('title') : tInvalid('title');
+  const alertHint = error?.kind === 'unreachable' ? tUnreachable('hint') : tInvalid('hint');
 
   return (
     <AuthShell
@@ -73,7 +84,7 @@ function LoginForm() {
           <AuthHeading>{t('title')}</AuthHeading>
           <AuthSubheading>{t('subtitle')}</AuthSubheading>
 
-          {error && <ErrorAlert title={tInvalid('title')}>{tInvalid('hint')}</ErrorAlert>}
+          {error && <ErrorAlert title={alertTitle}>{alertHint}</ErrorAlert>}
 
           <form
             onSubmit={(event) => {

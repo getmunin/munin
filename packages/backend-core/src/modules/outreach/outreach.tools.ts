@@ -84,7 +84,7 @@ export class OutreachAdminTools {
     description:
       'List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, CTA URL, and the enabled flag. The draft-initial curator only drafts proposals for `enabled = true` campaigns.',
     audiences: ['admin'],
-    scopes: ['crm:read'],
+    scopes: ['outreach:read'],
     input: EmptyInput,
     readOnlyHint: true,
     destructiveHint: false,
@@ -98,7 +98,7 @@ export class OutreachAdminTools {
     title: 'Read one outreach campaign',
     description: 'Read a single campaign by id, including brief and cadence rules.',
     audiences: ['admin'],
-    scopes: ['crm:read'],
+    scopes: ['outreach:read'],
     input: GetCampaignInput,
     readOnlyHint: true,
     destructiveHint: false,
@@ -113,7 +113,7 @@ export class OutreachAdminTools {
     description:
       'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email channel. New campaigns default `enabled: false` so the curator does not start drafting until you flip it on.',
     audiences: ['admin'],
-    scopes: ['crm:write'],
+    scopes: ['outreach:write'],
     input: CreateCampaignInput,
     readOnlyHint: false,
     destructiveHint: false,
@@ -127,7 +127,7 @@ export class OutreachAdminTools {
     title: 'Update outreach campaign',
     description: 'Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled.',
     audiences: ['admin'],
-    scopes: ['crm:write'],
+    scopes: ['outreach:write'],
     input: UpdateCampaignInput,
     readOnlyHint: false,
     destructiveHint: false,
@@ -142,7 +142,7 @@ export class OutreachAdminTools {
     description:
       'List drafted outreach proposals (initials in PR2; replies in PR3). Defaults to all statuses. The draft-initial curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`.',
     audiences: ['admin'],
-    scopes: ['crm:read'],
+    scopes: ['outreach:read'],
     input: ListProposalsInput,
     readOnlyHint: true,
     destructiveHint: false,
@@ -157,7 +157,7 @@ export class OutreachAdminTools {
     description:
       'File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) while a pending row exists throws — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.',
     audiences: ['admin'],
-    scopes: ['crm:write'],
+    scopes: ['outreach:write'],
     input: ProposeInitialInput,
     readOnlyHint: false,
     destructiveHint: false,
@@ -172,7 +172,7 @@ export class OutreachAdminTools {
     description:
       "File a drafted reply to an inbound message on an outreach-originated conversation, for human approval. The conversation must have an `outreachCampaignId` set (it's an outreach conversation) and a CRM contact resolvable by email. Idempotent: re-proposing while a pending reply exists for the same conversation throws — the operator should approve or dismiss the existing one first. Reply approvals send via `conv_send_message` on the existing conversation; no unsubscribe footer is appended (replies thread inside the existing email chain that already carries the unsubscribe link).",
     audiences: ['admin'],
-    scopes: ['crm:write'],
+    scopes: ['outreach:write'],
     input: ProposeReplyInput,
     readOnlyHint: false,
     destructiveHint: false,

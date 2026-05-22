@@ -1,6 +1,6 @@
 ---
 title: Bulk channel setup (email + widget)
-description: Stand up email + widget conversation channels for a new tenant in one pass — bootstrap, configure, test, hand off.
+description: Stand up email + widget conversation channels for a new tenant in one pass — configure, test, hand off.
 audiences: [admin]
 ---
 
@@ -15,19 +15,19 @@ A common onboarding shape for a new customer: they want both an email channel fo
 
 ## TL;DR
 
-1. `bootstrap_status({ app: "conv" })` — see whether any channel exists.
+1. `conv_list_channels` — see whether any channel exists for this org.
 2. Email channel: `conv_email_setup_channel` → `conv_email_test_channel` to verify.
 3. Widget channel: `conv_widget_create_channel` → store the `widgetKey` server-side.
-4. `conv_list_channels` to confirm both are `active: true`.
-5. (Optional) `bootstrap_answer({ app: "conv", stepId: "seed_topics", value: { seed: true } })` so the inbox has Billing / Support / Bug topics ready.
+4. `conv_list_channels` again to confirm both are `active: true`.
+5. (Optional) `conv_create_topic` per topic so the inbox has Billing / Support / Bug topics ready.
 
-## Step 1 — bootstrap state
+## Step 1 — check current state
 
 ```jsonc
-{ "name": "bootstrap_status", "arguments": { "app": "conv" } }
+{ "name": "conv_list_channels", "arguments": {} }
 ```
 
-If `completed: true`, channels already exist for this org — proceed directly to step 2/3 and add channels rather than going through bootstrap. If `nextStepId: "first_channel"`, the org is fresh; you can satisfy that step with the first channel you create below (or via `bootstrap_answer` directly with `stepId: "first_channel"`).
+Lists existing channels and their `active` flag. If the org already has an email or widget channel, skip the corresponding step.
 
 ## Step 2 — email channel
 
@@ -92,33 +92,14 @@ Both channels should appear with `active: true`. If either is `active: false`, t
 
 ## Step 5 — seed topics (optional)
 
-Topics are conversation labels that route inbound messages to the right humans. The bootstrap flow can seed a starter set:
+Topics are conversation labels that route inbound messages to the right humans. Create the starter set with `conv_create_topic`, one call per topic:
 
 ```jsonc
-{
-  "name": "bootstrap_answer",
-  "arguments": {
-    "app": "conv",
-    "stepId": "seed_topics",
-    "value": { "seed": true }
-  }
-}
+{ "name": "conv_create_topic", "arguments": { "name": "Billing" } }
+{ "name": "conv_create_topic", "arguments": { "name": "Bug report" } }
+{ "name": "conv_create_topic", "arguments": { "name": "Feature request" } }
+{ "name": "conv_create_topic", "arguments": { "name": "Account access" } }
 ```
-
-Or pick custom topics:
-
-```jsonc
-{
-  "name": "bootstrap_answer",
-  "arguments": {
-    "app": "conv",
-    "stepId": "seed_topics",
-    "value": { "seed": true, "topics": ["Billing", "Bug report", "Feature request", "Account access"] }
-  }
-}
-```
-
-You can also call `conv_create_topic` directly later — bootstrap is just a one-shot starter.
 
 ## What NOT to do
 

@@ -110,16 +110,25 @@ const skipReason = TEST_URL
     }
   }
 
-  it('admin bootstrap → create collection → publish entry → fetched anonymously over delivery API', async () => {
+  it('admin creates locale + collection → publish entry → fetched anonymously over delivery API', async () => {
     await withClient(adminKey, async (c) => {
-      // Bootstrap CMS: default locale + first collection.
       await c.callTool({
-        name: 'bootstrap_answer',
-        arguments: { app: 'cms', stepId: 'default_locale', value: { code: 'en', name: 'English' } },
+        name: 'cms_create_locale',
+        arguments: { code: 'en', name: 'English', isDefault: true },
       });
       await c.callTool({
-        name: 'bootstrap_answer',
-        arguments: { app: 'cms', stepId: 'first_collection', value: { create: true } },
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Pages',
+          slug: 'pages',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+            { name: 'body', type: 'markdown' },
+            { name: 'hero_image', type: 'asset' },
+            { name: 'published_at', type: 'datetime' },
+          ],
+        },
       });
 
       const collections = parseToolResult<Array<{ id: string; slug: string; fields: unknown[] }>>(

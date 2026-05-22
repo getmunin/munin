@@ -1,9 +1,10 @@
 ---
 '@getmunin/backend-core': minor
 '@getmunin/dashboard-pages': minor
+'@getmunin/db': minor
 ---
 
-OAuth consent UX rework.
+OAuth consent UX rework and bootstrap MCP removal.
 
 **Backend**
 - New `GET /api/v1/oauth/clients/:clientId` endpoint (anonymous, on `OAuthModule`) returns the disclosure-safe fields `{ client_id, name, uri, icon }` from the `oauth_client` table. Lets the consent page render the registered client name + URL + logo instead of the random RFC 7591 `client_id`.
@@ -13,7 +14,11 @@ OAuth consent UX rework.
 - `OAuthConsentPage` rewritten:
   - Fetches the new client-info endpoint on mount, falls back to `client_id` if missing.
   - Hides scopes that aren't user-tunable on the consent screen — `openid`, `profile`, `email`, `offline_access` (OIDC/OAuth standards required by any connector), and `mcp:tools` / `mcp:admin` / `mcp:self_service` (the MCP umbrella + audience-decided-by-user, not by-scope).
-  - Groups remaining scopes by user-facing app: Knowledge Base, Conversations, Contacts, Content, Outreach. Internal modules (`bootstrap`, `curator`, `playbooks`, `web`) are not surfaced — they remain reachable via the `mcp:tools` umbrella.
+  - Groups remaining scopes by user-facing app: Knowledge Base, Conversations, Contacts, Content, Outreach. Internal modules (`curator`, `playbooks`, `web`) are not surfaced — they remain reachable via the `mcp:tools` umbrella.
   - Disclosure footer: "Sign-in identity and session refresh are also granted."
 
 Scope-narrowing checkboxes at consent time are still deferred — needs upstream `@better-auth/oauth-provider` support or a wrap-and-mutate layer in the consumer.
+
+**Bootstrap MCP removal**
+- Removes the `bootstrap_status` / `bootstrap_answer` MCP tools, the `@getmunin/bootstrap` package, the per-app `*.bootstrap.ts` runners (kb / conv / crm / cms), and the `bootstrap_state` table (migration 0028). The conversational first-run wizard was redundant with the dashboard's UI onboarding and never picked up real callers. Direct admin tools (`kb_create_space`, `crm_create_pipeline`, `cms_create_locale`, `cms_create_collection`, `conv_*_setup_channel`) now cover everything bootstrap did.
+- Skill markdown for `kb-onboarding` and `conv/bulk-channel-setup` rewritten to call the direct tools.

@@ -1,30 +1,27 @@
 ---
 title: KB onboarding (first space + welcome doc)
-description: Bootstrap a fresh org's knowledge base — pick a space taxonomy, create the first space, optionally seed a welcome doc. Idempotent.
+description: Stand up a fresh org's knowledge base — pick a space taxonomy, create the first space, optionally seed a welcome doc.
 audiences: [admin]
 ---
 
 # KB onboarding (first space + welcome doc)
 
-A new org has zero KB spaces. Before the team can write articles or an agent can call `kb_search`, at least one space must exist. This skill walks the conversational onboarding flow.
+A new org has zero KB spaces. Before the team can write articles or an agent can call `kb_search`, at least one space must exist.
 
 ## TL;DR
 
-1. `bootstrap_status({ app: "kb" })` — see whether a space already exists.
-2. If not: `bootstrap_answer({ app: "kb", stepId: "first_space", value: { name, slug } })`.
-3. Prompt for an optional welcome doc; `bootstrap_answer({ app: "kb", stepId: "welcome_doc", value: { create: true|false, ... } })`.
-4. `kb_list_spaces` to confirm the result.
-5. Hand off to `skill://kb/article-bulk-import` or `skill://kb/import-from-google-docs` for content.
+1. `kb_list_spaces` — see whether a space already exists.
+2. If empty: `kb_create_space({ name, slug, description? })`.
+3. (Optional) `kb_create_document({ spaceId, title, body, audiences })` to seed a welcome doc.
+4. Hand off to `skill://kb/article-bulk-import` or `skill://kb/import-from-google-docs` for content.
 
 ## Step 1 — check current state
 
 ```jsonc
-{ "name": "bootstrap_status", "arguments": { "app": "kb" } }
+{ "name": "kb_list_spaces", "arguments": {} }
 ```
 
-Returns `{ nextStepId?, nextPrompt?, completed, answers }`. If `completed: true`, the org already has a space — skip ahead to step 4. Otherwise, `nextStepId` will be `"first_space"`.
-
-The bootstrap state lives in `bootstrap_state` per `(orgId, app)`, so re-running this skill on an already-onboarded org is safe.
+If a space already exists, skip to step 3 or stop — the org is onboarded.
 
 ## Step 2 — create the first space
 
@@ -35,67 +32,35 @@ Pick a name + slug that match the audience boundary:
 - **`help` / `Help center`** — public: end-user-facing FAQs and guides.
 - **`engineering` / `Engineering`** — internal: code conventions, architecture, on-call docs.
 
-Then:
-
 ```jsonc
 {
-  "name": "bootstrap_answer",
-  "arguments": {
-    "app": "kb",
-    "stepId": "first_space",
-    "value": { "name": "Help center", "slug": "help" }
-  }
+  "name": "kb_create_space",
+  "arguments": { "name": "Help center", "slug": "help" }
 }
 ```
 
-Returns the updated status. `nextStepId` will now be `"welcome_doc"`.
-
-If the bootstrap rejects the slug, it's almost always uniqueness — try a more specific slug (`acme-help` rather than `help`).
+If creation rejects the slug, it's almost always uniqueness — try a more specific slug (`acme-help` rather than `help`).
 
 ## Step 3 — optional welcome doc
 
 ```jsonc
 {
-  "name": "bootstrap_answer",
+  "name": "kb_create_document",
   "arguments": {
-    "app": "kb",
-    "stepId": "welcome_doc",
-    "value": { "create": true, "title": "How we work", "body": "... markdown ..." }
+    "spaceId": "<space-id-from-step-2>",
+    "title": "How we work",
+    "body": "... markdown ...",
+    "audiences": ["admin"]
   }
 }
 ```
 
-Or skip:
+The body is markdown; chunking and tagging guidance lives in `skill://kb/import-from-google-docs`.
 
-```jsonc
-{
-  "name": "bootstrap_answer",
-  "arguments": { "app": "kb", "stepId": "welcome_doc", "value": { "create": false } }
-}
-```
+## Step 4 — onward
 
-If you create one, the doc will be in the first space, default `audiences: ['admin']` (admin-only). The body is markdown; chunking and tagging guidance lives in `skill://kb/import-from-google-docs`.
+For more spaces, call `kb_create_space` again. For bulk content seeding, follow:
 
-## Step 4 — confirm
-
-```jsonc
-{ "name": "kb_list_spaces", "arguments": {} }
-```
-
-You should see the new space. `bootstrap_status({ app: "kb" })` should now return `completed: true`.
-
-## Step 5 — onward
-
-For more spaces, call `kb_create_space` directly (no bootstrap involvement after the first):
-
-```jsonc
-{
-  "name": "kb_create_space",
-  "arguments": { "name": "Engineering", "slug": "engineering", "description": "Internal." }
-}
-```
-
-For bulk content seeding, follow:
 - `skill://kb/import-from-google-docs` — chunking strategy, embedding behavior, FTS performance.
 - `skill://kb/article-bulk-import` — generalized CSV/JSON pipeline.
 

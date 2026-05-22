@@ -110,7 +110,6 @@ const skipReason = TEST_URL
       expect(names).toContain('kb_create_space');
       expect(names).toContain('kb_create_document');
       expect(names).toContain('kb_search');
-      expect(names).toContain('bootstrap_status');
       expect(names).toContain('ping');
       expect(names).not.toContain('suggestion_create');
 
@@ -432,7 +431,6 @@ const skipReason = TEST_URL
         expect(names).not.toContain('kb_create_document');
         expect(names).not.toContain('kb_delete_document');
         expect(names).not.toContain('suggestion_create');
-        expect(names).not.toContain('bootstrap_status');
 
         const hits = parseToolResult<Array<{ documentId: string; title: string }>>(
           await c.callTool({ name: 'kb_search', arguments: { query: 'widgets' } }),

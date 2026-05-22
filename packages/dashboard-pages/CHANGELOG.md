@@ -1,5 +1,12 @@
 # @getmunin/dashboard-pages
 
+## 4.5.1
+
+### Patch Changes
+
+- @getmunin/types@4.5.1
+- @getmunin/ui@4.5.1
+
 ## 4.5.0
 
 ### Patch Changes

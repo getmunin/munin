@@ -1,6 +1,6 @@
 # Munin — agent guide
 
-MCP-first headless business-app suite (KB, Conversations, CRM, CMS, Outreach). The agent is the UI: every action runs through MCP tools served at `/mcp`. There is no admin REST API for app data — the dashboard at `apps/web` is a thin shell that drives the same MCP endpoint.
+MCP-first customer platform made for the agentic era (KB, Conversations, CRM, CMS, Outreach). The agent is the UI: every action runs through MCP tools served at `/mcp`. There is no admin REST API for app data — the dashboard at `apps/web` is a thin shell that drives the same MCP endpoint.
 
 ## Repository layout
 

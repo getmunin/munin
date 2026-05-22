@@ -1,10 +1,8 @@
 # Munin
 
-> MCP-first headless business app suite. The agent is the UI.
+> MCP-first customer platform made for the agentic era. The agent is the UI.
 
-Munin is an open-source business app suite (Knowledge Base, Conversations, CRM, CMS, Outreach) where the only interface is via AI agents. There is no traditional admin UI for the apps themselves — every action runs through MCP tools, callable from any MCP-compatible client.
-
-**Status:** v0.4 in active development. Private during initial build; flips public at first release.
+Munin is an open-source customer platform built for the agentic era (Knowledge Base, Conversations, CRM, CMS, Outreach) where the only interface is via AI agents. There is no traditional admin UI for the apps themselves — every action runs through MCP tools, callable from any MCP-compatible client.
 
 ## What's in the box
 

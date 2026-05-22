@@ -53,8 +53,11 @@
       "invalid": {
         "title": "Den e-postadressen og passordet stemmer ikke.",
         "hint": "Sjekk adressen, eller prøv igjen.",
-        "hintWithReset": "Sjekk adressen, eller {resetLink}.",
-        "resetLinkLabel": "tilbakestill passordet"
+        "hintWithReset": "Sjekk adressen, eller <resetLink>tilbakestill passordet</resetLink>."
+      },
+      "unreachable": {
+        "title": "Får ikke kontakt med serveren.",
+        "hint": "Sjekk tilkoblingen og prøv igjen."
       }
     },
     "signUp": {

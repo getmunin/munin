@@ -58,6 +58,7 @@ function LoginForm() {
           kind: 'invalid',
           detail: translateError(result.error, 'unknownError') || t('failed'),
         });
+        setSubmitting(false);
         return;
       }
       await refetch();
@@ -67,7 +68,6 @@ function LoginForm() {
         kind: 'unreachable',
         detail: translateError(err) || tCommon('networkError'),
       });
-    } finally {
       setSubmitting(false);
     }
   }

@@ -151,8 +151,13 @@ const skipReason = TEST_URL
       expect(entry.status).toBe('published');
     });
 
-    // Fetch anonymously via the public delivery API.
-    const single = await fetch(`${baseUrl}/api/v1/cms/${orgId}/pages/hello-world`);
+    // Fetch anonymously via the public delivery API. waitFor absorbs the
+    // commit-visibility race between the MCP request transaction and the
+    // controller's separate service-role connection.
+    const single = await fetchUntil(
+      `${baseUrl}/api/v1/cms/${orgId}/pages/hello-world`,
+      (r) => r.status === 200,
+    );
     expect(single.status).toBe(200);
     expect(single.headers.get('etag')).toBeTruthy();
     const singleJson = (await single.json()) as { slug: string; data: Record<string, unknown> };
@@ -306,4 +311,18 @@ function parseToolResult<T>(result: unknown): T {
   const r = result as { content?: Array<{ type: string; text?: string }> };
   const text = r.content?.[0]?.text ?? '';
   return JSON.parse(text) as T;
+}
+
+async function fetchUntil(
+  url: string,
+  predicate: (r: Response) => boolean,
+  timeoutMs = 2000,
+): Promise<Response> {
+  const deadline = Date.now() + timeoutMs;
+  let last = await fetch(url);
+  while (!predicate(last) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+    last = await fetch(url);
+  }
+  return last;
 }

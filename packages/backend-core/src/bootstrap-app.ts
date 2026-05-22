@@ -25,6 +25,12 @@ function readAllowedOrigins(): string[] | true {
   return env.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+function readAllowedHosts(): string[] | null {
+  const env = process.env.MUNIN_ALLOWED_HOSTS;
+  if (!env) return null;
+  return env.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
 export interface CreateAppOptions extends NestApplicationOptions {
   /**
    * Absolute path to the directory holding the chat-widget's hashed
@@ -56,6 +62,8 @@ export async function createApp(
 ): Promise<INestApplication> {
   const { widgetAssetDir, ...nestOpts } = opts;
   const app = await NestFactory.create(appModule, { rawBody: true, ...nestOpts });
+  const allowedHosts = readAllowedHosts();
+  if (allowedHosts) app.use(hostAllowlistMiddleware(allowedHosts));
   app.use(corsMiddleware(readAllowedOrigins()));
   app.use(requestIdMiddleware);
 
@@ -79,6 +87,19 @@ function isPublicWidgetPath(path: string): boolean {
     path.startsWith('/widget/') ||
     path.startsWith('/api/v1/widget')
   );
+}
+
+export function hostAllowlistMiddleware(allowedHosts: string[]) {
+  const allowed = new Set(allowedHosts);
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const raw = typeof req.headers.host === 'string' ? req.headers.host : '';
+    const host = raw.split(':', 1)[0]!.toLowerCase();
+    if (!host || !allowed.has(host)) {
+      res.status(421).json({ error: 'misdirected_request' });
+      return;
+    }
+    next();
+  };
 }
 
 function corsMiddleware(strictOrigins: string[] | true) {

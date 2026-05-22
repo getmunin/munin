@@ -172,14 +172,6 @@ CREATE POLICY tenant_isolation ON webhook_deliveries
     )
   );
 
--- ───────────────────────── bootstrap_state ─────────────────────────────────
-ALTER TABLE bootstrap_state ENABLE ROW LEVEL SECURITY;
-ALTER TABLE bootstrap_state FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON bootstrap_state;
-CREATE POLICY tenant_isolation ON bootstrap_state
-  USING (app_bypass_rls() OR org_id = app_org_id())
-  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
-
 -- ───────────────────────── rate_limit_counters ─────────────────────────────
 ALTER TABLE rate_limit_counters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rate_limit_counters FORCE ROW LEVEL SECURITY;

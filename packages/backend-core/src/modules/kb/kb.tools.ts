@@ -244,7 +244,7 @@ export class KbAdminTools {
     name: 'kb_propose_curation_candidate',
     title: 'Propose KB curation candidate',
     description:
-      "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/curation` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`.",
+      "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/review-content` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`.",
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: ProposeCurationCandidateInput,

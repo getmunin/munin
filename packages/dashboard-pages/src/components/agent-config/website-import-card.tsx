@@ -15,7 +15,7 @@ import {
 import { api } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
 
-const JOB_URI = 'task://web/scrape-site';
+const JOB_URI = 'task://web/scrape-website';
 
 interface CuratorJobDto {
   id: string;

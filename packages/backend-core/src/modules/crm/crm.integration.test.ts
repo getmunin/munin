@@ -121,19 +121,22 @@ const skipReason = TEST_URL
     }
   }
 
-  it('admin bootstrap → create contact + deal + activity → end-user reads only its own contact', async () => {
+  it('admin creates pipeline → creates contact + deal + activity → end-user reads only its own contact', async () => {
     await withClient(adminKey, async (c) => {
-      const status = parseToolResult<{ completed: boolean; nextStepId: string | null }>(
-        await c.callTool({ name: 'bootstrap_status', arguments: { app: 'crm' } }),
-      );
-      expect(status.nextStepId).toBe('first_pipeline');
-      const finalStatus = parseToolResult<{ completed: boolean }>(
-        await c.callTool({
-          name: 'bootstrap_answer',
-          arguments: { app: 'crm', stepId: 'first_pipeline', value: {} },
-        }),
-      );
-      expect(finalStatus.completed).toBe(true);
+      await c.callTool({
+        name: 'crm_create_pipeline',
+        arguments: {
+          name: 'Sales',
+          slug: 'sales',
+          stages: [
+            { name: 'Lead', winLoss: 'open' },
+            { name: 'Qualified', winLoss: 'open' },
+            { name: 'Proposal', winLoss: 'open' },
+            { name: 'Won', winLoss: 'won' },
+            { name: 'Lost', winLoss: 'lost' },
+          ],
+        },
+      });
 
       const pipelines = parseToolResult<Array<{ id: string; stages: Array<{ id: string; name: string }> }>>(
         await c.callTool({ name: 'crm_list_pipelines', arguments: {} }),

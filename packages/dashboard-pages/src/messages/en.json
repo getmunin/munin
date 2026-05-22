@@ -598,10 +598,23 @@
     },
     "oauthConsent": {
       "title": "Authorize <client></client>?",
-      "lede": "An external application is asking for access to your Munin account. Review the requested scopes before deciding.",
+      "lede": "An external application is asking for access to your Munin account. Review the requested permissions before deciding.",
       "applicationLabel": "Application",
-      "scopesLabel": "Requested scopes",
-      "noScopes": "(no scopes requested)",
+      "scopesLabel": "Requested permissions",
+      "noScopes": "(no permissions requested)",
+      "noModuleScopes": "Sign-in only — no product permissions requested.",
+      "standardDisclosure": "Sign-in identity (openid, profile, email) and session refresh (offline_access) are also granted.",
+      "modules": {
+        "kb": "Knowledge Base",
+        "conv": "Conversations",
+        "crm": "Contacts",
+        "cms": "Content",
+        "outreach": "Outreach"
+      },
+      "actions": {
+        "read": "Read",
+        "write": "Write"
+      },
       "authorize": "Authorize",
       "authorizing": "Authorizing…",
       "deny": "Deny",

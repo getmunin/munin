@@ -197,6 +197,20 @@
       "when": 1779800000000,
       "tag": "0027_orgs_drop_slug",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1779900000000,
+      "tag": "0028_drop_bootstrap_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1780000000000,
+      "tag": "0029_rename_skill_uris",
+      "breakpoints": true
     }
   ]
 }

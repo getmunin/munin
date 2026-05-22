@@ -116,7 +116,7 @@ const skipReason = TEST_URL
     const enq = await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: {
-        jobUri: 'skill://kb/curation',
+        jobUri: 'skill://kb/review-content',
         userPrompt: 'Run a KB curation pass for ccv_x',
         sourceEventType: 'conversation.handover_resolved',
         sourceEventPayload: { conversationId: 'ccv_x', messageId: 'cvm_x', authorType: 'user' },
@@ -161,7 +161,7 @@ const skipReason = TEST_URL
     const first = await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: {
-        jobUri: 'skill://kb/curation',
+        jobUri: 'skill://kb/review-content',
         userPrompt: 'pass A',
         dedupeKey: 'kb-curation:msg:cvm_dup',
       },
@@ -172,7 +172,7 @@ const skipReason = TEST_URL
     const second = await call('/api/v1/curation/jobs', {
       method: 'POST',
       body: {
-        jobUri: 'skill://kb/curation',
+        jobUri: 'skill://kb/review-content',
         userPrompt: 'pass B (should be ignored)',
         dedupeKey: 'kb-curation:msg:cvm_dup',
       },
@@ -186,7 +186,7 @@ const skipReason = TEST_URL
   it('fail with retryable=true bumps next_attempt_at and stays pending', async () => {
     const enq = await call('/api/v1/curation/jobs', {
       method: 'POST',
-      body: { jobUri: 'skill://kb/curation', userPrompt: 'will fail' },
+      body: { jobUri: 'skill://kb/review-content', userPrompt: 'will fail' },
     });
     const job = (enq.body as { job: { id: string } }).job;
 
@@ -209,7 +209,7 @@ const skipReason = TEST_URL
   it('fail with retryable=false marks the job failed (not retried)', async () => {
     const enq = await call('/api/v1/curation/jobs', {
       method: 'POST',
-      body: { jobUri: 'skill://kb/curation', userPrompt: 'permanent fail' },
+      body: { jobUri: 'skill://kb/review-content', userPrompt: 'permanent fail' },
     });
     const job = (enq.body as { job: { id: string } }).job;
 
@@ -234,7 +234,7 @@ const skipReason = TEST_URL
   it('retryable fail beyond maxAttempts marks the job dead', async () => {
     const enq = await call('/api/v1/curation/jobs', {
       method: 'POST',
-      body: { jobUri: 'skill://kb/curation', userPrompt: 'eventual dead', maxAttempts: 2 },
+      body: { jobUri: 'skill://kb/review-content', userPrompt: 'eventual dead', maxAttempts: 2 },
     });
     const job = (enq.body as { job: { id: string } }).job;
 
@@ -253,7 +253,7 @@ const skipReason = TEST_URL
   it('isolates jobs across orgs (RLS)', async () => {
     await call('/api/v1/curation/jobs', {
       method: 'POST',
-      body: { jobUri: 'skill://kb/curation', userPrompt: 'org A job' },
+      body: { jobUri: 'skill://kb/review-content', userPrompt: 'org A job' },
     });
 
     const otherList = await call('/api/v1/curation/jobs', { key: otherAdminKey });

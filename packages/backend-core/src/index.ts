@@ -17,6 +17,13 @@ export {
 } from './auth-controller-factory.js';
 
 export {
+  createRedisRateLimitStore,
+  type BetterAuthRateLimitEntry,
+  type BetterAuthRateLimitStorage,
+  type CreateRedisRateLimitStoreOptions,
+} from './auth/better-auth-redis-store.js';
+
+export {
   readGoogleProviderFromEnv,
   readTrustedOriginsFromEnv,
 } from './auth-env.js';

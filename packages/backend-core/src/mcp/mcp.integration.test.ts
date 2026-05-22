@@ -110,7 +110,6 @@ const skipReason = TEST_URL
       expect(names).toContain('kb_create_space');
       expect(names).toContain('kb_create_document');
       expect(names).toContain('kb_search');
-      expect(names).toContain('bootstrap_status');
       expect(names).toContain('ping');
       expect(names).not.toContain('suggestion_create');
 
@@ -183,14 +182,14 @@ const skipReason = TEST_URL
     await withClient(adminKey, async (c) => {
       const { resources } = await c.listResources();
       const uris = resources.map((r) => r.uri);
-      expect(uris).toContain('skill://conv/email-channel-setup');
-      expect(uris).toContain('skill://crm/customer-onboarding');
+      expect(uris).toContain('skill://conv/setup-email-channel');
+      expect(uris).toContain('skill://crm/onboard-new-customer');
 
-      const read = await c.readResource({ uri: 'skill://conv/email-channel-setup' });
+      const read = await c.readResource({ uri: 'skill://conv/setup-email-channel' });
       const first = read.contents[0];
       expect(first?.mimeType).toBe('text/markdown');
       const text = first && 'text' in first ? first.text : '';
-      expect(text).toContain('Email channel setup');
+      expect(text).toContain('Set up an email channel');
     });
   });
 
@@ -198,7 +197,7 @@ const skipReason = TEST_URL
     await withClient(endUserToken, async (c) => {
       const { resources } = await c.listResources();
       const uris = resources.map((r) => r.uri);
-      expect(uris).not.toContain('skill://conv/email-channel-setup');
+      expect(uris).not.toContain('skill://conv/setup-email-channel');
     });
   });
 
@@ -432,7 +431,6 @@ const skipReason = TEST_URL
         expect(names).not.toContain('kb_create_document');
         expect(names).not.toContain('kb_delete_document');
         expect(names).not.toContain('suggestion_create');
-        expect(names).not.toContain('bootstrap_status');
 
         const hits = parseToolResult<Array<{ documentId: string; title: string }>>(
           await c.callTool({ name: 'kb_search', arguments: { query: 'widgets' } }),

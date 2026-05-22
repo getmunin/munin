@@ -552,27 +552,6 @@ export const webhookDeliveries = pgTable(
   }),
 );
 
-// ───────────────────────────── Bootstrap state ───────────────────────
-// Conversational config progress per app per org.
-export const bootstrapState = pgTable(
-  'bootstrap_state',
-  {
-    orgId: text('org_id')
-      .notNull()
-      .references(() => orgs.id, { onDelete: 'cascade' }),
-    appKey: varchar('app_key', { length: 32 }).notNull(),
-    // 'kb' | 'desk' | 'crm' | future
-    completedSteps: jsonb('completed_steps').$type<string[]>().notNull().default([]),
-    answers: jsonb('answers').$type<Record<string, unknown>>().notNull().default({}),
-    completedAt: timestamp('completed_at', { withTimezone: true }),
-    updatedAt,
-    createdAt,
-  },
-  (t) => ({
-    pk: primaryKey({ columns: [t.orgId, t.appKey] }),
-  }),
-);
-
 // ───────────────────────────── Rate limits ──────────────────────────
 // Token-bucket / sliding-window counters per org per token-type.
 // Postgres-only impl for v0.4; Redis later if hot.
@@ -1642,7 +1621,6 @@ export const allTables = {
   claims,
   webhooks,
   webhookDeliveries,
-  bootstrapState,
   rateLimitCounters,
   kbSpaces,
   kbDocuments,

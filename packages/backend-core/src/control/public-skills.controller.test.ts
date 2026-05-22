@@ -16,7 +16,7 @@ class StubSkillRegistry extends SkillRegistry {
 }
 
 const PUBLIC_ADMIN_SKILL: RegisteredSkill = {
-  uri: 'skill://conv/email-channel-setup',
+  uri: 'skill://conv/setup-email-channel',
   name: 'Email channel setup',
   description: 'Configure an inbound email channel.',
   audiences: ['admin'],
@@ -26,7 +26,7 @@ const PUBLIC_ADMIN_SKILL: RegisteredSkill = {
 };
 
 const PUBLIC_SELF_SERVICE_SKILL: RegisteredSkill = {
-  uri: 'skill://kb/article-bulk-import',
+  uri: 'skill://kb/import-articles-in-bulk',
   name: 'Article bulk import',
   description: 'Import articles in bulk.',
   audiences: ['admin', 'self_service'],
@@ -88,8 +88,8 @@ describe('PublicSkillsController', () => {
     const body = (await res.json()) as Array<{ uri: string }>;
     const uris = body.map((s) => s.uri).sort();
     expect(uris).toEqual([
-      'skill://conv/email-channel-setup',
-      'skill://kb/article-bulk-import',
+      'skill://conv/setup-email-channel',
+      'skill://kb/import-articles-in-bulk',
     ]);
     expect(uris).not.toContain('skill://crm/internal-only');
   });
@@ -97,11 +97,11 @@ describe('PublicSkillsController', () => {
   it('GET /api/v1/public/skills returns the documented list shape', async () => {
     const res = await fetch(`${baseUrl}/api/v1/public/skills`);
     const body = (await res.json()) as Array<Record<string, unknown>>;
-    const item = body.find((s) => s.uri === 'skill://conv/email-channel-setup')!;
+    const item = body.find((s) => s.uri === 'skill://conv/setup-email-channel')!;
     expect(item).toEqual({
-      uri: 'skill://conv/email-channel-setup',
+      uri: 'skill://conv/setup-email-channel',
       module: 'conv',
-      slug: 'email-channel-setup',
+      slug: 'setup-email-channel',
       title: 'Email channel setup',
       description: 'Configure an inbound email channel.',
     });
@@ -110,13 +110,13 @@ describe('PublicSkillsController', () => {
   });
 
   it('GET /api/v1/public/skills/:module/:slug returns the full detail', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/skills/conv/email-channel-setup`);
+    const res = await fetch(`${baseUrl}/api/v1/public/skills/conv/setup-email-channel`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toEqual({
-      uri: 'skill://conv/email-channel-setup',
+      uri: 'skill://conv/setup-email-channel',
       module: 'conv',
-      slug: 'email-channel-setup',
+      slug: 'setup-email-channel',
       title: 'Email channel setup',
       description: 'Configure an inbound email channel.',
       content: '# Email channel setup\n\nStep one.\n',
@@ -142,7 +142,7 @@ describe('PublicSkillsController', () => {
   it('does not require an Authorization header', async () => {
     const list = await fetch(`${baseUrl}/api/v1/public/skills`, { headers: {} });
     expect(list.status).toBe(200);
-    const detail = await fetch(`${baseUrl}/api/v1/public/skills/conv/email-channel-setup`, {
+    const detail = await fetch(`${baseUrl}/api/v1/public/skills/conv/setup-email-channel`, {
       headers: {},
     });
     expect(detail.status).toBe(200);

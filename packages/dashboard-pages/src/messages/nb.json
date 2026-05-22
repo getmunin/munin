@@ -602,6 +602,19 @@
       "applicationLabel": "Applikasjon",
       "scopesLabel": "Forespurte tillatelser",
       "noScopes": "(ingen tillatelser forespurt)",
+      "noModuleScopes": "Bare innlogging — ingen produkttillatelser forespurt.",
+      "standardDisclosure": "Identitet ved innlogging (openid, profile, email) og fornyelse av økt (offline_access) gis også.",
+      "modules": {
+        "kb": "Kunnskapsbase",
+        "conv": "Samtaler",
+        "crm": "Kontakter",
+        "cms": "Innhold",
+        "outreach": "Utgående"
+      },
+      "actions": {
+        "read": "Lese",
+        "write": "Skrive"
+      },
       "authorize": "Gi tilgang",
       "authorizing": "Gir tilgang …",
       "deny": "Avslå",

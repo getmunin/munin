@@ -1170,7 +1170,7 @@
   {
     "name": "conv_request_handover",
     "title": "Request handover to a human",
-    "description": "Flag a conversation as needing human attention. Use this when you have reached the limit of what you can resolve autonomously — billing decisions, refunds outside policy, sensitive complaints, anything where a human teammate should step in. Appends an internal system note (visible only to staff) recording your stated `reason`, sets the conversation's \"needs human attention\" flag (which pins it to the top of the dashboard's Conversations page), and emits `conversation.handover_requested`. Idempotent — calling again on an already-flagged conversation is a no-op. The flag clears automatically once a human teammate replies or closes the conversation.",
+    "description": "Flag a conversation as needing human attention. Use this when you have reached the limit of what you can resolve autonomously — billing decisions, refunds outside policy, sensitive complaints, anything where a human teammate should step in. Appends an internal system note (visible only to staff) recording your stated `reason`, sets the conversation's \"needs human attention\" flag (which pins it to the top of the dashboard's Conversations page), and emits `conversation.handover_requested`. Also pass `suggestedReply` — your best guess at what a human teammate could send to resolve the issue. The team sees this as a starting draft they can edit, approve, or rewrite. Idempotent — calling again on an already-flagged conversation is a no-op. The flag clears automatically once a human teammate replies or closes the conversation.",
     "audiences": [
       "admin"
     ],
@@ -1189,6 +1189,10 @@
         "reason": {
           "type": "string",
           "maxLength": 500
+        },
+        "suggestedReply": {
+          "type": "string",
+          "maxLength": 2000
         }
       },
       "required": [
@@ -1274,6 +1278,11 @@
             "sms"
           ]
         },
+        "vendor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
         "name": {
           "type": "string",
           "minLength": 1,
@@ -1289,6 +1298,7 @@
       },
       "required": [
         "type",
+        "vendor",
         "name"
       ],
       "additionalProperties": false
@@ -1389,9 +1399,45 @@
     }
   },
   {
+    "name": "conv_strip_message_signature",
+    "title": "Strip the signature from an inbound message",
+    "description": "Replace an inbound message's body with a signature-stripped version. Used by the strip-email-signature curator skill — runs after the regex quote-stripper to clean up the trailing sign-off / contact block. The original body is kept in `metadata.preStripBody` for audit; the removed signature (if provided) is stored in `metadata.signatureText`. Refuses if the new body is empty, more than 50% shorter than the original, or if the message isn't an end-user inbound in the caller's org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "messageId": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50000
+        },
+        "signatureText": {
+          "type": "string",
+          "maxLength": 5000
+        }
+      },
+      "required": [
+        "messageId",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "conv_request_handover_in_my_conversation",
     "title": "Request a human teammate to take over",
-    "description": "Flag the current conversation as needing human attention. Use this when you can't answer the end-user's question on your own — pricing exceptions, account-specific issues you can't verify, anything sensitive. Pass the exact `conversationId` you were given in the system context. Sets a \"needs human attention\" flag on the conversation (pinning it to the top of the team's dashboard) and posts an internal note recording your `reason`. After calling this, do not keep generating replies on your own — let the user know a teammate will follow up, then stop. The flag clears once a teammate replies. The end-user does not see the system note — only the team does.",
+    "description": "Flag the current conversation as needing human attention. Use this when you can't answer the end-user's question on your own — pricing exceptions, account-specific issues you can't verify, anything sensitive. Pass the exact `conversationId` you were given in the system context. Sets a \"needs human attention\" flag on the conversation (pinning it to the top of the team's dashboard) and posts an internal note recording your `reason`. Also pass `suggestedReply` — your best guess at what a human teammate could send to resolve the issue. The team sees this as a starting draft they can edit, approve, or rewrite. After calling this, do not keep generating replies on your own — let the user know a teammate will follow up, then stop. The flag clears once a teammate replies. The end-user does not see the system note or the suggested reply — only the team does.",
     "audiences": [
       "self_service"
     ],
@@ -1410,6 +1456,10 @@
         "reason": {
           "type": "string",
           "maxLength": 500
+        },
+        "suggestedReply": {
+          "type": "string",
+          "maxLength": 2000
         }
       },
       "required": [
@@ -1478,7 +1528,9 @@
                     },
                     "host": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 253,
+                      "pattern": "^(localhost|(?:\\d{1,3}\\.){3}\\d{1,3}|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$"
                     },
                     "port": {
                       "type": "integer",
@@ -1495,6 +1547,9 @@
                     "password": {
                       "type": "string",
                       "minLength": 1
+                    },
+                    "trackOpens": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -1512,6 +1567,9 @@
                     "provider": {
                       "type": "string",
                       "const": "mailer"
+                    },
+                    "trackOpens": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -1530,7 +1588,9 @@
                 },
                 "host": {
                   "type": "string",
-                  "minLength": 1
+                  "minLength": 1,
+                  "maxLength": 253,
+                  "pattern": "^(localhost|(?:\\d{1,3}\\.){3}\\d{1,3}|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$"
                 },
                 "port": {
                   "type": "integer",
@@ -1560,6 +1620,22 @@
                 "secure",
                 "username"
               ],
+              "additionalProperties": false
+            },
+            "sendLimits": {
+              "type": "object",
+              "properties": {
+                "perDayMax": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000000
+                },
+                "perHourMax": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000000
+                }
+              },
               "additionalProperties": false
             }
           },
@@ -1599,6 +1675,441 @@
       },
       "required": [
         "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_email_send_test",
+    "title": "Send test email",
+    "description": "Send a real test email through this channel's configured outbound transport (SMTP or Mailer). The message is addressed `to` the recipient you pass in. Useful for confirming credentials and deliverability end-to-end.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        }
+      },
+      "required": [
+        "channelId",
+        "to"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_messagebird_sms_configure",
+    "title": "Configure MessageBird SMS channel",
+    "description": "Create or update a MessageBird SMS channel. Pass `channelId` to update; omit to create. The plaintext `accessKey` and `signingKey` are encrypted before storage and returned redacted. On update, omit either secret to keep the existing one.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "description": "Pass an existing channel id to update; omit to create a new channel.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "accessKey": {
+          "description": "MessageBird live or test Access Key (used to authorize outbound SMS). Required on create. On update, omit to keep the existing value.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "signingKey": {
+          "description": "MessageBird signing key (used to verify the JWT on incoming webhooks). Required on create. On update, omit to keep the existing value.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "originator": {
+          "description": "Sender ID — either an E.164 number registered with your MessageBird account or an alphanumeric ≤ 11 chars. Required on create.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_messagebird_sms_test_channel",
+    "title": "Test MessageBird SMS channel credentials",
+    "description": "Verify a MessageBird channel's stored Access Key by fetching the account balance. Returns `{ ok: true, balance }` on success.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_messagebird_sms_send_test",
+    "title": "Send a real test SMS via MessageBird",
+    "description": "Send a real SMS through this channel's MessageBird account. Useful for end-to-end deliverability checks.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 32,
+          "description": "E.164 destination number."
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1600
+        }
+      },
+      "required": [
+        "channelId",
+        "to"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_twilio_sms_configure",
+    "title": "Configure Twilio SMS channel",
+    "description": "Create or update a Twilio SMS channel. Pass `channelId` to update an existing channel; omit to create one. The plaintext `authToken` is encrypted before storage and is returned redacted. On update, omit `authToken` to keep the existing one. Either `fromNumber` (E.164) or `messagingServiceSid` is required.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "description": "Pass an existing channel id to update; omit to create a new channel.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "accountSid": {
+          "description": "Twilio Account SID — starts with \"AC\". Required on create.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64
+        },
+        "authToken": {
+          "description": "Twilio Auth Token (plaintext). Required on create. On update, omit to keep the existing token, or pass a new value to rotate.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "fromNumber": {
+          "description": "E.164-formatted Twilio number to send from. Either this or messagingServiceSid is required.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 32
+        },
+        "messagingServiceSid": {
+          "description": "Twilio Messaging Service SID (starts with \"MG\"). Alternative to fromNumber.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_twilio_sms_test_channel",
+    "title": "Test Twilio SMS channel credentials",
+    "description": "Verify a Twilio SMS channel's stored Account SID + Auth Token by fetching the account record from Twilio. Returns `{ ok: true, friendlyName, status }` on success.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_twilio_sms_send_test",
+    "title": "Send a real test SMS",
+    "description": "Send a real SMS through this channel's Twilio account. The recipient must be a number Twilio is permitted to reach (verified caller ID on trial accounts). Useful for end-to-end deliverability checks.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 32,
+          "description": "E.164 destination number."
+        },
+        "body": {
+          "default": "Munin test message — outbound SMS is working.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1600
+        }
+      },
+      "required": [
+        "channelId",
+        "to"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_vapi_configure",
+    "title": "Configure Vapi voice channel",
+    "description": "Create or update a Vapi voice channel. Pass `channelId` to update; omit to create. The plaintext `apiKey` and `webhookSecret` are encrypted before storage and returned redacted. The assistant + phone number must already exist in Vapi — paste their IDs here.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "description": "Pass an existing channel id to update; omit to create a new channel.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "apiKey": {
+          "description": "Vapi API key. Required on create. On update, omit to keep the existing value.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "webhookSecret": {
+          "description": "Shared secret used to authenticate inbound webhooks from Vapi. In the Vapi dashboard go to the assistant's Advanced → Webhook Server → HTTP Headers and add header `X-Webhook-Secret` with this value. Required on create.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "assistantId": {
+          "description": "Vapi assistant ID. Create the assistant in the Vapi dashboard or via their API, then paste its ID here.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "phoneNumberId": {
+          "description": "Vapi phone number ID. Only required if you want to place or receive PSTN phone calls — leave blank for WebRTC/browser-only voice. Either import a Twilio number into Vapi or buy one from Vapi, then paste the ID here.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "publicKey": {
+          "description": "Vapi public key — safe to expose to the browser. Required if you want the chat widget to start in-browser voice sessions; not needed for phone-only setups. Find it in the Vapi dashboard under your assistant.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_vapi_test_channel",
+    "title": "Test Vapi voice channel credentials",
+    "description": "Verify a Vapi channel's stored API key and assistant by fetching the assistant from Vapi. Returns `{ ok: true, assistant }` on success.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_voice_call_initiate",
+    "title": "Place an outbound voice call",
+    "description": "Initiate an outbound voice call through this channel. The Vapi assistant will run the conversation. Returns the Vapi call id and status.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^\\+[1-9]\\d{4,18}$"
+        },
+        "customerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "channelId",
+        "to"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_request_phone_call_for_my_conversation",
+    "title": "Place a phone call to the user in this conversation",
+    "description": "Place an outbound phone call to the contact in this conversation. Use this only when the user has asked to be called — e.g. \"can you call me?\". The call goes to the phone number already on file for this conversation's contact; you cannot specify an arbitrary number. The org must have an active Vapi voice channel configured. After requesting the call, tell the user briefly that a call is on the way and stop replying — the rest of the conversation happens on the phone.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversationId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_voice_call_contact",
+    "title": "Place a voice call to this conversation's contact",
+    "description": "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact and picks the org's active Vapi voice channel automatically. For arbitrary destinations, use `conv_voice_call_initiate` instead.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "conversationId"
       ],
       "additionalProperties": false
     }
@@ -1898,7 +2409,7 @@
   {
     "name": "crm_update_contact",
     "title": "Update contact",
-    "description": "Update fields on a contact. Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it.",
+    "description": "Update fields on a contact. Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
     "audiences": [
       "admin"
     ],
@@ -1980,6 +2491,14 @@
             }
           },
           "additionalProperties": false
+        },
+        "mode": {
+          "description": "When 'fill-null', only applies patch keys whose existing value on the contact is null or empty — non-null fields are left untouched. Default 'overwrite' applies the patch as-is. Curator skills that backfill automated data should pass 'fill-null'; human-driven dashboard edits should use the default.",
+          "type": "string",
+          "enum": [
+            "fill-null",
+            "overwrite"
+          ]
         }
       },
       "required": [
@@ -2529,7 +3048,7 @@
   {
     "name": "crm_propose_merge_candidate",
     "title": "Propose a CRM merge candidate",
-    "description": "File a structured proposal that two contacts are the same person. Pass `confidence` (\"high\" | \"medium\"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM hygiene curator runs this on a periodic cadence; see `skill://crm/hygiene`.",
+    "description": "File a structured proposal that two contacts are the same person. Pass `confidence` (\"high\" | \"medium\"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.",
     "audiences": [
       "admin"
     ],
@@ -3477,7 +3996,7 @@
   {
     "name": "kb_propose_curation_candidate",
     "title": "Propose KB curation candidate",
-    "description": "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/curation` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`.",
+    "description": "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/review-content` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`.",
     "audiences": [
       "admin"
     ],
@@ -3616,7 +4135,7 @@
       "admin"
     ],
     "scopes": [
-      "crm:read"
+      "outreach:read"
     ],
     "danger": null,
     "readOnly": true,
@@ -3635,7 +4154,7 @@
       "admin"
     ],
     "scopes": [
-      "crm:read"
+      "outreach:read"
     ],
     "danger": null,
     "readOnly": true,
@@ -3663,7 +4182,7 @@
       "admin"
     ],
     "scopes": [
-      "crm:write"
+      "outreach:write"
     ],
     "danger": "writes",
     "readOnly": false,
@@ -3753,7 +4272,7 @@
       "admin"
     ],
     "scopes": [
-      "crm:write"
+      "outreach:write"
     ],
     "danger": "writes",
     "readOnly": false,
@@ -3852,7 +4371,7 @@
       "admin"
     ],
     "scopes": [
-      "crm:read"
+      "outreach:read"
     ],
     "danger": null,
     "readOnly": true,
@@ -3904,7 +4423,7 @@
       "admin"
     ],
     "scopes": [
-      "crm:write"
+      "outreach:write"
     ],
     "danger": "writes",
     "readOnly": false,
@@ -3923,14 +4442,15 @@
           "maxLength": 64
         },
         "draftSubject": {
+          "description": "Required for email campaigns; omit for voice campaigns where the call has no subject.",
           "type": "string",
-          "minLength": 1,
           "maxLength": 300
         },
         "draftBody": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 20000
+          "maxLength": 20000,
+          "description": "For email campaigns: the email body. For voice campaigns: the opening line / talking-points the AI agent should use when the call connects."
         },
         "evidence": {
           "type": "object",
@@ -3948,7 +4468,6 @@
       "required": [
         "campaignId",
         "contactId",
-        "draftSubject",
         "draftBody"
       ],
       "additionalProperties": false
@@ -3962,7 +4481,7 @@
       "admin"
     ],
     "scopes": [
-      "crm:write"
+      "outreach:write"
     ],
     "danger": "writes",
     "readOnly": false,
@@ -3991,66 +4510,6 @@
       "required": [
         "conversationId",
         "draftBody"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "bootstrap_status",
-    "title": "Read bootstrap progress",
-    "description": "Read the conversational config progress for one Munin app (kb / conv / crm / ...). Returns the next step to ask the user about, or `completed: true` when all steps are done.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "app": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 32
-        }
-      },
-      "required": [
-        "app"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "bootstrap_answer",
-    "title": "Submit bootstrap answer",
-    "description": "Submit the user's answer to a bootstrap step. The runner validates `value`, applies side effects (e.g. creates a space), and returns the updated status.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [],
-    "danger": "writes",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "app": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 32
-        },
-        "stepId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "value": {}
-      },
-      "required": [
-        "app",
-        "stepId",
-        "value"
       ],
       "additionalProperties": false
     }

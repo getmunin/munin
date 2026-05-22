@@ -8,7 +8,6 @@ import { AuditInterceptor } from './common/audit/audit.interceptor.js';
 import { McpModule } from './mcp/mcp.module.js';
 import { ControlModule } from './control/control.module.js';
 import { KbModule } from './modules/kb/kb.module.js';
-import { BootstrapModule } from './modules/bootstrap/bootstrap.module.js';
 import { ConvModule } from './modules/conv/conv.module.js';
 import { CrmModule } from './modules/crm/crm.module.js';
 import { CmsModule } from './modules/cms/cms.module.js';
@@ -37,7 +36,6 @@ export const BACKEND_FEATURE_MODULES_NO_AUTH = [
   McpModule,
   ControlModule,
   KbModule,
-  BootstrapModule,
   ConvModule,
   CrmModule,
   CmsModule,

@@ -40,7 +40,6 @@
     "docs:generate": "pnpm openapi:generate && node --import @swc-node/register/esm-register ./scripts/generate-docs-fixtures.ts"
   },
   "dependencies": {
-    "@getmunin/bootstrap": "workspace:*",
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",
     "@getmunin/mcp-toolkit": "workspace:*",

@@ -8,10 +8,10 @@ import {
 
 describe('jobKindOf', () => {
   it('classifies skill:// URIs as skill', () => {
-    expect(jobKindOf('skill://kb/curation')).toBe('skill');
+    expect(jobKindOf('skill://kb/review-content')).toBe('skill');
   });
   it('classifies task:// URIs as task', () => {
-    expect(jobKindOf('task://web/scrape-site')).toBe('task');
+    expect(jobKindOf('task://web/scrape-website')).toBe('task');
   });
   it('returns null for anything else', () => {
     expect(jobKindOf('')).toBeNull();
@@ -25,8 +25,8 @@ describe('tierFor', () => {
     expect(tierFor('skill://conv/strip-email-signature')).toBe('fast');
   });
   it('defaults to smart', () => {
-    expect(tierFor('skill://crm/hygiene')).toBe('smart');
-    expect(tierFor('task://web/scrape-site')).toBe('smart');
+    expect(tierFor('skill://crm/clean-contact-data')).toBe('smart');
+    expect(tierFor('task://web/scrape-website')).toBe('smart');
     expect(tierFor('skill://made-up/future')).toBe('smart');
     expect(tierFor('')).toBe('smart');
   });
@@ -34,10 +34,10 @@ describe('tierFor', () => {
 
 describe('toolPrefixesFor', () => {
   it('returns the configured prefixes for a known skill', () => {
-    expect(toolPrefixesFor('skill://kb/curation')).toEqual(['conv_', 'kb_']);
+    expect(toolPrefixesFor('skill://kb/review-content')).toEqual(['conv_', 'kb_']);
   });
   it('returns undefined for unmapped URIs', () => {
-    expect(toolPrefixesFor('task://web/scrape-site')).toBeUndefined();
+    expect(toolPrefixesFor('task://web/scrape-website')).toBeUndefined();
     expect(toolPrefixesFor('skill://unknown/x')).toBeUndefined();
   });
 });

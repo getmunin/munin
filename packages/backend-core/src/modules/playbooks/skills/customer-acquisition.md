@@ -12,11 +12,11 @@ This is a **playbook** — it composes per-module skills rather than reproducing
 
 ## TL;DR
 
-1. Import the leads with `skill://crm/lead-import-and-scoring`.
-2. Confirm the email channel exists (`skill://conv/email-channel-setup` if not).
+1. Import the leads with `skill://crm/import-and-score-leads`.
+2. Confirm the email channel exists (`skill://conv/setup-email-channel` if not).
 3. For each new contact: `conv_start_conversation` → `conv_send_message` with the welcome text.
 4. Log the activity on the contact (`crm_log_activity`, type `email`).
-5. If the contact replies, route per `skill://conv/handoff-from-ai-agent`.
+5. If the contact replies, route per `skill://conv/escalate-to-human`.
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ If either is missing, run the per-module skill first.
 
 ## Step 1 — import the lead list
 
-Follow `skill://crm/lead-import-and-scoring` end-to-end. After it completes you have:
+Follow `skill://crm/import-and-score-leads` end-to-end. After it completes you have:
 - N new contacts (some skipped as duplicates), each tagged with the import source.
 - A deal per qualified lead, in the first stage of the chosen pipeline.
 - AI summaries on contacts and deals.
@@ -45,7 +45,7 @@ Capture the list of **created** contact ids — you'll iterate over them in step
 { "name": "conv_list_channels", "arguments": {} }
 ```
 
-Pick the channel whose `fromAddress` matches the campaign (e.g. a sales-from address, not a support one). If it doesn't exist yet, follow `skill://conv/email-channel-setup`.
+Pick the channel whose `fromAddress` matches the campaign (e.g. a sales-from address, not a support one). If it doesn't exist yet, follow `skill://conv/setup-email-channel`.
 
 ## Step 3 — open conversations + send
 
@@ -117,7 +117,7 @@ If you have an AI bot replying autonomously, it can keep using `conv_send_messag
 
 ### B. Hand off to a human
 
-When intent signals fire (specific keywords, sentiment, "talk to a human"), follow `skill://conv/handoff-from-ai-agent`. The bot subscribes to `conversation.message.sent` and yields when a Munin user replies. On handoff, also advance the deal stage via `skill://crm/deal-progression`.
+When intent signals fire (specific keywords, sentiment, "talk to a human"), follow `skill://conv/escalate-to-human`. The bot subscribes to `conversation.message.sent` and yields when a Munin user replies. On handoff, also advance the deal stage via `skill://crm/progress-deal-through-pipeline`.
 
 ## What NOT to do
 
@@ -128,7 +128,7 @@ When intent signals fire (specific keywords, sentiment, "talk to a human"), foll
 
 ## Related
 
-- `skill://crm/lead-import-and-scoring` — the import side.
-- `skill://conv/email-channel-setup` — channel prereq.
-- `skill://conv/handoff-from-ai-agent` — when a human takes over.
-- `skill://crm/deal-progression` — once a reply is real intent.
+- `skill://crm/import-and-score-leads` — the import side.
+- `skill://conv/setup-email-channel` — channel prereq.
+- `skill://conv/escalate-to-human` — when a human takes over.
+- `skill://crm/progress-deal-through-pipeline` — once a reply is real intent.

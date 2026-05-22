@@ -12,19 +12,19 @@ This is a **playbook** — it composes per-module skills.
 
 ## TL;DR
 
-1. Author + publish the entry per `skill://cms/entry-publish-workflow`.
+1. Author + publish the entry per `skill://cms/publish-entry`.
 2. Mirror to KB: `kb_create_document` with the entry's body in the appropriate space.
 3. Announce in a conversation: `conv_send_message` to a designated internal channel (or per-customer channels for big news).
 
 ## Prerequisites
 
 - The CMS collection and entry exist.
-- The KB has a relevant space (`kb_list_spaces`); if not, run `skill://kb/kb-onboarding`.
+- The KB has a relevant space (`kb_list_spaces`); if not, run `skill://kb/create-first-space`.
 - The conversation channel for announcements exists (`conv_list_channels`).
 
 ## Step 1 — author + publish in the CMS
 
-Follow `skill://cms/entry-publish-workflow` end-to-end.
+Follow `skill://cms/publish-entry` end-to-end.
 
 After it completes, you have:
 - An entry with `status: 'published'` and a stamped `publishedAt`.
@@ -123,6 +123,6 @@ The published entry should be there too. If both surface and the announcement wa
 
 ## Related
 
-- `skill://cms/entry-publish-workflow` — the publish half.
-- `skill://kb/article-bulk-import` — bulk mirroring for catch-up imports.
-- `skill://conv/bulk-channel-setup` — making sure the announcement channel exists.
+- `skill://cms/publish-entry` — the publish half.
+- `skill://kb/import-articles-in-bulk` — bulk mirroring for catch-up imports.
+- `skill://conv/setup-email-and-widget-channels` — making sure the announcement channel exists.

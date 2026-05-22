@@ -12,6 +12,8 @@ export const SUPPORTED_SCOPES = [
   'crm:write',
   'cms:read',
   'cms:write',
+  'outreach:read',
+  'outreach:write',
 ] as const;
 
 export type SupportedScope = (typeof SUPPORTED_SCOPES)[number];

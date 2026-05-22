@@ -3673,6 +3673,30 @@
         ],
         "security": []
       }
+    },
+    "/api/v1/oauth/clients/{clientId}": {
+      "get": {
+        "operationId": "OAuthClientInfoController_lookup",
+        "parameters": [
+          {
+            "name": "clientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OAuthClientInfo"
+        ],
+        "security": []
+      }
     }
   },
   "info": {

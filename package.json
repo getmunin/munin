@@ -2,7 +2,7 @@
   "name": "munin",
   "version": "0.0.1",
   "private": true,
-  "description": "MCP-first headless business app suite (Knowledge Base, Conversations, CRM, CMS)",
+  "description": "MCP-first customer platform made for the agentic era (Knowledge Base, Conversations, CRM, CMS, Outreach)",
   "license": "MIT",
   "engines": {
     "node": ">=24",

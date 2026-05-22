@@ -420,7 +420,7 @@ const skipReason = TEST_URL
       const rows = await db.execute<{ job_uri: string; dedupe_key: string | null }>(
         sql`SELECT job_uri, dedupe_key FROM curator_jobs WHERE org_id = ${orgId}`,
       );
-      const extractJob = rows.find((r) => r.job_uri === 'skill://crm/contact-extract');
+      const extractJob = rows.find((r) => r.job_uri === 'skill://crm/extract-contact-from-message');
       expect(extractJob).toBeDefined();
       expect(extractJob!.dedupe_key).toBe(`crm-contact-extract:conv:${conv.id}`);
     });
@@ -470,7 +470,7 @@ const skipReason = TEST_URL
         }),
       );
       const rows = await db.execute<{ job_uri: string; dedupe_key: string | null }>(
-        sql`SELECT job_uri, dedupe_key FROM curator_jobs WHERE org_id = ${orgId} AND job_uri = 'skill://outreach/draft-reply'`,
+        sql`SELECT job_uri, dedupe_key FROM curator_jobs WHERE org_id = ${orgId} AND job_uri = 'skill://outreach/draft-reply-email'`,
       );
       expect(rows.length).toBe(1);
       expect(rows[0]!.dedupe_key).toMatch(/^outreach-draft-reply:msg:cvm_/);
@@ -487,7 +487,7 @@ const skipReason = TEST_URL
         }),
       );
       const rows = await db.execute<{ job_uri: string }>(
-        sql`SELECT job_uri FROM curator_jobs WHERE org_id = ${orgId} AND job_uri = 'skill://outreach/draft-reply'`,
+        sql`SELECT job_uri FROM curator_jobs WHERE org_id = ${orgId} AND job_uri = 'skill://outreach/draft-reply-email'`,
       );
       expect(rows.length).toBe(0);
     });
@@ -504,7 +504,7 @@ const skipReason = TEST_URL
       const rows = await db.execute<{ job_uri: string }>(
         sql`SELECT job_uri FROM curator_jobs WHERE org_id = ${orgId}`,
       );
-      expect(rows.find((r) => r.job_uri === 'skill://crm/contact-extract')).toBeUndefined();
+      expect(rows.find((r) => r.job_uri === 'skill://crm/extract-contact-from-message')).toBeUndefined();
     });
 
     it('changeStatus snoozed requires snoozeUntil', async () => {

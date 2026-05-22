@@ -15,7 +15,7 @@ const CRM_HYGIENE_PROMPT =
 const CMS_STALE_PROMPT =
   'Run a CMS stale-content review pass. Follow the skill. Walk each collection, judge per-collection velocity, find stale drafts, find unrefreshed published entries, find orphaned assets. Produce a structured action report grouped by recommended action. Do not execute any mutating tool — propose only.';
 const OUTREACH_DRAFT_INITIAL_PROMPT =
-  'Run an outreach draft-initial pass. Follow skill://outreach/draft-initial exactly. List enabled campaigns, materialise each segment via crm_list_contacts_in_segment, dedupe via outreach_list_proposals, ground each draft in kb_search results, and file every new draft via outreach_propose_initial. Do NOT approve or send anything — drafts go to the operator review queue.';
+  'Run an outreach draft-initial pass. Follow skill://outreach/draft-initial-email exactly. List enabled campaigns, materialise each segment via crm_list_contacts_in_segment, dedupe via outreach_list_proposals, ground each draft in kb_search results, and file every new draft via outreach_propose_initial. Do NOT approve or send anything — drafts go to the operator review queue.';
 
 interface SweepDef {
   name: string;
@@ -50,7 +50,7 @@ export class CuratorSchedulerService implements OnModuleInit {
         name: 'curator-kb-sweep',
         envCron: process.env.MUNIN_CURATOR_KB_SWEEP_CRON,
         defaultCron: CronExpression.EVERY_WEEK,
-        jobUri: 'skill://kb/curation',
+        jobUri: 'skill://kb/review-content',
         userPrompt: KB_SWEEP_PROMPT,
         dedupeKey: 'kb-sweep:scheduled',
       },
@@ -58,7 +58,7 @@ export class CuratorSchedulerService implements OnModuleInit {
         name: 'curator-crm-hygiene',
         envCron: process.env.MUNIN_CURATOR_CRM_HYGIENE_CRON,
         defaultCron: CronExpression.EVERY_WEEK,
-        jobUri: 'skill://crm/hygiene',
+        jobUri: 'skill://crm/clean-contact-data',
         userPrompt: CRM_HYGIENE_PROMPT,
         dedupeKey: 'crm-hygiene:scheduled',
       },
@@ -66,7 +66,7 @@ export class CuratorSchedulerService implements OnModuleInit {
         name: 'curator-cms-stale',
         envCron: process.env.MUNIN_CURATOR_CMS_STALE_CRON,
         defaultCron: CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT,
-        jobUri: 'skill://cms/stale-content-review',
+        jobUri: 'skill://cms/review-stale-entries',
         userPrompt: CMS_STALE_PROMPT,
         dedupeKey: 'cms-stale:scheduled',
       },
@@ -74,7 +74,7 @@ export class CuratorSchedulerService implements OnModuleInit {
         name: 'curator-outreach-draft-initial',
         envCron: process.env.MUNIN_CURATOR_OUTREACH_INITIAL_CRON,
         defaultCron: CronExpression.EVERY_WEEK,
-        jobUri: 'skill://outreach/draft-initial',
+        jobUri: 'skill://outreach/draft-initial-email',
         userPrompt: OUTREACH_DRAFT_INITIAL_PROMPT,
         dedupeKey: 'outreach-draft-initial:scheduled',
       },

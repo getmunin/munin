@@ -150,7 +150,7 @@ function SectionHeader({ title, blurb }: { title: string; blurb: string }) {
 
 function isConversational(skill: { uri: string }): boolean {
   return (
-    skill.uri === 'skill://outreach/draft-reply' ||
-    skill.uri === 'skill://outreach/draft-initial'
+    skill.uri === 'skill://outreach/draft-reply-email' ||
+    skill.uri === 'skill://outreach/draft-initial-email'
   );
 }

@@ -12,9 +12,9 @@ This playbook orchestrates three module-level setups. Each step links to the per
 
 ## TL;DR
 
-1. **Conv channels** (`skill://conv/bulk-channel-setup`) — email + widget, both tested.
-2. **CRM contacts** (`skill://crm/lead-import-and-scoring` or `skill://crm/customer-onboarding`) — import existing customers so inbound conversations auto-link.
-3. **KB seed** (`skill://kb/kb-onboarding` + `skill://kb/article-bulk-import`) — first space + initial article set.
+1. **Conv channels** (`skill://conv/setup-email-and-widget-channels`) — email + widget, both tested.
+2. **CRM contacts** (`skill://crm/import-and-score-leads` or `skill://crm/onboard-new-customer`) — import existing customers so inbound conversations auto-link.
+3. **KB seed** (`skill://kb/create-first-space` + `skill://kb/import-articles-in-bulk`) — first space + initial article set.
 4. Verify the loop end-to-end: send a test inbound message → confirm it lands → confirm contact auto-link → confirm an agent can find a relevant KB article.
 
 ## Prerequisites
@@ -29,7 +29,7 @@ If any prerequisite is missing, stop and ask for the missing input rather than g
 
 ## Step 1 — channels
 
-Follow `skill://conv/bulk-channel-setup` end-to-end. At completion you should have:
+Follow `skill://conv/setup-email-and-widget-channels` end-to-end. At completion you should have:
 - An email channel with SMTP+IMAP verified.
 - A widget channel with `widgetKey` handed to the customer's dev team.
 - Default topics seeded (Billing / Support / Bug, or custom).
@@ -42,25 +42,25 @@ Two flavors depending on what the customer hands you:
 
 ### Bulk list (most common for migrations)
 
-Follow `skill://crm/lead-import-and-scoring`. Skip the deal-creation step (or move it later) — for support desk seeding, the goal is *contact existence*, not pipeline placement.
+Follow `skill://crm/import-and-score-leads`. Skip the deal-creation step (or move it later) — for support desk seeding, the goal is *contact existence*, not pipeline placement.
 
 Companies: if the customer's list has company info, create them via `crm_create_company` and link via `crm_update_contact`. Auto-linking inbound emails to companies is a future improvement; today the link is by `companyId` on the contact.
 
 ### One at a time
 
-If they want to onboard customers as they reach out, follow `skill://crm/customer-onboarding` per inbound conversation instead.
+If they want to onboard customers as they reach out, follow `skill://crm/onboard-new-customer` per inbound conversation instead.
 
 ## Step 3 — KB seed
 
 ### First space
 
-Follow `skill://kb/kb-onboarding`. For a support desk:
+Follow `skill://kb/create-first-space`. For a support desk:
 - Pick a space slug like `help` or `support-kb`.
 - Decide whether articles will be `public: true` (delivered via the self-service search audience to end-users) or `public: false` (admin-side only, for human agents).
 
 ### Article import
 
-Follow `skill://kb/article-bulk-import` for the customer's existing knowledge. Read `skill://kb/import-from-google-docs` first if you haven't — chunking strategy matters for search performance.
+Follow `skill://kb/import-articles-in-bulk` for the customer's existing knowledge. Read `skill://kb/import-from-google-docs` first if you haven't — chunking strategy matters for search performance.
 
 If the customer doesn't have any existing knowledge to import: ask for 5–10 of the most-asked questions and write articles inline via `kb_create_document`. Even a small starter set lets agents (human and AI) cite something.
 
@@ -101,10 +101,10 @@ If nothing relevant comes back, either the import didn't include this topic or c
 
 ## Related
 
-- `skill://conv/bulk-channel-setup` — the channels half.
-- `skill://crm/lead-import-and-scoring` — bulk contact import.
-- `skill://crm/customer-onboarding` — single-contact path.
-- `skill://kb/kb-onboarding` — first KB space.
-- `skill://kb/article-bulk-import` — bulk article import.
+- `skill://conv/setup-email-and-widget-channels` — the channels half.
+- `skill://crm/import-and-score-leads` — bulk contact import.
+- `skill://crm/onboard-new-customer` — single-contact path.
+- `skill://kb/create-first-space` — first KB space.
+- `skill://kb/import-articles-in-bulk` — bulk article import.
 - `skill://kb/import-from-google-docs` — chunking + embeddings.
 - `skill://playbooks/customer-acquisition` — outbound (sales) flavor of conv + crm.

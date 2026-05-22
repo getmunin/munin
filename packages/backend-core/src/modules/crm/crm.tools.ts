@@ -484,7 +484,7 @@ export class CrmAdminTools {
     name: 'crm_propose_merge_candidate',
     title: 'Propose a CRM merge candidate',
     description:
-      'File a structured proposal that two contacts are the same person. Pass `confidence` ("high" | "medium"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM hygiene curator runs this on a periodic cadence; see `skill://crm/hygiene`.',
+      'File a structured proposal that two contacts are the same person. Pass `confidence` ("high" | "medium"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: ProposeMergeInput,

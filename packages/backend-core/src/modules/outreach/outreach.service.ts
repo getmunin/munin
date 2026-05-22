@@ -479,7 +479,7 @@ export class OutreachService {
 
     // Create the conversation in `agentMode='draft_only'` so the AI runner
     // defers on subsequent inbound messages — replies should be drafted by
-    // `skill://outreach/draft-reply` and human-approved, not auto-sent.
+    // `skill://outreach/draft-reply-email` and human-approved, not auto-sent.
     const conversation = await this.conv.createConversation({
       channelId: campaign.channelId,
       body,

@@ -1,13 +1,20 @@
-import { CanActivate, ExecutionContext, Inject, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Inject, Injectable, Optional, SetMetadata, UnauthorizedException } from '@nestjs/common';
 import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../db/db.module.js';
 import { Reflector } from '@nestjs/core';
 import { mcpResourceUrl, resourceMetadataUrl } from '../../oauth/oauth.constants.js';
 
-/** Decorator used on routes that should be reachable without auth (signup, oauth discovery). */
-export const ALLOW_ANONYMOUS = Symbol('allowAnonymous');
-export const AllowAnonymous = () => Reflect.metadata(ALLOW_ANONYMOUS, true);
+/**
+ * Decorator used on routes that should be reachable without auth
+ * (signup, oauth discovery). Backed by Nest's `SetMetadata` keyed by a
+ * stable string — Symbol() was used originally, but symbol identity
+ * across compiled module boundaries proved unreliable in production
+ * (well-known OAuth discovery endpoints 401'd even though they had
+ * @AllowAnonymous at the method level).
+ */
+export const ALLOW_ANONYMOUS = 'munin:allow-anonymous';
+export const AllowAnonymous = () => SetMetadata(ALLOW_ANONYMOUS, true);
 
 /**
  * Extension point: try additional resolvers when the built-in resolver

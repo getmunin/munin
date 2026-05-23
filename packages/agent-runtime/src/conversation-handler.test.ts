@@ -418,11 +418,11 @@ describe('createConversationHandler', () => {
     expect(handoverCalls).toEqual(['conv_request_handover_in_my_conversation']);
   });
 
-  it('caches the delegated token per end-user across triggering events', async () => {
+  it('passes endUserId to openMcp once per attempt and never calls rest.mintDelegatedToken', async () => {
     const rest = buildRest();
     const mintSpy = vi.fn(() =>
       Promise.resolve({
-        accessToken: 'mn_eu_cached',
+        accessToken: 'unused',
         endUserId: 'eu_1',
         expiresAt: new Date(Date.now() + 600_000).toISOString(),
       }),
@@ -436,11 +436,12 @@ describe('createConversationHandler', () => {
     };
     const stubProvider: Provider = () => Promise.resolve(happyResponse);
 
+    const openMcpSpy = vi.fn((_opts: { endUserId: string }) => Promise.resolve(buildMcp()));
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
       prompts: buildPrompts(),
-      openMcp: () => Promise.resolve(buildMcp()),
+      openMcp: openMcpSpy,
       logger: silentLogger,
       scheduler: noDelayScheduler,
       provider: stubProvider,
@@ -453,48 +454,9 @@ describe('createConversationHandler', () => {
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
 
-    expect(mintSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('re-mints when the cached token is within the refresh margin', async () => {
-    const rest = buildRest();
-    let call = 0;
-    const mintSpy = vi.fn(() => {
-      call += 1;
-      // First mint returns a token expiring in 30s (inside the 60s margin).
-      // Second mint returns a fresh long-lived token.
-      const ttlMs = call === 1 ? 30_000 : 600_000;
-      return Promise.resolve({
-        accessToken: `mn_eu_${call}`,
-        endUserId: 'eu_1',
-        expiresAt: new Date(Date.now() + ttlMs).toISOString(),
-      });
-    });
-    rest.mintDelegatedToken = mintSpy;
-
-    const happyResponse: ProviderResponse = {
-      message: { role: 'assistant', content: 'hi' },
-      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-      finishReason: 'stop',
-    };
-    const stubProvider: Provider = () => Promise.resolve(happyResponse);
-
-    const handler = createConversationHandler({
-      config: baseConfig,
-      rest,
-      prompts: buildPrompts(),
-      openMcp: () => Promise.resolve(buildMcp()),
-      logger: silentLogger,
-      scheduler: noDelayScheduler,
-      provider: stubProvider,
-    });
-
-    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
-    await handler.flush();
-    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
-    await handler.flush();
-
-    expect(mintSpy).toHaveBeenCalledTimes(2);
+    expect(mintSpy).not.toHaveBeenCalled();
+    expect(openMcpSpy).toHaveBeenCalledTimes(3);
+    expect(openMcpSpy.mock.calls[0]?.[0]).toEqual({ endUserId: 'eu_1' });
   });
 
   it('aborts the in-flight debounce when a new triggering event arrives for the same conversation', async () => {

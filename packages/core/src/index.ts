@@ -1,11 +1,3 @@
-/**
- * @getmunin/core — framework-agnostic platform services.
- *
- * Everything here is plain TypeScript / Drizzle. NestJS-specific wrappers
- * (interceptors, guards, modules) live in apps/backend/src/common/.
- */
-
-// ── Request-scoped services (read RequestContext) ───────────────────
 export {
   ActorIdentity,
   type ActorType,
@@ -15,12 +7,15 @@ export {
   getCurrentContext,
   withContext,
 } from './request/context.js';
-export { buildAdminAgentActor } from './request/synth-agent-actor.js';
+export {
+  buildAdminAgentActor,
+  buildEndUserAgentActor,
+  type EndUserAgentActorInput,
+} from './request/synth-agent-actor.js';
 export { AuditLogger, type AuditEventInput } from './request/audit.js';
 export { ClaimManager, type ClaimResult } from './request/claims.js';
 export { CredentialResolver, type ResolvedCredential } from './request/credentials.js';
 
-// ── Crypto primitives, signed tokens, API key minting ───────────────
 export {
   hashSecret,
   randomToken,
@@ -46,7 +41,6 @@ export {
   verifyEmailOpenToken,
 } from './crypto/email-open-token.js';
 
-// ── External provider interfaces (swappable backends) ───────────────
 export {
   type EmbeddingProvider,
   OpenAIEmbeddingProvider,
@@ -70,7 +64,6 @@ export {
   readAssetStorageFromEnv,
 } from './providers/storage.js';
 
-// ── Domain utilities ────────────────────────────────────────────────
 export { WebhookDispatcher, type WebhookEventInput } from './webhooks.js';
 export {
   chunkDocument,
@@ -80,7 +73,6 @@ export {
   type ChunkOptions,
 } from './chunker.js';
 
-// ── Built-in prompt defaults + KB-backed prompt cache ───────────────
 export {
   AGENT_RUNTIME_PROMPT_SPACE_SLUG,
   COMPANY_PROFILE_SPACE_SLUG,

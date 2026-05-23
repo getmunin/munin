@@ -17,21 +17,10 @@ import {
   AuthSubmit,
   ErrorAlert,
   OSS_AUTH_FOOTER,
+  safeRedirect,
+  resumeOauthAuthorizeUrl,
 } from '@getmunin/dashboard-pages';
 import { useTranslateError } from '@/lib/translate-error';
-
-function safeRedirect(raw: string | null): string {
-  if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
-  return '/dashboard';
-}
-
-function resumeOauthAuthorizeUrl(params: URLSearchParams): string | null {
-  if (params.get('response_type') !== 'code') return null;
-  if (!params.get('client_id')) return null;
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
-  if (!/^https?:\/\//.test(apiBase)) return null;
-  return `${apiBase}/auth/oauth2/authorize?${params.toString()}`;
-}
 
 type SignInError = { kind: 'invalid' | 'unreachable'; detail: string };
 

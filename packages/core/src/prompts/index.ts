@@ -79,7 +79,7 @@ export {
 
 // ── Shared space / namespace constants ──────────────────────────────
 export const AGENT_RUNTIME_PROMPT_SPACE_SLUG = 'agent-runtime';
-export const COMPANY_PROFILE_SPACE_SLUG = 'imported-from-website';
+export const COMPANY_PROFILE_SPACE_SLUG = 'website-import';
 export const CHANNEL_PROMPT_PREFIX = 'channel-';
 export const COMPANY_PROFILE_SLUG = 'company-profile';
 

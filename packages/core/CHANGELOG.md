@@ -1,5 +1,61 @@
 # @getmunin/core
 
+## 4.9.0
+
+### Minor Changes
+
+- 2ca3b4a: AgentHostRunner: realtime + chat MCP + curator workers now run fully in-process. Closes the prod 401-reconnect loop on stale admin API keys.
+
+  **Why.** Prior to this change, the AgentHostRunner subscribed to realtime events over WebSocket (`/api/v1/realtime`) and made chat-side MCP calls over HTTP, both authenticated with a per-org admin API key. When that key drifted (e.g. an org was deleted but its `agent_configs.admin_api_key` row stuck around), the WebSocket 401'd every 30 seconds forever — observed in prod for `org_fgf0a6f1fwu6nfa6aq3xwf` at attempt 411+ before this fix. PR #211 had already moved the prompts/skills loader path in-process, but realtime + chat + curator stayed HTTP and kept burning.
+
+  **What changed.**
+  - New `RealtimeEventBus` provider in `@getmunin/backend-core/realtime`. Wraps `DbListenerService` so the same Postgres `NOTIFY munin_events` stream the WS gateway already consumes fans out to in-process subscribers with `{ orgId, endUserId? }` filtering identical to the gateway's. Adds an in-memory `publishConversationTyping` / `subscribeAgentTyping` channel for the runner-emitted typing signal (no DB write — typing is ephemeral). The gateway also subscribes to this and pushes to widget WS clients on the matching conversation channel.
+  - New `openEndUserAgentMcpClient(...)` in `@getmunin/backend-core/agent/in-process-context.ts`. Mirrors the existing admin in-process opener but synthesizes an `end_user_agent` actor with `audience='self_service'`, the user's default org membership, and proper `applyTenancyGUCs(actor)` per call — so RLS still enforces end-user scoping even though the auth guard is bypassed.
+  - New `buildEndUserAgentActor({ orgId, endUserId, scopes?, audiences? })` in `@getmunin/core`, sibling of `buildAdminAgentActor`.
+  - `runner.service.ts`: `createRealtimeClient({ baseUrl, adminApiKey, … })` → `this.eventBus.subscribe({ orgId }, handlers)`. `openMcp: ({ delegatedToken }) => openHttpMcpClient(HTTP)` → `openMcp: ({ endUserId }) => openEndUserAgentMcpClient(IN-PROCESS)`. `realtime.sendConversationTyping(...)` → `eventBus.publishConversationTyping(orgId, ...)`. Curator workers and `runWebImportJob` now receive an in-process `AgentMcpClient` (built from `openAdminAgentMcpClient`) instead of opening their own HTTP MCP.
+  - `conversation-handler.ts`: dropped `getDelegatedToken`, `tokenCache`, and the `TOKEN_REFRESH_MARGIN_MS` constant. The chat handler passes `endUserId` directly to `deps.openMcp` — no token mint, no REST round-trip per message. `mintDelegatedToken` REST endpoint stays for external callers (widget).
+  - `runSkillPass`: signature dropped `baseUrl`/`adminApiKey`/`clientName`, added `mcp: McpToolHandle` + `skills: SkillReader`. No HTTP MCP connect.
+  - `runWebImportJob`: signature dropped `baseUrl`/`adminApiKey`, added `mcp: McpToolHandle`. No HTTP MCP connect.
+
+  **Naming sweep alongside.** The pre-existing public exports were asymmetric (`openAgentMcpClient` paired with the new `openDelegatedMcpClient`, plus a misleadingly-named `openMcpClient` for the HTTP transport). Renamed for clarity:
+  - `openAgentMcpClient` → `openAdminAgentMcpClient`
+  - `openDelegatedMcpClient` → `openEndUserAgentMcpClient`
+  - `openMcpClient` (HTTP) → `openHttpMcpClient`
+
+  Pairs now match `ActorType` and the transport is explicit. No external consumers yet, so safe.
+
+  **What still requires the admin API key.** The REST control plane (`createMuninRestClient`) still goes over HTTP, since lifting Nest controllers in-process is a much larger refactor with low value for low-traffic config reads. The runner still bails if no admin key is configured — but the realtime/MCP/curator paths no longer depend on it.
+
+  **Closes** the prod incident on stale admin keys for both the realtime intake and the per-message chat MCP path.
+
+- f9a8e0f: OAuth bearer-token verification overhaul + MCP tool/skill title prefixes.
+
+  **JWT access tokens.** Better Auth issues a signed JWT (not an opaque token) whenever the token request carries a `resource` indicator and the JWT plugin is enabled — and JWTs are **never** written to `oauth_access_token`; only the refresh token is. `CredentialResolver.resolveBearerToken` now detects the JWT shape, verifies it locally against the JWKS stored in the `jwks` table (per-`kid` in-memory cache), checks the issuer + audience, and builds an `ActorIdentity` from the `sub`, `scope`, and the user's default org membership. claude.ai web's MCP connector now resolves on the first `/mcp` call instead of 401-ing.
+
+  **Audience tolerance.** External MCP clients normalize the resource indicator inconsistently — claude.ai sends `https://<host>/` even when our metadata advertises `https://<host>/mcp`. JWT audience is now matched against the canonical URL plus its trailing-slash, bare-origin, and origin-with-slash variants, so the same backend works for clients that drop the path or fiddle with the slash. The same variant set is applied to Better Auth's `validAudiences` config (`apps/backend/src/auth/auth.config.ts`) so the `/auth/oauth2/token` exchange accepts the same shapes.
+
+  **Opaque-token hash fallback retained.** For installs that disable the JWT plugin (`disableJwtPlugin: true`), the opaque-token path still looks up `oauth_access_token.token` by `SHA-256(token)` (base64url), matching Better Auth's default `storeTokens: "hashed"`. Previously we compared the raw bearer against the column, which always missed.
+
+  **MCP tool/skill titles get module prefixes.** Every `@McpTool({ title })` and every `skill://*` frontmatter title now starts with the module label (`KB:`, `Conv:`, `CRM:`, `CMS:`, `Outreach:`, `Web:`, `Playbook:`). In claude.ai's alphabetical tool picker, all KB tools cluster together, all CRM tools cluster together, etc. Duplicate module words were stripped from the body when the prefix made them redundant ("Read CRM segment" → "CRM: Read segment"). Internal tool _names_ (`kb_*`, `crm_*`, …) and skill URIs are unchanged — only the user-facing display titles moved.
+
+  **Internal refactor.** Split JWT-only logic (JWKS load, key cache, audience variants, JWT verification) out of `credentials.ts` into a sibling `oauth-jwt.ts`. The `CredentialResolver` class stays the public entry point. Exports `oauthMcpResourceAudience` and `deriveAudiencesFromScopes` so the JWT path can reuse them.
+
+  **Side-quests in the same PR.** OSS + cloud sign-in/sign-up pages resume the OAuth authorize flow after auth (so the MCP connector dance survives a fresh signup). The OAuth consent page reads `resp.url` (Better Auth's actual response field) in addition to `resp.redirect_uri`. AgentHostRunner resolves the singleton repository's literal id to a real `org_id` before opening its admin MCP client, so per-org RLS-bound writes don't hit a `kb_spaces_org_id_orgs_id_fk` FK violation.
+
+### Patch Changes
+
+- 8c1c3c9: Fix: `COMPANY_PROFILE_SPACE_SLUG` now matches where the web-import handler actually writes the scraped Company profile doc.
+
+  Two constants pointed at different KB space slugs:
+  - `web-import.handler.ts` wrote the "Company profile" doc into space `website-import`.
+  - `prompts/index.ts` (`COMPANY_PROFILE_SPACE_SLUG`) looked for it in space `imported-from-website`.
+
+  Same doc slug (`company-profile`), different space. Result: the PromptResolver's cache lookup never resolved the profile, `prompts.companyContext()` always returned `''`, and the `[Company context]\n…` block was never appended to the chat widget agent's system prompt. End-users asking "what does <company> do?" got generic answers because the scraped profile never reached the agent — even though the doc existed in the KB the whole time.
+
+  Aligned `COMPANY_PROFILE_SPACE_SLUG` to `'website-import'` (the value the web-import handler actually uses). No data migration needed.
+  - @getmunin/db@4.9.0
+  - @getmunin/types@4.9.0
+
 ## 4.8.0
 
 ### Minor Changes

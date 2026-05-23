@@ -40,6 +40,13 @@ export { StorageModule } from './common/storage/storage.module.js';
 // Feature modules (re-export so cloud can selectively replace any of them
 // if it ever needs to — currently it just composes the array as-is).
 export { McpModule } from './mcp/mcp.module.js';
+export { McpRegistryService } from './mcp/mcp.registry.js';
+export { McpSkillRegistryService } from './mcp/mcp.skill-registry.service.js';
+export {
+  openAgentMcpClient,
+  type AgentMcpClient,
+  type OpenAgentMcpClientOptions,
+} from './agent/in-process-context.js';
 export { ControlModule } from './control/control.module.js';
 export { KbModule } from './modules/kb/kb.module.js';
 export { ConvModule } from './modules/conv/conv.module.js';

@@ -1,5 +1,23 @@
 # @getmunin/backend-core
 
+## 4.6.1
+
+### Patch Changes
+
+- 04edb03: Send permissive CORS headers from `/mcp`, the OAuth/OIDC discovery endpoints, and the public client-info endpoint (`/api/v1/oauth/clients/:id`).
+
+  Browser-based MCP clients like claude.ai web are served from `https://claude.ai`, which isn't in any deployment's `MUNIN_CORS_ORIGINS` (and shouldn't have to be). Previously the preflight to `/mcp` returned 204 with no `Access-Control-Allow-Origin`, so the browser blocked the POST and showed "Couldn't reach the MCP server". Same gap on the well-known discovery endpoints any OAuth client needs to read cross-origin during dynamic client registration.
+
+  Renames the internal predicate `isPublicWidgetPath` → `isPublicCorsPath` and exports it for tests.
+
+- afcf3a1: Serve `/favicon.ico`, `/icon.png`, `/apple-icon.png` from a configurable `iconAssetDir` (default `<cwd>/public/icons`). Browser-based MCP UIs like claude.ai web use the MCP host's favicon to render the custom-integration tile; previously the host returned 404 and claude.ai fell back to a generic globe placeholder.
+
+  Missing files silently 404 — backwards-compatible for deployments that don't ship icons.
+  - @getmunin/core@4.6.1
+  - @getmunin/db@4.6.1
+  - @getmunin/types@4.6.1
+  - @getmunin/mcp-toolkit@4.6.1
+
 ## 4.6.0
 
 ### Minor Changes

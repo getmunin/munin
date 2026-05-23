@@ -3,6 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { jwt } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { APIError } from 'better-auth/api';
+import { SUPPORTED_SCOPES as BACKEND_SUPPORTED_SCOPES } from '@getmunin/backend-core';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
 
@@ -11,17 +12,7 @@ const SUPPORTED_SCOPES = [
   'profile',
   'email',
   'offline_access',
-  'mcp:tools',
-  'mcp:admin',
-  'mcp:self_service',
-  'kb:read',
-  'kb:write',
-  'conv:read',
-  'conv:write',
-  'crm:read',
-  'crm:write',
-  'cms:read',
-  'cms:write',
+  ...BACKEND_SUPPORTED_SCOPES,
 ] as const;
 
 const asMuninAuth = (instance: unknown): BetterAuthInstance => instance as BetterAuthInstance;
@@ -86,7 +77,7 @@ export function createMuninAuth({
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
         scopes: [...SUPPORTED_SCOPES],
-        validAudiences: [`${baseUrl.replace(/\/+$/, '')}/mcp`],
+        validAudiences: [baseUrl.replace(/\/+$/, '')],
         silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
       }),
     ],

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { decryptSecretSql, encryptSecretSql, getCurrentContext } from '@getmunin/core';
-import { eq, isNotNull, sql } from 'drizzle-orm';
+import { schema } from '@getmunin/db';
+import { asc, eq, isNotNull, sql } from 'drizzle-orm';
 import { agentConfig, SINGLETON_ID } from './schema.js';
 import type {
   AgentConfigPatch,
@@ -12,6 +13,19 @@ import type {
 export class SingletonConfigRepository implements AgentConfigRepository {
   resolveCurrentId(): string {
     return SINGLETON_ID;
+  }
+
+  async resolveOrgId(id: string): Promise<string> {
+    assertSingleton(id);
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.orgs.id })
+      .from(schema.orgs)
+      .orderBy(asc(schema.orgs.createdAt))
+      .limit(1);
+    const row = rows[0];
+    if (!row) throw new Error('SingletonConfigRepository.resolveOrgId: no org has been created yet');
+    return row.id;
   }
 
   async read(id: string): Promise<AgentConfigRow> {

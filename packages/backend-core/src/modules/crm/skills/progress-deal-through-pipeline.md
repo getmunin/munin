@@ -1,5 +1,5 @@
 ---
-title: Progress a deal through the pipeline
+title: CRM: Progress a deal through the pipeline
 description: Move a deal through pipeline stages with the right activity log at each gate, then refresh AI summary so prioritization stays fresh.
 audiences: [admin]
 ---

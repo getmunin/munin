@@ -1,5 +1,5 @@
 ---
-title: Upload an asset and embed it
+title: CMS: Upload an asset and embed it
 description: Two-phase asset upload (request presigned URL → PUT binary → complete), embed in entries, and audit unused assets.
 audiences: [admin]
 ---

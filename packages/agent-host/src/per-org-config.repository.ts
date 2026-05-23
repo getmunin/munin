@@ -19,6 +19,10 @@ export class PerOrgConfigRepository implements AgentConfigRepository {
     return actor.orgId;
   }
 
+  resolveOrgId(id: string): Promise<string> {
+    return Promise.resolve(id);
+  }
+
   async read(id: string): Promise<AgentConfigRow> {
     return readOrMaterialize(id);
   }

@@ -15,7 +15,7 @@ export class ConvSelfServiceTools {
 
   @McpTool({
     name: 'conv_request_handover_in_my_conversation',
-    title: 'Request a human teammate to take over',
+    title: 'Conv: Request a human teammate to take over',
     description:
       'Flag the current conversation as needing human attention. Use this when you can\'t answer the end-user\'s question on your own — pricing exceptions, account-specific issues you can\'t verify, anything sensitive. Pass the exact `conversationId` you were given in the system context. Sets a "needs human attention" flag on the conversation (pinning it to the top of the team\'s dashboard) and posts an internal note recording your `reason`. Also pass `suggestedReply` — your best guess at what a human teammate could send to resolve the issue. The team sees this as a starting draft they can edit, approve, or rewrite. After calling this, do not keep generating replies on your own — let the user know a teammate will follow up, then stop. The flag clears once a teammate replies. The end-user does not see the system note or the suggested reply — only the team does.',
     audiences: ['self_service'],

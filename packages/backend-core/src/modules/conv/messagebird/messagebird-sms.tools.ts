@@ -60,7 +60,7 @@ export class MessageBirdSmsAdminTools {
 
   @McpTool({
     name: 'conv_messagebird_sms_configure',
-    title: 'Configure MessageBird SMS channel',
+    title: 'Conv: Configure MessageBird SMS channel',
     description:
       'Create or update a MessageBird SMS channel. Pass `channelId` to update; omit to create. The plaintext `accessKey` and `signingKey` are encrypted before storage and returned redacted. On update, omit either secret to keep the existing one.',
     audiences: ['admin'],
@@ -97,7 +97,7 @@ export class MessageBirdSmsAdminTools {
 
   @McpTool({
     name: 'conv_messagebird_sms_test_channel',
-    title: 'Test MessageBird SMS channel credentials',
+    title: 'Conv: Test MessageBird SMS channel credentials',
     description:
       "Verify a MessageBird channel's stored Access Key by fetching the account balance. Returns `{ ok: true, balance }` on success.",
     audiences: ['admin'],
@@ -117,7 +117,7 @@ export class MessageBirdSmsAdminTools {
 
   @McpTool({
     name: 'conv_messagebird_sms_send_test',
-    title: 'Send a real test SMS via MessageBird',
+    title: 'Conv: Send a real test SMS via MessageBird',
     description:
       "Send a real SMS through this channel's MessageBird account. Useful for end-to-end deliverability checks.",
     audiences: ['admin'],

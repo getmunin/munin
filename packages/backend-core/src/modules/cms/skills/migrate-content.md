@@ -1,5 +1,5 @@
 ---
-title: Migrate content in bulk
+title: CMS: Migrate content in bulk
 description: Move entries from an external CMS (or between Munin collections) idempotently — preserve references, rewrite assets, reconcile schema drift.
 audiences: [admin]
 ---

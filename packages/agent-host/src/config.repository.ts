@@ -24,6 +24,7 @@ export interface AgentConfigPatch {
 
 export interface AgentConfigRepository {
   resolveCurrentId(): string;
+  resolveOrgId(id: string): Promise<string>;
   read(id: string): Promise<AgentConfigRow>;
   update(id: string, patch: AgentConfigPatch): Promise<AgentConfigRow>;
   listProvisionedIds(): Promise<string[]>;

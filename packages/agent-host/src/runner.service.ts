@@ -258,6 +258,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
   private async spawnRunner(id: string): Promise<PerConfigRunner | null> {
     const config = await runWithServiceContext(this.db, id, () => this.repo.read(id));
+    const orgId = await runWithServiceContext(this.db, id, () => this.repo.resolveOrgId(id));
     const adminApiKey =
       (await runWithServiceContext(this.db, id, () =>
         this.repo.readDecryptedAdminKey(id),
@@ -279,7 +280,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
     const adminMcp = openAgentMcpClient({
       db: this.db,
-      orgId: id,
+      orgId,
       registry: this.mcpRegistry,
       skills: this.mcpSkills,
     });

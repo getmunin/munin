@@ -1,5 +1,5 @@
 ---
-title: Clean up contact data
+title: CRM: Clean up contact data
 description: Periodic curator pass — find duplicate / inconsistent contacts, file high-confidence pairs as structured merge proposals via crm_propose_merge_candidate. Designed to be run on a cadence by an admin agent (weekly is a good default). The operator reviews via crm_list_merge_proposals and resolves with crm_apply_merge_proposal / crm_dismiss_merge_proposal.
 audiences: [admin]
 ---

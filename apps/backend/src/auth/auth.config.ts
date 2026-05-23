@@ -50,6 +50,7 @@ export function createMuninAuth({
 }: MuninAuthOptions): BetterAuthInstance {
   const origins = uniqueOrigins([baseUrl, ...(trustedOrigins ?? [])]);
   const dashboardUrl = (webBaseUrl ?? trustedOrigins?.[0] ?? baseUrl).replace(/\/+$/, '');
+  const validAudiences = computeValidAudiences(baseUrl);
 
   return asMuninAuth(betterAuth({
     baseURL: baseUrl,
@@ -77,7 +78,7 @@ export function createMuninAuth({
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
         scopes: [...SUPPORTED_SCOPES],
-        validAudiences: [baseUrl.replace(/\/+$/, '')],
+        validAudiences,
         silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
       }),
     ],
@@ -230,6 +231,19 @@ async function ensureSingletonOrgMembershipFor(
 
 function uniqueOrigins(values: string[]): string[] {
   return Array.from(new Set(values.map((v) => v.replace(/\/+$/, ''))));
+}
+
+export function computeValidAudiences(baseUrl: string): string[] {
+  const canonical = baseUrl.replace(/\/+$/, '');
+  const variants = new Set<string>([canonical, `${canonical}/`]);
+  try {
+    const origin = new URL(canonical).origin;
+    variants.add(origin);
+    variants.add(`${origin}/`);
+  } catch (err) {
+    console.warn('[auth] computeValidAudiences: baseUrl is not a parseable URL', { baseUrl, err });
+  }
+  return Array.from(variants);
 }
 
 export function readAllowedEmailDomainsFromEnv(): string[] {

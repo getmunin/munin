@@ -1,5 +1,5 @@
 ---
-title: Set up email and chat-widget channels together
+title: Conv: Set up email and chat-widget channels together
 description: Stand up email + widget conversation channels for a new tenant in one pass — configure, test, hand off.
 audiences: [admin]
 ---

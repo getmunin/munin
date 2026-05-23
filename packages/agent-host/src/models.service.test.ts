@@ -21,6 +21,7 @@ function makeRepo(overrides: { apiKey?: string | null; row?: AgentConfigRow } = 
   const apiKey = 'apiKey' in overrides ? overrides.apiKey : 'sk-test';
   return {
     resolveCurrentId: () => row.id,
+    resolveOrgId: (id: string) => Promise.resolve(id),
     read: vi.fn().mockResolvedValue(row),
     update: vi.fn().mockResolvedValue(row),
     listProvisionedIds: vi.fn().mockResolvedValue([]),

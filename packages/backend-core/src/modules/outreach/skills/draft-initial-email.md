@@ -1,5 +1,5 @@
 ---
-title: Draft an initial outreach email
+title: Outreach: Draft an initial email
 description: Periodic curator pass that drafts personalised first-touch outreach emails for every enabled campaign. One pending proposal per (campaign, contact). Drafts go into the operator review queue — never auto-send. Runs weekly by default; the operator approves each draft before it leaves the org.
 audiences: [admin]
 ---

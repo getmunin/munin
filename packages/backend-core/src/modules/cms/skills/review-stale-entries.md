@@ -1,5 +1,5 @@
 ---
-title: Review stale entries
+title: CMS: Review stale entries
 description: Periodic curator pass — find drafts that have stalled, published entries that haven't been touched in months, and orphaned assets. Reports findings with recommended actions. No persistence layer; the operator reviews the curator-runner's log/reply and acts manually via existing CMS tools.
 audiences: [admin]
 ---

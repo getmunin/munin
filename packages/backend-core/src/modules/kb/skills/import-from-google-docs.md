@@ -1,5 +1,5 @@
 ---
-title: Import knowledge from Google Docs (or any text source)
+title: KB: Import knowledge from Google Docs (or any text source)
 description: Bulk-load articles into the knowledge base, sized for vector search and FTS to perform well.
 audiences: [admin]
 ---

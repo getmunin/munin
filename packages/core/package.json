@@ -36,6 +36,7 @@
     "@getmunin/db": "workspace:*",
     "@getmunin/types": "workspace:*",
     "drizzle-orm": "^0.45.2",
+    "jose": "^6.0.0",
     "nodemailer": "^8.0.7",
     "zod": "^4.3.6"
   },

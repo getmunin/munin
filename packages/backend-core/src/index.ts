@@ -17,6 +17,18 @@ export {
 } from './auth-env.js';
 
 export {
+  createMuninAuthCore,
+  computeValidAudiences,
+  STANDARD_OIDC_SCOPES,
+  SUPPORTED_AUTH_SCOPES,
+  type MuninAuthCoreOptions,
+  type MuninAuthInstance,
+  type SignupHookUser,
+  type SignupBeforeUser,
+  type DeleteUserConfig,
+} from './auth/auth-factory.js';
+
+export {
   AuthGuard,
   AllowAnonymous,
   type AuthenticatedRequest,

@@ -81,11 +81,16 @@ export async function createApp(
   return app;
 }
 
-function isPublicWidgetPath(path: string): boolean {
+export function isPublicCorsPath(path: string): boolean {
   return (
     path === '/widget.js' ||
     path.startsWith('/widget/') ||
-    path.startsWith('/api/v1/widget')
+    path.startsWith('/api/v1/widget') ||
+    path === '/mcp' ||
+    path.startsWith('/mcp/') ||
+    path.startsWith('/.well-known/oauth-') ||
+    path.startsWith('/.well-known/openid-') ||
+    path.startsWith('/api/v1/oauth/clients/')
   );
 }
 
@@ -105,7 +110,7 @@ export function hostAllowlistMiddleware(allowedHosts: string[]) {
 function corsMiddleware(strictOrigins: string[] | true) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
-    const allowAny = isPublicWidgetPath(req.path);
+    const allowAny = isPublicCorsPath(req.path);
     const allowed =
       origin !== undefined &&
       (allowAny || strictOrigins === true || strictOrigins.includes(origin));

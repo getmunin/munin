@@ -1,5 +1,5 @@
 ---
-title: Draft an outreach reply
+title: 'Outreach: Draft a reply'
 description: Per-message curator pass that drafts a suggested reply when an inbound message lands on an outreach-originated conversation. Drafts go to the operator review queue — never auto-send. Triggered event-driven from `conversation.message.received` whenever the conversation has an `outreachCampaignId` and `agentMode='draft_only'`.
 audiences: [admin]
 ---

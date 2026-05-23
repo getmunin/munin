@@ -70,7 +70,7 @@ export class VapiAdminTools {
 
   @McpTool({
     name: 'conv_vapi_configure',
-    title: 'Configure Vapi voice channel',
+    title: 'Conv: Configure Vapi voice channel',
     description:
       'Create or update a Vapi voice channel. Pass `channelId` to update; omit to create. The plaintext `apiKey` and `webhookSecret` are encrypted before storage and returned redacted. The assistant + phone number must already exist in Vapi — paste their IDs here.',
     audiences: ['admin'],
@@ -111,7 +111,7 @@ export class VapiAdminTools {
 
   @McpTool({
     name: 'conv_vapi_test_channel',
-    title: 'Test Vapi voice channel credentials',
+    title: 'Conv: Test Vapi voice channel credentials',
     description:
       "Verify a Vapi channel's stored API key and assistant by fetching the assistant from Vapi. Returns `{ ok: true, assistant }` on success.",
     audiences: ['admin'],
@@ -133,7 +133,7 @@ export class VapiAdminTools {
 
   @McpTool({
     name: 'conv_voice_call_initiate',
-    title: 'Place an outbound voice call',
+    title: 'Conv: Place an outbound voice call',
     description:
       'Initiate an outbound voice call through this channel. The Vapi assistant will run the conversation. Returns the Vapi call id and status.',
     audiences: ['admin'],

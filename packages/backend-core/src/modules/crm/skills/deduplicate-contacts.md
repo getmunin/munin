@@ -1,5 +1,5 @@
 ---
-title: Deduplicate contacts
+title: CRM: Deduplicate contacts
 description: Find duplicate contacts (same person, multiple rows) and consolidate them. There is no merge tool — this skill documents the manual reconcile pattern.
 audiences: [admin]
 ---

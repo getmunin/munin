@@ -1,5 +1,5 @@
 ---
-title: Publish a CMS entry
+title: 'CMS: Publish an entry'
 description: Move a CMS entry through draft → published — immediate, scheduled, or rolled back — without losing work to optimistic-lock conflicts.
 audiences: [admin]
 ---

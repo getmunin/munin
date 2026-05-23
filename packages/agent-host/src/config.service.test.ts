@@ -29,6 +29,7 @@ function makeRepo(opts: {
   const update = vi.fn().mockResolvedValue(opts.after);
   return {
     resolveCurrentId: () => opts.before.id,
+    resolveOrgId: (id: string) => Promise.resolve(id),
     read: vi.fn().mockResolvedValue(opts.before),
     update,
     listProvisionedIds: vi.fn().mockResolvedValue([]),

@@ -225,7 +225,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_list_contacts',
-    title: 'List contacts',
+    title: 'CRM: List contacts',
     description: 'List contacts in your org, newest-updated first. Filter by company or tag.',
     audiences: ['admin'],
     scopes: ['crm:read'],
@@ -239,7 +239,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_get_contact',
-    title: 'Read contact',
+    title: 'CRM: Read contact',
     description: 'Read one contact, including AI fields, tags, custom fields, and compliance flags.',
     audiences: ['admin'],
     scopes: ['crm:read'],
@@ -253,7 +253,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_find_contact',
-    title: 'Find contact by email or phone',
+    title: 'CRM: Find contact by email or phone',
     description:
       'Find an existing contact by email and/or phone before creating a new one. Returns null if no match.',
     audiences: ['admin'],
@@ -268,7 +268,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_create_contact',
-    title: 'Create contact',
+    title: 'CRM: Create contact',
     description: 'Create a new contact. Search with crm_find_contact first to avoid duplicates.',
     audiences: ['admin'],
     scopes: ['crm:write'],
@@ -282,7 +282,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_update_contact',
-    title: 'Update contact',
+    title: 'CRM: Update contact',
     description:
       "Update fields on a contact. Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
     audiences: ['admin'],
@@ -297,7 +297,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_bulk_create_contacts',
-    title: 'Bulk-create contacts',
+    title: 'CRM: Bulk-create contacts',
     description:
       'Bulk-create contacts with dedupe + compliance checks: rows whose email or phone already match a do_not_contact contact are skipped, as are rows that would duplicate an existing contact.',
     audiences: ['admin'],
@@ -312,7 +312,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_search_contacts',
-    title: 'Search contacts',
+    title: 'CRM: Search contacts',
     description:
       'Substring search across name, email, phone, and title. Returns contacts ordered newest-updated first.',
     audiences: ['admin'],
@@ -329,7 +329,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_list_companies',
-    title: 'List companies',
+    title: 'CRM: List companies',
     description: 'List companies in your org.',
     audiences: ['admin'],
     scopes: ['crm:read'],
@@ -343,7 +343,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_create_company',
-    title: 'Create company',
+    title: 'CRM: Create company',
     description: 'Create a new company.',
     audiences: ['admin'],
     scopes: ['crm:write'],
@@ -359,7 +359,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_list_pipelines',
-    title: 'List sales pipelines',
+    title: 'CRM: List sales pipelines',
     description: 'List sales pipelines for your org with their stages in position order.',
     audiences: ['admin'],
     scopes: ['crm:read'],
@@ -373,7 +373,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_create_pipeline',
-    title: 'Create sales pipeline',
+    title: 'CRM: Create sales pipeline',
     description:
       'Create a new sales pipeline with at least one stage. Stages are inserted in array order; mark a stage `winLoss: "won"` or `"lost"` to record terminal outcomes.',
     audiences: ['admin'],
@@ -388,7 +388,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_list_deals',
-    title: 'List deals',
+    title: 'CRM: List deals',
     description: 'List deals, optionally filtered by pipeline or stage.',
     audiences: ['admin'],
     scopes: ['crm:read'],
@@ -402,7 +402,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_create_deal',
-    title: 'Create deal',
+    title: 'CRM: Create deal',
     description:
       'Create a new deal in a pipeline. If `stageId` is omitted, the deal lands in the pipeline\'s first stage by position.',
     audiences: ['admin'],
@@ -417,7 +417,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_change_stage',
-    title: 'Change deal stage',
+    title: 'CRM: Change deal stage',
     description:
       'Move a deal to a new stage. If the destination stage is a won/lost terminal, `closedAt` is stamped automatically.',
     audiences: ['admin'],
@@ -434,7 +434,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_log_activity',
-    title: 'Log CRM activity',
+    title: 'CRM: Log activity',
     description:
       'Record an activity (note / call / email / meeting / task) against a contact, company, or deal. If `contactId` is set, the contact\'s `lastContactedAt` is also bumped.',
     audiences: ['admin'],
@@ -449,7 +449,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_list_activities',
-    title: 'List CRM activities',
+    title: 'CRM: List activities',
     description: 'List CRM activities filtered by contact, deal, or company.',
     audiences: ['admin'],
     scopes: ['crm:read'],
@@ -465,7 +465,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_set_ai_summary',
-    title: 'Set AI summary or next action',
+    title: 'CRM: Set AI summary or next action',
     description:
       'Set the AI-generated summary and/or next-action for a contact, company, or deal. These live in dedicated columns so agents do not pollute the human-edited description.',
     audiences: ['admin'],
@@ -482,7 +482,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_propose_merge_candidate',
-    title: 'Propose a CRM merge candidate',
+    title: 'CRM: Propose a merge candidate',
     description:
       'File a structured proposal that two contacts are the same person. Pass `confidence` ("high" | "medium"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.',
     audiences: ['admin'],
@@ -497,7 +497,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_list_merge_proposals',
-    title: 'List CRM merge proposals',
+    title: 'CRM: List merge proposals',
     description:
       'List CRM merge proposals, defaulting to `status: "pending"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: "dismissed"` once per curator pass to skip pairs the operator has already rejected.',
     audiences: ['admin'],
@@ -512,7 +512,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_apply_merge_proposal',
-    title: 'Apply a CRM merge proposal',
+    title: 'CRM: Apply a merge proposal',
     description:
       "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), and marks the proposal `applied`. Activities and deals stay on whichever contactId they were originally logged under — that's a documented v1 limitation. Throws if the proposal is not in `pending` status.",
     audiences: ['admin'],
@@ -527,7 +527,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_dismiss_merge_proposal',
-    title: 'Dismiss a CRM merge proposal',
+    title: 'CRM: Dismiss a merge proposal',
     description:
       'Mark a pending merge proposal as dismissed (the operator decided these are not the same person). The next CRM hygiene curator pass queries dismissed proposals and skips refiling the same pair. Optional `reason` is stored for audit. Throws if the proposal is not in `pending` status.',
     audiences: ['admin'],
@@ -544,7 +544,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_list_segments',
-    title: 'List CRM segments',
+    title: 'CRM: List segments',
     description:
       'List saved contact segments. A segment is a named CRM filter — used as the audience for outreach campaigns and other targeting workflows. Returns each segment with its filter definition.',
     audiences: ['admin'],
@@ -559,7 +559,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_get_segment',
-    title: 'Read CRM segment',
+    title: 'CRM: Read segment',
     description: 'Read one segment, including its filter definition.',
     audiences: ['admin'],
     scopes: ['crm:read'],
@@ -573,7 +573,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_create_segment',
-    title: 'Create CRM segment',
+    title: 'CRM: Create segment',
     description:
       'Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.',
     audiences: ['admin'],
@@ -588,7 +588,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_update_segment',
-    title: 'Update CRM segment',
+    title: 'CRM: Update segment',
     description: 'Patch a segment: rename, edit description, or replace the filter.',
     audiences: ['admin'],
     scopes: ['crm:write'],
@@ -602,7 +602,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_delete_segment',
-    title: 'Delete CRM segment',
+    title: 'CRM: Delete segment',
     description: 'Delete a segment. Outreach campaigns referencing it will fail until reassigned.',
     audiences: ['admin'],
     scopes: ['crm:write'],
@@ -616,7 +616,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_list_contacts_in_segment',
-    title: 'List contacts in segment',
+    title: 'CRM: List contacts in segment',
     description:
       'Resolve a segment to its current contacts. ALWAYS excludes suppressed contacts (do_not_contact OR unsubscribed) AND contacts without a recorded lawful basis (consent_lawful_basis IS NULL). Use this — not crm_list_contacts — to materialize an outreach audience: the suppression and consent floors are non-overridable here.',
     audiences: ['admin'],
@@ -633,7 +633,7 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_set_contact_consent',
-    title: 'Set contact consent',
+    title: 'CRM: Set contact consent',
     description:
       'Record the lawful basis and source for contacting this person. Required before they can appear in any outreach segment. `lawfulBasis` is one of `consent`, `legitimate_interest`, or `contract`. `source` is a short label (e.g. "imported-2026-q2", "web-form-trial-signup", "event-attendee-summit-2025"). Logs a CRM activity for audit.',
     audiences: ['admin'],

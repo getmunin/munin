@@ -77,7 +77,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_list_conversations',
-    title: 'List conversations',
+    title: 'Conv: List conversations',
     description:
       'List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, or topic.',
     audiences: ['admin'],
@@ -92,7 +92,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_get_conversation',
-    title: 'Read conversation',
+    title: 'Conv: Read conversation',
     description: 'Read one conversation including every public + internal message.',
     audiences: ['admin'],
     scopes: ['conv:read'],
@@ -106,7 +106,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_send_message',
-    title: 'Send message in conversation',
+    title: 'Conv: Send message in conversation',
     description:
       'Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages.',
     audiences: ['admin'],
@@ -127,7 +127,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_assign_conversation',
-    title: 'Assign conversation',
+    title: 'Conv: Assign conversation',
     description:
       'Assign a conversation to a user (pass user id) or unassign (pass null). Useful for routing escalated conversations.',
     audiences: ['admin'],
@@ -142,7 +142,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_change_status',
-    title: 'Change conversation status',
+    title: 'Conv: Change conversation status',
     description:
       'Change a conversation\'s status. `snoozeUntil` (ISO 8601) is required when status is "snoozed".',
     audiences: ['admin'],
@@ -157,7 +157,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_request_handover',
-    title: 'Request handover to a human',
+    title: 'Conv: Request handover to a human',
     description:
       'Flag a conversation as needing human attention. Use this when you have reached the limit of what you can resolve autonomously — billing decisions, refunds outside policy, sensitive complaints, anything where a human teammate should step in. Appends an internal system note (visible only to staff) recording your stated `reason`, sets the conversation\'s "needs human attention" flag (which pins it to the top of the dashboard\'s Conversations page), and emits `conversation.handover_requested`. Also pass `suggestedReply` — your best guess at what a human teammate could send to resolve the issue. The team sees this as a starting draft they can edit, approve, or rewrite. Idempotent — calling again on an already-flagged conversation is a no-op. The flag clears automatically once a human teammate replies or closes the conversation.',
     audiences: ['admin'],
@@ -172,7 +172,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_search_messages',
-    title: 'Search conversation messages',
+    title: 'Conv: Search conversation messages',
     description:
       'Substring search over message bodies. Returns the matching messages newest first; use conv_get_conversation to load surrounding context.',
     audiences: ['admin'],
@@ -187,7 +187,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_list_channels',
-    title: 'List conversation channels',
+    title: 'Conv: List conversation channels',
     description: 'List conversation channels configured for your org. Currently shipping adapters: email and chat (widget). The `voice` and `sms` channel types are reserved for upcoming adapters.',
     audiences: ['admin'],
     scopes: ['conv:read'],
@@ -201,7 +201,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_create_channel',
-    title: 'Create conversation channel',
+    title: 'Conv: Create conversation channel',
     description:
       'Add a new conversation channel. Currently shipping adapters: `email` and `chat` (widget). Channel-specific configuration goes in `config`. The `voice` and `sms` channel types are reserved and not yet wired to an adapter.',
     audiences: ['admin'],
@@ -216,7 +216,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_list_topics',
-    title: 'List conversation topics',
+    title: 'Conv: List conversation topics',
     description: 'List conversation topics (Billing, Support, Refunds, …) for your org.',
     audiences: ['admin'],
     scopes: ['conv:read'],
@@ -230,7 +230,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_create_topic',
-    title: 'Create conversation topic',
+    title: 'Conv: Create conversation topic',
     description: 'Add a new conversation topic. Slug must be lowercase letters, digits, hyphens.',
     audiences: ['admin'],
     scopes: ['conv:write'],
@@ -244,7 +244,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_set_topic',
-    title: 'Set or clear a conversation topic',
+    title: 'Conv: Set or clear a conversation topic',
     description:
       'Tag a conversation with one of the org\'s existing topics, or pass `topicId: null` to clear the topic. Use `conv_list_topics` first to see what topics exist; topics must be pre-created via `conv_create_topic`.',
     audiences: ['admin'],
@@ -259,7 +259,7 @@ export class ConvAdminTools {
 
   @McpTool({
     name: 'conv_strip_message_signature',
-    title: 'Strip the signature from an inbound message',
+    title: 'Conv: Strip the signature from an inbound message',
     description:
       "Replace an inbound message's body with a signature-stripped version. Used by the strip-email-signature curator skill — runs after the regex quote-stripper to clean up the trailing sign-off / contact block. The original body is kept in `metadata.preStripBody` for audit; the removed signature (if provided) is stored in `metadata.signatureText`. Refuses if the new body is empty, more than 50% shorter than the original, or if the message isn't an end-user inbound in the caller's org.",
     audiences: ['admin'],

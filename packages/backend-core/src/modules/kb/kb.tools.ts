@@ -94,7 +94,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_list_spaces',
-    title: 'List KB spaces',
+    title: 'KB: List spaces',
     description: 'List knowledge-base spaces in your org.',
     audiences: ['admin'],
     scopes: ['kb:read'],
@@ -108,7 +108,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_create_space',
-    title: 'Create KB space',
+    title: 'KB: Create space',
     description:
       'Create a new knowledge-base space. Slug must be unique within your org and only contain lowercase letters, digits and hyphens.',
     audiences: ['admin'],
@@ -123,7 +123,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_list_documents',
-    title: 'List KB documents',
+    title: 'KB: List documents',
     description:
       'List knowledge-base documents in your org, newest-updated first. Optionally filter by space or tag.',
     audiences: ['admin'],
@@ -138,7 +138,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_get_document',
-    title: 'Read KB document',
+    title: 'KB: Read document',
     description:
       "Read one knowledge-base document, including its full body, tags, and current version. End-user agents see only documents whose `audiences` includes `'self_service'`.",
     audiences: ['admin', 'self_service'],
@@ -153,7 +153,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_get_document_by_slug',
-    title: 'Read KB document by slug',
+    title: 'KB: Read document by slug',
     description:
       "Read a knowledge-base document by its space slug and document slug — used when a stable identifier (e.g. 'agent-runtime/system-prompt') is needed instead of the document UUID. Returns null when the document does not exist.",
     audiences: ['admin'],
@@ -168,7 +168,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_search',
-    title: 'Search knowledge base',
+    title: 'KB: Search',
     description:
       "Search the knowledge base by natural-language query. Combines full-text search and vector similarity for the best of both. End-user agents see only documents whose `audiences` includes `'self_service'`.",
     audiences: ['admin', 'self_service'],
@@ -183,7 +183,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_create_document',
-    title: 'Create KB document',
+    title: 'KB: Create document',
     description:
       "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only).",
     audiences: ['admin'],
@@ -198,7 +198,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_update_document',
-    title: 'Update KB document',
+    title: 'KB: Update document',
     description:
       'Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed.',
     audiences: ['admin'],
@@ -213,7 +213,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_delete_document',
-    title: 'Delete KB document',
+    title: 'KB: Delete document',
     description:
       'Delete a knowledge-base document. Pass `ifVersion` for optimistic concurrency. Cascades to chunks and versions.',
     audiences: ['admin'],
@@ -228,7 +228,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_list_versions',
-    title: 'List KB document versions',
+    title: 'KB: List document versions',
     description: 'List all prior versions of a knowledge-base document, newest first.',
     audiences: ['admin'],
     scopes: ['kb:read'],
@@ -242,7 +242,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_propose_curation_candidate',
-    title: 'Propose KB curation candidate',
+    title: 'KB: Propose curation candidate',
     description:
       "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/review-content` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`.",
     audiences: ['admin'],
@@ -257,7 +257,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_publish_curation_candidate',
-    title: 'Publish KB curation candidate',
+    title: 'KB: Publish curation candidate',
     description:
       "Promote a reviewed curation candidate into a target KB space. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the `curation`/`candidate` tags, and removes the candidate from the inbox. The target space must already exist.",
     audiences: ['admin'],
@@ -272,7 +272,7 @@ export class KbAdminTools {
 
   @McpTool({
     name: 'kb_restore_version',
-    title: 'Restore KB document version',
+    title: 'KB: Restore document version',
     description:
       'Roll a document back to an earlier version. Creates a new current version with that historical content.',
     audiences: ['admin'],

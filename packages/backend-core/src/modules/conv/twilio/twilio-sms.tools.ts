@@ -69,7 +69,7 @@ export class TwilioSmsAdminTools {
 
   @McpTool({
     name: 'conv_twilio_sms_configure',
-    title: 'Configure Twilio SMS channel',
+    title: 'Conv: Configure Twilio SMS channel',
     description:
       'Create or update a Twilio SMS channel. Pass `channelId` to update an existing channel; omit to create one. The plaintext `authToken` is encrypted before storage and is returned redacted. On update, omit `authToken` to keep the existing one. Either `fromNumber` (E.164) or `messagingServiceSid` is required.',
     audiences: ['admin'],
@@ -110,7 +110,7 @@ export class TwilioSmsAdminTools {
 
   @McpTool({
     name: 'conv_twilio_sms_test_channel',
-    title: 'Test Twilio SMS channel credentials',
+    title: 'Conv: Test Twilio SMS channel credentials',
     description:
       "Verify a Twilio SMS channel's stored Account SID + Auth Token by fetching the account record from Twilio. Returns `{ ok: true, friendlyName, status }` on success.",
     audiences: ['admin'],
@@ -133,7 +133,7 @@ export class TwilioSmsAdminTools {
 
   @McpTool({
     name: 'conv_twilio_sms_send_test',
-    title: 'Send a real test SMS',
+    title: 'Conv: Send a real test SMS',
     description:
       "Send a real SMS through this channel's Twilio account. The recipient must be a number Twilio is permitted to reach (verified caller ID on trial accounts). Useful for end-to-end deliverability checks.",
     audiences: ['admin'],

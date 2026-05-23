@@ -27,6 +27,14 @@ function safeRedirect(raw: string | null): string {
   return '/dashboard';
 }
 
+function resumeOauthAuthorizeUrl(params: URLSearchParams): string | null {
+  if (params.get('response_type') !== 'code') return null;
+  if (!params.get('client_id')) return null;
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(apiBase)) return null;
+  return `${apiBase}/auth/oauth2/authorize?${params.toString()}`;
+}
+
 function extractInviteToken(redirectRaw: string | null): string | null {
   if (!redirectRaw) return null;
   if (!redirectRaw.startsWith('/accept-invite')) return null;
@@ -82,13 +90,18 @@ function SignupForm() {
       const result = await authClient.signUp.email({ email, password, name });
       if (result.error) {
         setError(translateError(result.error) || t('failed'));
+        setSubmitting(false);
         return;
       }
       await refetch();
+      const oauthResume = resumeOauthAuthorizeUrl(params);
+      if (oauthResume) {
+        window.location.assign(oauthResume);
+        return;
+      }
       router.push(redirectTo);
     } catch (err) {
       setError(translateError(err) || tCommon('networkError'));
-    } finally {
       setSubmitting(false);
     }
   }

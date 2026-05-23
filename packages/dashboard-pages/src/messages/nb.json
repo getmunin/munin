@@ -35,9 +35,8 @@
     "nb": "Norsk"
   },
   "home": {
-    "title": "Munin",
-    "tagline": "Agent-native forretningsapper. AI-agenten er brukergrensesnittet.",
-    "subtitle": "Kunnskapsbase · Samtaler · CRM · CMS — open source, MCP-først.",
+    "title": "Kundeplattformen med åpen kildekode – for den <accent>agentiske</accent> æraen.",
+    "subtitle": "CRM, kunnskap, innhold, oppsøk og samtaler i ett MCP-først-system. Agenter jobber mot de samme verktøyene og dataene som teamet ditt — med vurdering og overlevering der det betyr noe.",
     "getStarted": "Kom i gang",
     "signIn": "Logg inn"
   },

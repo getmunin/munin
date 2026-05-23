@@ -35,9 +35,8 @@
     "nb": "Norsk"
   },
   "home": {
-    "title": "Munin",
-    "tagline": "Agent-native business apps. The AI agent is the UI.",
-    "subtitle": "Knowledge Base · Conversations · CRM · CMS — open source, MCP-first.",
+    "title": "The open source customer platform for the <accent>agentic</accent> era.",
+    "subtitle": "CRM, knowledge, content, outreach, and conversations in one MCP-first system. Agents work against the same tools and data as your team — with review and handover where it matters.",
     "getStarted": "Get started",
     "signIn": "Sign in"
   },

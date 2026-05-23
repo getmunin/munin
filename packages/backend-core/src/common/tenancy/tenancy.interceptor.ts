@@ -17,7 +17,7 @@ interface RequestWithAuth {
   correlationId?: string;
 }
 
-async function applyTenancyGUCs(tx: Db | Tx, actor: ActorIdentity): Promise<void> {
+export async function applyTenancyGUCs(tx: Db | Tx, actor: ActorIdentity): Promise<void> {
   await applyEncryptionKeyGUC(tx);
   if (actor.type === 'partner') {
     await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);

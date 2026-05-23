@@ -10,6 +10,12 @@ import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '@getmunin/db';
 import {
+  McpRegistryService,
+  McpSkillRegistryService,
+  openAgentMcpClient,
+  type AgentMcpClient,
+} from '@getmunin/backend-core';
+import {
   createConversationHandler,
   createMuninRestClient,
   createPromptResolver,
@@ -70,7 +76,7 @@ interface PerConfigRunner {
   realtime: { stop: () => Promise<void> };
   handler: ConversationHandler;
   prompts: PromptResolver;
-  adminMcp: { close: () => Promise<void> };
+  adminMcp: AgentMcpClient;
   curatorWorker: CuratorWorker;
 }
 
@@ -95,6 +101,8 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   constructor(
     @Inject(AGENT_CONFIG_REPOSITORY) private readonly repo: AgentConfigRepository,
     @Inject(AGENT_HOST_DB) private readonly db: Db,
+    @Inject(McpRegistryService) private readonly mcpRegistry: McpRegistryService,
+    @Inject(McpSkillRegistryService) private readonly mcpSkills: McpSkillRegistryService,
     @Optional() @Inject('AGENT_HOST_RUNNER_OPTIONS') options?: AgentHostRunnerOptions,
   ) {
     this.baseUrl = options?.baseUrl ?? process.env.MUNIN_BASE_URL ?? 'http://localhost:3001';
@@ -269,10 +277,11 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
     const rest = createMuninRestClient({ baseUrl: this.baseUrl, adminApiKey });
 
-    const adminMcp = await openMcpClient({
-      baseUrl: this.baseUrl,
-      bearerToken: adminApiKey,
-      clientName: `agent-host-${id}`,
+    const adminMcp = openAgentMcpClient({
+      db: this.db,
+      orgId: id,
+      registry: this.mcpRegistry,
+      skills: this.mcpSkills,
     });
 
     const prompts = await createPromptResolver({

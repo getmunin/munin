@@ -38,8 +38,16 @@ function expressRequestToFetch(req: ExpressRequest): globalThis.Request {
   }
   const init: RequestInit = { method: req.method, headers };
   if (req.method !== 'GET' && req.method !== 'HEAD') {
-    init.body = JSON.stringify(req.body ?? {});
-    if (!headers.has('content-type')) headers.set('content-type', 'application/json');
+    const rawBody = (req as ExpressRequest & { rawBody?: Buffer }).rawBody;
+    if (rawBody && rawBody.length > 0) {
+      init.body = new Uint8Array(rawBody);
+    } else {
+      const body: unknown = req.body;
+      if (body && typeof body === 'object' && Object.keys(body).length > 0) {
+        init.body = JSON.stringify(body);
+        if (!headers.has('content-type')) headers.set('content-type', 'application/json');
+      }
+    }
   }
   return new globalThis.Request(url, init);
 }

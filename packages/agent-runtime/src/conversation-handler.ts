@@ -23,7 +23,6 @@ export interface HandlerConfig {
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 const HANDOVER_TOOL_NAME = 'conv_request_handover_in_my_conversation';
-const TOKEN_REFRESH_MARGIN_MS = 60_000;
 
 export interface OpenedMcp extends McpToolHandle {
   close(): Promise<void>;
@@ -33,7 +32,7 @@ export interface ConversationHandlerDeps {
   config: HandlerConfig;
   rest: MuninRestClient;
   prompts: PromptResolver;
-  openMcp: (opts: { delegatedToken: string }) => Promise<OpenedMcp>;
+  openMcp: (opts: { endUserId: string }) => Promise<OpenedMcp>;
   holderId?: string;
   leaseSeconds?: number;
   logger?: {
@@ -78,7 +77,6 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
   const scheduler = deps.scheduler ?? defaultScheduler;
   const inFlight = new Map<string, InFlight>();
   const claimsHeld = new Set<string>();
-  const tokenCache = new Map<string, { accessToken: string; expiresAtMs: number }>();
   const holderId = deps.holderId ?? `runner-${randomUUID()}`;
   const leaseSeconds = deps.leaseSeconds ?? 3600;
 
@@ -91,20 +89,6 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           `${conversationId} release claim failed: ${err instanceof Error ? err.message : String(err)}`,
         ),
       );
-  }
-
-  async function getDelegatedToken(endUserId: string): Promise<string> {
-    const now = Date.now();
-    const cached = tokenCache.get(endUserId);
-    if (cached && cached.expiresAtMs - now > TOKEN_REFRESH_MARGIN_MS) {
-      return cached.accessToken;
-    }
-    const minted = await deps.rest.mintDelegatedToken(endUserId);
-    tokenCache.set(endUserId, {
-      accessToken: minted.accessToken,
-      expiresAtMs: Date.parse(minted.expiresAt),
-    });
-    return minted.accessToken;
   }
 
   function shouldRespond(detail: ConversationDetail, mode: 'reply' | 'greet'): boolean {
@@ -233,8 +217,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
       if (signal.aborted) return;
-      const accessToken = await getDelegatedToken(endUserId);
-      const mcp = await deps.openMcp({ delegatedToken: accessToken });
+      const mcp = await deps.openMcp({ endUserId });
       startTyping();
       try {
         const reply = await runAgent({
@@ -289,7 +272,6 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           return;
         }
         log.warn(`${conversationId} produced empty body (finishReason=${reply.finishReason})`);
-        // Empty body is treated like an error → retry.
         lastError = new Error(`empty reply (finishReason=${reply.finishReason})`);
       } catch (err) {
         if (signal.aborted) return;
@@ -421,8 +403,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
   }
 
   async function requestHandover(conversationId: string, endUserId: string): Promise<void> {
-    const accessToken = await getDelegatedToken(endUserId);
-    const mcp = await deps.openMcp({ delegatedToken: accessToken });
+    const mcp = await deps.openMcp({ endUserId });
     try {
       await mcp.callTool(HANDOVER_TOOL_NAME, {
         conversationId,

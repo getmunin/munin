@@ -2,17 +2,17 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { McpTool, McpToolHandle, McpToolResult } from './types.js';
 
-export interface OpenMcpClientOptions {
+export interface OpenHttpMcpClientOptions {
   baseUrl: string;
   bearerToken: string;
   clientName?: string;
 }
 
-export interface OpenedMcpClient extends McpToolHandle {
+export interface OpenedHttpMcpClient extends McpToolHandle {
   close(): Promise<void>;
 }
 
-export async function openMcpClient(opts: OpenMcpClientOptions): Promise<OpenedMcpClient> {
+export async function openHttpMcpClient(opts: OpenHttpMcpClientOptions): Promise<OpenedHttpMcpClient> {
   const url = new URL(`${opts.baseUrl.replace(/\/+$/, '')}/mcp`);
   const transport = new StreamableHTTPClientTransport(url, {
     requestInit: {

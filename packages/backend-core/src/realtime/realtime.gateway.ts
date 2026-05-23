@@ -28,6 +28,7 @@ import {
   type AdditionalCredentialResolver,
 } from '../common/auth/auth.guard.js';
 import { DbListenerService, type EventRow } from './db-listener.service.js';
+import { RealtimeEventBus, type AgentTypingBusEvent } from './realtime-event-bus.js';
 import {
   enforceOriginAllowlist,
   verifyIdentity,
@@ -77,6 +78,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private readonly resolver: CredentialResolver;
   private readonly selfServiceSubscribersByOrg = new Map<string, Set<WebSocket>>();
   private readonly subscribersByChannel = new Map<string, Set<ConnectionEntry>>();
+  private busTypingUnsubscribe: (() => void) | null = null;
 
   selfServiceSubscriberCount(orgId: string): number {
     return this.selfServiceSubscribersByOrg.get(orgId)?.size ?? 0;
@@ -85,6 +87,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
     private readonly listener: DbListenerService,
+    private readonly bus: RealtimeEventBus,
     @Inject(DB) private readonly db: Db,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Optional()
@@ -126,10 +129,19 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     };
     this.upgradeListener = listener;
     httpServer.on('upgrade', listener);
+    this.busTypingUnsubscribe = this.bus.subscribeAgentTyping((event) => {
+      this.handleBusAgentTyping(event).catch((err: unknown) =>
+        this.logger.warn(`bus typing dispatch failed: ${describeError(err)}`),
+      );
+    });
     this.logger.log(`gateway listening on ${PATH}`);
   }
 
   async onModuleDestroy(): Promise<void> {
+    if (this.busTypingUnsubscribe) {
+      this.busTypingUnsubscribe();
+      this.busTypingUnsubscribe = null;
+    }
     if (this.wss) {
       this.wss.clients.forEach((c) => c.terminate());
       await new Promise<void>((resolve) =>
@@ -523,6 +535,41 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     });
   }
 
+  private async handleBusAgentTyping(event: AgentTypingBusEvent): Promise<void> {
+    const meta = await this.resolveConversationMeta(event.conversationId);
+    if (!meta || meta.sessionId === null) return;
+    const outboundChannel = `widget:${meta.channelId}:${meta.sessionId}`;
+    const subs = this.subscribersByChannel.get(outboundChannel);
+    if (!subs) return;
+    const payload = JSON.stringify({
+      type: 'typing',
+      channel: outboundChannel,
+      isTyping: event.isTyping,
+      authorType: 'operator',
+    });
+    for (const sub of subs) {
+      if (sub.orgId !== event.orgId) continue;
+      if (sub.widgetCtx?.verifiedExternalId) {
+        const cached = sub.conversationMetaCache.get(event.conversationId);
+        if (
+          !cached ||
+          !cached.meta ||
+          cached.meta.contactExternalId !== sub.widgetCtx.verifiedExternalId
+        ) {
+          void this.resolveConversationMeta(event.conversationId).then((resolved) => {
+            sub.conversationMetaCache.set(event.conversationId, { meta: resolved });
+          });
+          continue;
+        }
+      }
+      try {
+        sub.ws.send(payload);
+      } catch (err) {
+        this.logger.debug?.(`fanoutTyping send failed (socket likely mid-close): ${describeError(err)}`);
+      }
+    }
+  }
+
   private fanoutTyping(
     fromEntry: ConnectionEntry,
     outboundChannel: string,
@@ -556,8 +603,8 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       }
       try {
         sub.ws.send(payload);
-      } catch {
-        // socket mid-close
+      } catch (err) {
+        this.logger.debug?.(`bus typing send failed (socket likely mid-close): ${describeError(err)}`);
       }
     }
   }

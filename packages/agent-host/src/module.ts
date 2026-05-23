@@ -1,5 +1,5 @@
 import { DynamicModule, Module, Provider, Type } from '@nestjs/common';
-import { DB, DbModule, McpModule } from '@getmunin/backend-core';
+import { DB, DbModule, McpModule, RealtimeModule } from '@getmunin/backend-core';
 import { AgentConfigService } from './config.service.js';
 import { AgentConfigController } from './config.controller.js';
 import { AgentModelsService } from './models.service.js';
@@ -39,7 +39,7 @@ export class AgentHostModule {
     };
     return {
       module: AgentHostModule,
-      imports: [DbModule, McpModule],
+      imports: [DbModule, McpModule, RealtimeModule],
       providers: [
         repoProvider,
         keyProvider,

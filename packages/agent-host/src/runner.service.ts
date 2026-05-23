@@ -12,27 +12,29 @@ import type { Db } from '@getmunin/db';
 import {
   McpRegistryService,
   McpSkillRegistryService,
-  openAgentMcpClient,
+  RealtimeEventBus,
+  openAdminAgentMcpClient,
+  openEndUserAgentMcpClient,
   type AgentMcpClient,
+  type AgentConfigChangedBusEvent,
+  type CuratorJobPendingBusEvent,
+  type GreetRequestedBusEvent,
+  type KbDocumentChangedBusEvent,
+  type MessageReceivedBusEvent,
+  type RealtimeBusSubscription,
 } from '@getmunin/backend-core';
 import {
   createConversationHandler,
   createMuninRestClient,
   createPromptResolver,
-  createRealtimeClient,
-  openMcpClient,
   runSkillPass,
-  type AgentConfigChangedEvent,
   type ConversationHandler,
   type CuratorJob,
-  type CuratorJobPendingEvent,
-  type GreetRequestedEvent,
   type HandlerConfig,
-  type KbDocumentChangedEvent,
-  type MessageReceivedEvent,
   type MuninRestClient,
   type PromptResolver,
   type SkillPassResult,
+  type SkillReader,
 } from '@getmunin/agent-runtime';
 import {
   jobKindOf,
@@ -48,8 +50,7 @@ import { runWebImportJob } from './web-import.handler.js';
 
 interface TaskHandlerContext {
   job: CuratorJob;
-  baseUrl: string;
-  adminApiKey: string;
+  mcp: AgentMcpClient;
   providerBaseUrl: string;
   providerApiKey: string;
   model: string;
@@ -73,7 +74,7 @@ export interface AgentHostRunnerOptions {
 }
 
 interface PerConfigRunner {
-  realtime: { stop: () => Promise<void> };
+  realtime: RealtimeBusSubscription;
   handler: ConversationHandler;
   prompts: PromptResolver;
   adminMcp: AgentMcpClient;
@@ -81,7 +82,7 @@ interface PerConfigRunner {
 }
 
 interface CuratorWorker {
-  onPending(event: CuratorJobPendingEvent): void;
+  onPending(event: CuratorJobPendingBusEvent): void;
   onConnected(): void;
   stop(): Promise<void>;
 }
@@ -103,6 +104,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     @Inject(AGENT_HOST_DB) private readonly db: Db,
     @Inject(McpRegistryService) private readonly mcpRegistry: McpRegistryService,
     @Inject(McpSkillRegistryService) private readonly mcpSkills: McpSkillRegistryService,
+    @Inject(RealtimeEventBus) private readonly eventBus: RealtimeEventBus,
     @Optional() @Inject('AGENT_HOST_RUNNER_OPTIONS') options?: AgentHostRunnerOptions,
   ) {
     this.baseUrl = options?.baseUrl ?? process.env.MUNIN_BASE_URL ?? 'http://localhost:3001';
@@ -136,7 +138,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     }
     await Promise.all(
       [...this.runners.values()].map(async (r) => {
-        await r.realtime.stop();
+        r.realtime.unsubscribe();
         await r.handler.stop();
         await r.curatorWorker.stop();
         await r.adminMcp.close().catch((err: unknown) => {
@@ -165,7 +167,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     for (const [id, runner] of this.runners) {
       if (!desired.has(id)) {
         this.logger.log(`stopping runner for ${id}`);
-        await runner.realtime.stop();
+        runner.realtime.unsubscribe();
         await runner.handler.stop();
         await runner.curatorWorker.stop();
         await runner.adminMcp.close().catch((err: unknown) => {
@@ -215,7 +217,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       if (existing) {
         this.logger.log(`respawn: stopping runner for ${id}`);
         try {
-          await existing.realtime.stop();
+          existing.realtime.unsubscribe();
           await existing.handler.stop();
           await existing.curatorWorker.stop();
           await existing.adminMcp.close();
@@ -278,7 +280,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
     const rest = createMuninRestClient({ baseUrl: this.baseUrl, adminApiKey });
 
-    const adminMcp = openAgentMcpClient({
+    const adminMcp = openAdminAgentMcpClient({
       db: this.db,
       orgId,
       registry: this.mcpRegistry,
@@ -299,57 +301,64 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       debounceMs: config.debounceMs,
     };
 
-    const curatorWorker = this.buildCuratorWorker({ id, config, providerApiKey, rest });
+    const curatorWorker = this.buildCuratorWorker({ id, orgId, config, providerApiKey, rest });
 
     const handlerRef: { current: ConversationHandler | null } = { current: null };
-    const realtime = createRealtimeClient({
-      baseUrl: this.baseUrl,
-      adminApiKey,
-      onMessageReceived: (event: MessageReceivedEvent) => {
-        if (this.lockManager && !this.lockManager.holds(id)) return;
-        handlerRef.current?.handle({
-          conversationId: event.conversationId,
-          authorType: event.authorType,
-        });
+    const realtime = this.eventBus.subscribe(
+      { orgId },
+      {
+        onMessageReceived: (event: MessageReceivedBusEvent) => {
+          if (this.lockManager && !this.lockManager.holds(id)) return;
+          handlerRef.current?.handle({
+            conversationId: event.conversationId,
+            authorType: event.authorType,
+          });
+        },
+        onGreetRequested: (event: GreetRequestedBusEvent) => {
+          if (this.lockManager && !this.lockManager.holds(id)) return;
+          handlerRef.current?.greet({ conversationId: event.conversationId });
+        },
+        onCuratorJobPending: (event) => curatorWorker.onPending(event),
+        onConnected: () => curatorWorker.onConnected(),
+        onKbDocumentChanged: (event: KbDocumentChangedBusEvent) => {
+          if (event.type === 'deleted') return;
+          if (!event.slug || !prompts.isPromptDocument(event.slug)) return;
+          void prompts.refresh(event.slug);
+        },
+        onAgentConfigChanged: (event: AgentConfigChangedBusEvent) => {
+          if (event.configId !== id) return;
+          setImmediate(() => void this.respawnRunner(id));
+        },
       },
-      onGreetRequested: (event: GreetRequestedEvent) => {
-        if (this.lockManager && !this.lockManager.holds(id)) return;
-        handlerRef.current?.greet({ conversationId: event.conversationId });
-      },
-      onCuratorJobPending: (event) => curatorWorker.onPending(event),
-      onConnected: () => curatorWorker.onConnected(),
-      onKbDocumentChanged: (event: KbDocumentChangedEvent) => {
-        if (event.type === 'deleted') return;
-        if (!event.slug || !prompts.isPromptDocument(event.slug)) return;
-        void prompts.refresh(event.slug);
-      },
-      onAgentConfigChanged: (event: AgentConfigChangedEvent) => {
-        if (event.configId !== id) return;
-        setImmediate(() => void this.respawnRunner(id));
-      },
-      logger: this.scopedLogger(id, 'realtime'),
-    });
+    );
 
     const handler = createConversationHandler({
       config: handlerConfig,
       rest,
       prompts,
-      openMcp: ({ delegatedToken }) =>
-        openMcpClient({ baseUrl: this.baseUrl, bearerToken: delegatedToken }),
+      openMcp: ({ endUserId }) =>
+        Promise.resolve(
+          openEndUserAgentMcpClient({
+            db: this.db,
+            orgId,
+            endUserId,
+            registry: this.mcpRegistry,
+            skills: this.mcpSkills,
+          }),
+        ),
       holderId: this.holderId,
       logger: this.scopedLogger(id, 'chat'),
       onTyping: (conversationId, isTyping) =>
-        realtime.sendConversationTyping(conversationId, isTyping),
+        this.eventBus.publishConversationTyping(orgId, conversationId, isTyping),
     });
     handlerRef.current = handler;
-
-    realtime.start();
 
     return { realtime, handler, prompts, adminMcp, curatorWorker };
   }
 
   private buildCuratorWorker(opts: {
     id: string;
+    orgId: string;
     config: AgentConfigRow;
     providerApiKey: string;
     rest: MuninRestClient;
@@ -372,17 +381,29 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     const executeOne = async (job: CuratorJob): Promise<void> => {
       log.info(`running ${job.jobUri} for ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
       let result: SkillPassResult;
+      const jobMcp = openAdminAgentMcpClient({
+        db: this.db,
+        orgId: opts.orgId,
+        registry: this.mcpRegistry,
+        skills: this.mcpSkills,
+      });
+      const skills: SkillReader = {
+        readSkill: async (uri: string) => {
+          try {
+            const res = await jobMcp.readResource(uri);
+            return typeof res.text === 'string' ? res.text : null;
+          } catch (err) {
+            log.warn(`readSkill failed for ${uri}: ${describe(err)}`);
+            return null;
+          }
+        },
+      };
       try {
-        const adminKey =
-          (await runWithServiceContext(this.db, opts.id, () =>
-            this.repo.readDecryptedAdminKey(opts.id),
-          )) ?? this.fallbackAdminApiKey ?? '';
         const tier = tierFor(job.jobUri);
         const model = tier === 'fast' ? fastModel : smartModel;
         const ctx: TaskHandlerContext = {
           job,
-          baseUrl: this.baseUrl,
-          adminApiKey: adminKey,
+          mcp: jobMcp,
           providerBaseUrl: opts.config.providerBaseUrl,
           providerApiKey: opts.providerApiKey,
           model,
@@ -399,8 +420,8 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         } else if (kind === 'skill') {
           const prefixes = toolPrefixesFor(job.jobUri);
           result = await runSkillPass({
-            baseUrl: this.baseUrl,
-            adminApiKey: adminKey,
+            mcp: jobMcp,
+            skills,
             providerBaseUrl: opts.config.providerBaseUrl,
             providerApiKey: opts.providerApiKey,
             model,
@@ -409,7 +430,6 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             assistantName: job.assistantName,
             maxToolIterations: 24,
             maxHistoryChars: opts.config.maxHistoryChars,
-            clientName: `agent-host-curator-${job.id.slice(-6)}`,
             allowedToolPrefixes: prefixes ? [...prefixes] : undefined,
             logger: log,
           });

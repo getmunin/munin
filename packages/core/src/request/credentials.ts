@@ -16,23 +16,9 @@ export interface ResolvedCredential {
   audience?: string;
 }
 
-/**
- * Resolves an incoming bearer token or API key into an `ActorIdentity`,
- * including org membership and audience scopes.
- *
- * This runs OUTSIDE the request transaction (auth must succeed before we
- * open a tenant-bound connection). So it takes the Db as a constructor
- * argument rather than reading from RequestContext.
- */
 export class CredentialResolver {
   constructor(private readonly db: Db) {}
 
-  /**
-   * Resolve an OAuth access token or delegated end-user JWT.
-   *
-   * For v0.4 we store these in the `tokens` table keyed by token-hash;
-   * a JWT-only flow can come later.
-   */
   async resolveBearerToken(rawToken: string): Promise<ResolvedCredential | null> {
     if (looksLikeJwt(rawToken)) {
       const jwtHit = await resolveOauthJwtAccessToken(this.db, rawToken);
@@ -118,15 +104,6 @@ export class CredentialResolver {
     };
   }
 
-  /**
-   * Resolve an admin API key (`mn_admin_*`).
-   *
-   * Format expected: `<prefix>_<random-base64url>`. The prefix narrows the
-   * lookup so we don't hash every key on every request.
-   *
-   * Downstream builds can compose this resolver with additional
-   * resolvers (see `ADDITIONAL_CREDENTIAL_RESOLVERS` in backend-core).
-   */
   async resolveApiKey(rawKey: string): Promise<ResolvedCredential | null> {
     const keyPrefix = rawKey.slice(0, 8);
     const keyHash = hashSecret(rawKey);
@@ -169,16 +146,6 @@ export class CredentialResolver {
     return { actor };
   }
 
-  /**
-   * Resolve a BetterAuth session cookie into a user-typed actor.
-   *
-   * Used by the dashboard so the user's browser session can call control-plane
-   * endpoints without first minting an API key. Returns null when the session
-   * is missing, expired, or the user has no org membership.
-   *
-   * Picks the user's default membership (`is_default = true`) if one is
-   * marked, falling back to the first membership ordered by created_at.
-   */
   async resolveSessionToken(rawToken: string): Promise<ResolvedCredential | null> {
     const sessionRows = await this.db
       .select()
@@ -211,10 +178,6 @@ export class CredentialResolver {
     return { actor, expiresAt: session.expiresAt };
   }
 
-  /**
-   * Look up just the user_id for a session token. Used by the accept-invite
-   * endpoint, where the invitee may have no memberships yet.
-   */
   async resolveSessionUserId(rawToken: string): Promise<string | null> {
     const rows = await this.db
       .select({ userId: schema.sessions.userId })

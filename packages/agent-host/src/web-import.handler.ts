@@ -1,7 +1,6 @@
 import {
   WebCrawler,
   openAiCompatibleProvider,
-  openMcpClient,
   type CrawledPage,
   type CrawlResult,
   type CuratorJob,
@@ -17,8 +16,7 @@ const PROFILE_MAX_TOKENS = 1200;
 
 export interface WebImportHandlerOpts {
   job: CuratorJob;
-  baseUrl: string;
-  adminApiKey: string;
+  mcp: McpToolHandle;
   providerBaseUrl: string;
   providerApiKey: string;
   model: string;
@@ -30,7 +28,6 @@ export interface WebImportHandlerOpts {
 }
 
 export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<SkillPassResult> {
-  if (!opts.adminApiKey) return { ok: false, skipped: 'no_admin_key' };
   if (!opts.providerApiKey) return { ok: false, skipped: 'no_provider_key' };
 
   const url = opts.job.userPrompt.trim();
@@ -48,63 +45,47 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
     return { ok: false, skipped: 'agent_error', error: message };
   }
 
-  let mcp: Awaited<ReturnType<typeof openMcpClient>>;
+  const mcp = opts.mcp;
+
+  let spaceId: string;
   try {
-    mcp = await openMcpClient({
-      baseUrl: opts.baseUrl,
-      bearerToken: opts.adminApiKey,
-      clientName: `agent-host-web-import-${opts.job.id.slice(-6)}`,
-    });
+    spaceId = await ensureSpace(mcp);
   } catch (err) {
-    opts.logger.warn(`mcp connect failed: ${describe(err)}`);
-    return { ok: false, skipped: 'mcp_connect_failed' };
+    return { ok: false, skipped: 'agent_error', error: `ensureSpace failed: ${describe(err)}` };
   }
 
-  try {
-    let spaceId: string;
-    try {
-      spaceId = await ensureSpace(mcp);
-    } catch (err) {
-      return { ok: false, skipped: 'agent_error', error: `ensureSpace failed: ${describe(err)}` };
-    }
+  let created = 0;
+  const pagesToInsert = crawl.pages.slice(0, MAX_PAGES_TO_INSERT);
+  for (const page of pagesToInsert) {
+    const ok = await upsertPageDocument(mcp, spaceId, page, opts.logger);
+    if (ok) created++;
+  }
 
-    let created = 0;
-    const pagesToInsert = crawl.pages.slice(0, MAX_PAGES_TO_INSERT);
-    for (const page of pagesToInsert) {
-      const ok = await upsertPageDocument(mcp, spaceId, page, opts.logger);
+  let profileTokens = 0;
+  if (crawl.pages.length > 0) {
+    const profile = await generateCompanyProfile({
+      provider: { baseUrl: opts.providerBaseUrl, apiKey: opts.providerApiKey },
+      model: opts.model,
+      siteTitle: crawl.siteTitle,
+      siteUrl: crawl.siteUrl,
+      pages: crawl.pages.slice(0, PROFILE_CONTEXT_PAGES),
+      logger: opts.logger,
+    });
+    if (profile) {
+      profileTokens = profile.totalTokens;
+      const ok = await upsertProfileDocument(mcp, spaceId, profile.markdown, opts.logger);
       if (ok) created++;
     }
-
-    let profileTokens = 0;
-    if (crawl.pages.length > 0) {
-      const profile = await generateCompanyProfile({
-        provider: { baseUrl: opts.providerBaseUrl, apiKey: opts.providerApiKey },
-        model: opts.model,
-        siteTitle: crawl.siteTitle,
-        siteUrl: crawl.siteUrl,
-        pages: crawl.pages.slice(0, PROFILE_CONTEXT_PAGES),
-        logger: opts.logger,
-      });
-      if (profile) {
-        profileTokens = profile.totalTokens;
-        const ok = await upsertProfileDocument(mcp, spaceId, profile.markdown, opts.logger);
-        if (ok) created++;
-      }
-    }
-
-    const replyText = `Imported ${created} document(s) from ${crawl.siteUrl}; ${crawl.skipped.length} URL(s) skipped.`;
-    return {
-      ok: true,
-      toolCalls: created,
-      totalTokens: profileTokens,
-      finishReason: 'stop',
-      replyText,
-    };
-  } finally {
-    await mcp.close().catch((err: unknown) => {
-      opts.logger.warn(`mcp close failed: ${describe(err)}`);
-    });
   }
+
+  const replyText = `Imported ${created} document(s) from ${crawl.siteUrl}; ${crawl.skipped.length} URL(s) skipped.`;
+  return {
+    ok: true,
+    toolCalls: created,
+    totalTokens: profileTokens,
+    finishReason: 'stop',
+    replyText,
+  };
 }
 
 async function ensureSpace(mcp: McpToolHandle): Promise<string> {

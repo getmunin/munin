@@ -1,25 +1,21 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runSkillPass, withAllowedToolPrefixes } from './skill-pass.js';
+import { runSkillPass, withAllowedToolPrefixes, type SkillReader } from './skill-pass.js';
 import type { McpTool, McpToolHandle, McpToolResult } from './types.js';
 
-describe('runSkillPass', () => {
-  it('returns skipped:no_admin_key when adminApiKey is empty', async () => {
-    const result = await runSkillPass({
-      baseUrl: 'http://localhost:1',
-      adminApiKey: '',
-      providerBaseUrl: 'http://localhost:1',
-      providerApiKey: 'k',
-      model: 'm',
-      skillUri: 'skill://x/y',
-      userPrompt: 'go',
-    });
-    expect(result).toEqual({ ok: false, skipped: 'no_admin_key' });
-  });
+const noopMcp: McpToolHandle = {
+  listTools: () => Promise.resolve([]),
+  callTool: () => Promise.resolve({ content: [] }),
+};
 
+const noopSkills: SkillReader = {
+  readSkill: () => Promise.resolve(null),
+};
+
+describe('runSkillPass', () => {
   it('returns skipped:no_provider_key when providerApiKey is empty', async () => {
     const result = await runSkillPass({
-      baseUrl: 'http://localhost:1',
-      adminApiKey: 'k',
+      mcp: noopMcp,
+      skills: noopSkills,
       providerBaseUrl: 'http://localhost:1',
       providerApiKey: '',
       model: 'm',
@@ -27,6 +23,20 @@ describe('runSkillPass', () => {
       userPrompt: 'go',
     });
     expect(result).toEqual({ ok: false, skipped: 'no_provider_key' });
+  });
+
+  it('returns skipped:skill_missing when readSkill resolves to null', async () => {
+    const result = await runSkillPass({
+      mcp: noopMcp,
+      skills: noopSkills,
+      providerBaseUrl: 'http://localhost:1',
+      providerApiKey: 'k',
+      model: 'm',
+      skillUri: 'skill://x/missing',
+      userPrompt: 'go',
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    expect(result).toEqual({ ok: false, skipped: 'skill_missing' });
   });
 
   it('withAllowedToolPrefixes filters listTools and blocks disallowed callTool', async () => {
@@ -70,21 +80,4 @@ describe('runSkillPass', () => {
     };
     expect(withAllowedToolPrefixes(inner, [])).toBe(inner);
   });
-
-  it('returns skipped:mcp_connect_failed against an unreachable baseUrl', async () => {
-    const result = await runSkillPass({
-      baseUrl: 'http://127.0.0.1:1',
-      adminApiKey: 'k',
-      providerBaseUrl: 'http://localhost:1',
-      providerApiKey: 'k',
-      model: 'm',
-      skillUri: 'skill://x/y',
-      userPrompt: 'go',
-      logger: { info: () => {}, warn: () => {}, error: () => {} },
-    });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.skipped).toBe('mcp_connect_failed');
-    }
-  }, 15_000);
 });

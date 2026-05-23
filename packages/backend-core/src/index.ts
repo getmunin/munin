@@ -1,8 +1,3 @@
-/**
- * `@getmunin/backend-core` — reusable Nest building blocks for any Munin
- * backend (OSS `apps/backend` or downstream apps). Auth modules are
- * intentionally NOT included here; each consumer wires its own.
- */
 export {
   BACKEND_FEATURE_MODULES_NO_AUTH,
   BACKEND_BASE_CONTROLLERS,
@@ -21,7 +16,6 @@ export {
   readTrustedOriginsFromEnv,
 } from './auth-env.js';
 
-// Common building blocks
 export {
   AuthGuard,
   AllowAnonymous,
@@ -37,15 +31,29 @@ export { MAILER, MailModule } from './common/mail/mail.module.js';
 export { STORAGE } from './common/storage/storage.token.js';
 export { StorageModule } from './common/storage/storage.module.js';
 
-// Feature modules (re-export so cloud can selectively replace any of them
-// if it ever needs to — currently it just composes the array as-is).
 export { McpModule } from './mcp/mcp.module.js';
 export { McpRegistryService } from './mcp/mcp.registry.js';
 export { McpSkillRegistryService } from './mcp/mcp.skill-registry.service.js';
 export {
-  openAgentMcpClient,
+  RealtimeEventBus,
+  type RealtimeBusHandlers,
+  type RealtimeBusSubscription,
+  type RealtimeBusSubscriptionFilter,
+  type MessageReceivedBusEvent,
+  type KbDocumentChangedBusEvent,
+  type HandoverResolvedBusEvent,
+  type CuratorJobPendingBusEvent,
+  type GreetRequestedBusEvent,
+  type AgentConfigChangedBusEvent,
+  type AgentTypingBusEvent,
+} from './realtime/realtime-event-bus.js';
+export { RealtimeModule } from './realtime/realtime.module.js';
+export {
+  openAdminAgentMcpClient,
+  openEndUserAgentMcpClient,
   type AgentMcpClient,
-  type OpenAgentMcpClientOptions,
+  type OpenAdminAgentMcpClientOptions,
+  type OpenEndUserAgentMcpClientOptions,
 } from './agent/in-process-context.js';
 export { ControlModule } from './control/control.module.js';
 export { KbModule } from './modules/kb/kb.module.js';

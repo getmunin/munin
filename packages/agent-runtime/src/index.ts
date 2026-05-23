@@ -42,15 +42,16 @@ export {
   type MuninRestClient,
 } from './munin-rest.js';
 export {
-  openMcpClient,
-  type OpenMcpClientOptions,
-  type OpenedMcpClient,
+  openHttpMcpClient,
+  type OpenHttpMcpClientOptions,
+  type OpenedHttpMcpClient,
 } from './mcp-client.js';
 export {
   runSkillPass,
   withAllowedToolPrefixes,
   type SkillPassOptions,
   type SkillPassResult,
+  type SkillReader,
 } from './skill-pass.js';
 export {
   WebCrawler,

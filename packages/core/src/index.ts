@@ -15,6 +15,7 @@ export {
   getCurrentContext,
   withContext,
 } from './request/context.js';
+export { buildAdminAgentActor } from './request/synth-agent-actor.js';
 export { AuditLogger, type AuditEventInput } from './request/audit.js';
 export { ClaimManager, type ClaimResult } from './request/claims.js';
 export { CredentialResolver, type ResolvedCredential } from './request/credentials.js';

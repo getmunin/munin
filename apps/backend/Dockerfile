@@ -12,7 +12,6 @@ COPY apps/backend/package.json apps/backend/
 COPY packages/core/package.json packages/core/
 COPY packages/db/package.json packages/db/
 COPY packages/mcp-toolkit/package.json packages/mcp-toolkit/
-COPY packages/bootstrap/package.json packages/bootstrap/
 COPY packages/types/package.json packages/types/
 COPY packages/tsconfig/package.json packages/tsconfig/
 COPY packages/eslint-config/package.json packages/eslint-config/
@@ -32,6 +31,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /repo/apps/backend/dist ./dist
 COPY --from=build /repo/apps/backend/package.json ./
+COPY --from=build /repo/apps/backend/public ./public
 COPY --from=build /repo/node_modules ./node_modules
 EXPOSE 3001
 CMD ["node", "dist/main.js"]

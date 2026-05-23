@@ -41,6 +41,15 @@ export interface CreateAppOptions extends NestApplicationOptions {
    * and serve 503 — the rest of the API still boots.
    */
   widgetAssetDir?: string;
+  /**
+   * Absolute path to the directory holding the MCP host's brand icons —
+   * `favicon.ico`, `icon.png`, `apple-icon.png`. Served at the root paths
+   * `/favicon.ico`, `/icon.png`, `/apple-icon.png` with a long cache.
+   * Defaults to `<cwd>/public/icons`. Missing files silently 404; this
+   * is what claude.ai web (and similar MCP UIs) fetches to render the
+   * custom-integration tile.
+   */
+  iconAssetDir?: string;
 }
 
 /**
@@ -60,7 +69,7 @@ export async function createApp(
   appModule: Type<unknown>,
   opts: CreateAppOptions = {},
 ): Promise<INestApplication> {
-  const { widgetAssetDir, ...nestOpts } = opts;
+  const { widgetAssetDir, iconAssetDir, ...nestOpts } = opts;
   const app = await NestFactory.create(appModule, { rawBody: true, ...nestOpts });
   const allowedHosts = readAllowedHosts();
   if (allowedHosts) app.use(hostAllowlistMiddleware(allowedHosts));
@@ -77,6 +86,9 @@ export async function createApp(
   const resolvedWidgetDir = resolve(widgetAssetDir ?? join(process.cwd(), 'public', 'widget'));
   app.use('/widget.js', widgetRedirectMiddleware(resolvedWidgetDir));
   app.use('/widget', widgetBundleMiddleware(resolvedWidgetDir));
+
+  const resolvedIconDir = resolve(iconAssetDir ?? join(process.cwd(), 'public', 'icons'));
+  app.use(brandIconMiddleware(resolvedIconDir));
 
   return app;
 }
@@ -277,6 +289,50 @@ function widgetBundleMiddleware(widgetDir: string) {
       );
       res.setHeader('access-control-allow-origin', '*');
       res.setHeader('cache-control', 'public, max-age=31536000, immutable');
+      if (req.method === 'HEAD') {
+        res.status(200).end();
+        return;
+      }
+      createReadStream(filePath).pipe(res);
+    } catch {
+      res.status(404).end();
+    }
+  };
+}
+
+const BRAND_ICON_FILES: Record<string, string> = {
+  '/favicon.ico': 'favicon.ico',
+  '/icon.png': 'icon.png',
+  '/apple-icon.png': 'apple-icon.png',
+};
+
+function brandIconMiddleware(iconDir: string) {
+  const root = resolve(iconDir);
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      next();
+      return;
+    }
+    const file = BRAND_ICON_FILES[req.path];
+    if (!file) {
+      next();
+      return;
+    }
+    const filePath = resolve(join(root, file));
+    if (!filePath.startsWith(root)) {
+      res.status(404).end();
+      return;
+    }
+    try {
+      const info = await stat(filePath);
+      if (!info.isFile()) {
+        res.status(404).end();
+        return;
+      }
+      res.setHeader('content-length', String(info.size));
+      res.setHeader('content-type', file.endsWith('.ico') ? 'image/x-icon' : 'image/png');
+      res.setHeader('cache-control', 'public, max-age=86400, stale-while-revalidate=604800');
+      res.setHeader('access-control-allow-origin', '*');
       if (req.method === 'HEAD') {
         res.status(200).end();
         return;

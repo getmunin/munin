@@ -73,6 +73,11 @@ export async function createApp(
   const app = await NestFactory.create(appModule, { rawBody: true, ...nestOpts });
   const allowedHosts = readAllowedHosts();
   if (allowedHosts) app.use(hostAllowlistMiddleware(allowedHosts));
+  // Map the canonical external URLs (MUNIN_PUBLIC_URL for MCP,
+  // MUNIN_API_URL for REST) onto the internal Nest mount paths
+  // (`/mcp`, `/api/v1`). Runs before every other middleware so CORS,
+  // routing, and tests all see the rewritten URL.
+  app.use(publicUrlRewriteMiddleware());
   app.use(corsMiddleware(readAllowedOrigins()));
   app.use(requestIdMiddleware);
 
@@ -104,6 +109,83 @@ export function isPublicCorsPath(path: string): boolean {
     path.startsWith('/.well-known/openid-') ||
     path.startsWith('/api/v1/oauth/clients/')
   );
+}
+
+/**
+ * Maps the canonical public URLs onto the internal Nest mount points.
+ *
+ *   - `MUNIN_PUBLIC_URL`'s host + path → `/mcp`
+ *   - `MUNIN_API_URL`'s host + path     → `/api/v1`
+ *
+ * So a cloud deploy can advertise `https://mcp.getmunin.com` (no path)
+ * for MCP and `https://api.getmunin.com/v1` for REST while every Nest
+ * controller stays mounted at its original internal path. The
+ * middleware mutates `req.url`; everything downstream (CORS check,
+ * routing, audit log, tests) sees the rewritten URL.
+ *
+ * Pass-through when the env vars name the same internal path: OSS
+ * default `MUNIN_PUBLIC_URL=http://localhost:3001/mcp` keeps `/mcp` →
+ * `/mcp` (no-op). Same for `/api/v1` → `/api/v1`.
+ */
+export function publicUrlRewriteMiddleware() {
+  const mcp = parseRewriteSource(process.env.MUNIN_PUBLIC_URL ?? 'http://localhost:3001/mcp');
+  const api = parseRewriteSource(process.env.MUNIN_API_URL);
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    const rawHost = typeof req.headers.host === 'string' ? req.headers.host : '';
+    const host = rawHost.split(':', 1)[0]!.toLowerCase();
+    rewriteIfMatch(req, host, mcp, '/mcp');
+    if (api) rewriteIfMatch(req, host, api, '/api/v1');
+    next();
+  };
+}
+
+interface RewriteSource {
+  host: string;
+  externalPath: string;
+}
+
+function parseRewriteSource(raw: string | undefined): RewriteSource | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    const path = u.pathname.replace(/\/+$/, '');
+    return { host: u.hostname.toLowerCase(), externalPath: path };
+  } catch {
+    return null;
+  }
+}
+
+function rewriteIfMatch(
+  req: Request,
+  host: string,
+  src: RewriteSource | null,
+  internal: string,
+): void {
+  if (!src) return;
+  if (src.host !== host) return;
+  if (src.externalPath === internal) return; // pass-through
+
+  const [path, qs] = splitQuery(req.url ?? '/');
+  // Empty external path → resource lives at the host root; only the
+  // root URL itself maps to the internal mount. `/auth`, `/.well-known/*`,
+  // `/favicon.ico` and friends pass through unchanged.
+  if (src.externalPath === '') {
+    if (path === '/' || path === '') {
+      req.url = internal + (qs ? `?${qs}` : '');
+    }
+    return;
+  }
+  // Path-segment match — `/v1` matches `/v1/...` but not `/v1foo`.
+  if (path === src.externalPath) {
+    req.url = internal + (qs ? `?${qs}` : '');
+  } else if (path.startsWith(`${src.externalPath}/`)) {
+    req.url = `${internal}${path.slice(src.externalPath.length)}${qs ? `?${qs}` : ''}`;
+  }
+}
+
+function splitQuery(url: string): [string, string] {
+  const i = url.indexOf('?');
+  return i < 0 ? [url, ''] : [url.slice(0, i), url.slice(i + 1)];
 }
 
 export function hostAllowlistMiddleware(allowedHosts: string[]) {

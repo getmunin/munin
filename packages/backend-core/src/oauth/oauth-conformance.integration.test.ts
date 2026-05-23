@@ -37,7 +37,7 @@ const skipReason = TEST_URL
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
     baseUrl = `http://127.0.0.1:${address.port}`;
-    process.env.MUNIN_PUBLIC_URL = baseUrl;
+    process.env.MUNIN_PUBLIC_URL = `${baseUrl}/mcp`;
   });
 
   afterAll(async () => {

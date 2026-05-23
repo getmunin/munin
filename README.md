@@ -28,6 +28,42 @@ The first user to sign up becomes the org admin; subsequent users need an invita
 
 **Hosted** (https://getmunin.com): multi-tenant, one signup per org.
 
+## Try it locally
+
+After `docker compose up`, the backend listens on `:3001` and the dashboard on `:3000`.
+
+1. Open `http://localhost:3000` and register the first user — they become the singleton org admin.
+2. In the dashboard, go to **Settings → API keys** and mint an admin key (`mn_admin_…`). Shown once; treat like a password.
+3. Pick one of:
+
+```sh
+# REST control plane — direct, no OAuth
+curl -s http://localhost:3001/api/v1/kb/spaces \
+  -H "Authorization: Bearer mn_admin_..." | jq
+
+# MCP tool browser (recommended for poking at tools/skills)
+npx @modelcontextprotocol/inspector
+# In its UI: URL = http://localhost:3001/mcp, Auth = Bearer mn_admin_...
+
+# Claude Code (CLI)
+claude mcp add munin-local http://localhost:3001/mcp
+# Then `claude` → OAuth flow opens in browser → tools available
+
+# Claude Desktop — claude_desktop_config.json
+# {
+#   "mcpServers": { "munin": { "url": "http://localhost:3001/mcp" } }
+# }
+
+# Raw curl over Streamable HTTP — useful for sanity-checking the transport
+curl -N -X POST http://localhost:3001/mcp \
+  -H "Authorization: Bearer mn_admin_..." \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+The OpenAPI spec for the REST control plane is at `packages/backend-core/openapi.json`.
+
 ## Connect your AI agent
 
 Once you've signed up (hosted) or run `docker compose up` (self-host), point your MCP client at the URL.

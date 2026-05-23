@@ -120,7 +120,7 @@ function publicUrl(): string {
   return (process.env.MUNIN_PUBLIC_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
 }
 
-function jwtIssuer(): string {
+export function jwtIssuer(): string {
   try {
     return new URL(publicUrl()).origin;
   } catch {
@@ -128,7 +128,7 @@ function jwtIssuer(): string {
   }
 }
 
-function acceptedJwtAudiences(): Set<string> {
+export function acceptedJwtAudiences(): Set<string> {
   const canonical = publicUrl();
   const set = new Set<string>([canonical, `${canonical}/`]);
   try {

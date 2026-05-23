@@ -1,10 +1,10 @@
 'use client';
 
 import { Link } from '../../i18n-navigation';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn, Eyebrow } from '@getmunin/ui';
-import { MCP_SETUPS, type McpSetup } from '../../data/mcp-setups';
+import { buildMcpSetups, MCP_SETUPS, type McpSetup } from '../../data/mcp-setups';
 import { RECIPES, type Recipe } from '../../data/recipes';
 import { RecipeDrawer } from './recipe-drawer';
 
@@ -13,8 +13,29 @@ export function GetStarted() {
   const [activeId, setActiveId] = useState<McpSetup['id']>('claude');
   const [openRecipe, setOpenRecipe] = useState<Recipe | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mcpHost, setMcpHost] = useState<string | null>(null);
 
-  const setup = MCP_SETUPS.find((s) => s.id === activeId) ?? MCP_SETUPS[0]!;
+  // Pull the canonical MCP URL from the backend's RFC 9728 metadata so
+  // OSS self-host shows `http://localhost:3001` and cloud shows
+  // `https://mcp.getmunin.com` without rebuilding the dashboard.
+  useEffect(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    const url = `${apiBase}/.well-known/oauth-protected-resource`;
+    let cancelled = false;
+    void fetch(url, { credentials: 'omit' })
+      .then((res) => (res.ok ? (res.json() as Promise<{ resource?: unknown }>) : null))
+      .then((body) => {
+        if (cancelled) return;
+        if (body && typeof body.resource === 'string') setMcpHost(body.resource);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setups = useMemo(() => (mcpHost ? buildMcpSetups(mcpHost) : MCP_SETUPS), [mcpHost]);
+  const setup = setups.find((s) => s.id === activeId) ?? setups[0]!;
 
   function copySnippet() {
     if (navigator.clipboard) {
@@ -53,7 +74,7 @@ export function GetStarted() {
           </div>
 
           <div className="flex border-[0.5px] border-ink mb-3.5 dark:border-foreground">
-            {MCP_SETUPS.map((s) => {
+            {setups.map((s) => {
               const active = s.id === activeId;
               return (
                 <button

@@ -1,6 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import { hostAllowlistMiddleware, isPublicCorsPath } from './bootstrap-app.js';
+import {
+  hostAllowlistMiddleware,
+  isPublicCorsPath,
+  publicUrlRewriteMiddleware,
+} from './bootstrap-app.js';
 
 function run(mw: ReturnType<typeof hostAllowlistMiddleware>, hostHeader: string | undefined) {
   const req = { headers: { host: hostHeader } } as unknown as Request;
@@ -68,5 +72,84 @@ describe('isPublicCorsPath', () => {
     expect(isPublicCorsPath('/api/v1/kb/spaces')).toBe(false);
     expect(isPublicCorsPath('/auth/sign-in')).toBe(false);
     expect(isPublicCorsPath('/healthz')).toBe(false);
+  });
+});
+
+describe('publicUrlRewriteMiddleware', () => {
+  const originalPublic = process.env.MUNIN_PUBLIC_URL;
+  const originalApi = process.env.MUNIN_API_URL;
+
+  beforeEach(() => {
+    delete process.env.MUNIN_PUBLIC_URL;
+    delete process.env.MUNIN_API_URL;
+  });
+  afterEach(() => {
+    if (originalPublic === undefined) delete process.env.MUNIN_PUBLIC_URL;
+    else process.env.MUNIN_PUBLIC_URL = originalPublic;
+    if (originalApi === undefined) delete process.env.MUNIN_API_URL;
+    else process.env.MUNIN_API_URL = originalApi;
+  });
+
+  function runMw(host: string, url: string): { url: string; nextCalled: boolean } {
+    const req = { headers: { host }, url } as unknown as Request;
+    const res = {} as Response;
+    const next = vi.fn() as NextFunction;
+    publicUrlRewriteMiddleware()(req, res, next);
+    return { url: (req as { url: string }).url, nextCalled: (next as { mock?: { calls: unknown[] } }).mock!.calls.length > 0 };
+  }
+
+  it('passes /mcp through unchanged on the OSS default URL', () => {
+    process.env.MUNIN_PUBLIC_URL = 'http://localhost:3001/mcp';
+    const out = runMw('localhost:3001', '/mcp');
+    expect(out.url).toBe('/mcp');
+    expect(out.nextCalled).toBe(true);
+  });
+
+  it('maps the root URL on the canonical MCP host to /mcp internally', () => {
+    process.env.MUNIN_PUBLIC_URL = 'https://mcp.getmunin.com';
+    expect(runMw('mcp.getmunin.com', '/').url).toBe('/mcp');
+    expect(runMw('mcp.getmunin.com', '/?session=abc').url).toBe('/mcp?session=abc');
+    expect(runMw('mcp.getmunin.com', '').url).toBe('/mcp');
+  });
+
+  it('does NOT rewrite OAuth discovery or static asset paths on the canonical host', () => {
+    process.env.MUNIN_PUBLIC_URL = 'https://mcp.getmunin.com';
+    expect(runMw('mcp.getmunin.com', '/.well-known/oauth-protected-resource').url).toBe(
+      '/.well-known/oauth-protected-resource',
+    );
+    expect(runMw('mcp.getmunin.com', '/auth/oauth2/authorize?foo=1').url).toBe(
+      '/auth/oauth2/authorize?foo=1',
+    );
+    expect(runMw('mcp.getmunin.com', '/favicon.ico').url).toBe('/favicon.ico');
+  });
+
+  it('leaves other hosts untouched (api.* should not be MCP-rewritten)', () => {
+    process.env.MUNIN_PUBLIC_URL = 'https://mcp.getmunin.com';
+    expect(runMw('api.getmunin.com', '/').url).toBe('/');
+    expect(runMw('api.getmunin.com', '/api/v1/kb/spaces').url).toBe('/api/v1/kb/spaces');
+  });
+
+  it('maps /v1/... on the canonical API host to /api/v1/... internally', () => {
+    process.env.MUNIN_PUBLIC_URL = 'https://mcp.getmunin.com';
+    process.env.MUNIN_API_URL = 'https://api.getmunin.com/v1';
+    expect(runMw('api.getmunin.com', '/v1/kb/spaces').url).toBe('/api/v1/kb/spaces');
+    expect(runMw('api.getmunin.com', '/v1/kb/spaces?limit=10').url).toBe(
+      '/api/v1/kb/spaces?limit=10',
+    );
+    expect(runMw('api.getmunin.com', '/v1').url).toBe('/api/v1');
+  });
+
+  it('still accepts legacy /api/v1/* requests on the canonical API host', () => {
+    process.env.MUNIN_PUBLIC_URL = 'https://mcp.getmunin.com';
+    process.env.MUNIN_API_URL = 'https://api.getmunin.com/v1';
+    // /api/v1 does not start with /v1/ — it starts with /api — so the
+    // rewriter leaves it alone and the internal mount handles it as-is.
+    expect(runMw('api.getmunin.com', '/api/v1/kb/spaces').url).toBe('/api/v1/kb/spaces');
+  });
+
+  it('does not match a path that just starts with the prefix as a substring', () => {
+    process.env.MUNIN_PUBLIC_URL = 'https://mcp.getmunin.com';
+    process.env.MUNIN_API_URL = 'https://api.getmunin.com/v1';
+    expect(runMw('api.getmunin.com', '/v1foo/bar').url).toBe('/v1foo/bar');
   });
 });

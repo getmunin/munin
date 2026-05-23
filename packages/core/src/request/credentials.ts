@@ -216,8 +216,7 @@ export class CredentialResolver {
 }
 
 function oauthMcpResourceAudience(): string {
-  const base = (process.env.MUNIN_PUBLIC_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
-  return `${base}/mcp`;
+  return (process.env.MUNIN_PUBLIC_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
 }
 
 function deriveAudiencesFromScopes(scopes: string[]): Audience[] {

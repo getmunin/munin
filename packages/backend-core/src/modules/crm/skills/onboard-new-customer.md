@@ -1,5 +1,5 @@
 ---
-title: Onboard a new customer
+title: CRM: Onboard a new customer
 description: Recommended sequence for capturing a new customer, attaching them to a company, and seeding the AI summary that drives later prioritization.
 audiences: [admin]
 ---

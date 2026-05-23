@@ -1,5 +1,5 @@
 ---
-title: Publish and distribute (CMS + KB + Conv)
+title: Playbook: Publish and distribute (CMS + KB + Conv)
 description: Author content in the CMS, mirror the parts that should be searchable to the KB, and announce the publish to a conversation channel.
 audiences: [admin]
 ---

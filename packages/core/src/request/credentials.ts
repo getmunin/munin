@@ -1,8 +1,14 @@
+import { createHash } from 'node:crypto';
 import type { Db } from '@getmunin/db';
 import { schema } from '@getmunin/db';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import { ActorIdentity, type Audience } from './context.js';
 import { hashSecret } from '../crypto/primitives.js';
+import { looksLikeJwt, resolveOauthJwtAccessToken } from './oauth-jwt.js';
+
+function hashOauthOpaqueToken(rawToken: string): string {
+  return createHash('sha256').update(rawToken).digest('base64url');
+}
 
 export interface ResolvedCredential {
   actor: ActorIdentity;
@@ -28,6 +34,10 @@ export class CredentialResolver {
    * a JWT-only flow can come later.
    */
   async resolveBearerToken(rawToken: string): Promise<ResolvedCredential | null> {
+    if (looksLikeJwt(rawToken)) {
+      const jwtHit = await resolveOauthJwtAccessToken(this.db, rawToken);
+      if (jwtHit) return jwtHit;
+    }
     const oauthHit = await this.resolveOauthAccessToken(rawToken);
     if (oauthHit) return oauthHit;
 
@@ -72,7 +82,7 @@ export class CredentialResolver {
     const tokenRows = await this.db
       .select()
       .from(schema.oauthAccessToken)
-      .where(eq(schema.oauthAccessToken.token, rawToken))
+      .where(eq(schema.oauthAccessToken.token, hashOauthOpaqueToken(rawToken)))
       .limit(1);
     const tokenRow = tokenRows[0];
     if (!tokenRow) return null;
@@ -215,11 +225,11 @@ export class CredentialResolver {
   }
 }
 
-function oauthMcpResourceAudience(): string {
+export function oauthMcpResourceAudience(): string {
   return (process.env.MUNIN_PUBLIC_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
 }
 
-function deriveAudiencesFromScopes(scopes: string[]): Audience[] {
+export function deriveAudiencesFromScopes(scopes: string[]): Audience[] {
   const set = new Set<Audience>();
   for (const scope of scopes) {
     if (scope === 'mcp:admin') set.add('admin');

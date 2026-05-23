@@ -140,7 +140,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_list_collections',
-    title: 'List CMS collections',
+    title: 'CMS: List collections',
     description: 'List CMS collections (content types) defined for your org.',
     audiences: ['admin'],
     scopes: ['cms:read'],
@@ -154,7 +154,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_get_collection',
-    title: 'Read CMS collection',
+    title: 'CMS: Read collection',
     description: 'Read one collection by id or slug, including its field definitions.',
     audiences: ['admin'],
     scopes: ['cms:read'],
@@ -168,7 +168,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_create_collection',
-    title: 'Create CMS collection',
+    title: 'CMS: Create collection',
     description:
       'Define a new collection. Fields is an array of { name, type, required?, options? } — see field types: text, rich_text, markdown, number, integer, boolean, date, datetime, select, multi_select, asset, reference, array, json.',
     audiences: ['admin'],
@@ -183,7 +183,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_update_collection',
-    title: 'Update CMS collection',
+    title: 'CMS: Update collection',
     description:
       'Patch a collection. Field migration is lossy: dropped or renamed fields stay in entries\' `data` jsonb but stop being read by the projection layer.',
     audiences: ['admin'],
@@ -198,7 +198,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_delete_collection',
-    title: 'Delete CMS collection',
+    title: 'CMS: Delete collection',
     description: 'Delete a collection. Cascades to all entries, versions, and references.',
     audiences: ['admin'],
     scopes: ['cms:write'],
@@ -214,7 +214,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_list_entries',
-    title: 'List CMS entries',
+    title: 'CMS: List entries',
     description:
       'List entries. Filters: collection (id or slug), status, locale. Drafts and scheduled entries are returned to admins; the public delivery API only ever returns published.',
     audiences: ['admin'],
@@ -229,7 +229,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_get_entry',
-    title: 'Read CMS entry',
+    title: 'CMS: Read entry',
     description: 'Read one entry. Data is projected through the collection\'s current field schema.',
     audiences: ['admin'],
     scopes: ['cms:read'],
@@ -243,7 +243,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_create_entry',
-    title: 'Create CMS entry',
+    title: 'CMS: Create entry',
     description:
       'Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: "published"` to publish on creation; default is draft.',
     audiences: ['admin'],
@@ -258,7 +258,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_update_entry',
-    title: 'Update CMS entry',
+    title: 'CMS: Update entry',
     description:
       'Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. Updating `data` re-validates against the collection schema, regenerates search_text + embedding, and rewrites references.',
     audiences: ['admin'],
@@ -273,7 +273,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_publish_entry',
-    title: 'Publish CMS entry',
+    title: 'CMS: Publish entry',
     description: 'Flip an entry to status="published". Stamps publishedAt and fires cms.entry.published.',
     audiences: ['admin'],
     scopes: ['cms:write'],
@@ -287,7 +287,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_unpublish_entry',
-    title: 'Unpublish CMS entry',
+    title: 'CMS: Unpublish entry',
     description: 'Revert an entry to status="draft". Clears publishedAt; fires cms.entry.unpublished.',
     audiences: ['admin'],
     scopes: ['cms:write'],
@@ -301,7 +301,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_schedule_publish',
-    title: 'Schedule CMS entry publish',
+    title: 'CMS: Schedule entry publish',
     description:
       'Schedule an entry to flip to published at a future ISO 8601 datetime. The schedule worker drains due rows every minute.',
     audiences: ['admin'],
@@ -316,7 +316,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_delete_entry',
-    title: 'Delete CMS entry',
+    title: 'CMS: Delete entry',
     description: 'Delete an entry. Cascades to its versions and references.',
     audiences: ['admin'],
     scopes: ['cms:write'],
@@ -330,7 +330,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_list_versions',
-    title: 'List CMS entry versions',
+    title: 'CMS: List entry versions',
     description: 'List all prior versions of an entry, newest first.',
     audiences: ['admin'],
     scopes: ['cms:read'],
@@ -344,7 +344,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_restore_version',
-    title: 'Restore CMS entry version',
+    title: 'CMS: Restore entry version',
     description:
       'Roll an entry back to an earlier version. Creates a new current version with that historical data.',
     audiences: ['admin'],
@@ -361,7 +361,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_list_assets',
-    title: 'List CMS assets',
+    title: 'CMS: List assets',
     description: 'List media-library assets in your org.',
     audiences: ['admin'],
     scopes: ['cms:read'],
@@ -375,7 +375,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_request_asset_upload',
-    title: 'Request CMS asset upload URL',
+    title: 'CMS: Request asset upload URL',
     description:
       'Mint a presigned upload URL for a new asset. The asset row is created in `uploaded:false` state; PUT the file body to `uploadUrl`, then call cms_complete_asset_upload to mark it live.',
     audiences: ['admin'],
@@ -390,7 +390,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_complete_asset_upload',
-    title: 'Complete CMS asset upload',
+    title: 'CMS: Complete asset upload',
     description: 'Mark a previously-requested asset upload as complete.',
     audiences: ['admin'],
     scopes: ['cms:write'],
@@ -404,7 +404,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_delete_asset',
-    title: 'Delete CMS asset',
+    title: 'CMS: Delete asset',
     description: 'Delete an asset and remove the underlying file from storage.',
     audiences: ['admin'],
     scopes: ['cms:write'],
@@ -420,7 +420,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_list_locales',
-    title: 'List CMS locales',
+    title: 'CMS: List locales',
     description: 'List configured locales for your org. The default locale is used when an entry omits one.',
     audiences: ['admin'],
     scopes: ['cms:read'],
@@ -434,7 +434,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_create_locale',
-    title: 'Create CMS locale',
+    title: 'CMS: Create locale',
     description: 'Add a locale. Code is ISO 639-1 (e.g. "en") or BCP-47 ("en-US"). The first locale is the default unless overridden.',
     audiences: ['admin'],
     scopes: ['cms:write'],
@@ -448,7 +448,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_set_default_locale',
-    title: 'Set default CMS locale',
+    title: 'CMS: Set default locale',
     description: 'Set which locale is treated as the org\'s default for new entries.',
     audiences: ['admin'],
     scopes: ['cms:write'],
@@ -464,7 +464,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_list_inbound_references',
-    title: 'List inbound CMS references',
+    title: 'CMS: List inbound references',
     description:
       'List entries that link to the given entry. Useful before deleting — see "what would break".',
     audiences: ['admin'],
@@ -481,7 +481,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_search',
-    title: 'Search CMS entries',
+    title: 'CMS: Search entries',
     description:
       'Hybrid full-text + semantic search across CMS entries. Returns drafts and published; the public delivery API runs the same engine but hard-filters to published-only.',
     audiences: ['admin'],

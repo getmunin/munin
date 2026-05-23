@@ -9,6 +9,7 @@ import { api, ApiError } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 
 interface OAuthConsentResponse {
+  url?: string;
   redirect_uri?: string;
 }
 
@@ -127,7 +128,8 @@ export function OAuthConsentPage() {
         method: 'POST',
         body: JSON.stringify({ accept, oauth_query: oauthQuery }),
       });
-      if (resp?.redirect_uri) window.location.assign(resp.redirect_uri);
+      const target = resp?.url ?? resp?.redirect_uri;
+      if (target) window.location.assign(target);
       else window.history.back();
     } catch (err) {
       if (err instanceof ApiError) setError(translate(err) || err.message);
@@ -188,7 +190,6 @@ export function OAuthConsentPage() {
                   ))}
                 </ul>
               )}
-              <p className="mt-3 text-xs text-muted-foreground">{t('standardDisclosure')}</p>
             </div>
 
             {error && (

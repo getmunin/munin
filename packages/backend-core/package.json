@@ -44,6 +44,7 @@
     "@getmunin/db": "workspace:*",
     "@getmunin/mcp-toolkit": "workspace:*",
     "@getmunin/types": "workspace:*",
+    "@better-auth/oauth-provider": "^1.6.10",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^11.1.19",
     "@nestjs/core": "^11.1.19",

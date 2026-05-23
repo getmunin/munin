@@ -47,6 +47,12 @@ describe('hostAllowlistMiddleware', () => {
     expect(next).not.toHaveBeenCalled();
     expect(status).toHaveBeenCalledWith(421);
   });
+
+  it('always permits loopback hosts (in-process AgentHostRunner traffic)', () => {
+    expect(run(mw, '127.0.0.1:3101').next).toHaveBeenCalledOnce();
+    expect(run(mw, 'localhost:3001').next).toHaveBeenCalledOnce();
+    expect(run(mw, '[::1]:3001').next).toHaveBeenCalledOnce();
+  });
 });
 
 describe('isPublicCorsPath', () => {

@@ -188,12 +188,24 @@ function splitQuery(url: string): [string, string] {
   return i < 0 ? [url, ''] : [url.slice(0, i), url.slice(i + 1)];
 }
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+
+function parseHostHeader(raw: string): string {
+  if (!raw) return '';
+  if (raw.startsWith('[')) {
+    const close = raw.indexOf(']');
+    if (close > 0) return raw.slice(1, close).toLowerCase();
+    return '';
+  }
+  return raw.split(':', 1)[0]!.toLowerCase();
+}
+
 export function hostAllowlistMiddleware(allowedHosts: string[]) {
   const allowed = new Set(allowedHosts);
   return (req: Request, res: Response, next: NextFunction): void => {
     const raw = typeof req.headers.host === 'string' ? req.headers.host : '';
-    const host = raw.split(':', 1)[0]!.toLowerCase();
-    if (!host || !allowed.has(host)) {
+    const host = parseHostHeader(raw);
+    if (!host || (!allowed.has(host) && !LOOPBACK_HOSTS.has(host))) {
       res.status(421).json({ error: 'misdirected_request' });
       return;
     }

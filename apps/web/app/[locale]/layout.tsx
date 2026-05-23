@@ -5,7 +5,6 @@ import { getMessages, getNow, getTranslations, setRequestLocale } from 'next-int
 import { hasLocale } from 'next-intl';
 import { Toaster } from 'sonner';
 import { routing } from '../../i18n/routing';
-import { Footer } from '../../components/Footer';
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -41,7 +40,6 @@ export default async function LocaleLayout({
       <body className="flex min-h-screen flex-col">
         <NextIntlClientProvider locale={locale} messages={messages} now={now}>
           <div className="flex-1">{children}</div>
-          <Footer />
           <Toaster position="bottom-right" />
         </NextIntlClientProvider>
       </body>

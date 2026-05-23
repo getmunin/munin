@@ -6,14 +6,4 @@ test.describe('OSS web smoke', () => {
     await expect(page.getByText('Sign in')).toBeVisible();
     await expect(page.getByText('Get started')).toBeVisible();
   });
-
-  test('/privacy renders without backend', async ({ page }) => {
-    await page.goto('/privacy');
-    await expect(page.locator('main')).toBeVisible();
-  });
-
-  test('/terms renders without backend', async ({ page }) => {
-    await page.goto('/terms');
-    await expect(page.locator('main')).toBeVisible();
-  });
 });

@@ -71,6 +71,7 @@ export {
 export { useAgentConfigStatus } from './auth/use-agent-config-status';
 export { useDashboardGate } from './auth/use-dashboard-gate';
 export { useSetupGate } from './auth/use-setup-gate';
+export { safeRedirect, resumeOauthAuthorizeUrl } from './auth/post-signin-redirect';
 
 export { AcceptInvitePage } from './pages/accept-invite';
 export { AccountPage, type AccountPageProps } from './pages/account';

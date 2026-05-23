@@ -30,7 +30,7 @@ function buildRegistry(): McpToolRegistry {
       scopes: [],
       input: z.object({ msg: z.string() }),
     },
-    (args: { msg: string }) => args.msg,
+    (args) => (args as { msg: string }).msg,
   );
   r.register(
     {
@@ -96,7 +96,7 @@ describe('openInProcessMcpClient', () => {
     });
     const out = await client.callTool('nope', {});
     expect(out.isError).toBe(true);
-    expect(out.content[0].text).toMatch(/Unknown tool/);
+    expect(out.content[0]?.text).toMatch(/Unknown tool/);
     expect(fakeAudit.record).toHaveBeenCalledWith(
       expect.objectContaining({ result: 'denied', error: 'unknown_tool' }),
     );

@@ -1,27 +1,16 @@
-import { betterAuth } from 'better-auth';
-import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { jwt } from 'better-auth/plugins';
-import { oauthProvider } from '@better-auth/oauth-provider';
 import { APIError } from 'better-auth/api';
-import { SUPPORTED_SCOPES as BACKEND_SUPPORTED_SCOPES } from '@getmunin/backend-core';
-
-type BetterAuthInstance = ReturnType<typeof betterAuth>;
-
-const SUPPORTED_SCOPES = [
-  'openid',
-  'profile',
-  'email',
-  'offline_access',
-  ...BACKEND_SUPPORTED_SCOPES,
-] as const;
-
-const asMuninAuth = (instance: unknown): BetterAuthInstance => instance as BetterAuthInstance;
+import {
+  createMuninAuthCore,
+  type MuninAuthInstance,
+  type SignupBeforeUser,
+  type SignupHookUser,
+} from '@getmunin/backend-core';
 import { schema, type Db } from '@getmunin/db';
 import type { Mailer } from '@getmunin/core';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { resetPasswordEmail, verifyEmailEmail } from './email-templates.js';
 
-export type MuninAuth = BetterAuthInstance;
+export type MuninAuth = MuninAuthInstance;
 
 export interface MuninAuthOptions {
   db: Db;
@@ -29,13 +18,7 @@ export interface MuninAuthOptions {
   authSecret: string;
   trustedOrigins?: string[];
   mailer?: Mailer;
-  /** URL of the dashboard, used to build verification + reset links. */
   webBaseUrl?: string;
-  /**
-   * Lowercase email domains permitted to self-register without an invite.
-   * Empty = invite-only. The first user to sign up bootstraps the singleton
-   * org regardless of this allowlist.
-   */
   allowedEmailDomains?: string[];
 }
 
@@ -47,97 +30,31 @@ export function createMuninAuth({
   mailer,
   webBaseUrl,
   allowedEmailDomains = [],
-}: MuninAuthOptions): BetterAuthInstance {
-  const origins = uniqueOrigins([baseUrl, ...(trustedOrigins ?? [])]);
-  const dashboardUrl = (webBaseUrl ?? trustedOrigins?.[0] ?? baseUrl).replace(/\/+$/, '');
-  const validAudiences = computeValidAudiences(baseUrl);
-
-  return asMuninAuth(betterAuth({
-    baseURL: baseUrl,
-    basePath: '/auth',
-    secret: authSecret,
-    database: drizzleAdapter(db, {
-      provider: 'pg',
-      schema: {
-        user: schema.users,
-        session: schema.sessions,
-        account: schema.accounts,
-        verification: schema.verifications,
-        oauthClient: schema.oauthClient,
-        oauthAccessToken: schema.oauthAccessToken,
-        oauthRefreshToken: schema.oauthRefreshToken,
-        oauthConsent: schema.oauthConsent,
-        jwks: schema.jwks,
-      },
-    }),
-    plugins: [
-      jwt({ jwt: { issuer: baseUrl.replace(/\/+$/, '') } }),
-      oauthProvider({
-        loginPage: `${dashboardUrl}/login`,
-        consentPage: `${dashboardUrl}/dashboard/oauth/consent`,
-        allowDynamicClientRegistration: true,
-        allowUnauthenticatedClientRegistration: true,
-        scopes: [...SUPPORTED_SCOPES],
-        validAudiences,
-        silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
-      }),
-    ],
-    emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: false,
-      autoSignIn: true,
-      sendResetPassword: mailer
-        ? async ({ user, url }: { user: { email: string }; url: string }) => {
-            const tpl = resetPasswordEmail(url);
-            await mailer.send({
-              to: user.email,
-              subject: tpl.subject,
-              text: tpl.text,
-            });
-          }
-        : undefined,
-    },
-    emailVerification: mailer
-      ? {
-          sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
-            const tpl = verifyEmailEmail(url);
-            await mailer.send({
-              to: user.email,
-              subject: tpl.subject,
-              text: tpl.text,
-            });
-          },
-          sendOnSignUp: true,
+}: MuninAuthOptions): MuninAuthInstance {
+  return createMuninAuthCore({
+    db,
+    baseUrl,
+    authSecret,
+    trustedOrigins,
+    webBaseUrl,
+    sendResetPassword: mailer
+      ? async ({ user, url }) => {
+          const tpl = resetPasswordEmail(url);
+          await mailer.send({ to: user.email, subject: tpl.subject, text: tpl.text });
         }
       : undefined,
-    trustedOrigins: origins,
-    advanced: {
-      useSecureCookies: dashboardUrl.startsWith('https://'),
-    },
-    databaseHooks: {
-      user: {
-        create: {
-          before: async (user: { email: string; name?: string | null }) => {
-            await assertSignupAllowed(db, user.email, allowedEmailDomains);
-          },
-          after: async (user: { id: string; email: string; name?: string | null }) => {
-            await ensureSingletonOrgMembershipFor(db, user);
-          },
-        },
-      },
-    },
-  }));
+    sendVerificationEmail: mailer
+      ? async ({ user, url }) => {
+          const tpl = verifyEmailEmail(url);
+          await mailer.send({ to: user.email, subject: tpl.subject, text: tpl.text });
+        }
+      : undefined,
+    signupBefore: (user: SignupBeforeUser) =>
+      assertSignupAllowed(db, user.email, allowedEmailDomains),
+    signupAfter: (user: SignupHookUser) => ensureSingletonOrgMembershipFor(db, user),
+  });
 }
 
-/**
- * Gate signup. Allowed when:
- *   1. There are no users yet (first-run bootstrap — this user becomes admin).
- *   2. The email domain is in MUNIN_ALLOWED_EMAIL_DOMAINS.
- *   3. There is a pending, unrevoked, unexpired invitation for this email.
- *
- * Otherwise reject. Public deployments without an allowlist are invite-only —
- * strangers can't self-serve into the singleton org.
- */
 async function assertSignupAllowed(
   db: Db,
   rawEmail: string,
@@ -145,9 +62,7 @@ async function assertSignupAllowed(
 ): Promise<void> {
   const email = rawEmail.trim().toLowerCase();
 
-  const userCount = await db
-    .select({ c: sql<number>`count(*)::int` })
-    .from(schema.users);
+  const userCount = await db.select({ c: sql<number>`count(*)::int` }).from(schema.users);
   if ((userCount[0]?.c ?? 0) === 0) return;
 
   const domain = email.split('@')[1] ?? '';
@@ -181,12 +96,6 @@ async function assertSignupAllowed(
   });
 }
 
-/**
- * OSS single-tenant: ensure the one shared org exists, then attach the
- * user as a member. The first user becomes `owner`; subsequent users
- * become `member`. Idempotent — skips if the user already has any
- * membership (e.g. they came in via an invitation that pre-attached them).
- */
 async function ensureSingletonOrgMembershipFor(
   db: Db,
   user: { id: string; email: string; name?: string | null },
@@ -227,23 +136,6 @@ async function ensureSingletonOrgMembershipFor(
       .insert(schema.orgMembers)
       .values({ orgId: orgRow!.id, userId: user.id, role, isDefault: true });
   });
-}
-
-function uniqueOrigins(values: string[]): string[] {
-  return Array.from(new Set(values.map((v) => v.replace(/\/+$/, ''))));
-}
-
-export function computeValidAudiences(baseUrl: string): string[] {
-  const canonical = baseUrl.replace(/\/+$/, '');
-  const variants = new Set<string>([canonical, `${canonical}/`]);
-  try {
-    const origin = new URL(canonical).origin;
-    variants.add(origin);
-    variants.add(`${origin}/`);
-  } catch (err) {
-    console.warn('[auth] computeValidAudiences: baseUrl is not a parseable URL', { baseUrl, err });
-  }
-  return Array.from(variants);
 }
 
 export function readAllowedEmailDomainsFromEnv(): string[] {

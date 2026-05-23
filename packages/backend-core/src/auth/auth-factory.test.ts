@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeValidAudiences } from './auth.config.js';
+import { computeValidAudiences } from './auth-factory.js';
 
 describe('computeValidAudiences', () => {
   it('returns canonical URL plus trailing-slash variant when baseUrl has a path', () => {

@@ -3,7 +3,15 @@ import { sql, and, eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import {
   ActorIdentity,
+  AGENT_RUNTIME_PROMPT_SPACE_SLUG,
+  COMPANY_PROFILE_SLUG,
+  COMPANY_PROFILE_SPACE_SLUG,
+  DEFAULT_VOICE_OPENER_COLD,
+  DEFAULT_VOICE_SYSTEM_PROMPT,
+  VOICE_OPENER_COLD_SLUG,
+  VOICE_SYSTEM_PROMPT_SLUG,
   WebhookDispatcher,
+  createPromptCache,
   withContext,
   type RequestContext,
 } from '@getmunin/core';
@@ -26,6 +34,12 @@ import {
 } from './vapi-client.service.js';
 import { jsonbToStored } from './vapi.service.js';
 import { VapiToolBridge, type VapiToolCall } from './vapi-tool-bridge.js';
+import {
+  OrgScopedKbDocReader,
+  buildInlineAssistantConfig,
+  composeVoiceSystemPrompt,
+  type ChatMessageSeed,
+} from './vapi-assistant.js';
 
 interface VapiServerMessage {
   type: string;
@@ -98,6 +112,10 @@ export class VapiAdapter implements ChannelAdapter {
       'message' in envelope && envelope.message ? envelope.message : (envelope as VapiServerMessage);
 
     switch (msg.type) {
+      case 'assistant-request': {
+        const body = await this.handleAssistantRequest(channel, msg);
+        return { messages: [], responseOverride: body };
+      }
       case 'transcript':
         await this.handleTranscript(channel, msg);
         return { messages: [] };
@@ -120,6 +138,125 @@ export class VapiAdapter implements ChannelAdapter {
       default:
         this.logger.debug(`vapi event ignored: ${msg.type}`);
         return { messages: [] };
+    }
+  }
+
+  private async handleAssistantRequest(
+    channel: ChannelRow,
+    msg: VapiServerMessage,
+  ): Promise<WebhookResponse> {
+    const emptyBody = {
+      status: 200,
+      contentType: 'application/json; charset=utf-8',
+      body: '{}',
+    } satisfies WebhookResponse;
+    try {
+      const callId = msg.call?.id;
+      if (!callId) throw new Error('assistant_request_missing_call_id');
+
+      const { conversationId, endUserId, crmContact } = await this.runAsSystem(
+        channel,
+        async (tx) => {
+          const conversation = await this.findOrCreateConversation(
+            tx,
+            channel,
+            callId,
+            msg.call?.customer,
+          );
+          const phone = msg.call?.customer?.number;
+          let crm: { name: string | null; email: string | null } | null = null;
+          if (phone) {
+            const rows = await tx
+              .select({
+                name: schema.crmContacts.name,
+                email: schema.crmContacts.email,
+              })
+              .from(schema.crmContacts)
+              .where(
+                and(
+                  eq(schema.crmContacts.orgId, channel.orgId),
+                  eq(schema.crmContacts.phone, phone),
+                ),
+              )
+              .limit(1);
+            crm = rows[0] ?? null;
+          }
+          return {
+            conversationId: conversation.id,
+            endUserId: conversation.endUserId,
+            crmContact: crm,
+          };
+        },
+      );
+
+      const config = jsonbToStored(channel.config);
+      const apiKey = await this.client.loadSecret(config.encryptedApiKey);
+      const fetched = await this.client.fetchAssistantConfig({
+        apiKey,
+        assistantId: config.assistantId,
+      });
+      if (!fetched.ok) throw new Error(`fetch_assistant_failed:${fetched.error}`);
+
+      const reader = new OrgScopedKbDocReader(this.db, channel.orgId);
+      const prompts = await createPromptCache({
+        reader,
+        entries: {
+          [VOICE_SYSTEM_PROMPT_SLUG]: {
+            location: {
+              spaceSlug: AGENT_RUNTIME_PROMPT_SPACE_SLUG,
+              slug: VOICE_SYSTEM_PROMPT_SLUG,
+            },
+            fallback: DEFAULT_VOICE_SYSTEM_PROMPT,
+          },
+          [VOICE_OPENER_COLD_SLUG]: {
+            location: {
+              spaceSlug: AGENT_RUNTIME_PROMPT_SPACE_SLUG,
+              slug: VOICE_OPENER_COLD_SLUG,
+            },
+            fallback: DEFAULT_VOICE_OPENER_COLD,
+          },
+          [COMPANY_PROFILE_SLUG]: {
+            location: { spaceSlug: COMPANY_PROFILE_SPACE_SLUG, slug: COMPANY_PROFILE_SLUG },
+          },
+        },
+      });
+
+      const callerContext = formatCallerContext(msg.call?.customer, crmContact);
+      const systemPrompt = composeVoiceSystemPrompt(prompts, conversationId, callerContext);
+      const opener = prompts.get(VOICE_OPENER_COLD_SLUG);
+
+      const messages: ChatMessageSeed[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'system', content: opener },
+      ];
+
+      const inlineAssistant = buildInlineAssistantConfig({
+        baseConfig: fetched.config,
+        messages,
+        tools: this.tools.buildToolList(),
+      });
+
+      const body = JSON.stringify({
+        assistant: inlineAssistant,
+        assistantOverrides: {
+          metadata: { conversationId, endUserId },
+        },
+      });
+
+      this.logger.log(
+        `vapi assistant-request callId=${callId} convId=${conversationId} crmHit=${
+          crmContact ? 'yes' : 'no'
+        }`,
+      );
+
+      return { status: 200, contentType: 'application/json; charset=utf-8', body };
+    } catch (err) {
+      this.logger.warn(
+        `vapi assistant-request build failed; falling back to default assistant: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return emptyBody;
     }
   }
 
@@ -273,15 +410,15 @@ export class VapiAdapter implements ChannelAdapter {
     }
   }
 
-  private async runAsSystem(
+  private async runAsSystem<T = void>(
     channel: ChannelRow,
-    fn: (tx: Db | Tx) => Promise<void>,
-  ): Promise<void> {
+    fn: (tx: Db | Tx) => Promise<T>,
+  ): Promise<T> {
     const actor = new ActorIdentity('system', 'vapi-webhook', channel.orgId, ['*'], ['admin']);
-    await this.db.transaction(async (tx) => {
+    return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
       const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
-      await withContext(ctx, () => fn(tx));
+      return withContext(ctx, () => fn(tx));
     });
   }
 
@@ -569,4 +706,24 @@ function jsonResponse(body: unknown): WebhookResponse {
     contentType: 'application/json; charset=utf-8',
     body: JSON.stringify(body),
   };
+}
+
+function formatCallerContext(
+  customer: VapiServerMessage['call'] extends infer C
+    ? C extends { customer?: infer X }
+      ? X
+      : undefined
+    : undefined,
+  crm: { name: string | null; email: string | null } | null,
+): string | undefined {
+  const phone = customer?.number;
+  const callerName = customer?.name ?? crm?.name ?? null;
+  const email = customer?.email ?? crm?.email ?? null;
+  if (!phone && !callerName && !email) return undefined;
+  const lines = ['[Caller]'];
+  if (callerName) lines.push(`Name: ${callerName}`);
+  if (phone) lines.push(`Phone: ${phone}`);
+  if (email) lines.push(`Email: ${email}`);
+  if (!crm) lines.push('Not in CRM yet — this is a first-time caller.');
+  return lines.join('\n');
 }

@@ -192,6 +192,82 @@ const skipReason = TEST_URL
     expect(convs.length).toBe(0);
   });
 
+  it('handles assistant-request: pre-creates conversation + contact, returns fail-soft body when Vapi API unreachable', async () => {
+    const callId = 'call_vapi_inbound_first';
+    const callerNumber = '+14155556060';
+    const res = await postEvent({
+      type: 'assistant-request',
+      call: { id: callId, customer: { number: callerNumber } },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+
+    const convs = await db
+      .select({
+        id: schema.convConversations.id,
+        contactId: schema.convConversations.contactId,
+        endUserId: schema.convConversations.endUserId,
+        metadata: schema.convConversations.metadata,
+      })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'vapiCallId' = ${callId}`,
+        ),
+      );
+    expect(convs.length).toBe(1);
+    expect(convs[0]!.contactId).toBeTruthy();
+    expect(convs[0]!.endUserId).toBeTruthy();
+
+    const contacts = await db
+      .select({ phone: schema.convContacts.phone, endUserId: schema.convContacts.endUserId })
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          eq(schema.convContacts.phone, callerNumber),
+        ),
+      );
+    expect(contacts.length).toBe(1);
+
+    const endUsers = await db
+      .select({ externalId: schema.endUsers.externalId, phone: schema.endUsers.phone })
+      .from(schema.endUsers)
+      .where(
+        and(
+          eq(schema.endUsers.orgId, orgId),
+          eq(schema.endUsers.externalId, `phone:${callerNumber}`),
+        ),
+      );
+    expect(endUsers.length).toBe(1);
+    expect(endUsers[0]!.phone).toBe(callerNumber);
+
+    expect(body).toEqual({});
+  });
+
+  it('assistant-request with no callId returns empty body and creates nothing new', async () => {
+    const beforeRows = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.orgId, orgId));
+    const before = beforeRows.length;
+
+    const res = await postEvent({
+      type: 'assistant-request',
+      call: { customer: { number: '+14155557070' } },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toEqual({});
+
+    const afterRows = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.orgId, orgId));
+    expect(afterRows.length).toBe(before);
+  });
+
   it('closes the conversation and stores artifact metadata on end-of-call-report', async () => {
     const callId = 'call_vapi_end';
     await postEvent({

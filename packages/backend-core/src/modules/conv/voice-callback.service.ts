@@ -29,6 +29,7 @@ export class VoiceCallbackService {
 
   async placeCallbackForConversation(input: {
     conversationId: string;
+    channelId?: string;
   }): Promise<VoiceCallbackResult> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
@@ -65,22 +66,41 @@ export class VoiceCallbackService {
 
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-      const channelRows = await tx
-        .select()
-        .from(schema.convChannels)
-        .where(
-          and(
-            eq(schema.convChannels.orgId, orgId),
-            eq(schema.convChannels.type, 'voice'),
-            eq(schema.convChannels.vendor, 'vapi'),
-            eq(schema.convChannels.active, true),
-            isNull(schema.convChannels.archivedAt),
-          ),
-        )
-        .limit(1);
-      const channel = channelRows[0];
-      if (!channel) {
-        throw new ConflictException('no_active_voice_channel');
+      const baseConditions = [
+        eq(schema.convChannels.orgId, orgId),
+        eq(schema.convChannels.type, 'voice'),
+        eq(schema.convChannels.vendor, 'vapi'),
+        eq(schema.convChannels.active, true),
+        isNull(schema.convChannels.archivedAt),
+      ];
+      let channel: typeof schema.convChannels.$inferSelect | undefined;
+      if (input.channelId) {
+        const explicit = await tx
+          .select()
+          .from(schema.convChannels)
+          .where(and(...baseConditions, eq(schema.convChannels.id, input.channelId)))
+          .limit(1);
+        channel = explicit[0];
+        if (!channel) {
+          throw new NotFoundException(
+            `voice channel ${input.channelId} not found, inactive, archived, or wrong type`,
+          );
+        }
+      } else {
+        const candidates = await tx
+          .select()
+          .from(schema.convChannels)
+          .where(and(...baseConditions))
+          .limit(2);
+        if (candidates.length === 0) {
+          throw new ConflictException('no_active_voice_channel');
+        }
+        if (candidates.length > 1) {
+          throw new ConflictException(
+            'multiple_active_voice_channels — pass channelId to pick one',
+          );
+        }
+        channel = candidates[0]!;
       }
       const config = jsonbToStored(channel.config);
       if (!config.phoneNumberId) {

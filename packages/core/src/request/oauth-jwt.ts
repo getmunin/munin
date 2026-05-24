@@ -117,7 +117,7 @@ async function loadVerificationKey(db: Db, kid: string): Promise<VerifyKey | nul
 }
 
 function publicUrl(): string {
-  return (process.env.MUNIN_PUBLIC_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
+  return (process.env.MUNIN_MCP_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
 }
 
 export function jwtIssuer(): string {

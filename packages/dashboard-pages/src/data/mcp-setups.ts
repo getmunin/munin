@@ -14,7 +14,7 @@ const TOKEN_PLACEHOLDER = 'mn_live_••••••••';
  * "Connect MCP" section. Pass the actual MCP host URL — the dashboard
  * fetches it at runtime from `/.well-known/oauth-protected-resource`,
  * so self-host instances render `http://localhost:3001` (or whatever
- * `MUNIN_PUBLIC_URL` is set to) and cloud renders `mcp.getmunin.com`
+ * `MUNIN_MCP_URL` is set to) and cloud renders `mcp.getmunin.com`
  * without a rebuild.
  */
 export function buildMcpSetups(host: string): McpSetup[] {

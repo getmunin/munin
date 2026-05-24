@@ -36,6 +36,7 @@ import {
   composeVoiceSystemPrompt,
   type ChatMessageSeed,
 } from '../vapi/vapi-assistant.js';
+import { WidgetChannelConfig } from './widget.types.js';
 import type {
   WidgetVoiceEventInputT,
   WidgetVoiceEventResult,
@@ -130,22 +131,50 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
         return { available: false, reason: 'conversation_has_no_end_user' };
       }
 
-      const channelRows = await tx
-        .select()
+      const widgetChannelRows = await tx
+        .select({ config: schema.convChannels.config })
         .from(schema.convChannels)
-        .where(
-          and(
-            eq(schema.convChannels.orgId, orgId),
-            eq(schema.convChannels.type, 'voice'),
-            eq(schema.convChannels.vendor, 'vapi'),
-            eq(schema.convChannels.active, true),
-            isNull(schema.convChannels.archivedAt),
-          ),
-        )
+        .where(eq(schema.convChannels.id, input.channelId))
         .limit(1);
-      const channel = channelRows[0];
-      if (!channel) {
-        return { available: false, reason: 'no_active_voice_channel' };
+      const widgetConfig = widgetChannelRows[0]
+        ? WidgetChannelConfig.safeParse(widgetChannelRows[0].config)
+        : null;
+      const voiceChannelId = widgetConfig?.success ? widgetConfig.data.voiceChannelId : undefined;
+
+      const voiceBaseConditions = [
+        eq(schema.convChannels.orgId, orgId),
+        eq(schema.convChannels.type, 'voice'),
+        eq(schema.convChannels.vendor, 'vapi'),
+        eq(schema.convChannels.active, true),
+        isNull(schema.convChannels.archivedAt),
+      ];
+      let channel: typeof schema.convChannels.$inferSelect | undefined;
+      if (voiceChannelId) {
+        const explicit = await tx
+          .select()
+          .from(schema.convChannels)
+          .where(and(...voiceBaseConditions, eq(schema.convChannels.id, voiceChannelId)))
+          .limit(1);
+        channel = explicit[0];
+        if (!channel) {
+          return { available: false, reason: 'widget_voice_channel_id_not_found_or_inactive' };
+        }
+      } else {
+        const candidates = await tx
+          .select()
+          .from(schema.convChannels)
+          .where(and(...voiceBaseConditions))
+          .limit(2);
+        if (candidates.length === 0) {
+          return { available: false, reason: 'no_active_voice_channel' };
+        }
+        if (candidates.length > 1) {
+          return {
+            available: false,
+            reason: 'multiple_voice_channels_without_widget_routing',
+          };
+        }
+        channel = candidates[0]!;
       }
       const storedConfig = jsonbToStored(channel.config);
       if (!storedConfig.publicKey) {

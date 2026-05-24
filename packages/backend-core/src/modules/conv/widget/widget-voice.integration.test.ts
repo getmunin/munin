@@ -261,4 +261,112 @@ const skipReason = TEST_URL
         .where(eq(schema.convChannels.id, voiceChannelId));
     }
   });
+
+  it('returns multiple_voice_channels_without_widget_routing when 2 voice channels and widget has no voiceChannelId', async () => {
+    const [extra] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'voice',
+        vendor: 'vapi',
+        name: 'extra-vapi',
+        active: true,
+        config: {
+          encryptedApiKey: 'fake',
+          encryptedWebhookSecret: 'fake',
+          assistantId: 'asst_extra',
+          phoneNumberId: 'pn_extra',
+          publicKey: 'pk_extra',
+        },
+      })
+      .returning();
+    try {
+      const { status, json } = await call({
+        channelId: widgetChannelId,
+        conversationId: aliceConvId,
+      });
+      expect(status).toBe(201);
+      expect(json).toEqual({
+        available: false,
+        reason: 'multiple_voice_channels_without_widget_routing',
+      });
+    } finally {
+      await db.delete(schema.convChannels).where(eq(schema.convChannels.id, extra!.id));
+    }
+  });
+
+  it('routes to the configured voiceChannelId when widget has one set and multiple voice channels exist', async () => {
+    const vapiSvc = app.get(VapiService);
+    const actor = new ActorIdentity('user', 'usr_test_wv', orgId, ['*'], ['admin']);
+    const extra = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      await tx.execute(
+        sql`SELECT set_config('app.crypt_key', ${process.env.MUNIN_ENCRYPTION_KEY ?? ''}, true)`,
+      );
+      const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+      return withContext(ctx, () =>
+        vapiSvc.createChannel({
+          name: 'Vapi voice 2',
+          config: {
+            apiKey: 'vapi-api-key-wv-2',
+            webhookSecret: 'vapi-webhook-secret-wv-2',
+            assistantId: 'asst_extra2',
+            phoneNumberId: 'pn_extra2',
+            publicKey: 'pk_target',
+          },
+        }),
+      );
+    });
+    await db
+      .update(schema.convChannels)
+      .set({
+        config: sql`config || ${JSON.stringify({ provider: 'widget', voiceChannelId: extra.id })}::jsonb`,
+      })
+      .where(eq(schema.convChannels.id, widgetChannelId));
+    try {
+      const { status, json } = await call({
+        channelId: widgetChannelId,
+        conversationId: aliceConvId,
+      });
+      expect(status).toBe(201);
+      const body = json as {
+        available: boolean;
+        descriptor?: { publicKey: string; assistantId: string };
+      };
+      expect(body.available).toBe(true);
+      expect(body.descriptor?.publicKey).toBe('pk_target');
+      expect(body.descriptor?.assistantId).toBe('asst_extra2');
+    } finally {
+      await db
+        .update(schema.convChannels)
+        .set({ config: sql`config - 'voiceChannelId' - 'provider'` })
+        .where(eq(schema.convChannels.id, widgetChannelId));
+      await db.delete(schema.convChannels).where(eq(schema.convChannels.id, extra.id));
+    }
+  });
+
+  it('returns widget_voice_channel_id_not_found_or_inactive when voiceChannelId points at an unknown channel', async () => {
+    await db
+      .update(schema.convChannels)
+      .set({
+        config: sql`config || ${JSON.stringify({ provider: 'widget', voiceChannelId: 'cch_does_not_exist' })}::jsonb`,
+      })
+      .where(eq(schema.convChannels.id, widgetChannelId));
+    try {
+      const { status, json } = await call({
+        channelId: widgetChannelId,
+        conversationId: aliceConvId,
+      });
+      expect(status).toBe(201);
+      expect(json).toEqual({
+        available: false,
+        reason: 'widget_voice_channel_id_not_found_or_inactive',
+      });
+    } finally {
+      await db
+        .update(schema.convChannels)
+        .set({ config: sql`config - 'voiceChannelId' - 'provider'` })
+        .where(eq(schema.convChannels.id, widgetChannelId));
+    }
+  });
 });

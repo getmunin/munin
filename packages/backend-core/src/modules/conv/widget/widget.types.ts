@@ -6,6 +6,7 @@ export const WidgetChannelConfig = z.object({
   webhookOnEscalation: z.string().url().optional(),
   identityVerificationSecret: z.string().min(32).max(256).optional(),
   requireVerifiedIdentity: z.boolean().default(false),
+  voiceChannelId: z.string().min(1).max(64).optional(),
 });
 
 export type WidgetChannelConfigT = z.infer<typeof WidgetChannelConfig>;

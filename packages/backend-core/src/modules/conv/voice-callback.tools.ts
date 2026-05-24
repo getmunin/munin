@@ -5,6 +5,7 @@ import { VoiceCallbackService, type VoiceCallbackResult } from './voice-callback
 
 const CallbackInput = z.object({
   conversationId: z.string(),
+  channelId: z.string().min(1).max(64).optional(),
 });
 
 @Injectable()
@@ -32,7 +33,7 @@ export class VoiceCallbackTools {
     name: 'conv_voice_call_contact',
     title: "Conv: Place a voice call to this conversation's contact",
     description:
-      "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact and picks the org's active Vapi voice channel automatically. For arbitrary destinations, use `conv_voice_call_initiate` instead.",
+      "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active Vapi voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_voice_call_initiate` instead.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CallbackInput,

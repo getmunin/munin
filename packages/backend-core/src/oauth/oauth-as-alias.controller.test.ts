@@ -5,13 +5,13 @@ describe('OAuthAsAliasController', () => {
   let originalUrl: string | undefined;
 
   beforeEach(() => {
-    originalUrl = process.env.MUNIN_PUBLIC_URL;
-    process.env.MUNIN_PUBLIC_URL = 'https://api.example.test';
+    originalUrl = process.env.MUNIN_MCP_URL;
+    process.env.MUNIN_MCP_URL = 'https://api.example.test';
   });
 
   afterEach(() => {
-    if (originalUrl === undefined) delete process.env.MUNIN_PUBLIC_URL;
-    else process.env.MUNIN_PUBLIC_URL = originalUrl;
+    if (originalUrl === undefined) delete process.env.MUNIN_MCP_URL;
+    else process.env.MUNIN_MCP_URL = originalUrl;
   });
 
   it('returns RFC 8414 authorization-server metadata pointing at /auth/oauth2/*', () => {

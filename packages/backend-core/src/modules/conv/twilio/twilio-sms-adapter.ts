@@ -68,7 +68,7 @@ export class TwilioSmsAdapter implements ChannelAdapter {
     const url = reconstructWebhookUrl({
       headers: req.headers,
       pathWithQuery: `/api/v1/conversations/channels/${channel.id}/webhook`,
-      fallbackBase: process.env.MUNIN_PUBLIC_URL,
+      fallbackBase: process.env.MUNIN_MCP_URL,
     });
     const authToken = await this.client.loadAuthToken(config.encryptedAuthToken);
     const signature = headerOne(req.headers, 'x-twilio-signature') ?? '';
@@ -167,7 +167,7 @@ function collectMedia(params: Record<string, string>): Array<{ url: string; cont
 }
 
 function buildWebhookUrl(channelId: string): string | undefined {
-  const base = process.env.MUNIN_PUBLIC_URL?.replace(/\/$/, '');
+  const base = process.env.MUNIN_MCP_URL?.replace(/\/$/, '');
   if (!base) return undefined;
   return `${base}/api/v1/conversations/channels/${channelId}/webhook`;
 }

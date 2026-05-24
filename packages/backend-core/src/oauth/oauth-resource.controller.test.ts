@@ -6,16 +6,16 @@ describe('OAuthResourceController', () => {
   let originalUrl: string | undefined;
 
   beforeEach(() => {
-    originalUrl = process.env.MUNIN_PUBLIC_URL;
+    originalUrl = process.env.MUNIN_MCP_URL;
   });
 
   afterEach(() => {
-    if (originalUrl === undefined) delete process.env.MUNIN_PUBLIC_URL;
-    else process.env.MUNIN_PUBLIC_URL = originalUrl;
+    if (originalUrl === undefined) delete process.env.MUNIN_MCP_URL;
+    else process.env.MUNIN_MCP_URL = originalUrl;
   });
 
-  it('returns RFC 9728 metadata when MUNIN_PUBLIC_URL carries the /mcp path', () => {
-    process.env.MUNIN_PUBLIC_URL = 'https://api.example.test/mcp';
+  it('returns RFC 9728 metadata when MUNIN_MCP_URL carries the /mcp path', () => {
+    process.env.MUNIN_MCP_URL = 'https://api.example.test/mcp';
     const meta = new OAuthResourceController().metadata();
     expect(meta).toEqual({
       resource: 'https://api.example.test/mcp',
@@ -27,23 +27,23 @@ describe('OAuthResourceController', () => {
     });
   });
 
-  it('advertises MCP at the host root when MUNIN_PUBLIC_URL has no path', () => {
-    process.env.MUNIN_PUBLIC_URL = 'https://mcp.example.test';
+  it('advertises MCP at the host root when MUNIN_MCP_URL has no path', () => {
+    process.env.MUNIN_MCP_URL = 'https://mcp.example.test';
     const meta = new OAuthResourceController().metadata();
     expect(meta.resource).toBe('https://mcp.example.test');
     expect(meta.authorization_servers).toEqual(['https://mcp.example.test']);
     expect(meta.resource_documentation).toBe('https://mcp.example.test/docs');
   });
 
-  it('strips trailing slashes from MUNIN_PUBLIC_URL', () => {
-    process.env.MUNIN_PUBLIC_URL = 'https://api.example.test/mcp/';
+  it('strips trailing slashes from MUNIN_MCP_URL', () => {
+    process.env.MUNIN_MCP_URL = 'https://api.example.test/mcp/';
     const meta = new OAuthResourceController().metadata();
     expect(meta.resource).toBe('https://api.example.test/mcp');
     expect(meta.authorization_servers).toEqual(['https://api.example.test']);
   });
 
-  it('falls back to localhost when MUNIN_PUBLIC_URL is unset', () => {
-    delete process.env.MUNIN_PUBLIC_URL;
+  it('falls back to localhost when MUNIN_MCP_URL is unset', () => {
+    delete process.env.MUNIN_MCP_URL;
     const meta = new OAuthResourceController().metadata();
     expect(meta.resource).toBe('http://localhost:3001/mcp');
   });

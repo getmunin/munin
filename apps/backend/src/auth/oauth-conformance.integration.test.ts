@@ -29,7 +29,7 @@ const PRESET_BASE_URL = `http://127.0.0.1:${FIXED_PORT}`;
     process.env.MUNIN_WEBHOOK_WORKER_DISABLED = '1';
     process.env.MUNIN_CMS_SCHEDULE_WORKER_DISABLED = '1';
     process.env.MUNIN_BUILTIN_AGENT = '0';
-    process.env.MUNIN_PUBLIC_URL = PRESET_BASE_URL;
+    process.env.MUNIN_MCP_URL = PRESET_BASE_URL;
 
     await runMigrations(TEST_URL!);
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
@@ -45,7 +45,7 @@ const PRESET_BASE_URL = `http://127.0.0.1:${FIXED_PORT}`;
 
   afterAll(async () => {
     if (app) await app.close();
-    delete process.env.MUNIN_PUBLIC_URL;
+    delete process.env.MUNIN_MCP_URL;
   });
 
   describe('RFC 8414: Authorization server metadata', () => {

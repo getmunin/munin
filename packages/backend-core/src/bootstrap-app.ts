@@ -73,7 +73,7 @@ export async function createApp(
   const app = await NestFactory.create(appModule, { rawBody: true, ...nestOpts });
   const allowedHosts = readAllowedHosts();
   if (allowedHosts) app.use(hostAllowlistMiddleware(allowedHosts));
-  // Map the canonical external URLs (MUNIN_PUBLIC_URL for MCP,
+  // Map the canonical external URLs (MUNIN_MCP_URL for MCP,
   // MUNIN_API_URL for REST) onto the internal Nest mount paths
   // (`/mcp`, `/api/v1`). Runs before every other middleware so CORS,
   // routing, and tests all see the rewritten URL.
@@ -114,7 +114,7 @@ export function isPublicCorsPath(path: string): boolean {
 /**
  * Maps the canonical public URLs onto the internal Nest mount points.
  *
- *   - `MUNIN_PUBLIC_URL`'s host + path → `/mcp`
+ *   - `MUNIN_MCP_URL`'s host + path → `/mcp`
  *   - `MUNIN_API_URL`'s host + path     → `/api/v1`
  *
  * So a cloud deploy can advertise `https://mcp.getmunin.com` (no path)
@@ -124,11 +124,11 @@ export function isPublicCorsPath(path: string): boolean {
  * routing, audit log, tests) sees the rewritten URL.
  *
  * Pass-through when the env vars name the same internal path: OSS
- * default `MUNIN_PUBLIC_URL=http://localhost:3001/mcp` keeps `/mcp` →
+ * default `MUNIN_MCP_URL=http://localhost:3001/mcp` keeps `/mcp` →
  * `/mcp` (no-op). Same for `/api/v1` → `/api/v1`.
  */
 export function publicUrlRewriteMiddleware() {
-  const mcp = parseRewriteSource(process.env.MUNIN_PUBLIC_URL ?? 'http://localhost:3001/mcp');
+  const mcp = parseRewriteSource(process.env.MUNIN_MCP_URL ?? 'http://localhost:3001/mcp');
   const api = parseRewriteSource(process.env.MUNIN_API_URL);
   return (req: Request, _res: Response, next: NextFunction): void => {
     const rawHost = typeof req.headers.host === 'string' ? req.headers.host : '';

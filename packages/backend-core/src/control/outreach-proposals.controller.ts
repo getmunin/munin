@@ -91,7 +91,7 @@ export class OutreachProposalsController {
   @Post(':id/approve')
   @HttpCode(200)
   async approve(@Param('id') id: string): Promise<ProposalDto> {
-    const publicBaseUrl = process.env.MUNIN_PUBLIC_URL ?? 'http://localhost:3001';
+    const publicBaseUrl = process.env.MUNIN_MCP_URL ?? 'http://localhost:3001';
     return translate(() => this.outreach.approveProposal(id, { publicBaseUrl }));
   }
 

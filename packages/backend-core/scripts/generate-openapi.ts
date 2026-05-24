@@ -21,7 +21,7 @@ process.env.MUNIN_WEBHOOK_WORKER_DISABLED ??= '1';
 process.env.MUNIN_CMS_SCHEDULE_WORKER_DISABLED ??= '1';
 process.env.MUNIN_BUILTIN_AGENT ??= '0';
 process.env.MUNIN_REALTIME_DISABLED ??= '1';
-process.env.MUNIN_PUBLIC_URL ??= 'http://127.0.0.1';
+process.env.MUNIN_MCP_URL ??= 'http://127.0.0.1';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const outFile = resolve(process.env.OPENAPI_OUT ?? join(here, '..', 'openapi.json'));
@@ -82,7 +82,7 @@ function applySecurityFromAllowAnonymous(app: AppType, document: Doc) {
       const ctorGuards = (ctor ? (Reflect.getMetadata(GUARDS_METADATA, ctor) as unknown[] | undefined) : undefined) ?? [];
       const methodNames = Object.getOwnPropertyNames(proto).filter((n) => n !== 'constructor');
       for (const name of methodNames) {
-        const fn = (instance as Record<string, unknown>)[name];
+        const fn = instance[name];
         if (typeof fn !== 'function') continue;
         const methodAnon = Reflect.getMetadata(ALLOW_ANONYMOUS, proto, name) === true;
         const methodGuards = (Reflect.getMetadata(GUARDS_METADATA, proto, name) as unknown[] | undefined) ?? [];

@@ -19,7 +19,7 @@ process.env.MUNIN_WEBHOOK_WORKER_DISABLED ??= '1';
 process.env.MUNIN_CMS_SCHEDULE_WORKER_DISABLED ??= '1';
 process.env.MUNIN_BUILTIN_AGENT ??= '0';
 process.env.MUNIN_REALTIME_DISABLED ??= '1';
-process.env.MUNIN_PUBLIC_URL ??= 'http://127.0.0.1';
+process.env.MUNIN_MCP_URL ??= 'http://127.0.0.1';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(process.env.DOCS_FIXTURES_OUT ?? join(here, '..', 'docs-fixtures'));

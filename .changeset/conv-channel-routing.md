@@ -1,6 +1,5 @@
 ---
 '@getmunin/backend-core': minor
-'@getmunin/backend': patch
 ---
 
 Explicit voice channel routing for orgs with multiple active Vapi voice channels.

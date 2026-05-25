@@ -16,8 +16,14 @@ const TOKEN_PLACEHOLDER = 'mn_live_••••••••';
  * so self-host instances render `http://localhost:3001` (or whatever
  * `MUNIN_MCP_URL` is set to) and cloud renders `mcp.getmunin.com`
  * without a rebuild.
+ *
+ * `docsHost` is the public docs site (e.g. `https://docs.getmunin.com`
+ * for prod, `https://docs.dev.getmunin.com` for dev). Defaults to the
+ * cloud-prod URL when omitted.
  */
-export function buildMcpSetups(host: string): McpSetup[] {
+export function buildMcpSetups(host: string, docsHost: string = DEFAULT_DOCS_HOST): McpSetup[] {
+  const docs = docsHost.replace(/\/+$/, '');
+  const docsBare = docs.replace(/^https?:\/\//, '');
   return [
     {
       id: 'claude',
@@ -34,8 +40,8 @@ export function buildMcpSetups(host: string): McpSetup[] {
     }
   }
 }`,
-      docsHref: 'https://docs.getmunin.com/mcp/claude',
-      docsLabel: 'docs.getmunin.com/mcp/claude',
+      docsHref: `${docs}/mcp/claude`,
+      docsLabel: `${docsBare}/mcp/claude`,
     },
     {
       id: 'chatgpt',
@@ -51,8 +57,8 @@ export function buildMcpSetups(host: string): McpSetup[] {
     "token": "${TOKEN_PLACEHOLDER}"
   }
 }`,
-      docsHref: 'https://docs.getmunin.com/mcp/chatgpt',
-      docsLabel: 'docs.getmunin.com/mcp/chatgpt',
+      docsHref: `${docs}/mcp/chatgpt`,
+      docsLabel: `${docsBare}/mcp/chatgpt`,
     },
     {
       id: 'gemini',
@@ -69,11 +75,14 @@ export function buildMcpSetups(host: string): McpSetup[] {
     }
   }
 }`,
-      docsHref: 'https://docs.getmunin.com/mcp/gemini',
-      docsLabel: 'docs.getmunin.com/mcp/gemini',
+      docsHref: `${docs}/mcp/gemini`,
+      docsLabel: `${docsBare}/mcp/gemini`,
     },
   ];
 }
 
+const DEFAULT_MCP_HOST = 'https://mcp.getmunin.com';
+const DEFAULT_DOCS_HOST = 'https://docs.getmunin.com';
+
 /** Static fallback used before the runtime fetch resolves. */
-export const MCP_SETUPS: McpSetup[] = buildMcpSetups('https://mcp.getmunin.com');
+export const MCP_SETUPS: McpSetup[] = buildMcpSetups(DEFAULT_MCP_HOST, DEFAULT_DOCS_HOST);

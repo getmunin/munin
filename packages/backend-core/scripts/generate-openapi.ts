@@ -37,7 +37,10 @@ async function main() {
     .setVersion('1')
     .addBearerAuth({ type: 'http', scheme: 'bearer' }, 'bearer')
     .addCookieAuth('munin_session', { type: 'apiKey', in: 'cookie', name: 'munin_session' }, 'session')
-    .addServer('https://api.munin.eu', 'EU production')
+    .addServer(
+      process.env.MUNIN_OPENAPI_SERVER_URL ?? 'http://localhost:3001',
+      process.env.MUNIN_OPENAPI_SERVER_DESCRIPTION ?? 'local dev',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

@@ -128,7 +128,7 @@ function schemaChipFor(r: NonNullable<Operation['responses']>[string]): string |
 }
 
 function curlFor(ep: EndpointEntry): string {
-  const base = 'https://api.munin.eu';
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
   let cmd = `curl -X ${ep.method.toUpperCase()} \\\n  '${base}${ep.path}'`;
   if (ep.authMode !== 'public') {
     cmd += ` \\\n  -H 'Authorization: Bearer $MUNIN_API_KEY'`;

@@ -10,6 +10,7 @@ import {
 import type { SendLimits } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../../../common/db/db.module.js';
+import { withSchedulerLock } from '../../../common/scheduler-lock/index.js';
 import {
   CHANNEL_ADAPTERS,
   ChannelAdapterRegistry,
@@ -65,7 +66,7 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     if (this.disabled) return;
     this.timer = setInterval(() => {
-      void this.tick();
+      void withSchedulerLock(this.db, 'outbound-delivery-worker', () => this.tick());
     }, POLL_INTERVAL_MS);
   }
 

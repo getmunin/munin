@@ -3708,8 +3708,8 @@
   "tags": [],
   "servers": [
     {
-      "url": "https://api.munin.eu",
-      "description": "EU production"
+      "url": "http://localhost:3001",
+      "description": "local dev"
     }
   ],
   "components": {

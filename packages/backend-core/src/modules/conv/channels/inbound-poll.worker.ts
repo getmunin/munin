@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nest
 import { schema, type Db } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { DB } from '../../../common/db/db.module.js';
+import { withSchedulerLock } from '../../../common/scheduler-lock/index.js';
 import { CHANNEL_ADAPTERS, ChannelAdapterRegistry, type ChannelAdapter } from './adapter.js';
 
 const POLL_INTERVAL_MS = Number(
@@ -43,7 +44,7 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
     if (this.disabled) return;
     this.logger.log(`inbound poll worker starting (every ${POLL_INTERVAL_MS}ms)`);
     this.timer = setInterval(() => {
-      void this.tick();
+      void withSchedulerLock(this.db, 'inbound-poll-worker', () => this.tick());
     }, POLL_INTERVAL_MS);
   }
 

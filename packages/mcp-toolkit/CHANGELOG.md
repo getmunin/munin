@@ -1,5 +1,13 @@
 # @getmunin/mcp-toolkit
 
+## 4.14.0
+
+### Patch Changes
+
+- Updated dependencies [1fe1031]
+  - @getmunin/core@4.14.0
+  - @getmunin/types@4.14.0
+
 ## 4.13.0
 
 ### Patch Changes

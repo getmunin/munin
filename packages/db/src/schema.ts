@@ -570,6 +570,24 @@ export const rateLimitCounters = pgTable(
   }),
 );
 
+// better-auth's per-endpoint rate limit storage. When the auth factory
+// sets `rateLimit.storage = 'database'`, better-auth uses its drizzle
+// adapter to read/write this table — making the auth-side rate limit
+// shared across replicas instead of in-memory. Fields are dictated by
+// `createDatabaseStorageWrapper` in better-auth/dist/api/rate-limiter.
+export const authRateLimit = pgTable(
+  'auth_rate_limit',
+  {
+    id: text('id').primaryKey(),
+    key: text('key').notNull(),
+    count: integer('count').notNull().default(0),
+    lastRequest: bigint('last_request', { mode: 'number' }),
+  },
+  (t) => ({
+    keyIdx: index('auth_rate_limit_key_idx').on(t.key),
+  }),
+);
+
 // ───────────────────────── Knowledge Base (M1) ───────────────────────
 // Spaces are KB containers (Engineering, Customer Docs, etc.). Slug is
 // unique per org so agents can address them in conversation by slug.
@@ -1622,6 +1640,7 @@ export const allTables = {
   webhooks,
   webhookDeliveries,
   rateLimitCounters,
+  authRateLimit,
   kbSpaces,
   kbDocuments,
   kbDocumentChunks,

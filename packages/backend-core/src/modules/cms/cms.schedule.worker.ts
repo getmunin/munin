@@ -4,6 +4,7 @@ import { and, eq, lte, sql } from 'drizzle-orm';
 import { WebhookDispatcher, ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../../common/db/db.module.js';
+import { withSchedulerLock } from '../../common/scheduler-lock/index.js';
 
 const POLL_INTERVAL_MS = Number(process.env.MUNIN_CMS_SCHEDULE_POLL_MS ?? 60_000);
 const BATCH_SIZE = 50;
@@ -37,7 +38,7 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     if (this.disabled) return;
     this.timer = setInterval(() => {
-      void this.tick();
+      void withSchedulerLock(this.db, 'cms-schedule-worker', () => this.tick());
     }, POLL_INTERVAL_MS);
   }
 

@@ -34,7 +34,11 @@ export function GetStarted() {
     };
   }, []);
 
-  const setups = useMemo(() => (mcpHost ? buildMcpSetups(mcpHost) : MCP_SETUPS), [mcpHost]);
+  const docsHost = process.env.NEXT_PUBLIC_DOCS_URL;
+  const setups = useMemo(
+    () => (mcpHost ? buildMcpSetups(mcpHost, docsHost) : MCP_SETUPS),
+    [mcpHost, docsHost],
+  );
   const setup = setups.find((s) => s.id === activeId) ?? setups[0]!;
 
   function copySnippet() {

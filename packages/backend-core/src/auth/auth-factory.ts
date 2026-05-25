@@ -90,6 +90,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         oauthRefreshToken: schema.oauthRefreshToken,
         oauthConsent: schema.oauthConsent,
         jwks: schema.jwks,
+        rateLimit: schema.authRateLimit,
       },
     }),
     plugins: [

@@ -211,6 +211,13 @@
       "when": 1780000000000,
       "tag": "0029_rename_skill_uris",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1780100000000,
+      "tag": "0030_auth_rate_limit",
+      "breakpoints": true
     }
   ]
 }

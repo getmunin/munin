@@ -87,3 +87,4 @@ export {
 
 export { HealthController } from './common/health.controller.js';
 export { WhoamiController } from './common/whoami.controller.js';
+export { withSchedulerLock } from './common/scheduler-lock/index.js';

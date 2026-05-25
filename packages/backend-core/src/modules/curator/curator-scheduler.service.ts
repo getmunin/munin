@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm';
 import { ActorIdentity, RequestContextStore, type RequestContext } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../../common/db/db.module.js';
+import { withSchedulerLock } from '../../common/scheduler-lock/index.js';
 import { CuratorJobsService } from './curator-jobs.service.js';
 
 const KB_SWEEP_PROMPT =
@@ -87,7 +88,9 @@ export class CuratorSchedulerService implements OnModuleInit {
         continue;
       }
       const job = new CronJob(cron, () => {
-        void this.runSweep(sweep);
+        void withSchedulerLock(this.db, `curator-scheduler:${sweep.name}`, () =>
+          this.runSweep(sweep),
+        );
       });
       this.registry.addCronJob(sweep.name, job);
       job.start();

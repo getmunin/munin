@@ -7,6 +7,7 @@ export default function DocsHome() {
   const restCount = listEndpoints().length;
   const mcpCount = mcpTools.length;
   const skillCount = skills.length;
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
   return (
     <main className="docs-main">
       <header className="docs-hero">
@@ -124,7 +125,7 @@ export default function DocsHome() {
           <span>cURL · GET /api/v1/whoami</span>
           <span style={{ color: 'var(--docs-mute)' }}>copy &amp; run</span>
         </div>
-        <pre>{`curl 'https://api.munin.eu/api/v1/whoami' \\
+        <pre>{`curl '${apiBase}/api/v1/whoami' \\
   -H 'Authorization: Bearer $MUNIN_API_KEY'`}</pre>
       </div>
 

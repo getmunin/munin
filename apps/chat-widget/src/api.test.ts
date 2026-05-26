@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createApiClient, WidgetApiError } from './api.js';
+import { createApiClient, WidgetApiError } from './api.ts';
 
 interface CapturedCall {
   url: string;

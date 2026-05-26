@@ -16,10 +16,10 @@ import { schema } from '@getmunin/db';
 import { and, eq, isNull } from 'drizzle-orm';
 import { buildApiKey, getCurrentContext, hashSecret, keyPrefix, WebhookDispatcher } from '@getmunin/core';
 import { Inject } from '@nestjs/common';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
-import { assertOwnerOrAdmin } from './role-guard.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { assertOwnerOrAdmin } from './role-guard.ts';
 
 const CreateApiKeyDto = z.object({
   name: z.string().min(1).max(128),

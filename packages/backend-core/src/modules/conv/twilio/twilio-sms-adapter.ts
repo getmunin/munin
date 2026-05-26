@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { sql, eq } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
-import { DB } from '../../../common/db/db.module.js';
+import { DB } from '../../../common/db/db.module.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -11,14 +11,14 @@ import type {
   SendContext,
   SendResult,
   WebhookResponse,
-} from '../channels/adapter.js';
+} from '../channels/adapter.ts';
 import {
   TwilioClientService,
   parseUrlEncoded,
   reconstructWebhookUrl,
   validateTwilioSignature,
-} from './twilio-client.service.js';
-import { jsonbToStored } from './twilio-sms.service.js';
+} from './twilio-client.service.ts';
+import { jsonbToStored } from './twilio-sms.service.ts';
 
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 

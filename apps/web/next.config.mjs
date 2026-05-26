@@ -7,10 +7,6 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  cacheComponents: true,
-  experimental: {
-    rootParams: true,
-  },
   transpilePackages: ['@getmunin/dashboard-pages', '@getmunin/sdk', '@getmunin/types', '@getmunin/ui'],
   turbopack: {
     resolveExtensions: ['.mdx', '.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],

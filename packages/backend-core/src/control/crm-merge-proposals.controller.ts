@@ -11,15 +11,15 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
   CrmService,
   CrmInvalidError,
   MERGE_STATUSES,
   type MergeProposalDto,
-} from '../modules/crm/crm.service.js';
+} from '../modules/crm/crm.service.ts';
 
 const StatusSchema = z.enum(MERGE_STATUSES);
 

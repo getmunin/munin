@@ -6,7 +6,7 @@ import {
   setEncryptionKeySql,
 } from '@getmunin/core';
 import type { Db, Tx } from '@getmunin/db';
-import { DB } from '../../../common/db/db.module.js';
+import { DB } from '../../../common/db/db.module.ts';
 
 export interface SendSmsRequest {
   accessKey: string;

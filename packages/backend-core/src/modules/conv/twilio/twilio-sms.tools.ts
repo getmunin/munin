@@ -4,13 +4,13 @@ import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { DB } from '../../../common/db/db.module.js';
-import { TwilioClientService } from './twilio-client.service.js';
+import { DB } from '../../../common/db/db.module.ts';
+import { TwilioClientService } from './twilio-client.service.ts';
 import {
   TwilioSmsService,
   jsonbToStored,
   type TwilioSmsChannelDto,
-} from './twilio-sms.service.js';
+} from './twilio-sms.service.ts';
 
 const ConfigureInput = z.object({
   channelId: z

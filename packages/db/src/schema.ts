@@ -24,7 +24,7 @@ import {
   vector,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { makeId } from './id.js';
+import { makeId } from './id.ts';
 
 export const EMBEDDING_DIMENSIONS = 1536;
 

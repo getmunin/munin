@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeBackfillPatch } from './crm.service.js';
+import { computeBackfillPatch } from './crm.service.ts';
 
 describe('computeBackfillPatch', () => {
   it('fills a null field', () => {

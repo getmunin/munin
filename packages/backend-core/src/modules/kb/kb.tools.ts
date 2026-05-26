@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { KbService } from './kb.service.js';
-import { KbSearchService } from './kb.search.js';
+import { KbService } from './kb.service.ts';
+import { KbSearchService } from './kb.search.ts';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 

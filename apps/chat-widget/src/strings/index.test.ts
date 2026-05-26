@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { format, pickLocale, DEFAULT_LOCALE, type PluralValue } from './index.js';
+import { format, pickLocale, DEFAULT_LOCALE, type PluralValue } from './index.ts';
 
 describe('pickLocale', () => {
   const original = Object.getOwnPropertyDescriptor(globalThis.navigator, 'language');

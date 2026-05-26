@@ -3,7 +3,7 @@ import {
   detectSignatureBlock,
   splitSignatureText,
   stripSignatureText,
-} from './reply-history.js';
+} from './reply-history.ts';
 
 describe('splitSignatureText', () => {
   it('returns null signature when no opener present', () => {

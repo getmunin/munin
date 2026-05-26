@@ -7,7 +7,7 @@ import {
   CrmService,
   MERGE_CONFIDENCES,
   MERGE_STATUSES,
-} from './crm.service.js';
+} from './crm.service.ts';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 const ActivityType = z.enum(ACTIVITY_TYPES);

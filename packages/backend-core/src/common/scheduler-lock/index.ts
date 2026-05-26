@@ -1,1 +1,1 @@
-export { withSchedulerLock } from './scheduler-lock.js';
+export { withSchedulerLock } from './scheduler-lock.ts';

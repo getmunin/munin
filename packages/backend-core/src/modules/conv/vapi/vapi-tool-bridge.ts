@@ -8,8 +8,8 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
-import { DB } from '../../../common/db/db.module.js';
-import { McpRegistryService } from '../../../mcp/mcp.registry.js';
+import { DB } from '../../../common/db/db.module.ts';
+import { McpRegistryService } from '../../../mcp/mcp.registry.ts';
 
 export interface VapiFunctionTool {
   type: 'function';

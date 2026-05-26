@@ -7,8 +7,8 @@ import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { z } from 'zod';
 import { McpToolRegistry } from '@getmunin/mcp-toolkit';
-import { McpRegistryService } from '../mcp/mcp.registry.js';
-import { PublicMcpToolsController } from './public-mcp-tools.controller.js';
+import { McpRegistryService } from '../mcp/mcp.registry.ts';
+import { PublicMcpToolsController } from './public-mcp-tools.controller.ts';
 
 class StubRegistry extends McpToolRegistry {}
 

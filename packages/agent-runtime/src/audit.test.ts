@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { auditConversation } from './audit.js';
-import { createStubProvider } from './providers/stub.js';
+import { auditConversation } from './audit.ts';
+import { createStubProvider } from './providers/stub.ts';
 
 describe('auditConversation', () => {
   it('returns a request_handover action when the model says deferral is implied', async () => {

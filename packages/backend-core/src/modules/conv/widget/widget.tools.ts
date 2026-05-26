@@ -4,7 +4,7 @@ import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { buildApiKey, getCurrentContext, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
-import { WidgetChannelConfig } from './widget.types.js';
+import { WidgetChannelConfig } from './widget.types.ts';
 
 const CreateInput = z.object({
   name: z.string().min(1).max(120),

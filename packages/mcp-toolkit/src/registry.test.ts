@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { McpToolRegistry } from './registry.js';
+import { McpToolRegistry } from './registry.ts';
 
 const meta = (name: string, audiences: ('admin' | 'self_service')[]) => ({
   name,

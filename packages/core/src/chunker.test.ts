@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { chunkDocument, contentHash, estimateTokens } from './chunker.js';
+import { chunkDocument, contentHash, estimateTokens } from './chunker.ts';
 
 describe('chunkDocument', () => {
   it('returns empty for empty input', () => {

@@ -14,9 +14,9 @@ import type { Request, Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
-import { DB } from '../common/db/db.module.js';
-import { CmsSearchService } from '../modules/cms/cms.search.js';
-import { projectData, type FieldDef } from '../modules/cms/cms.fields.js';
+import { DB } from '../common/db/db.module.ts';
+import { CmsSearchService } from '../modules/cms/cms.search.ts';
+import { projectData, type FieldDef } from '../modules/cms/cms.fields.ts';
 
 /**
  * Public delivery API — anonymous JSON for external websites / mobile

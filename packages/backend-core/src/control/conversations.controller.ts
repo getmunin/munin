@@ -13,13 +13,13 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { getCurrentContext } from '@getmunin/core';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
   ConversationClaimsService,
   ClaimedByOtherError,
-} from '../modules/conv/conv.claims.service.js';
+} from '../modules/conv/conv.claims.service.ts';
 import {
   ConvService,
   ConvInvalidError,
@@ -30,7 +30,7 @@ import {
   type ConversationDetail,
   type ConversationSummary,
   type MessageDto,
-} from '../modules/conv/conv.service.js';
+} from '../modules/conv/conv.service.ts';
 
 const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);

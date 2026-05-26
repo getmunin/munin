@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { compactHistory, runAgent } from './runtime.js';
-import { createStubProvider } from './providers/stub.js';
+import { compactHistory, runAgent } from './runtime.ts';
+import { createStubProvider } from './providers/stub.ts';
 import type {
   AgentConfig,
   ConversationMessage,
   McpToolHandle,
   ProviderResponse,
-} from './types.js';
+} from './types.ts';
 
 const baseConfig: AgentConfig = {
   provider: { baseUrl: 'http://stub', apiKey: 'stub' },

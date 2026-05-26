@@ -3,8 +3,8 @@ import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { chunkDocument, contentHash, getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import type { ActorIdentity, Audience } from '@getmunin/core';
-import { EmbeddingProviderHolder } from './embedding.provider.js';
-import { QuotasService } from '../../common/quotas/quotas.service.js';
+import { EmbeddingProviderHolder } from './embedding.provider.ts';
+import { QuotasService } from '../../common/quotas/quotas.service.ts';
 
 const AUDIENCES: readonly Audience[] = ['admin', 'self_service'];
 

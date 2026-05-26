@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { sql, eq } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
-import { DB } from '../../../common/db/db.module.js';
+import { DB } from '../../../common/db/db.module.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -10,14 +10,14 @@ import type {
   IncomingWebhookRequest,
   SendContext,
   SendResult,
-} from '../channels/adapter.js';
+} from '../channels/adapter.ts';
 import {
   MessageBirdClientService,
   parseUrlEncoded,
   reconstructWebhookUrl,
   verifyMessageBirdJwt,
-} from './messagebird-client.service.js';
-import { jsonbToStored } from './messagebird-sms.service.js';
+} from './messagebird-client.service.ts';
+import { jsonbToStored } from './messagebird-sms.service.ts';
 
 @Injectable()
 export class MessageBirdSmsAdapter implements ChannelAdapter {

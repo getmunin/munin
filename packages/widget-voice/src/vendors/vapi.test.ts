@@ -59,8 +59,8 @@ vi.mock('@vapi-ai/web', () => {
 });
 
 import VapiCtor from '@vapi-ai/web';
-import { VapiVoiceSession } from './vapi.js';
-import type { VoiceSessionEvent } from '../types.js';
+import { VapiVoiceSession } from './vapi.ts';
+import type { VoiceSessionEvent } from '../types.ts';
 
 interface FakeVapiShape {
   publicKey: string;

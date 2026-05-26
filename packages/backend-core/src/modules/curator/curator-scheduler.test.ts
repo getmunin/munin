@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { CuratorSchedulerService } from './curator-scheduler.service.js';
+import { CuratorSchedulerService } from './curator-scheduler.service.ts';
 
 describe('CuratorSchedulerService.onModuleInit', () => {
   beforeEach(() => {

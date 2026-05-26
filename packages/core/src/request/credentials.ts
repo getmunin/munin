@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import type { Db } from '@getmunin/db';
 import { schema } from '@getmunin/db';
 import { and, eq, gt, isNull } from 'drizzle-orm';
-import { ActorIdentity, type Audience } from './context.js';
-import { hashSecret } from '../crypto/primitives.js';
-import { looksLikeJwt, resolveOauthJwtAccessToken } from './oauth-jwt.js';
+import { ActorIdentity, type Audience } from './context.ts';
+import { hashSecret } from '../crypto/primitives.ts';
+import { looksLikeJwt, resolveOauthJwtAccessToken } from './oauth-jwt.ts';
 
 function hashOauthOpaqueToken(rawToken: string): string {
   return createHash('sha256').update(rawToken).digest('base64url');

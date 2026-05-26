@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { DbListenerService } from './db-listener.service.js';
-import { RealtimeEventBus } from './realtime-event-bus.js';
-import { RealtimeGateway } from './realtime.gateway.js';
+import { DbListenerService } from './db-listener.service.ts';
+import { RealtimeEventBus } from './realtime-event-bus.ts';
+import { RealtimeGateway } from './realtime.gateway.ts';
 
 @Module({
   providers: [DbListenerService, RealtimeEventBus, RealtimeGateway],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readBearerSubprotocol } from './realtime.gateway.js';
+import { readBearerSubprotocol } from './realtime.gateway.ts';
 
 describe('readBearerSubprotocol', () => {
   it('returns null for undefined', () => {

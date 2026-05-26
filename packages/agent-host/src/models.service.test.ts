@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AgentModelsService } from './models.service.js';
-import type { AgentConfigRepository, AgentConfigRow } from './config.repository.js';
+import { AgentModelsService } from './models.service.ts';
+import type { AgentConfigRepository, AgentConfigRow } from './config.repository.ts';
 
 const baseRow: AgentConfigRow = {
   id: 'singleton',

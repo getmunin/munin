@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { verifyVapiWebhookSecret } from './vapi-client.service.js';
+import { verifyVapiWebhookSecret } from './vapi-client.service.ts';
 
 describe('verifyVapiWebhookSecret', () => {
   const expected = 'vapi-shared-secret';

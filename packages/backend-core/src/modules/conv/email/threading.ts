@@ -1,10 +1,10 @@
 import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, eq, inArray } from 'drizzle-orm';
-import type { SenderClassification } from './classify-sender.js';
+import type { SenderClassification } from './classify-sender.ts';
 import {
   extractPlusAddressedConvId,
   parseMessageIdHeader,
-} from './mime.js';
+} from './mime.ts';
 
 export interface ParsedInboundEmail {
   recipients: string[];

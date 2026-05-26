@@ -13,12 +13,12 @@ import type { Request, Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { AuditLogger, getCurrentContext, type Audience } from '@getmunin/core';
 import { createMcpServer } from '@getmunin/mcp-toolkit';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
-import { McpRegistryService } from './mcp.registry.js';
-import { McpSkillRegistryService } from './mcp.skill-registry.service.js';
-import { RateLimitService } from '../common/rate-limit/rate-limit.service.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { McpRegistryService } from './mcp.registry.ts';
+import { McpSkillRegistryService } from './mcp.skill-registry.service.ts';
+import { RateLimitService } from '../common/rate-limit/rate-limit.service.ts';
 
 /**
  * Streamable HTTP entry point for the MCP server.

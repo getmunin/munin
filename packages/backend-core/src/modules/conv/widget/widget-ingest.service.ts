@@ -8,7 +8,7 @@ import {
 import { schema, type Tx } from '@getmunin/db';
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { WebhookDispatcher, getCurrentContext, verifyHmac } from '@getmunin/core';
-import { WidgetChannelConfig } from './widget.types.js';
+import { WidgetChannelConfig } from './widget.types.ts';
 import type {
   WidgetConversationEnvelope,
   WidgetConversationSummary,
@@ -23,7 +23,7 @@ import type {
   WidgetSetVisitorResult,
   WidgetStartConversationInputT,
   WidgetStartConversationResult,
-} from './widget.types.js';
+} from './widget.types.ts';
 
 const LIST_MESSAGES_LIMIT = 100;
 

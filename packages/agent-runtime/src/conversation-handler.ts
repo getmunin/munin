@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { auditConversation, type AuditAction, type AuditTopic } from './audit.js';
-import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.js';
-import { runAgent } from './runtime.js';
+import { auditConversation, type AuditAction, type AuditTopic } from './audit.ts';
+import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.ts';
+import { runAgent } from './runtime.ts';
 import type {
   ConversationMessage,
   McpToolHandle,
   Provider,
-} from './types.js';
-import type { PromptResolver } from './prompt-resolver.js';
-import type { ConversationDetail, MuninRestClient } from './munin-rest.js';
+} from './types.ts';
+import type { PromptResolver } from './prompt-resolver.ts';
+import type { ConversationDetail, MuninRestClient } from './munin-rest.ts';
 
 export interface HandlerConfig {
   providerBaseUrl: string;

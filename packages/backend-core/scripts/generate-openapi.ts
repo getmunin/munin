@@ -4,8 +4,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from '../src/app.module.js';
-import { ALLOW_ANONYMOUS, AuthGuard } from '../src/common/auth/auth.guard.js';
+import { AppModule } from '../src/app.module.ts';
+import { ALLOW_ANONYMOUS, AuthGuard } from '../src/common/auth/auth.guard.ts';
 
 const GUARDS_METADATA = '__guards__';
 

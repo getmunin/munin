@@ -6,14 +6,14 @@ import { eq } from 'drizzle-orm';
 import { getCurrentContext, type Mailer } from '@getmunin/core';
 import { createTransport } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
-import { DB } from '../../../common/db/db.module.js';
-import { MAILER } from '../../../common/mail/mail.module.js';
+import { DB } from '../../../common/db/db.module.ts';
+import { MAILER } from '../../../common/mail/mail.module.ts';
 import {
   EmailService,
   EmailChannelConfigInput,
   jsonbToStored,
   type StoredEmailChannelConfig,
-} from './email.service.js';
+} from './email.service.ts';
 
 const SetupInput = z.object({
   /** Pass to update an existing channel; omit to create one. */

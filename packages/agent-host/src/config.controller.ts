@@ -12,8 +12,8 @@ import {
 import { z } from 'zod';
 import { getCurrentContext } from '@getmunin/core';
 import { AuditInterceptor, AuthGuard, TenancyInterceptor } from '@getmunin/backend-core';
-import { AgentConfigService, type AgentConfigDto } from './config.service.js';
-import { AgentModelsService, type ListModelsResult } from './models.service.js';
+import { AgentConfigService, type AgentConfigDto } from './config.service.ts';
+import { AgentModelsService, type ListModelsResult } from './models.service.ts';
 
 const UpsertDto = z.object({
   fastModel: z.string().min(1).optional(),

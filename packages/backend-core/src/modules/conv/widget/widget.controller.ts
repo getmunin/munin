@@ -14,9 +14,9 @@ import {
 import { schema } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { AuthGuard } from '../../../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../../../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../../../common/audit/audit.interceptor.js';
+import { AuthGuard } from '../../../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../../../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../../../common/audit/audit.interceptor.ts';
 import {
   WidgetIngestInput,
   WidgetVoiceEventInput,
@@ -25,7 +25,7 @@ import {
   WidgetListMessagesQuery,
   WidgetSetVisitorInput,
   WidgetStartConversationInput,
-} from './widget.types.js';
+} from './widget.types.ts';
 import type {
   WidgetIngestInputT,
   WidgetIngestResult,
@@ -35,9 +35,9 @@ import type {
   WidgetStartConversationResult,
   WidgetVoiceEventResult,
   WidgetVoiceStartResult,
-} from './widget.types.js';
-import { WidgetIngestService } from './widget-ingest.service.js';
-import { WidgetVoiceService } from './widget-voice.service.js';
+} from './widget.types.ts';
+import { WidgetIngestService } from './widget-ingest.service.ts';
+import { WidgetVoiceService } from './widget-voice.service.ts';
 
 /**
  * Public ingest endpoint for chat-widget channels. Authenticated by a

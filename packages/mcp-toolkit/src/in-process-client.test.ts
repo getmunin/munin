@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { ActorIdentity, RequestContextStore, type RequestContext } from '@getmunin/core';
-import { McpToolRegistry } from './registry.js';
-import { SkillRegistry } from './skill-registry.js';
-import { openInProcessMcpClient } from './in-process-client.js';
+import { McpToolRegistry } from './registry.ts';
+import { SkillRegistry } from './skill-registry.ts';
+import { openInProcessMcpClient } from './in-process-client.ts';
 
 const fakeAudit = { record: vi.fn(() => Promise.resolve()) };
 

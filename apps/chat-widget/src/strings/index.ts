@@ -1,17 +1,17 @@
-import en from './en.js';
-import nb from './nb.js';
-import da from './da.js';
-import sv from './sv.js';
-import fi from './fi.js';
-import is from './is.js';
-import de from './de.js';
-import fr from './fr.js';
-import es from './es.js';
-import it from './it.js';
-import pt from './pt.js';
-import nl from './nl.js';
-import pl from './pl.js';
-import type { Strings } from './types.js';
+import en from './en.ts';
+import nb from './nb.ts';
+import da from './da.ts';
+import sv from './sv.ts';
+import fi from './fi.ts';
+import is from './is.ts';
+import de from './de.ts';
+import fr from './fr.ts';
+import es from './es.ts';
+import it from './it.ts';
+import pt from './pt.ts';
+import nl from './nl.ts';
+import pl from './pl.ts';
+import type { Strings } from './types.ts';
 
 export const LOCALES: Record<string, Strings> = {
   en,
@@ -60,4 +60,4 @@ function normalizeTag(raw: string | null | undefined): string | null {
   return short || null;
 }
 
-export { format, isPluralValue, type PluralValue, type Strings, type StringValue } from './types.js';
+export { format, isPluralValue, type PluralValue, type Strings, type StringValue } from './types.ts';

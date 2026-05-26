@@ -2,12 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { decryptSecretSql, encryptSecretSql, getCurrentContext } from '@getmunin/core';
 import { schema } from '@getmunin/db';
 import { asc, eq, isNotNull, sql } from 'drizzle-orm';
-import { agentConfig, SINGLETON_ID } from './schema.js';
+import { agentConfig, SINGLETON_ID } from './schema.ts';
 import type {
   AgentConfigPatch,
   AgentConfigRepository,
   AgentConfigRow,
-} from './config.repository.js';
+} from './config.repository.ts';
 
 @Injectable()
 export class SingletonConfigRepository implements AgentConfigRepository {

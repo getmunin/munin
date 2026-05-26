@@ -6,8 +6,8 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { SkillRegistry, type RegisteredSkill } from '@getmunin/mcp-toolkit';
-import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.js';
-import { PublicSkillsController } from './public-skills.controller.js';
+import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.ts';
+import { PublicSkillsController } from './public-skills.controller.ts';
 
 class StubSkillRegistry extends SkillRegistry {
   instructions(): string {

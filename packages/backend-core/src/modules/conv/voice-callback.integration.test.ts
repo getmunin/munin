@@ -9,9 +9,9 @@ import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq } from 'drizzle-orm';
-import { AppModule } from '../../app.module.js';
-import { createApp } from '../../bootstrap-app.js';
-import { VapiService } from './vapi/vapi.service.js';
+import { AppModule } from '../../app.module.ts';
+import { createApp } from '../../bootstrap-app.ts';
+import { VapiService } from './vapi/vapi.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

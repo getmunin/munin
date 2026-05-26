@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { OAuthAsAliasController } from './oauth-as-alias.controller.js';
+import { OAuthAsAliasController } from './oauth-as-alias.controller.ts';
 
 describe('OAuthAsAliasController', () => {
   let originalUrl: string | undefined;

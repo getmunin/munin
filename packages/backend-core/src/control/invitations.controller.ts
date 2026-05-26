@@ -12,10 +12,10 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
-import { InvitationsService } from './invitations.service.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { InvitationsService } from './invitations.service.ts';
 
 const CreateInviteDto = z.object({
   email: z.string().email(),

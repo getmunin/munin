@@ -15,7 +15,7 @@ export default function WidgetGuide() {
     <div className="guide-detail">
       <div className="breadcrumb">
         <Link href="/docs/guides">← All guides</Link>
-        <span className="crumb-sep">/</span>
+        <span className="crumb-sep">{' / '}</span>
         <span>Embeds</span>
       </div>
       <header className="docs-hero">

@@ -127,7 +127,7 @@
   background: transparent;
   border: 1px solid var(--docs-rule);
   color: var(--docs-ink);
-  padding: 8px 12px 8px 32px;
+  padding: 8px 12px 8px 38px;
   outline: none;
 }
 .docs-search::placeholder {
@@ -141,7 +141,8 @@
   left: 10px;
   pointer-events: none;
   color: var(--docs-mute);
-  font-size: 13px;
+  font-size: 22px;
+  line-height: 1;
 }
 .search-wrap .kbd {
   position: absolute;
@@ -572,7 +573,7 @@
 
 .curl {
   margin-top: 22px;
-  background: var(--docs-page);
+  background: var(--docs-card);
   border: 1px solid var(--docs-rule);
   position: relative;
 }

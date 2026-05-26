@@ -1,6 +1,6 @@
 export interface GuideMeta {
   slug: string;
-  category: 'embeds' | 'concepts' | 'operations';
+  category: 'embeds' | 'concepts' | 'operations' | 'recipes';
   title: string;
   kicker: string;
   minutes: number;
@@ -17,6 +17,7 @@ export const GUIDE_GROUPS: Array<{
   { id: 'embeds', label: 'Embeds', blurb: 'Drop-in surfaces you put on customer pages.' },
   { id: 'concepts', label: 'Concepts', blurb: 'The mental model. Read these before you wire anything up.' },
   { id: 'operations', label: 'Operations', blurb: 'Running Munin in production — observability, compliance, edges.' },
+  { id: 'recipes', label: 'Recipes', blurb: 'Ready-to-paste agent prompts that take Munin from inbox to outcome.' },
 ];
 
 export const GUIDES: GuideMeta[] = [
@@ -50,6 +51,66 @@ export const GUIDES: GuideMeta[] = [
     minutes: 6,
     updated: '2 weeks ago',
     tags: ['architecture'],
+  },
+  {
+    slug: 'recipe-bug-spotter',
+    category: 'recipes',
+    title: 'Bug Spotter',
+    kicker:
+      'Clusters broken-behaviour phrases across conversations and posts internal notes engineering can triage.',
+    minutes: 4,
+    updated: 'today',
+    tags: ['recipe', 'conversations'],
+  },
+  {
+    slug: 'recipe-content-marketer',
+    category: 'recipes',
+    title: 'Content Marketer',
+    kicker:
+      'Mines weekly conversations for recurring questions and drafts CMS posts that answer them in customers’ own words.',
+    minutes: 4,
+    updated: 'today',
+    tags: ['recipe', 'cms'],
+  },
+  {
+    slug: 'recipe-crm-deduper',
+    category: 'recipes',
+    title: 'CRM Deduper',
+    kicker:
+      'Walks the contact list, scores near-duplicates, and files structured merge proposals — never merges on its own.',
+    minutes: 4,
+    updated: 'today',
+    tags: ['recipe', 'crm'],
+  },
+  {
+    slug: 'recipe-kb-curator',
+    category: 'recipes',
+    title: 'KB Curator',
+    kicker:
+      'Watches conversations for KB gaps, drafts new articles, queues them for review — never publishes without a human.',
+    minutes: 4,
+    updated: 'today',
+    tags: ['recipe', 'knowledge-base'],
+  },
+  {
+    slug: 'recipe-outreach-drafter',
+    category: 'recipes',
+    title: 'Outreach Drafter',
+    kicker:
+      'Takes a campaign brief, targets a CRM segment, and queues personalised opener emails for human approval.',
+    minutes: 5,
+    updated: 'today',
+    tags: ['recipe', 'outreach'],
+  },
+  {
+    slug: 'recipe-renewal-watcher',
+    category: 'recipes',
+    title: 'Renewal Watcher',
+    kicker:
+      'Surfaces deals approaching renewal, scores account health, and drafts account-management outreach for review.',
+    minutes: 5,
+    updated: 'today',
+    tags: ['recipe', 'crm', 'outreach'],
   },
 ];
 

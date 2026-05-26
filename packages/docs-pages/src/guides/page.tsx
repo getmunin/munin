@@ -69,8 +69,6 @@ export default function GuidesIndex() {
                   <p className="gc-kick">{g.kicker}</p>
                   <div className="gc-foot">
                     <span>{g.minutes} min</span>
-                    <span>·</span>
-                    <span>updated {g.updated}</span>
                   </div>
                 </Link>
               ))}

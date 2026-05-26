@@ -3088,7 +3088,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @formatjs/fast-memoize@3.1.3
+## @formatjs/fast-memoize@3.1.3, 3.1.5
 
 > fork of fast-memoize and support esm
 - Homepage: https://github.com/formatjs/formatjs#readme
@@ -3109,7 +3109,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @formatjs/icu-messageformat-parser@3.5.6
+## @formatjs/icu-messageformat-parser@3.5.6, 3.5.10
 
 - Homepage: https://github.com/formatjs/formatjs#readme
 - License: MIT
@@ -3128,7 +3128,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @formatjs/icu-skeleton-parser@2.1.6
+## @formatjs/icu-skeleton-parser@2.1.6, 2.1.9
 
 - Homepage: https://github.com/formatjs/formatjs#readme
 - License: MIT
@@ -4907,7 +4907,7 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @next/env@15.5.18
+## @next/env@16.2.6
 
 > Next.js dotenv file loading
 - Homepage: https://github.com/vercel/next.js#readme
@@ -14314,7 +14314,7 @@ MIT License
 
 ---
 
-## @types/react@19.2.14
+## @types/react@19.2.15
 
 > TypeScript definitions for react
 - Homepage: https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react
@@ -23587,7 +23587,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## icu-minify@4.11.0
+## icu-minify@4.11.0, 4.12.0
 
 > ICU message format compiler with a <1KB runtime bundle footprint
 - Homepage: https://next-intl.dev
@@ -23953,7 +23953,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## intl-messageformat@11.2.3
+## intl-messageformat@11.2.3, 11.2.7
 
 > Formats ICU Message strings with number, date, plural, and select placeholders to create localized messages.
 - Homepage: https://github.com/formatjs/formatjs
@@ -26743,7 +26743,7 @@ SOFTWARE.
 
 ---
 
-## next@15.5.18
+## next@16.2.6
 
 > The React Framework
 - Homepage: https://nextjs.org
@@ -26775,7 +26775,7 @@ SOFTWARE.
 
 ---
 
-## next-intl@4.11.0
+## next-intl@4.11.0, 4.12.0
 
 > Internationalization (i18n) for Next.js
 - Homepage: https://next-intl.dev
@@ -26808,7 +26808,7 @@ SOFTWARE.
 
 ---
 
-## next-intl-swc-plugin-extractor@4.11.0
+## next-intl-swc-plugin-extractor@4.11.0, 4.12.0
 
 > SWC plugin for extracting inline messages.
 - Homepage: https://next-intl.dev
@@ -29184,7 +29184,7 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## qs@6.15.1
+## qs@6.15.2
 
 > A querystring parser that supports nesting and arrays, with a depth limit
 - Homepage: https://github.com/ljharb/qs
@@ -29391,7 +29391,7 @@ THE SOFTWARE.
 
 ---
 
-## react@19.2.5
+## react@19.2.5, 19.2.6
 
 > React is a JavaScript library for building user interfaces.
 - Homepage: https://react.dev/
@@ -29423,7 +29423,7 @@ SOFTWARE.
 
 ---
 
-## react-dom@19.2.5
+## react-dom@19.2.5, 19.2.6
 
 > React package for working with the DOM.
 - Homepage: https://react.dev/
@@ -34308,7 +34308,7 @@ SOFTWARE.
 
 ---
 
-## use-intl@4.11.0
+## use-intl@4.11.0, 4.12.0
 
 > Internationalization (i18n) for React
 - Homepage: https://next-intl.dev

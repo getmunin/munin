@@ -7,23 +7,16 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  cacheComponents: true,
+  experimental: {
+    rootParams: true,
+  },
   transpilePackages: ['@getmunin/dashboard-pages', '@getmunin/sdk', '@getmunin/types', '@getmunin/ui'],
-  webpack: (config) => {
-    config.resolve.extensionAlias = {
-      ...(config.resolve.extensionAlias ?? {}),
-      '.js': ['.ts', '.tsx', '.js'],
-      '.mjs': ['.mts', '.mjs'],
-    };
-    config.ignoreWarnings = [
-      ...(config.ignoreWarnings ?? []),
-      (warning) =>
-        /next-intl\/dist\/esm\/production\/extractor\/format/.test(String(warning?.message ?? '')),
-    ];
-    config.infrastructureLogging = {
-      ...(config.infrastructureLogging ?? {}),
-      level: 'error',
-    };
-    return config;
+  turbopack: {
+    resolveExtensions: ['.mdx', '.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
+    resolveAlias: {
+      'tw-animate-css': './node_modules/tw-animate-css/dist/tw-animate.css',
+    },
   },
 };
 

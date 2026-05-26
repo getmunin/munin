@@ -40,7 +40,7 @@ export function IdentityCard({ assistant, onSaved }: IdentityCardProps) {
     setError(null);
     try {
       const body: UpdateAssistantBody = { name: trimmed === '' ? null : trimmed };
-      const updated = await api<AssistantDto>('/api/v1/assistants/me', {
+      const updated = await api<AssistantDto>('/v1/assistants/me', {
         method: 'PATCH',
         body: JSON.stringify(body),
       });

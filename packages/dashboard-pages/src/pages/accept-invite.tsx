@@ -47,7 +47,7 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
     setStatus('pending');
     void (async () => {
       try {
-        await api('/api/v1/invitations/accept', {
+        await api('/v1/invitations/accept', {
           method: 'POST',
           body: JSON.stringify({ token }),
         });

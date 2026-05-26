@@ -3,7 +3,7 @@ import type { ApiIdentity } from './api.ts';
 /**
  * WebSocket client for the widget.
  *
- * Lifecycle: `connect()` opens a WebSocket to /api/v1/realtime, sends a
+ * Lifecycle: `connect()` opens a WebSocket to /v1/realtime, sends a
  * `subscribe` for `widget:<channelId>:<sessionId>`, and emits the
  * `connected` state. Consumers run their one-shot REST backfill in
  * response — the realtime client itself never polls REST.
@@ -141,7 +141,7 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
   }
 
   function buildUrl(): string {
-    const base = httpToWs(deps.host) + '/api/v1/realtime';
+    const base = httpToWs(deps.host) + '/v1/realtime';
     if (!deps.identity) return base;
     const u = new URL(base);
     u.searchParams.set('externalId', deps.identity.externalId);

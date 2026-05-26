@@ -155,7 +155,7 @@ const skipReason = TEST_URL
     // commit-visibility race between the MCP request transaction and the
     // controller's separate service-role connection.
     const single = await fetchUntil(
-      `${baseUrl}/api/v1/cms/${orgId}/pages/hello-world`,
+      `${baseUrl}/v1/cms/${orgId}/pages/hello-world`,
       (r) => r.status === 200,
     );
     expect(single.status).toBe(200);
@@ -165,13 +165,13 @@ const skipReason = TEST_URL
     expect(singleJson.data.title).toBe('Hello, world');
 
     // ETag round-trip.
-    const cached = await fetch(`${baseUrl}/api/v1/cms/${orgId}/pages/hello-world`, {
+    const cached = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/hello-world`, {
       headers: { 'if-none-match': single.headers.get('etag')! },
     });
     expect(cached.status).toBe(304);
 
     // List works.
-    const list = await fetch(`${baseUrl}/api/v1/cms/${orgId}/pages`);
+    const list = await fetch(`${baseUrl}/v1/cms/${orgId}/pages`);
     expect(list.status).toBe(200);
     const listJson = (await list.json()) as { items: Array<{ slug: string }> };
     expect(listJson.items.find((i) => i.slug === 'hello-world')).toBeTruthy();
@@ -201,14 +201,14 @@ const skipReason = TEST_URL
 
     // Public search hides drafts.
     const search = await fetch(
-      `${baseUrl}/api/v1/cms/${orgId}/search?q=${encodeURIComponent('secret')}&collection=pages`,
+      `${baseUrl}/v1/cms/${orgId}/search?q=${encodeURIComponent('secret')}&collection=pages`,
     );
     expect(search.status).toBe(200);
     const hits = (await search.json()) as Array<{ slug: string }>;
     expect(hits.find((h) => h.slug === 'draft-only')).toBeFalsy();
 
     // GET on the draft entry returns 404 publicly.
-    const fetched = await fetch(`${baseUrl}/api/v1/cms/${orgId}/pages/draft-only`);
+    const fetched = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/draft-only`);
     expect(fetched.status).toBe(404);
   }, 30_000);
 
@@ -247,7 +247,7 @@ const skipReason = TEST_URL
     const result = await worker.tick();
     expect(result.promoted).toBe(1);
 
-    const fetched = await fetch(`${baseUrl}/api/v1/cms/${orgId}/pages/scheduled-page`);
+    const fetched = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/scheduled-page`);
     expect(fetched.status).toBe(200);
     void entryVersion;
   }, 30_000);
@@ -283,17 +283,17 @@ const skipReason = TEST_URL
 
     // Without a locale param, the controller picks any published row — should
     // be the en entry (the es one is a draft and must not appear).
-    const noLocale = await fetch(`${baseUrl}/api/v1/cms/${orgId}/pages/localized`);
+    const noLocale = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/localized`);
     expect(noLocale.status).toBe(200);
     expect(((await noLocale.json()) as { locale: string }).locale).toBe('en');
 
     // With locale=es: there's no published es entry, so 404 — never a silent
     // fallback to the en entry.
-    const esQuery = await fetch(`${baseUrl}/api/v1/cms/${orgId}/pages/localized?locale=es`);
+    const esQuery = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/localized?locale=es`);
     expect(esQuery.status).toBe(404);
 
     // With locale=en: returns the en entry as expected.
-    const enQuery = await fetch(`${baseUrl}/api/v1/cms/${orgId}/pages/localized?locale=en`);
+    const enQuery = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/localized?locale=en`);
     expect(enQuery.status).toBe(200);
     expect(((await enQuery.json()) as { locale: string }).locale).toBe('en');
   }, 30_000);

@@ -25,7 +25,7 @@ export function DashboardPage() {
   const orgName = membership?.name ?? null;
 
   const loadSummary = useCallback(() => {
-    void api<UsageSummary>('/api/v1/usage/summary')
+    void api<UsageSummary>('/v1/usage/summary')
       .then(setSummary)
       .catch(() => setSummary(null));
   }, []);

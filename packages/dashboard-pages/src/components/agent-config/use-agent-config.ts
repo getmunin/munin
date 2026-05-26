@@ -28,7 +28,7 @@ export function useAgentConfig(): UseAgentConfigResult {
   const [models, setModels] = useState<ListModelsResult | null>(null);
 
   const load = useCallback(async () => {
-    const cfg = await api<AgentConfigDto>('/api/v1/agent-config');
+    const cfg = await api<AgentConfigDto>('/v1/agent-config');
     setConfig(cfg);
   }, []);
 
@@ -40,7 +40,7 @@ export function useAgentConfig(): UseAgentConfigResult {
 
   useEffect(() => {
     if (!config?.providerApiKeySet) return;
-    void api<ListModelsResult>('/api/v1/agent-config/models')
+    void api<ListModelsResult>('/v1/agent-config/models')
       .then(setModels)
       .catch(() => undefined);
   }, [config?.providerApiKeySet]);

@@ -46,7 +46,7 @@
         "security": []
       }
     },
-    "/api/v1/whoami": {
+    "/v1/whoami": {
       "get": {
         "operationId": "WhoamiController_whoami",
         "parameters": [],
@@ -224,7 +224,7 @@
         ]
       }
     },
-    "/api/v1/api-keys": {
+    "/v1/api-keys": {
       "post": {
         "operationId": "ApiKeysController_create",
         "parameters": [],
@@ -266,7 +266,7 @@
         ]
       }
     },
-    "/api/v1/api-keys/{id}": {
+    "/v1/api-keys/{id}": {
       "delete": {
         "operationId": "ApiKeysController_revoke",
         "parameters": [
@@ -297,7 +297,7 @@
         ]
       }
     },
-    "/api/v1/end-users/lookup": {
+    "/v1/end-users/lookup": {
       "post": {
         "operationId": "EndUsersController_lookup",
         "parameters": [],
@@ -319,7 +319,7 @@
         ]
       }
     },
-    "/api/v1/end-users": {
+    "/v1/end-users": {
       "post": {
         "operationId": "EndUsersController_create",
         "parameters": [],
@@ -370,7 +370,7 @@
         ]
       }
     },
-    "/api/v1/end-users/{id}/revoke-tokens": {
+    "/v1/end-users/{id}/revoke-tokens": {
       "post": {
         "operationId": "EndUsersController_revokeTokens",
         "parameters": [
@@ -401,7 +401,7 @@
         ]
       }
     },
-    "/api/v1/end-users/{id}": {
+    "/v1/end-users/{id}": {
       "get": {
         "operationId": "EndUsersController_get",
         "parameters": [
@@ -432,7 +432,7 @@
         ]
       }
     },
-    "/api/v1/tokens/delegated": {
+    "/v1/tokens/delegated": {
       "post": {
         "operationId": "DelegatedTokenController_mint",
         "parameters": [],
@@ -454,7 +454,7 @@
         ]
       }
     },
-    "/api/v1/tokens": {
+    "/v1/tokens": {
       "get": {
         "operationId": "TokensController_list",
         "parameters": [],
@@ -476,7 +476,7 @@
         ]
       }
     },
-    "/api/v1/tokens/{id}": {
+    "/v1/tokens/{id}": {
       "delete": {
         "operationId": "TokensController_revoke",
         "parameters": [
@@ -507,7 +507,7 @@
         ]
       }
     },
-    "/api/v1/orgs/me": {
+    "/v1/orgs/me": {
       "get": {
         "operationId": "OrgsController_me",
         "parameters": [],
@@ -549,7 +549,7 @@
         ]
       }
     },
-    "/api/v1/skills": {
+    "/v1/skills": {
       "get": {
         "operationId": "SkillsController_list",
         "parameters": [],
@@ -571,7 +571,7 @@
         ]
       }
     },
-    "/api/v1/assistants/me": {
+    "/v1/assistants/me": {
       "get": {
         "operationId": "AssistantsController_me",
         "parameters": [],
@@ -613,7 +613,7 @@
         ]
       }
     },
-    "/api/v1/admin/audit-logs": {
+    "/v1/admin/audit-logs": {
       "get": {
         "operationId": "AuditLogController_list",
         "parameters": [
@@ -684,7 +684,7 @@
         ]
       }
     },
-    "/api/v1/usage": {
+    "/v1/usage": {
       "get": {
         "operationId": "UsageController_current",
         "parameters": [],
@@ -706,7 +706,7 @@
         ]
       }
     },
-    "/api/v1/usage/summary": {
+    "/v1/usage/summary": {
       "get": {
         "operationId": "UsageStatsController_summary",
         "parameters": [],
@@ -728,7 +728,7 @@
         ]
       }
     },
-    "/api/v1/usage/by-agent": {
+    "/v1/usage/by-agent": {
       "get": {
         "operationId": "UsageStatsController_byAgent",
         "parameters": [
@@ -759,7 +759,7 @@
         ]
       }
     },
-    "/api/v1/export": {
+    "/v1/export": {
       "get": {
         "operationId": "ExportController_export",
         "parameters": [],
@@ -781,7 +781,7 @@
         ]
       }
     },
-    "/api/v1/webhooks": {
+    "/v1/webhooks": {
       "get": {
         "operationId": "WebhooksController_list",
         "parameters": [],
@@ -823,7 +823,7 @@
         ]
       }
     },
-    "/api/v1/webhooks/{id}": {
+    "/v1/webhooks/{id}": {
       "patch": {
         "operationId": "WebhooksController_patch",
         "parameters": [
@@ -883,7 +883,7 @@
         ]
       }
     },
-    "/api/v1/cms/{orgId}/collections": {
+    "/v1/cms/{orgId}/collections": {
       "get": {
         "operationId": "CmsDeliveryController_listCollections",
         "parameters": [
@@ -907,7 +907,7 @@
         "security": []
       }
     },
-    "/api/v1/cms/{orgId}/search": {
+    "/v1/cms/{orgId}/search": {
       "get": {
         "operationId": "CmsDeliveryController_searchPublic",
         "parameters": [
@@ -963,7 +963,7 @@
         "security": []
       }
     },
-    "/api/v1/cms/{orgId}/{collectionSlug}": {
+    "/v1/cms/{orgId}/{collectionSlug}": {
       "get": {
         "operationId": "CmsDeliveryController_listEntries",
         "parameters": [
@@ -1019,7 +1019,7 @@
         "security": []
       }
     },
-    "/api/v1/cms/{orgId}/{collectionSlug}/{entrySlug}": {
+    "/v1/cms/{orgId}/{collectionSlug}/{entrySlug}": {
       "get": {
         "operationId": "CmsDeliveryController_getEntry",
         "parameters": [
@@ -1067,7 +1067,7 @@
         "security": []
       }
     },
-    "/api/v1/orgs/me/invitations": {
+    "/v1/orgs/me/invitations": {
       "post": {
         "operationId": "InvitationsController_create",
         "parameters": [],
@@ -1109,7 +1109,7 @@
         ]
       }
     },
-    "/api/v1/orgs/me/invitations/{id}": {
+    "/v1/orgs/me/invitations/{id}": {
       "delete": {
         "operationId": "InvitationsController_revoke",
         "parameters": [
@@ -1140,7 +1140,7 @@
         ]
       }
     },
-    "/api/v1/invitations/lookup": {
+    "/v1/invitations/lookup": {
       "get": {
         "operationId": "AcceptInvitationController_lookup",
         "parameters": [
@@ -1164,7 +1164,7 @@
         "security": []
       }
     },
-    "/api/v1/invitations/accept": {
+    "/v1/invitations/accept": {
       "post": {
         "operationId": "AcceptInvitationController_accept",
         "parameters": [],
@@ -1179,7 +1179,7 @@
         "security": []
       }
     },
-    "/api/v1/orgs/me/members": {
+    "/v1/orgs/me/members": {
       "get": {
         "operationId": "MembersController_list",
         "parameters": [],
@@ -1201,7 +1201,7 @@
         ]
       }
     },
-    "/api/v1/orgs/me/members/{userId}": {
+    "/v1/orgs/me/members/{userId}": {
       "patch": {
         "operationId": "MembersController_patch",
         "parameters": [
@@ -1261,7 +1261,7 @@
         ]
       }
     },
-    "/api/v1/me/memberships": {
+    "/v1/me/memberships": {
       "get": {
         "operationId": "MembershipsController_list",
         "parameters": [],
@@ -1283,7 +1283,7 @@
         ]
       }
     },
-    "/api/v1/me/memberships/active": {
+    "/v1/me/memberships/active": {
       "patch": {
         "operationId": "MembershipsController_setActive",
         "parameters": [],
@@ -1305,7 +1305,7 @@
         ]
       }
     },
-    "/api/v1/public/skills": {
+    "/v1/public/skills": {
       "get": {
         "operationId": "PublicSkillsController_list",
         "parameters": [],
@@ -1320,7 +1320,7 @@
         "security": []
       }
     },
-    "/api/v1/public/skills/{module}/{slug}": {
+    "/v1/public/skills/{module}/{slug}": {
       "get": {
         "operationId": "PublicSkillsController_read",
         "parameters": [
@@ -1352,7 +1352,7 @@
         "security": []
       }
     },
-    "/api/v1/public/mcp-tools": {
+    "/v1/public/mcp-tools": {
       "get": {
         "operationId": "PublicMcpToolsController_list",
         "parameters": [],
@@ -1367,7 +1367,7 @@
         "security": []
       }
     },
-    "/api/v1/public/mcp-tools/{name}": {
+    "/v1/public/mcp-tools/{name}": {
       "get": {
         "operationId": "PublicMcpToolsController_read",
         "parameters": [
@@ -1391,7 +1391,7 @@
         "security": []
       }
     },
-    "/api/v1/conversations/channels": {
+    "/v1/conversations/channels": {
       "get": {
         "operationId": "ConvChannelsController_list",
         "parameters": [],
@@ -1413,7 +1413,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/widget": {
+    "/v1/conversations/channels/widget": {
       "post": {
         "operationId": "ConvChannelsController_createWidget",
         "parameters": [],
@@ -1435,7 +1435,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/widget/{id}": {
+    "/v1/conversations/channels/widget/{id}": {
       "patch": {
         "operationId": "ConvChannelsController_updateWidget",
         "parameters": [
@@ -1466,7 +1466,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/widget/{id}/rotate-key": {
+    "/v1/conversations/channels/widget/{id}/rotate-key": {
       "post": {
         "operationId": "ConvChannelsController_rotateWidgetKey",
         "parameters": [
@@ -1497,7 +1497,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/widget/{id}/rotate-identity-secret": {
+    "/v1/conversations/channels/widget/{id}/rotate-identity-secret": {
       "post": {
         "operationId": "ConvChannelsController_rotateIdentitySecret",
         "parameters": [
@@ -1528,7 +1528,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/email": {
+    "/v1/conversations/channels/email": {
       "post": {
         "operationId": "ConvChannelsController_setupEmail",
         "parameters": [],
@@ -1550,7 +1550,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/email/{id}/test": {
+    "/v1/conversations/channels/email/{id}/test": {
       "post": {
         "operationId": "ConvChannelsController_testEmail",
         "parameters": [
@@ -1581,7 +1581,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/email/{id}/send-test": {
+    "/v1/conversations/channels/email/{id}/send-test": {
       "post": {
         "operationId": "ConvChannelsController_sendTestEmail",
         "parameters": [
@@ -1612,7 +1612,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/twilio-sms": {
+    "/v1/conversations/channels/twilio-sms": {
       "post": {
         "operationId": "ConvChannelsController_configureTwilioSms",
         "parameters": [],
@@ -1634,7 +1634,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/twilio-sms/{id}/test": {
+    "/v1/conversations/channels/twilio-sms/{id}/test": {
       "post": {
         "operationId": "ConvChannelsController_testTwilioSms",
         "parameters": [
@@ -1665,7 +1665,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/twilio-sms/{id}/send-test": {
+    "/v1/conversations/channels/twilio-sms/{id}/send-test": {
       "post": {
         "operationId": "ConvChannelsController_sendTwilioSmsTest",
         "parameters": [
@@ -1696,7 +1696,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/messagebird-sms": {
+    "/v1/conversations/channels/messagebird-sms": {
       "post": {
         "operationId": "ConvChannelsController_configureMessageBirdSms",
         "parameters": [],
@@ -1718,7 +1718,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/messagebird-sms/{id}/test": {
+    "/v1/conversations/channels/messagebird-sms/{id}/test": {
       "post": {
         "operationId": "ConvChannelsController_testMessageBirdSms",
         "parameters": [
@@ -1749,7 +1749,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/messagebird-sms/{id}/send-test": {
+    "/v1/conversations/channels/messagebird-sms/{id}/send-test": {
       "post": {
         "operationId": "ConvChannelsController_sendMessageBirdSmsTest",
         "parameters": [
@@ -1780,7 +1780,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/vapi": {
+    "/v1/conversations/channels/vapi": {
       "post": {
         "operationId": "ConvChannelsController_configureVapi",
         "parameters": [],
@@ -1802,7 +1802,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/vapi/{id}/test": {
+    "/v1/conversations/channels/vapi/{id}/test": {
       "post": {
         "operationId": "ConvChannelsController_testVapi",
         "parameters": [
@@ -1833,7 +1833,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/vapi/{id}/call": {
+    "/v1/conversations/channels/vapi/{id}/call": {
       "post": {
         "operationId": "ConvChannelsController_vapiCall",
         "parameters": [
@@ -1864,7 +1864,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/{id}": {
+    "/v1/conversations/channels/{id}": {
       "delete": {
         "operationId": "ConvChannelsController_archive",
         "parameters": [
@@ -1895,7 +1895,7 @@
         ]
       }
     },
-    "/api/v1/conversations": {
+    "/v1/conversations": {
       "get": {
         "operationId": "ConversationsController_list",
         "parameters": [
@@ -1966,7 +1966,7 @@
         ]
       }
     },
-    "/api/v1/conversations/topics": {
+    "/v1/conversations/topics": {
       "get": {
         "operationId": "ConversationsController_listTopics",
         "parameters": [],
@@ -1988,7 +1988,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}": {
+    "/v1/conversations/{id}": {
       "get": {
         "operationId": "ConversationsController_get",
         "parameters": [
@@ -2019,7 +2019,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/messages": {
+    "/v1/conversations/{id}/messages": {
       "post": {
         "operationId": "ConversationsController_reply",
         "parameters": [
@@ -2050,7 +2050,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/runner-claim": {
+    "/v1/conversations/{id}/runner-claim": {
       "post": {
         "operationId": "ConversationsController_runnerClaim",
         "parameters": [
@@ -2081,7 +2081,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/runner-release": {
+    "/v1/conversations/{id}/runner-release": {
       "post": {
         "operationId": "ConversationsController_runnerRelease",
         "parameters": [
@@ -2112,7 +2112,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/assign": {
+    "/v1/conversations/{id}/assign": {
       "post": {
         "operationId": "ConversationsController_assign",
         "parameters": [
@@ -2143,7 +2143,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/status": {
+    "/v1/conversations/{id}/status": {
       "post": {
         "operationId": "ConversationsController_status",
         "parameters": [
@@ -2174,7 +2174,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/agent-mode": {
+    "/v1/conversations/{id}/agent-mode": {
       "post": {
         "operationId": "ConversationsController_agentMode",
         "parameters": [
@@ -2205,7 +2205,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/take-over": {
+    "/v1/conversations/{id}/take-over": {
       "post": {
         "operationId": "ConversationsController_takeOver",
         "parameters": [
@@ -2236,7 +2236,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/release": {
+    "/v1/conversations/{id}/release": {
       "post": {
         "operationId": "ConversationsController_release",
         "parameters": [
@@ -2267,7 +2267,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/request-handover": {
+    "/v1/conversations/{id}/request-handover": {
       "post": {
         "operationId": "ConversationsController_requestHandover",
         "parameters": [
@@ -2298,7 +2298,7 @@
         ]
       }
     },
-    "/api/v1/conversations/{id}/topic": {
+    "/v1/conversations/{id}/topic": {
       "post": {
         "operationId": "ConversationsController_setTopic",
         "parameters": [
@@ -2329,7 +2329,7 @@
         ]
       }
     },
-    "/api/v1/activity": {
+    "/v1/activity": {
       "get": {
         "operationId": "ActivityController_list",
         "parameters": [
@@ -2400,7 +2400,7 @@
         ]
       }
     },
-    "/api/v1/end-users/me/conversations": {
+    "/v1/end-users/me/conversations": {
       "post": {
         "operationId": "EndUserConversationsController_start",
         "parameters": [],
@@ -2467,7 +2467,7 @@
         ]
       }
     },
-    "/api/v1/end-users/me/conversations/{id}": {
+    "/v1/end-users/me/conversations/{id}": {
       "get": {
         "operationId": "EndUserConversationsController_get",
         "parameters": [
@@ -2498,7 +2498,7 @@
         ]
       }
     },
-    "/api/v1/end-users/me/conversations/{id}/messages": {
+    "/v1/end-users/me/conversations/{id}/messages": {
       "post": {
         "operationId": "EndUserConversationsController_reply",
         "parameters": [
@@ -2529,7 +2529,7 @@
         ]
       }
     },
-    "/api/v1/overview/backlog": {
+    "/v1/overview/backlog": {
       "get": {
         "operationId": "OverviewController_backlog",
         "parameters": [],
@@ -2551,7 +2551,7 @@
         ]
       }
     },
-    "/api/v1/overview/agent-status": {
+    "/v1/overview/agent-status": {
       "get": {
         "operationId": "OverviewController_agentStatus",
         "parameters": [],
@@ -2573,7 +2573,7 @@
         ]
       }
     },
-    "/api/v1/inbox": {
+    "/v1/inbox": {
       "get": {
         "operationId": "InboxController_queue",
         "parameters": [],
@@ -2595,7 +2595,7 @@
         ]
       }
     },
-    "/api/v1/crm/merge-proposals": {
+    "/v1/crm/merge-proposals": {
       "get": {
         "operationId": "CrmMergeProposalsController_list",
         "parameters": [
@@ -2634,7 +2634,7 @@
         ]
       }
     },
-    "/api/v1/crm/merge-proposals/{id}": {
+    "/v1/crm/merge-proposals/{id}": {
       "get": {
         "operationId": "CrmMergeProposalsController_get",
         "parameters": [
@@ -2665,7 +2665,7 @@
         ]
       }
     },
-    "/api/v1/crm/merge-proposals/{id}/apply": {
+    "/v1/crm/merge-proposals/{id}/apply": {
       "post": {
         "operationId": "CrmMergeProposalsController_apply",
         "parameters": [
@@ -2696,7 +2696,7 @@
         ]
       }
     },
-    "/api/v1/crm/merge-proposals/{id}/dismiss": {
+    "/v1/crm/merge-proposals/{id}/dismiss": {
       "post": {
         "operationId": "CrmMergeProposalsController_dismiss",
         "parameters": [
@@ -2727,7 +2727,7 @@
         ]
       }
     },
-    "/api/v1/crm/segments": {
+    "/v1/crm/segments": {
       "get": {
         "operationId": "CrmSegmentsController_list",
         "parameters": [],
@@ -2769,7 +2769,7 @@
         ]
       }
     },
-    "/api/v1/crm/segments/{id}": {
+    "/v1/crm/segments/{id}": {
       "get": {
         "operationId": "CrmSegmentsController_get",
         "parameters": [
@@ -2858,7 +2858,7 @@
         ]
       }
     },
-    "/api/v1/crm/segments/{id}/contacts": {
+    "/v1/crm/segments/{id}/contacts": {
       "get": {
         "operationId": "CrmSegmentsController_listContacts",
         "parameters": [
@@ -2897,7 +2897,7 @@
         ]
       }
     },
-    "/api/v1/outreach/unsubscribe": {
+    "/v1/outreach/unsubscribe": {
       "get": {
         "operationId": "OutreachUnsubscribeController_unsubscribe",
         "parameters": [
@@ -2921,7 +2921,7 @@
         "security": []
       }
     },
-    "/api/v1/c/o/{token}.gif": {
+    "/v1/c/o/{token}.gif": {
       "get": {
         "operationId": "EmailOpensController_open",
         "parameters": [
@@ -2945,7 +2945,7 @@
         "security": []
       }
     },
-    "/api/v1/outreach/proposals": {
+    "/v1/outreach/proposals": {
       "get": {
         "operationId": "OutreachProposalsController_list",
         "parameters": [
@@ -3008,7 +3008,7 @@
         ]
       }
     },
-    "/api/v1/outreach/proposals/{id}": {
+    "/v1/outreach/proposals/{id}": {
       "get": {
         "operationId": "OutreachProposalsController_get",
         "parameters": [
@@ -3068,7 +3068,7 @@
         ]
       }
     },
-    "/api/v1/outreach/proposals/{id}/approve": {
+    "/v1/outreach/proposals/{id}/approve": {
       "post": {
         "operationId": "OutreachProposalsController_approve",
         "parameters": [
@@ -3099,7 +3099,7 @@
         ]
       }
     },
-    "/api/v1/outreach/proposals/{id}/dismiss": {
+    "/v1/outreach/proposals/{id}/dismiss": {
       "post": {
         "operationId": "OutreachProposalsController_dismiss",
         "parameters": [
@@ -3130,7 +3130,7 @@
         ]
       }
     },
-    "/api/v1/curation/jobs": {
+    "/v1/curation/jobs": {
       "get": {
         "operationId": "CuratorJobsController_list",
         "parameters": [
@@ -3189,7 +3189,7 @@
         ]
       }
     },
-    "/api/v1/curation/jobs/{id}": {
+    "/v1/curation/jobs/{id}": {
       "get": {
         "operationId": "CuratorJobsController_get",
         "parameters": [
@@ -3220,7 +3220,7 @@
         ]
       }
     },
-    "/api/v1/curation/jobs/claim": {
+    "/v1/curation/jobs/claim": {
       "post": {
         "operationId": "CuratorJobsController_claim",
         "parameters": [],
@@ -3242,7 +3242,7 @@
         ]
       }
     },
-    "/api/v1/curation/jobs/{id}/ack": {
+    "/v1/curation/jobs/{id}/ack": {
       "post": {
         "operationId": "CuratorJobsController_ack",
         "parameters": [
@@ -3273,7 +3273,7 @@
         ]
       }
     },
-    "/api/v1/curation/jobs/{id}/fail": {
+    "/v1/curation/jobs/{id}/fail": {
       "post": {
         "operationId": "CuratorJobsController_fail",
         "parameters": [
@@ -3304,7 +3304,7 @@
         ]
       }
     },
-    "/api/v1/kb/curation/candidates": {
+    "/v1/kb/curation/candidates": {
       "get": {
         "operationId": "KbCandidatesController_list",
         "parameters": [],
@@ -3326,7 +3326,7 @@
         ]
       }
     },
-    "/api/v1/kb/curation/candidates/{id}": {
+    "/v1/kb/curation/candidates/{id}": {
       "get": {
         "operationId": "KbCandidatesController_get",
         "parameters": [
@@ -3386,7 +3386,7 @@
         ]
       }
     },
-    "/api/v1/kb/curation/candidates/{id}/publish": {
+    "/v1/kb/curation/candidates/{id}/publish": {
       "post": {
         "operationId": "KbCandidatesController_publish",
         "parameters": [
@@ -3417,7 +3417,7 @@
         ]
       }
     },
-    "/api/v1/kb/curation/candidates/{id}/dismiss": {
+    "/v1/kb/curation/candidates/{id}/dismiss": {
       "post": {
         "operationId": "KbCandidatesController_dismiss",
         "parameters": [
@@ -3448,7 +3448,7 @@
         ]
       }
     },
-    "/api/v1/kb/spaces": {
+    "/v1/kb/spaces": {
       "get": {
         "operationId": "KbSpacesController_list",
         "parameters": [],
@@ -3470,7 +3470,7 @@
         ]
       }
     },
-    "/api/v1/widget/messages": {
+    "/v1/widget/messages": {
       "post": {
         "operationId": "WidgetController_ingest",
         "parameters": [],
@@ -3512,7 +3512,7 @@
         ]
       }
     },
-    "/api/v1/widget/conversations": {
+    "/v1/widget/conversations": {
       "get": {
         "operationId": "WidgetController_listConversations",
         "parameters": [],
@@ -3554,7 +3554,7 @@
         ]
       }
     },
-    "/api/v1/widget/visitor": {
+    "/v1/widget/visitor": {
       "patch": {
         "operationId": "WidgetController_setVisitor",
         "parameters": [],
@@ -3576,7 +3576,7 @@
         ]
       }
     },
-    "/api/v1/widget/voice/start": {
+    "/v1/widget/voice/start": {
       "post": {
         "operationId": "WidgetController_startVoice",
         "parameters": [],
@@ -3598,7 +3598,7 @@
         ]
       }
     },
-    "/api/v1/widget/voice/event": {
+    "/v1/widget/voice/event": {
       "post": {
         "operationId": "WidgetController_voiceEvent",
         "parameters": [],
@@ -3620,7 +3620,7 @@
         ]
       }
     },
-    "/api/v1/conversations/channels/{channelId}/webhook": {
+    "/v1/conversations/channels/{channelId}/webhook": {
       "post": {
         "operationId": "ChannelWebhookController_receive",
         "parameters": [
@@ -3674,7 +3674,7 @@
         "security": []
       }
     },
-    "/api/v1/oauth/clients/{clientId}": {
+    "/v1/oauth/clients/{clientId}": {
       "get": {
         "operationId": "OAuthClientInfoController_lookup",
         "parameters": [

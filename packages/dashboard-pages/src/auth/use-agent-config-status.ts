@@ -18,7 +18,7 @@ export function useAgentConfigStatus(): {
 
   useEffect(() => {
     let cancelled = false;
-    api<AgentConfigStatusDto>('/api/v1/agent-config')
+    api<AgentConfigStatusDto>('/v1/agent-config')
       .then((dto) => {
         if (cancelled) return;
         setConfigured(dto.providerApiKeySet);

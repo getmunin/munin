@@ -54,7 +54,7 @@ type DailyBigIntRow = {
   value: string;
 } & Record<string, unknown>;
 
-@Controller('api/v1/usage')
+@Controller('v1/usage')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class UsageStatsController {

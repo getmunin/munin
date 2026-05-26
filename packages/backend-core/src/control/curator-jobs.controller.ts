@@ -59,7 +59,7 @@ interface ClaimResponse {
   items: CuratorJobDto[];
 }
 
-@Controller('api/v1/curation/jobs')
+@Controller('v1/curation/jobs')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class CuratorJobsController {

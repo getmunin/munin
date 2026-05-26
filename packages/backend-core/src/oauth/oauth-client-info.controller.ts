@@ -28,7 +28,7 @@ interface OAuthClientInfo {
  * Anonymous on purpose — the consent page is rendered for any user
  * mid-authorization, before the OAuth flow has issued any credential.
  */
-@Controller('api/v1/oauth/clients')
+@Controller('v1/oauth/clients')
 export class OAuthClientInfoController {
   constructor(@Inject(DB) private readonly db: Db) {}
 

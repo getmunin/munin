@@ -21,7 +21,7 @@ const TRANSPARENT_GIF = Buffer.from(
 
 const BOT_UA = /\b(bot|crawler|spider|preview|linkcheck|monitor)\b/i;
 
-@Controller('api/v1/c/o')
+@Controller('v1/c/o')
 export class EmailOpensController {
   constructor(
     @Inject(DB) private readonly db: Db,

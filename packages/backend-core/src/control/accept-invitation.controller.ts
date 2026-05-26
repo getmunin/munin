@@ -66,7 +66,7 @@ class SessionOnlyGuard implements CanActivate {
  * org, so the regular AuthGuard + TenancyInterceptor pair would fail to
  * route them.
  */
-@Controller('api/v1/invitations')
+@Controller('v1/invitations')
 export class AcceptInvitationController {
   constructor(@Inject(InvitationsService) private readonly invites: InvitationsService) {}
 

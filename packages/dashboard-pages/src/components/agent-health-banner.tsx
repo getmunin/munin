@@ -32,7 +32,7 @@ export function AgentHealthBanner() {
 
   const fetchHealth = useCallback(async () => {
     try {
-      const dto = await api<AgentHealthDto>('/api/v1/agent-health');
+      const dto = await api<AgentHealthDto>('/v1/agent-health');
       if (!cancelledRef.current) setHealth(dto);
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) return;

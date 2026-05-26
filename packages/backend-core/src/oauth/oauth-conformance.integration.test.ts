@@ -37,12 +37,12 @@ const skipReason = TEST_URL
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
     baseUrl = `http://127.0.0.1:${address.port}`;
-    process.env.MUNIN_MCP_URL = `${baseUrl}/mcp`;
+    process.env.NEXT_PUBLIC_MCP_URL = `${baseUrl}/mcp`;
   });
 
   afterAll(async () => {
     if (app) await app.close();
-    delete process.env.MUNIN_MCP_URL;
+    delete process.env.NEXT_PUBLIC_MCP_URL;
   });
 
   describe('RFC 9728: Protected resource metadata', () => {
@@ -72,7 +72,7 @@ const skipReason = TEST_URL
     });
 
     it('does NOT emit the resource_metadata challenge for non-/mcp routes', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/whoami`);
+      const res = await fetch(`${baseUrl}/v1/whoami`);
       expect(res.status).toBe(401);
       const challenge = res.headers.get('www-authenticate') ?? '';
       expect(challenge).not.toContain('resource_metadata');

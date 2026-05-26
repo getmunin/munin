@@ -59,7 +59,7 @@ export function ApiKeysPage() {
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const list = await api<ApiKeySummary[]>('/api/v1/api-keys');
+    const list = await api<ApiKeySummary[]>('/v1/api-keys');
     setKeys(list);
   }, []);
 
@@ -73,7 +73,7 @@ export function ApiKeysPage() {
   async function revoke(id: string) {
     setRevokingId(id);
     try {
-      await api(`/api/v1/api-keys/${id}`, { method: 'DELETE' });
+      await api(`/v1/api-keys/${id}`, { method: 'DELETE' });
       await tryLoad();
       notify.success(t('revoked'));
     } catch (err) {
@@ -223,7 +223,7 @@ function MintKeyDialog({
     setCreating(true);
     setError(null);
     try {
-      const result = await api<CreatedApiKey>('/api/v1/api-keys', {
+      const result = await api<CreatedApiKey>('/v1/api-keys', {
         method: 'POST',
         body: JSON.stringify({ name: name.trim(), scopes: ['*'] }),
       });

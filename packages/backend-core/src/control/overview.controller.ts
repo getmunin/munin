@@ -21,7 +21,7 @@ export interface AgentStatus {
   lastAgentMessageAt: string | null;
 }
 
-@Controller('api/v1/overview')
+@Controller('v1/overview')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class OverviewController {

@@ -104,7 +104,7 @@ const skipReason = TEST_URL
   async function postWebhook(params: Record<string, string>, urlForSig: string): Promise<Response> {
     const body = new URLSearchParams(params);
     const signature = signRequest(urlForSig, params);
-    return fetch(`${baseUrl}/api/v1/conversations/channels/${channelId}/webhook`, {
+    return fetch(`${baseUrl}/v1/conversations/channels/${channelId}/webhook`, {
       method: 'POST',
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
@@ -117,7 +117,7 @@ const skipReason = TEST_URL
   }
 
   it('accepts a signed inbound SMS and creates a conv_messages row', async () => {
-    const url = `https://munin.example/api/v1/conversations/channels/${channelId}/webhook`;
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       AccountSid: ACCOUNT_SID,
       MessageSid: 'SM_inbound_0001',
@@ -150,7 +150,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects an invalid signature', async () => {
-    const url = `https://munin.example/api/v1/conversations/channels/${channelId}/webhook`;
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       AccountSid: ACCOUNT_SID,
       MessageSid: 'SM_inbound_bad',
@@ -158,7 +158,7 @@ const skipReason = TEST_URL
       To: FROM_NUMBER,
       Body: 'tampered',
     };
-    const res = await fetch(`${baseUrl}/api/v1/conversations/channels/${channelId}/webhook`, {
+    const res = await fetch(`${baseUrl}/v1/conversations/channels/${channelId}/webhook`, {
       method: 'POST',
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
@@ -182,7 +182,7 @@ const skipReason = TEST_URL
   });
 
   it('dedupes duplicate MessageSid', async () => {
-    const url = `https://munin.example/api/v1/conversations/channels/${channelId}/webhook`;
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       AccountSid: ACCOUNT_SID,
       MessageSid: 'SM_inbound_dedup',
@@ -236,7 +236,7 @@ const skipReason = TEST_URL
       nextAttemptAt: null,
     });
 
-    const url = `https://munin.example/api/v1/conversations/channels/${channelId}/webhook`;
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       AccountSid: ACCOUNT_SID,
       MessageSid: sidProvider,

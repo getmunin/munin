@@ -9,18 +9,6 @@ export interface McpSetup {
 
 const TOKEN_PLACEHOLDER = 'mn_live_••••••••';
 
-/**
- * Build the per-client config snippets for the dashboard's
- * "Connect MCP" section. Pass the actual MCP host URL — the dashboard
- * fetches it at runtime from `/.well-known/oauth-protected-resource`,
- * so self-host instances render `http://localhost:3001` (or whatever
- * `MUNIN_MCP_URL` is set to) and cloud renders `mcp.getmunin.com`
- * without a rebuild.
- *
- * `docsHost` is the public docs site (e.g. `https://docs.getmunin.com`
- * for prod, `https://docs.dev.getmunin.com` for dev). Defaults to the
- * cloud-prod URL when omitted.
- */
 export function buildMcpSetups(host: string, docsHost: string = DEFAULT_DOCS_HOST): McpSetup[] {
   const docs = docsHost.replace(/\/+$/, '');
   const docsBare = docs.replace(/^https?:\/\//, '');
@@ -40,8 +28,8 @@ export function buildMcpSetups(host: string, docsHost: string = DEFAULT_DOCS_HOS
     }
   }
 }`,
-      docsHref: `${docs}/mcp/claude`,
-      docsLabel: `${docsBare}/mcp/claude`,
+      docsHref: `${docs}/guides/connect-claude`,
+      docsLabel: `${docsBare}/guides/connect-claude`,
     },
     {
       id: 'chatgpt',
@@ -57,8 +45,8 @@ export function buildMcpSetups(host: string, docsHost: string = DEFAULT_DOCS_HOS
     "token": "${TOKEN_PLACEHOLDER}"
   }
 }`,
-      docsHref: `${docs}/mcp/chatgpt`,
-      docsLabel: `${docsBare}/mcp/chatgpt`,
+      docsHref: `${docs}/guides/connect-chatgpt`,
+      docsLabel: `${docsBare}/guides/connect-chatgpt`,
     },
     {
       id: 'gemini',
@@ -75,14 +63,13 @@ export function buildMcpSetups(host: string, docsHost: string = DEFAULT_DOCS_HOS
     }
   }
 }`,
-      docsHref: `${docs}/mcp/gemini`,
-      docsLabel: `${docsBare}/mcp/gemini`,
+      docsHref: `${docs}/guides/connect-gemini`,
+      docsLabel: `${docsBare}/guides/connect-gemini`,
     },
   ];
 }
 
-const DEFAULT_MCP_HOST = 'https://mcp.getmunin.com';
-const DEFAULT_DOCS_HOST = 'https://docs.getmunin.com';
+const DEFAULT_MCP_HOST = (process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
+const DEFAULT_DOCS_HOST = (process.env.NEXT_PUBLIC_DOCS_URL ?? 'http://localhost:3000/docs').replace(/\/+$/, '');
 
-/** Static fallback used before the runtime fetch resolves. */
 export const MCP_SETUPS: McpSetup[] = buildMcpSetups(DEFAULT_MCP_HOST, DEFAULT_DOCS_HOST);

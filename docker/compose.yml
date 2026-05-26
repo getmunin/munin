@@ -37,7 +37,8 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgres://${POSTGRES_USER:-munin}:${POSTGRES_PASSWORD:-munin}@postgres:5432/${POSTGRES_DB:-munin}
-      MUNIN_MCP_URL: ${MUNIN_MCP_URL:-http://localhost:3001}
+      NEXT_PUBLIC_MCP_URL: ${NEXT_PUBLIC_MCP_URL:-http://localhost:3001/mcp}
+      NEXT_PUBLIC_AUTH_URL: ${NEXT_PUBLIC_AUTH_URL:-http://localhost:3001}
       MUNIN_AUTH_SECRET: ${MUNIN_AUTH_SECRET:?set MUNIN_AUTH_SECRET in .env}
       MUNIN_CURATOR_KB_SWEEP_CRON: ${MUNIN_CURATOR_KB_SWEEP_CRON:-}
       MUNIN_CURATOR_CRM_HYGIENE_CRON: ${MUNIN_CURATOR_CRM_HYGIENE_CRON:-}
@@ -57,6 +58,9 @@ services:
       NODE_ENV: production
       PORT: 3000
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      NEXT_PUBLIC_MCP_URL: ${NEXT_PUBLIC_MCP_URL:-http://localhost:3001/mcp}
+      NEXT_PUBLIC_AUTH_URL: ${NEXT_PUBLIC_AUTH_URL:-http://localhost:3001}
+      NEXT_PUBLIC_DOCS_URL: ${NEXT_PUBLIC_DOCS_URL:-http://localhost:3000/docs}
     ports:
       - "${WEB_PORT:-3000}:3000"
 

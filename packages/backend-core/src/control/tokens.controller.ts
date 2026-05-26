@@ -28,7 +28,7 @@ interface TokenDto {
   createdAt: string;
 }
 
-@Controller('api/v1/tokens')
+@Controller('v1/tokens')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class TokensController {

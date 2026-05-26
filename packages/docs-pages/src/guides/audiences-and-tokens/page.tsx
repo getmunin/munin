@@ -77,7 +77,7 @@ export default function AudiencesAndTokens() {
         <dd>
           Short-lived delegated token (default TTL 30 min, max 24 h). Audience{' '}
           <code>self_service</code> by default. Minted server-side via{' '}
-          <code>POST /api/v1/tokens/delegated</code> with an admin key, bound to a specific{' '}
+          <code>POST /v1/tokens/delegated</code> with an admin key, bound to a specific{' '}
           <code>EndUser</code>. The agent runtime carries this as bearer when it calls MCP tools on
           a customer&rsquo;s behalf — voice calls, scheduled agents, anywhere outside the chat
           widget.

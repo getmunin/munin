@@ -115,7 +115,7 @@ interface ReceivedRequest {
   }
 
   it('emits + delivers a signed conversation.created event', async () => {
-    const create = await rest('POST', '/api/v1/webhooks', {
+    const create = await rest('POST', '/v1/webhooks', {
       url: receiverUrl,
       events: ['conversation.created', 'conversation.message.received'],
     });
@@ -186,7 +186,7 @@ interface ReceivedRequest {
   }, 30_000);
 
   it('retries on non-2xx and stops after MAX_ATTEMPTS', async () => {
-    const create = await rest('POST', '/api/v1/webhooks', {
+    const create = await rest('POST', '/v1/webhooks', {
       url: receiverUrl,
       events: ['failure.test'],
     });

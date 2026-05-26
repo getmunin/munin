@@ -1,6 +1,6 @@
 export interface GuideMeta {
   slug: string;
-  category: 'embeds' | 'concepts' | 'operations' | 'recipes';
+  category: 'clients' | 'embeds' | 'concepts' | 'operations' | 'recipes';
   title: string;
   kicker: string;
   minutes: number;
@@ -14,6 +14,7 @@ export const GUIDE_GROUPS: Array<{
   label: string;
   blurb: string;
 }> = [
+  { id: 'clients', label: 'Clients', blurb: 'Wire your favourite model to Munin over MCP.' },
   { id: 'embeds', label: 'Embeds', blurb: 'Drop-in surfaces you put on customer pages.' },
   { id: 'concepts', label: 'Concepts', blurb: 'The mental model. Read these before you wire anything up.' },
   { id: 'operations', label: 'Operations', blurb: 'Running Munin in production — observability, compliance, edges.' },
@@ -21,6 +22,33 @@ export const GUIDE_GROUPS: Array<{
 ];
 
 export const GUIDES: GuideMeta[] = [
+  {
+    slug: 'connect-claude',
+    category: 'clients',
+    title: 'Connect Claude',
+    kicker: 'Wire Claude Desktop and Claude.ai to your Munin org over MCP.',
+    minutes: 3,
+    updated: 'today',
+    tags: ['mcp', 'claude'],
+  },
+  {
+    slug: 'connect-chatgpt',
+    category: 'clients',
+    title: 'Connect ChatGPT',
+    kicker: 'Add Munin as a custom connector in ChatGPT.',
+    minutes: 3,
+    updated: 'today',
+    tags: ['mcp', 'chatgpt'],
+  },
+  {
+    slug: 'connect-gemini',
+    category: 'clients',
+    title: 'Connect Gemini',
+    kicker: 'Wire the Gemini CLI to your Munin org over MCP.',
+    minutes: 3,
+    updated: 'today',
+    tags: ['mcp', 'gemini'],
+  },
   {
     slug: 'chat-widget',
     category: 'embeds',

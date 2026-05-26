@@ -167,7 +167,7 @@ const skipReason = TEST_URL
     const startResp = await rest<{ id: string }>(
       endUserToken,
       'POST',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
       { body: 'Need help with my plan.' },
     );
     expect(startResp.status).toBe(201);
@@ -183,7 +183,7 @@ const skipReason = TEST_URL
     const list = await rest<{ items: Array<{ id: string; needsHumanAttention: boolean }> }>(
       adminKeyA,
       'GET',
-      '/api/v1/conversations',
+      '/v1/conversations',
     );
     expect(list.status).toBe(200);
     const flagged = list.body.items.find((c) => c.id === started.id);
@@ -196,7 +196,7 @@ const skipReason = TEST_URL
     }>(
       adminKeyA,
       'GET',
-      `/api/v1/conversations/${started.id}`,
+      `/v1/conversations/${started.id}`,
     );
     expect(detail.body.claim).toBeNull();
     expect(detail.body.channelType).toBe('chat');
@@ -204,7 +204,7 @@ const skipReason = TEST_URL
     const claim = await rest<{ holderType: string; holderId: string; expiresAt: string }>(
       adminKeyA,
       'POST',
-      `/api/v1/conversations/${started.id}/take-over`,
+      `/v1/conversations/${started.id}/take-over`,
       {},
     );
     expect(claim.status).toBe(200);
@@ -215,14 +215,14 @@ const skipReason = TEST_URL
     const detailWithClaim = await rest<{ claim: { holderId: string } | null }>(
       adminKeyA,
       'GET',
-      `/api/v1/conversations/${started.id}`,
+      `/v1/conversations/${started.id}`,
     );
     expect(detailWithClaim.body.claim).not.toBeNull();
 
     const endUserFollowUp = await rest<{ message?: string; error?: string }>(
       endUserToken,
       'POST',
-      `/api/v1/end-users/me/conversations/${started.id}/messages`,
+      `/v1/end-users/me/conversations/${started.id}/messages`,
       { body: 'still there?' },
     );
     expect(endUserFollowUp.status).toBe(201);
@@ -230,7 +230,7 @@ const skipReason = TEST_URL
     const humanReply = await rest<{ id: string }>(
       adminKeyA,
       'POST',
-      `/api/v1/conversations/${started.id}/messages`,
+      `/v1/conversations/${started.id}/messages`,
       { body: 'Switching you now.' },
     );
     expect(humanReply.status).toBe(201);
@@ -238,14 +238,14 @@ const skipReason = TEST_URL
     const afterReply = await rest<{ needsHumanAttention: boolean }>(
       adminKeyA,
       'GET',
-      `/api/v1/conversations/${started.id}`,
+      `/v1/conversations/${started.id}`,
     );
     expect(afterReply.body.needsHumanAttention).toBe(false);
 
     const released = await rest<{ released: boolean }>(
       adminKeyA,
       'POST',
-      `/api/v1/conversations/${started.id}/release`,
+      `/v1/conversations/${started.id}/release`,
       {},
     );
     expect(released.body.released).toBe(true);
@@ -255,7 +255,7 @@ const skipReason = TEST_URL
     const list = await rest<{ items: Array<{ id: string }> }>(
       adminKeyB,
       'GET',
-      '/api/v1/conversations',
+      '/v1/conversations',
     );
     expect(list.status).toBe(200);
     expect(list.body.items).toEqual([]);
@@ -263,7 +263,7 @@ const skipReason = TEST_URL
     const activity = await rest<{ items: Array<{ id: string; type: string }> }>(
       adminKeyB,
       'GET',
-      '/api/v1/activity',
+      '/v1/activity',
     );
     expect(activity.status).toBe(200);
     expect(activity.body.items).toEqual([]);
@@ -273,7 +273,7 @@ const skipReason = TEST_URL
     const activity = await rest<{ items: Array<{ type: string; payload: Record<string, unknown> }> }>(
       adminKeyA,
       'GET',
-      '/api/v1/activity?types=conversation.created,conversation.handover_requested',
+      '/v1/activity?types=conversation.created,conversation.handover_requested',
     );
     expect(activity.status).toBe(200);
     const types = activity.body.items.map((e) => e.type);

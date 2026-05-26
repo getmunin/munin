@@ -10,7 +10,7 @@ import { getCurrentContext } from '@getmunin/core';
 import { AuditInterceptor, AuthGuard, TenancyInterceptor } from '@getmunin/backend-core';
 import { AgentHealthService, type AgentHealthDto } from './agent-health.service.ts';
 
-@Controller('api/v1/agent-health')
+@Controller('v1/agent-health')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class AgentHealthController {

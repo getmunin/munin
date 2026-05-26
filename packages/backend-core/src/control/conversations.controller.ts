@@ -88,7 +88,7 @@ interface ConversationDetailResponse extends ConversationDetail {
   claim: { holderType: 'user' | 'agent'; holderId: string; expiresAt: string } | null;
 }
 
-@Controller('api/v1/conversations')
+@Controller('v1/conversations')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ConversationsController {

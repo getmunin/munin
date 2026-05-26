@@ -18,12 +18,14 @@ Munin is an open-source customer platform built for the agentic era (Knowledge B
 ## Two ways to run
 
 **Self-host** (this repo): single-tenant, invite-only.
+
 ```bash
 git clone https://github.com/getmunin/munin.git
 cd munin
 cp .env.example .env  # edit MUNIN_AUTH_SECRET + MUNIN_KEY_PEPPER + MUNIN_ENCRYPTION_KEY
 docker compose up
 ```
+
 The first user to sign up becomes the org admin; subsequent users need an invitation token or an email whose domain is in `MUNIN_ALLOWED_EMAIL_DOMAINS`.
 
 **Hosted** (https://getmunin.com): multi-tenant, one signup per org.
@@ -38,7 +40,7 @@ After `docker compose up`, the backend listens on `:3001` and the dashboard on `
 
 ```sh
 # REST control plane — direct, no OAuth
-curl -s http://localhost:3001/api/v1/kb/spaces \
+curl -s http://localhost:3001/v1/kb/spaces \
   -H "Authorization: Bearer mn_admin_..." | jq
 
 # MCP tool browser (recommended for poking at tools/skills)
@@ -111,7 +113,3 @@ TypeScript · Node 24 LTS · Turborepo · pnpm · NestJS · Next.js · Drizzle �
 ## License
 
 MIT. See [LICENSE](./LICENSE).
-
----
-
-This is alpha software in active development. APIs and schema may change.

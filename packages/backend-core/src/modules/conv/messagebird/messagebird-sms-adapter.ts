@@ -60,8 +60,8 @@ export class MessageBirdSmsAdapter implements ChannelAdapter {
     if (!token) throw new Error('messagebird_signature_missing');
     const url = reconstructWebhookUrl({
       headers: req.headers,
-      pathWithQuery: `/api/v1/conversations/channels/${channel.id}/webhook`,
-      fallbackBase: process.env.MUNIN_MCP_URL,
+      pathWithQuery: `/v1/conversations/channels/${channel.id}/webhook`,
+      fallbackBase: process.env.NEXT_PUBLIC_MCP_URL,
     });
     const verified = verifyMessageBirdJwt({
       signingKey,
@@ -158,7 +158,7 @@ function ensurePlus(msisdn: string): string {
 }
 
 function buildWebhookUrl(channelId: string): string | undefined {
-  const base = process.env.MUNIN_MCP_URL?.replace(/\/$/, '');
+  const base = process.env.NEXT_PUBLIC_MCP_URL?.replace(/\/$/, '');
   if (!base) return undefined;
-  return `${base}/api/v1/conversations/channels/${channelId}/webhook`;
+  return `${base}/v1/conversations/channels/${channelId}/webhook`;
 }

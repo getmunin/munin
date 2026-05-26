@@ -59,9 +59,9 @@ export interface TagGroup {
   endpoints: EndpointEntry[];
 }
 
-export function listEndpoints(): EndpointEntry[] {
+export function endpointsFromSpec(source: OpenApiDoc): EndpointEntry[] {
   const out: EndpointEntry[] = [];
-  for (const [path, item] of Object.entries(spec.paths)) {
+  for (const [path, item] of Object.entries(source.paths)) {
     if (!item) continue;
     for (const method of METHODS) {
       const op = item[method];
@@ -78,6 +78,10 @@ export function listEndpoints(): EndpointEntry[] {
     }
   }
   return out;
+}
+
+export function listEndpoints(): EndpointEntry[] {
+  return endpointsFromSpec(spec);
 }
 
 export function groupByTag(endpoints: EndpointEntry[]): TagGroup[] {
@@ -102,6 +106,14 @@ export function tagSlug(tag: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
+}
+
+export function prettifyTag(tag: string): string {
+  return tag
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim();
 }
 
 function slugifyOp(method: Method, path: string, opId?: string): string {

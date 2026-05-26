@@ -182,7 +182,7 @@ const skipReason = TEST_URL
 
   it('ingests a transcript and creates a conversation + contact + messages', async () => {
     const sessionId = 'vis_happy_path';
-    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
       visitor: { name: 'Vita', email: 'vita@example.com' },
@@ -223,23 +223,23 @@ const skipReason = TEST_URL
       sessionId,
       messages: [{ role: 'end_user', body: 'first', providerMessageId: 'idem_1' }],
     };
-    const first = await call('POST', '/api/v1/widget/messages', widgetKey, body);
+    const first = await call('POST', '/v1/widget/messages', widgetKey, body);
     expect(first.status).toBe(201);
     expect((first.json as { inserted: number }).inserted).toBe(1);
 
-    const second = await call('POST', '/api/v1/widget/messages', widgetKey, body);
+    const second = await call('POST', '/v1/widget/messages', widgetKey, body);
     expect(second.status).toBe(201);
     expect((second.json as { inserted: number; skipped: number }).inserted).toBe(0);
     expect((second.json as { skipped: number }).skipped).toBe(1);
   });
 
   it('separates conversations across sessionIds on the same channel', async () => {
-    const a = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const a = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_multi_a',
       messages: [{ role: 'end_user', body: 'session A' }],
     });
-    const b = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const b = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_multi_b',
       messages: [{ role: 'end_user', body: 'session B' }],
@@ -252,7 +252,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects a body whose channelId does not match the bound key', async () => {
-    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId: 'cch_nonexistent',
       sessionId: 'vis_mismatch',
       messages: [{ role: 'end_user', body: 'should be rejected' }],
@@ -261,7 +261,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects an admin key with no channel binding', async () => {
-    const res = await call('POST', '/api/v1/widget/messages', adminKey, {
+    const res = await call('POST', '/v1/widget/messages', adminKey, {
       channelId,
       sessionId: 'vis_admin_attempt',
       messages: [{ role: 'end_user', body: 'admin should not ingest' }],
@@ -270,7 +270,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects unauthenticated requests', async () => {
-    const res = await call('POST', '/api/v1/widget/messages', null, {
+    const res = await call('POST', '/v1/widget/messages', null, {
       channelId,
       sessionId: 'vis_no_auth',
       messages: [{ role: 'end_user', body: 'no key' }],
@@ -295,7 +295,7 @@ const skipReason = TEST_URL
     // server's connection pool can lag the rotate tx's commit by a tick.
     let staleStatus = 0;
     await waitFor(async () => {
-      const r = await call('POST', '/api/v1/widget/messages', oldKey, {
+      const r = await call('POST', '/v1/widget/messages', oldKey, {
         channelId,
         sessionId: 'vis_post_rotation',
         messages: [{ role: 'end_user', body: 'old key should fail' }],
@@ -306,7 +306,7 @@ const skipReason = TEST_URL
     expect(staleStatus).toBe(401);
 
     // New key works.
-    const fresh = await call('POST', '/api/v1/widget/messages', rotated.widgetKey, {
+    const fresh = await call('POST', '/v1/widget/messages', rotated.widgetKey, {
       channelId,
       sessionId: 'vis_post_rotation',
       messages: [{ role: 'end_user', body: 'new key should pass' }],
@@ -461,7 +461,7 @@ const skipReason = TEST_URL
     const userHash = signHmac(externalId, identityVerificationSecret);
     const res = await call(
       'POST',
-      '/api/v1/widget/messages',
+      '/v1/widget/messages',
       widgetKey,
       {
         channelId,
@@ -493,14 +493,14 @@ const skipReason = TEST_URL
     const externalId = 'user_multi_sess';
     const userHash = signHmac(externalId, identityVerificationSecret);
 
-    const r1 = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const r1 = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_multi_a',
       verifiedExternalId: externalId,
       userHash,
       messages: [{ role: 'end_user', body: 'hi from device A' }],
     });
-    const r2 = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const r2 = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_multi_b',
       verifiedExternalId: externalId,
@@ -522,7 +522,7 @@ const skipReason = TEST_URL
     const last = good[good.length - 1]!;
     const flipped = last === 'a' ? 'b' : 'a';
     const tampered = good.slice(0, -1) + flipped;
-    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_tampered',
       verifiedExternalId: externalId,
@@ -552,7 +552,7 @@ const skipReason = TEST_URL
     // Sign with channel-2 secret, send to channel-1.
     const externalId = 'user_replay';
     const cross = signHmac(externalId, second.identityVerificationSecret);
-    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_cross',
       verifiedExternalId: externalId,
@@ -563,7 +563,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects partial identity attributes (one without the other)', async () => {
-    const onlyExt = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const onlyExt = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_partial_a',
       verifiedExternalId: 'user_partial',
@@ -571,7 +571,7 @@ const skipReason = TEST_URL
     });
     expect(onlyExt.status).toBe(403);
 
-    const onlyHash = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const onlyHash = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_partial_b',
       userHash: '0'.repeat(64),
@@ -597,7 +597,7 @@ const skipReason = TEST_URL
       return c.requireVerifiedIdentity === true;
     });
     try {
-      const anon = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      const anon = await call('POST', '/v1/widget/messages', widgetKey, {
         channelId,
         sessionId: 'vis_required_anon',
         messages: [{ role: 'end_user', body: 'anon should fail' }],
@@ -606,7 +606,7 @@ const skipReason = TEST_URL
 
       const externalId = 'user_required';
       const userHash = signHmac(externalId, identityVerificationSecret);
-      const verified = await call('POST', '/api/v1/widget/messages', widgetKey, {
+      const verified = await call('POST', '/v1/widget/messages', widgetKey, {
         channelId,
         sessionId: 'vis_required_ok',
         verifiedExternalId: externalId,
@@ -636,7 +636,7 @@ const skipReason = TEST_URL
   it('rejects requests with a non-allowlisted Origin and accepts allowlisted ones', async () => {
     const denied = await call(
       'POST',
-      '/api/v1/widget/messages',
+      '/v1/widget/messages',
       widgetKey,
       {
         channelId,
@@ -649,7 +649,7 @@ const skipReason = TEST_URL
 
     const allowed = await call(
       'POST',
-      '/api/v1/widget/messages',
+      '/v1/widget/messages',
       widgetKey,
       {
         channelId,
@@ -661,7 +661,7 @@ const skipReason = TEST_URL
     expect(allowed.status).toBe(201);
 
     // No Origin (server-to-server) still passes the allowlist gate.
-    const noOrigin = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const noOrigin = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_origin_none',
       messages: [{ role: 'end_user', body: 'no origin' }],
@@ -671,7 +671,7 @@ const skipReason = TEST_URL
 
   it('lists messages ordered ascending and filters by since', async () => {
     const sessionId = 'vis_list_basic';
-    const t0 = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const t0 = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
       messages: [
@@ -684,7 +684,7 @@ const skipReason = TEST_URL
 
     const all = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId })}`,
       widgetKey,
     );
     expect(all.status).toBe(200);
@@ -702,7 +702,7 @@ const skipReason = TEST_URL
     const since = allBody.messages[0]!.at;
     const after = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId, since })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId, since })}`,
       widgetKey,
     );
     expect(after.status).toBe(200);
@@ -716,17 +716,17 @@ const skipReason = TEST_URL
       role: 'end_user' as const,
       body: `m${i}`,
     }));
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
       messages: batch,
     });
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
       messages: batch,
     });
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
       messages: [{ role: 'end_user', body: 'final' }],
@@ -734,7 +734,7 @@ const skipReason = TEST_URL
 
     const res = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId })}`,
       widgetKey,
     );
     expect(res.status).toBe(200);
@@ -746,19 +746,19 @@ const skipReason = TEST_URL
   it('isolates GET responses by sessionId', async () => {
     const a = 'vis_list_isolate_a';
     const b = 'vis_list_isolate_b';
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: a,
       messages: [{ role: 'end_user', body: 'a-only' }],
     });
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: b,
       messages: [{ role: 'end_user', body: 'b-only' }],
     });
     const resA = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId: a })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId: a })}`,
       widgetKey,
     );
     const bodyA = resA.json as { messages: Array<{ body: string }> };
@@ -772,7 +772,7 @@ const skipReason = TEST_URL
     const otherHash = signHmac(otherExt, identityVerificationSecret);
 
     // Bind the conversation/contact via verified ingest as user_other.
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
       verifiedExternalId: otherExt,
@@ -787,7 +787,7 @@ const skipReason = TEST_URL
     const requesterHash = signHmac(requesterExt, identityVerificationSecret);
     const res = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({
+      `/v1/widget/messages?${qs({
         channelId,
         sessionId,
         verifiedExternalId: requesterExt,
@@ -804,7 +804,7 @@ const skipReason = TEST_URL
     const sessionId = 'vis_list_identity_bad';
     const partial = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({
+      `/v1/widget/messages?${qs({
         channelId,
         sessionId,
         verifiedExternalId: 'user_x',
@@ -815,7 +815,7 @@ const skipReason = TEST_URL
 
     const tampered = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({
+      `/v1/widget/messages?${qs({
         channelId,
         sessionId,
         verifiedExternalId: 'user_x',
@@ -829,7 +829,7 @@ const skipReason = TEST_URL
   it('rejects GET with a non-allowlisted Origin', async () => {
     const res = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_origin_bad' })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_origin_bad' })}`,
       widgetKey,
       undefined,
       { Origin: 'https://attacker.example' },
@@ -851,7 +851,7 @@ const skipReason = TEST_URL
     });
     const res = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId: second.id, sessionId: 'vis_other' })}`,
+      `/v1/widget/messages?${qs({ channelId: second.id, sessionId: 'vis_other' })}`,
       widgetKey, // wrong key for that channel
     );
     expect(res.status).toBe(403);
@@ -860,27 +860,27 @@ const skipReason = TEST_URL
   it('rejects GET with no auth or with admin key', async () => {
     const noAuth = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_no_auth' })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_no_auth' })}`,
       null,
     );
     expect(noAuth.status).toBe(401);
     const admin = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_admin' })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId: 'vis_list_admin' })}`,
       adminKey,
     );
     expect(admin.status).toBe(403);
   });
 
   it('accepts an end_user body of exactly 1000 chars and rejects 1001', async () => {
-    const ok = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const ok = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_charcap_ok',
       messages: [{ role: 'end_user', body: 'a'.repeat(1000) }],
     });
     expect(ok.status).toBe(201);
 
-    const tooBig = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const tooBig = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_charcap_over',
       messages: [{ role: 'end_user', body: 'a'.repeat(1001) }],
@@ -890,7 +890,7 @@ const skipReason = TEST_URL
   });
 
   it('still accepts long agent bodies (operator-pushed messages keep the 50K cap)', async () => {
-    const res = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_charcap_agent',
       messages: [{ role: 'agent', body: 'b'.repeat(20_000) }],
@@ -899,7 +899,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects an end_user bodyHtml over 4000 chars', async () => {
-    const tooBig = await call('POST', '/api/v1/widget/messages', widgetKey, {
+    const tooBig = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_charcap_html',
       messages: [
@@ -914,14 +914,14 @@ const skipReason = TEST_URL
     const userHash = signHmac(externalId, identityVerificationSecret);
     const sidA = `vis_listconv_a_${Date.now()}`;
     const sidB = `vis_listconv_b_${Date.now()}`;
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: sidA,
       verifiedExternalId: externalId,
       userHash,
       messages: [{ role: 'end_user', body: 'first thread' }],
     });
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: sidB,
       verifiedExternalId: externalId,
@@ -931,7 +931,7 @@ const skipReason = TEST_URL
 
     const res = await call(
       'GET',
-      `/api/v1/widget/conversations?${qs({
+      `/v1/widget/conversations?${qs({
         channelId,
         verifiedExternalId: externalId,
         userHash,
@@ -947,7 +947,7 @@ const skipReason = TEST_URL
 
   it('lists conversations by anonymous sessionIds passed in the query', async () => {
     const sid = `vis_listconv_anon_${Date.now()}`;
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: sid,
       messages: [{ role: 'end_user', body: 'anonymous thread' }],
@@ -955,7 +955,7 @@ const skipReason = TEST_URL
 
     const res = await call(
       'GET',
-      `/api/v1/widget/conversations?${qs({ channelId, sessionIds: sid })}`,
+      `/v1/widget/conversations?${qs({ channelId, sessionIds: sid })}`,
       widgetKey,
     );
     expect(res.status).toBe(200);
@@ -966,7 +966,7 @@ const skipReason = TEST_URL
   it('returns empty when an anonymous caller passes no sessionIds', async () => {
     const res = await call(
       'GET',
-      `/api/v1/widget/conversations?${qs({ channelId })}`,
+      `/v1/widget/conversations?${qs({ channelId })}`,
       widgetKey,
     );
     expect(res.status).toBe(200);
@@ -975,13 +975,13 @@ const skipReason = TEST_URL
 
   it('patches the visitor email on the contact bound to the session', async () => {
     const sid = `vis_setemail_${Date.now()}`;
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: sid,
       messages: [{ role: 'end_user', body: 'pre-email' }],
     });
 
-    const res = await call('PATCH', '/api/v1/widget/visitor', widgetKey, {
+    const res = await call('PATCH', '/v1/widget/visitor', widgetKey, {
       channelId,
       sessionId: sid,
       email: 'set-mid-convo@example.com',
@@ -1004,7 +1004,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects PATCH /visitor with mismatched channelId', async () => {
-    const res = await call('PATCH', '/api/v1/widget/visitor', widgetKey, {
+    const res = await call('PATCH', '/v1/widget/visitor', widgetKey, {
       channelId: 'cch_nonexistent',
       sessionId: 'sid_x',
       email: 'x@example.com',
@@ -1014,7 +1014,7 @@ const skipReason = TEST_URL
 
   it('returns authorKind and authorName on listed agent messages', async () => {
     const sid = `vis_author_${Date.now()}`;
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: sid,
       messages: [
@@ -1024,7 +1024,7 @@ const skipReason = TEST_URL
     });
     const res = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
       widgetKey,
     );
     expect(res.status).toBe(200);
@@ -1049,7 +1049,7 @@ const skipReason = TEST_URL
       });
     try {
       const sid = `vis_assistant_${Date.now()}`;
-      await call('POST', '/api/v1/widget/messages', widgetKey, {
+      await call('POST', '/v1/widget/messages', widgetKey, {
         channelId,
         sessionId: sid,
         messages: [
@@ -1059,7 +1059,7 @@ const skipReason = TEST_URL
       });
       const res = await call(
         'GET',
-        `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+        `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
         widgetKey,
       );
       const body = res.json as {
@@ -1080,7 +1080,7 @@ const skipReason = TEST_URL
     const opId = op!.id;
     try {
       const sid = `vis_human_${Date.now()}`;
-      await call('POST', '/api/v1/widget/messages', widgetKey, {
+      await call('POST', '/v1/widget/messages', widgetKey, {
         channelId,
         sessionId: sid,
         messages: [{ role: 'end_user', body: 'hi' }],
@@ -1107,7 +1107,7 @@ const skipReason = TEST_URL
 
       const res = await call(
         'GET',
-        `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+        `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
         widgetKey,
       );
       const body = res.json as {
@@ -1125,7 +1125,7 @@ const skipReason = TEST_URL
 
   it('returns readAt on listed messages, null until a conv_message_reads row exists', async () => {
     const sid = `vis_read_${Date.now()}`;
-    await call('POST', '/api/v1/widget/messages', widgetKey, {
+    await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: sid,
       messages: [
@@ -1136,7 +1136,7 @@ const skipReason = TEST_URL
 
     const firstRes = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
       widgetKey,
     );
     const firstBody = firstRes.json as {
@@ -1168,7 +1168,7 @@ const skipReason = TEST_URL
 
     const secondRes = await call(
       'GET',
-      `/api/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
       widgetKey,
     );
     const secondBody = secondRes.json as {

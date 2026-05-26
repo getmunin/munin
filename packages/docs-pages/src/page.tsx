@@ -39,7 +39,7 @@ export default function DocsHome() {
             <li>{restCount} endpoints across conversations, CRM, KB, CMS, outreach, admin</li>
             <li>Bearer tokens, session cookies, or delegated end-user tokens</li>
             <li>
-              OpenAPI 3.1 spec at <code>/api/v1/openapi.json</code>
+              OpenAPI 3.1 spec at <code>/v1/openapi.json</code>
             </li>
           </ul>
           <span className="gs-go">Browse endpoints →</span>
@@ -122,10 +122,10 @@ export default function DocsHome() {
       </p>
       <div className="curl" style={{ marginTop: 0 }}>
         <div className="curl-h">
-          <span>cURL · GET /api/v1/whoami</span>
+          <span>cURL · GET /v1/whoami</span>
           <span style={{ color: 'var(--docs-mute)' }}>copy &amp; run</span>
         </div>
-        <pre>{`curl '${apiBase}/api/v1/whoami' \\
+        <pre>{`curl '${apiBase}/v1/whoami' \\
   -H 'Authorization: Bearer $MUNIN_API_KEY'`}</pre>
       </div>
 

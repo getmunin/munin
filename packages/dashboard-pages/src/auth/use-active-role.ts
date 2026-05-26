@@ -34,7 +34,7 @@ export function invalidateActiveMembershipCache(): void {
 
 function fetchActiveMembership(): Promise<ActiveMembership | null> {
   if (cache) return cache.promise;
-  const promise = api<MembershipDto[]>('/api/v1/me/memberships').then((rows) => {
+  const promise = api<MembershipDto[]>('/v1/me/memberships').then((rows) => {
     const active = rows.find((m) => m.isDefault) ?? rows[0] ?? null;
     if (!active || !isOrgRole(active.role)) {
       if (cache) cache.value = null;

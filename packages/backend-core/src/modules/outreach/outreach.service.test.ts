@@ -223,7 +223,7 @@ const skipReason = TEST_URL
       const msgRows = await db.execute<{ body: string }>(
         sql`SELECT body FROM conv_messages WHERE id = ${approved.sentMessageId!}`,
       );
-      expect(msgRows[0]!.body).toContain('Unsubscribe: https://test.local/api/v1/outreach/unsubscribe?token=');
+      expect(msgRows[0]!.body).toContain('Unsubscribe: https://test.local/v1/outreach/unsubscribe?token=');
 
       // An outbound delivery row was queued (email channel + agent author).
       const delivery = await db.execute<{ count: number }>(

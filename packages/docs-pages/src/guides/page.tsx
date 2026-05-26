@@ -36,8 +36,6 @@ export default function GuidesIndex() {
             <p className="feat-kick">{featured.kicker}</p>
             <div className="feat-meta">
               <span>{featured.minutes} min read</span>
-              <span>·</span>
-              <span>updated {featured.updated}</span>
               <span className="feat-go">Read the article →</span>
             </div>
           </div>

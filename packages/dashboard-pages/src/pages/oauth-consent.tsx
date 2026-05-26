@@ -93,7 +93,7 @@ export function OAuthConsentPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const info = await api<OAuthClientInfo>(`/api/v1/oauth/clients/${encodeURIComponent(clientId)}`);
+        const info = await api<OAuthClientInfo>(`/v1/oauth/clients/${encodeURIComponent(clientId)}`);
         if (!cancelled) setClientInfo(info);
       } catch {
         // 404 or other failure — fall back to displaying the client_id verbatim.

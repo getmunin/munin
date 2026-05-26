@@ -35,7 +35,7 @@ import {
 } from '../modules/conv/widget/widget-ingest.service.ts';
 import { WidgetChannelConfig } from '../modules/conv/widget/widget.types.ts';
 
-const PATH = '/api/v1/realtime';
+const PATH = '/v1/realtime';
 
 interface ClientMessage {
   type: 'subscribe' | 'unsubscribe' | 'ping' | 'typing' | 'read';

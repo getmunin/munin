@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { Link, usePathname } from '../i18n-navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { DocsSearch, type SearchIndex } from './search';
 
 export function DocsShell({
@@ -15,27 +15,39 @@ export function DocsShell({
   searchIndex: SearchIndex;
 }) {
   const pathname = usePathname();
-  const [drawer, setDrawer] = useState(false);
+  const section = sectionFromPath(pathname);
+  const stuckRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setDrawer(false);
-  }, [pathname]);
-
-  const section = sectionFromPath(pathname);
+    const el = stuckRef.current;
+    if (!el) return;
+    const update = () => {
+      document.documentElement.style.setProperty(
+        '--docs-stuck-h',
+        `${el.getBoundingClientRect().height}px`,
+      );
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   return (
-    <div className="docs" data-drawer={drawer ? 'open' : 'closed'}>
+    <div className="docs">
+      <div className="docs-stuck" ref={stuckRef}>
       <header className="docs-topbar">
-        <button className="menu-btn" onClick={() => setDrawer((d) => !d)} aria-label="Menu">
-          ☰
-        </button>
         <Link href="/" className="mark" aria-label="Munin">
           <Image src="/munin-logo.png" alt="Munin" width={28} height={28} priority />
         </Link>
         <div className="sep" aria-hidden />
         <div className="org-name">Munin developer portal</div>
         <div className="spacer" />
-        <Link className="docs-btn primary" href="/setup">
+        <Link className="docs-btn primary" href="/dashboard/settings/api-keys">
           Get a key →
         </Link>
       </header>
@@ -63,6 +75,7 @@ export function DocsShell({
         <div className="spacer" />
         <DocsSearch index={searchIndex} />
       </nav>
+      </div>
 
       <div className="docs-body">{children}</div>
     </div>

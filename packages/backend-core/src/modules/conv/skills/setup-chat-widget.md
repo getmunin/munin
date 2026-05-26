@@ -1,6 +1,6 @@
 ---
 title: Conv: Set up a chat widget
-description: Provision a per-channel widget API key, push transcripts via POST /api/v1/widget/messages, and wire the human-handoff webhook.
+description: Provision a per-channel widget API key, push transcripts via POST /v1/widget/messages, and wire the human-handoff webhook.
 audiences: [admin]
 ---
 
@@ -24,10 +24,10 @@ The widget key is bound to this channel via `api_keys.channel_id`. Rotate with `
 
 ## 2. Push transcripts from the agent
 
-`POST /api/v1/widget/messages` — server-to-server is the recommended integration so the key never reaches browser JS.
+`POST /v1/widget/messages` — server-to-server is the recommended integration so the key never reaches browser JS.
 
 ```bash
-curl -sS https://munin.example/api/v1/widget/messages \
+curl -sS https://munin.example/v1/widget/messages \
   -H "Authorization: Bearer $MUNIN_WIDGET_KEY" \
   -H "Content-Type: application/json" \
   -d '{

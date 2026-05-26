@@ -72,7 +72,7 @@ export function ActivityPage() {
   }, []);
 
   const fetchInitial = useCallback(async () => {
-    const page = await api<ActivityPageResponse>(`/api/v1/activity?limit=${MAX_ITEMS}`);
+    const page = await api<ActivityPageResponse>(`/v1/activity?limit=${MAX_ITEMS}`);
     const cutoff = Date.now() - WINDOW_MS;
     const fresh = page.items
       .filter((e) => new Date(e.createdAt).getTime() >= cutoff)

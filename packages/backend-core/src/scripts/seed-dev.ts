@@ -42,7 +42,7 @@ async function main() {
   console.log('  ✓ Created admin key: ', rawKey);
   console.log('');
   console.log('  Try it out:');
-  console.log(`    curl -H "Authorization: Bearer ${rawKey}" http://localhost:3001/api/v1/whoami`);
+  console.log(`    curl -H "Authorization: Bearer ${rawKey}" http://localhost:3001/v1/whoami`);
   console.log('');
 
   process.exit(0);

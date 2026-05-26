@@ -539,7 +539,7 @@ function trackerUrlFor(
       orgId: ctx.channel.orgId,
       deliveryId: ctx.delivery.id,
     });
-    return `${readPublicBaseUrl()}/api/v1/c/o/${token}.gif`;
+    return `${readPublicBaseUrl()}/v1/c/o/${token}.gif`;
   } catch {
     return undefined;
   }

@@ -2,8 +2,8 @@ import type { WidgetVisitor } from './config.ts';
 
 /**
  * Thin REST client for the widget's two endpoints:
- *   POST /api/v1/widget/messages   — visitor sends a message
- *   GET  /api/v1/widget/messages   — one-shot reconnect backfill
+ *   POST /v1/widget/messages   — visitor sends a message
+ *   GET  /v1/widget/messages   — one-shot reconnect backfill
  *
  * The client is **not** a polling primitive. The realtime client calls
  * `backfillSince()` exactly once per (re)connect; live updates flow over
@@ -118,7 +118,7 @@ export interface ApiClient {
 
 export function createApiClient(deps: ApiClientDeps): ApiClient {
   const fetchImpl = deps.fetchImpl ?? globalThis.fetch.bind(globalThis);
-  const base = `${deps.host}/api/v1/widget`;
+  const base = `${deps.host}/v1/widget`;
   const messagesUrl = `${base}/messages`;
   const conversationsUrl = `${base}/conversations`;
   const visitorUrl = `${base}/visitor`;

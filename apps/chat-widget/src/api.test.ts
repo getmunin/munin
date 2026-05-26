@@ -26,7 +26,7 @@ function mockFetch(
 }
 
 describe('api: postMessage', () => {
-  it('POSTs to /api/v1/widget/messages with channelId, sessionId, end_user role', async () => {
+  it('POSTs to /v1/widget/messages with channelId, sessionId, end_user role', async () => {
     const { fetchImpl, calls } = mockFetch(() => ({
       status: 201,
       body: {
@@ -47,7 +47,7 @@ describe('api: postMessage', () => {
     const res = await client.postMessage('hello');
     expect(res.conversationId).toBe('cnv_1');
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe('https://munin.example/api/v1/widget/messages');
+    expect(calls[0]!.url).toBe('https://munin.example/v1/widget/messages');
     expect(calls[0]!.init.method).toBe('POST');
     const body = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
     expect(body).toMatchObject({
@@ -142,7 +142,7 @@ describe('api: postMessage', () => {
       fetchImpl,
     });
     await client.postMessage('x');
-    expect(calls[0]!.url).toBe('https://munin.example/api/v1/widget/messages');
+    expect(calls[0]!.url).toBe('https://munin.example/v1/widget/messages');
   });
 });
 

@@ -94,7 +94,7 @@ describe('realtime: connection lifecycle', () => {
     client.connect();
     expect(states).toEqual(['connecting']);
     const ws = MockWebSocket.instances.at(-1)!;
-    expect(ws.url).toBe('wss://munin.example/api/v1/realtime');
+    expect(ws.url).toBe('wss://munin.example/v1/realtime');
     expect(ws.protocols).toEqual(['bearer', 'mn_widget_abc']);
     ws.fakeOpen();
     expect(states).toEqual(['connecting', 'connected']);

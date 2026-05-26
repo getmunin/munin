@@ -18,7 +18,7 @@ interface PublicMcpToolDetail extends PublicMcpToolListItem {
   inputSchema: object;
 }
 
-@Controller('api/v1/public/mcp-tools')
+@Controller('v1/public/mcp-tools')
 @AllowAnonymous()
 @UseGuards(ThrottlerGuard)
 export class PublicMcpToolsController {

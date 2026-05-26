@@ -33,7 +33,7 @@ interface MergeProposalListResponse {
   items: MergeProposalDto[];
 }
 
-@Controller('api/v1/crm/merge-proposals')
+@Controller('v1/crm/merge-proposals')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class CrmMergeProposalsController {

@@ -16,7 +16,7 @@ interface PublicSkillDetail extends PublicSkillListItem {
   mimeType: string;
 }
 
-@Controller('api/v1/public/skills')
+@Controller('v1/public/skills')
 @AllowAnonymous()
 @UseGuards(ThrottlerGuard)
 export class PublicSkillsController {

@@ -35,7 +35,7 @@ export function AccountPage({ extraSections }: AccountPageProps) {
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    const data = await api<OrgDto>('/api/v1/orgs/me');
+    const data = await api<OrgDto>('/v1/orgs/me');
     setOrg(data);
     setName(data.name);
   }, []);
@@ -56,7 +56,7 @@ export function AccountPage({ extraSections }: AccountPageProps) {
     setSaving(true);
     setError(null);
     try {
-      const updated = await api<OrgDto>('/api/v1/orgs/me', {
+      const updated = await api<OrgDto>('/v1/orgs/me', {
         method: 'PATCH',
         body: JSON.stringify({ name: trimmed }),
       });

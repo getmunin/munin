@@ -930,7 +930,7 @@
       "status": {
         "label": "Website import",
         "running": "Reading your site — this usually takes under a minute. You can leave this page; we'll keep going in the background.",
-        "done": "Done. Open the knowledge base to see what was imported.",
+        "done": "Done. Your site is in the knowledge base — agents can search and cite it.",
         "failed": "We couldn't finish the import. Open Settings → Curator jobs for details, or add documents manually.",
         "stillRunning": "Still working. It's taking longer than usual; check back in a minute."
       }

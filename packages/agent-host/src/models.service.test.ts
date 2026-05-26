@@ -11,7 +11,6 @@ const baseRow: AgentConfigRow = {
   maxHistoryChars: 32_000,
   maxToolIterations: 8,
   debounceMs: 500,
-  adminApiKeyId: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -26,7 +25,6 @@ function makeRepo(overrides: { apiKey?: string | null; row?: AgentConfigRow } = 
     update: vi.fn().mockResolvedValue(row),
     listProvisionedIds: vi.fn().mockResolvedValue([]),
     readDecryptedProviderKey: vi.fn().mockResolvedValue(apiKey),
-    readDecryptedAdminKey: vi.fn().mockResolvedValue(null),
   };
 }
 

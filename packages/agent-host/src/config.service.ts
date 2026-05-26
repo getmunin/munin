@@ -1,12 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { WebhookDispatcher } from '@getmunin/core';
-import { AGENT_CONFIG_REPOSITORY, ADMIN_KEY_PROVIDER } from './injection-tokens.js';
+import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.js';
 import type {
   AgentConfigPatch,
   AgentConfigRepository,
   AgentConfigRow,
 } from './config.repository.js';
-import type { AdminKeyProvider } from './admin-key-provider.js';
 import { validateProviderCredentials } from './provider-auth.js';
 
 export interface AgentConfigDto {
@@ -26,7 +25,6 @@ export interface AgentConfigDto {
 export class AgentConfigService {
   constructor(
     @Inject(AGENT_CONFIG_REPOSITORY) private readonly repo: AgentConfigRepository,
-    @Inject(ADMIN_KEY_PROVIDER) private readonly adminKey: AdminKeyProvider,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
   ) {}
 
@@ -50,15 +48,6 @@ export class AgentConfigService {
     }
 
     const after = await this.repo.update(id, input);
-
-    const wasProvisioned = before.providerApiKeySet;
-    const isProvisioned = after.providerApiKeySet;
-
-    if (isProvisioned && !before.adminApiKeyId) {
-      await this.adminKey.mint(id);
-    } else if (wasProvisioned && !isProvisioned && before.adminApiKeyId) {
-      await this.adminKey.revoke(id, before.adminApiKeyId);
-    }
 
     await this.webhooks.emit({
       type: 'agent.config.updated',

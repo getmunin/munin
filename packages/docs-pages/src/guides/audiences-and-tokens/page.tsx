@@ -15,7 +15,7 @@ export default function AudiencesAndTokens() {
     <div className="guide-detail">
       <div className="breadcrumb">
         <Link href="/docs/guides">← All guides</Link>
-        <span className="crumb-sep">/</span>
+        <span className="crumb-sep">{' / '}</span>
         <span>Concepts</span>
       </div>
       <header className="docs-hero">

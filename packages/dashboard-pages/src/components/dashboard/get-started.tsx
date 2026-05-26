@@ -5,13 +5,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn, Eyebrow } from '@getmunin/ui';
 import { buildMcpSetups, MCP_SETUPS, type McpSetup } from '../../data/mcp-setups';
-import { RECIPES, type Recipe } from '../../data/recipes';
-import { RecipeDrawer } from './recipe-drawer';
+import { RECIPES } from '../../data/recipes';
 
 export function GetStarted() {
   const t = useTranslations('dashboard.getStarted');
   const [activeId, setActiveId] = useState<McpSetup['id']>('claude');
-  const [openRecipe, setOpenRecipe] = useState<Recipe | null>(null);
   const [copied, setCopied] = useState(false);
   const [mcpHost, setMcpHost] = useState<string | null>(null);
 
@@ -162,40 +160,33 @@ export function GetStarted() {
 
           <ul className="list-none m-0 p-0 border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
             {RECIPES.map((r) => (
-              <li
-                key={r.id}
-                tabIndex={0}
-                role="button"
-                onClick={() => setOpenRecipe(r)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setOpenRecipe(r);
-                  }
-                }}
-                className="grid grid-cols-[1fr_auto] gap-5 items-center px-1.5 py-3.5 border-b-[0.5px] border-rule-soft cursor-pointer transition-[padding,background] duration-fast ease-munin hover:bg-paper-deep hover:pl-3 focus:outline-none focus:bg-paper-deep dark:border-rule-on-dark dark:hover:bg-secondary dark:focus:bg-secondary"
-              >
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-ink dark:text-foreground">{r.name}</div>
-                  <div className="text-[13px] text-ink-soft mt-0.5 leading-[1.45] dark:text-foreground/75">
-                    {r.summary}
+              <li key={r.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+                <a
+                  href={`/docs/guides/recipe-${r.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="no-underline text-inherit grid grid-cols-[1fr_auto] gap-5 items-center px-1.5 py-3.5 transition-[padding,background] duration-fast ease-munin hover:bg-paper-deep hover:pl-3 focus:outline-none focus:bg-paper-deep dark:hover:bg-secondary dark:focus:bg-secondary"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-ink dark:text-foreground">{r.name}</div>
+                    <div className="text-[13px] text-ink-soft mt-0.5 leading-[1.45] dark:text-foreground/75">
+                      {r.summary}
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-end gap-1 whitespace-nowrap">
-                  <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
-                    {r.cadence}
-                  </span>
-                  <span className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
-                    {t('viewPrompt')}
-                  </span>
-                </div>
+                  <div className="flex flex-col items-end gap-1 whitespace-nowrap">
+                    <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+                      {r.cadence}
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+                      {t('viewPrompt')}
+                    </span>
+                  </div>
+                </a>
               </li>
             ))}
           </ul>
         </div>
       </div>
-
-      <RecipeDrawer recipe={openRecipe} onClose={() => setOpenRecipe(null)} />
     </section>
   );
 }

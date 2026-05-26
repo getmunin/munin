@@ -9,6 +9,8 @@ import {
 import { AgentConfigService } from './config.service.js';
 import { AgentConfigController } from './config.controller.js';
 import { AgentModelsService } from './models.service.js';
+import { AgentHealthService } from './agent-health.service.js';
+import { AgentHealthController } from './agent-health.controller.js';
 import { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.js';
 import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.js';
 import type { AgentConfigRepository } from './config.repository.js';
@@ -43,12 +45,14 @@ export class AgentHostModule {
         options.configRepository,
         AgentConfigService,
         AgentModelsService,
+        AgentHealthService,
         AgentHostRunner,
       ],
-      controllers: [AgentConfigController],
+      controllers: [AgentConfigController, AgentHealthController],
       exports: [
         AgentConfigService,
         AgentModelsService,
+        AgentHealthService,
         AGENT_CONFIG_REPOSITORY,
         AGENT_HOST_DB,
       ],

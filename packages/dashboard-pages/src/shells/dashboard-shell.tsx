@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { PageSpinner } from '@getmunin/ui';
 import { authClient } from '../auth-client';
 import { useDashboardGate } from '../auth/use-dashboard-gate';
+import { AgentHealthBanner } from '../components/agent-health-banner';
 import { ConfirmDialogProvider } from '../components/confirm-dialog';
 import { DashboardTopbar } from '../components/munin-topbar';
 import { usePathname } from '../i18n-navigation';
@@ -37,6 +38,7 @@ export function DashboardShell({
 
   const content = (
     <div className="flex min-h-screen flex-col bg-bone dark:bg-background">
+      <AgentHealthBanner />
       {!inSettings && (
         <DashboardTopbar
           brand={brand}

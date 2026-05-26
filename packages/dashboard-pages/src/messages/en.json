@@ -131,8 +131,17 @@
     "organization": "Organization"
   },
   "dashboard": {
-    "connectionBanner": {
-      "offline": "Connection lost. Reconnecting…"
+    "runnerStatusBanner": {
+      "disconnectedTag": "Disconnected",
+      "disconnectedMessage": "Connection lost. Reconnecting…",
+      "agentOfflineTag": "Agent runner offline",
+      "agentOfflineMessage": "The in-process agent runner can't reach its AI provider — <em>{reason}</em>. Drafts and auto-replies are paused until credentials are restored.",
+      "openAiSettings": "Open AI settings →",
+      "providerErrorAuth": "API key missing or invalid",
+      "providerErrorRegional": "provider region not enabled — check provider account or change provider",
+      "providerErrorRateLimit": "provider rate limit hit — likely a plan or billing issue",
+      "providerErrorModelNotFound": "selected model not available — pick a different model",
+      "providerUnavailable": "provider unavailable"
     },
     "saveFailed": {
       "title": "Save failed",

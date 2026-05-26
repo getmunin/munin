@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { auditConversation, type AuditAction, type AuditTopic } from './audit.js';
+import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.js';
 import { runAgent } from './runtime.js';
 import type {
   ConversationMessage,
@@ -45,6 +46,8 @@ export interface ConversationHandlerDeps {
   };
   provider?: Provider;
   onTyping?: (conversationId: string, isTyping: boolean) => void;
+  onProviderError?: (code: ProviderErrorCode, message: string) => void;
+  onProviderSuccess?: () => void;
 }
 
 export interface IncomingMessage {
@@ -215,6 +218,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const systemPrompt = `${namePreamble}${systemBody}`;
 
     let lastError: Error | null = null;
+    let providerErrorCode: ProviderErrorCode | null = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
       if (signal.aborted) return;
       const mcp = await deps.openMcp({ endUserId });
@@ -238,6 +242,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         });
 
         if (reply.body.trim().length > 0) {
+          deps.onProviderSuccess?.();
           const llmHandoverCall = reply.toolCalls.find((t) => t.name === HANDOVER_TOOL_NAME);
           const llmHandoverReason =
             (llmHandoverCall?.args as { reason?: string } | undefined)?.reason;
@@ -276,6 +281,18 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       } catch (err) {
         if (signal.aborted) return;
         lastError = err instanceof Error ? err : new Error(String(err));
+        const classified = classifyProviderError(err);
+        if (classified.status !== undefined) {
+          deps.onProviderError?.(classified.code, classified.message);
+          if (classified.code === 'provider_auth' || classified.code === 'provider_regional') {
+            providerErrorCode = classified.code;
+            log.warn(
+              `${conversationId} fast-failing on ${classified.code}: ${classified.message}`,
+            );
+            await mcp.close().catch(() => undefined);
+            break;
+          }
+        }
         log.warn(`${conversationId} attempt ${attempt + 1} failed: ${lastError.message}`);
       } finally {
         await mcp.close().catch(() => undefined);
@@ -291,9 +308,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       }
     }
 
-    log.error(
-      `${conversationId} exhausted retries (${lastError?.message ?? 'unknown'}); requesting human handover`,
-    );
+    const reason = providerErrorCode
+      ? `provider unavailable (${providerErrorCode})`
+      : `agent retries exhausted (${lastError?.message ?? 'unknown'})`;
+    log.error(`${conversationId} handover: ${reason}`);
     await requestHandover(conversationId, endUserId).catch((err) => {
       log.error(
         `${conversationId} handover request failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -409,9 +427,6 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         conversationId,
         reason: 'agent retries exhausted',
       });
-      await deps.rest
-        .postInternalNote(conversationId, 'Agent requested handover: agent retries exhausted')
-        .catch(() => undefined);
     } finally {
       await mcp.close().catch(() => undefined);
     }

@@ -1,4 +1,5 @@
 import { assistantNamePreamble } from './conversation-handler.js';
+import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.js';
 import { runAgent } from './runtime.js';
 import type { McpTool, McpToolHandle, McpToolResult, Provider } from './types.js';
 
@@ -41,8 +42,11 @@ export type SkillPassResult =
         | 'no_provider_key'
         | 'skill_missing'
         | 'mcp_connect_failed'
-        | 'agent_error';
+        | 'agent_error'
+        | 'provider_error';
       error?: string;
+      code?: ProviderErrorCode;
+      failedStep?: string;
     };
 
 export async function runSkillPass(opts: SkillPassOptions): Promise<SkillPassResult> {
@@ -99,9 +103,18 @@ export async function runSkillPass(opts: SkillPassOptions): Promise<SkillPassRes
       replyText: reply.body,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    log.error(`runAgent failed: ${message}`);
-    return { ok: false, skipped: 'agent_error', error: message };
+    const classified = classifyProviderError(err);
+    log.error(`runAgent failed: ${classified.message}`);
+    if (classified.status !== undefined) {
+      return {
+        ok: false,
+        skipped: 'provider_error',
+        code: classified.code,
+        error: classified.message,
+        failedStep: 'run_agent',
+      };
+    }
+    return { ok: false, skipped: 'agent_error', error: classified.message };
   }
 }
 

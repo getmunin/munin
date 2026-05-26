@@ -47,6 +47,8 @@ const AckBody = z.object({
 const FailBody = z.object({
   error: z.string().min(1).max(4000),
   retryable: z.boolean().optional(),
+  code: z.string().min(1).max(64).optional(),
+  failedStep: z.string().min(1).max(64).optional(),
 });
 
 interface JobListResponse {

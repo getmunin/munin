@@ -77,14 +77,52 @@ export const openAiCompatibleProvider: Provider = async ({
   };
 };
 
+export type ProviderErrorCode =
+  | 'provider_auth'
+  | 'provider_regional'
+  | 'provider_rate_limit'
+  | 'provider_model_not_found'
+  | 'provider_other';
+
 export class ProviderError extends Error {
   override readonly name = 'ProviderError';
+  readonly code: ProviderErrorCode;
   constructor(
     message: string,
     public readonly status: number,
   ) {
     super(message);
+    this.code = classifyByStatus(status, message);
   }
+}
+
+function classifyByStatus(status: number, message: string): ProviderErrorCode {
+  if (status === 401) return 'provider_auth';
+  if (status === 403) {
+    if (/region|regional/i.test(message)) return 'provider_regional';
+    return 'provider_auth';
+  }
+  if (status === 429) return 'provider_rate_limit';
+  if (status === 404 && /not[_ ]?found|model/i.test(message)) {
+    return 'provider_model_not_found';
+  }
+  return 'provider_other';
+}
+
+export interface ProviderErrorClassification {
+  code: ProviderErrorCode;
+  message: string;
+  status?: number;
+}
+
+export function classifyProviderError(err: unknown): ProviderErrorClassification {
+  if (err instanceof ProviderError) {
+    return { code: err.code, message: err.message, status: err.status };
+  }
+  if (err instanceof Error) {
+    return { code: 'provider_other', message: err.message };
+  }
+  return { code: 'provider_other', message: String(err) };
 }
 
 export function shouldEnablePromptCache(config: {

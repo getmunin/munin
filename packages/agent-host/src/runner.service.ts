@@ -10,6 +10,7 @@ import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '@getmunin/db';
 import {
+  InProcessMuninRestClientFactoryService,
   McpRegistryService,
   McpSkillRegistryService,
   RealtimeEventBus,
@@ -25,7 +26,6 @@ import {
 } from '@getmunin/backend-core';
 import {
   createConversationHandler,
-  createMuninRestClient,
   createPromptResolver,
   runSkillPass,
   type ConversationHandler,
@@ -68,8 +68,6 @@ const CURATOR_LEASE_SECONDS = 600;
 const CURATOR_MAX_SCHEDULED_DELAY_MS = 24 * 60 * 60 * 1000;
 
 export interface AgentHostRunnerOptions {
-  baseUrl?: string;
-  fallbackAdminApiKey?: string;
   databaseUrl?: string;
 }
 
@@ -94,8 +92,6 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   private readonly failedSpawns = new Map<string, { error: string; loggedAt: number }>();
   private reconcileTimer: NodeJS.Timeout | null = null;
   private stopped = false;
-  private readonly baseUrl: string;
-  private readonly fallbackAdminApiKey: string | undefined;
   private readonly holderId: string;
   private readonly lockManager: ReplicaLockManager | null;
 
@@ -105,10 +101,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     @Inject(McpRegistryService) private readonly mcpRegistry: McpRegistryService,
     @Inject(McpSkillRegistryService) private readonly mcpSkills: McpSkillRegistryService,
     @Inject(RealtimeEventBus) private readonly eventBus: RealtimeEventBus,
+    @Inject(InProcessMuninRestClientFactoryService)
+    private readonly restClientFactory: InProcessMuninRestClientFactoryService,
     @Optional() @Inject('AGENT_HOST_RUNNER_OPTIONS') options?: AgentHostRunnerOptions,
   ) {
-    this.baseUrl = options?.baseUrl ?? process.env.MUNIN_BASE_URL ?? 'http://localhost:3001';
-    this.fallbackAdminApiKey = options?.fallbackAdminApiKey ?? process.env.MUNIN_ADMIN_API_KEY;
     this.holderId =
       process.env.MUNIN_AGENT_HOLDER_ID ??
       `agent-host-${hostname()}-${randomUUID().slice(0, 8)}`;
@@ -261,24 +257,16 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   private async spawnRunner(id: string): Promise<PerConfigRunner | null> {
     const config = await runWithServiceContext(this.db, id, () => this.repo.read(id));
     const orgId = await runWithServiceContext(this.db, id, () => this.repo.resolveOrgId(id));
-    const adminApiKey =
-      (await runWithServiceContext(this.db, id, () =>
-        this.repo.readDecryptedAdminKey(id),
-      )) ?? this.fallbackAdminApiKey;
     const providerApiKey = await runWithServiceContext(this.db, id, () =>
       this.repo.readDecryptedProviderKey(id),
     );
 
-    if (!adminApiKey) {
-      this.logger.warn(`${id}: enabled but no admin API key (configure or set MUNIN_ADMIN_API_KEY)`);
-      return null;
-    }
     if (!providerApiKey) {
       this.logger.warn(`${id}: enabled but no LLM provider API key`);
       return null;
     }
 
-    const rest = createMuninRestClient({ baseUrl: this.baseUrl, adminApiKey });
+    const rest = this.restClientFactory.forOrg(orgId);
 
     const adminMcp = openAdminAgentMcpClient({
       db: this.db,

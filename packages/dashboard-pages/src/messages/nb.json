@@ -930,7 +930,7 @@
       "status": {
         "label": "Nettsted-import",
         "running": "Leser nettstedet ditt — dette tar vanligvis under ett minutt. Du kan forlate siden; vi fortsetter i bakgrunnen.",
-        "done": "Ferdig. Åpne kunnskapsbasen for å se hva som ble importert.",
+        "done": "Ferdig. Nettstedet ditt ligger i kunnskapsbasen — agentene kan søke og sitere fra det.",
         "failed": "Vi klarte ikke å fullføre importen. Åpne Innstillinger → Kurator-jobber for detaljer, eller legg til dokumenter manuelt.",
         "stillRunning": "Jobber fortsatt. Det tar lenger enn vanlig; sjekk innom om et minutt."
       }

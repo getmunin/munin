@@ -14,11 +14,7 @@ export type {
 export { SingletonConfigRepository } from './singleton-config.repository.js';
 export { PerOrgConfigRepository } from './per-org-config.repository.js';
 
-export {
-  AGENT_CONFIG_REPOSITORY,
-  ADMIN_KEY_PROVIDER,
-  AGENT_HOST_DB,
-} from './injection-tokens.js';
+export { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.js';
 
 export { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.js';
 export { runWithServiceContext } from './service-context.js';
@@ -32,6 +28,3 @@ export {
   type ListModelsResult,
   type ModelEntry,
 } from './models.service.js';
-
-export { type AdminKeyProvider, NoopAdminKeyProvider } from './admin-key-provider.js';
-export { AutoMintAdminKeyProvider } from './auto-mint-admin-key-provider.js';

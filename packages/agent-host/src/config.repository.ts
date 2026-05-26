@@ -7,7 +7,6 @@ export interface AgentConfigRow {
   maxHistoryChars: number;
   maxToolIterations: number;
   debounceMs: number;
-  adminApiKeyId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,5 +28,4 @@ export interface AgentConfigRepository {
   update(id: string, patch: AgentConfigPatch): Promise<AgentConfigRow>;
   listProvisionedIds(): Promise<string[]>;
   readDecryptedProviderKey(id: string): Promise<string | null>;
-  readDecryptedAdminKey(id: string): Promise<string | null>;
 }

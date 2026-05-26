@@ -1,20 +1,20 @@
 import { DynamicModule, Module, Provider, Type } from '@nestjs/common';
-import { DB, DbModule, McpModule, RealtimeModule } from '@getmunin/backend-core';
+import {
+  AgentRunnerSupportModule,
+  DB,
+  DbModule,
+  McpModule,
+  RealtimeModule,
+} from '@getmunin/backend-core';
 import { AgentConfigService } from './config.service.js';
 import { AgentConfigController } from './config.controller.js';
 import { AgentModelsService } from './models.service.js';
 import { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.js';
-import {
-  ADMIN_KEY_PROVIDER,
-  AGENT_CONFIG_REPOSITORY,
-  AGENT_HOST_DB,
-} from './injection-tokens.js';
+import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.js';
 import type { AgentConfigRepository } from './config.repository.js';
-import type { AdminKeyProvider } from './admin-key-provider.js';
 
 export interface AgentHostModuleOptions {
   configRepository: Type<AgentConfigRepository>;
-  adminKeyProvider: Type<AdminKeyProvider>;
   runnerOptions?: AgentHostRunnerOptions;
 }
 
@@ -24,10 +24,6 @@ export class AgentHostModule {
     const repoProvider: Provider = {
       provide: AGENT_CONFIG_REPOSITORY,
       useClass: options.configRepository,
-    };
-    const keyProvider: Provider = {
-      provide: ADMIN_KEY_PROVIDER,
-      useClass: options.adminKeyProvider,
     };
     const dbAliasProvider: Provider = {
       provide: AGENT_HOST_DB,
@@ -39,14 +35,12 @@ export class AgentHostModule {
     };
     return {
       module: AgentHostModule,
-      imports: [DbModule, McpModule, RealtimeModule],
+      imports: [DbModule, McpModule, RealtimeModule, AgentRunnerSupportModule],
       providers: [
         repoProvider,
-        keyProvider,
         dbAliasProvider,
         runnerOptionsProvider,
         options.configRepository,
-        options.adminKeyProvider,
         AgentConfigService,
         AgentModelsService,
         AgentHostRunner,
@@ -56,7 +50,6 @@ export class AgentHostModule {
         AgentConfigService,
         AgentModelsService,
         AGENT_CONFIG_REPOSITORY,
-        ADMIN_KEY_PROVIDER,
         AGENT_HOST_DB,
       ],
     };

@@ -45,10 +45,6 @@ export class PerOrgConfigRepository implements AgentConfigRepository {
   async readDecryptedProviderKey(id: string): Promise<string | null> {
     return readDecryptedKey(id, 'provider_api_key_ct');
   }
-
-  async readDecryptedAdminKey(id: string): Promise<string | null> {
-    return readDecryptedKey(id, 'admin_api_key_ct');
-  }
 }
 
 async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
@@ -63,7 +59,6 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
       maxHistoryChars: agentConfig.maxHistoryChars,
       maxToolIterations: agentConfig.maxToolIterations,
       debounceMs: agentConfig.debounceMs,
-      adminApiKeyId: agentConfig.adminApiKeyId,
       createdAt: agentConfig.createdAt,
       updatedAt: agentConfig.updatedAt,
     })
@@ -81,7 +76,6 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
       maxHistoryChars: row.maxHistoryChars,
       maxToolIterations: row.maxToolIterations,
       debounceMs: row.debounceMs,
-      adminApiKeyId: row.adminApiKeyId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -104,7 +98,6 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
     maxHistoryChars: created.maxHistoryChars,
     maxToolIterations: created.maxToolIterations,
     debounceMs: created.debounceMs,
-    adminApiKeyId: created.adminApiKeyId,
     createdAt: created.createdAt,
     updatedAt: created.updatedAt,
   };

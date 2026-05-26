@@ -6,11 +6,7 @@ import {
   BACKEND_BASE_PROVIDERS,
   BACKEND_FEATURE_MODULES_NO_AUTH,
 } from '@getmunin/backend-core';
-import {
-  AgentHostModule,
-  AutoMintAdminKeyProvider,
-  SingletonConfigRepository,
-} from '@getmunin/agent-host';
+import { AgentHostModule, SingletonConfigRepository } from '@getmunin/agent-host';
 import { AuthModule } from './auth/auth.module.js';
 
 @Module({
@@ -20,7 +16,6 @@ import { AuthModule } from './auth/auth.module.js';
     AuthModule,
     AgentHostModule.forRoot({
       configRepository: SingletonConfigRepository,
-      adminKeyProvider: AutoMintAdminKeyProvider,
     }),
   ],
   controllers: BACKEND_BASE_CONTROLLERS,

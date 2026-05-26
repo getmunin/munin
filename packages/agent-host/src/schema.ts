@@ -10,8 +10,6 @@ export const agentConfig = pgTable('agent_config', {
   smartModel: text('smart_model'),
   providerBaseUrl: text('provider_base_url').notNull(),
   providerApiKeyCt: text('provider_api_key_ct'),
-  adminApiKeyCt: text('admin_api_key_ct'),
-  adminApiKeyId: text('admin_api_key_id'),
   maxHistoryChars: integer('max_history_chars').notNull().default(32_000),
   maxToolIterations: integer('max_tool_iterations').notNull().default(8),
   debounceMs: integer('debounce_ms').notNull().default(500),
@@ -44,8 +42,6 @@ export const AGENT_HOST_SINGLETON_DDL = sql`
     smart_model text,
     provider_base_url text NOT NULL DEFAULT 'https://api.anthropic.com/v1',
     provider_api_key_ct text,
-    admin_api_key_ct text,
-    admin_api_key_id text,
     max_history_chars integer NOT NULL DEFAULT 32000,
     max_tool_iterations integer NOT NULL DEFAULT 8,
     debounce_ms integer NOT NULL DEFAULT 500,
@@ -59,6 +55,11 @@ export const AGENT_HOST_SINGLETON_DDL = sql`
   DROP INDEX IF EXISTS agent_config_enabled_idx;
 
   ALTER TABLE agent_config DROP COLUMN IF EXISTS enabled;
+  ALTER TABLE agent_config DROP COLUMN IF EXISTS admin_api_key_ct;
+  ALTER TABLE agent_config DROP COLUMN IF EXISTS admin_api_key_id;
+
+  UPDATE api_keys SET revoked_at = now()
+    WHERE name = 'agent-host-runner' AND revoked_at IS NULL;
 
   CREATE INDEX IF NOT EXISTS agent_config_provisioned_idx
     ON agent_config(id) WHERE provider_api_key_ct IS NOT NULL;
@@ -87,8 +88,6 @@ export const AGENT_HOST_MULTI_TENANT_DDL = sql`
     smart_model text,
     provider_base_url text NOT NULL,
     provider_api_key_ct text,
-    admin_api_key_ct text,
-    admin_api_key_id text,
     max_history_chars integer NOT NULL DEFAULT 32000,
     max_tool_iterations integer NOT NULL DEFAULT 8,
     debounce_ms integer NOT NULL DEFAULT 500,
@@ -101,6 +100,11 @@ export const AGENT_HOST_MULTI_TENANT_DDL = sql`
   DROP INDEX IF EXISTS agent_config_enabled_idx;
 
   ALTER TABLE agent_config DROP COLUMN IF EXISTS enabled;
+  ALTER TABLE agent_config DROP COLUMN IF EXISTS admin_api_key_ct;
+  ALTER TABLE agent_config DROP COLUMN IF EXISTS admin_api_key_id;
+
+  UPDATE api_keys SET revoked_at = now()
+    WHERE name = 'agent-host-runner' AND revoked_at IS NULL;
 
   CREATE INDEX IF NOT EXISTS agent_config_provisioned_idx
     ON agent_config(id) WHERE provider_api_key_ct IS NOT NULL;

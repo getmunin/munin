@@ -52,10 +52,6 @@ export class SingletonConfigRepository implements AgentConfigRepository {
   async readDecryptedProviderKey(id: string): Promise<string | null> {
     return readDecryptedKey(id, 'provider_api_key_ct');
   }
-
-  async readDecryptedAdminKey(id: string): Promise<string | null> {
-    return readDecryptedKey(id, 'admin_api_key_ct');
-  }
 }
 
 function assertSingleton(id: string): void {
@@ -76,7 +72,6 @@ async function readRow(id: string, createIfMissing: boolean): Promise<AgentConfi
       maxHistoryChars: agentConfig.maxHistoryChars,
       maxToolIterations: agentConfig.maxToolIterations,
       debounceMs: agentConfig.debounceMs,
-      adminApiKeyId: agentConfig.adminApiKeyId,
       createdAt: agentConfig.createdAt,
       updatedAt: agentConfig.updatedAt,
     })
@@ -94,7 +89,6 @@ async function readRow(id: string, createIfMissing: boolean): Promise<AgentConfi
       maxHistoryChars: row.maxHistoryChars,
       maxToolIterations: row.maxToolIterations,
       debounceMs: row.debounceMs,
-      adminApiKeyId: row.adminApiKeyId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

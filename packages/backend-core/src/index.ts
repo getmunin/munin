@@ -67,6 +67,11 @@ export {
   type OpenAdminAgentMcpClientOptions,
   type OpenEndUserAgentMcpClientOptions,
 } from './agent/in-process-context.js';
+export {
+  InProcessMuninRestClientFactoryService,
+  type MuninRestClientFactory,
+} from './agent/in-process-rest-client.js';
+export { AgentRunnerSupportModule } from './agent/agent-runner-support.module.js';
 export { ControlModule } from './control/control.module.js';
 export { KbModule } from './modules/kb/kb.module.js';
 export { ConvModule } from './modules/conv/conv.module.js';

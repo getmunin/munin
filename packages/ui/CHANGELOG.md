@@ -1,5 +1,7 @@
 # @getmunin/ui
 
+## 4.18.0
+
 ## 4.17.0
 
 ### Patch Changes

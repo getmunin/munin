@@ -1,3 +1,2 @@
 export const AGENT_CONFIG_REPOSITORY = Symbol('AGENT_CONFIG_REPOSITORY');
-export const ADMIN_KEY_PROVIDER = Symbol('ADMIN_KEY_PROVIDER');
 export const AGENT_HOST_DB = Symbol('AGENT_HOST_DB');

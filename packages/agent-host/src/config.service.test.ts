@@ -6,7 +6,6 @@ import type {
   AgentConfigRepository,
   AgentConfigRow,
 } from './config.repository.js';
-import type { AdminKeyProvider } from './admin-key-provider.js';
 
 const baseRow: AgentConfigRow = {
   id: 'singleton',
@@ -17,7 +16,6 @@ const baseRow: AgentConfigRow = {
   maxHistoryChars: 32_000,
   maxToolIterations: 8,
   debounceMs: 500,
-  adminApiKeyId: null,
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
 };
@@ -34,17 +32,6 @@ function makeRepo(opts: {
     update,
     listProvisionedIds: vi.fn().mockResolvedValue([]),
     readDecryptedProviderKey: vi.fn().mockResolvedValue(null),
-    readDecryptedAdminKey: vi.fn().mockResolvedValue(null),
-  };
-}
-
-function makeAdminKey(): AdminKeyProvider & {
-  mint: ReturnType<typeof vi.fn>;
-  revoke: ReturnType<typeof vi.fn>;
-} {
-  return {
-    mint: vi.fn().mockResolvedValue(undefined),
-    revoke: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -63,69 +50,16 @@ describe('AgentConfigService', () => {
 
   it('reads + serialises the row into a DTO with ISO timestamps', async () => {
     const repo = makeRepo({ before: baseRow, after: baseRow });
-    const svc = new AgentConfigService(repo, makeAdminKey(), makeWebhooks());
+    const svc = new AgentConfigService(repo, makeWebhooks());
     const dto = await svc.getForCurrentActor();
     expect(dto.id).toBe('singleton');
     expect(dto.createdAt).toBe('2026-01-01T00:00:00.000Z');
     expect(dto.updatedAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
-  it('mints an admin key when a provider key is first set', async () => {
-    const after: AgentConfigRow = { ...baseRow, providerApiKeySet: true };
-    const repo = makeRepo({ before: baseRow, after });
-    const adminKey = makeAdminKey();
-    const svc = new AgentConfigService(repo, adminKey, makeWebhooks());
-
-    await svc.upsertForCurrentActor({ providerApiKey: 'sk-test' });
-
-    expect(adminKey.mint).toHaveBeenCalledWith('singleton');
-    expect(adminKey.revoke).not.toHaveBeenCalled();
-  });
-
-  it('does NOT mint when adding a provider key but admin key already exists', async () => {
-    const before: AgentConfigRow = { ...baseRow, adminApiKeyId: 'ak_existing' };
-    const after: AgentConfigRow = { ...before, providerApiKeySet: true };
-    const repo = makeRepo({ before, after });
-    const adminKey = makeAdminKey();
-    const svc = new AgentConfigService(repo, adminKey, makeWebhooks());
-
-    await svc.upsertForCurrentActor({ providerApiKey: 'sk-test' });
-
-    expect(adminKey.mint).not.toHaveBeenCalled();
-    expect(adminKey.revoke).not.toHaveBeenCalled();
-  });
-
-  it('revokes the admin key when the provider key is cleared', async () => {
-    const before: AgentConfigRow = {
-      ...baseRow,
-      providerApiKeySet: true,
-      adminApiKeyId: 'ak_to_revoke',
-    };
-    const after: AgentConfigRow = { ...before, providerApiKeySet: false };
-    const repo = makeRepo({ before, after });
-    const adminKey = makeAdminKey();
-    const svc = new AgentConfigService(repo, adminKey, makeWebhooks());
-
-    await svc.upsertForCurrentActor({ providerApiKey: null });
-
-    expect(adminKey.revoke).toHaveBeenCalledWith('singleton', 'ak_to_revoke');
-    expect(adminKey.mint).not.toHaveBeenCalled();
-  });
-
-  it('skips mint/revoke when patches do not change provider-key presence', async () => {
-    const repo = makeRepo({ before: baseRow, after: baseRow });
-    const adminKey = makeAdminKey();
-    const svc = new AgentConfigService(repo, adminKey, makeWebhooks());
-
-    await svc.upsertForCurrentActor({ fastModel: 'anthropic/claude-sonnet-4-6' });
-
-    expect(adminKey.mint).not.toHaveBeenCalled();
-    expect(adminKey.revoke).not.toHaveBeenCalled();
-  });
-
   it('passes the patch through to the repo verbatim', async () => {
     const repo = makeRepo({ before: baseRow, after: baseRow });
-    const svc = new AgentConfigService(repo, makeAdminKey(), makeWebhooks());
+    const svc = new AgentConfigService(repo, makeWebhooks());
 
     const patch: AgentConfigPatch = {
       fastModel: 'a',
@@ -136,5 +70,18 @@ describe('AgentConfigService', () => {
     await svc.upsertForCurrentActor(patch);
 
     expect(repo.update).toHaveBeenCalledWith('singleton', patch);
+  });
+
+  it('emits a webhook on upsert', async () => {
+    const repo = makeRepo({ before: baseRow, after: baseRow });
+    const webhooks = makeWebhooks();
+    const svc = new AgentConfigService(repo, webhooks);
+
+    await svc.upsertForCurrentActor({ fastModel: 'x' });
+
+    expect(webhooks.emit).toHaveBeenCalledWith({
+      type: 'agent.config.updated',
+      payload: { configId: 'singleton' },
+    });
   });
 });

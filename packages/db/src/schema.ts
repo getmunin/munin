@@ -1493,7 +1493,7 @@ export const curatorJobs = pgTable(
     sourceEventType: text('source_event_type'),
     sourceEventPayload: jsonb('source_event_payload'),
     dedupeKey: text('dedupe_key'),
-    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    status: varchar('status', { length: 32 }).notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
     maxAttempts: integer('max_attempts').notNull().default(5),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true })
@@ -1502,6 +1502,8 @@ export const curatorJobs = pgTable(
     leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
     leaseHolder: text('lease_holder'),
     lastError: text('last_error'),
+    lastErrorCode: varchar('last_error_code', { length: 64 }),
+    failedStep: varchar('failed_step', { length: 64 }),
     lastReplyText: text('last_reply_text'),
     lastToolCalls: integer('last_tool_calls'),
     lastTotalTokens: integer('last_total_tokens'),
@@ -1515,6 +1517,9 @@ export const curatorJobs = pgTable(
     dedupeUq: uniqueIndex('curator_jobs_dedupe_uq')
       .on(t.orgId, t.dedupeKey)
       .where(sql`dedupe_key IS NOT NULL AND status = 'pending'`),
+    failedRetryableIdx: index('curator_jobs_failed_retryable_idx')
+      .on(t.orgId)
+      .where(sql`status = 'failed_retryable'`),
   }),
 );
 

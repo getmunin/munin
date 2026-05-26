@@ -12,7 +12,7 @@ import './load-env.js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { runMigrations } from '@getmunin/db';
-import { AGENT_HOST_SINGLETON_DDL } from '@getmunin/agent-host';
+import { AGENT_HOST_SINGLETON_DDL, AGENT_HEALTH_SINGLETON_DDL } from '@getmunin/agent-host';
 
 async function main(): Promise<void> {
   const url = process.env.MUNIN_MIGRATE_URL ?? process.env.DATABASE_URL;
@@ -29,6 +29,8 @@ async function main(): Promise<void> {
     const db = drizzle(client);
     await db.execute(AGENT_HOST_SINGLETON_DDL);
     console.log('agent-host singleton DDL applied');
+    await db.execute(AGENT_HEALTH_SINGLETON_DDL);
+    console.log('agent-health singleton DDL applied');
   } finally {
     await client.end();
   }

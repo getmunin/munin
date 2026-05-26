@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useActiveMembership } from '../auth/use-active-role';
 import { useRealtime } from '../realtime';
-import { ConnectionBanner } from '../components/connection-banner';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { GetStarted } from '../components/dashboard/get-started';
 import { RecentConversationsSection } from '../components/dashboard/recent-conversations';
@@ -48,20 +47,16 @@ export function DashboardPage() {
 
   if (inbox.loadError && !inbox.hasLoadedOnce) {
     return (
-      <>
-        <ConnectionBanner status={inbox.connectionStatus} />
-        <div className="px-4 md:px-10 pt-11 pb-6 max-w-7xl mx-auto">
-          <LoadFailed
-            {...buildLoadFailedProps(inbox.loadError, () => void inbox.retryLoad(), inbox.retrying)}
-          />
-        </div>
-      </>
+      <div className="px-4 md:px-10 pt-11 pb-6 max-w-7xl mx-auto">
+        <LoadFailed
+          {...buildLoadFailedProps(inbox.loadError, () => void inbox.retryLoad(), inbox.retrying)}
+        />
+      </div>
     );
   }
 
   return (
     <>
-      <ConnectionBanner status={inbox.connectionStatus} />
       <div className="px-4 md:px-10 pt-11 pb-6 max-w-7xl mx-auto space-y-9">
         <DashboardHero
         orgName={orgName}

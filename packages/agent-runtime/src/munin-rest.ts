@@ -39,7 +39,12 @@ export interface ConversationTopic {
   color?: string | null;
 }
 
-export type CuratorJobStatus = 'pending' | 'done' | 'failed' | 'dead';
+export type CuratorJobStatus =
+  | 'pending'
+  | 'done'
+  | 'failed'
+  | 'dead'
+  | 'failed_retryable';
 
 export interface CuratorJob {
   id: string;
@@ -90,6 +95,8 @@ export interface AckCuratorJobInput {
 export interface FailCuratorJobInput {
   error: string;
   retryable?: boolean;
+  code?: string;
+  failedStep?: string;
 }
 
 export interface MuninRestClient {

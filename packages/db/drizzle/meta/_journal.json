@@ -218,6 +218,13 @@
       "when": 1780100000000,
       "tag": "0030_auth_rate_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1780200000000,
+      "tag": "0031_curator_jobs_failed_retryable",
+      "breakpoints": true
     }
   ]
 }

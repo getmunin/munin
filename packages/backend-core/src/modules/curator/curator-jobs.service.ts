@@ -3,7 +3,13 @@ import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 
-export const CURATOR_JOB_STATUSES = ['pending', 'done', 'failed', 'dead'] as const;
+export const CURATOR_JOB_STATUSES = [
+  'pending',
+  'done',
+  'failed',
+  'dead',
+  'failed_retryable',
+] as const;
 export type CuratorJobStatus = (typeof CURATOR_JOB_STATUSES)[number];
 
 const BACKOFF_BASE_MS = 30_000;
@@ -23,6 +29,8 @@ export interface CuratorJobDto {
   leaseExpiresAt: string | null;
   leaseHolder: string | null;
   lastError: string | null;
+  lastErrorCode: string | null;
+  failedStep: string | null;
   lastReplyText: string | null;
   lastToolCalls: number | null;
   lastTotalTokens: number | null;
@@ -64,6 +72,8 @@ export interface FailInput {
   id: string;
   error: string;
   retryable?: boolean;
+  code?: string;
+  failedStep?: string;
 }
 
 @Injectable()
@@ -208,7 +218,14 @@ export class CuratorJobsService {
 
     const retryable = input.retryable !== false;
     const reachedMax = current.attempts >= current.maxAttempts;
-    const status: CuratorJobStatus = !retryable ? 'failed' : reachedMax ? 'dead' : 'pending';
+    const providerError = typeof input.code === 'string' && input.code.startsWith('provider_');
+    const status: CuratorJobStatus = !retryable
+      ? 'failed'
+      : providerError
+        ? 'failed_retryable'
+        : reachedMax
+          ? 'dead'
+          : 'pending';
     const backoffMs = BACKOFF_BASE_MS * Math.pow(2, Math.max(0, current.attempts - 1));
     const nextAt = status === 'pending' ? new Date(Date.now() + backoffMs) : current.nextAttemptAt;
 
@@ -220,6 +237,8 @@ export class CuratorJobsService {
         leaseExpiresAt: null,
         leaseHolder: null,
         lastError: input.error.slice(0, 4000),
+        lastErrorCode: input.code ?? null,
+        failedStep: input.failedStep ?? null,
         updatedAt: new Date(),
       })
       .where(eq(schema.curatorJobs.id, input.id))
@@ -301,6 +320,8 @@ function toDto(row: Row, assistantName: string | null = null): CuratorJobDto {
     leaseExpiresAt: row.leaseExpiresAt ? toIso(row.leaseExpiresAt) : null,
     leaseHolder: row.leaseHolder,
     lastError: row.lastError,
+    lastErrorCode: row.lastErrorCode,
+    failedStep: row.failedStep,
     lastReplyText: row.lastReplyText,
     lastToolCalls: row.lastToolCalls,
     lastTotalTokens: row.lastTotalTokens,
@@ -341,6 +362,8 @@ function rowFromSql(raw: Record<string, unknown>): Row {
     leaseExpiresAt: (raw.lease_expires_at as Date | null) ?? null,
     leaseHolder: (raw.lease_holder as string | null) ?? null,
     lastError: (raw.last_error as string | null) ?? null,
+    lastErrorCode: (raw.last_error_code as string | null) ?? null,
+    failedStep: (raw.failed_step as string | null) ?? null,
     lastReplyText: (raw.last_reply_text as string | null) ?? null,
     lastToolCalls: raw.last_tool_calls != null ? Number(raw.last_tool_calls) : null,
     lastTotalTokens: raw.last_total_tokens != null ? Number(raw.last_total_tokens) : null,

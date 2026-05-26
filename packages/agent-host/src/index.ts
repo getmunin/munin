@@ -5,6 +5,12 @@ export {
   SINGLETON_ID,
 } from './schema.js';
 
+export {
+  agentHealth,
+  AGENT_HEALTH_SINGLETON_DDL,
+  AGENT_HEALTH_MULTI_TENANT_DDL,
+} from './agent-health.schema.js';
+
 export type {
   AgentConfigRow,
   AgentConfigPatch,
@@ -23,6 +29,12 @@ export { ReplicaLockManager } from './replica-lock.js';
 
 export { AgentConfigService, type AgentConfigDto } from './config.service.js';
 export { AgentConfigController } from './config.controller.js';
+export {
+  AgentHealthService,
+  type AgentHealthDto,
+  type AgentHealthStatus,
+} from './agent-health.service.js';
+export { AgentHealthController } from './agent-health.controller.js';
 export {
   AgentModelsService,
   type ListModelsResult,

@@ -1,11 +1,13 @@
 import {
   WebCrawler,
+  classifyProviderError,
   openAiCompatibleProvider,
   type CrawledPage,
   type CrawlResult,
   type CuratorJob,
   type McpToolHandle,
   type McpToolResult,
+  type ProviderErrorClassification,
   type SkillPassResult,
 } from '@getmunin/agent-runtime';
 
@@ -62,8 +64,9 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
   }
 
   let profileTokens = 0;
+  let providerError: ProviderErrorClassification | null = null;
   if (crawl.pages.length > 0) {
-    const profile = await generateCompanyProfile({
+    const outcome = await generateCompanyProfile({
       provider: { baseUrl: opts.providerBaseUrl, apiKey: opts.providerApiKey },
       model: opts.model,
       siteTitle: crawl.siteTitle,
@@ -71,11 +74,23 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
       pages: crawl.pages.slice(0, PROFILE_CONTEXT_PAGES),
       logger: opts.logger,
     });
-    if (profile) {
-      profileTokens = profile.totalTokens;
-      const ok = await upsertProfileDocument(mcp, spaceId, profile.markdown, opts.logger);
+    if (outcome.ok) {
+      profileTokens = outcome.profile.totalTokens;
+      const ok = await upsertProfileDocument(mcp, spaceId, outcome.profile.markdown, opts.logger);
       if (ok) created++;
+    } else if (outcome.providerError) {
+      providerError = outcome.providerError;
     }
+  }
+
+  if (providerError) {
+    return {
+      ok: false,
+      skipped: 'provider_error',
+      code: providerError.code,
+      error: providerError.message,
+      failedStep: 'generate_company_profile',
+    };
   }
 
   const replyText = `Imported ${created} document(s) from ${crawl.siteUrl}; ${crawl.skipped.length} URL(s) skipped.`;
@@ -204,6 +219,11 @@ interface ProfileResult {
   totalTokens: number;
 }
 
+type GenerateProfileOutcome =
+  | { ok: true; profile: ProfileResult }
+  | { ok: false; providerError: ProviderErrorClassification }
+  | { ok: false; providerError: null };
+
 async function generateCompanyProfile(opts: {
   provider: { baseUrl: string; apiKey: string };
   model: string;
@@ -211,7 +231,7 @@ async function generateCompanyProfile(opts: {
   siteUrl: string;
   pages: CrawledPage[];
   logger: WebImportHandlerOpts['logger'];
-}): Promise<ProfileResult | null> {
+}): Promise<GenerateProfileOutcome> {
   const systemPrompt = [
     "You are an onboarding agent. Read the customer's marketing pages and produce a single 'Company profile' KB document in markdown.",
     'The profile will seed a chat widget that answers questions on this company\'s website. Keep it factual: only state things supported by the pages provided.',
@@ -241,14 +261,21 @@ async function generateCompanyProfile(opts: {
       tools: [],
     });
     const text = (response.message.content ?? '').toString().trim();
-    if (!text) return null;
+    if (!text) return { ok: false, providerError: null };
     return {
-      markdown: text,
-      totalTokens: response.usage?.total_tokens ?? 0,
+      ok: true,
+      profile: {
+        markdown: text,
+        totalTokens: response.usage?.total_tokens ?? 0,
+      },
     };
   } catch (err) {
-    opts.logger.warn(`company profile generation failed: ${describe(err)}`);
-    return null;
+    const classified = classifyProviderError(err);
+    opts.logger.warn(`company profile generation failed: ${classified.message}`);
+    if (classified.status !== undefined) {
+      return { ok: false, providerError: classified };
+    }
+    return { ok: false, providerError: null };
   }
 }
 

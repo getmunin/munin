@@ -1,5 +1,11 @@
 export { runAgent, compactHistory } from './runtime.js';
-export { openAiCompatibleProvider, ProviderError } from './providers/openai-compatible.js';
+export {
+  openAiCompatibleProvider,
+  ProviderError,
+  classifyProviderError,
+  type ProviderErrorCode,
+  type ProviderErrorClassification,
+} from './providers/openai-compatible.js';
 export { createStubProvider, type StubProviderHandle, type StubScript } from './providers/stub.js';
 export { mcpToolsToChatTools, flattenToolResult } from './mcp-tool-translation.js';
 export {

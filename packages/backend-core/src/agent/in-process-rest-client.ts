@@ -68,25 +68,27 @@ function buildClient(opts: BuildOptions): MuninRestClient {
 
   async function audited<T>(method: string, fn: () => Promise<T>): Promise<T> {
     const startedAt = Date.now();
-    try {
-      const result = await withTenancy(fn);
-      await opts.audit.record({
-        method,
-        result: 'ok',
-        durationMs: Date.now() - startedAt,
-        userAgent: 'in-process:agent-host',
-      });
-      return result;
-    } catch (err) {
-      await opts.audit.record({
-        method,
-        result: 'error',
-        error: err instanceof Error ? err.message : String(err),
-        durationMs: Date.now() - startedAt,
-        userAgent: 'in-process:agent-host',
-      });
-      throw err;
-    }
+    return withTenancy(async () => {
+      try {
+        const result = await fn();
+        await opts.audit.record({
+          method,
+          result: 'ok',
+          durationMs: Date.now() - startedAt,
+          userAgent: 'in-process:agent-host',
+        });
+        return result;
+      } catch (err) {
+        await opts.audit.record({
+          method,
+          result: 'error',
+          error: err instanceof Error ? err.message : String(err),
+          durationMs: Date.now() - startedAt,
+          userAgent: 'in-process:agent-host',
+        });
+        throw err;
+      }
+    });
   }
 
   return {

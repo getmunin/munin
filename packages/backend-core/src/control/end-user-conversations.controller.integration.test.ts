@@ -126,7 +126,7 @@ const skipReason = TEST_URL
     const start = await rest<{ id: string; messages: { body: string; authorType: string }[] }>(
       aliceToken,
       'POST',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
       { body: 'I need help with my plan.' },
     );
     expect(start.status).toBe(201);
@@ -136,7 +136,7 @@ const skipReason = TEST_URL
     const list = await rest<{ items: Array<{ id: string }> }>(
       aliceToken,
       'GET',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
     );
     expect(list.status).toBe(200);
     expect(list.body.items.find((c) => c.id === start.body.id)).toBeTruthy();
@@ -144,7 +144,7 @@ const skipReason = TEST_URL
     const detail = await rest<{ id: string; messages: Array<{ body: string }> }>(
       aliceToken,
       'GET',
-      `/api/v1/end-users/me/conversations/${start.body.id}`,
+      `/v1/end-users/me/conversations/${start.body.id}`,
     );
     expect(detail.status).toBe(200);
     expect(detail.body.id).toBe(start.body.id);
@@ -152,7 +152,7 @@ const skipReason = TEST_URL
     const reply = await rest<{ authorType: string }>(
       aliceToken,
       'POST',
-      `/api/v1/end-users/me/conversations/${start.body.id}/messages`,
+      `/v1/end-users/me/conversations/${start.body.id}/messages`,
       { body: 'Actually, my account is also locked.' },
     );
     expect(reply.status).toBe(201);
@@ -160,19 +160,19 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('admin token is rejected with 403 on every endpoint', async () => {
-    const start = await rest(adminKey, 'POST', '/api/v1/end-users/me/conversations', { body: 'hi' });
+    const start = await rest(adminKey, 'POST', '/v1/end-users/me/conversations', { body: 'hi' });
     expect(start.status).toBe(403);
 
-    const list = await rest(adminKey, 'GET', '/api/v1/end-users/me/conversations');
+    const list = await rest(adminKey, 'GET', '/v1/end-users/me/conversations');
     expect(list.status).toBe(403);
 
-    const get = await rest(adminKey, 'GET', '/api/v1/end-users/me/conversations/some-id');
+    const get = await rest(adminKey, 'GET', '/v1/end-users/me/conversations/some-id');
     expect(get.status).toBe(403);
 
     const reply = await rest(
       adminKey,
       'POST',
-      '/api/v1/end-users/me/conversations/some-id/messages',
+      '/v1/end-users/me/conversations/some-id/messages',
       { body: 'hi' },
     );
     expect(reply.status).toBe(403);
@@ -182,7 +182,7 @@ const skipReason = TEST_URL
     const aliceStart = await rest<{ id: string }>(
       aliceToken,
       'POST',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
       { body: 'private message from Alice' },
     );
     expect(aliceStart.status).toBe(201);
@@ -190,21 +190,21 @@ const skipReason = TEST_URL
     const bobList = await rest<{ items: Array<{ id: string }> }>(
       bobToken,
       'GET',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
     );
     expect(bobList.body.items.find((c) => c.id === aliceStart.body.id)).toBeFalsy();
 
     const bobGet = await rest(
       bobToken,
       'GET',
-      `/api/v1/end-users/me/conversations/${aliceStart.body.id}`,
+      `/v1/end-users/me/conversations/${aliceStart.body.id}`,
     );
     expect(bobGet.status).toBe(404);
 
     const bobReply = await rest(
       bobToken,
       'POST',
-      `/api/v1/end-users/me/conversations/${aliceStart.body.id}/messages`,
+      `/v1/end-users/me/conversations/${aliceStart.body.id}/messages`,
       { body: 'sneak attempt' },
     );
     expect(bobReply.status).toBe(404);
@@ -214,7 +214,7 @@ const skipReason = TEST_URL
     const aliceStart = await rest<{ id: string; displayId: number }>(
       aliceToken,
       'POST',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
       { body: 'first conversation' },
     );
     expect(aliceStart.status).toBe(201);
@@ -222,7 +222,7 @@ const skipReason = TEST_URL
     const bobStart = await rest<{ id: string; displayId: number }>(
       bobToken,
       'POST',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
       { body: 'second conversation, different end-user' },
     );
     expect(bobStart.status).toBe(201);
@@ -233,13 +233,13 @@ const skipReason = TEST_URL
     const start = await rest<{ id: string }>(
       aliceToken,
       'POST',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
       { body: 'starting' },
     );
     const reply = await rest<{ authorType: string }>(
       aliceToken,
       'POST',
-      `/api/v1/end-users/me/conversations/${start.body.id}/messages`,
+      `/v1/end-users/me/conversations/${start.body.id}/messages`,
       // Even if the client tries to spoof the author type, the server forces 'end_user'.
       { body: 'second message', authorType: 'agent' },
     );

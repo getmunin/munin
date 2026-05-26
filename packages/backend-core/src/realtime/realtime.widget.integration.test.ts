@@ -127,7 +127,7 @@ const skipReason = TEST_URL
       Authorization: `Bearer ${token}`,
     };
     if (origin) headers.Origin = origin;
-    const res = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+    const res = await fetch(`${baseUrl}/v1/widget/messages`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -145,7 +145,7 @@ const skipReason = TEST_URL
     const headers: Record<string, string> = {};
     if (opts.origin) headers.Origin = opts.origin;
     const search = opts.query ? `?${new URLSearchParams(opts.query).toString()}` : '';
-    return new WebSocket(`${wsBase}/api/v1/realtime${search}`, ['bearer', token], { headers });
+    return new WebSocket(`${wsBase}/v1/realtime${search}`, ['bearer', token], { headers });
   }
 
   async function waitForOpen(ws: WebSocket, timeoutMs = 1500): Promise<void> {
@@ -493,7 +493,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects upgrade with no auth at all', async () => {
-    const ws = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', 'mn_widget_garbage_xxxxx'], {
+    const ws = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', 'mn_widget_garbage_xxxxx'], {
       headers: { Origin: ALLOWED_ORIGIN },
     });
     let err: Error | null = null;
@@ -511,7 +511,7 @@ const skipReason = TEST_URL
     const sessionId = 'rt_typing_v2o';
 
     // Visitor must have a conversation before typing can be routed.
-    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+    const ingestRes = await fetch(`${baseUrl}/v1/widget/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -527,7 +527,7 @@ const skipReason = TEST_URL
     const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
 
     const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
-    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    const wsOperator = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', adminKey]);
     await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
     try {
       wsOperator.send(
@@ -568,7 +568,7 @@ const skipReason = TEST_URL
 
   it('fans out operator typing to widget subscribers of the same (channelId, sessionId)', async () => {
     const sessionId = 'rt_typing_o2v';
-    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+    const ingestRes = await fetch(`${baseUrl}/v1/widget/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -584,7 +584,7 @@ const skipReason = TEST_URL
     const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
 
     const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
-    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    const wsOperator = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', adminKey]);
     await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
     try {
       wsVisitor.send(
@@ -619,7 +619,7 @@ const skipReason = TEST_URL
 
   it('throttles repeated typing:true to at most one broadcast per 1.5s window', async () => {
     const sessionId = 'rt_typing_throttle';
-    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+    const ingestRes = await fetch(`${baseUrl}/v1/widget/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -635,7 +635,7 @@ const skipReason = TEST_URL
     const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
 
     const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
-    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    const wsOperator = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', adminKey]);
     await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
     try {
       wsOperator.send(
@@ -684,7 +684,7 @@ const skipReason = TEST_URL
 
   it('auto-clears typing with typing:false after 5 s of silence', async () => {
     const sessionId = 'rt_typing_auto_clear';
-    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+    const ingestRes = await fetch(`${baseUrl}/v1/widget/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -700,7 +700,7 @@ const skipReason = TEST_URL
     const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
 
     const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
-    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    const wsOperator = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', adminKey]);
     await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
     try {
       wsOperator.send(
@@ -747,7 +747,7 @@ const skipReason = TEST_URL
     const sessB = 'rt_typing_iso_b';
     // Both sessions need conversations.
     for (const s of [sessA, sessB]) {
-      await fetch(`${baseUrl}/api/v1/widget/messages`, {
+      await fetch(`${baseUrl}/v1/widget/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -793,7 +793,7 @@ const skipReason = TEST_URL
 
   it('drops widget typing from operator-side connections and conversation typing from widget-side connections', async () => {
     const sessionId = 'rt_typing_role_mix';
-    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+    const ingestRes = await fetch(`${baseUrl}/v1/widget/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -809,7 +809,7 @@ const skipReason = TEST_URL
     const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
 
     const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
-    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    const wsOperator = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', adminKey]);
     await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
     try {
       wsOperator.send(
@@ -853,7 +853,7 @@ const skipReason = TEST_URL
   it('drops widget typing when the (channelId, sessionId) has no conversation yet', async () => {
     const sessionId = 'rt_typing_pre_conv'; // no ingest first
     const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
-    const wsOperator = new WebSocket(`${wsBase}/api/v1/realtime`, ['bearer', adminKey]);
+    const wsOperator = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', adminKey]);
     await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
     try {
       // Operator subscribes broadly to org so anything that DID fan out
@@ -881,7 +881,7 @@ const skipReason = TEST_URL
 
   it('persists conv_message_reads rows for both single and multiple message-id reads', async () => {
     const sessionId = `rt_read_${Date.now()}`;
-    const ingestRes = await fetch(`${baseUrl}/api/v1/widget/messages`, {
+    const ingestRes = await fetch(`${baseUrl}/v1/widget/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -17,7 +17,7 @@ export function useSkills(): UseSkillsResult {
   const [skills, setSkills] = useState<SkillDto[] | null>(null);
 
   const load = useCallback(async () => {
-    const list = await api<SkillDto[]>('/api/v1/skills');
+    const list = await api<SkillDto[]>('/v1/skills');
     setSkills(list);
   }, []);
 

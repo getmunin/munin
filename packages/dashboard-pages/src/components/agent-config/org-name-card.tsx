@@ -38,7 +38,7 @@ export function OrgNameCard({ onSaved }: OrgNameCardProps) {
 
   const load = useCallback(async () => {
     try {
-      const org = await api<OrgDto>('/api/v1/orgs/me');
+      const org = await api<OrgDto>('/v1/orgs/me');
       setInitialName(org.name);
       setName(org.name);
     } catch (err) {
@@ -63,7 +63,7 @@ export function OrgNameCard({ onSaved }: OrgNameCardProps) {
     setSaving(true);
     setError(null);
     try {
-      await api<OrgDto>('/api/v1/orgs/me', {
+      await api<OrgDto>('/v1/orgs/me', {
         method: 'PATCH',
         body: JSON.stringify({ name: trimmed }),
       });

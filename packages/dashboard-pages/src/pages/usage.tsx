@@ -42,8 +42,8 @@ export function UsagePage() {
 
   const load = useCallback(async () => {
     const [s, a] = await Promise.all([
-      api<UsageSummaryDto>('/api/v1/usage/summary'),
-      api<UsageByAgentDto>('/api/v1/usage/by-agent'),
+      api<UsageSummaryDto>('/v1/usage/summary'),
+      api<UsageByAgentDto>('/v1/usage/by-agent'),
     ]);
     setSummary(s);
     setByAgent(a);

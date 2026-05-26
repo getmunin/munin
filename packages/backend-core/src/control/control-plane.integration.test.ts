@@ -132,14 +132,14 @@ interface OrgFixture {
 
   // ─── api-keys ────────────────────────────────────────────────────────
 
-  describe('POST/GET/DELETE /api/v1/api-keys', () => {
+  describe('POST/GET/DELETE /v1/api-keys', () => {
     it('rejects unauthenticated request with 401', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/api-keys`);
+      const res = await fetch(`${baseUrl}/v1/api-keys`);
       expect(res.status).toBe(401);
     });
 
     it('admin can create, list, and revoke keys', async () => {
-      const create = await fetch(`${baseUrl}/api/v1/api-keys`, {
+      const create = await fetch(`${baseUrl}/v1/api-keys`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({ name: 'extra-key', scopes: ['kb:read'] }),
@@ -148,18 +148,18 @@ interface OrgFixture {
       const created = (await create.json()) as { id: string; key: string; prefix: string };
       expect(created.key).toMatch(/^mn_admin_/);
 
-      const list = await fetch(`${baseUrl}/api/v1/api-keys`, { headers: authHeaders(orgA.adminKey) });
+      const list = await fetch(`${baseUrl}/v1/api-keys`, { headers: authHeaders(orgA.adminKey) });
       expect(list.status).toBe(200);
       const items = (await list.json()) as Array<{ id: string }>;
       expect(items.find((k) => k.id === created.id)).toBeTruthy();
 
-      const revoke = await fetch(`${baseUrl}/api/v1/api-keys/${created.id}`, {
+      const revoke = await fetch(`${baseUrl}/v1/api-keys/${created.id}`, {
         method: 'DELETE',
         headers: authHeaders(orgA.adminKey),
       });
       expect(revoke.status).toBe(204);
 
-      const afterList = await fetch(`${baseUrl}/api/v1/api-keys`, {
+      const afterList = await fetch(`${baseUrl}/v1/api-keys`, {
         headers: authHeaders(orgA.adminKey),
       });
       const afterItems = (await afterList.json()) as Array<{ id: string }>;
@@ -167,7 +167,7 @@ interface OrgFixture {
     });
 
     it('cross-org: org A cannot revoke org B\'s key', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/api-keys/${orgB.adminKeyId}`, {
+      const res = await fetch(`${baseUrl}/v1/api-keys/${orgB.adminKeyId}`, {
         method: 'DELETE',
         headers: authHeaders(orgA.adminKey),
       });
@@ -177,15 +177,15 @@ interface OrgFixture {
 
   // ─── tokens ──────────────────────────────────────────────────────────
 
-  describe('GET /api/v1/tokens, DELETE /api/v1/tokens/:id', () => {
+  describe('GET /v1/tokens, DELETE /v1/tokens/:id', () => {
     it('401 when unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/tokens`);
+      const res = await fetch(`${baseUrl}/v1/tokens`);
       expect(res.status).toBe(401);
     });
 
     it('returns tokens for the calling org only', async () => {
       // Mint a delegated token for org A.
-      const mint = await fetch(`${baseUrl}/api/v1/tokens/delegated`, {
+      const mint = await fetch(`${baseUrl}/v1/tokens/delegated`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({ endUserId: orgA.endUserId, ttlSeconds: 600, scopes: ['kb:read'] }),
@@ -193,30 +193,30 @@ interface OrgFixture {
       expect(mint.status).toBe(201);
       const minted = (await mint.json()) as { tokenId: string };
 
-      const list = await fetch(`${baseUrl}/api/v1/tokens`, { headers: authHeaders(orgA.adminKey) });
+      const list = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgA.adminKey) });
       const tokens = (await list.json()) as Array<{ id: string; endUserId: string }>;
       expect(tokens.find((t) => t.id === minted.tokenId)).toBeTruthy();
 
       // Org B's listing should not include org A's token.
-      const listB = await fetch(`${baseUrl}/api/v1/tokens`, { headers: authHeaders(orgB.adminKey) });
+      const listB = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgB.adminKey) });
       const tokensB = (await listB.json()) as Array<{ id: string }>;
       expect(tokensB.find((t) => t.id === minted.tokenId)).toBeFalsy();
 
       // Revoke from org A.
-      const rv = await fetch(`${baseUrl}/api/v1/tokens/${minted.tokenId}`, {
+      const rv = await fetch(`${baseUrl}/v1/tokens/${minted.tokenId}`, {
         method: 'DELETE',
         headers: authHeaders(orgA.adminKey),
       });
       expect(rv.status).toBe(204);
 
       // Cross-org revoke from B is 404.
-      const otherMint = await fetch(`${baseUrl}/api/v1/tokens/delegated`, {
+      const otherMint = await fetch(`${baseUrl}/v1/tokens/delegated`, {
         method: 'POST',
         headers: authHeaders(orgB.adminKey),
         body: JSON.stringify({ externalId: 'b-eu', ttlSeconds: 300, scopes: ['kb:read'] }),
       });
       const otherTok = (await otherMint.json()) as { tokenId: string };
-      const wrongOrg = await fetch(`${baseUrl}/api/v1/tokens/${otherTok.tokenId}`, {
+      const wrongOrg = await fetch(`${baseUrl}/v1/tokens/${otherTok.tokenId}`, {
         method: 'DELETE',
         headers: authHeaders(orgA.adminKey),
       });
@@ -226,9 +226,9 @@ interface OrgFixture {
 
   // ─── delegated-token ─────────────────────────────────────────────────
 
-  describe('POST /api/v1/tokens/delegated', () => {
+  describe('POST /v1/tokens/delegated', () => {
     it('401 when unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/tokens/delegated`, {
+      const res = await fetch(`${baseUrl}/v1/tokens/delegated`, {
         method: 'POST',
         body: JSON.stringify({ externalId: 'x' }),
         headers: { 'Content-Type': 'application/json' },
@@ -237,7 +237,7 @@ interface OrgFixture {
     });
 
     it('400 when no end-user identity supplied', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/tokens/delegated`, {
+      const res = await fetch(`${baseUrl}/v1/tokens/delegated`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({}),
@@ -246,7 +246,7 @@ interface OrgFixture {
     });
 
     it('mints a delegated token with audience+scopes and finds-or-creates an end-user', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/tokens/delegated`, {
+      const res = await fetch(`${baseUrl}/v1/tokens/delegated`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({
@@ -272,22 +272,22 @@ interface OrgFixture {
 
   // ─── end-users ───────────────────────────────────────────────────────
 
-  describe('/api/v1/end-users', () => {
+  describe('/v1/end-users', () => {
     it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/end-users`);
+      const res = await fetch(`${baseUrl}/v1/end-users`);
       expect(res.status).toBe(401);
     });
 
     it('lookup is idempotent (creates first, returns the same row second)', async () => {
       const ext = `eu-look-${Date.now()}`;
-      const first = await fetch(`${baseUrl}/api/v1/end-users/lookup`, {
+      const first = await fetch(`${baseUrl}/v1/end-users/lookup`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({ externalId: ext }),
       });
       expect(first.status).toBe(200);
       const a = (await first.json()) as { id: string };
-      const second = await fetch(`${baseUrl}/api/v1/end-users/lookup`, {
+      const second = await fetch(`${baseUrl}/v1/end-users/lookup`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({ externalId: ext }),
@@ -297,10 +297,10 @@ interface OrgFixture {
     });
 
     it('list is org-scoped; cross-org cannot see another org\'s end-users', async () => {
-      const list = await fetch(`${baseUrl}/api/v1/end-users`, { headers: authHeaders(orgA.adminKey) });
+      const list = await fetch(`${baseUrl}/v1/end-users`, { headers: authHeaders(orgA.adminKey) });
       const items = (await list.json()) as Array<{ id: string }>;
       expect(items.find((u) => u.id === orgA.endUserId)).toBeTruthy();
-      const cross = await fetch(`${baseUrl}/api/v1/end-users/${orgA.endUserId}`, {
+      const cross = await fetch(`${baseUrl}/v1/end-users/${orgA.endUserId}`, {
         headers: authHeaders(orgB.adminKey),
       });
       expect(cross.status).toBe(404);
@@ -309,7 +309,7 @@ interface OrgFixture {
     it('revoke-tokens revokes all active tokens for an end-user', async () => {
       // Mint two tokens for the same end-user.
       for (let i = 0; i < 2; i++) {
-        await fetch(`${baseUrl}/api/v1/tokens/delegated`, {
+        await fetch(`${baseUrl}/v1/tokens/delegated`, {
           method: 'POST',
           headers: authHeaders(orgA.adminKey),
           body: JSON.stringify({
@@ -319,7 +319,7 @@ interface OrgFixture {
           }),
         });
       }
-      const res = await fetch(`${baseUrl}/api/v1/end-users/${orgA.endUserId}/revoke-tokens`, {
+      const res = await fetch(`${baseUrl}/v1/end-users/${orgA.endUserId}/revoke-tokens`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
       });
@@ -331,21 +331,21 @@ interface OrgFixture {
 
   // ─── orgs ────────────────────────────────────────────────────────────
 
-  describe('/api/v1/orgs/me', () => {
+  describe('/v1/orgs/me', () => {
     it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/orgs/me`);
+      const res = await fetch(`${baseUrl}/v1/orgs/me`);
       expect(res.status).toBe(401);
     });
 
     it('returns the calling org', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/orgs/me`, { headers: authHeaders(orgA.adminKey) });
+      const res = await fetch(`${baseUrl}/v1/orgs/me`, { headers: authHeaders(orgA.adminKey) });
       expect(res.status).toBe(200);
       const body = (await res.json()) as { id: string };
       expect(body.id).toBe(orgA.id);
     });
 
     it('updates name and settings', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/orgs/me`, {
+      const res = await fetch(`${baseUrl}/v1/orgs/me`, {
         method: 'PATCH',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({ name: 'Updated Org A', settings: { foo: 'bar' } }),
@@ -359,14 +359,14 @@ interface OrgFixture {
 
   // ─── webhooks ────────────────────────────────────────────────────────
 
-  describe('/api/v1/webhooks', () => {
+  describe('/v1/webhooks', () => {
     it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/webhooks`);
+      const res = await fetch(`${baseUrl}/v1/webhooks`);
       expect(res.status).toBe(401);
     });
 
     it('CRUD with cross-org isolation', async () => {
-      const create = await fetch(`${baseUrl}/api/v1/webhooks`, {
+      const create = await fetch(`${baseUrl}/v1/webhooks`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({ url: 'https://example.com/hook', events: ['kb.document.created'] }),
@@ -375,7 +375,7 @@ interface OrgFixture {
       const wh = (await create.json()) as { id: string; secret: string };
       expect(wh.secret).toMatch(/^whsec_/);
 
-      const patch = await fetch(`${baseUrl}/api/v1/webhooks/${wh.id}`, {
+      const patch = await fetch(`${baseUrl}/v1/webhooks/${wh.id}`, {
         method: 'PATCH',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({ active: false }),
@@ -385,19 +385,19 @@ interface OrgFixture {
       expect(patched.active).toBe(false);
 
       // Org B can't see or patch.
-      const cross = await fetch(`${baseUrl}/api/v1/webhooks/${wh.id}`, {
+      const cross = await fetch(`${baseUrl}/v1/webhooks/${wh.id}`, {
         method: 'PATCH',
         headers: authHeaders(orgB.adminKey),
         body: JSON.stringify({ active: true }),
       });
       expect(cross.status).toBe(404);
-      const crossDel = await fetch(`${baseUrl}/api/v1/webhooks/${wh.id}`, {
+      const crossDel = await fetch(`${baseUrl}/v1/webhooks/${wh.id}`, {
         method: 'DELETE',
         headers: authHeaders(orgB.adminKey),
       });
       expect(crossDel.status).toBe(404);
 
-      const del = await fetch(`${baseUrl}/api/v1/webhooks/${wh.id}`, {
+      const del = await fetch(`${baseUrl}/v1/webhooks/${wh.id}`, {
         method: 'DELETE',
         headers: authHeaders(orgA.adminKey),
       });
@@ -407,16 +407,16 @@ interface OrgFixture {
 
   // ─── audit-log ───────────────────────────────────────────────────────
 
-  describe('GET /api/v1/admin/audit-logs', () => {
+  describe('GET /v1/admin/audit-logs', () => {
     it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/admin/audit-logs`);
+      const res = await fetch(`${baseUrl}/v1/admin/audit-logs`);
       expect(res.status).toBe(401);
     });
 
     it('returns paginated audit entries for the calling org', async () => {
       // Generate at least one audit entry by hitting an audited endpoint.
-      await fetch(`${baseUrl}/api/v1/orgs/me`, { headers: authHeaders(orgA.adminKey) });
-      const res = await fetch(`${baseUrl}/api/v1/admin/audit-logs?limit=10`, {
+      await fetch(`${baseUrl}/v1/orgs/me`, { headers: authHeaders(orgA.adminKey) });
+      const res = await fetch(`${baseUrl}/v1/admin/audit-logs?limit=10`, {
         headers: authHeaders(orgA.adminKey),
       });
       expect(res.status).toBe(200);
@@ -427,14 +427,14 @@ interface OrgFixture {
 
   // ─── usage ───────────────────────────────────────────────────────────
 
-  describe('GET /api/v1/usage', () => {
+  describe('GET /v1/usage', () => {
     it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/usage`);
+      const res = await fetch(`${baseUrl}/v1/usage`);
       expect(res.status).toBe(401);
     });
 
     it('returns usage payload for the calling org', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/usage`, { headers: authHeaders(orgA.adminKey) });
+      const res = await fetch(`${baseUrl}/v1/usage`, { headers: authHeaders(orgA.adminKey) });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toBeTypeOf('object');
@@ -443,14 +443,14 @@ interface OrgFixture {
 
   // ─── export ──────────────────────────────────────────────────────────
 
-  describe('GET /api/v1/export', () => {
+  describe('GET /v1/export', () => {
     it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/export`);
+      const res = await fetch(`${baseUrl}/v1/export`);
       expect(res.status).toBe(401);
     });
 
     it('returns the org\'s domain rows in JSON, scoped to the calling org', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/export`, { headers: authHeaders(orgA.adminKey) });
+      const res = await fetch(`${baseUrl}/v1/export`, { headers: authHeaders(orgA.adminKey) });
       expect(res.status).toBe(200);
       expect(res.headers.get('content-disposition')).toContain('munin-export.json');
       const body = (await res.json()) as {
@@ -465,14 +465,14 @@ interface OrgFixture {
 
   // ─── invitations (admin-issue) ───────────────────────────────────────
 
-  describe('/api/v1/orgs/me/invitations (admin)', () => {
+  describe('/v1/orgs/me/invitations (admin)', () => {
     it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/orgs/me/invitations`);
+      const res = await fetch(`${baseUrl}/v1/orgs/me/invitations`);
       expect(res.status).toBe(401);
     });
 
     it('admin API key cannot create invitations (owner-user session required)', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/orgs/me/invitations`, {
+      const res = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({ email: `forbidden-${Date.now()}@example.com` }),
@@ -481,7 +481,7 @@ interface OrgFixture {
     });
 
     it('owner via session cookie issues, lists, and revokes invitations', async () => {
-      const create = await fetch(`${baseUrl}/api/v1/orgs/me/invitations`, {
+      const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
         method: 'POST',
         headers: cookieHeaders(orgA.sessionToken),
         body: JSON.stringify({ email: `invitee-${Date.now()}@example.com`, role: 'member' }),
@@ -489,14 +489,14 @@ interface OrgFixture {
       expect(create.status).toBe(201);
       const inv = (await create.json()) as { id: string; token?: string };
 
-      const list = await fetch(`${baseUrl}/api/v1/orgs/me/invitations`, {
+      const list = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
         headers: cookieHeaders(orgA.sessionToken),
       });
       expect(list.status).toBe(200);
       const items = (await list.json()) as Array<{ id: string }>;
       expect(items.find((i) => i.id === inv.id)).toBeTruthy();
 
-      const revoke = await fetch(`${baseUrl}/api/v1/orgs/me/invitations/${inv.id}`, {
+      const revoke = await fetch(`${baseUrl}/v1/orgs/me/invitations/${inv.id}`, {
         method: 'DELETE',
         headers: cookieHeaders(orgA.sessionToken),
       });
@@ -506,27 +506,27 @@ interface OrgFixture {
 
   // ─── accept-invitation (anonymous lookup, session-cookie accept) ─────
 
-  describe('/api/v1/invitations (lookup + accept)', () => {
+  describe('/v1/invitations (lookup + accept)', () => {
     it('lookup is anonymous and returns 404 for unknown token', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/invitations/lookup?token=bogus`);
+      const res = await fetch(`${baseUrl}/v1/invitations/lookup?token=bogus`);
       expect(res.status).toBe(404);
     });
 
     it('lookup with a valid token returns invitation detail', async () => {
-      const create = await fetch(`${baseUrl}/api/v1/orgs/me/invitations`, {
+      const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
         method: 'POST',
         headers: cookieHeaders(orgA.sessionToken),
         body: JSON.stringify({ email: `lookup-${Date.now()}@example.com` }),
       });
       const inv = (await create.json()) as { id: string; token: string };
       const res = await fetch(
-        `${baseUrl}/api/v1/invitations/lookup?token=${encodeURIComponent(inv.token)}`,
+        `${baseUrl}/v1/invitations/lookup?token=${encodeURIComponent(inv.token)}`,
       );
       expect(res.status).toBe(200);
     });
 
     it('accept without session cookie is forbidden', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/invitations/accept`, {
+      const res = await fetch(`${baseUrl}/v1/invitations/accept`, {
         method: 'POST',
         body: JSON.stringify({ token: 'whatever' }),
         headers: { 'Content-Type': 'application/json' },
@@ -537,14 +537,14 @@ interface OrgFixture {
 
   // ─── members (owner-only patch/delete) ──────────────────────────────
 
-  describe('/api/v1/orgs/me/members', () => {
+  describe('/v1/orgs/me/members', () => {
     it('401 without credentials', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/orgs/me/members`);
+      const res = await fetch(`${baseUrl}/v1/orgs/me/members`);
       expect(res.status).toBe(401);
     });
 
     it('admin API key can list members of its org', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/orgs/me/members`, {
+      const res = await fetch(`${baseUrl}/v1/orgs/me/members`, {
         headers: authHeaders(orgA.adminKey),
       });
       expect(res.status).toBe(200);
@@ -555,7 +555,7 @@ interface OrgFixture {
     });
 
     it('admin API key cannot demote/remove members (owner-user only)', async () => {
-      const patch = await fetch(`${baseUrl}/api/v1/orgs/me/members/${orgA.userId}`, {
+      const patch = await fetch(`${baseUrl}/v1/orgs/me/members/${orgA.userId}`, {
         method: 'PATCH',
         headers: authHeaders(orgA.adminKey),
         body: JSON.stringify({ role: 'member' }),
@@ -566,9 +566,9 @@ interface OrgFixture {
 
   // ─── memberships (user-session only) ─────────────────────────────────
 
-  describe('/api/v1/me/memberships', () => {
+  describe('/v1/me/memberships', () => {
     it('user session can list its memberships', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/me/memberships`, {
+      const res = await fetch(`${baseUrl}/v1/me/memberships`, {
         headers: cookieHeaders(orgA.sessionToken),
       });
       expect(res.status).toBe(200);
@@ -577,7 +577,7 @@ interface OrgFixture {
     });
 
     it('admin API key cannot list memberships (user session required)', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/me/memberships`, {
+      const res = await fetch(`${baseUrl}/v1/me/memberships`, {
         headers: authHeaders(orgA.adminKey),
       });
       expect(res.status).toBe(403);
@@ -627,14 +627,14 @@ interface OrgFixture {
     });
 
     const READ_ENDPOINTS = [
-      ['/api/v1/api-keys', 'GET'],
-      ['/api/v1/admin/audit-logs', 'GET'],
-      ['/api/v1/usage', 'GET'],
-      ['/api/v1/export', 'GET'],
-      ['/api/v1/end-users', 'GET'],
-      ['/api/v1/tokens', 'GET'],
-      ['/api/v1/orgs/me/members', 'GET'],
-      ['/api/v1/orgs/me/invitations', 'GET'],
+      ['/v1/api-keys', 'GET'],
+      ['/v1/admin/audit-logs', 'GET'],
+      ['/v1/usage', 'GET'],
+      ['/v1/export', 'GET'],
+      ['/v1/end-users', 'GET'],
+      ['/v1/tokens', 'GET'],
+      ['/v1/orgs/me/members', 'GET'],
+      ['/v1/orgs/me/invitations', 'GET'],
     ] as const;
 
     for (const [path] of READ_ENDPOINTS) {
@@ -650,7 +650,7 @@ interface OrgFixture {
     }
 
     it('member cannot create API keys (403)', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/api-keys`, {
+      const res = await fetch(`${baseUrl}/v1/api-keys`, {
         method: 'POST',
         headers: memberCookie,
         body: JSON.stringify({ name: 'member-attempt', scopes: [] }),
@@ -659,7 +659,7 @@ interface OrgFixture {
     });
 
     it('admin can create API keys (201)', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/api-keys`, {
+      const res = await fetch(`${baseUrl}/v1/api-keys`, {
         method: 'POST',
         headers: adminCookie,
         body: JSON.stringify({ name: `admin-${Date.now()}`, scopes: [] }),
@@ -668,7 +668,7 @@ interface OrgFixture {
     });
 
     it('admin cannot invite members (owner-only) — 403', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/orgs/me/invitations`, {
+      const res = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
         method: 'POST',
         headers: adminCookie,
         body: JSON.stringify({ email: `admin-cannot-invite-${Date.now()}@example.com` }),
@@ -677,7 +677,7 @@ interface OrgFixture {
     });
 
     it('admin cannot change another member\'s role (owner-only) — 403', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/orgs/me/members/${orgA.userId}`, {
+      const res = await fetch(`${baseUrl}/v1/orgs/me/members/${orgA.userId}`, {
         method: 'PATCH',
         headers: adminCookie,
         body: JSON.stringify({ role: 'member' }),
@@ -688,9 +688,9 @@ interface OrgFixture {
 
   // ─── realtime gateway (websocket auth) ──────────────────────────────
 
-  describe('GET /api/v1/realtime (websocket)', () => {
+  describe('GET /v1/realtime (websocket)', () => {
     function wsUrl(): string {
-      return baseUrl.replace(/^http/, 'ws') + '/api/v1/realtime';
+      return baseUrl.replace(/^http/, 'ws') + '/v1/realtime';
     }
 
     function awaitOpen(ws: WebSocket): Promise<{ subprotocol: string }> {
@@ -740,14 +740,14 @@ interface OrgFixture {
 
   // ─── cms-delivery (anonymous) ────────────────────────────────────────
 
-  describe('GET /api/v1/cms/:orgSlug/...', () => {
+  describe('GET /v1/cms/:orgSlug/...', () => {
     it('returns 404 for unknown org id', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/cms/org_no_such/collections`);
+      const res = await fetch(`${baseUrl}/v1/cms/org_no_such/collections`);
       expect(res.status).toBe(404);
     });
 
     it('returns the org\'s collections without auth (public delivery)', async () => {
-      const res = await fetch(`${baseUrl}/api/v1/cms/${orgA.id}/collections`);
+      const res = await fetch(`${baseUrl}/v1/cms/${orgA.id}/collections`);
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(Array.isArray(body)).toBe(true);

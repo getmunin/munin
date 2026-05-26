@@ -199,7 +199,7 @@ const userHash = crypto
         <dd>
           After the first agent turn, an inline card prompts the visitor to share their email so the
           operator can follow up if the visitor closes the tab. Submitted via{' '}
-          <code>PATCH /api/v1/widget/visitor</code>, persisted on both <code>conv_contacts</code> and{' '}
+          <code>PATCH /v1/widget/visitor</code>, persisted on both <code>conv_contacts</code> and{' '}
           <code>end_users</code>.
         </dd>
         <dt>Typing indicator</dt>

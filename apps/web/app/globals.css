@@ -20,6 +20,7 @@
   html,
   body {
     height: 100%;
+    overscroll-behavior-x: none;
   }
 
   ::selection {

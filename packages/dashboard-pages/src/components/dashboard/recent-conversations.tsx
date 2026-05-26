@@ -45,7 +45,7 @@ export function RecentConversationsSection({
     void (async () => {
       try {
         const page = await api<ConversationListResponse>(
-          `/api/v1/conversations?limit=${FETCH_LIMIT}`,
+          `/v1/conversations?limit=${FETCH_LIMIT}`,
         );
         setItems(page.items);
       } catch {

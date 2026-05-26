@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { TagGroup } from '../_lib/openapi';
+import { prettifyTag, type TagGroup } from '../_lib/openapi';
 
 export function RestSidebar({ groups }: { groups: TagGroup[] }) {
   const [activeId, setActiveId] = useState<string>('');
@@ -18,7 +18,7 @@ export function RestSidebar({ groups }: { groups: TagGroup[] }) {
       {groups.map((g) => (
         <div className="group" key={g.tag}>
           <div className="group-h">
-            {g.tag} <span className="ct">· {g.endpoints.length}</span>
+            {prettifyTag(g.tag)} <span className="ct">· {g.endpoints.length}</span>
           </div>
           {g.endpoints.map((ep) => (
             <a
@@ -29,7 +29,7 @@ export function RestSidebar({ groups }: { groups: TagGroup[] }) {
               <span className={'leaf-method m-' + ep.method.toUpperCase()}>
                 {ep.method.toUpperCase()}
               </span>
-              <span className="leaf-path">{ep.path.replace('/api/v1', '')}</span>
+              <span className="leaf-path">{ep.path.replace('/v1', '')}</span>
             </a>
           ))}
         </div>

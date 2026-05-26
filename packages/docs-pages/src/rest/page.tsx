@@ -1,9 +1,19 @@
-import { listEndpoints, groupByTag, tagSlug } from '../_lib/openapi';
+import {
+  listEndpoints,
+  groupByTag,
+  tagSlug,
+  prettifyTag,
+  type EndpointEntry,
+} from '../_lib/openapi';
 import { RestEndpoint } from '../_components/rest-endpoint';
 import { RestSidebar } from '../_components/rest-sidebar';
 
-export default function RestIndex() {
-  const groups = groupByTag(listEndpoints());
+export interface RestIndexProps {
+  extraEndpoints?: EndpointEntry[];
+}
+
+export default function RestIndex({ extraEndpoints }: RestIndexProps = {}) {
+  const groups = groupByTag([...listEndpoints(), ...(extraEndpoints ?? [])]);
   return (
     <>
       <RestSidebar groups={groups} />
@@ -21,7 +31,7 @@ export default function RestIndex() {
         {groups.map((g) => (
           <section key={g.tag} id={'tag-' + tagSlug(g.tag)}>
             <h2 className="tag-h">
-              {g.tag} <span className="ct">{g.endpoints.length} endpoints</span>
+              {prettifyTag(g.tag)} <span className="ct">{g.endpoints.length} endpoints</span>
             </h2>
             {g.endpoints.map((ep) => (
               <RestEndpoint key={ep.id} ep={ep} />

@@ -24,7 +24,7 @@ interface Cursor {
   id: string;
 }
 
-@Controller('api/v1/activity')
+@Controller('v1/activity')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ActivityController {

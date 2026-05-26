@@ -48,7 +48,7 @@ interface MintResult {
  * resulting token and uses it as bearer when calling MCP tools — its surface
  * is restricted to self-service tools, scoped to that one EndUser.
  */
-@Controller('api/v1/tokens/delegated')
+@Controller('v1/tokens/delegated')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class DelegatedTokenController {

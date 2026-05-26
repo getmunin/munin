@@ -105,15 +105,15 @@ export function createMuninClient(opts: MuninClientOptions): MuninClient {
 
   return {
     mintEndUserToken: (input) =>
-      call<MintEndUserTokenResult>('/api/v1/tokens/delegated', { method: 'POST', body: input }),
+      call<MintEndUserTokenResult>('/v1/tokens/delegated', { method: 'POST', body: input }),
     lookupEndUser: (input) =>
-      call<EndUser | null>('/api/v1/end-users/lookup', { method: 'POST', body: input }),
+      call<EndUser | null>('/v1/end-users/lookup', { method: 'POST', body: input }),
     getEndUserContext: (endUserId) =>
-      call<EndUserContext>(`/api/v1/end-users/${encodeURIComponent(endUserId)}/context`, {
+      call<EndUserContext>(`/v1/end-users/${encodeURIComponent(endUserId)}/context`, {
         method: 'GET',
       }),
     revokeToken: (tokenId) =>
-      call<void>(`/api/v1/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE' }),
+      call<void>(`/v1/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE' }),
   };
 }
 

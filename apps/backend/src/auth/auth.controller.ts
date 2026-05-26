@@ -14,7 +14,7 @@ import {
   type MuninAuth,
 } from './auth.config.ts';
 
-const MCP_URL_FALLBACK = 'http://localhost:3001';
+const AUTH_URL_FALLBACK = 'http://localhost:3001';
 
 @Controller('auth')
 export class AuthController {
@@ -24,7 +24,10 @@ export class AuthController {
     const mailer = readMailerFromEnv();
     this.auth = createMuninAuth({
       db,
-      baseUrl: process.env.MUNIN_MCP_URL ?? MCP_URL_FALLBACK,
+      baseUrl:
+        process.env.NEXT_PUBLIC_AUTH_URL ??
+        process.env.NEXT_PUBLIC_MCP_URL ??
+        AUTH_URL_FALLBACK,
       authSecret: requireAuthSecret(),
       trustedOrigins: readTrustedOriginsFromEnv(),
       mailer,

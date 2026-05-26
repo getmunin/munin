@@ -34,7 +34,7 @@ export function AgentsPage() {
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const list = await api<TokenDto[]>('/api/v1/tokens');
+    const list = await api<TokenDto[]>('/v1/tokens');
     setTokens(list);
   }, []);
 
@@ -48,7 +48,7 @@ export function AgentsPage() {
   async function revoke(id: string) {
     setRevokingId(id);
     try {
-      await api(`/api/v1/tokens/${id}`, { method: 'DELETE' });
+      await api(`/v1/tokens/${id}`, { method: 'DELETE' });
       await tryLoad();
       notify.success(t('revoked'));
     } catch (err) {

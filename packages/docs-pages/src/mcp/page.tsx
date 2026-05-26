@@ -1,10 +1,16 @@
-import { listAdmin, listSelfService, mcpTools } from '../_lib/mcp';
+import { mcpTools, type McpTool } from '../_lib/mcp';
 import { McpCard } from '../_components/mcp-card';
 import { McpSidebar } from '../_components/mcp-sidebar';
+import { Link } from '../i18n-navigation';
 
-export default function McpIndex() {
-  const admin = listAdmin();
-  const selfService = listSelfService();
+export interface McpIndexProps {
+  extraTools?: McpTool[];
+}
+
+export default function McpIndex({ extraTools }: McpIndexProps = {}) {
+  const all = [...mcpTools, ...(extraTools ?? [])];
+  const admin = all.filter((t) => t.audiences.includes('admin'));
+  const selfService = all.filter((t) => t.audiences.includes('self_service'));
   return (
     <>
       <McpSidebar admin={admin} selfService={selfService} />
@@ -15,13 +21,40 @@ export default function McpIndex() {
             Tools your <em>agent</em> can call.
           </h1>
           <p className="lede">
-            Munin exposes {mcpTools.length} tools at <code style={{ fontFamily: 'var(--munin-mono)' }}>/mcp</code>.
+            Munin exposes {all.length} tools at <code style={{ fontFamily: 'var(--munin-mono)' }}>/mcp</code>.
             Audiences gate which tokens see which tools — admin keys see everything, delegated end-user
             tokens see only self-service tools.
           </p>
         </header>
 
-        <h2 className="tag-h">
+        <h2 className="tag-h" id="connect">
+          Connect a client
+        </h2>
+        <p className="tag-blurb">
+          Wire your favourite model to Munin in a couple of minutes.
+        </p>
+        <ul className="mcp-clients">
+          <li>
+            <Link href="/docs/guides/connect-claude">
+              <span className="name">Claude</span>
+              <span className="sub">Desktop &amp; Web</span>
+            </Link>
+          </li>
+          <li>
+            <Link href="/docs/guides/connect-chatgpt">
+              <span className="name">ChatGPT</span>
+              <span className="sub">Custom Connector</span>
+            </Link>
+          </li>
+          <li>
+            <Link href="/docs/guides/connect-gemini">
+              <span className="name">Gemini</span>
+              <span className="sub">CLI &amp; Studio</span>
+            </Link>
+          </li>
+        </ul>
+
+        <h2 className="tag-h" style={{ marginTop: 56 }}>
           Admin tools <span className="ct">{admin.length}</span>
         </h2>
         <p className="tag-blurb">

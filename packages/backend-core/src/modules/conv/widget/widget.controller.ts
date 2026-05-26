@@ -51,7 +51,7 @@ import { WidgetVoiceService } from './widget-voice.service.ts';
  * to write across conv_contacts / conv_conversations / conv_messages for
  * the bound org.
  */
-@Controller('api/v1/widget')
+@Controller('v1/widget')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class WidgetController {

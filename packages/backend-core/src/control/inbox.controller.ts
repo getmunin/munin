@@ -36,7 +36,7 @@ interface InboxQueueResponse {
   };
 }
 
-@Controller('api/v1/inbox')
+@Controller('v1/inbox')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class InboxController {

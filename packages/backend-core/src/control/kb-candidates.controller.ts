@@ -37,7 +37,7 @@ interface CandidateListResponse {
   items: CurationCandidateSummary[];
 }
 
-@Controller('api/v1/kb/curation/candidates')
+@Controller('v1/kb/curation/candidates')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class KbCandidatesController {
@@ -94,7 +94,7 @@ export class KbCandidatesController {
   }
 }
 
-@Controller('api/v1/kb/spaces')
+@Controller('v1/kb/spaces')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class KbSpacesController {

@@ -45,7 +45,7 @@ interface ApiKeySummary {
   createdAt: string;
 }
 
-@Controller('api/v1/api-keys')
+@Controller('v1/api-keys')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ApiKeysController {

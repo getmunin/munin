@@ -34,7 +34,7 @@ export default function SkillsVsToolsVsRest() {
         REST <span className="ct">the load-bearing layer</span>
       </h2>
       <p className="tag-blurb">
-        The HTTP API at <code>/api/v1/*</code>. Every business operation Munin can perform lives
+        The HTTP API at <code>/v1/*</code>. Every business operation Munin can perform lives
         here first — channels, conversations, contacts, KB, agents. It&rsquo;s how the dashboard
         talks to the backend, how integrations push data in, and how every other surface in this
         article gets its work done underneath.

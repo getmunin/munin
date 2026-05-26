@@ -222,7 +222,7 @@ function WebsiteImportStatus({ jobId }: { jobId: string }) {
       if (cancelled) return;
       attempts += 1;
       try {
-        const res = await api<CuratorJobDto>(`/api/v1/curation/jobs/${jobId}`);
+        const res = await api<CuratorJobDto>(`/v1/curation/jobs/${jobId}`);
         if (cancelled) return;
         setJob(res);
         if (res.status !== 'pending' || attempts >= MAX_ATTEMPTS) {

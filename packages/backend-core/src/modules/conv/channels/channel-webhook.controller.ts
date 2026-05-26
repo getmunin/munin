@@ -24,7 +24,7 @@ import {
 } from './adapter.ts';
 import { ChannelIngestService } from './channel-ingest.service.ts';
 
-@Controller('api/v1/conversations/channels')
+@Controller('v1/conversations/channels')
 export class ChannelWebhookController {
   private readonly logger = new Logger(ChannelWebhookController.name);
   private readonly registry: ChannelAdapterRegistry;

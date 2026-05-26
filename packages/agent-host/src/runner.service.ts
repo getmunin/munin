@@ -47,6 +47,7 @@ import type { AgentConfigRepository, AgentConfigRow } from './config.repository.
 import { runWithServiceContext } from './service-context.js';
 import { ReplicaLockManager } from './replica-lock.js';
 import { runWebImportJob } from './web-import.handler.js';
+import { AgentHealthService } from './agent-health.service.js';
 
 interface TaskHandlerContext {
   job: CuratorJob;
@@ -103,6 +104,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     @Inject(RealtimeEventBus) private readonly eventBus: RealtimeEventBus,
     @Inject(InProcessMuninRestClientFactoryService)
     private readonly restClientFactory: InProcessMuninRestClientFactoryService,
+    @Inject(AgentHealthService) private readonly health: AgentHealthService,
     @Optional() @Inject('AGENT_HOST_RUNNER_OPTIONS') options?: AgentHostRunnerOptions,
   ) {
     this.holderId =
@@ -338,6 +340,18 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       logger: this.scopedLogger(id, 'chat'),
       onTyping: (conversationId, isTyping) =>
         this.eventBus.publishConversationTyping(orgId, conversationId, isTyping),
+      onProviderError: (code, message) => {
+        void runWithServiceContext(this.db, id, () =>
+          this.health.recordFailure(id, code, message),
+        ).catch((err) =>
+          this.scopedLogger(id, 'chat').warn(`recordFailure failed: ${describe(err)}`),
+        );
+      },
+      onProviderSuccess: () => {
+        void runWithServiceContext(this.db, id, () => this.health.recordSuccess(id)).catch(
+          (err) => this.scopedLogger(id, 'chat').warn(`recordSuccess failed: ${describe(err)}`),
+        );
+      },
     });
     handlerRef.current = handler;
 
@@ -441,6 +455,11 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             totalTokens: result.totalTokens,
           })
           .catch((e) => log.error(`ack failed: ${describe(e)}`));
+        if (result.totalTokens > 0) {
+          await runWithServiceContext(this.db, opts.id, () =>
+            this.health.recordSuccess(opts.id),
+          ).catch((e) => log.warn(`recordSuccess failed: ${describe(e)}`));
+        }
         return;
       }
 
@@ -449,11 +468,20 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         result.skipped !== 'no_admin_key' &&
         result.skipped !== 'no_provider_key';
       log.warn(`${job.id} skipped: ${result.skipped}${result.error ? ` (${result.error})` : ''}`);
+      const failBody: { error: string; retryable: boolean; code?: string; failedStep?: string } = {
+        error: `${result.skipped}${result.error ? `: ${result.error}` : ''}`,
+        retryable,
+      };
+      if (result.skipped === 'provider_error' && result.code) {
+        failBody.code = result.code;
+        if (result.failedStep) failBody.failedStep = result.failedStep;
+        const code = result.code;
+        await runWithServiceContext(this.db, opts.id, () =>
+          this.health.recordFailure(opts.id, code, result.error ?? result.skipped),
+        ).catch((e) => log.warn(`recordFailure failed: ${describe(e)}`));
+      }
       await opts.rest
-        .failCuratorJob(job.id, {
-          error: `${result.skipped}${result.error ? `: ${result.error}` : ''}`,
-          retryable,
-        })
+        .failCuratorJob(job.id, failBody)
         .catch((e) => log.error(`fail-report failed: ${describe(e)}`));
     };
 

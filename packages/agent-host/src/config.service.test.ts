@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebhookDispatcher } from '@getmunin/core';
 import { AgentConfigService } from './config.service.js';
+import type { AgentHealthRecorder } from './agent-health.service.js';
 import type {
   AgentConfigPatch,
   AgentConfigRepository,
@@ -40,6 +41,13 @@ function makeWebhooks(): WebhookDispatcher & { emit: ReturnType<typeof vi.fn> } 
   return stub;
 }
 
+function makeHealthStub(): AgentHealthRecorder {
+  return {
+    recordSuccess: vi.fn().mockResolvedValue({ flipped: false }),
+    recordFailure: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe('AgentConfigService', () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -50,7 +58,7 @@ describe('AgentConfigService', () => {
 
   it('reads + serialises the row into a DTO with ISO timestamps', async () => {
     const repo = makeRepo({ before: baseRow, after: baseRow });
-    const svc = new AgentConfigService(repo, makeWebhooks());
+    const svc = new AgentConfigService(repo, makeWebhooks(), makeHealthStub());
     const dto = await svc.getForCurrentActor();
     expect(dto.id).toBe('singleton');
     expect(dto.createdAt).toBe('2026-01-01T00:00:00.000Z');
@@ -59,7 +67,7 @@ describe('AgentConfigService', () => {
 
   it('passes the patch through to the repo verbatim', async () => {
     const repo = makeRepo({ before: baseRow, after: baseRow });
-    const svc = new AgentConfigService(repo, makeWebhooks());
+    const svc = new AgentConfigService(repo, makeWebhooks(), makeHealthStub());
 
     const patch: AgentConfigPatch = {
       fastModel: 'a',
@@ -75,7 +83,7 @@ describe('AgentConfigService', () => {
   it('emits a webhook on upsert', async () => {
     const repo = makeRepo({ before: baseRow, after: baseRow });
     const webhooks = makeWebhooks();
-    const svc = new AgentConfigService(repo, webhooks);
+    const svc = new AgentConfigService(repo, webhooks, makeHealthStub());
 
     await svc.upsertForCurrentActor({ fastModel: 'x' });
 

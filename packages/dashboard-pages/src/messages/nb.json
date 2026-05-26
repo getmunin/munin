@@ -131,8 +131,17 @@
     "organization": "Organisasjon"
   },
   "dashboard": {
-    "connectionBanner": {
-      "offline": "Tilkoblingen er borte. Kobler til igjen…"
+    "runnerStatusBanner": {
+      "disconnectedTag": "Frakoblet",
+      "disconnectedMessage": "Tilkoblingen er borte. Kobler til igjen…",
+      "agentOfflineTag": "Agent-tjeneren er nede",
+      "agentOfflineMessage": "Agent-tjeneren når ikke AI-leverandøren — <em>{reason}</em>. Utkast og automatiske svar er satt på pause til legitimasjonen er gjenopprettet.",
+      "openAiSettings": "Åpne AI-innstillinger →",
+      "providerErrorAuth": "API-nøkkel mangler eller er ugyldig",
+      "providerErrorRegional": "leverandørens region er ikke aktivert — sjekk leverandørkontoen eller bytt leverandør",
+      "providerErrorRateLimit": "leverandørens rategrense er nådd — sannsynligvis et abonnements- eller faktureringsproblem",
+      "providerErrorModelNotFound": "valgt modell er ikke tilgjengelig — velg en annen modell",
+      "providerUnavailable": "leverandør utilgjengelig"
     },
     "saveFailed": {
       "title": "Lagring feilet",

@@ -156,7 +156,7 @@ const skipReason = TEST_URL
     const startResp = await rest<{ id: string; displayId: number; messages: { body: string }[] }>(
       endUserToken,
       'POST',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
       { body: 'Hi — my account is locked, can you help?' },
     );
     expect(startResp.status).toBe(201);
@@ -197,7 +197,7 @@ const skipReason = TEST_URL
     const detailResp = await rest<{ messages: { body: string; internal: boolean }[] }>(
       endUserToken,
       'GET',
-      `/api/v1/end-users/me/conversations/${startedConv.id}`,
+      `/v1/end-users/me/conversations/${startedConv.id}`,
     );
     expect(detailResp.status).toBe(200);
     const detail = detailResp.body;
@@ -211,14 +211,14 @@ const skipReason = TEST_URL
     const otherList = await rest<{ items: Array<{ id: string }> }>(
       otherEndUserToken,
       'GET',
-      '/api/v1/end-users/me/conversations',
+      '/v1/end-users/me/conversations',
     );
     expect(otherList.body.items.find((row) => row.id === startedConv.id)).toBeFalsy();
 
     const otherGet = await rest<{ message?: string }>(
       otherEndUserToken,
       'GET',
-      `/api/v1/end-users/me/conversations/${startedConv.id}`,
+      `/v1/end-users/me/conversations/${startedConv.id}`,
     );
     expect(otherGet.status).toBe(404);
 
@@ -226,7 +226,7 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('admin can change status to closed; subsequent listings respect the filter', async () => {
-    await rest(endUserToken, 'POST', '/api/v1/end-users/me/conversations', {
+    await rest(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'How do I export my data?',
     });
 
@@ -263,7 +263,7 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('admin agent requests handover; flag is set, internal note appears, idempotent, then user reply clears it', async () => {
-    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/api/v1/end-users/me/conversations', {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'Can I get a partial refund for last month?',
     });
     const conv = startResp.body;
@@ -309,7 +309,7 @@ const skipReason = TEST_URL
     const endUserDetail = await rest<Detail>(
       endUserToken,
       'GET',
-      `/api/v1/end-users/me/conversations/${conv.id}`,
+      `/v1/end-users/me/conversations/${conv.id}`,
     );
     const systemNotes = endUserDetail.body.messages.filter((m) => m.authorType === 'system');
     expect(systemNotes).toHaveLength(0);
@@ -339,7 +339,7 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('end-user agent can flag its own conversation via conv_request_handover_in_my_conversation (self-service)', async () => {
-    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/api/v1/end-users/me/conversations', {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'I need to talk to a human about my contract.',
     });
     const conv = startResp.body;
@@ -368,7 +368,7 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('emits conversation.handover_resolved exactly once when admin reply clears the flag', async () => {
-    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/api/v1/end-users/me/conversations', {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'Need help with my booking — flight got cancelled.',
     });
     const conv = startResp.body;
@@ -421,7 +421,7 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('changeStatus to closed clears needsHumanAttention', async () => {
-    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/api/v1/end-users/me/conversations', {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'My invoice has the wrong VAT.',
     });
     const conv = startResp.body;

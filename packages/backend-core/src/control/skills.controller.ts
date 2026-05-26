@@ -32,7 +32,7 @@ interface SkillDto {
   lastRunStatus: 'pending' | 'running' | 'done' | 'failed' | 'dead' | null;
 }
 
-@Controller('api/v1/skills')
+@Controller('v1/skills')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class SkillsController {

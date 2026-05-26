@@ -23,7 +23,7 @@ describe('parseUrlEncoded', () => {
 
 describe('validateTwilioSignature', () => {
   const authToken = 'test-twilio-auth-token';
-  const url = 'https://munin.example/api/v1/conversations/channels/cch_abc/webhook';
+  const url = 'https://munin.example/v1/conversations/channels/cch_abc/webhook';
   const params = {
     AccountSid: 'AC1234567890',
     From: '+14155551212',

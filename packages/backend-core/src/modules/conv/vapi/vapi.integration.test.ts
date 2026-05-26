@@ -97,7 +97,7 @@ const skipReason = TEST_URL
 
   async function postEvent(message: Record<string, unknown>): Promise<Response> {
     const payload = JSON.stringify({ message });
-    return fetch(`${baseUrl}/api/v1/conversations/channels/${channelId}/webhook`, {
+    return fetch(`${baseUrl}/v1/conversations/channels/${channelId}/webhook`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -111,7 +111,7 @@ const skipReason = TEST_URL
 
   it('rejects webhook with wrong shared secret', async () => {
     const payload = JSON.stringify({ message: { type: 'transcript' } });
-    const res = await fetch(`${baseUrl}/api/v1/conversations/channels/${channelId}/webhook`, {
+    const res = await fetch(`${baseUrl}/v1/conversations/channels/${channelId}/webhook`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',

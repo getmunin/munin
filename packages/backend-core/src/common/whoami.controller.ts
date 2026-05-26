@@ -10,7 +10,7 @@ import { AuditInterceptor } from './audit/audit.interceptor.ts';
  * Lets us smoke-test the full chain (AuthGuard → TenancyInterceptor →
  * AuditInterceptor → controller) without needing a real domain module yet.
  */
-@Controller('api/v1')
+@Controller('v1')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class WhoamiController {

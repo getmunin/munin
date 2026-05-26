@@ -162,7 +162,7 @@ export function ChannelsPage() {
     useState<MessageBirdSmsChannelDto | null>(null);
 
   const load = useCallback(async () => {
-    const list = await api<{ items: ChannelDto[] }>('/api/v1/conversations/channels');
+    const list = await api<{ items: ChannelDto[] }>('/v1/conversations/channels');
     setChannels(list.items);
   }, []);
 
@@ -183,7 +183,7 @@ export function ChannelsPage() {
     if (!ok) return;
     try {
       const result = await api<{ widgetKey: string }>(
-        `/api/v1/conversations/channels/widget/${channel.id}/rotate-key`,
+        `/v1/conversations/channels/widget/${channel.id}/rotate-key`,
         { method: 'POST' },
       );
       setRotated({ id: channel.id, name: channel.name, widgetKey: result.widgetKey });
@@ -202,7 +202,7 @@ export function ChannelsPage() {
     if (!ok) return;
     try {
       const result = await api<{ identityVerificationSecret: string }>(
-        `/api/v1/conversations/channels/widget/${channel.id}/rotate-identity-secret`,
+        `/v1/conversations/channels/widget/${channel.id}/rotate-identity-secret`,
         { method: 'POST' },
       );
       setRotatedIdentity({
@@ -225,7 +225,7 @@ export function ChannelsPage() {
     });
     if (!ok) return;
     try {
-      await api(`/api/v1/conversations/channels/${channel.id}`, { method: 'DELETE' });
+      await api(`/v1/conversations/channels/${channel.id}`, { method: 'DELETE' });
       await tryLoad();
     } catch (err) {
       notify.error(translate(err) || t('errors.delete'));
@@ -823,7 +823,7 @@ function CreateWidgetDialog({
     setCreating(true);
     setSubmitError(null);
     try {
-      const result = await api<CreatedWidget>('/api/v1/conversations/channels/widget', {
+      const result = await api<CreatedWidget>('/v1/conversations/channels/widget', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -832,7 +832,7 @@ function CreateWidgetDialog({
     } catch (err) {
       setSubmitError(
         toSaveErrorDetail(err, translate(err) || t('errors.create'), {
-          endpoint: '/api/v1/conversations/channels/widget',
+          endpoint: '/v1/conversations/channels/widget',
           method: 'POST',
         }),
       );
@@ -1123,7 +1123,7 @@ function EmailChannelDialog({
     setCreating(true);
     setSubmitError(null);
     try {
-      await api('/api/v1/conversations/channels/email', {
+      await api('/v1/conversations/channels/email', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -1135,7 +1135,7 @@ function EmailChannelDialog({
           err,
           translate(err) || t(isEdit ? 'errors.updateEmail' : 'errors.createEmail'),
           {
-            endpoint: '/api/v1/conversations/channels/email',
+            endpoint: '/v1/conversations/channels/email',
             method: 'POST',
           },
         ),
@@ -1431,7 +1431,7 @@ function SendTestEmailDialog({
     setSending(true);
     setError(null);
     try {
-      await api(`/api/v1/conversations/channels/email/${channel.id}/send-test`, {
+      await api(`/v1/conversations/channels/email/${channel.id}/send-test`, {
         method: 'POST',
         body: JSON.stringify({ to: trimmed }),
       });
@@ -1831,7 +1831,7 @@ function TwilioSmsChannelDialog({
     setSaving(true);
     setSubmitError(null);
     try {
-      await api('/api/v1/conversations/channels/twilio-sms', {
+      await api('/v1/conversations/channels/twilio-sms', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -1840,7 +1840,7 @@ function TwilioSmsChannelDialog({
     } catch (err) {
       setSubmitError(
         toSaveErrorDetail(err, translate(err) || t('errors.updateTwilioSms'), {
-          endpoint: '/api/v1/conversations/channels/twilio-sms',
+          endpoint: '/v1/conversations/channels/twilio-sms',
           method: 'POST',
         }),
       );
@@ -1986,7 +1986,7 @@ function SendTestSmsDialog({
     setSending(true);
     setError(null);
     try {
-      await api(`/api/v1/conversations/channels/twilio-sms/${channel.id}/send-test`, {
+      await api(`/v1/conversations/channels/twilio-sms/${channel.id}/send-test`, {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -2122,7 +2122,7 @@ function MessageBirdSmsChannelDialog({
     setSaving(true);
     setSubmitError(null);
     try {
-      await api('/api/v1/conversations/channels/messagebird-sms', {
+      await api('/v1/conversations/channels/messagebird-sms', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -2131,7 +2131,7 @@ function MessageBirdSmsChannelDialog({
     } catch (err) {
       setSubmitError(
         toSaveErrorDetail(err, translate(err) || t('errors.updateMessageBirdSms'), {
-          endpoint: '/api/v1/conversations/channels/messagebird-sms',
+          endpoint: '/v1/conversations/channels/messagebird-sms',
           method: 'POST',
         }),
       );
@@ -2264,7 +2264,7 @@ function SendTestMessageBirdSmsDialog({
     setSending(true);
     setError(null);
     try {
-      await api(`/api/v1/conversations/channels/messagebird-sms/${channel.id}/send-test`, {
+      await api(`/v1/conversations/channels/messagebird-sms/${channel.id}/send-test`, {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -2410,7 +2410,7 @@ function AddSmsDialog({
     setSaving(true);
     setSubmitError(null);
     try {
-      await api('/api/v1/conversations/channels/twilio-sms', {
+      await api('/v1/conversations/channels/twilio-sms', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -2419,7 +2419,7 @@ function AddSmsDialog({
     } catch (err) {
       setSubmitError(
         toSaveErrorDetail(err, translate(err) || t('errors.createTwilioSms'), {
-          endpoint: '/api/v1/conversations/channels/twilio-sms',
+          endpoint: '/v1/conversations/channels/twilio-sms',
           method: 'POST',
         }),
       );
@@ -2444,7 +2444,7 @@ function AddSmsDialog({
     setSaving(true);
     setSubmitError(null);
     try {
-      await api('/api/v1/conversations/channels/messagebird-sms', {
+      await api('/v1/conversations/channels/messagebird-sms', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -2453,7 +2453,7 @@ function AddSmsDialog({
     } catch (err) {
       setSubmitError(
         toSaveErrorDetail(err, translate(err) || t('errors.createMessageBirdSms'), {
-          endpoint: '/api/v1/conversations/channels/messagebird-sms',
+          endpoint: '/v1/conversations/channels/messagebird-sms',
           method: 'POST',
         }),
       );
@@ -2700,7 +2700,7 @@ function AddVoiceDialog({
     setSaving(true);
     setSubmitError(null);
     try {
-      const created = await api<{ id: string }>('/api/v1/conversations/channels/vapi', {
+      const created = await api<{ id: string }>('/v1/conversations/channels/vapi', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -2710,7 +2710,7 @@ function AddVoiceDialog({
     } catch (err) {
       setSubmitError(
         toSaveErrorDetail(err, translate(err) || t('errors.createVapi'), {
-          endpoint: '/api/v1/conversations/channels/vapi',
+          endpoint: '/v1/conversations/channels/vapi',
           method: 'POST',
         }),
       );
@@ -2842,7 +2842,7 @@ function AddVoiceDialog({
 
 function vapiWebhookUrl(channelId: string): string {
   const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
-  return `${host}/api/v1/conversations/channels/${channelId}/webhook`;
+  return `${host}/v1/conversations/channels/${channelId}/webhook`;
 }
 
 function VapiConnectionStage({
@@ -2939,7 +2939,7 @@ function VapiChannelDialog({
     setSaving(true);
     setSubmitError(null);
     try {
-      await api('/api/v1/conversations/channels/vapi', {
+      await api('/v1/conversations/channels/vapi', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
@@ -2948,7 +2948,7 @@ function VapiChannelDialog({
     } catch (err) {
       setSubmitError(
         toSaveErrorDetail(err, translate(err) || t('errors.updateVapi'), {
-          endpoint: '/api/v1/conversations/channels/vapi',
+          endpoint: '/v1/conversations/channels/vapi',
           method: 'POST',
         }),
       );
@@ -3097,7 +3097,7 @@ function PlaceVapiCallDialog({
     setPlacing(true);
     setError(null);
     try {
-      await api(`/api/v1/conversations/channels/vapi/${channel.id}/call`, {
+      await api(`/v1/conversations/channels/vapi/${channel.id}/call`, {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });

@@ -28,7 +28,7 @@ type ClientKind = 'sdk' | 'cli' | 'mcp' | 'unknown';
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;
 
-@Controller('api/v1/admin/audit-logs')
+@Controller('v1/admin/audit-logs')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class AuditLogController {

@@ -25,26 +25,26 @@ describe('jwtIssuer + acceptedJwtAudiences', () => {
   let original: string | undefined;
 
   beforeEach(() => {
-    original = process.env.MUNIN_MCP_URL;
+    original = process.env.NEXT_PUBLIC_MCP_URL;
   });
 
   afterEach(() => {
-    if (original === undefined) delete process.env.MUNIN_MCP_URL;
-    else process.env.MUNIN_MCP_URL = original;
+    if (original === undefined) delete process.env.NEXT_PUBLIC_MCP_URL;
+    else process.env.NEXT_PUBLIC_MCP_URL = original;
   });
 
-  it('uses origin of MUNIN_MCP_URL as issuer when it has a path', () => {
-    process.env.MUNIN_MCP_URL = 'https://api.example.com/mcp';
+  it('uses origin of NEXT_PUBLIC_MCP_URL as issuer when it has a path', () => {
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://api.example.com/mcp';
     expect(jwtIssuer()).toBe('https://api.example.com');
   });
 
-  it('uses origin of MUNIN_MCP_URL as issuer when it has no path', () => {
-    process.env.MUNIN_MCP_URL = 'https://mcp.example.com';
+  it('uses origin of NEXT_PUBLIC_MCP_URL as issuer when it has no path', () => {
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://mcp.example.com';
     expect(jwtIssuer()).toBe('https://mcp.example.com');
   });
 
   it('accepts canonical URL plus trailing-slash, origin, and origin-with-slash when URL has a path', () => {
-    process.env.MUNIN_MCP_URL = 'https://api.example.com/mcp';
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://api.example.com/mcp';
     expect(acceptedJwtAudiences()).toEqual(
       new Set([
         'https://api.example.com/mcp',
@@ -56,14 +56,14 @@ describe('jwtIssuer + acceptedJwtAudiences', () => {
   });
 
   it('accepts both bare-origin variants when URL has no path', () => {
-    process.env.MUNIN_MCP_URL = 'https://mcp.example.com';
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://mcp.example.com';
     expect(acceptedJwtAudiences()).toEqual(
       new Set(['https://mcp.example.com', 'https://mcp.example.com/']),
     );
   });
 
   it('strips trailing slashes from the env value before computing variants', () => {
-    process.env.MUNIN_MCP_URL = 'https://api.example.com/mcp/';
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://api.example.com/mcp/';
     expect(acceptedJwtAudiences()).toEqual(
       new Set([
         'https://api.example.com/mcp',
@@ -75,7 +75,7 @@ describe('jwtIssuer + acceptedJwtAudiences', () => {
   });
 
   it('handles http loopback (dev default) correctly', () => {
-    delete process.env.MUNIN_MCP_URL;
+    delete process.env.NEXT_PUBLIC_MCP_URL;
     expect(jwtIssuer()).toBe('http://localhost:3001');
     expect(acceptedJwtAudiences()).toEqual(
       new Set([

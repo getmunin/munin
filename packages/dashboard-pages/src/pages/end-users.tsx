@@ -32,7 +32,7 @@ export function EndUsersPage() {
   const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
-    const list = await api<EndUserDto[]>('/api/v1/end-users');
+    const list = await api<EndUserDto[]>('/v1/end-users');
     setItems(list);
   }, []);
 
@@ -57,7 +57,7 @@ export function EndUsersPage() {
   async function revokeTokens(id: string) {
     setRevokingId(id);
     try {
-      const result = await api<{ revoked: number }>(`/api/v1/end-users/${id}/revoke-tokens`, {
+      const result = await api<{ revoked: number }>(`/v1/end-users/${id}/revoke-tokens`, {
         method: 'POST',
       });
       if (result.revoked > 0) {

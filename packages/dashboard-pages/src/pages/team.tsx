@@ -85,8 +85,8 @@ export function TeamPage() {
 
   const load = useCallback(async () => {
     const [m, i] = await Promise.all([
-      api<MemberDto[]>('/api/v1/orgs/me/members'),
-      api<InvitationDto[]>('/api/v1/orgs/me/invitations'),
+      api<MemberDto[]>('/v1/orgs/me/members'),
+      api<InvitationDto[]>('/v1/orgs/me/invitations'),
     ]);
     setMembers(m);
     setInvites(i);
@@ -100,7 +100,7 @@ export function TeamPage() {
   }, [tryLoad]);
 
   async function submitInvite(email: string, role: MemberRole) {
-    const created = await api<CreatedInvitationDto>('/api/v1/orgs/me/invitations', {
+    const created = await api<CreatedInvitationDto>('/v1/orgs/me/invitations', {
       method: 'POST',
       body: JSON.stringify({ email: email.trim(), role }),
     });
@@ -122,7 +122,7 @@ export function TeamPage() {
     });
     if (!ok) return;
     try {
-      await api(`/api/v1/orgs/me/invitations/${invite.id}`, { method: 'DELETE' });
+      await api(`/v1/orgs/me/invitations/${invite.id}`, { method: 'DELETE' });
       await tryLoad();
     } catch (err) {
       notify.error(translate(err) || t('errors.revokeInvite'));
@@ -139,7 +139,7 @@ export function TeamPage() {
     });
     if (!ok) return;
     try {
-      await api(`/api/v1/orgs/me/members/${userId}`, { method: 'DELETE' });
+      await api(`/v1/orgs/me/members/${userId}`, { method: 'DELETE' });
       await tryLoad();
     } catch (err) {
       notify.error(translate(err) || t('errors.remove'));
@@ -148,7 +148,7 @@ export function TeamPage() {
 
   async function changeRole(userId: string, role: MemberRole) {
     try {
-      await api(`/api/v1/orgs/me/members/${userId}`, {
+      await api(`/v1/orgs/me/members/${userId}`, {
         method: 'PATCH',
         body: JSON.stringify({ role }),
       });
@@ -159,7 +159,7 @@ export function TeamPage() {
   }
 
   async function renameMember(userId: string, name: string) {
-    await api<MemberDto>(`/api/v1/orgs/me/members/${userId}`, {
+    await api<MemberDto>(`/v1/orgs/me/members/${userId}`, {
       method: 'PATCH',
       body: JSON.stringify({ name }),
     });

@@ -29,7 +29,7 @@ interface AssistantDto {
   updatedAt: string;
 }
 
-@Controller('api/v1/assistants/me')
+@Controller('v1/assistants/me')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class AssistantsController {

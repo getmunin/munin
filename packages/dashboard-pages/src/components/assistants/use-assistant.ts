@@ -18,7 +18,7 @@ export function useAssistant(): UseAssistantResult {
   const [assistant, setAssistant] = useState<AssistantDto | null>(null);
 
   const load = useCallback(async () => {
-    const a = await api<AssistantDto>('/api/v1/assistants/me');
+    const a = await api<AssistantDto>('/v1/assistants/me');
     setAssistant(a);
   }, []);
 

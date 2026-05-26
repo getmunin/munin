@@ -143,7 +143,7 @@ const skipReason = TEST_URL
   });
 
   async function call(body: unknown, token: string = widgetKey): Promise<{ status: number; json: unknown }> {
-    const res = await fetch(`${baseUrl}/api/v1/widget/voice/start`, {
+    const res = await fetch(`${baseUrl}/v1/widget/voice/start`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -179,7 +179,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects unauthenticated requests', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/widget/voice/start`, {
+    const res = await fetch(`${baseUrl}/v1/widget/voice/start`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ channelId: widgetChannelId, conversationId: aliceConvId }),

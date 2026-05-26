@@ -11,7 +11,7 @@ interface UnsubscribeResult {
   contactFound: boolean;
 }
 
-@Controller('api/v1/outreach/unsubscribe')
+@Controller('v1/outreach/unsubscribe')
 export class OutreachUnsubscribeController {
   constructor(@Inject(DB) private readonly db: Db) {}
 

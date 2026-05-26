@@ -13,11 +13,8 @@ export function GetStarted() {
   const [copied, setCopied] = useState(false);
   const [mcpHost, setMcpHost] = useState<string | null>(null);
 
-  // Pull the canonical MCP URL from the backend's RFC 9728 metadata so
-  // OSS self-host shows `http://localhost:3001` and cloud shows
-  // `https://mcp.getmunin.com` without rebuilding the dashboard.
   useEffect(() => {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
     const url = `${apiBase}/.well-known/oauth-protected-resource`;
     let cancelled = false;
     void fetch(url, { credentials: 'omit' })
@@ -26,7 +23,9 @@ export function GetStarted() {
         if (cancelled) return;
         if (body && typeof body.resource === 'string') setMcpHost(body.resource);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('Failed to fetch MCP resource URL', err);
+      });
     return () => {
       cancelled = true;
     };
@@ -97,7 +96,7 @@ export function GetStarted() {
                   <span
                     className={cn(
                       'font-mono text-[9px] uppercase tracking-eyebrow',
-                      active ? 'text-paper/55' : 'text-ink-mute',
+                      active ? 'text-paper/55 dark:text-ink/55' : 'text-ink-mute',
                     )}
                   >
                     {s.sublabel}

@@ -53,7 +53,7 @@ describe('parseUrlEncoded (messagebird)', () => {
 
 describe('verifyMessageBirdJwt', () => {
   const signingKey = 'mb-signing-key';
-  const url = 'https://munin.example/api/v1/conversations/channels/cch_abc/webhook';
+  const url = 'https://munin.example/v1/conversations/channels/cch_abc/webhook';
   const body = Buffer.from('id=e8077&originator=31612345678&body=hello');
   const now = Math.floor(Date.now() / 1000);
   const nowDate = new Date(now * 1000);

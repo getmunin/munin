@@ -82,8 +82,8 @@ describe('PublicSkillsController', () => {
     if (app) await app.close();
   });
 
-  it('GET /api/v1/public/skills returns only public skills', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/skills`);
+  it('GET /v1/public/skills returns only public skills', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/skills`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as Array<{ uri: string }>;
     const uris = body.map((s) => s.uri).sort();
@@ -94,8 +94,8 @@ describe('PublicSkillsController', () => {
     expect(uris).not.toContain('skill://crm/internal-only');
   });
 
-  it('GET /api/v1/public/skills returns the documented list shape', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/skills`);
+  it('GET /v1/public/skills returns the documented list shape', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/skills`);
     const body = (await res.json()) as Array<Record<string, unknown>>;
     const item = body.find((s) => s.uri === 'skill://conv/setup-email-channel')!;
     expect(item).toEqual({
@@ -109,8 +109,8 @@ describe('PublicSkillsController', () => {
     expect(item).not.toHaveProperty('mimeType');
   });
 
-  it('GET /api/v1/public/skills/:module/:slug returns the full detail', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/skills/conv/setup-email-channel`);
+  it('GET /v1/public/skills/:module/:slug returns the full detail', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/skills/conv/setup-email-channel`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toEqual({
@@ -124,25 +124,25 @@ describe('PublicSkillsController', () => {
     });
   });
 
-  it('GET /api/v1/public/skills/:module/:slug returns 404 for an unknown slug', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/skills/conv/does-not-exist`);
+  it('GET /v1/public/skills/:module/:slug returns 404 for an unknown slug', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/skills/conv/does-not-exist`);
     expect(res.status).toBe(404);
   });
 
-  it('GET /api/v1/public/skills/:module/:slug returns 404 for an unknown module', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/skills/no-such-module/email-channel-setup`);
+  it('GET /v1/public/skills/:module/:slug returns 404 for an unknown module', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/skills/no-such-module/email-channel-setup`);
     expect(res.status).toBe(404);
   });
 
-  it('GET /api/v1/public/skills/:module/:slug returns 404 for a registered but non-public skill', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/skills/crm/internal-only`);
+  it('GET /v1/public/skills/:module/:slug returns 404 for a registered but non-public skill', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/skills/crm/internal-only`);
     expect(res.status).toBe(404);
   });
 
   it('does not require an Authorization header', async () => {
-    const list = await fetch(`${baseUrl}/api/v1/public/skills`, { headers: {} });
+    const list = await fetch(`${baseUrl}/v1/public/skills`, { headers: {} });
     expect(list.status).toBe(200);
-    const detail = await fetch(`${baseUrl}/api/v1/public/skills/conv/setup-email-channel`, {
+    const detail = await fetch(`${baseUrl}/v1/public/skills/conv/setup-email-channel`, {
       headers: {},
     });
     expect(detail.status).toBe(200);

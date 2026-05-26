@@ -37,7 +37,7 @@ interface ChannelListResponse {
   items: ChannelDto[];
 }
 
-@Controller('api/v1/conversations/channels')
+@Controller('v1/conversations/channels')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ConvChannelsController {

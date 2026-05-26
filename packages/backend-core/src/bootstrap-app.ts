@@ -73,16 +73,10 @@ export async function createApp(
   const app = await NestFactory.create(appModule, { rawBody: true, ...nestOpts });
   const allowedHosts = readAllowedHosts();
   if (allowedHosts) app.use(hostAllowlistMiddleware(allowedHosts));
-  // Map the canonical external URLs (MUNIN_MCP_URL for MCP,
-  // MUNIN_API_URL for REST) onto the internal Nest mount paths
-  // (`/mcp`, `/api/v1`). Runs before every other middleware so CORS,
-  // routing, and tests all see the rewritten URL.
   app.use(publicUrlRewriteMiddleware());
   app.use(corsMiddleware(readAllowedOrigins()));
   app.use(requestIdMiddleware);
 
-  // Static-asset GET handler. Active only when the storage provider is
-  // local; in S3 mode reads go directly to the bucket's public host.
   const storage = app.get<AssetStorage>(STORAGE);
   if (storage instanceof LocalFsStorage) {
     app.use('/static/assets', staticAssetsMiddleware(storage));
@@ -102,39 +96,30 @@ export function isPublicCorsPath(path: string): boolean {
   return (
     path === '/widget.js' ||
     path.startsWith('/widget/') ||
-    path.startsWith('/api/v1/widget') ||
+    path.startsWith('/v1/widget') ||
     path === '/mcp' ||
     path.startsWith('/mcp/') ||
     path.startsWith('/.well-known/oauth-') ||
     path.startsWith('/.well-known/openid-') ||
-    path.startsWith('/api/v1/oauth/clients/')
+    path.startsWith('/v1/oauth/clients/')
   );
 }
 
 /**
- * Maps the canonical public URLs onto the internal Nest mount points.
+ * Maps the canonical MCP URL onto the internal `/mcp` Nest mount.
  *
- *   - `MUNIN_MCP_URL`'s host + path → `/mcp`
- *   - `MUNIN_API_URL`'s host + path     → `/api/v1`
- *
- * So a cloud deploy can advertise `https://mcp.getmunin.com` (no path)
- * for MCP and `https://api.getmunin.com/v1` for REST while every Nest
- * controller stays mounted at its original internal path. The
- * middleware mutates `req.url`; everything downstream (CORS check,
- * routing, audit log, tests) sees the rewritten URL.
- *
- * Pass-through when the env vars name the same internal path: OSS
- * default `MUNIN_MCP_URL=http://localhost:3001/mcp` keeps `/mcp` →
- * `/mcp` (no-op). Same for `/api/v1` → `/api/v1`.
+ * A cloud deploy can advertise `https://mcp.getmunin.com` (no path) and
+ * the middleware rewrites root requests on that host to `/mcp` so the
+ * MCP controller sees them. OSS dev keeps `/mcp` → `/mcp` (no-op since
+ * `NEXT_PUBLIC_MCP_URL=http://localhost:3001/mcp` matches the internal
+ * path verbatim).
  */
 export function publicUrlRewriteMiddleware() {
-  const mcp = parseRewriteSource(process.env.MUNIN_MCP_URL ?? 'http://localhost:3001/mcp');
-  const api = parseRewriteSource(process.env.MUNIN_API_URL);
+  const mcp = parseRewriteSource(process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp');
   return (req: Request, _res: Response, next: NextFunction): void => {
     const rawHost = typeof req.headers.host === 'string' ? req.headers.host : '';
     const host = rawHost.split(':', 1)[0]!.toLowerCase();
     rewriteIfMatch(req, host, mcp, '/mcp');
-    if (api) rewriteIfMatch(req, host, api, '/api/v1');
     next();
   };
 }
@@ -163,19 +148,15 @@ function rewriteIfMatch(
 ): void {
   if (!src) return;
   if (src.host !== host) return;
-  if (src.externalPath === internal) return; // pass-through
+  if (src.externalPath === internal) return;
 
   const [path, qs] = splitQuery(req.url ?? '/');
-  // Empty external path → resource lives at the host root; only the
-  // root URL itself maps to the internal mount. `/auth`, `/.well-known/*`,
-  // `/favicon.ico` and friends pass through unchanged.
   if (src.externalPath === '') {
     if (path === '/' || path === '') {
       req.url = internal + (qs ? `?${qs}` : '');
     }
     return;
   }
-  // Path-segment match — `/v1` matches `/v1/...` but not `/v1foo`.
   if (path === src.externalPath) {
     req.url = internal + (qs ? `?${qs}` : '');
   } else if (path.startsWith(`${src.externalPath}/`)) {

@@ -28,7 +28,7 @@ interface MembershipDto {
   isDefault: boolean;
 }
 
-@Controller('api/v1/me/memberships')
+@Controller('v1/me/memberships')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class MembershipsController {

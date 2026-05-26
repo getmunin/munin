@@ -40,7 +40,7 @@ interface MemberDto {
   joinedAt: string;
 }
 
-@Controller('api/v1/orgs/me/members')
+@Controller('v1/orgs/me/members')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class MembersController {

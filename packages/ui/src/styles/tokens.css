@@ -69,28 +69,30 @@
   --radius: 0px;
 }
 
-.dark {
-  color-scheme: dark;
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
 
-  --background: rgb(var(--munin-ink));
-  --foreground: rgb(var(--munin-fg-on-dark-1));
-  --card: #151b22;
-  --card-foreground: rgb(var(--munin-fg-on-dark-1));
-  --popover: #151b22;
-  --popover-foreground: rgb(var(--munin-fg-on-dark-1));
-  --primary: rgb(var(--munin-paper));
-  --primary-foreground: rgb(var(--munin-ink));
-  --secondary: #1c232b;
-  --secondary-foreground: rgb(var(--munin-fg-on-dark-1));
-  --muted: #1c232b;
-  --muted-foreground: rgb(var(--munin-fg-on-dark-2) / 0.75);
-  --accent: #1c232b;
-  --accent-foreground: rgb(var(--munin-fg-on-dark-1));
-  --destructive: #d96a6a;
-  --destructive-foreground: rgb(var(--munin-ink));
-  --border: rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha));
-  --input: rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha));
-  --ring: rgb(var(--munin-accent-soft));
+    --background: rgb(var(--munin-ink));
+    --foreground: rgb(var(--munin-fg-on-dark-1));
+    --card: #151b22;
+    --card-foreground: rgb(var(--munin-fg-on-dark-1));
+    --popover: #151b22;
+    --popover-foreground: rgb(var(--munin-fg-on-dark-1));
+    --primary: rgb(var(--munin-paper));
+    --primary-foreground: rgb(var(--munin-ink));
+    --secondary: #1c232b;
+    --secondary-foreground: rgb(var(--munin-fg-on-dark-1));
+    --muted: #1c232b;
+    --muted-foreground: rgb(var(--munin-fg-on-dark-2) / 0.75);
+    --accent: #1c232b;
+    --accent-foreground: rgb(var(--munin-fg-on-dark-1));
+    --destructive: #d96a6a;
+    --destructive-foreground: rgb(var(--munin-ink));
+    --border: rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha));
+    --input: rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha));
+    --ring: rgb(var(--munin-accent-soft));
+  }
 }
 
 @keyframes munin-pulse-dot {

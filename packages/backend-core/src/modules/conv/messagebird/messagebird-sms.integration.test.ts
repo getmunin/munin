@@ -121,7 +121,7 @@ const skipReason = TEST_URL
     const body = new URLSearchParams(params).toString();
     const rawBody = Buffer.from(body);
     const token = buildJwt(urlForSig, rawBody);
-    return fetch(`${baseUrl}/api/v1/conversations/channels/${channelId}/webhook`, {
+    return fetch(`${baseUrl}/v1/conversations/channels/${channelId}/webhook`, {
       method: 'POST',
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
@@ -134,7 +134,7 @@ const skipReason = TEST_URL
   }
 
   it('accepts a JWT-signed inbound SMS and creates a conv_messages row', async () => {
-    const url = `https://munin.example/api/v1/conversations/channels/${channelId}/webhook`;
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       id: 'mb_inbound_0001',
       originator: '14155551212',
@@ -163,7 +163,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects a tampered JWT', async () => {
-    const url = `https://munin.example/api/v1/conversations/channels/${channelId}/webhook`;
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       id: 'mb_inbound_bad',
       originator: '14155551313',
@@ -172,7 +172,7 @@ const skipReason = TEST_URL
       createdDatetime: new Date().toISOString(),
     };
     const body = new URLSearchParams(params).toString();
-    const res = await fetch(`${baseUrl}/api/v1/conversations/channels/${channelId}/webhook`, {
+    const res = await fetch(`${baseUrl}/v1/conversations/channels/${channelId}/webhook`, {
       method: 'POST',
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
@@ -186,7 +186,7 @@ const skipReason = TEST_URL
   });
 
   it('dedupes duplicate message ids', async () => {
-    const url = `https://munin.example/api/v1/conversations/channels/${channelId}/webhook`;
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       id: 'mb_inbound_dedup',
       originator: '14155552222',
@@ -239,7 +239,7 @@ const skipReason = TEST_URL
       nextAttemptAt: null,
     });
 
-    const url = `https://munin.example/api/v1/conversations/channels/${channelId}/webhook`;
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       id: messageBirdId,
       recipient: '14155553333',

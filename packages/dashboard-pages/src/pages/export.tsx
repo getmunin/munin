@@ -18,13 +18,13 @@ export function ExportPage() {
   async function download() {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/export`, { credentials: 'include' });
+      const res = await fetch(`${API_URL}/v1/export`, { credentials: 'include' });
       if (!res.ok) {
         const body = await res.text();
         throw new ApiError({
           status: res.status,
           statusText: res.statusText || 'error',
-          endpoint: '/api/v1/export',
+          endpoint: '/v1/export',
           method: 'GET',
           requestId: res.headers.get('x-request-id'),
           message: body || `${res.status} ${res.statusText}`,

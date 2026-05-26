@@ -6,7 +6,7 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service.ts';
 import { assertOwnerOrAdmin } from './role-guard.ts';
 
-@Controller('api/v1/usage')
+@Controller('v1/usage')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class UsageController {

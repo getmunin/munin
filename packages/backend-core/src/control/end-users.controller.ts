@@ -50,7 +50,7 @@ interface EndUserDto {
   updatedAt: string;
 }
 
-@Controller('api/v1/end-users')
+@Controller('v1/end-users')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class EndUsersController {

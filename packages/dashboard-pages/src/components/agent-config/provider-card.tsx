@@ -62,13 +62,13 @@ export function ProviderCard({ config, onSaved }: ProviderCardProps) {
     try {
       const body: UpsertBody = { providerBaseUrl };
       if (keyDirty && apiKey.length > 0) body.providerApiKey = apiKey;
-      let updated = await api<AgentConfigDto>('/api/v1/agent-config', {
+      let updated = await api<AgentConfigDto>('/v1/agent-config', {
         method: 'PUT',
         body: JSON.stringify(body),
       });
       setApiKey('');
       setKeyDirty(false);
-      const result = await api<ListModelsResult>('/api/v1/agent-config/models');
+      const result = await api<ListModelsResult>('/v1/agent-config/models');
       updated = await reconcileModelsAgainstProvider(updated, result);
       setMessage(
         result.supported
@@ -162,7 +162,7 @@ async function reconcileModelsAgainstProvider(
   const fastInvalid = !known.has(config.fastModel);
   const smartInvalid = config.smartModel != null && !known.has(config.smartModel);
   if (!fastInvalid && !smartInvalid) return config;
-  return api<AgentConfigDto>('/api/v1/agent-config', {
+  return api<AgentConfigDto>('/v1/agent-config', {
     method: 'PUT',
     body: JSON.stringify({
       fastModel: fastInvalid ? models.models[0]!.id : config.fastModel,

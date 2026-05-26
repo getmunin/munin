@@ -6,8 +6,8 @@ MCP-first customer platform made for the agentic era (KB, Conversations, CRM, CM
 
 Monorepo on pnpm + Turborepo.
 
-- `apps/backend` — NestJS entry that composes `@getmunin/backend-core` with single-tenant `AuthModule`. Port 3001. Exposes `/mcp`, `/auth/*`, `/.well-known/oauth-*`, and the `/api/v1/*` control plane.
-- `apps/web` — Next.js 15 dashboard + landing. Port 3000. Calls `apps/backend` via `/api/v1/*`.
+- `apps/backend` — NestJS entry that composes `@getmunin/backend-core` with single-tenant `AuthModule`. Port 3001. Exposes `/mcp`, `/auth/*`, `/.well-known/oauth-*`, and the `/v1/*` control plane.
+- `apps/web` — Next.js 15 dashboard + landing. Port 3000. Calls `apps/backend` via `/v1/*`.
 - `apps/chat-widget` — embeddable browser bundle consumed via `mn_widget_*` keys.
 - `packages/backend-core` — shared NestJS modules. Where business logic lives.
 - `packages/dashboard-pages` — React pages reused by OSS and cloud webs.

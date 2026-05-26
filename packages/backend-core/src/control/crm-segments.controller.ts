@@ -53,7 +53,7 @@ interface SegmentContactsResponse {
   items: ContactDto[];
 }
 
-@Controller('api/v1/crm/segments')
+@Controller('v1/crm/segments')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class CrmSegmentsController {

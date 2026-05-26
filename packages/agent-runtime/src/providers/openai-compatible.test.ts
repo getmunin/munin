@@ -106,7 +106,7 @@ describe('shouldEnablePromptCache', () => {
   it('auto-enables for OpenRouter with anthropic/* model', () => {
     expect(
       shouldEnablePromptCache({
-        provider: { baseUrl: 'https://openrouter.ai/api/v1' },
+        provider: { baseUrl: 'https://openrouter.ai/v1' },
         model: 'anthropic/claude-haiku-4.5',
       }),
     ).toBe(true);
@@ -115,7 +115,7 @@ describe('shouldEnablePromptCache', () => {
   it('does not auto-enable for OpenRouter with non-anthropic model', () => {
     expect(
       shouldEnablePromptCache({
-        provider: { baseUrl: 'https://openrouter.ai/api/v1' },
+        provider: { baseUrl: 'https://openrouter.ai/v1' },
         model: 'openai/gpt-4o-mini',
       }),
     ).toBe(false);

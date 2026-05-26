@@ -83,8 +83,8 @@ describe('PublicMcpToolsController', () => {
     if (app) await app.close();
   });
 
-  it('GET /api/v1/public/mcp-tools lists every registered tool', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/mcp-tools`);
+  it('GET /v1/public/mcp-tools lists every registered tool', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/mcp-tools`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as Array<{ name: string }>;
     const names = body.map((t) => t.name).sort();
@@ -92,7 +92,7 @@ describe('PublicMcpToolsController', () => {
   });
 
   it('list response carries audiences, scopes, and danger derived from hints', async () => {
-    const body = (await (await fetch(`${baseUrl}/api/v1/public/mcp-tools`)).json()) as Array<
+    const body = (await (await fetch(`${baseUrl}/v1/public/mcp-tools`)).json()) as Array<
       Record<string, unknown>
     >;
     const search = body.find((t) => t.name === 'kb_search')!;
@@ -113,8 +113,8 @@ describe('PublicMcpToolsController', () => {
     expect(del).toMatchObject({ danger: 'destructive', readOnly: false });
   });
 
-  it('GET /api/v1/public/mcp-tools/:name returns the input JSON Schema', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/mcp-tools/kb_search`);
+  it('GET /v1/public/mcp-tools/:name returns the input JSON Schema', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/mcp-tools/kb_search`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.name).toBe('kb_search');
@@ -123,15 +123,15 @@ describe('PublicMcpToolsController', () => {
     expect((body.inputSchema as { properties?: object }).properties).toHaveProperty('query');
   });
 
-  it('GET /api/v1/public/mcp-tools/:name returns 404 for unknown name', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/public/mcp-tools/no_such_tool`);
+  it('GET /v1/public/mcp-tools/:name returns 404 for unknown name', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/mcp-tools/no_such_tool`);
     expect(res.status).toBe(404);
   });
 
   it('does not require an Authorization header', async () => {
-    const list = await fetch(`${baseUrl}/api/v1/public/mcp-tools`, { headers: {} });
+    const list = await fetch(`${baseUrl}/v1/public/mcp-tools`, { headers: {} });
     expect(list.status).toBe(200);
-    const detail = await fetch(`${baseUrl}/api/v1/public/mcp-tools/kb_search`, { headers: {} });
+    const detail = await fetch(`${baseUrl}/v1/public/mcp-tools/kb_search`, { headers: {} });
     expect(detail.status).toBe(200);
   });
 });

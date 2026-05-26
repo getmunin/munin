@@ -5,9 +5,9 @@ import { schema, type Db } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { ActorIdentity, RequestContextStore, type RequestContext } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
-import { DB } from '../../common/db/db.module.js';
-import { withSchedulerLock } from '../../common/scheduler-lock/index.js';
-import { CuratorJobsService } from './curator-jobs.service.js';
+import { DB } from '../../common/db/db.module.ts';
+import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
+import { CuratorJobsService } from './curator-jobs.service.ts';
 
 const KB_SWEEP_PROMPT =
   'Run a KB curation pass over the last 7 days of resolved-handover conversations. Follow the procedure in the skill exactly. Skip duplicates and one-off answers. File each candidate via kb_propose_curation_candidate. Stop when there are no more candidates to file.';

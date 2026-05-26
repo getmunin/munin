@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { makeId, schema, type Db } from '@getmunin/db';
-import { DB } from '../../common/db/db.module.js';
+import { DB } from '../../common/db/db.module.ts';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import {
   ActorIdentity,
@@ -11,11 +11,11 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
-import { ConvService } from '../conv/conv.service.js';
-import { CrmService, CrmInvalidError } from '../crm/crm.service.js';
-import { EmailService } from '../conv/email/email.service.js';
-import { VapiClientService } from '../conv/vapi/vapi-client.service.js';
-import { jsonbToStored as vapiJsonbToStored } from '../conv/vapi/vapi.service.js';
+import { ConvService } from '../conv/conv.service.ts';
+import { CrmService, CrmInvalidError } from '../crm/crm.service.ts';
+import { EmailService } from '../conv/email/email.service.ts';
+import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
+import { jsonbToStored as vapiJsonbToStored } from '../conv/vapi/vapi.service.ts';
 
 export class OutreachInvalidError extends Error {
   readonly code = 'outreach_invalid';

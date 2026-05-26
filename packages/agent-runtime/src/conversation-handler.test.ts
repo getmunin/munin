@@ -3,10 +3,10 @@ import {
   createConversationHandler,
   type HandlerConfig,
   type OpenedMcp,
-} from './conversation-handler.js';
-import type { ConversationDetail, MuninRestClient } from './munin-rest.js';
-import type { PromptResolver } from './prompt-resolver.js';
-import type { McpToolResult, Provider, ProviderResponse } from './types.js';
+} from './conversation-handler.ts';
+import type { ConversationDetail, MuninRestClient } from './munin-rest.ts';
+import type { PromptResolver } from './prompt-resolver.ts';
+import type { McpToolResult, Provider, ProviderResponse } from './types.ts';
 
 const baseConfig: HandlerConfig = {
   providerBaseUrl: 'http://provider',

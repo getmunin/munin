@@ -1,4 +1,4 @@
-import type { Strings } from './types.js';
+import type { Strings } from './types.ts';
 
 const it: Strings = {
   launcherAriaLabel: 'Apri chat',

@@ -1,6 +1,6 @@
 import type { AuditLogger, ActorIdentity, Audience } from '@getmunin/core';
-import type { McpToolRegistry } from './registry.js';
-import type { SkillRegistry } from './skill-registry.js';
+import type { McpToolRegistry } from './registry.ts';
+import type { SkillRegistry } from './skill-registry.ts';
 import {
   callTool as dispatchCall,
   listResources as dispatchListResources,
@@ -11,7 +11,7 @@ import {
   type ResourceListing,
   type ToolCallResult,
   type ToolListing,
-} from './dispatch.js';
+} from './dispatch.ts';
 
 export interface OpenInProcessMcpClientOptions {
   registry: McpToolRegistry;

@@ -15,7 +15,7 @@ import {
   type PromptCacheEntry,
   type SeedablePrompt,
 } from '@getmunin/core';
-import type { McpToolHandle, McpToolResult } from './types.js';
+import type { McpToolHandle, McpToolResult } from './types.ts';
 
 export {
   AGENT_RUNTIME_PROMPT_SPACE_SLUG as PROMPT_SPACE_SLUG,

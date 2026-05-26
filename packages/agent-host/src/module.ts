@@ -6,14 +6,14 @@ import {
   McpModule,
   RealtimeModule,
 } from '@getmunin/backend-core';
-import { AgentConfigService } from './config.service.js';
-import { AgentConfigController } from './config.controller.js';
-import { AgentModelsService } from './models.service.js';
-import { AgentHealthService } from './agent-health.service.js';
-import { AgentHealthController } from './agent-health.controller.js';
-import { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.js';
-import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.js';
-import type { AgentConfigRepository } from './config.repository.js';
+import { AgentConfigService } from './config.service.ts';
+import { AgentConfigController } from './config.controller.ts';
+import { AgentModelsService } from './models.service.ts';
+import { AgentHealthService } from './agent-health.service.ts';
+import { AgentHealthController } from './agent-health.controller.ts';
+import { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.ts';
+import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.ts';
+import type { AgentConfigRepository } from './config.repository.ts';
 
 export interface AgentHostModuleOptions {
   configRepository: Type<AgentConfigRepository>;

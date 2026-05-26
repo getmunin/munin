@@ -42,12 +42,12 @@ import {
   toolPrefixesFor,
   WEB_SCRAPE_SITE_TASK_URI,
 } from '@getmunin/types';
-import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.js';
-import type { AgentConfigRepository, AgentConfigRow } from './config.repository.js';
-import { runWithServiceContext } from './service-context.js';
-import { ReplicaLockManager } from './replica-lock.js';
-import { runWebImportJob } from './web-import.handler.js';
-import { AgentHealthService } from './agent-health.service.js';
+import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.ts';
+import type { AgentConfigRepository, AgentConfigRow } from './config.repository.ts';
+import { runWithServiceContext } from './service-context.ts';
+import { ReplicaLockManager } from './replica-lock.ts';
+import { runWebImportJob } from './web-import.handler.ts';
+import { AgentHealthService } from './agent-health.service.ts';
 
 interface TaskHandlerContext {
   job: CuratorJob;

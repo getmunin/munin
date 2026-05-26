@@ -12,7 +12,7 @@ import {
   createMuninAuth,
   readAllowedEmailDomainsFromEnv,
   type MuninAuth,
-} from './auth.config.js';
+} from './auth.config.ts';
 
 const MCP_URL_FALLBACK = 'http://localhost:3001';
 

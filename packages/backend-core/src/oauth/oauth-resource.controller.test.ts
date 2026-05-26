@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { OAuthResourceController } from './oauth-resource.controller.js';
-import { SUPPORTED_SCOPES } from './oauth.constants.js';
+import { OAuthResourceController } from './oauth-resource.controller.ts';
+import { SUPPORTED_SCOPES } from './oauth.constants.ts';
 
 describe('OAuthResourceController', () => {
   let originalUrl: string | undefined;

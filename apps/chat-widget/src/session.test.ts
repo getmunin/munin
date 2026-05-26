@@ -5,7 +5,7 @@ import {
   getSessionId,
   mintNewSession,
   setCurrentSession,
-} from './session.js';
+} from './session.ts';
 
 const CHANNEL = 'cnv_test';
 

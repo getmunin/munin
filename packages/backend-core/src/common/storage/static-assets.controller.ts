@@ -13,7 +13,7 @@ import {
 import { LocalFsStorage, type AssetStorage } from '@getmunin/core';
 import type { Request, Response } from 'express';
 
-import { STORAGE } from './storage.token.js';
+import { STORAGE } from './storage.token.ts';
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB; tighten via Org.settings later.
 

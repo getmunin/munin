@@ -13,7 +13,7 @@ import {
 import type { Request, Response } from 'express';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull } from 'drizzle-orm';
-import { DB } from '../../../common/db/db.module.js';
+import { DB } from '../../../common/db/db.module.ts';
 import {
   CHANNEL_ADAPTERS,
   ChannelAdapterRegistry,
@@ -21,8 +21,8 @@ import {
   type ChannelRow,
   type IncomingWebhookRequest,
   type InboundBatch,
-} from './adapter.js';
-import { ChannelIngestService } from './channel-ingest.service.js';
+} from './adapter.ts';
+import { ChannelIngestService } from './channel-ingest.service.ts';
 
 @Controller('api/v1/conversations/channels')
 export class ChannelWebhookController {

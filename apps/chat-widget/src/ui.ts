@@ -1,10 +1,10 @@
-import type { ConversationEnvelope, ConversationSummary, ListedMessage } from './api.js';
-import type { WidgetConfig } from './config.js';
-import { WIDGET_END_USER_BODY_MAX_CHARS } from './config.js';
-import { buildWidgetCss } from './styles.js';
-import { registerBundledFonts } from './fonts.js';
-import type { Strings } from './strings/index.js';
-import { renderMarkdownInto } from './markdown.js';
+import type { ConversationEnvelope, ConversationSummary, ListedMessage } from './api.ts';
+import type { WidgetConfig } from './config.ts';
+import { WIDGET_END_USER_BODY_MAX_CHARS } from './config.ts';
+import { buildWidgetCss } from './styles.ts';
+import { registerBundledFonts } from './fonts.ts';
+import type { Strings } from './strings/index.ts';
+import { renderMarkdownInto } from './markdown.ts';
 
 export type ConnectionLabel = 'connected' | 'reconnecting' | 'closed' | 'idle' | 'connecting';
 

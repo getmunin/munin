@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readMailerFromEnv, SmtpMailer, StubMailer } from './mailer.js';
+import { readMailerFromEnv, SmtpMailer, StubMailer } from './mailer.ts';
 
 vi.mock('nodemailer', () => ({
   createTransport: vi.fn(() => ({

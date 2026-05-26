@@ -2,12 +2,12 @@ import type { Db } from '@getmunin/db';
 import { schema } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
 import { decodeProtectedHeader, importJWK, jwtVerify, type JWTPayload } from 'jose';
-import { ActorIdentity } from './context.js';
+import { ActorIdentity } from './context.ts';
 import {
   deriveAudiencesFromScopes,
   oauthMcpResourceAudience,
   type ResolvedCredential,
-} from './credentials.js';
+} from './credentials.ts';
 
 type VerifyKey = Awaited<ReturnType<typeof importJWK>>;
 

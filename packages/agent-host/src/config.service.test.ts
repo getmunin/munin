@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WebhookDispatcher } from '@getmunin/core';
-import { AgentConfigService } from './config.service.js';
-import type { AgentHealthRecorder } from './agent-health.service.js';
+import { AgentConfigService } from './config.service.ts';
+import type { AgentHealthRecorder } from './agent-health.service.ts';
 import type {
   AgentConfigPatch,
   AgentConfigRepository,
   AgentConfigRow,
-} from './config.repository.js';
+} from './config.repository.ts';
 
 const baseRow: AgentConfigRow = {
   id: 'singleton',

@@ -12,8 +12,8 @@ import {
   WebhookDispatcher,
   type AssetStorage,
 } from '@getmunin/core';
-import { QuotasService } from '../../common/quotas/quotas.service.js';
-import { STORAGE } from '../../common/storage/storage.token.js';
+import { QuotasService } from '../../common/quotas/quotas.service.ts';
+import { STORAGE } from '../../common/storage/storage.token.ts';
 import {
   buildSearchText,
   extractReferences,
@@ -21,8 +21,8 @@ import {
   projectData,
   validateEntryData,
   type FieldDef,
-} from './cms.fields.js';
-import { EmbeddingProviderHolder } from '../kb/embedding.provider.js';
+} from './cms.fields.ts';
+import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 
 export class CmsInvalidError extends Error {
   readonly code = 'cms_invalid';

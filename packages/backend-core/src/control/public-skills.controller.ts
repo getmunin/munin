@@ -1,7 +1,7 @@
 import { Controller, Get, Inject, NotFoundException, Param, UseGuards } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { AllowAnonymous } from '../common/auth/auth.guard.js';
-import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.js';
+import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.ts';
 
 interface PublicSkillListItem {
   uri: string;

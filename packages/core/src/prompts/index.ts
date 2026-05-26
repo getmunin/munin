@@ -12,42 +12,42 @@ import {
   SYSTEM_PROMPT_SLUG,
   SYSTEM_PROMPT_TITLE,
   DEFAULT_SYSTEM_PROMPT,
-} from './system.js';
+} from './system.ts';
 import {
   CHANNEL_CHAT_SLUG,
   CHANNEL_CHAT_TITLE,
   DEFAULT_CHANNEL_CHAT_PROMPT,
-} from './channel-chat.js';
+} from './channel-chat.ts';
 import {
   CHANNEL_EMAIL_SLUG,
   CHANNEL_EMAIL_TITLE,
   DEFAULT_CHANNEL_EMAIL_PROMPT,
-} from './channel-email.js';
+} from './channel-email.ts';
 import {
   CHANNEL_SMS_SLUG,
   CHANNEL_SMS_TITLE,
   DEFAULT_CHANNEL_SMS_PROMPT,
-} from './channel-sms.js';
+} from './channel-sms.ts';
 import {
   CHANNEL_DEFAULT_SLUG,
   CHANNEL_DEFAULT_TITLE,
   DEFAULT_CHANNEL_DEFAULT_PROMPT,
-} from './channel-default.js';
+} from './channel-default.ts';
 import {
   VOICE_SYSTEM_PROMPT_SLUG,
   VOICE_SYSTEM_PROMPT_TITLE,
   DEFAULT_VOICE_SYSTEM_PROMPT,
-} from './voice-system.js';
+} from './voice-system.ts';
 import {
   VOICE_OPENER_COLD_SLUG,
   VOICE_OPENER_COLD_TITLE,
   DEFAULT_VOICE_OPENER_COLD,
-} from './voice-opener-cold.js';
+} from './voice-opener-cold.ts';
 import {
   VOICE_OPENER_CONTINUATION_SLUG,
   VOICE_OPENER_CONTINUATION_TITLE,
   DEFAULT_VOICE_OPENER_CONTINUATION,
-} from './voice-opener-continuation.js';
+} from './voice-opener-continuation.ts';
 
 // ── Slug / body / title constants ───────────────────────────────────
 export {
@@ -91,7 +91,7 @@ export {
   type PromptCache,
   type PromptCacheEntry,
   type PromptCacheOptions,
-} from './cache.js';
+} from './cache.ts';
 
 // ── Registry ────────────────────────────────────────────────────────
 export interface SeedablePrompt {

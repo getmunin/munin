@@ -15,9 +15,9 @@ import {
   CmsService,
   CmsConflictError,
   CmsInvalidError,
-} from './cms.service.js';
-import { EmbeddingProviderHolder } from '../kb/embedding.provider.js';
-import { QuotaExceededError, QuotasService } from '../../common/quotas/quotas.service.js';
+} from './cms.service.ts';
+import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
+import { QuotaExceededError, QuotasService } from '../../common/quotas/quotas.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

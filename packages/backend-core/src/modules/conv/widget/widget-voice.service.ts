@@ -25,24 +25,24 @@ import {
   type KbDocReader,
   type PromptCache,
 } from '@getmunin/core';
-import { DB } from '../../../common/db/db.module.js';
-import { DbListenerService, type EventRow } from '../../../realtime/db-listener.service.js';
-import { jsonbToStored } from '../vapi/vapi.service.js';
-import { VapiClientService } from '../vapi/vapi-client.service.js';
-import { VapiToolBridge } from '../vapi/vapi-tool-bridge.js';
+import { DB } from '../../../common/db/db.module.ts';
+import { DbListenerService, type EventRow } from '../../../realtime/db-listener.service.ts';
+import { jsonbToStored } from '../vapi/vapi.service.ts';
+import { VapiClientService } from '../vapi/vapi-client.service.ts';
+import { VapiToolBridge } from '../vapi/vapi-tool-bridge.ts';
 import {
   OrgScopedKbDocReader,
   buildInlineAssistantConfig,
   composeVoiceSystemPrompt,
   type ChatMessageSeed,
-} from '../vapi/vapi-assistant.js';
-import { WidgetChannelConfig } from './widget.types.js';
+} from '../vapi/vapi-assistant.ts';
+import { WidgetChannelConfig } from './widget.types.ts';
 import type {
   WidgetVoiceEventInputT,
   WidgetVoiceEventResult,
   WidgetVoiceStartInputT,
   WidgetVoiceStartResult,
-} from './widget.types.js';
+} from './widget.types.ts';
 
 const HISTORY_TURN_LIMIT = 20;
 const PROMPT_CACHE_TTL_MS = 60_000;

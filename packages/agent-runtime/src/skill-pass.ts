@@ -1,7 +1,7 @@
-import { assistantNamePreamble } from './conversation-handler.js';
-import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.js';
-import { runAgent } from './runtime.js';
-import type { McpTool, McpToolHandle, McpToolResult, Provider } from './types.js';
+import { assistantNamePreamble } from './conversation-handler.ts';
+import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.ts';
+import { runAgent } from './runtime.ts';
+import type { McpTool, McpToolHandle, McpToolResult, Provider } from './types.ts';
 
 export interface SkillReader {
   readSkill(uri: string): Promise<string | null>;

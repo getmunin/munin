@@ -7,8 +7,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { buildApiKey, hashSecret, keyPrefix, verifyHmac } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
-import { AppModule } from '../../app.module.js';
-import { WebhookWorker } from './webhook.worker.js';
+import { AppModule } from '../../app.module.ts';
+import { WebhookWorker } from './webhook.worker.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

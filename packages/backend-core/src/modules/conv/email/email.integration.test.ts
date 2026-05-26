@@ -9,11 +9,11 @@ import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import type { StubMailer } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and } from 'drizzle-orm';
-import { AppModule } from '../../../app.module.js';
-import { EmailAdapter, type ImapFetcher } from './email-adapter.js';
-import { InboundPollWorker } from '../channels/inbound-poll.worker.js';
-import { OutboundDeliveryWorker } from '../channels/outbound-delivery.worker.js';
-import { MAILER } from '../../../common/mail/mail.module.js';
+import { AppModule } from '../../../app.module.ts';
+import { EmailAdapter, type ImapFetcher } from './email-adapter.ts';
+import { InboundPollWorker } from '../channels/inbound-poll.worker.ts';
+import { OutboundDeliveryWorker } from '../channels/outbound-delivery.worker.ts';
+import { MAILER } from '../../../common/mail/mail.module.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

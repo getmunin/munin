@@ -21,10 +21,10 @@ import {
   type MuninRestClient,
 } from '@getmunin/agent-runtime';
 import type { ConversationMessage } from '@getmunin/agent-runtime';
-import { ConvService } from '../modules/conv/conv.service.js';
-import { CuratorJobsService } from '../modules/curator/curator-jobs.service.js';
-import { DB } from '../common/db/db.module.js';
-import { applyTenancyGUCs } from '../common/tenancy/tenancy.interceptor.js';
+import { ConvService } from '../modules/conv/conv.service.ts';
+import { CuratorJobsService } from '../modules/curator/curator-jobs.service.ts';
+import { DB } from '../common/db/db.module.ts';
+import { applyTenancyGUCs } from '../common/tenancy/tenancy.interceptor.ts';
 
 export type MuninRestClientFactory = (orgId: string) => MuninRestClient;
 

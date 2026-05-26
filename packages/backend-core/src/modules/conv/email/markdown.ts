@@ -1,5 +1,5 @@
 import { marked } from 'marked';
-import type { QuotedPriorMessage } from './reply-history.js';
+import type { QuotedPriorMessage } from './reply-history.ts';
 
 marked.setOptions({ gfm: true, breaks: true });
 

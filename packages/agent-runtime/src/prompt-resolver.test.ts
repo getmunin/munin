@@ -13,8 +13,8 @@ import {
   PROMPT_SPACE_SLUG,
   SYSTEM_PROMPT_SLUG,
   createPromptResolver,
-} from './prompt-resolver.js';
-import type { McpTool, McpToolHandle, McpToolResult } from './types.js';
+} from './prompt-resolver.ts';
+import type { McpTool, McpToolHandle, McpToolResult } from './types.ts';
 
 interface ToolCall {
   name: string;

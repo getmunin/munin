@@ -1,4 +1,4 @@
-import type { ChatToolDefinition, McpTool } from './types.js';
+import type { ChatToolDefinition, McpTool } from './types.ts';
 
 export function mcpToolsToChatTools(tools: McpTool[]): ChatToolDefinition[] {
   return tools.map((tool) => ({

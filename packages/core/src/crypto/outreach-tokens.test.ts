@@ -3,7 +3,7 @@ import {
   signUnsubscribeToken,
   verifyUnsubscribeToken,
   UnsubscribeTokenError,
-} from './outreach-tokens.js';
+} from './outreach-tokens.ts';
 
 const PEPPER = 'test-pepper-do-not-use-in-prod';
 

@@ -8,7 +8,7 @@ import {
 import { schema, type Db } from '@getmunin/db';
 import type { Mailer } from '@getmunin/core';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
-import { resetPasswordEmail, verifyEmailEmail } from './email-templates.js';
+import { resetPasswordEmail, verifyEmailEmail } from './email-templates.ts';
 
 export type MuninAuth = MuninAuthInstance;
 

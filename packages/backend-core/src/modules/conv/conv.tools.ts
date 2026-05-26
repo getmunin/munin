@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { getCurrentContext } from '@getmunin/core';
-import { CHANNEL_TYPES, ConvService, STATUSES } from './conv.service.js';
+import { CHANNEL_TYPES, ConvService, STATUSES } from './conv.service.ts';
 
 const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
 const StatusSchema = z.enum(STATUSES);

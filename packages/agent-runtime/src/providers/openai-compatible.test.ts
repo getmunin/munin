@@ -3,11 +3,11 @@ import {
   shouldEnablePromptCache,
   withSystemPromptCache,
   withToolsCache,
-} from './openai-compatible.js';
-import type { ChatMessage, ChatToolDefinition } from '../types.js';
+} from './openai-compatible.ts';
+import type { ChatMessage, ChatToolDefinition } from '../types.ts';
 
 import { vi } from 'vitest';
-import { openAiCompatibleProvider } from './openai-compatible.js';
+import { openAiCompatibleProvider } from './openai-compatible.ts';
 
 describe('openAiCompatibleProvider request body', () => {
   it('emits cache_control on system + last tool when targeting Anthropic', async () => {

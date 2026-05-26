@@ -1,6 +1,6 @@
 import { schema } from '@getmunin/db';
 import { and, eq, gt, isNotNull, lt, sql } from 'drizzle-orm';
-import { getCurrentContext } from './context.js';
+import { getCurrentContext } from './context.ts';
 
 export interface ClaimResult {
   acquired: boolean;

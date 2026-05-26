@@ -17,10 +17,10 @@ import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, asc, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
-import { assertOwner, assertOwnerOrAdmin } from './role-guard.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { assertOwner, assertOwnerOrAdmin } from './role-guard.ts';
 
 const PatchMemberDto = z
   .object({

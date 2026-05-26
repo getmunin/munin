@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { ConvService } from './conv.service.js';
+import { ConvService } from './conv.service.ts';
 
 const RequestMyHandoverInput = z.object({
   conversationId: z.string(),

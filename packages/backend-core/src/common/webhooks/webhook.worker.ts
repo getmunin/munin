@@ -2,8 +2,8 @@ import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull, lt, lte } from 'drizzle-orm';
 import { WebhookDispatcher } from '@getmunin/core';
-import { DB } from '../db/db.module.js';
-import { withSchedulerLock } from '../scheduler-lock/index.js';
+import { DB } from '../db/db.module.ts';
+import { withSchedulerLock } from '../scheduler-lock/index.ts';
 
 const POLL_INTERVAL_MS = Number(process.env.MUNIN_WEBHOOK_POLL_MS ?? 5000);
 const MAX_ATTEMPTS = 5;

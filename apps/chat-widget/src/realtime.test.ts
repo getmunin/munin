@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createRealtimeClient, type WebSocketLike } from './realtime.js';
+import { createRealtimeClient, type WebSocketLike } from './realtime.ts';
 
 /**
  * In-process WebSocket harness. Tests instantiate `MockWebSocket` via the

@@ -1,21 +1,21 @@
-import { parseConfig, type WidgetConfig } from './config.js';
+import { parseConfig, type WidgetConfig } from './config.ts';
 import {
   getRecentSessionIds,
   getSessionId,
   getVisitorId,
   mintNewSession,
   setCurrentSession,
-} from './session.js';
+} from './session.ts';
 import {
   createApiClient,
   WidgetApiError,
   type ConversationEnvelope,
   type ConversationSummary,
   type ListedMessage,
-} from './api.js';
-import { createRealtimeClient, type IncomingTyping } from './realtime.js';
-import { mount, type UiController } from './ui.js';
-import { pickLocale } from './strings/index.js';
+} from './api.ts';
+import { createRealtimeClient, type IncomingTyping } from './realtime.ts';
+import { mount, type UiController } from './ui.ts';
+import { pickLocale } from './strings/index.ts';
 import { createVoiceSession, type VoiceSession } from '@getmunin/widget-voice';
 
 function bootstrap(): void {

@@ -1,7 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import { getCurrentContext, type Audience } from '@getmunin/core';
-import { EmbeddingProviderHolder } from './embedding.provider.js';
+import { EmbeddingProviderHolder } from './embedding.provider.ts';
 
 export interface SearchHit {
   documentId: string;

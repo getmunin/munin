@@ -4,12 +4,12 @@ import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { MessageBirdClientService } from './messagebird-client.service.js';
+import { MessageBirdClientService } from './messagebird-client.service.ts';
 import {
   MessageBirdSmsService,
   jsonbToStored,
   type MessageBirdSmsChannelDto,
-} from './messagebird-sms.service.js';
+} from './messagebird-sms.service.ts';
 
 const ConfigureInput = z.object({
   channelId: z

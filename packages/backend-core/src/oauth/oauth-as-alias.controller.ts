@@ -1,6 +1,6 @@
 import { Controller, Get, Header } from '@nestjs/common';
-import { AllowAnonymous } from '../common/auth/auth.guard.js';
-import { authorizationServerUrl, SUPPORTED_SCOPES } from './oauth.constants.js';
+import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { authorizationServerUrl, SUPPORTED_SCOPES } from './oauth.constants.ts';
 
 interface AuthorizationServerMetadata {
   issuer: string;

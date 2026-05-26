@@ -21,19 +21,19 @@ import {
   type ResolvedCredential,
 } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
-import { DB } from '../common/db/db.module.js';
-import { toIsoString } from '../common/iso.js';
+import { DB } from '../common/db/db.module.ts';
+import { toIsoString } from '../common/iso.ts';
 import {
   ADDITIONAL_CREDENTIAL_RESOLVERS,
   type AdditionalCredentialResolver,
-} from '../common/auth/auth.guard.js';
-import { DbListenerService, type EventRow } from './db-listener.service.js';
-import { RealtimeEventBus, type AgentTypingBusEvent } from './realtime-event-bus.js';
+} from '../common/auth/auth.guard.ts';
+import { DbListenerService, type EventRow } from './db-listener.service.ts';
+import { RealtimeEventBus, type AgentTypingBusEvent } from './realtime-event-bus.ts';
 import {
   enforceOriginAllowlist,
   verifyIdentity,
-} from '../modules/conv/widget/widget-ingest.service.js';
-import { WidgetChannelConfig } from '../modules/conv/widget/widget.types.js';
+} from '../modules/conv/widget/widget-ingest.service.ts';
+import { WidgetChannelConfig } from '../modules/conv/widget/widget.types.ts';
 
 const PATH = '/api/v1/realtime';
 

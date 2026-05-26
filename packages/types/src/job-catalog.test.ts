@@ -4,7 +4,7 @@ import {
   jobKindOf,
   tierFor,
   toolPrefixesFor,
-} from './job-catalog.js';
+} from './job-catalog.ts';
 
 describe('jobKindOf', () => {
   it('classifies skill:// URIs as skill', () => {

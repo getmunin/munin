@@ -29,7 +29,7 @@ export {
   type ConfigureVapiBodyT,
   VapiCallInitiateBody,
   type VapiCallInitiateBodyT,
-} from './channels.js';
+} from './channels.ts';
 export {
   KNOWN_SKILL_URIS,
   WEB_SCRAPE_SITE_TASK_URI,
@@ -38,4 +38,4 @@ export {
   toolPrefixesFor,
   type JobKind,
   type ModelTier,
-} from './job-catalog.js';
+} from './job-catalog.ts';

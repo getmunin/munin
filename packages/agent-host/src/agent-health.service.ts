@@ -2,8 +2,8 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { getCurrentContext } from '@getmunin/core';
 import { sql } from 'drizzle-orm';
 import type { ProviderErrorCode } from '@getmunin/agent-runtime';
-import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.js';
-import type { AgentConfigRepository } from './config.repository.js';
+import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.ts';
+import type { AgentConfigRepository } from './config.repository.ts';
 
 export type AgentHealthStatus = 'ok' | 'degraded';
 

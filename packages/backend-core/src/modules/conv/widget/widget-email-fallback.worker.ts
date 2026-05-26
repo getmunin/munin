@@ -3,16 +3,16 @@ import { schema, type Db } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { createTransport, type Transporter } from 'nodemailer';
 import { type Mailer } from '@getmunin/core';
-import { DB } from '../../../common/db/db.module.js';
-import { MAILER } from '../../../common/mail/mail.module.js';
-import { EmailService, jsonbToStored, type StoredEmailChannelConfig } from '../email/email.service.js';
-import { smtpTransportOptions } from '../email/email.tools.js';
-import { buildOutbound, type BuiltMessage } from '../email/mime.js';
+import { DB } from '../../../common/db/db.module.ts';
+import { MAILER } from '../../../common/mail/mail.module.ts';
+import { EmailService, jsonbToStored, type StoredEmailChannelConfig } from '../email/email.service.ts';
+import { smtpTransportOptions } from '../email/email.tools.ts';
+import { buildOutbound, type BuiltMessage } from '../email/mime.ts';
 import {
   formatQuotedHistory,
   loadPriorMessagesForQuote,
   type QuotedPriorMessage,
-} from '../email/reply-history.js';
+} from '../email/reply-history.ts';
 
 const DEFAULT_INTERVAL_MS = 60_000;
 const DEFAULT_THRESHOLD_MS = 10 * 60_000;

@@ -4,12 +4,12 @@ import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { VapiClientService } from './vapi-client.service.js';
+import { VapiClientService } from './vapi-client.service.ts';
 import {
   VapiService,
   jsonbToStored,
   type VapiChannelDto,
-} from './vapi.service.js';
+} from './vapi.service.ts';
 
 const E164 = /^\+[1-9]\d{4,18}$/;
 

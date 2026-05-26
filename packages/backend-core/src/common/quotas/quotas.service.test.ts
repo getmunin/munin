@@ -3,7 +3,7 @@ import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core'
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { QuotaExceededError, QuotasService } from './quotas.service.js';
+import { QuotaExceededError, QuotasService } from './quotas.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

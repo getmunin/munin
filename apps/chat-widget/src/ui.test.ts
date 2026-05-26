@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mount, type UiController } from './ui.js';
-import type { ListedMessage, ConversationSummary } from './api.js';
-import type { WidgetConfig } from './config.js';
-import strings from './strings/en.js';
+import { mount, type UiController } from './ui.ts';
+import type { ListedMessage, ConversationSummary } from './api.ts';
+import type { WidgetConfig } from './config.ts';
+import strings from './strings/en.ts';
 
 const baseConfig: WidgetConfig = {
   host: 'https://munin.example',

@@ -15,12 +15,12 @@ import {
   Injectable,
   UseGuards,
 } from '@nestjs/common';
-import { AllowAnonymous } from '../common/auth/auth.guard.js';
+import { AllowAnonymous } from '../common/auth/auth.guard.ts';
 import { z } from 'zod';
 import { CredentialResolver } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
-import { DB } from '../common/db/db.module.js';
-import { InvitationsService } from './invitations.service.js';
+import { DB } from '../common/db/db.module.ts';
+import { InvitationsService } from './invitations.service.ts';
 
 const AcceptDto = z.object({
   token: z.string().min(8).max(128),

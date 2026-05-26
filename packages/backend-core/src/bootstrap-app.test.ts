@@ -4,7 +4,7 @@ import {
   hostAllowlistMiddleware,
   isPublicCorsPath,
   publicUrlRewriteMiddleware,
-} from './bootstrap-app.js';
+} from './bootstrap-app.ts';
 
 function run(mw: ReturnType<typeof hostAllowlistMiddleware>, hostHeader: string | undefined) {
   const req = { headers: { host: hostHeader } } as unknown as Request;

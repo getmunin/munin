@@ -1,5 +1,5 @@
 import { schema } from '@getmunin/db';
-import { getCurrentContext } from './context.js';
+import { getCurrentContext } from './context.ts';
 
 export interface AuditEventInput {
   tool?: string;

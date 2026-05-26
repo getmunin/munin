@@ -9,23 +9,23 @@ import {
   type Mailer,
   type RequestContext,
 } from '@getmunin/core';
-import { readPublicBaseUrl } from '../../../oauth/oauth.constants.js';
+import { readPublicBaseUrl } from '../../../oauth/oauth.constants.ts';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, type ParsedMail, type AddressObject } from 'mailparser';
 import { randomUUID } from 'node:crypto';
 import { createTransport, type Transporter } from 'nodemailer';
-import { DB } from '../../../common/db/db.module.js';
-import { MAILER } from '../../../common/mail/mail.module.js';
-import { CuratorJobsService } from '../../curator/curator-jobs.service.js';
+import { DB } from '../../../common/db/db.module.ts';
+import { MAILER } from '../../../common/mail/mail.module.ts';
+import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import {
   EmailService,
   jsonbToStored,
   type StoredEmailChannelConfig,
-} from './email.service.js';
-import { smtpTransportOptions } from './email.tools.js';
-import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.js';
-import { renderEmailHtml } from './markdown.js';
-import { resolveInbound, type ParsedInboundEmail } from './threading.js';
+} from './email.service.ts';
+import { smtpTransportOptions } from './email.tools.ts';
+import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.ts';
+import { renderEmailHtml } from './markdown.ts';
+import { resolveInbound, type ParsedInboundEmail } from './threading.ts';
 import {
   detectSignatureBlock,
   ensureReSubject,
@@ -35,8 +35,8 @@ import {
   stripQuotedReplyHtml,
   stripQuotedReplyText,
   stripSignatureHtml,
-} from './reply-history.js';
-import { classifySender, hasAnyClassification } from './classify-sender.js';
+} from './reply-history.ts';
+import { classifySender, hasAnyClassification } from './classify-sender.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -44,7 +44,7 @@ import type {
   PollTickResult,
   SendContext,
   SendResult,
-} from '../channels/adapter.js';
+} from '../channels/adapter.ts';
 
 const POLL_INTERVAL_MS = Number(process.env.MUNIN_EMAIL_INBOUND_POLL_MS ?? 60_000);
 const MAX_MESSAGES_PER_TICK = 100;

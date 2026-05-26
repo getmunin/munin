@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { CmsService, ENTRY_STATUSES } from './cms.service.js';
-import { CmsSearchService } from './cms.search.js';
-import { FIELD_TYPES, type FieldDef } from './cms.fields.js';
+import { CmsService, ENTRY_STATUSES } from './cms.service.ts';
+import { CmsSearchService } from './cms.search.ts';
+import { FIELD_TYPES, type FieldDef } from './cms.fields.ts';
 
 const FieldSchema: z.ZodType<FieldDef> = z.lazy(() =>
   z.object({

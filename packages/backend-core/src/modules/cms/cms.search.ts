@@ -3,11 +3,11 @@ import { sql, type SQL, and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import type { Db, Tx } from '@getmunin/db';
 import { schema } from '@getmunin/db';
-import { DB } from '../../common/db/db.module.js';
-import { EmbeddingProviderHolder } from '../kb/embedding.provider.js';
-import { CmsService, type EntryStatus } from './cms.service.js';
-import type { FieldDef } from './cms.fields.js';
-import { projectData } from './cms.fields.js';
+import { DB } from '../../common/db/db.module.ts';
+import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
+import { CmsService, type EntryStatus } from './cms.service.ts';
+import type { FieldDef } from './cms.fields.ts';
+import { projectData } from './cms.fields.ts';
 
 export interface SearchHit {
   entryId: string;

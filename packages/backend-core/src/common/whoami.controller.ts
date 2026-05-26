@@ -1,8 +1,8 @@
 import { Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
 import { getCurrentContext, type ActorIdentity } from '@getmunin/core';
-import { AuthGuard } from './auth/auth.guard.js';
-import { TenancyInterceptor } from './tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from './audit/audit.interceptor.js';
+import { AuthGuard } from './auth/auth.guard.ts';
+import { TenancyInterceptor } from './tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from './audit/audit.interceptor.ts';
 
 /**
  * Minimal authenticated endpoint: returns the resolved caller identity.

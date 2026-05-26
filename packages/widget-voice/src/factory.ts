@@ -1,5 +1,5 @@
-import type { VoiceDescriptor, VoiceSession } from './types.js';
-import { VapiVoiceSession } from './vendors/vapi.js';
+import type { VoiceDescriptor, VoiceSession } from './types.ts';
+import { VapiVoiceSession } from './vendors/vapi.ts';
 
 export function createVoiceSession(descriptor: VoiceDescriptor): VoiceSession {
   switch (descriptor.vendor) {

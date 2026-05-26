@@ -1,5 +1,5 @@
-import { openAiCompatibleProvider } from './providers/openai-compatible.js';
-import type { ChatMessage, Provider, ProviderConfig } from './types.js';
+import { openAiCompatibleProvider } from './providers/openai-compatible.ts';
+import type { ChatMessage, Provider, ProviderConfig } from './types.ts';
 
 export type AuditAction =
   | { type: 'request_handover'; reason: string }

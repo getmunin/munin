@@ -1,5 +1,5 @@
-import { flattenToolResult, mcpToolsToChatTools } from './mcp-tool-translation.js';
-import { openAiCompatibleProvider } from './providers/openai-compatible.js';
+import { flattenToolResult, mcpToolsToChatTools } from './mcp-tool-translation.ts';
+import { openAiCompatibleProvider } from './providers/openai-compatible.ts';
 import type {
   AgentConfig,
   AgentReply,
@@ -9,7 +9,7 @@ import type {
   Provider,
   ProviderUsage,
   ToolCallTrace,
-} from './types.js';
+} from './types.ts';
 
 const DEFAULT_MAX_TOOL_ITERATIONS = 8;
 const DEFAULT_MAX_HISTORY_CHARS = 32_000;

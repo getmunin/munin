@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { parseUrlEncoded, validateTwilioSignature } from './twilio-client.service.js';
+import { parseUrlEncoded, validateTwilioSignature } from './twilio-client.service.ts';
 
 describe('parseUrlEncoded', () => {
   it('parses simple form-encoded body', () => {

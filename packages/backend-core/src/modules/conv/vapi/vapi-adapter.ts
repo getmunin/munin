@@ -16,7 +16,7 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { makeId, schema, type Db, type Tx } from '@getmunin/db';
-import { DB } from '../../../common/db/db.module.js';
+import { DB } from '../../../common/db/db.module.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -26,20 +26,20 @@ import type {
   SendContext,
   SendResult,
   WebhookResponse,
-} from '../channels/adapter.js';
+} from '../channels/adapter.ts';
 import {
   VAPI_WEBHOOK_SECRET_HEADER,
   VapiClientService,
   verifyVapiWebhookSecret,
-} from './vapi-client.service.js';
-import { jsonbToStored } from './vapi.service.js';
-import { VapiToolBridge, type VapiToolCall } from './vapi-tool-bridge.js';
+} from './vapi-client.service.ts';
+import { jsonbToStored } from './vapi.service.ts';
+import { VapiToolBridge, type VapiToolCall } from './vapi-tool-bridge.ts';
 import {
   OrgScopedKbDocReader,
   buildInlineAssistantConfig,
   composeVoiceSystemPrompt,
   type ChatMessageSeed,
-} from './vapi-assistant.js';
+} from './vapi-assistant.ts';
 
 interface VapiServerMessage {
   type: string;

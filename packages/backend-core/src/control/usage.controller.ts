@@ -1,10 +1,10 @@
 import { Controller, Get, Inject, UseGuards, UseInterceptors } from '@nestjs/common';
 import { getCurrentContext } from '@getmunin/core';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
-import { RateLimitService } from '../common/rate-limit/rate-limit.service.js';
-import { assertOwnerOrAdmin } from './role-guard.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { RateLimitService } from '../common/rate-limit/rate-limit.service.ts';
+import { assertOwnerOrAdmin } from './role-guard.ts';
 
 @Controller('api/v1/usage')
 @UseGuards(AuthGuard)

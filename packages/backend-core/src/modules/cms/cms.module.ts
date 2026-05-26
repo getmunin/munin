@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { CmsService } from './cms.service.js';
-import { CmsSearchService } from './cms.search.js';
-import { CmsAdminTools } from './cms.tools.js';
-import { CmsScheduleWorker } from './cms.schedule.worker.js';
-import { EmbeddingProviderHolder } from '../kb/embedding.provider.js';
+import { CmsService } from './cms.service.ts';
+import { CmsSearchService } from './cms.search.ts';
+import { CmsAdminTools } from './cms.tools.ts';
+import { CmsScheduleWorker } from './cms.schedule.worker.ts';
+import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 
 @Module({
   providers: [

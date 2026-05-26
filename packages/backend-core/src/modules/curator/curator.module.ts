@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { CuratorJobsService } from './curator-jobs.service.js';
-import { CuratorSchedulerService } from './curator-scheduler.service.js';
+import { CuratorJobsService } from './curator-jobs.service.ts';
+import { CuratorSchedulerService } from './curator-scheduler.service.ts';
 
 @Module({
   imports: [ScheduleModule.forRoot()],

@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SkillRegistry } from '@getmunin/mcp-toolkit';
 import type { Audience } from '@getmunin/core';
-import { loadSkills, type SkillSource } from './skill-loader.js';
+import { loadSkills, type SkillSource } from './skill-loader.ts';
 
 @Injectable()
 export class McpSkillRegistryService extends SkillRegistry implements OnModuleInit {

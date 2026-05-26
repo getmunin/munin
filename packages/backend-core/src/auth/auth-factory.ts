@@ -3,7 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { jwt } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { schema, type Db } from '@getmunin/db';
-import { SUPPORTED_SCOPES as MUNIN_SUPPORTED_SCOPES } from '../oauth/oauth.constants.js';
+import { SUPPORTED_SCOPES as MUNIN_SUPPORTED_SCOPES } from '../oauth/oauth.constants.ts';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
 

@@ -5,9 +5,9 @@ import type { INestApplication } from '@nestjs/common';
 import type { StubMailer } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq } from 'drizzle-orm';
-import { AppModule } from '../../../app.module.js';
-import { MAILER } from '../../../common/mail/mail.module.js';
-import { WidgetEmailFallbackWorker } from './widget-email-fallback.worker.js';
+import { AppModule } from '../../../app.module.ts';
+import { MAILER } from '../../../common/mail/mail.module.ts';
+import { WidgetEmailFallbackWorker } from './widget-email-fallback.worker.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

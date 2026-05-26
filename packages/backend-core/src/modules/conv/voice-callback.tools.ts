@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { VoiceCallbackService, type VoiceCallbackResult } from './voice-callback.service.js';
+import { VoiceCallbackService, type VoiceCallbackResult } from './voice-callback.service.ts';
 
 const CallbackInput = z.object({
   conversationId: z.string(),

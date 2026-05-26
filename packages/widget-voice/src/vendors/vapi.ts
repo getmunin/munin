@@ -5,7 +5,7 @@ import type {
   VoiceSessionEvent,
   VoiceSessionListener,
   VoiceSessionState,
-} from '../types.js';
+} from '../types.ts';
 
 type VapiInstance = InstanceType<typeof VapiCtor>;
 

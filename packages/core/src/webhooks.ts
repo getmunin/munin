@@ -1,7 +1,7 @@
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
-import { getCurrentContext } from './request/context.js';
-import { signHmac } from './crypto/primitives.js';
+import { getCurrentContext } from './request/context.ts';
+import { signHmac } from './crypto/primitives.ts';
 
 export interface WebhookEventInput {
   type: string;

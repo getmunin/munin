@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { KbService } from './kb.service.js';
-import { KbSearchService } from './kb.search.js';
-import { KbAdminTools } from './kb.tools.js';
-import { EmbeddingProviderHolder } from './embedding.provider.js';
+import { KbService } from './kb.service.ts';
+import { KbSearchService } from './kb.search.ts';
+import { KbAdminTools } from './kb.tools.ts';
+import { EmbeddingProviderHolder } from './embedding.provider.ts';
 
 /**
  * Knowledge Base module: spaces, documents, chunks, versions, search.

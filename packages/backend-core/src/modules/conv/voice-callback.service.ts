@@ -8,9 +8,9 @@ import {
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { schema, type Db } from '@getmunin/db';
-import { DB } from '../../common/db/db.module.js';
-import { VapiClientService } from './vapi/vapi-client.service.js';
-import { jsonbToStored } from './vapi/vapi.service.js';
+import { DB } from '../../common/db/db.module.ts';
+import { VapiClientService } from './vapi/vapi-client.service.ts';
+import { jsonbToStored } from './vapi/vapi.service.ts';
 
 export interface VoiceCallbackResult {
   initiated: true;

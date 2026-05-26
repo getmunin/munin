@@ -9,7 +9,7 @@ import { Observable, from, switchMap } from 'rxjs';
 import { sql } from 'drizzle-orm';
 import { ActorIdentity, RequestContextStore, type RequestContext } from '@getmunin/core';
 import type { Db, Tx } from '@getmunin/db';
-import { DB } from '../db/db.module.js';
+import { DB } from '../db/db.module.ts';
 import { randomUUID } from 'node:crypto';
 
 interface RequestWithAuth {

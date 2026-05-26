@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { OutreachService, PROPOSAL_KINDS, PROPOSAL_STATUSES } from './outreach.service.js';
+import { OutreachService, PROPOSAL_KINDS, PROPOSAL_STATUSES } from './outreach.service.ts';
 
 const CadenceRulesSchema = z.object({
   maxPerWeekPerContact: z.number().int().positive().max(7).optional(),

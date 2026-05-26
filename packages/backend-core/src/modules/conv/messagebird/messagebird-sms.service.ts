@@ -12,7 +12,7 @@ import {
 } from '@getmunin/core';
 import { schema, type Db } from '@getmunin/db';
 import { z } from 'zod';
-import { DB } from '../../../common/db/db.module.js';
+import { DB } from '../../../common/db/db.module.ts';
 
 const REDACTED = '••••';
 

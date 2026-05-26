@@ -7,7 +7,7 @@ import {
   type KbDocReader,
   type PromptCache,
 } from '@getmunin/core';
-import type { VapiFunctionTool } from './vapi-tool-bridge.js';
+import type { VapiFunctionTool } from './vapi-tool-bridge.ts';
 
 export interface ChatMessageSeed {
   role: 'system' | 'user' | 'assistant';

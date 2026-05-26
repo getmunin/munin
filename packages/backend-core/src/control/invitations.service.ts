@@ -15,9 +15,9 @@ import {
   randomToken,
   type Mailer,
 } from '@getmunin/core';
-import { DB } from '../common/db/db.module.js';
-import { MAILER } from '../common/mail/mail.module.js';
-import { assertOwner, assertOwnerOrAdmin, VALID_ROLES } from './role-guard.js';
+import { DB } from '../common/db/db.module.ts';
+import { MAILER } from '../common/mail/mail.module.ts';
+import { assertOwner, assertOwnerOrAdmin, VALID_ROLES } from './role-guard.ts';
 
 const INVITE_TTL_DAYS = 7;
 

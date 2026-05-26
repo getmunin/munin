@@ -1,4 +1,4 @@
-import type { ApiIdentity } from './api.js';
+import type { ApiIdentity } from './api.ts';
 
 /**
  * WebSocket client for the widget.

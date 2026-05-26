@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadSkills } from './skill-loader.js';
+import { loadSkills } from './skill-loader.ts';
 
 describe('loadSkills', () => {
   let root: string;

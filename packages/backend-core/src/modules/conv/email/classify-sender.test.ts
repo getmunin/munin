@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifySender, hasAnyClassification } from './classify-sender.js';
+import { classifySender, hasAnyClassification } from './classify-sender.ts';
 
 type Headers = { key: string; line: string }[];
 

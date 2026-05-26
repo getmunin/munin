@@ -1,4 +1,4 @@
-export { createVoiceSession } from './factory.js';
+export { createVoiceSession } from './factory.ts';
 export type {
   VoiceDescriptor,
   VoiceSession,
@@ -8,4 +8,4 @@ export type {
   VoiceSessionState,
   VoiceTranscriptEvent,
   VoiceVendor,
-} from './types.js';
+} from './types.ts';

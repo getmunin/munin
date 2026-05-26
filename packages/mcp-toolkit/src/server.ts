@@ -6,9 +6,9 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { AuditLogger, ActorIdentity, Audience } from '@getmunin/core';
-import type { McpToolRegistry } from './registry.js';
-import type { SkillRegistry } from './skill-registry.js';
-import { callTool, listResources, listTools, readResource, type DispatchContext } from './dispatch.js';
+import type { McpToolRegistry } from './registry.ts';
+import type { SkillRegistry } from './skill-registry.ts';
+import { callTool, listResources, listTools, readResource, type DispatchContext } from './dispatch.ts';
 
 export interface CreateMcpServerOptions {
   registry: McpToolRegistry;

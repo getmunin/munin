@@ -1,4 +1,4 @@
-import type { WidgetVisitor } from './config.js';
+import type { WidgetVisitor } from './config.ts';
 
 /**
  * Thin REST client for the widget's two endpoints:

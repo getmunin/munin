@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { StubEmbeddingProvider } from './embedding.js';
+import { StubEmbeddingProvider } from './embedding.ts';
 
 describe('StubEmbeddingProvider', () => {
   it('returns one vector per input in order', async () => {

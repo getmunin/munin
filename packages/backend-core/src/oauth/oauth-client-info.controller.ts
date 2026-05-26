@@ -8,8 +8,8 @@ import {
 } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
-import { AllowAnonymous } from '../common/auth/auth.guard.js';
-import { DB } from '../common/db/db.module.js';
+import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { DB } from '../common/db/db.module.ts';
 
 interface OAuthClientInfo {
   client_id: string;

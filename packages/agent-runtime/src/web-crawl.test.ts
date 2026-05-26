@@ -9,7 +9,7 @@ import {
   rankUrls,
   type HtmlFetcher,
   type Extractor,
-} from './web-crawl.js';
+} from './web-crawl.ts';
 
 const ORIGIN = 'https://example.com';
 

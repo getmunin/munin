@@ -1,10 +1,13 @@
+import '../globals.css';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, getNow, getTranslations, setRequestLocale } from 'next-intl/server';
+import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { hasLocale } from 'next-intl';
 import { Toaster } from 'sonner';
 import { routing } from '../../i18n/routing';
+
+export const dynamic = 'force-dynamic';
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -33,12 +36,11 @@ export default async function LocaleLayout({
   if (!hasLocale(routing.locales, locale)) notFound();
   setRequestLocale(locale);
   const messages = await getMessages();
-  const now = await getNow();
 
   return (
     <html lang={locale} className="font-sans antialiased">
       <body className="flex min-h-screen flex-col">
-        <NextIntlClientProvider locale={locale} messages={messages} now={now}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
           <div className="flex-1">{children}</div>
           <Toaster position="bottom-right" />
         </NextIntlClientProvider>

@@ -6,8 +6,8 @@ import { WebSocket } from 'ws';
 import { buildApiKey, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
-import { createApp } from '../bootstrap-app.js';
-import { AppModule } from '../app.module.js';
+import { createApp } from '../bootstrap-app.ts';
+import { AppModule } from '../app.module.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

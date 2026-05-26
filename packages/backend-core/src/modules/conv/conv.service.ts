@@ -2,9 +2,9 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
-import { CuratorJobsService } from '../curator/curator-jobs.service.js';
-import { ConversationClaimsService } from './conv.claims.service.js';
-import { toIsoString } from '../../common/iso.js';
+import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
+import { ConversationClaimsService } from './conv.claims.service.ts';
+import { toIsoString } from '../../common/iso.ts';
 
 export class ConvInvalidError extends Error {
   readonly code = 'conv_invalid';

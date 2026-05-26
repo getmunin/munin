@@ -2,12 +2,12 @@ import { Controller, Get, Inject, UseGuards, UseInterceptors } from '@nestjs/com
 import { schema } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
-import { CURATION_INBOX_SLUG } from '../modules/kb/kb.service.js';
-import { RealtimeGateway } from '../realtime/realtime.gateway.js';
-import { toIsoString } from '../common/iso.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { CURATION_INBOX_SLUG } from '../modules/kb/kb.service.ts';
+import { RealtimeGateway } from '../realtime/realtime.gateway.ts';
+import { toIsoString } from '../common/iso.ts';
 
 export interface OverviewBacklog {
   conversationsNeedingAttention: number;

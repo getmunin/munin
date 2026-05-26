@@ -7,7 +7,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
-import { STORAGE } from './common/storage/storage.token.js';
+import { STORAGE } from './common/storage/storage.token.ts';
 
 const DEFAULT_DEV_WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 

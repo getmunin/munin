@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assistantNamePreamble } from './conversation-handler.js';
+import { assistantNamePreamble } from './conversation-handler.ts';
 
 describe('assistantNamePreamble', () => {
   it('emits a one-line preamble when a name is set', () => {

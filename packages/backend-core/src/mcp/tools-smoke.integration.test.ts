@@ -4,11 +4,11 @@ import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
-import { AppModule } from '../app.module.js';
-import { McpRegistryService } from './mcp.registry.js';
-import { McpSkillRegistryService } from './mcp.skill-registry.service.js';
-import { DB } from '../common/db/db.module.js';
-import { openAdminAgentMcpClient, type AgentMcpClient } from '../agent/in-process-context.js';
+import { AppModule } from '../app.module.ts';
+import { McpRegistryService } from './mcp.registry.ts';
+import { McpSkillRegistryService } from './mcp.skill-registry.service.ts';
+import { DB } from '../common/db/db.module.ts';
+import { openAdminAgentMcpClient, type AgentMcpClient } from '../agent/in-process-context.ts';
 import type { Db } from '@getmunin/db';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;

@@ -1,13 +1,13 @@
-export { runAgent, compactHistory } from './runtime.js';
+export { runAgent, compactHistory } from './runtime.ts';
 export {
   openAiCompatibleProvider,
   ProviderError,
   classifyProviderError,
   type ProviderErrorCode,
   type ProviderErrorClassification,
-} from './providers/openai-compatible.js';
-export { createStubProvider, type StubProviderHandle, type StubScript } from './providers/stub.js';
-export { mcpToolsToChatTools, flattenToolResult } from './mcp-tool-translation.js';
+} from './providers/openai-compatible.ts';
+export { createStubProvider, type StubProviderHandle, type StubScript } from './providers/stub.ts';
+export { mcpToolsToChatTools, flattenToolResult } from './mcp-tool-translation.ts';
 export {
   CHANNEL_PROMPT_PREFIX,
   PROMPT_SPACE_SLUG,
@@ -15,7 +15,7 @@ export {
   createPromptResolver,
   type CreatePromptResolverOptions,
   type PromptResolver,
-} from './prompt-resolver.js';
+} from './prompt-resolver.ts';
 export {
   assistantNamePreamble,
   createConversationHandler,
@@ -24,14 +24,14 @@ export {
   type HandlerConfig,
   type IncomingMessage,
   type OpenedMcp,
-} from './conversation-handler.js';
+} from './conversation-handler.ts';
 export {
   auditConversation,
   type AuditAction,
   type AuditConversationArgs,
   type AuditTopic,
   type AuditVerdict,
-} from './audit.js';
+} from './audit.ts';
 export {
   createMuninRestClient,
   type AckCuratorJobInput,
@@ -46,19 +46,19 @@ export {
   type EnqueueCuratorJobInput,
   type FailCuratorJobInput,
   type MuninRestClient,
-} from './munin-rest.js';
+} from './munin-rest.ts';
 export {
   openHttpMcpClient,
   type OpenHttpMcpClientOptions,
   type OpenedHttpMcpClient,
-} from './mcp-client.js';
+} from './mcp-client.ts';
 export {
   runSkillPass,
   withAllowedToolPrefixes,
   type SkillPassOptions,
   type SkillPassResult,
   type SkillReader,
-} from './skill-pass.js';
+} from './skill-pass.ts';
 export {
   WebCrawler,
   type CrawlOptions,
@@ -67,7 +67,7 @@ export {
   type SkippedPage,
   type SkipReason,
   type WebCrawlerOptions,
-} from './web-crawl.js';
+} from './web-crawl.ts';
 export {
   createRealtimeClient,
   type AgentConfigChangedEvent,
@@ -78,7 +78,7 @@ export {
   type MessageReceivedEvent,
   type RealtimeClient,
   type RealtimeClientOptions,
-} from './realtime.js';
+} from './realtime.ts';
 export type {
   AgentConfig,
   AgentReply,
@@ -96,4 +96,4 @@ export type {
   ProviderResponse,
   ProviderUsage,
   ToolCallTrace,
-} from './types.js';
+} from './types.ts';

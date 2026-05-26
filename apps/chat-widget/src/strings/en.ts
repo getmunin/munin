@@ -1,4 +1,4 @@
-import type { Strings } from './types.js';
+import type { Strings } from './types.ts';
 
 const en: Strings = {
   launcherAriaLabel: 'Open chat',

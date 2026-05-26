@@ -1,10 +1,10 @@
 import { Controller, Get, Header } from '@nestjs/common';
-import { AllowAnonymous } from '../common/auth/auth.guard.js';
+import { AllowAnonymous } from '../common/auth/auth.guard.ts';
 import {
   authorizationServerUrl,
   mcpResourceUrl,
   SUPPORTED_SCOPES,
-} from './oauth.constants.js';
+} from './oauth.constants.ts';
 
 interface ProtectedResourceMetadata {
   resource: string;

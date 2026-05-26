@@ -11,15 +11,15 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
-import { ConvService, type ChannelDto } from '../modules/conv/conv.service.js';
-import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.js';
-import { EmailAdminTools } from '../modules/conv/email/email.tools.js';
-import { TwilioSmsAdminTools } from '../modules/conv/twilio/twilio-sms.tools.js';
-import { MessageBirdSmsAdminTools } from '../modules/conv/messagebird/messagebird-sms.tools.js';
-import { VapiAdminTools } from '../modules/conv/vapi/vapi.tools.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { ConvService, type ChannelDto } from '../modules/conv/conv.service.ts';
+import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.ts';
+import { EmailAdminTools } from '../modules/conv/email/email.tools.ts';
+import { TwilioSmsAdminTools } from '../modules/conv/twilio/twilio-sms.tools.ts';
+import { MessageBirdSmsAdminTools } from '../modules/conv/messagebird/messagebird-sms.tools.ts';
+import { VapiAdminTools } from '../modules/conv/vapi/vapi.tools.ts';
 import {
   CreateWidgetBody,
   UpdateWidgetBody,

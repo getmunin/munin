@@ -3,7 +3,7 @@ import { createHash, createHmac } from 'node:crypto';
 import {
   parseUrlEncoded,
   verifyMessageBirdJwt,
-} from './messagebird-client.service.js';
+} from './messagebird-client.service.ts';
 
 function b64url(buf: Buffer): string {
   return buf.toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');

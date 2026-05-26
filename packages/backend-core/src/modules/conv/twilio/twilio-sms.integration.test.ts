@@ -5,9 +5,9 @@ import type { AddressInfo } from 'node:net';
 import { createHmac } from 'node:crypto';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and } from 'drizzle-orm';
-import { AppModule } from '../../../app.module.js';
-import { createApp } from '../../../bootstrap-app.js';
-import { TwilioSmsService } from './twilio-sms.service.js';
+import { AppModule } from '../../../app.module.ts';
+import { createApp } from '../../../bootstrap-app.ts';
+import { TwilioSmsService } from './twilio-sms.service.ts';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 

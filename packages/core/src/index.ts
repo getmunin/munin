@@ -6,15 +6,15 @@ export {
   RequestContextStore,
   getCurrentContext,
   withContext,
-} from './request/context.js';
+} from './request/context.ts';
 export {
   buildAdminAgentActor,
   buildEndUserAgentActor,
   type EndUserAgentActorInput,
-} from './request/synth-agent-actor.js';
-export { AuditLogger, type AuditEventInput } from './request/audit.js';
-export { ClaimManager, type ClaimResult } from './request/claims.js';
-export { CredentialResolver, type ResolvedCredential } from './request/credentials.js';
+} from './request/synth-agent-actor.ts';
+export { AuditLogger, type AuditEventInput } from './request/audit.ts';
+export { ClaimManager, type ClaimResult } from './request/claims.ts';
+export { CredentialResolver, type ResolvedCredential } from './request/credentials.ts';
 
 export {
   hashSecret,
@@ -26,27 +26,27 @@ export {
   setEncryptionKeySql,
   encryptSecretSql,
   decryptSecretSql,
-} from './crypto/primitives.js';
-export { buildApiKey, keyPrefix, isWellFormedKey, type KeyKind } from './crypto/keys.js';
+} from './crypto/primitives.ts';
+export { buildApiKey, keyPrefix, isWellFormedKey, type KeyKind } from './crypto/keys.ts';
 export {
   type UnsubscribeTokenPayload,
   UnsubscribeTokenError,
   signUnsubscribeToken,
   verifyUnsubscribeToken,
-} from './crypto/outreach-tokens.js';
+} from './crypto/outreach-tokens.ts';
 export {
   type EmailOpenTokenPayload,
   EmailOpenTokenError,
   signEmailOpenToken,
   verifyEmailOpenToken,
-} from './crypto/email-open-token.js';
+} from './crypto/email-open-token.ts';
 
 export {
   type EmbeddingProvider,
   OpenAIEmbeddingProvider,
   StubEmbeddingProvider,
   readEmbeddingProviderFromEnv,
-} from './providers/embedding.js';
+} from './providers/embedding.ts';
 export {
   type Mailer,
   type MailMessage,
@@ -54,7 +54,7 @@ export {
   ResendMailer,
   StubMailer,
   readMailerFromEnv,
-} from './providers/mailer.js';
+} from './providers/mailer.ts';
 export {
   type AssetStorage,
   type LocalFsStorageOptions,
@@ -62,16 +62,16 @@ export {
   LocalFsStorage,
   S3CompatibleStorage,
   readAssetStorageFromEnv,
-} from './providers/storage.js';
+} from './providers/storage.ts';
 
-export { WebhookDispatcher, type WebhookEventInput } from './webhooks.js';
+export { WebhookDispatcher, type WebhookEventInput } from './webhooks.ts';
 export {
   chunkDocument,
   estimateTokens,
   contentHash,
   type Chunk,
   type ChunkOptions,
-} from './chunker.js';
+} from './chunker.ts';
 
 export {
   AGENT_RUNTIME_PROMPT_SPACE_SLUG,
@@ -103,4 +103,4 @@ export {
   type PromptCacheEntry,
   type PromptCacheOptions,
   createPromptCache,
-} from './prompts/index.js';
+} from './prompts/index.ts';

@@ -1,4 +1,4 @@
-import type { ChatMessage, Provider, ProviderResponse } from '../types.js';
+import type { ChatMessage, Provider, ProviderResponse } from '../types.ts';
 
 export interface StubScript {
   responses: ProviderResponse[];

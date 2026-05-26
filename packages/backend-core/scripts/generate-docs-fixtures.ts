@@ -3,9 +3,9 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../src/app.module.js';
-import { McpRegistryService } from '../src/mcp/mcp.registry.js';
-import { McpSkillRegistryService } from '../src/mcp/mcp.skill-registry.service.js';
+import { AppModule } from '../src/app.module.ts';
+import { McpRegistryService } from '../src/mcp/mcp.registry.ts';
+import { McpSkillRegistryService } from '../src/mcp/mcp.skill-registry.service.ts';
 
 process.env.DATABASE_URL ??= 'postgres://noop:noop@127.0.0.1:5432/noop';
 process.env.MUNIN_AUTH_SECRET ??= 'spec-generation-do-not-use-in-prod-32chars!!';

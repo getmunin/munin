@@ -1,13 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { WebhookDispatcher } from '@getmunin/core';
-import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.js';
+import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.ts';
 import type {
   AgentConfigPatch,
   AgentConfigRepository,
   AgentConfigRow,
-} from './config.repository.js';
-import { validateProviderCredentials } from './provider-auth.js';
-import { AgentHealthService, type AgentHealthRecorder } from './agent-health.service.js';
+} from './config.repository.ts';
+import { validateProviderCredentials } from './provider-auth.ts';
+import { AgentHealthService, type AgentHealthRecorder } from './agent-health.service.ts';
 
 export interface AgentConfigDto {
   id: string;

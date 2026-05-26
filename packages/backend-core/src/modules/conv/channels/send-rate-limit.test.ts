@@ -4,7 +4,7 @@ import {
   parseRateLimitDeferral,
   rateLimitDeferralError,
   type SendCounts,
-} from './send-rate-limit.js';
+} from './send-rate-limit.ts';
 
 const NOW = new Date('2026-05-14T12:00:00.000Z');
 

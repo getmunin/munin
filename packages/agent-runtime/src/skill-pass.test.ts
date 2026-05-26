@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runSkillPass, withAllowedToolPrefixes, type SkillReader } from './skill-pass.js';
-import type { McpTool, McpToolHandle, McpToolResult } from './types.js';
+import { runSkillPass, withAllowedToolPrefixes, type SkillReader } from './skill-pass.ts';
+import type { McpTool, McpToolHandle, McpToolResult } from './types.ts';
 
 const noopMcp: McpToolHandle = {
   listTools: () => Promise.resolve([]),

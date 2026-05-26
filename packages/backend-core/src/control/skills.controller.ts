@@ -15,11 +15,11 @@ import {
   type JobKind,
   type ModelTier,
 } from '@getmunin/types';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
-import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.js';
-import { toIsoString } from '../common/iso.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.ts';
+import { toIsoString } from '../common/iso.ts';
 
 interface SkillDto {
   uri: string;

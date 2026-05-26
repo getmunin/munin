@@ -10,9 +10,9 @@ import { sql } from 'drizzle-orm';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createApp } from '../../bootstrap-app.js';
-import { AppModule } from '../../app.module.js';
-import { CmsScheduleWorker } from './cms.schedule.worker.js';
+import { createApp } from '../../bootstrap-app.ts';
+import { AppModule } from '../../app.module.ts';
+import { CmsScheduleWorker } from './cms.schedule.worker.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

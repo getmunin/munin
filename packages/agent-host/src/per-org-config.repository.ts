@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { decryptSecretSql, encryptSecretSql, getCurrentContext } from '@getmunin/core';
 import { eq, isNotNull, sql } from 'drizzle-orm';
-import { agentConfig } from './schema.js';
+import { agentConfig } from './schema.ts';
 import type {
   AgentConfigPatch,
   AgentConfigRepository,
   AgentConfigRow,
-} from './config.repository.js';
+} from './config.repository.ts';
 
 const DEFAULT_FAST_MODEL = 'anthropic/claude-haiku-4.5';
 const DEFAULT_PROVIDER_BASE_URL = 'https://openrouter.ai/api/v1';

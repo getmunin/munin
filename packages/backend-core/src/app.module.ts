@@ -1,24 +1,24 @@
 import { Module } from '@nestjs/common';
-import { DbModule } from './common/db/db.module.js';
-import { HealthController } from './common/health.controller.js';
-import { WhoamiController } from './common/whoami.controller.js';
-import { AuthGuard } from './common/auth/auth.guard.js';
-import { TenancyInterceptor } from './common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from './common/audit/audit.interceptor.js';
-import { McpModule } from './mcp/mcp.module.js';
-import { ControlModule } from './control/control.module.js';
-import { KbModule } from './modules/kb/kb.module.js';
-import { ConvModule } from './modules/conv/conv.module.js';
-import { CrmModule } from './modules/crm/crm.module.js';
-import { CmsModule } from './modules/cms/cms.module.js';
-import { RateLimitModule } from './common/rate-limit/rate-limit.module.js';
-import { PublicThrottleModule } from './common/rate-limit/public-throttle.module.js';
-import { QuotasModule } from './common/quotas/quotas.module.js';
-import { MailModule } from './common/mail/mail.module.js';
-import { WebhookModule } from './common/webhooks/webhook.module.js';
-import { StorageModule } from './common/storage/storage.module.js';
-import { RealtimeModule } from './realtime/realtime.module.js';
-import { OAuthModule } from './oauth/oauth.module.js';
+import { DbModule } from './common/db/db.module.ts';
+import { HealthController } from './common/health.controller.ts';
+import { WhoamiController } from './common/whoami.controller.ts';
+import { AuthGuard } from './common/auth/auth.guard.ts';
+import { TenancyInterceptor } from './common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from './common/audit/audit.interceptor.ts';
+import { McpModule } from './mcp/mcp.module.ts';
+import { ControlModule } from './control/control.module.ts';
+import { KbModule } from './modules/kb/kb.module.ts';
+import { ConvModule } from './modules/conv/conv.module.ts';
+import { CrmModule } from './modules/crm/crm.module.ts';
+import { CmsModule } from './modules/cms/cms.module.ts';
+import { RateLimitModule } from './common/rate-limit/rate-limit.module.ts';
+import { PublicThrottleModule } from './common/rate-limit/public-throttle.module.ts';
+import { QuotasModule } from './common/quotas/quotas.module.ts';
+import { MailModule } from './common/mail/mail.module.ts';
+import { WebhookModule } from './common/webhooks/webhook.module.ts';
+import { StorageModule } from './common/storage/storage.module.ts';
+import { RealtimeModule } from './realtime/realtime.module.ts';
+import { OAuthModule } from './oauth/oauth.module.ts';
 
 /**
  * Feature modules. Composed with an AuthModule downstream — auth is

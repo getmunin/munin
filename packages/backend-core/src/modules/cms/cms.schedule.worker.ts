@@ -3,8 +3,8 @@ import { schema, type Db } from '@getmunin/db';
 import { and, eq, lte, sql } from 'drizzle-orm';
 import { WebhookDispatcher, ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
-import { DB } from '../../common/db/db.module.js';
-import { withSchedulerLock } from '../../common/scheduler-lock/index.js';
+import { DB } from '../../common/db/db.module.ts';
+import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 
 const POLL_INTERVAL_MS = Number(process.env.MUNIN_CMS_SCHEDULE_POLL_MS ?? 60_000);
 const BATCH_SIZE = 50;

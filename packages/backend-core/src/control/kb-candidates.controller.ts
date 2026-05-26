@@ -11,9 +11,9 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
   KbService,
   KbInvalidError,
@@ -22,7 +22,7 @@ import {
   type CurationCandidateSummary,
   type DocumentDto,
   type SpaceDto,
-} from '../modules/kb/kb.service.js';
+} from '../modules/kb/kb.service.ts';
 
 const PublishBody = z.object({
   targetSpaceSlug: z.string().min(1),

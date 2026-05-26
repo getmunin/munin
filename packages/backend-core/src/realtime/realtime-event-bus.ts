@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter } from 'node:events';
-import { DbListenerService, type EventRow } from './db-listener.service.js';
+import { DbListenerService, type EventRow } from './db-listener.service.ts';
 
 export interface MessageReceivedBusEvent {
   conversationId: string;

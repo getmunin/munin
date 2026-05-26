@@ -9,10 +9,10 @@ import {
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { KbService } from './kb.service.js';
-import { KbSearchService } from './kb.search.js';
-import { EmbeddingProviderHolder } from './embedding.provider.js';
-import { QuotasService } from '../../common/quotas/quotas.service.js';
+import { KbService } from './kb.service.ts';
+import { KbSearchService } from './kb.search.ts';
+import { EmbeddingProviderHolder } from './embedding.provider.ts';
+import { QuotasService } from '../../common/quotas/quotas.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

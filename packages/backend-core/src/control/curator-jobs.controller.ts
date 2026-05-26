@@ -11,14 +11,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
   CuratorJobsService,
   CURATOR_JOB_STATUSES,
   type CuratorJobDto,
-} from '../modules/curator/curator-jobs.service.js';
+} from '../modules/curator/curator-jobs.service.ts';
 
 const StatusSchema = z.enum(CURATOR_JOB_STATUSES);
 

@@ -13,9 +13,9 @@ import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 
 const ActiveDto = z.object({
   orgId: z.string().min(1),

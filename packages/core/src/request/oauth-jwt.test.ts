@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { acceptedJwtAudiences, jwtIssuer, looksLikeJwt } from './oauth-jwt.js';
+import { acceptedJwtAudiences, jwtIssuer, looksLikeJwt } from './oauth-jwt.ts';
 
 describe('looksLikeJwt', () => {
   it('accepts three-part dot-delimited strings with non-empty parts', () => {

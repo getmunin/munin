@@ -11,8 +11,8 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
-import { AllowAnonymous } from '../common/auth/auth.guard.js';
-import { DB } from '../common/db/db.module.js';
+import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { DB } from '../common/db/db.module.ts';
 
 const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',

@@ -1,4 +1,4 @@
-export * as schema from './schema.js';
-export { createDb, type Db, type Tx } from './client.js';
-export { runMigrations } from './migrate.js';
-export { makeId } from './id.js';
+export * as schema from './schema.ts';
+export { createDb, type Db, type Tx } from './client.ts';
+export { runMigrations } from './migrate.ts';
+export { makeId } from './id.ts';

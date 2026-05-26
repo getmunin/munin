@@ -8,5 +8,5 @@ export default getRequestConfig(async ({ requestLocale }) => {
   const requested = await requestLocale;
   const locale: Locale = hasLocale(routing.locales, requested) ? requested : DEFAULT_LOCALE;
   const messages = await loadBaseMessages(locale);
-  return { locale, messages, now: new Date() };
+  return { locale, messages };
 });

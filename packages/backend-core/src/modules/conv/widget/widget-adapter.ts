@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { ChannelAdapter, InboundMode, SendContext, SendResult } from '../channels/adapter.js';
+import type { ChannelAdapter, InboundMode, SendContext, SendResult } from '../channels/adapter.ts';
 
 /**
  * Chat-widget adapter — push mode. Inbound is driven by the external agent

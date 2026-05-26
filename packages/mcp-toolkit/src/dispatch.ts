@@ -4,8 +4,8 @@ import {
   type ActorIdentity,
   type Audience,
 } from '@getmunin/core';
-import type { McpToolRegistry } from './registry.js';
-import type { RegisteredSkill, SkillRegistry } from './skill-registry.js';
+import type { McpToolRegistry } from './registry.ts';
+import type { RegisteredSkill, SkillRegistry } from './skill-registry.ts';
 
 export interface DispatchContext {
   registry: McpToolRegistry;

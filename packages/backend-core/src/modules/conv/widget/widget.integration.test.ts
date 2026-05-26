@@ -10,8 +10,8 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { buildApiKey, hashSecret, keyPrefix, signHmac } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and } from 'drizzle-orm';
-import { AppModule } from '../../../app.module.js';
-import { createApp } from '../../../bootstrap-app.js';
+import { AppModule } from '../../../app.module.ts';
+import { createApp } from '../../../bootstrap-app.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

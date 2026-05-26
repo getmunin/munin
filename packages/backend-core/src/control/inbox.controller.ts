@@ -2,23 +2,23 @@ import { Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, gt, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { AuthGuard } from '../common/auth/auth.guard.js';
-import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.js';
-import { AuditInterceptor } from '../common/audit/audit.interceptor.js';
+import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
   ConvService,
   type ConversationSummary,
-} from '../modules/conv/conv.service.js';
+} from '../modules/conv/conv.service.ts';
 import {
   ConversationClaimsService,
   type ConversationClaim,
-} from '../modules/conv/conv.claims.service.js';
+} from '../modules/conv/conv.claims.service.ts';
 import {
   KbService,
   type CurationCandidateSummary,
-} from '../modules/kb/kb.service.js';
-import { CrmService, type MergeProposalDto } from '../modules/crm/crm.service.js';
-import { OutreachService, type ProposalDto } from '../modules/outreach/outreach.service.js';
+} from '../modules/kb/kb.service.ts';
+import { CrmService, type MergeProposalDto } from '../modules/crm/crm.service.ts';
+import { OutreachService, type ProposalDto } from '../modules/outreach/outreach.service.ts';
 
 interface LiveConversation extends ConversationSummary {
   latestEndUserMessage: { body: string; createdAt: string } | null;

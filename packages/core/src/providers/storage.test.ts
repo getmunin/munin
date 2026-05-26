@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { LocalFsStorage, S3CompatibleStorage } from './storage.js';
+import { LocalFsStorage, S3CompatibleStorage } from './storage.ts';
 
 describe('LocalFsStorage', () => {
   let dir: string;

@@ -9,19 +9,19 @@ import {
 } from '@getmunin/core';
 import type { SendLimits } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
-import { DB } from '../../../common/db/db.module.js';
-import { withSchedulerLock } from '../../../common/scheduler-lock/index.js';
+import { DB } from '../../../common/db/db.module.ts';
+import { withSchedulerLock } from '../../../common/scheduler-lock/index.ts';
 import {
   CHANNEL_ADAPTERS,
   ChannelAdapterRegistry,
   type ChannelAdapter,
   type SendContext,
-} from './adapter.js';
+} from './adapter.ts';
 import {
   decideRateLimit,
   rateLimitDeferralError,
   type SendCounts,
-} from './send-rate-limit.js';
+} from './send-rate-limit.ts';
 
 const POLL_INTERVAL_MS = Number(
   process.env.MUNIN_OUTBOUND_DELIVERY_WORKER_INTERVAL_MS ??

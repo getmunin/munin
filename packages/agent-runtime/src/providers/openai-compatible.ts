@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatToolDefinition, Provider, ProviderResponse } from '../types.js';
+import type { ChatMessage, ChatToolDefinition, Provider, ProviderResponse } from '../types.ts';
 
 interface OpenAIChoice {
   message: ChatMessage;

@@ -1,4 +1,4 @@
-import { ActorIdentity, type Audience } from './context.js';
+import { ActorIdentity, type Audience } from './context.ts';
 
 export function buildAdminAgentActor(orgId: string): ActorIdentity {
   return new ActorIdentity('admin_agent', `agent-host:${orgId}`, orgId, ['*'], ['admin']);

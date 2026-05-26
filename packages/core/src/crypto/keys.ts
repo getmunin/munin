@@ -1,4 +1,4 @@
-import { randomToken } from './primitives.js';
+import { randomToken } from './primitives.ts';
 
 /**
  * Munin API-key format: `mn_<kind>_<random>`

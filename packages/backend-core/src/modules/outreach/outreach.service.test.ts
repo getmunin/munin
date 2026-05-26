@@ -9,14 +9,14 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
-import { OutreachService, OutreachInvalidError } from './outreach.service.js';
-import { CrmService } from '../crm/crm.service.js';
-import { ConvService } from '../conv/conv.service.js';
-import { VapiClientService } from '../conv/vapi/vapi-client.service.js';
-import { VapiService } from '../conv/vapi/vapi.service.js';
-import { ConversationClaimsService } from '../conv/conv.claims.service.js';
-import { CuratorJobsService } from '../curator/curator-jobs.service.js';
-import { EmailService } from '../conv/email/email.service.js';
+import { OutreachService, OutreachInvalidError } from './outreach.service.ts';
+import { CrmService } from '../crm/crm.service.ts';
+import { ConvService } from '../conv/conv.service.ts';
+import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
+import { VapiService } from '../conv/vapi/vapi.service.ts';
+import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
+import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
+import { EmailService } from '../conv/email/email.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL

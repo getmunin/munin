@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { ACTIVITY_TYPES, CrmInvalidError, CrmService } from './crm.service.js';
+import { ACTIVITY_TYPES, CrmInvalidError, CrmService } from './crm.service.ts';
 import { getCurrentContext } from '@getmunin/core';
 
 const EmptyInput = z.object({});

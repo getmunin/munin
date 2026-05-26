@@ -1,9 +1,9 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
-import { DB } from '../../../common/db/db.module.js';
-import { withSchedulerLock } from '../../../common/scheduler-lock/index.js';
-import { CHANNEL_ADAPTERS, ChannelAdapterRegistry, type ChannelAdapter } from './adapter.js';
+import { DB } from '../../../common/db/db.module.ts';
+import { withSchedulerLock } from '../../../common/scheduler-lock/index.ts';
+import { CHANNEL_ADAPTERS, ChannelAdapterRegistry, type ChannelAdapter } from './adapter.ts';
 
 const POLL_INTERVAL_MS = Number(
   process.env.MUNIN_INBOUND_POLL_WORKER_INTERVAL_MS ??

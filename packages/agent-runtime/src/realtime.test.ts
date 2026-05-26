@@ -7,7 +7,7 @@ import {
   type CuratorJobPendingEvent,
   type HandoverResolvedEvent,
   type MessageReceivedEvent,
-} from './realtime.js';
+} from './realtime.ts';
 
 describe('createRealtimeClient', () => {
   let httpServer: Server;

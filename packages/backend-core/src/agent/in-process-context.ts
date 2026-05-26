@@ -11,7 +11,7 @@ import {
 import type { Db } from '@getmunin/db';
 import { openInProcessMcpClient, type InProcessMcpClient } from '@getmunin/mcp-toolkit';
 import type { McpToolRegistry, SkillRegistry } from '@getmunin/mcp-toolkit';
-import { applyTenancyGUCs } from '../common/tenancy/tenancy.interceptor.js';
+import { applyTenancyGUCs } from '../common/tenancy/tenancy.interceptor.ts';
 
 export interface OpenAdminAgentMcpClientOptions {
   db: Db;

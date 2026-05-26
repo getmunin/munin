@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderMarkdownInto } from './markdown.js';
+import { renderMarkdownInto } from './markdown.ts';
 
 function render(source: string): string {
   const host = document.createElement('div');

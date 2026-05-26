@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { getCurrentContext } from '@getmunin/core';
 import { AuditInterceptor, AuthGuard, TenancyInterceptor } from '@getmunin/backend-core';
-import { AgentHealthService, type AgentHealthDto } from './agent-health.service.js';
+import { AgentHealthService, type AgentHealthDto } from './agent-health.service.ts';
 
 @Controller('api/v1/agent-health')
 @UseGuards(AuthGuard)

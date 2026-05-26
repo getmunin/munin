@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { parseConfig } from './config.js';
+import { parseConfig } from './config.ts';
 
 function makeScript(attrs: Record<string, string>): HTMLElement {
   const el = document.createElement('script');

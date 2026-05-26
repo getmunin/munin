@@ -1,4 +1,4 @@
-import { signHmac, timingSafeEqual } from './primitives.js';
+import { signHmac, timingSafeEqual } from './primitives.ts';
 
 const VERSION = 'v1';
 

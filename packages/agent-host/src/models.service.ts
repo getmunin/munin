@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.js';
-import type { AgentConfigRepository } from './config.repository.js';
-import { authHeaders } from './provider-auth.js';
+import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.ts';
+import type { AgentConfigRepository } from './config.repository.ts';
+import { authHeaders } from './provider-auth.ts';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 

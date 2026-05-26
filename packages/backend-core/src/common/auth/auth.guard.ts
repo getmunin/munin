@@ -1,9 +1,9 @@
 import { CanActivate, ExecutionContext, Inject, Injectable, Optional, SetMetadata, UnauthorizedException } from '@nestjs/common';
 import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
-import { DB } from '../db/db.module.js';
+import { DB } from '../db/db.module.ts';
 import { Reflector } from '@nestjs/core';
-import { mcpResourceUrl, resourceMetadataUrl } from '../../oauth/oauth.constants.js';
+import { mcpResourceUrl, resourceMetadataUrl } from '../../oauth/oauth.constants.ts';
 
 /**
  * Decorator used on routes that should be reachable without auth

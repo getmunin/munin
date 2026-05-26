@@ -1,4 +1,4 @@
-import type { ConversationMessage } from './types.js';
+import type { ConversationMessage } from './types.ts';
 
 export interface ConversationDetail {
   id: string;

@@ -8,8 +8,8 @@ import {
   withContext,
   type RequestContext,
 } from '@getmunin/core';
-import { DB } from '../../../common/db/db.module.js';
-import type { ChannelRow, InboundBatch } from './adapter.js';
+import { DB } from '../../../common/db/db.module.ts';
+import type { ChannelRow, InboundBatch } from './adapter.ts';
 
 @Injectable()
 export class ChannelIngestService {

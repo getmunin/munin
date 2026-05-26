@@ -7,7 +7,7 @@ import {
   BACKEND_FEATURE_MODULES_NO_AUTH,
 } from '@getmunin/backend-core';
 import { AgentHostModule, SingletonConfigRepository } from '@getmunin/agent-host';
-import { AuthModule } from './auth/auth.module.js';
+import { AuthModule } from './auth/auth.module.ts';
 
 @Module({
   imports: [

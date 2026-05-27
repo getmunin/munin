@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["@getmunin/core", "@getmunin/db", "@getmunin/types", "@getmunin/sdk", "@getmunin/mcp-toolkit", "@getmunin/ui", "@getmunin/dashboard-pages", "@getmunin/backend-core", "@getmunin/agent-runtime", "@getmunin/agent-host"]],
+  "fixed": [["@getmunin/core", "@getmunin/db", "@getmunin/types", "@getmunin/sdk", "@getmunin/mcp-toolkit", "@getmunin/ui", "@getmunin/dashboard-pages", "@getmunin/backend-core", "@getmunin/agent-runtime", "@getmunin/agent-host", "@getmunin/docs-pages"]],
   "linked": [],
   "access": "restricted",
   "baseBranch": "main",

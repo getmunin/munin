@@ -1,5 +1,12 @@
 # @getmunin/docs-pages
 
+## 4.19.2
+
+### Patch Changes
+
+- dfae814: Align `@getmunin/docs-pages` version with the rest of the fixed-group public packages and add it to the changesets `fixed` set so future releases keep all OSS package versions in lockstep.
+  - @getmunin/backend-core@4.19.2
+
 ## 1.3.2
 
 ### Patch Changes

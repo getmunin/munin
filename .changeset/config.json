@@ -2,11 +2,11 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["@getmunin/core", "@getmunin/db", "@getmunin/types", "@getmunin/sdk", "@getmunin/mcp-toolkit", "@getmunin/ui", "@getmunin/dashboard-pages", "@getmunin/backend-core", "@getmunin/agent-runtime", "@getmunin/agent-host", "@getmunin/docs-pages"]],
+  "fixed": [["@getmunin/core", "@getmunin/db", "@getmunin/types", "@getmunin/sdk", "@getmunin/mcp-toolkit", "@getmunin/ui", "@getmunin/dashboard-pages", "@getmunin/backend-core", "@getmunin/agent-runtime", "@getmunin/agent-host", "@getmunin/docs-pages", "@getmunin/chat-widget"]],
   "linked": [],
   "access": "restricted",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@getmunin/backend", "@getmunin/chat-widget", "@getmunin/web", "@getmunin/eslint-config", "@getmunin/tsconfig"]
+  "ignore": ["@getmunin/backend", "@getmunin/web", "@getmunin/eslint-config", "@getmunin/tsconfig"]
 }
 

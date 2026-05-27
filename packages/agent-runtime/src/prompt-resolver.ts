@@ -140,18 +140,19 @@ async function ensureSpace(
   spaceSlug: string,
   log: { info: (m: string) => void; warn: (m: string) => void },
 ): Promise<void> {
-  try {
-    await mcp.callTool('kb_create_space', {
-      name: 'Agent runtime',
-      slug: spaceSlug,
-      description:
-        'Self-service AI runtime configuration. Edit the system prompt and per-channel descriptors here; the runner picks up changes within a few seconds via realtime events.',
-    });
+  const result = await mcp.callTool('kb_create_space', {
+    name: 'Agent runtime',
+    slug: spaceSlug,
+    description:
+      'Self-service AI runtime configuration. Edit the system prompt and per-channel descriptors here; the runner picks up changes within a few seconds via realtime events.',
+  });
+  if (!result.isError) {
     log.info(`created KB space ${spaceSlug}`);
-  } catch (err) {
-    if (looksLikeConflict(err)) return;
-    throw err;
+    return;
   }
+  const errorText = textFromResult(result);
+  if (looksLikeConflict(errorText)) return;
+  throw new Error(`kb_create_space failed: ${errorText || 'unknown error'}`);
 }
 
 async function ensureDocument(
@@ -162,14 +163,22 @@ async function ensureDocument(
   const existing = await readBySlug(mcp, AGENT_RUNTIME_PROMPT_SPACE_SLUG, seed.slug);
   if (existing !== null) return;
   const spaceId = await getSpaceId(mcp, AGENT_RUNTIME_PROMPT_SPACE_SLUG);
-  await mcp.callTool('kb_create_document', {
+  const result = await mcp.callTool('kb_create_document', {
     spaceId,
     slug: seed.slug,
     title: seed.title,
     body: seed.body,
     audiences: ['admin'],
   });
-  log.info(`seeded KB doc ${AGENT_RUNTIME_PROMPT_SPACE_SLUG}/${seed.slug} from defaults`);
+  if (!result.isError) {
+    log.info(`seeded KB doc ${AGENT_RUNTIME_PROMPT_SPACE_SLUG}/${seed.slug} from defaults`);
+    return;
+  }
+  const errorText = textFromResult(result);
+  if (looksLikeConflict(errorText)) return;
+  throw new Error(
+    `kb_create_document failed for ${seed.slug}: ${errorText || 'unknown error'}`,
+  );
 }
 
 async function readBySlug(
@@ -212,10 +221,7 @@ function textFromResult(result: McpToolResult): string {
   return '';
 }
 
-function looksLikeConflict(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  const msg = 'message' in err && typeof err.message === 'string'
-    ? err.message.toLowerCase()
-    : '';
+function looksLikeConflict(text: string): boolean {
+  const msg = text.toLowerCase();
   return msg.includes('conflict') || msg.includes('already');
 }

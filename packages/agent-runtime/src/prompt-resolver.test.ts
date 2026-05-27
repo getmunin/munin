@@ -41,7 +41,15 @@ function fakeMcp(opts: {
       calls.push({ name, args });
       if (name === 'kb_create_space') {
         if (spaceExists) {
-          return Promise.reject(new Error('conflict: slug already in use'));
+          return Promise.resolve({
+            isError: true,
+            content: [
+              {
+                type: 'text',
+                text: `kb_invalid: a space with slug "${args['slug'] as string}" already exists`,
+              },
+            ],
+          });
         }
         spaceExists = true;
         return Promise.resolve({ content: [{ type: 'text', text: '{}' }] });
@@ -106,15 +114,37 @@ describe('createPromptResolver', () => {
         [`${CHANNEL_PROMPT_PREFIX}email`]: 'OPERATOR_EDITED_EMAIL',
       },
     });
-    const resolver = await createPromptResolver({ mcp, logger: silentLogger });
+    const info = vi.fn();
+    const resolver = await createPromptResolver({
+      mcp,
+      logger: { info, warn: () => {}, error: () => {} },
+    });
 
     const created = mcp.calls.filter((c) => c.name === 'kb_create_document');
     const createdSlugs = created.map((c) => c.args['slug']);
     expect(createdSlugs).not.toContain(SYSTEM_PROMPT_SLUG);
     expect(createdSlugs).not.toContain(`${CHANNEL_PROMPT_PREFIX}email`);
 
+    const createdLogs = info.mock.calls.filter(([msg]) =>
+      String(msg).startsWith('created KB space'),
+    );
+    expect(createdLogs).toHaveLength(0);
+
     expect(resolver.system()).toBe('OPERATOR_EDITED_SYSTEM');
     expect(resolver.channel('email')).toBe('OPERATOR_EDITED_EMAIL');
+  });
+
+  it('logs "created KB space" exactly once on first boot', async () => {
+    const mcp = fakeMcp();
+    const info = vi.fn();
+    await createPromptResolver({
+      mcp,
+      logger: { info, warn: () => {}, error: () => {} },
+    });
+    const createdLogs = info.mock.calls.filter(([msg]) =>
+      String(msg).startsWith(`created KB space ${PROMPT_SPACE_SLUG}`),
+    );
+    expect(createdLogs).toHaveLength(1);
   });
 
   it('falls back to channel-default when an unknown channel kind is queried', async () => {

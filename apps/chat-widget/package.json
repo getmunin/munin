@@ -23,12 +23,10 @@
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests"
   },
-  "dependencies": {
-    "@getmunin/widget-voice": "workspace:*"
-  },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
+    "@getmunin/widget-voice": "workspace:*",
     "@types/node": "^22.10.0",
     "eslint": "^9.10.0",
     "happy-dom": "^20.9.0",

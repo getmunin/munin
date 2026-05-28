@@ -15,6 +15,7 @@ const pillVariants = cva(
         kb: 'text-ink dark:text-foreground',
         crm: 'text-ink dark:text-foreground',
         out: 'text-ink dark:text-foreground',
+        feedback: 'text-ink dark:text-foreground',
         review: 'text-cobalt dark:text-cobalt-soft',
       },
       pulse: {

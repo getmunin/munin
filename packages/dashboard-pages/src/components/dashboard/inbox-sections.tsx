@@ -101,10 +101,24 @@ interface OutreachProposalDto {
   createdAt: string;
 }
 
+interface FeedbackOutboxDto {
+  id: string;
+  title: string;
+  body: string;
+  appScope: string | null;
+  includeOrgName: boolean;
+  includeUserName: boolean;
+  submittedByUserId: string | null;
+  createdAt: string;
+  approvedAt: string | null;
+  forwardError: string | null;
+}
+
 export type QueueItem =
   | { kind: 'kb'; id: string; title: string; snippet: string; createdAt: string; raw: KbCandidateDto }
   | { kind: 'crm'; id: string; title: string; snippet: string; createdAt: string; raw: CrmMergeProposalDto }
-  | { kind: 'outreach'; id: string; title: string; snippet: string; createdAt: string; raw: OutreachProposalDto };
+  | { kind: 'outreach'; id: string; title: string; snippet: string; createdAt: string; raw: OutreachProposalDto }
+  | { kind: 'feedback'; id: string; title: string; snippet: string; createdAt: string; raw: FeedbackOutboxDto };
 
 type ConvDrawer = { id: string; mode: 'simplified' | 'full' } | null;
 
@@ -119,6 +133,7 @@ interface InboxQueueResponse {
     kb: KbCandidateDto[];
     crm: CrmMergeProposalDto[];
     outreach: OutreachProposalDto[];
+    feedback?: FeedbackOutboxDto[];
   };
 }
 
@@ -155,12 +170,31 @@ function useQueueBuilder() {
         createdAt: o.createdAt,
         raw: o,
       }));
-      return [...kb, ...crm, ...outreach].sort(
+      const feedback = (q.feedback ?? []).map<QueueItem>((f) => ({
+        kind: 'feedback',
+        id: f.id,
+        title: f.title,
+        snippet: feedbackSnippet(f, tQueue),
+        createdAt: f.createdAt,
+        raw: f,
+      }));
+      return [...kb, ...crm, ...outreach, ...feedback].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
     },
     [tQueue],
   );
+}
+
+function feedbackSnippet(
+  f: FeedbackOutboxDto,
+  tQueue: ReturnType<typeof useTranslations<'dashboard.overview.queue'>>,
+): string {
+  const scope = f.appScope ? f.appScope.toUpperCase() : tQueue('feedbackScopeFallback');
+  const attributed = f.includeOrgName || f.includeUserName;
+  return attributed
+    ? tQueue('feedbackSnippetAttributed', { scope })
+    : tQueue('feedbackSnippet', { scope });
 }
 
 const contactLabel = (c: CrmContactSummary) => c.name ?? c.email ?? c.id;
@@ -483,6 +517,8 @@ export function useInboxData(): InboxController {
           });
         } else if (item.kind === 'crm') {
           await api(`/v1/crm/merge-proposals/${item.id}/apply`, { method: 'POST' });
+        } else if (item.kind === 'feedback') {
+          await api(`/v1/feedback/${item.id}/approve`, { method: 'POST' });
         } else {
           await api(`/v1/outreach/proposals/${item.id}/approve`, { method: 'POST' });
         }
@@ -535,6 +571,8 @@ export function useInboxData(): InboxController {
             method: 'POST',
             body: JSON.stringify({}),
           });
+        } else if (item.kind === 'feedback') {
+          await api(`/v1/feedback/${item.id}/reject`, { method: 'POST' });
         } else {
           await api(`/v1/outreach/proposals/${item.id}/dismiss`, {
             method: 'POST',
@@ -950,9 +988,16 @@ function QueueRow({
 }) {
   const t = useTranslations('dashboard.overview.queue');
   const age = useRelative();
-  const tone: 'kb' | 'crm' | 'out' = item.kind === 'outreach' ? 'out' : item.kind;
+  const tone: 'kb' | 'crm' | 'out' | 'feedback' =
+    item.kind === 'outreach' ? 'out' : item.kind === 'feedback' ? 'feedback' : item.kind;
   const labelKey =
-    item.kind === 'outreach' ? 'kindOutreach' : item.kind === 'kb' ? 'kindKb' : 'kindCrm';
+    item.kind === 'outreach'
+      ? 'kindOutreach'
+      : item.kind === 'kb'
+        ? 'kindKb'
+        : item.kind === 'feedback'
+          ? 'kindFeedback'
+          : 'kindCrm';
   return (
     <li className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
       <div
@@ -1368,10 +1413,17 @@ function QueueDrawer({
     setEditedBody(initialBody);
   }, [item.id, initialBody]);
 
-  const tone: 'kb' | 'crm' | 'out' = item.kind === 'outreach' ? 'out' : item.kind;
+  const tone: 'kb' | 'crm' | 'out' | 'feedback' =
+    item.kind === 'outreach' ? 'out' : item.kind === 'feedback' ? 'feedback' : item.kind;
   const labelKey =
-    item.kind === 'outreach' ? 'kindOutreach' : item.kind === 'kb' ? 'kindKb' : 'kindCrm';
-  const editable = item.kind !== 'crm';
+    item.kind === 'outreach'
+      ? 'kindOutreach'
+      : item.kind === 'kb'
+        ? 'kindKb'
+        : item.kind === 'feedback'
+          ? 'kindFeedback'
+          : 'kindCrm';
+  const editable = item.kind === 'kb' || item.kind === 'outreach';
 
   const cancelEdit = useCallback(() => {
     setEditing(false);
@@ -1410,6 +1462,11 @@ function QueueDrawer({
     meta = t('metaOutreach', { kind, handle, age: age(item.createdAt) });
   } else if (item.kind === 'crm') {
     meta = t('metaCrm', { confidence: item.raw.confidence, age: age(item.createdAt) });
+  } else if (item.kind === 'feedback') {
+    meta = t('metaFeedback', {
+      scope: item.raw.appScope ? item.raw.appScope.toUpperCase() : tQueue('feedbackScopeFallback'),
+      age: age(item.createdAt),
+    });
   } else {
     meta = t('metaKb', {
       slug: item.raw.proposedTargetSpaceSlug ?? t('kbSlugFallback'),
@@ -1465,6 +1522,8 @@ function QueueDrawer({
                 </>
               ) : item.kind === 'crm' ? (
                 <CrmMergeBody proposal={item.raw} />
+              ) : item.kind === 'feedback' ? (
+                <FeedbackBody item={item.raw} />
               ) : kbBody !== undefined ? (
                 <ReactMarkdown components={MD_COMPONENTS}>{editedBody}</ReactMarkdown>
               ) : (
@@ -1494,6 +1553,29 @@ function QueueDrawer({
           ]}
           shortcut={t('shortcutApprove')}
         />
+      )}
+    </>
+  );
+}
+
+function FeedbackBody({ item }: { item: FeedbackOutboxDto }) {
+  const t = useTranslations('dashboard.overview.drawer');
+  const attributionKey = item.includeOrgName && item.includeUserName
+    ? 'feedbackAttributionBoth'
+    : item.includeOrgName
+      ? 'feedbackAttributionOrg'
+      : item.includeUserName
+        ? 'feedbackAttributionUser'
+        : 'feedbackAttributionAnonymous';
+  return (
+    <>
+      <p className="whitespace-pre-wrap">{item.body}</p>
+      <p className="mt-3 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        {t(attributionKey, { orgName: '—', userName: '—' })}
+      </p>
+      <p className="mt-2 text-ink-mute text-xs">{t('feedbackApproveConfirm')}</p>
+      {item.forwardError && (
+        <p className="mt-2 text-xs text-destructive">{item.forwardError}</p>
       )}
     </>
   );
@@ -1529,7 +1611,7 @@ function DrawerHeader({
   onClose,
   closeLabel,
 }: {
-  pillTone: 'live' | 'ink' | 'draft' | 'kb' | 'crm' | 'out' | 'review';
+  pillTone: 'live' | 'ink' | 'draft' | 'kb' | 'crm' | 'out' | 'feedback' | 'review';
   pillLabel: string;
   title: string;
   meta?: string;

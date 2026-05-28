@@ -17,6 +17,15 @@ export {
   readTrustedOriginsFromEnv,
 } from './auth-env.ts';
 
+export { FeedbackModule, isFeedbackEnabled } from './modules/feedback/feedback.module.ts';
+export {
+  FeedbackService,
+  FeedbackNotFoundError,
+  FeedbackForwardFailedError,
+  type FeedbackOutboxDto,
+  type FeedbackAppScope,
+} from './modules/feedback/feedback.service.ts';
+
 export {
   createMuninAuthCore,
   computeValidAudiences,

@@ -19,13 +19,9 @@ import { WebhookModule } from './common/webhooks/webhook.module.ts';
 import { StorageModule } from './common/storage/storage.module.ts';
 import { RealtimeModule } from './realtime/realtime.module.ts';
 import { OAuthModule } from './oauth/oauth.module.ts';
+import { FeedbackModule } from './modules/feedback/feedback.module.ts';
 
-/**
- * Feature modules. Composed with an AuthModule downstream — auth is
- * intentionally NOT included here so consumers can wire single-tenant
- * (OSS), multi-tenant, or any custom auth flow.
- */
-export const BACKEND_FEATURE_MODULES_NO_AUTH = [
+export const BACKEND_FEATURE_MODULES = [
   DbModule,
   MailModule,
   StorageModule,
@@ -46,15 +42,8 @@ export const BACKEND_FEATURE_MODULES_NO_AUTH = [
 export const BACKEND_BASE_CONTROLLERS = [HealthController, WhoamiController];
 export const BACKEND_BASE_PROVIDERS = [AuthGuard, TenancyInterceptor, AuditInterceptor];
 
-/**
- * Test-only AppModule: composes the feature modules without an Auth
- * module. Integration tests in this package seed via direct DB access and
- * authenticate via API keys, so they don't need BetterAuth wired up.
- * Production apps (e.g. `apps/backend`) compose their own AppModule with
- * an appropriate AuthModule.
- */
 @Module({
-  imports: BACKEND_FEATURE_MODULES_NO_AUTH,
+  imports: [...BACKEND_FEATURE_MODULES, FeedbackModule],
   controllers: BACKEND_BASE_CONTROLLERS,
   providers: BACKEND_BASE_PROVIDERS,
 })

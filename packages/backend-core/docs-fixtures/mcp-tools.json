@@ -23,7 +23,7 @@
   },
   {
     "name": "cms_list_collections",
-    "title": "List CMS collections",
+    "title": "CMS: List collections",
     "description": "List CMS collections (content types) defined for your org.",
     "audiences": [
       "admin"
@@ -42,7 +42,7 @@
   },
   {
     "name": "cms_get_collection",
-    "title": "Read CMS collection",
+    "title": "CMS: Read collection",
     "description": "Read one collection by id or slug, including its field definitions.",
     "audiences": [
       "admin"
@@ -68,7 +68,7 @@
   },
   {
     "name": "cms_create_collection",
-    "title": "Create CMS collection",
+    "title": "CMS: Create collection",
     "description": "Define a new collection. Fields is an array of { name, type, required?, options? } — see field types: text, rich_text, markdown, number, integer, boolean, date, datetime, select, multi_select, asset, reference, array, json.",
     "audiences": [
       "admin"
@@ -189,7 +189,7 @@
   },
   {
     "name": "cms_update_collection",
-    "title": "Update CMS collection",
+    "title": "CMS: Update collection",
     "description": "Patch a collection. Field migration is lossy: dropped or renamed fields stay in entries' `data` jsonb but stop being read by the projection layer.",
     "audiences": [
       "admin"
@@ -316,7 +316,7 @@
   },
   {
     "name": "cms_delete_collection",
-    "title": "Delete CMS collection",
+    "title": "CMS: Delete collection",
     "description": "Delete a collection. Cascades to all entries, versions, and references.",
     "audiences": [
       "admin"
@@ -342,7 +342,7 @@
   },
   {
     "name": "cms_list_entries",
-    "title": "List CMS entries",
+    "title": "CMS: List entries",
     "description": "List entries. Filters: collection (id or slug), status, locale. Drafts and scheduled entries are returned to admins; the public delivery API only ever returns published.",
     "audiences": [
       "admin"
@@ -382,7 +382,7 @@
   },
   {
     "name": "cms_get_entry",
-    "title": "Read CMS entry",
+    "title": "CMS: Read entry",
     "description": "Read one entry. Data is projected through the collection's current field schema.",
     "audiences": [
       "admin"
@@ -408,7 +408,7 @@
   },
   {
     "name": "cms_create_entry",
-    "title": "Create CMS entry",
+    "title": "CMS: Create entry",
     "description": "Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: \"published\"` to publish on creation; default is draft.",
     "audiences": [
       "admin"
@@ -458,7 +458,7 @@
   },
   {
     "name": "cms_update_entry",
-    "title": "Update CMS entry",
+    "title": "CMS: Update entry",
     "description": "Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. Updating `data` re-validates against the collection schema, regenerates search_text + embedding, and rewrites references.",
     "audiences": [
       "admin"
@@ -505,7 +505,7 @@
   },
   {
     "name": "cms_publish_entry",
-    "title": "Publish CMS entry",
+    "title": "CMS: Publish entry",
     "description": "Flip an entry to status=\"published\". Stamps publishedAt and fires cms.entry.published.",
     "audiences": [
       "admin"
@@ -537,7 +537,7 @@
   },
   {
     "name": "cms_unpublish_entry",
-    "title": "Unpublish CMS entry",
+    "title": "CMS: Unpublish entry",
     "description": "Revert an entry to status=\"draft\". Clears publishedAt; fires cms.entry.unpublished.",
     "audiences": [
       "admin"
@@ -569,7 +569,7 @@
   },
   {
     "name": "cms_schedule_publish",
-    "title": "Schedule CMS entry publish",
+    "title": "CMS: Schedule entry publish",
     "description": "Schedule an entry to flip to published at a future ISO 8601 datetime. The schedule worker drains due rows every minute.",
     "audiences": [
       "admin"
@@ -607,7 +607,7 @@
   },
   {
     "name": "cms_delete_entry",
-    "title": "Delete CMS entry",
+    "title": "CMS: Delete entry",
     "description": "Delete an entry. Cascades to its versions and references.",
     "audiences": [
       "admin"
@@ -639,7 +639,7 @@
   },
   {
     "name": "cms_list_versions",
-    "title": "List CMS entry versions",
+    "title": "CMS: List entry versions",
     "description": "List all prior versions of an entry, newest first.",
     "audiences": [
       "admin"
@@ -665,7 +665,7 @@
   },
   {
     "name": "cms_restore_version",
-    "title": "Restore CMS entry version",
+    "title": "CMS: Restore entry version",
     "description": "Roll an entry back to an earlier version. Creates a new current version with that historical data.",
     "audiences": [
       "admin"
@@ -703,7 +703,7 @@
   },
   {
     "name": "cms_list_assets",
-    "title": "List CMS assets",
+    "title": "CMS: List assets",
     "description": "List media-library assets in your org.",
     "audiences": [
       "admin"
@@ -728,7 +728,7 @@
   },
   {
     "name": "cms_request_asset_upload",
-    "title": "Request CMS asset upload URL",
+    "title": "CMS: Request asset upload URL",
     "description": "Mint a presigned upload URL for a new asset. The asset row is created in `uploaded:false` state; PUT the file body to `uploadUrl`, then call cms_complete_asset_upload to mark it live.",
     "audiences": [
       "admin"
@@ -779,7 +779,7 @@
   },
   {
     "name": "cms_complete_asset_upload",
-    "title": "Complete CMS asset upload",
+    "title": "CMS: Complete asset upload",
     "description": "Mark a previously-requested asset upload as complete.",
     "audiences": [
       "admin"
@@ -805,7 +805,7 @@
   },
   {
     "name": "cms_delete_asset",
-    "title": "Delete CMS asset",
+    "title": "CMS: Delete asset",
     "description": "Delete an asset and remove the underlying file from storage.",
     "audiences": [
       "admin"
@@ -831,7 +831,7 @@
   },
   {
     "name": "cms_list_locales",
-    "title": "List CMS locales",
+    "title": "CMS: List locales",
     "description": "List configured locales for your org. The default locale is used when an entry omits one.",
     "audiences": [
       "admin"
@@ -850,7 +850,7 @@
   },
   {
     "name": "cms_create_locale",
-    "title": "Create CMS locale",
+    "title": "CMS: Create locale",
     "description": "Add a locale. Code is ISO 639-1 (e.g. \"en\") or BCP-47 (\"en-US\"). The first locale is the default unless overridden.",
     "audiences": [
       "admin"
@@ -887,7 +887,7 @@
   },
   {
     "name": "cms_set_default_locale",
-    "title": "Set default CMS locale",
+    "title": "CMS: Set default locale",
     "description": "Set which locale is treated as the org's default for new entries.",
     "audiences": [
       "admin"
@@ -913,7 +913,7 @@
   },
   {
     "name": "cms_list_inbound_references",
-    "title": "List inbound CMS references",
+    "title": "CMS: List inbound references",
     "description": "List entries that link to the given entry. Useful before deleting — see \"what would break\".",
     "audiences": [
       "admin"
@@ -939,7 +939,7 @@
   },
   {
     "name": "cms_search",
-    "title": "Search CMS entries",
+    "title": "CMS: Search entries",
     "description": "Hybrid full-text + semantic search across CMS entries. Returns drafts and published; the public delivery API runs the same engine but hard-filters to published-only.",
     "audiences": [
       "admin"
@@ -987,7 +987,7 @@
   },
   {
     "name": "conv_list_conversations",
-    "title": "List conversations",
+    "title": "Conv: List conversations",
     "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, or topic.",
     "audiences": [
       "admin"
@@ -1027,7 +1027,7 @@
   },
   {
     "name": "conv_get_conversation",
-    "title": "Read conversation",
+    "title": "Conv: Read conversation",
     "description": "Read one conversation including every public + internal message.",
     "audiences": [
       "admin"
@@ -1053,7 +1053,7 @@
   },
   {
     "name": "conv_send_message",
-    "title": "Send message in conversation",
+    "title": "Conv: Send message in conversation",
     "description": "Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages.",
     "audiences": [
       "admin"
@@ -1091,7 +1091,7 @@
   },
   {
     "name": "conv_assign_conversation",
-    "title": "Assign conversation",
+    "title": "Conv: Assign conversation",
     "description": "Assign a conversation to a user (pass user id) or unassign (pass null). Useful for routing escalated conversations.",
     "audiences": [
       "admin"
@@ -1128,7 +1128,7 @@
   },
   {
     "name": "conv_change_status",
-    "title": "Change conversation status",
+    "title": "Conv: Change conversation status",
     "description": "Change a conversation's status. `snoozeUntil` (ISO 8601) is required when status is \"snoozed\".",
     "audiences": [
       "admin"
@@ -1169,7 +1169,7 @@
   },
   {
     "name": "conv_request_handover",
-    "title": "Request handover to a human",
+    "title": "Conv: Request handover to a human",
     "description": "Flag a conversation as needing human attention. Use this when you have reached the limit of what you can resolve autonomously — billing decisions, refunds outside policy, sensitive complaints, anything where a human teammate should step in. Appends an internal system note (visible only to staff) recording your stated `reason`, sets the conversation's \"needs human attention\" flag (which pins it to the top of the dashboard's Conversations page), and emits `conversation.handover_requested`. Also pass `suggestedReply` — your best guess at what a human teammate could send to resolve the issue. The team sees this as a starting draft they can edit, approve, or rewrite. Idempotent — calling again on an already-flagged conversation is a no-op. The flag clears automatically once a human teammate replies or closes the conversation.",
     "audiences": [
       "admin"
@@ -1193,6 +1193,10 @@
         "suggestedReply": {
           "type": "string",
           "maxLength": 2000
+        },
+        "publicFallbackMessage": {
+          "type": "string",
+          "maxLength": 2000
         }
       },
       "required": [
@@ -1203,7 +1207,7 @@
   },
   {
     "name": "conv_search_messages",
-    "title": "Search conversation messages",
+    "title": "Conv: Search conversation messages",
     "description": "Substring search over message bodies. Returns the matching messages newest first; use conv_get_conversation to load surrounding context.",
     "audiences": [
       "admin"
@@ -1236,7 +1240,7 @@
   },
   {
     "name": "conv_list_channels",
-    "title": "List conversation channels",
+    "title": "Conv: List conversation channels",
     "description": "List conversation channels configured for your org. Currently shipping adapters: email and chat (widget). The `voice` and `sms` channel types are reserved for upcoming adapters.",
     "audiences": [
       "admin"
@@ -1255,7 +1259,7 @@
   },
   {
     "name": "conv_create_channel",
-    "title": "Create conversation channel",
+    "title": "Conv: Create conversation channel",
     "description": "Add a new conversation channel. Currently shipping adapters: `email` and `chat` (widget). Channel-specific configuration goes in `config`. The `voice` and `sms` channel types are reserved and not yet wired to an adapter.",
     "audiences": [
       "admin"
@@ -1306,7 +1310,7 @@
   },
   {
     "name": "conv_list_topics",
-    "title": "List conversation topics",
+    "title": "Conv: List conversation topics",
     "description": "List conversation topics (Billing, Support, Refunds, …) for your org.",
     "audiences": [
       "admin"
@@ -1325,7 +1329,7 @@
   },
   {
     "name": "conv_create_topic",
-    "title": "Create conversation topic",
+    "title": "Conv: Create conversation topic",
     "description": "Add a new conversation topic. Slug must be lowercase letters, digits, hyphens.",
     "audiences": [
       "admin"
@@ -1363,7 +1367,7 @@
   },
   {
     "name": "conv_set_topic",
-    "title": "Set or clear a conversation topic",
+    "title": "Conv: Set or clear a conversation topic",
     "description": "Tag a conversation with one of the org's existing topics, or pass `topicId: null` to clear the topic. Use `conv_list_topics` first to see what topics exist; topics must be pre-created via `conv_create_topic`.",
     "audiences": [
       "admin"
@@ -1400,7 +1404,7 @@
   },
   {
     "name": "conv_strip_message_signature",
-    "title": "Strip the signature from an inbound message",
+    "title": "Conv: Strip the signature from an inbound message",
     "description": "Replace an inbound message's body with a signature-stripped version. Used by the strip-email-signature curator skill — runs after the regex quote-stripper to clean up the trailing sign-off / contact block. The original body is kept in `metadata.preStripBody` for audit; the removed signature (if provided) is stored in `metadata.signatureText`. Refuses if the new body is empty, more than 50% shorter than the original, or if the message isn't an end-user inbound in the caller's org.",
     "audiences": [
       "admin"
@@ -1436,7 +1440,7 @@
   },
   {
     "name": "conv_request_handover_in_my_conversation",
-    "title": "Request a human teammate to take over",
+    "title": "Conv: Request a human teammate to take over",
     "description": "Flag the current conversation as needing human attention. Use this when you can't answer the end-user's question on your own — pricing exceptions, account-specific issues you can't verify, anything sensitive. Pass the exact `conversationId` you were given in the system context. Sets a \"needs human attention\" flag on the conversation (pinning it to the top of the team's dashboard) and posts an internal note recording your `reason`. Also pass `suggestedReply` — your best guess at what a human teammate could send to resolve the issue. The team sees this as a starting draft they can edit, approve, or rewrite. After calling this, do not keep generating replies on your own — let the user know a teammate will follow up, then stop. The flag clears once a teammate replies. The end-user does not see the system note or the suggested reply — only the team does.",
     "audiences": [
       "self_service"
@@ -1470,7 +1474,7 @@
   },
   {
     "name": "conv_email_setup_channel",
-    "title": "Set up email channel",
+    "title": "Conv: Set up email channel",
     "description": "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host.",
     "audiences": [
       "admin"
@@ -1655,7 +1659,7 @@
   },
   {
     "name": "conv_email_test_channel",
-    "title": "Test email channel credentials",
+    "title": "Conv: Test email channel credentials",
     "description": "Test an email channel's stored credentials. Attempts an SMTP connect (and an IMAP connect if inbound is configured) without sending or fetching anything. Returns `{ smtp: \"ok\" | error, imap: \"ok\" | error | \"not configured\" }`.",
     "audiences": [
       "admin"
@@ -1681,7 +1685,7 @@
   },
   {
     "name": "conv_email_send_test",
-    "title": "Send test email",
+    "title": "Conv: Send test email",
     "description": "Send a real test email through this channel's configured outbound transport (SMTP or Mailer). The message is addressed `to` the recipient you pass in. Useful for confirming credentials and deliverability end-to-end.",
     "audiences": [
       "admin"
@@ -1713,7 +1717,7 @@
   },
   {
     "name": "conv_messagebird_sms_configure",
-    "title": "Configure MessageBird SMS channel",
+    "title": "Conv: Configure MessageBird SMS channel",
     "description": "Create or update a MessageBird SMS channel. Pass `channelId` to update; omit to create. The plaintext `accessKey` and `signingKey` are encrypted before storage and returned redacted. On update, omit either secret to keep the existing one.",
     "audiences": [
       "admin"
@@ -1760,7 +1764,7 @@
   },
   {
     "name": "conv_messagebird_sms_test_channel",
-    "title": "Test MessageBird SMS channel credentials",
+    "title": "Conv: Test MessageBird SMS channel credentials",
     "description": "Verify a MessageBird channel's stored Access Key by fetching the account balance. Returns `{ ok: true, balance }` on success.",
     "audiences": [
       "admin"
@@ -1786,7 +1790,7 @@
   },
   {
     "name": "conv_messagebird_sms_send_test",
-    "title": "Send a real test SMS via MessageBird",
+    "title": "Conv: Send a real test SMS via MessageBird",
     "description": "Send a real SMS through this channel's MessageBird account. Useful for end-to-end deliverability checks.",
     "audiences": [
       "admin"
@@ -1824,7 +1828,7 @@
   },
   {
     "name": "conv_twilio_sms_configure",
-    "title": "Configure Twilio SMS channel",
+    "title": "Conv: Configure Twilio SMS channel",
     "description": "Create or update a Twilio SMS channel. Pass `channelId` to update an existing channel; omit to create one. The plaintext `authToken` is encrypted before storage and is returned redacted. On update, omit `authToken` to keep the existing one. Either `fromNumber` (E.164) or `messagingServiceSid` is required.",
     "audiences": [
       "admin"
@@ -1877,7 +1881,7 @@
   },
   {
     "name": "conv_twilio_sms_test_channel",
-    "title": "Test Twilio SMS channel credentials",
+    "title": "Conv: Test Twilio SMS channel credentials",
     "description": "Verify a Twilio SMS channel's stored Account SID + Auth Token by fetching the account record from Twilio. Returns `{ ok: true, friendlyName, status }` on success.",
     "audiences": [
       "admin"
@@ -1903,7 +1907,7 @@
   },
   {
     "name": "conv_twilio_sms_send_test",
-    "title": "Send a real test SMS",
+    "title": "Conv: Send a real test SMS",
     "description": "Send a real SMS through this channel's Twilio account. The recipient must be a number Twilio is permitted to reach (verified caller ID on trial accounts). Useful for end-to-end deliverability checks.",
     "audiences": [
       "admin"
@@ -1942,7 +1946,7 @@
   },
   {
     "name": "conv_vapi_configure",
-    "title": "Configure Vapi voice channel",
+    "title": "Conv: Configure Vapi voice channel",
     "description": "Create or update a Vapi voice channel. Pass `channelId` to update; omit to create. The plaintext `apiKey` and `webhookSecret` are encrypted before storage and returned redacted. The assistant + phone number must already exist in Vapi — paste their IDs here.",
     "audiences": [
       "admin"
@@ -2001,7 +2005,7 @@
   },
   {
     "name": "conv_vapi_test_channel",
-    "title": "Test Vapi voice channel credentials",
+    "title": "Conv: Test Vapi voice channel credentials",
     "description": "Verify a Vapi channel's stored API key and assistant by fetching the assistant from Vapi. Returns `{ ok: true, assistant }` on success.",
     "audiences": [
       "admin"
@@ -2027,7 +2031,7 @@
   },
   {
     "name": "conv_voice_call_initiate",
-    "title": "Place an outbound voice call",
+    "title": "Conv: Place an outbound voice call",
     "description": "Initiate an outbound voice call through this channel. The Vapi assistant will run the conversation. Returns the Vapi call id and status.",
     "audiences": [
       "admin"
@@ -2064,7 +2068,7 @@
   },
   {
     "name": "conv_request_phone_call_for_my_conversation",
-    "title": "Place a phone call to the user in this conversation",
+    "title": "Conv: Place a phone call to the user in this conversation",
     "description": "Place an outbound phone call to the contact in this conversation. Use this only when the user has asked to be called — e.g. \"can you call me?\". The call goes to the phone number already on file for this conversation's contact; you cannot specify an arbitrary number. The org must have an active Vapi voice channel configured. After requesting the call, tell the user briefly that a call is on the way and stop replying — the rest of the conversation happens on the phone.",
     "audiences": [
       "self_service"
@@ -2080,6 +2084,11 @@
       "properties": {
         "conversationId": {
           "type": "string"
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
         }
       },
       "required": [
@@ -2090,8 +2099,8 @@
   },
   {
     "name": "conv_voice_call_contact",
-    "title": "Place a voice call to this conversation's contact",
-    "description": "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact and picks the org's active Vapi voice channel automatically. For arbitrary destinations, use `conv_voice_call_initiate` instead.",
+    "title": "Conv: Place a voice call to this conversation's contact",
+    "description": "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active Vapi voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_voice_call_initiate` instead.",
     "audiences": [
       "admin"
     ],
@@ -2106,6 +2115,11 @@
       "properties": {
         "conversationId": {
           "type": "string"
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
         }
       },
       "required": [
@@ -2116,7 +2130,7 @@
   },
   {
     "name": "conv_widget_create_channel",
-    "title": "Create chat-widget channel",
+    "title": "Conv: Create chat-widget channel",
     "description": "Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent.",
     "audiences": [
       "admin"
@@ -2160,7 +2174,7 @@
   },
   {
     "name": "conv_widget_update_channel",
-    "title": "Update chat-widget channel",
+    "title": "Conv: Update chat-widget channel",
     "description": "Update a chat-widget channel's originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.",
     "audiences": [
       "admin"
@@ -2207,7 +2221,7 @@
   },
   {
     "name": "conv_widget_rotate_key",
-    "title": "Rotate widget API key",
+    "title": "Conv: Rotate widget API key",
     "description": "Revoke any active widget keys bound to this channel and mint a fresh `mn_widget_*` key. Returns the new plaintext key once. Existing inflight requests using the old key keep working until revocation lands.",
     "audiences": [
       "admin"
@@ -2233,7 +2247,7 @@
   },
   {
     "name": "conv_widget_rotate_identity_secret",
-    "title": "Rotate widget identity-verification secret",
+    "title": "Conv: Rotate widget identity-verification secret",
     "description": "Generate a fresh per-channel HMAC secret used to verify browser-side `data-user-hash` values against `data-external-id`. The previous secret is replaced atomically; any previously-issued user hashes stop verifying immediately and the operator must re-render their pages with newly-computed hashes. Returns the new plaintext once.",
     "audiences": [
       "admin"
@@ -2259,7 +2273,7 @@
   },
   {
     "name": "crm_list_contacts",
-    "title": "List contacts",
+    "title": "CRM: List contacts",
     "description": "List contacts in your org, newest-updated first. Filter by company or tag.",
     "audiences": [
       "admin"
@@ -2290,7 +2304,7 @@
   },
   {
     "name": "crm_get_contact",
-    "title": "Read contact",
+    "title": "CRM: Read contact",
     "description": "Read one contact, including AI fields, tags, custom fields, and compliance flags.",
     "audiences": [
       "admin"
@@ -2316,7 +2330,7 @@
   },
   {
     "name": "crm_find_contact",
-    "title": "Find contact by email or phone",
+    "title": "CRM: Find contact by email or phone",
     "description": "Find an existing contact by email and/or phone before creating a new one. Returns null if no match.",
     "audiences": [
       "admin"
@@ -2344,7 +2358,7 @@
   },
   {
     "name": "crm_create_contact",
-    "title": "Create contact",
+    "title": "CRM: Create contact",
     "description": "Create a new contact. Search with crm_find_contact first to avoid duplicates.",
     "audiences": [
       "admin"
@@ -2408,7 +2422,7 @@
   },
   {
     "name": "crm_update_contact",
-    "title": "Update contact",
+    "title": "CRM: Update contact",
     "description": "Update fields on a contact. Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
     "audiences": [
       "admin"
@@ -2510,7 +2524,7 @@
   },
   {
     "name": "crm_bulk_create_contacts",
-    "title": "Bulk-create contacts",
+    "title": "CRM: Bulk-create contacts",
     "description": "Bulk-create contacts with dedupe + compliance checks: rows whose email or phone already match a do_not_contact contact are skipped, as are rows that would duplicate an existing contact.",
     "audiences": [
       "admin"
@@ -2587,7 +2601,7 @@
   },
   {
     "name": "crm_search_contacts",
-    "title": "Search contacts",
+    "title": "CRM: Search contacts",
     "description": "Substring search across name, email, phone, and title. Returns contacts ordered newest-updated first.",
     "audiences": [
       "admin"
@@ -2620,7 +2634,7 @@
   },
   {
     "name": "crm_list_companies",
-    "title": "List companies",
+    "title": "CRM: List companies",
     "description": "List companies in your org.",
     "audiences": [
       "admin"
@@ -2645,7 +2659,7 @@
   },
   {
     "name": "crm_create_company",
-    "title": "Create company",
+    "title": "CRM: Create company",
     "description": "Create a new company.",
     "audiences": [
       "admin"
@@ -2693,7 +2707,7 @@
   },
   {
     "name": "crm_list_pipelines",
-    "title": "List sales pipelines",
+    "title": "CRM: List sales pipelines",
     "description": "List sales pipelines for your org with their stages in position order.",
     "audiences": [
       "admin"
@@ -2712,7 +2726,7 @@
   },
   {
     "name": "crm_create_pipeline",
-    "title": "Create sales pipeline",
+    "title": "CRM: Create sales pipeline",
     "description": "Create a new sales pipeline with at least one stage. Stages are inserted in array order; mark a stage `winLoss: \"won\"` or `\"lost\"` to record terminal outcomes.",
     "audiences": [
       "admin"
@@ -2774,7 +2788,7 @@
   },
   {
     "name": "crm_list_deals",
-    "title": "List deals",
+    "title": "CRM: List deals",
     "description": "List deals, optionally filtered by pipeline or stage.",
     "audiences": [
       "admin"
@@ -2805,7 +2819,7 @@
   },
   {
     "name": "crm_create_deal",
-    "title": "Create deal",
+    "title": "CRM: Create deal",
     "description": "Create a new deal in a pipeline. If `stageId` is omitted, the deal lands in the pipeline's first stage by position.",
     "audiences": [
       "admin"
@@ -2861,7 +2875,7 @@
   },
   {
     "name": "crm_change_stage",
-    "title": "Change deal stage",
+    "title": "CRM: Change deal stage",
     "description": "Move a deal to a new stage. If the destination stage is a won/lost terminal, `closedAt` is stamped automatically.",
     "audiences": [
       "admin"
@@ -2891,7 +2905,7 @@
   },
   {
     "name": "crm_log_activity",
-    "title": "Log CRM activity",
+    "title": "CRM: Log activity",
     "description": "Record an activity (note / call / email / meeting / task) against a contact, company, or deal. If `contactId` is set, the contact's `lastContactedAt` is also bumped.",
     "audiences": [
       "admin"
@@ -2958,7 +2972,7 @@
   },
   {
     "name": "crm_list_activities",
-    "title": "List CRM activities",
+    "title": "CRM: List activities",
     "description": "List CRM activities filtered by contact, deal, or company.",
     "audiences": [
       "admin"
@@ -2992,7 +3006,7 @@
   },
   {
     "name": "crm_set_ai_summary",
-    "title": "Set AI summary or next action",
+    "title": "CRM: Set AI summary or next action",
     "description": "Set the AI-generated summary and/or next-action for a contact, company, or deal. These live in dedicated columns so agents do not pollute the human-edited description.",
     "audiences": [
       "admin"
@@ -3047,7 +3061,7 @@
   },
   {
     "name": "crm_propose_merge_candidate",
-    "title": "Propose a CRM merge candidate",
+    "title": "CRM: Propose a merge candidate",
     "description": "File a structured proposal that two contacts are the same person. Pass `confidence` (\"high\" | \"medium\"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.",
     "audiences": [
       "admin"
@@ -3110,7 +3124,7 @@
   },
   {
     "name": "crm_list_merge_proposals",
-    "title": "List CRM merge proposals",
+    "title": "CRM: List merge proposals",
     "description": "List CRM merge proposals, defaulting to `status: \"pending\"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: \"dismissed\"` once per curator pass to skip pairs the operator has already rejected.",
     "audiences": [
       "admin"
@@ -3143,7 +3157,7 @@
   },
   {
     "name": "crm_apply_merge_proposal",
-    "title": "Apply a CRM merge proposal",
+    "title": "CRM: Apply a merge proposal",
     "description": "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), and marks the proposal `applied`. Activities and deals stay on whichever contactId they were originally logged under — that's a documented v1 limitation. Throws if the proposal is not in `pending` status.",
     "audiences": [
       "admin"
@@ -3171,7 +3185,7 @@
   },
   {
     "name": "crm_dismiss_merge_proposal",
-    "title": "Dismiss a CRM merge proposal",
+    "title": "CRM: Dismiss a merge proposal",
     "description": "Mark a pending merge proposal as dismissed (the operator decided these are not the same person). The next CRM hygiene curator pass queries dismissed proposals and skips refiling the same pair. Optional `reason` is stored for audit. Throws if the proposal is not in `pending` status.",
     "audiences": [
       "admin"
@@ -3203,7 +3217,7 @@
   },
   {
     "name": "crm_list_segments",
-    "title": "List CRM segments",
+    "title": "CRM: List segments",
     "description": "List saved contact segments. A segment is a named CRM filter — used as the audience for outreach campaigns and other targeting workflows. Returns each segment with its filter definition.",
     "audiences": [
       "admin"
@@ -3222,7 +3236,7 @@
   },
   {
     "name": "crm_get_segment",
-    "title": "Read CRM segment",
+    "title": "CRM: Read segment",
     "description": "Read one segment, including its filter definition.",
     "audiences": [
       "admin"
@@ -3250,7 +3264,7 @@
   },
   {
     "name": "crm_create_segment",
-    "title": "Create CRM segment",
+    "title": "CRM: Create segment",
     "description": "Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.",
     "audiences": [
       "admin"
@@ -3322,7 +3336,7 @@
   },
   {
     "name": "crm_update_segment",
-    "title": "Update CRM segment",
+    "title": "CRM: Update segment",
     "description": "Patch a segment: rename, edit description, or replace the filter.",
     "audiences": [
       "admin"
@@ -3412,7 +3426,7 @@
   },
   {
     "name": "crm_delete_segment",
-    "title": "Delete CRM segment",
+    "title": "CRM: Delete segment",
     "description": "Delete a segment. Outreach campaigns referencing it will fail until reassigned.",
     "audiences": [
       "admin"
@@ -3440,7 +3454,7 @@
   },
   {
     "name": "crm_list_contacts_in_segment",
-    "title": "List contacts in segment",
+    "title": "CRM: List contacts in segment",
     "description": "Resolve a segment to its current contacts. ALWAYS excludes suppressed contacts (do_not_contact OR unsubscribed) AND contacts without a recorded lawful basis (consent_lawful_basis IS NULL). Use this — not crm_list_contacts — to materialize an outreach audience: the suppression and consent floors are non-overridable here.",
     "audiences": [
       "admin"
@@ -3473,7 +3487,7 @@
   },
   {
     "name": "crm_set_contact_consent",
-    "title": "Set contact consent",
+    "title": "CRM: Set contact consent",
     "description": "Record the lawful basis and source for contacting this person. Required before they can appear in any outreach segment. `lawfulBasis` is one of `consent`, `legitimate_interest`, or `contract`. `source` is a short label (e.g. \"imported-2026-q2\", \"web-form-trial-signup\", \"event-attendee-summit-2025\"). Logs a CRM activity for audit.",
     "audiences": [
       "admin"
@@ -3528,7 +3542,7 @@
   },
   {
     "name": "crm_get_my_contact",
-    "title": "Read my CRM contact",
+    "title": "CRM: Read my contact",
     "description": "Read the CRM contact linked to the calling end-user. RLS restricts visibility to that single row.",
     "audiences": [
       "self_service"
@@ -3547,7 +3561,7 @@
   },
   {
     "name": "crm_update_my_contact",
-    "title": "Update my CRM contact",
+    "title": "CRM: Update my contact",
     "description": "Update the calling end-user's own contact record. Only basic personal fields (name, phone, address) are editable from this surface — tags, ownership, custom fields, and AI fields are admin-only.",
     "audiences": [
       "self_service"
@@ -3580,7 +3594,7 @@
   },
   {
     "name": "crm_log_activity_self",
-    "title": "Log activity as end-user",
+    "title": "CRM: Log activity as end-user",
     "description": "Record an activity attributed to the calling end-user agent (e.g. a voice agent logging \"spoke with customer for 4m, follow-up needed\"). Auto-scoped to the end-user's own CRM contact when one exists.",
     "audiences": [
       "self_service"
@@ -3628,7 +3642,7 @@
   },
   {
     "name": "kb_list_spaces",
-    "title": "List KB spaces",
+    "title": "KB: List spaces",
     "description": "List knowledge-base spaces in your org.",
     "audiences": [
       "admin"
@@ -3647,7 +3661,7 @@
   },
   {
     "name": "kb_create_space",
-    "title": "Create KB space",
+    "title": "KB: Create space",
     "description": "Create a new knowledge-base space. Slug must be unique within your org and only contain lowercase letters, digits and hyphens.",
     "audiences": [
       "admin"
@@ -3685,7 +3699,7 @@
   },
   {
     "name": "kb_list_documents",
-    "title": "List KB documents",
+    "title": "KB: List documents",
     "description": "List knowledge-base documents in your org, newest-updated first. Optionally filter by space or tag.",
     "audiences": [
       "admin"
@@ -3716,7 +3730,7 @@
   },
   {
     "name": "kb_get_document",
-    "title": "Read KB document",
+    "title": "KB: Read document",
     "description": "Read one knowledge-base document, including its full body, tags, and current version. End-user agents see only documents whose `audiences` includes `'self_service'`.",
     "audiences": [
       "admin",
@@ -3743,7 +3757,7 @@
   },
   {
     "name": "kb_get_document_by_slug",
-    "title": "Read KB document by slug",
+    "title": "KB: Read document by slug",
     "description": "Read a knowledge-base document by its space slug and document slug — used when a stable identifier (e.g. 'agent-runtime/system-prompt') is needed instead of the document UUID. Returns null when the document does not exist.",
     "audiences": [
       "admin"
@@ -3777,7 +3791,7 @@
   },
   {
     "name": "kb_search",
-    "title": "Search knowledge base",
+    "title": "KB: Search",
     "description": "Search the knowledge base by natural-language query. Combines full-text search and vector similarity for the best of both. End-user agents see only documents whose `audiences` includes `'self_service'`.",
     "audiences": [
       "admin",
@@ -3814,7 +3828,7 @@
   },
   {
     "name": "kb_create_document",
-    "title": "Create KB document",
+    "title": "KB: Create document",
     "description": "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only).",
     "audiences": [
       "admin"
@@ -3876,7 +3890,7 @@
   },
   {
     "name": "kb_update_document",
-    "title": "Update KB document",
+    "title": "KB: Update document",
     "description": "Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed.",
     "audiences": [
       "admin"
@@ -3937,7 +3951,7 @@
   },
   {
     "name": "kb_delete_document",
-    "title": "Delete KB document",
+    "title": "KB: Delete document",
     "description": "Delete a knowledge-base document. Pass `ifVersion` for optimistic concurrency. Cascades to chunks and versions.",
     "audiences": [
       "admin"
@@ -3969,7 +3983,7 @@
   },
   {
     "name": "kb_list_versions",
-    "title": "List KB document versions",
+    "title": "KB: List document versions",
     "description": "List all prior versions of a knowledge-base document, newest first.",
     "audiences": [
       "admin"
@@ -3995,7 +4009,7 @@
   },
   {
     "name": "kb_propose_curation_candidate",
-    "title": "Propose KB curation candidate",
+    "title": "KB: Propose curation candidate",
     "description": "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/review-content` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`.",
     "audiences": [
       "admin"
@@ -4047,7 +4061,7 @@
   },
   {
     "name": "kb_publish_curation_candidate",
-    "title": "Publish KB curation candidate",
+    "title": "KB: Publish curation candidate",
     "description": "Promote a reviewed curation candidate into a target KB space. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the `curation`/`candidate` tags, and removes the candidate from the inbox. The target space must already exist.",
     "audiences": [
       "admin"
@@ -4091,7 +4105,7 @@
   },
   {
     "name": "kb_restore_version",
-    "title": "Restore KB document version",
+    "title": "KB: Restore document version",
     "description": "Roll a document back to an earlier version. Creates a new current version with that historical content.",
     "audiences": [
       "admin"
@@ -4129,7 +4143,7 @@
   },
   {
     "name": "outreach_list_campaigns",
-    "title": "List outreach campaigns",
+    "title": "Outreach: List campaigns",
     "description": "List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, CTA URL, and the enabled flag. The draft-initial curator only drafts proposals for `enabled = true` campaigns.",
     "audiences": [
       "admin"
@@ -4148,7 +4162,7 @@
   },
   {
     "name": "outreach_get_campaign",
-    "title": "Read one outreach campaign",
+    "title": "Outreach: Read one campaign",
     "description": "Read a single campaign by id, including brief and cadence rules.",
     "audiences": [
       "admin"
@@ -4176,7 +4190,7 @@
   },
   {
     "name": "outreach_create_campaign",
-    "title": "Create outreach campaign",
+    "title": "Outreach: Create campaign",
     "description": "Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email channel. New campaigns default `enabled: false` so the curator does not start drafting until you flip it on.",
     "audiences": [
       "admin"
@@ -4266,7 +4280,7 @@
   },
   {
     "name": "outreach_update_campaign",
-    "title": "Update outreach campaign",
+    "title": "Outreach: Update campaign",
     "description": "Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled.",
     "audiences": [
       "admin"
@@ -4365,7 +4379,7 @@
   },
   {
     "name": "outreach_list_proposals",
-    "title": "List outreach proposals",
+    "title": "Outreach: List proposals",
     "description": "List drafted outreach proposals (initials in PR2; replies in PR3). Defaults to all statuses. The draft-initial curator queries `status: \"pending\", kind: \"initial\"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: \"pending\"`.",
     "audiences": [
       "admin"
@@ -4417,7 +4431,7 @@
   },
   {
     "name": "outreach_propose_initial",
-    "title": "Propose an initial outreach draft",
+    "title": "Outreach: Propose an initial draft",
     "description": "File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) while a pending row exists throws — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.",
     "audiences": [
       "admin"
@@ -4475,7 +4489,7 @@
   },
   {
     "name": "outreach_propose_reply",
-    "title": "Propose an outreach reply draft",
+    "title": "Outreach: Propose an reply draft",
     "description": "File a drafted reply to an inbound message on an outreach-originated conversation, for human approval. The conversation must have an `outreachCampaignId` set (it's an outreach conversation) and a CRM contact resolvable by email. Idempotent: re-proposing while a pending reply exists for the same conversation throws — the operator should approve or dismiss the existing one first. Reply approvals send via `conv_send_message` on the existing conversation; no unsubscribe footer is appended (replies thread inside the existing email chain that already carries the unsubscribe link).",
     "audiences": [
       "admin"
@@ -4510,6 +4524,143 @@
       "required": [
         "conversationId",
         "draftBody"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "feedback_create",
+    "title": "Feedback: Create",
+    "description": "Submit feedback about Munin. Stays local until an org admin approves it; rejection deletes the item. Set includeOrgName / includeUserName to attach attribution; both default false.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "body": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 4000
+        },
+        "appScope": {
+          "type": "string",
+          "enum": [
+            "kb",
+            "conv",
+            "crm",
+            "cms",
+            "core"
+          ]
+        },
+        "includeOrgName": {
+          "type": "boolean"
+        },
+        "includeUserName": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "title",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "feedback_list",
+    "title": "Feedback: List pending",
+    "description": "List feedback items in the local outbox awaiting admin action.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "feedback_get",
+    "title": "Feedback: Get one",
+    "description": "Read a single feedback item by id.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "feedback_approve",
+    "title": "Feedback: Approve and forward",
+    "description": "Approve a feedback item: transmits the contents to Munin developers and deletes the local row on success. Attribution is included only when the submitter opted in.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "feedback_reject",
+    "title": "Feedback: Reject",
+    "description": "Reject (delete) a pending feedback item. Nothing is sent to Munin.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
       ],
       "additionalProperties": false
     }

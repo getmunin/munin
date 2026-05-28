@@ -4,7 +4,7 @@ import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import {
   BACKEND_BASE_CONTROLLERS,
   BACKEND_BASE_PROVIDERS,
-  BACKEND_FEATURE_MODULES_NO_AUTH,
+  BACKEND_FEATURE_MODULES,
   FeedbackModule,
   isFeedbackEnabled,
 } from '@getmunin/backend-core';
@@ -16,7 +16,7 @@ const FEEDBACK_MODULES = isFeedbackEnabled() ? [FeedbackModule] : [];
 @Module({
   imports: [
     SentryModule.forRoot(),
-    ...BACKEND_FEATURE_MODULES_NO_AUTH,
+    ...BACKEND_FEATURE_MODULES,
     AuthModule,
     AgentHostModule.forRoot({
       configRepository: SingletonConfigRepository,

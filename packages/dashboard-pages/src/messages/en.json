@@ -27,7 +27,8 @@
     "done": "Done",
     "gotIt": "Got it",
     "unknownError": "Unknown error.",
-    "networkError": "Network error — is the API reachable?"
+    "networkError": "Network error — is the API reachable?",
+    "or": "or"
   },
   "locale": {
     "label": "Language",
@@ -1045,6 +1046,16 @@
   "footer": {
     "privacy": "Privacy",
     "terms": "Terms"
+  },
+  "ui": {
+    "googleButton": {
+      "signIn": "Sign in with Google",
+      "signUp": "Sign up with Google"
+    },
+    "githubButton": {
+      "signIn": "Sign in with GitHub",
+      "signUp": "Sign up with GitHub"
+    }
   },
   "legal": {
     "privacy": {

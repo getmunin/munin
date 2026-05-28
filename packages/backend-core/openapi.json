@@ -3470,6 +3470,21 @@
         ]
       }
     },
+    "/v1/auth/providers": {
+      "get": {
+        "operationId": "AuthProvidersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AuthProviders"
+        ],
+        "security": []
+      }
+    },
     "/v1/widget/messages": {
       "post": {
         "operationId": "WidgetController_ingest",

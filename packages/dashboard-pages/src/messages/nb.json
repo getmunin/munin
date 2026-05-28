@@ -27,7 +27,8 @@
     "done": "Ferdig",
     "gotIt": "OK",
     "unknownError": "Ukjent feil.",
-    "networkError": "Nettverksfeil — er API-et tilgjengelig?"
+    "networkError": "Nettverksfeil — er API-et tilgjengelig?",
+    "or": "eller"
   },
   "locale": {
     "label": "Språk",
@@ -1045,6 +1046,16 @@
   "footer": {
     "privacy": "Personvern",
     "terms": "Vilkår"
+  },
+  "ui": {
+    "googleButton": {
+      "signIn": "Logg inn med Google",
+      "signUp": "Opprett konto med Google"
+    },
+    "githubButton": {
+      "signIn": "Logg inn med GitHub",
+      "signUp": "Opprett konto med GitHub"
+    }
   },
   "legal": {
     "privacy": {

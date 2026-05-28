@@ -13,6 +13,7 @@ export {
 
 export {
   readGoogleProviderFromEnv,
+  readGithubProviderFromEnv,
   readTrustedOriginsFromEnv,
 } from './auth-env.ts';
 

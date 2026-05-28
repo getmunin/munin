@@ -59,6 +59,11 @@ export {
   type AuthFooter,
   OSS_AUTH_FOOTER,
   CLOUD_AUTH_FOOTER,
+  GoogleLogo,
+  GithubLogo,
+  useAuthProviders,
+  fetchAuthProviders,
+  type AuthProviders,
 } from './components/auth-shell';
 export {
   useActiveRole,

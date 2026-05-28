@@ -40,6 +40,7 @@ import { ActivityController } from './activity.controller.ts';
 import { EndUserConversationsController } from './end-user-conversations.controller.ts';
 import { OverviewController } from './overview.controller.ts';
 import { InboxController } from './inbox.controller.ts';
+import { AuthProvidersController } from './auth-providers.controller.ts';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -94,6 +95,7 @@ import { InboxController } from './inbox.controller.ts';
     CuratorJobsController,
     KbCandidatesController,
     KbSpacesController,
+    AuthProvidersController,
   ],
   providers: [InvitationsService],
 })

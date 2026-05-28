@@ -20,6 +20,8 @@ export interface MuninAuthOptions {
   mailer?: Mailer;
   webBaseUrl?: string;
   allowedEmailDomains?: string[];
+  google?: { clientId: string; clientSecret: string };
+  github?: { clientId: string; clientSecret: string };
 }
 
 export function createMuninAuth({
@@ -30,6 +32,8 @@ export function createMuninAuth({
   mailer,
   webBaseUrl,
   allowedEmailDomains = [],
+  google,
+  github,
 }: MuninAuthOptions): MuninAuthInstance {
   return createMuninAuthCore({
     db,
@@ -37,6 +41,7 @@ export function createMuninAuth({
     authSecret,
     trustedOrigins,
     webBaseUrl,
+    socialProviders: google || github ? { google, github } : undefined,
     sendResetPassword: mailer
       ? async ({ user, url }) => {
           const tpl = resetPasswordEmail(url);

@@ -116,6 +116,10 @@ export interface MuninRestClient {
     holder: string;
   }): Promise<{ released: boolean }>;
   postInternalNote(conversationId: string, body: string): Promise<void>;
+  requestHandover(
+    conversationId: string,
+    input: { reason?: string; publicFallbackMessage?: string },
+  ): Promise<void>;
   mintDelegatedToken(endUserId: string, ttlSeconds?: number): Promise<DelegatedToken>;
   toRuntimeHistory(detail: ConversationDetail): ConversationMessage[];
   changeStatus(conversationId: string, status: ConversationStatus, snoozeUntil?: string): Promise<void>;
@@ -199,6 +203,23 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
         method: 'POST',
         body: JSON.stringify({ body, internal: true }),
       });
+    },
+    async requestHandover(
+      conversationId: string,
+      input: { reason?: string; publicFallbackMessage?: string },
+    ): Promise<void> {
+      await call<unknown>(
+        `/v1/conversations/${encodeURIComponent(conversationId)}/request-handover`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            ...(input.reason ? { reason: input.reason } : {}),
+            ...(input.publicFallbackMessage
+              ? { publicFallbackMessage: input.publicFallbackMessage }
+              : {}),
+          }),
+        },
+      );
     },
     async mintDelegatedToken(endUserId: string, ttlSeconds = 600): Promise<DelegatedToken> {
       return call<DelegatedToken>('/v1/tokens/delegated', {

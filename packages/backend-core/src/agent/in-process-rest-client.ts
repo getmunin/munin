@@ -146,6 +146,19 @@ function buildClient(opts: BuildOptions): MuninRestClient {
       });
     },
 
+    async requestHandover(
+      conversationId: string,
+      input: { reason?: string; publicFallbackMessage?: string },
+    ): Promise<void> {
+      await audited('runner:requestHandover', async () => {
+        await opts.conv.requestHandover({
+          conversationId,
+          reason: input.reason,
+          publicFallbackMessage: input.publicFallbackMessage,
+        });
+      });
+    },
+
     async tryAcquireConversation(input: {
       conversationId: string;
       holder: string;

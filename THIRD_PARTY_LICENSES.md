@@ -11899,7 +11899,7 @@ Apache License
 
 ---
 
-## @playwright/test@1.59.1
+## @playwright/test@1.60.0
 
 > A high-level API to automate web browsers
 - Homepage: https://playwright.dev
@@ -28254,7 +28254,7 @@ SOFTWARE.
 
 ---
 
-## playwright@1.59.1
+## playwright@1.60.0
 
 > A high-level API to automate web browsers
 - Homepage: https://playwright.dev
@@ -28468,7 +28468,7 @@ Apache License
 
 ---
 
-## playwright-core@1.59.1
+## playwright-core@1.60.0
 
 > A high-level API to automate web browsers
 - Homepage: https://playwright.dev

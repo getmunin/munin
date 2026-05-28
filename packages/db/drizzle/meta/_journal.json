@@ -225,6 +225,13 @@
       "when": 1780200000000,
       "tag": "0031_curator_jobs_failed_retryable",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1780300000000,
+      "tag": "0032_feedback_outbox",
+      "breakpoints": true
     }
   ]
 }

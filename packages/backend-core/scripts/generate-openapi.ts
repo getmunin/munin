@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from '../src/app.module.ts';
+import { DocsAppModule } from '../src/docs-app.module.ts';
 import { ALLOW_ANONYMOUS, AuthGuard } from '../src/common/auth/auth.guard.ts';
 
 const GUARDS_METADATA = '__guards__';
@@ -27,7 +27,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const outFile = resolve(process.env.OPENAPI_OUT ?? join(here, '..', 'openapi.json'));
 
 async function main() {
-  const app = await NestFactory.create(AppModule, { logger: false, abortOnError: false });
+  const app = await NestFactory.create(DocsAppModule, { logger: false, abortOnError: false });
 
   const config = new DocumentBuilder()
     .setTitle('Munin')

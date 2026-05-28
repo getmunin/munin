@@ -1,4 +1,11 @@
-import { Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Inject,
+  Optional,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, gt, inArray, isNotNull, or, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
@@ -19,6 +26,8 @@ import {
 } from '../modules/kb/kb.service.ts';
 import { CrmService, type MergeProposalDto } from '../modules/crm/crm.service.ts';
 import { OutreachService, type ProposalDto } from '../modules/outreach/outreach.service.ts';
+import { FeedbackService } from '../modules/feedback/feedback.service.ts';
+import type { FeedbackOutboxDto } from '../modules/feedback/feedback.service.ts';
 
 interface LiveConversation extends ConversationSummary {
   latestEndUserMessage: { body: string; createdAt: string } | null;
@@ -33,6 +42,7 @@ interface InboxQueueResponse {
     kb: CurationCandidateSummary[];
     crm: MergeProposalDto[];
     outreach: ProposalDto[];
+    feedback?: FeedbackOutboxDto[];
   };
 }
 
@@ -46,20 +56,27 @@ export class InboxController {
     private readonly kb: KbService,
     private readonly crm: CrmService,
     private readonly outreach: OutreachService,
+    @Optional() @Inject(FeedbackService) private readonly feedback: FeedbackService | null = null,
   ) {}
 
   @Get()
   async queue(): Promise<InboxQueueResponse> {
-    const [live, kbItems, crmItems, outreachItems] = await Promise.all([
+    const [live, kbItems, crmItems, outreachItems, feedbackItems] = await Promise.all([
       this.loadLive(),
       this.kb.listCurationCandidates(50),
       this.crm.listMergeProposals({ status: 'pending', limit: 50 }),
       this.outreach.listProposals({ status: 'pending', limit: 50 }),
+      this.feedback ? this.feedback.listPending() : Promise.resolve(undefined),
     ]);
 
     return {
       live,
-      queue: { kb: kbItems, crm: crmItems, outreach: outreachItems },
+      queue: {
+        kb: kbItems,
+        crm: crmItems,
+        outreach: outreachItems,
+        ...(feedbackItems ? { feedback: feedbackItems } : {}),
+      },
     };
   }
 

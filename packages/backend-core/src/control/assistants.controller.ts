@@ -35,7 +35,7 @@ interface AssistantDto {
 export class AssistantsController {
   @Get()
   async me(): Promise<AssistantDto> {
-    return toDto(await getOrCreate());
+    return toDto(await findOrCreateAssistant());
   }
 
   @Patch()
@@ -43,7 +43,7 @@ export class AssistantsController {
     const parsed = PatchDto.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
 
-    const existing = await getOrCreate();
+    const existing = await findOrCreateAssistant();
     const set: Record<string, unknown> = { updatedAt: new Date() };
     if (parsed.data.name !== undefined) set.name = emptyToNull(parsed.data.name);
     if (parsed.data.greeting !== undefined) set.greeting = emptyToNull(parsed.data.greeting);
@@ -58,7 +58,7 @@ export class AssistantsController {
   }
 }
 
-async function getOrCreate(): Promise<typeof schema.assistants.$inferSelect> {
+async function findOrCreateAssistant(): Promise<typeof schema.assistants.$inferSelect> {
   const ctx = getCurrentContext();
   const actor = ctx.actor!;
   const rows = await ctx.db

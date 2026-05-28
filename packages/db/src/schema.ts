@@ -1620,6 +1620,46 @@ export const outreachProposals = pgTable(
   }),
 );
 
+// Deployment-wide singleton config. Not org-scoped: rows here describe the
+// Munin install itself (e.g. `instance_id`, future phone-home flags). Access
+// goes through the bypass-RLS path; never accessed in tenant-scoped requests.
+export const systemConfig = pgTable('system_config', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull().$type<unknown>(),
+  createdAt,
+  updatedAt,
+});
+
+// Feedback items submitted by org members, awaiting admin approval to
+// forward to Munin's cloud roadmap. Approval POSTs to MUNIN_FEEDBACK_INTAKE_URL
+// and deletes the row on success. Rejection just deletes. The module is
+// gated by MUNIN_FEEDBACK_ENABLED (default false on OSS, true on cloud).
+export const feedbackOutbox = pgTable(
+  'feedback_outbox',
+  {
+    id: id('fb'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    submittedByUserId: text('submitted_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    appScope: varchar('app_scope', { length: 32 }),
+    includeOrgName: boolean('include_org_name').notNull().default(false),
+    includeUserName: boolean('include_user_name').notNull().default(false),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    forwardError: text('forward_error'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('feedback_outbox_org_idx').on(t.orgId, t.createdAt),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   orgs,
@@ -1677,6 +1717,8 @@ export const allTables = {
   cmsLocales,
   cmsReferences,
   curatorJobs,
+  systemConfig,
+  feedbackOutbox,
 };
 
 export type AllTables = typeof allTables;

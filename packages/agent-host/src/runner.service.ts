@@ -68,6 +68,14 @@ const RECONCILE_INTERVAL_MS = 30_000;
 const CURATOR_LEASE_SECONDS = 600;
 const CURATOR_MAX_SCHEDULED_DELAY_MS = 24 * 60 * 60 * 1000;
 
+const DEFAULT_END_USER_AGENT_SCOPES: readonly string[] = [
+  'conv:read',
+  'conv:write',
+  'kb:read',
+  'crm:read',
+  'crm:write',
+];
+
 export interface AgentHostRunnerOptions {
   databaseUrl?: string;
 }
@@ -334,6 +342,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             endUserId,
             registry: this.mcpRegistry,
             skills: this.mcpSkills,
+            scopes: DEFAULT_END_USER_AGENT_SCOPES,
           }),
         ),
       holderId: this.holderId,

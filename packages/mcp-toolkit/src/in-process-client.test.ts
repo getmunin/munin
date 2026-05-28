@@ -117,6 +117,36 @@ describe('openInProcessMcpClient', () => {
     );
   });
 
+  it('self-service actor with broad scopes is still blocked by audience gate on admin tools', async () => {
+    fakeAudit.record.mockClear();
+    const selfServiceWithBroadScopes = new ActorIdentity(
+      'end_user_agent',
+      'agent:eu_1',
+      'org_test',
+      ['kb:write', 'kb:read', 'conv:write', 'crm:write'],
+      ['self_service'],
+      'eu_1',
+    );
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: selfServiceWithBroadScopes,
+      audience: 'self_service',
+      audit: fakeAudit,
+    });
+
+    const tools = await client.listTools();
+    const names = tools.map((t) => t.name);
+    expect(names).toEqual(['self_only']);
+    expect(names).not.toContain('echo');
+    expect(names).not.toContain('kb_write');
+
+    const out = await client.callTool('kb_write', {});
+    expect(out.isError).toBe(true);
+    expect(fakeAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: 'kb_write', result: 'denied', error: 'audience_mismatch' }),
+    );
+  });
+
   it('callTool enforces scopes against the actor', async () => {
     fakeAudit.record.mockClear();
     const scopedActor = new ActorIdentity(

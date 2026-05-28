@@ -1,5 +1,22 @@
 # @getmunin/backend-core
 
+## 4.19.4
+
+### Patch Changes
+
+- aa30308: Fix silent handover when the agent runtime exhausts retries against an unhealthy LLM provider.
+  - `conversation-handler` now calls a new admin REST endpoint (`POST /v1/conversations/:id/request-handover` with `publicFallbackMessage`) instead of routing handover through an end-user MCP tool call. The MCP path required `conv:write` scope on the end-user agent actor, which the in-process agent host doesn't grant — so the call was being silently denied with an MCP `errorResult`, leaving the conversation un-flagged and the end user staring at an empty widget.
+  - `convService.requestHandover()` now accepts an optional `publicFallbackMessage`. When set, it posts a user-visible agent message (`internal: false`, `metadata.kind = "handover_fallback"`) so the end user sees confirmation that a teammate is coming, even when the LLM never produced any reply. Mirrored on the admin `conv_request_handover` MCP tool and `POST /v1/conversations/:id/request-handover` HTTP route.
+  - `MuninRestClient` gains a `requestHandover(conversationId, { reason, publicFallbackMessage })` method.
+
+- Updated dependencies [aa30308]
+- Updated dependencies [623dd4d]
+  - @getmunin/agent-runtime@4.19.4
+  - @getmunin/mcp-toolkit@4.19.4
+  - @getmunin/core@4.19.4
+  - @getmunin/db@4.19.4
+  - @getmunin/types@4.19.4
+
 ## 4.19.3
 
 ### Patch Changes

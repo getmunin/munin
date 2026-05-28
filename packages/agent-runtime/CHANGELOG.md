@@ -1,5 +1,20 @@
 # @getmunin/agent-runtime
 
+## 4.19.4
+
+### Patch Changes
+
+- aa30308: Fix silent handover when the agent runtime exhausts retries against an unhealthy LLM provider.
+  - `conversation-handler` now calls a new admin REST endpoint (`POST /v1/conversations/:id/request-handover` with `publicFallbackMessage`) instead of routing handover through an end-user MCP tool call. The MCP path required `conv:write` scope on the end-user agent actor, which the in-process agent host doesn't grant — so the call was being silently denied with an MCP `errorResult`, leaving the conversation un-flagged and the end user staring at an empty widget.
+  - `convService.requestHandover()` now accepts an optional `publicFallbackMessage`. When set, it posts a user-visible agent message (`internal: false`, `metadata.kind = "handover_fallback"`) so the end user sees confirmation that a teammate is coming, even when the LLM never produced any reply. Mirrored on the admin `conv_request_handover` MCP tool and `POST /v1/conversations/:id/request-handover` HTTP route.
+  - `MuninRestClient` gains a `requestHandover(conversationId, { reason, publicFallbackMessage })` method.
+
+- 623dd4d: Fix the in-process end-user agent actor having no scopes, which silently disabled every self-service-audience tool that requires a write scope (handover, phone-call request, my-contact update, log-activity-self).
+  - `agent-host`'s `openMcp` factory now passes a default scope set to `openEndUserAgentMcpClient` covering the full self-service surface: `conv:read`, `conv:write`, `kb:read`, `crm:read`, `crm:write`. Previously the actor was built with `[]`, so the MCP dispatcher rejected every gated tool call with a structured `errorResult('Missing required scope: …')` — silently, because tool errors do not throw — and the LLM's call was a no-op.
+  - `agent-runtime`'s HTTP `mintDelegatedToken` default now includes `crm:write` for parity, so delegated end-user tokens minted by the runtime can call the same self-service surface.
+  - Adds a regression test asserting a self-service actor with broad scopes is still blocked from admin-audience tools — the audience gate runs before the scope check, so granting an end-user agent `conv:write` does _not_ unlock admin conv tools.
+  - @getmunin/core@4.19.4
+
 ## 4.19.3
 
 ### Patch Changes

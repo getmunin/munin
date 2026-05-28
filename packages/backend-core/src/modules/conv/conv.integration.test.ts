@@ -338,6 +338,48 @@ const skipReason = TEST_URL
     void flagged;
   }, 30_000);
 
+  it('admin handover with publicFallbackMessage posts a public agent message visible to end-user', async () => {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+      body: 'Are you there?',
+    });
+    const conv = startResp.body;
+
+    type Detail = {
+      needsHumanAttention: boolean;
+      messages: Array<{
+        body: string;
+        authorType: string;
+        internal: boolean;
+        metadata?: Record<string, unknown> | null;
+      }>;
+    };
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: {
+          conversationId: conv.id,
+          reason: 'provider unavailable (provider_other)',
+          publicFallbackMessage:
+            "Thanks for your message — I'm having trouble responding right now. A teammate will follow up shortly.",
+        },
+      });
+    });
+
+    const endUserDetail = await rest<Detail>(
+      endUserToken,
+      'GET',
+      `/v1/end-users/me/conversations/${conv.id}`,
+    );
+
+    expect(endUserDetail.body.needsHumanAttention).toBe(true);
+    const publicAgentMessages = endUserDetail.body.messages.filter(
+      (m) => m.authorType === 'agent' && !m.internal,
+    );
+    expect(publicAgentMessages).toHaveLength(1);
+    expect(publicAgentMessages[0]!.body).toMatch(/teammate will follow up/);
+  }, 30_000);
+
   it('end-user agent can flag its own conversation via conv_request_handover_in_my_conversation (self-service)', async () => {
     const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'I need to talk to a human about my contract.',

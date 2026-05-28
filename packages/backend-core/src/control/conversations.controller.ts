@@ -66,6 +66,7 @@ const StatusBody = z.object({
 const HandoverBody = z
   .object({
     reason: z.string().max(500).optional(),
+    publicFallbackMessage: z.string().max(2000).optional(),
   })
   .partial();
 
@@ -259,7 +260,11 @@ export class ConversationsController {
     const parsed = HandoverBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return translate(() =>
-      this.conv.requestHandover({ conversationId: id, reason: parsed.data.reason }),
+      this.conv.requestHandover({
+        conversationId: id,
+        reason: parsed.data.reason,
+        publicFallbackMessage: parsed.data.publicFallbackMessage,
+      }),
     );
   }
 

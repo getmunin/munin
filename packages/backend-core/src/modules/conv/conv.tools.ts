@@ -38,6 +38,7 @@ const RequestHandoverInput = z.object({
   conversationId: z.string(),
   reason: z.string().max(500).optional(),
   suggestedReply: z.string().max(2000).optional(),
+  publicFallbackMessage: z.string().max(2000).optional(),
 });
 
 const SearchInput = z.object({

@@ -944,6 +944,7 @@ export class ConvService {
     conversationId: string;
     reason?: string;
     suggestedReply?: string;
+    publicFallbackMessage?: string;
     postSystemNote?: boolean;
   }): Promise<ConversationSummary> {
     const ctx = getCurrentContext();
@@ -986,6 +987,19 @@ export class ConvService {
         body: draft,
         internal: true,
         metadata: { kind: 'draft_reply' },
+      });
+    }
+
+    const publicFallback = input.publicFallbackMessage?.trim();
+    if (publicFallback) {
+      await ctx.db.insert(schema.convMessages).values({
+        orgId: actor.orgId,
+        conversationId: input.conversationId,
+        authorType: 'agent',
+        authorId: actor.id,
+        body: publicFallback,
+        internal: false,
+        metadata: { kind: 'handover_fallback' },
       });
     }
 

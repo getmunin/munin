@@ -113,6 +113,7 @@ function buildRest(overrides: Partial<MuninRestClient> = {}): MuninRestClient {
       Promise.resolve({ acquired: true, leaseExpiresAt: new Date(Date.now() + 3600_000).toISOString() }),
     ),
     releaseConversationClaim: vi.fn(() => Promise.resolve({ released: true })),
+    requestHandover: vi.fn(() => Promise.resolve()),
     ...overrides,
   };
 }
@@ -365,48 +366,23 @@ describe('createConversationHandler', () => {
     expect(call[2]?.sinceMessageId).toBe(lastMessageId);
   });
 
-  it('calls handover tool after MAX_RETRIES provider failures', async () => {
-    const handoverCalls: string[] = [];
-    const buildFailingMcp = (): OpenedMcp => ({
-      listTools: vi.fn(() =>
-        Promise.resolve([
-          {
-            name: 'kb_search',
-            description: 'kb',
-            inputSchema: { type: 'object', properties: {} },
-          },
-        ]),
-      ),
-      callTool: vi.fn((name: string) => {
-        handoverCalls.push(name);
-        return Promise.resolve<McpToolResult>({ content: [] });
-      }),
-      close: vi.fn(() => Promise.resolve()),
-    });
+  it('calls rest.requestHandover with a public fallback message after MAX_RETRIES provider failures', async () => {
     const rest = buildRest();
     const postSpy = vi.fn(() => Promise.resolve());
     rest.postAgentMessage = postSpy;
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.requestHandover = handoverSpy;
 
-    // Provider always errors → runAgent rethrows from listTools→provider call.
-    // We simulate this by making the first call to listTools succeed but the
-    // openai provider call fail. Easiest: make openMcp return a handle whose
-    // listTools throws on the first three runs, then succeeds for handover.
-    let runCount = 0;
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
       prompts: buildPrompts(),
-      openMcp: () => {
-        runCount += 1;
-        if (runCount <= 3) {
-          return Promise.resolve({
-            listTools: vi.fn(() => Promise.reject(new Error('provider boom'))),
-            callTool: vi.fn(() => Promise.resolve<McpToolResult>({ content: [] })),
-            close: vi.fn(() => Promise.resolve()),
-          });
-        }
-        return Promise.resolve(buildFailingMcp());
-      },
+      openMcp: () =>
+        Promise.resolve({
+          listTools: vi.fn(() => Promise.reject(new Error('provider boom'))),
+          callTool: vi.fn(() => Promise.resolve<McpToolResult>({ content: [] })),
+          close: vi.fn(() => Promise.resolve()),
+        }),
       logger: silentLogger,
       scheduler: noDelayScheduler,
     });
@@ -415,7 +391,14 @@ describe('createConversationHandler', () => {
     await handler.flush();
 
     expect(postSpy).not.toHaveBeenCalled();
-    expect(handoverCalls).toEqual(['conv_request_handover_in_my_conversation']);
+    expect(handoverSpy).toHaveBeenCalledTimes(1);
+    const [conversationId, args] = handoverSpy.mock.calls[0] as unknown as [
+      string,
+      { reason?: string; publicFallbackMessage?: string },
+    ];
+    expect(conversationId).toBe('conv_1');
+    expect(args.reason).toMatch(/retries exhausted/);
+    expect(args.publicFallbackMessage).toMatch(/teammate will follow up/);
   });
 
   it('passes endUserId to openMcp once per attempt and never calls rest.mintDelegatedToken', async () => {

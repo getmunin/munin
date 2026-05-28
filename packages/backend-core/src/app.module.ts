@@ -19,7 +19,6 @@ import { WebhookModule } from './common/webhooks/webhook.module.ts';
 import { StorageModule } from './common/storage/storage.module.ts';
 import { RealtimeModule } from './realtime/realtime.module.ts';
 import { OAuthModule } from './oauth/oauth.module.ts';
-import { FeedbackModule } from './modules/feedback/feedback.module.ts';
 
 export const BACKEND_FEATURE_MODULES = [
   DbModule,
@@ -43,7 +42,7 @@ export const BACKEND_BASE_CONTROLLERS = [HealthController, WhoamiController];
 export const BACKEND_BASE_PROVIDERS = [AuthGuard, TenancyInterceptor, AuditInterceptor];
 
 @Module({
-  imports: [...BACKEND_FEATURE_MODULES, FeedbackModule],
+  imports: BACKEND_FEATURE_MODULES,
   controllers: BACKEND_BASE_CONTROLLERS,
   providers: BACKEND_BASE_PROVIDERS,
 })

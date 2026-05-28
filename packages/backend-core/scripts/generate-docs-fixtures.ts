@@ -3,7 +3,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../src/app.module.ts';
+import { DocsAppModule } from '../src/docs-app.module.ts';
 import { McpRegistryService } from '../src/mcp/mcp.registry.ts';
 import { McpSkillRegistryService } from '../src/mcp/mcp.skill-registry.service.ts';
 
@@ -25,7 +25,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(process.env.DOCS_FIXTURES_OUT ?? join(here, '..', 'docs-fixtures'));
 
 async function main() {
-  const app = await NestFactory.create(AppModule, { logger: false, abortOnError: false });
+  const app = await NestFactory.create(DocsAppModule, { logger: false, abortOnError: false });
   await app.init();
 
   const tools = app.get(McpRegistryService);

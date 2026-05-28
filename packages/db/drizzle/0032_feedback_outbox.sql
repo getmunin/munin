@@ -29,16 +29,6 @@ CREATE TABLE IF NOT EXISTS "feedback_outbox" (
 CREATE INDEX IF NOT EXISTS "feedback_outbox_org_idx"
     ON "feedback_outbox" ("org_id", "created_at");
 
-ALTER TABLE "system_config" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "system_config" FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "tenant_isolation" ON "system_config";
-CREATE POLICY "tenant_isolation" ON "system_config"
-  USING (app_bypass_rls())
-  WITH CHECK (app_bypass_rls());
-
-ALTER TABLE "feedback_outbox" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "feedback_outbox" FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "tenant_isolation" ON "feedback_outbox";
-CREATE POLICY "tenant_isolation" ON "feedback_outbox"
-  USING (app_bypass_rls() OR "org_id" = app_org_id())
-  WITH CHECK (app_bypass_rls() OR "org_id" = app_org_id());
+-- RLS policies for system_config + feedback_outbox live in
+-- src/sql/rls.sql so they run AFTER the app_bypass_rls() / app_org_id()
+-- helpers are defined; Drizzle migrations run before that file.

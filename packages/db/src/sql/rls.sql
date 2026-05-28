@@ -204,7 +204,19 @@ CREATE POLICY tenant_isolation ON curator_jobs
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
+-- ───────────────────────── feedback_outbox ─────────────────────────────────
+-- Pending feedback items, gated by org admin approval before forwarding to
+-- Munin's cloud roadmap. Org-scoped, no end-user delegation.
+ALTER TABLE feedback_outbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feedback_outbox FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON feedback_outbox;
+CREATE POLICY tenant_isolation ON feedback_outbox
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
 -- ───────────────────────── tables intentionally WITHOUT RLS ────────────────
 -- These are accessed only by the service role / migrations:
 --   users          (BetterAuth-managed; tenant scoping via org_members)
 --   org_members    (composite key already enforces tenancy)
+--   system_config  (deployment-wide singleton; no org_id; read through
+--                   InstanceIdService which sets app.bypass_rls explicitly)

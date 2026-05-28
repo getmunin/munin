@@ -11,6 +11,13 @@ export function readGoogleProviderFromEnv(): { clientId: string; clientSecret: s
   return { clientId, clientSecret };
 }
 
+export function readGithubProviderFromEnv(): { clientId: string; clientSecret: string } | undefined {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return undefined;
+  return { clientId, clientSecret };
+}
+
 export function readTrustedOriginsFromEnv(): string[] {
   const env = process.env.MUNIN_AUTH_TRUSTED_ORIGINS;
   if (!env) return ['http://localhost:3000', 'http://127.0.0.1:3000'];

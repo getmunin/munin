@@ -17,6 +17,22 @@ const IdInput = z.object({ id: z.string() });
 
 const EmptyInput = z.object({});
 
+const StatusSchema = z.enum(['open', 'planned', 'in_progress', 'done', 'wontfix', 'duplicate']);
+const SortSchema = z.enum(['votes', 'recent']);
+
+const SearchInput = z.object({
+  q: z.string().min(1).max(200).optional(),
+  appScope: AppScopeSchema.optional(),
+  status: StatusSchema.optional(),
+  sort: SortSchema.optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+
+const VoteInput = z.object({
+  id: z.string(),
+  comment: z.string().max(2000).optional(),
+});
+
 @Injectable()
 export class FeedbackTools {
   constructor(@Inject(FeedbackService) private readonly service: FeedbackService) {}
@@ -86,5 +102,32 @@ export class FeedbackTools {
   async reject(args: z.infer<typeof IdInput>) {
     await this.service.reject(args.id);
     return { ok: true };
+  }
+
+  @McpTool({
+    name: 'feedback_search',
+    title: 'Feedback: Search global roadmap',
+    description:
+      'Search the public Munin roadmap for items matching a query. Call this before feedback_create to find an existing item to vote on instead of filing a duplicate. Returns only items the Munin team has published; pending and rejected items are hidden. sort defaults to votes (highest first); use "recent" for newest. limit is capped at 100.',
+    audiences: ['admin'],
+    scopes: [],
+    input: SearchInput,
+    readOnlyHint: true,
+  })
+  async search(args: z.infer<typeof SearchInput>) {
+    return { items: await this.service.search(args) };
+  }
+
+  @McpTool({
+    name: 'feedback_vote',
+    title: 'Feedback: Vote on roadmap item',
+    description:
+      'Cast this instance\'s vote on a published roadmap item, optionally attaching a short comment. Idempotent: a second call from the same instance returns { alreadyVoted: true } without inflating the count. Throws feedback_item_not_found if the id is unknown or the item is not public, and feedback_vote_quota_exceeded if the per-instance quota has been hit.',
+    audiences: ['admin'],
+    scopes: [],
+    input: VoteInput,
+  })
+  async vote(args: z.infer<typeof VoteInput>) {
+    return this.service.vote({ feedbackId: args.id, comment: args.comment });
   }
 }

@@ -4664,5 +4664,89 @@
       ],
       "additionalProperties": false
     }
+  },
+  {
+    "name": "feedback_search",
+    "title": "Feedback: Search global roadmap",
+    "description": "Search the public Munin roadmap for items matching a query. Call this before feedback_create to find an existing item to vote on instead of filing a duplicate. Returns only items the Munin team has published; pending and rejected items are hidden. sort defaults to votes (highest first); use \"recent\" for newest. limit is capped at 100.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "appScope": {
+          "type": "string",
+          "enum": [
+            "kb",
+            "conv",
+            "crm",
+            "cms",
+            "core"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "planned",
+            "in_progress",
+            "done",
+            "wontfix",
+            "duplicate"
+          ]
+        },
+        "sort": {
+          "type": "string",
+          "enum": [
+            "votes",
+            "recent"
+          ]
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "feedback_vote",
+    "title": "Feedback: Vote on roadmap item",
+    "description": "Cast this instance's vote on a published roadmap item, optionally attaching a short comment. Idempotent: a second call from the same instance returns { alreadyVoted: true } without inflating the count. Throws feedback_item_not_found if the id is unknown or the item is not public, and feedback_vote_quota_exceeded if the per-instance quota has been hit.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "comment": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
   }
 ]

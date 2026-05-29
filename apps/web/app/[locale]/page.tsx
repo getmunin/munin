@@ -35,6 +35,13 @@ export default function HomePage() {
               {t('signIn')}
             </Button>
           </div>
+          <Link
+            href="/docs"
+            className="inline-flex items-center gap-1 text-sm text-ink-soft dark:text-foreground/80 hover:text-ink dark:hover:text-foreground"
+          >
+            {t('readTheDocs')}
+            <span aria-hidden="true">→</span>
+          </Link>
         </div>
       </div>
     </main>

@@ -3,6 +3,8 @@ import { schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 
+export const QUOTAS_SERVICE = Symbol('QUOTAS_SERVICE');
+
 export class QuotaExceededError extends Error {
   readonly code = 'quota_exceeded';
   constructor(public readonly resource: string, public readonly cap: number) {
@@ -15,7 +17,10 @@ export type QuotaResource =
   | 'kb_spaces'
   | 'cms_collections'
   | 'cms_entries'
-  | 'cms_assets';
+  | 'cms_assets'
+  | 'crm_contacts';
+
+export type QuotaCallKind = 'mcp_tool' | 'api_request';
 
 const FREE_TIER_QUOTAS: Record<QuotaResource, number> = {
   kb_documents: 10_000,
@@ -23,6 +28,7 @@ const FREE_TIER_QUOTAS: Record<QuotaResource, number> = {
   cms_collections: 50,
   cms_entries: 10_000,
   cms_assets: 1_000,
+  crm_contacts: 1_000,
 };
 
 interface OrgSettings {
@@ -35,6 +41,7 @@ const TABLE_FOR: Record<QuotaResource, string> = {
   cms_collections: 'cms_collections',
   cms_entries: 'cms_entries',
   cms_assets: 'cms_assets',
+  crm_contacts: 'crm_contacts',
 };
 
 function isEnabled(): boolean {
@@ -43,14 +50,22 @@ function isEnabled(): boolean {
   return raw.toLowerCase() === 'true' || raw === '1';
 }
 
+export abstract class QuotasService {
+  abstract assertCanAdd(resource: QuotaResource): Promise<void>;
+  abstract recordCall(kind: QuotaCallKind, key?: string): Promise<void>;
+  abstract cap(orgId: string, resource: QuotaResource): Promise<number>;
+  abstract count(resource: QuotaResource): Promise<number>;
+}
+
 /**
- * Row caps for tiered deployments. Opt-in via MUNIN_QUOTAS_ENABLED so OSS
- * self-hosters aren't capped on their own hardware. When enabled, the count
- * runs inside the request transaction, so the count and the insert see the
- * same MVCC snapshot and concurrent inserts at the cap edge can't both pass.
+ * Default row-count quota implementation. Opt-in via MUNIN_QUOTAS_ENABLED so
+ * OSS self-hosters aren't capped on their own hardware. When enabled, the
+ * count runs inside the request transaction so the count and the insert see
+ * the same MVCC snapshot. `recordCall` is a no-op here — call-count quotas
+ * require a counter table and live in the cloud override.
  */
 @Injectable()
-export class QuotasService {
+export class DefaultQuotasService extends QuotasService {
   async assertCanAdd(resource: QuotaResource): Promise<void> {
     if (!isEnabled()) return;
     const ctx = getCurrentContext();
@@ -59,6 +74,10 @@ export class QuotasService {
     const cap = await this.cap(orgId, resource);
     const used = await this.count(resource);
     if (used >= cap) throw new QuotaExceededError(resource, cap);
+  }
+
+  recordCall(_kind: QuotaCallKind, _key?: string): Promise<void> {
+    return Promise.resolve();
   }
 
   async cap(orgId: string, resource: QuotaResource): Promise<number> {
@@ -72,10 +91,6 @@ export class QuotasService {
     return settings.quotas?.[resource] ?? FREE_TIER_QUOTAS[resource];
   }
 
-  /**
-   * Count rows for the resource in the calling org. Table name comes from a
-   * fixed enum-mapped lookup (no user input), interpolated as an identifier.
-   */
   async count(resource: QuotaResource): Promise<number> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;

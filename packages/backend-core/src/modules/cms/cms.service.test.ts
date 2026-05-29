@@ -17,7 +17,7 @@ import {
   CmsInvalidError,
 } from './cms.service.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
-import { QuotaExceededError, QuotasService } from '../../common/quotas/quotas.service.ts';
+import { DefaultQuotasService, QuotaExceededError } from '../../common/quotas/quotas.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL
@@ -71,7 +71,7 @@ class StubStorage implements AssetStorage {
       }
     })();
     storage = new StubStorage();
-    svc = new CmsService(new QuotasService(), new WebhookDispatcher(), storage, holder);
+    svc = new CmsService(new DefaultQuotasService(), new WebhookDispatcher(), storage, holder);
   });
 
   afterAll(async () => {

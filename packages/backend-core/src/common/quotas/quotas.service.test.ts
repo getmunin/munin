@@ -18,6 +18,7 @@ const skipReason = TEST_URL
   let actor: ActorIdentity;
 
   beforeAll(async () => {
+    process.env.MUNIN_QUOTAS_ENABLED = 'true';
     await runMigrations(TEST_URL!);
     db = createDb(TEST_URL!, { serviceRole: true });
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');

@@ -19,6 +19,51 @@ export interface ForwardResult {
   error?: string;
 }
 
+export interface PublicFeedbackItem {
+  id: string;
+  title: string;
+  body: string;
+  appScope: string | null;
+  status: string;
+  voteCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchParams {
+  q?: string;
+  appScope?: string;
+  status?: string;
+  sort?: 'votes' | 'recent';
+  limit?: number;
+}
+
+export interface VoteResult {
+  voteCount: number;
+  alreadyVoted: boolean;
+}
+
+export class FeedbackItemNotFoundError extends Error {
+  readonly code = 'feedback_item_not_found';
+  constructor(id: string) {
+    super(`feedback_item_not_found: no public roadmap item with id ${id}`);
+  }
+}
+
+export class FeedbackVoteQuotaExceededError extends Error {
+  readonly code = 'feedback_vote_quota_exceeded';
+  constructor() {
+    super('feedback_vote_quota_exceeded: per-instance vote quota exhausted');
+  }
+}
+
+export class FeedbackRemoteError extends Error {
+  readonly code = 'feedback_remote_error';
+  constructor(status: number, detail: string) {
+    super(`feedback_remote_error: cloud responded ${status} ${detail}`);
+  }
+}
+
 @Injectable()
 export class FeedbackForwarder {
   private readonly logger = new Logger(FeedbackForwarder.name);
@@ -28,9 +73,8 @@ export class FeedbackForwarder {
   ) {}
 
   async forward(input: ForwardPayload): Promise<ForwardResult> {
-    const intakeUrl = process.env.MUNIN_FEEDBACK_INTAKE_URL ?? DEFAULT_INTAKE_URL;
     const instanceId = await this.instanceId.get();
-    const body = canonicalBody({
+    const body = canonicalSubmitBody({
       title: input.title,
       body: input.body,
       appScope: input.appScope ?? null,
@@ -42,7 +86,7 @@ export class FeedbackForwarder {
     const signature = `v1=${signHmac(body, key)}`;
 
     try {
-      const res = await fetch(intakeUrl, {
+      const res = await fetch(this.intakeBaseUrl(), {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -69,9 +113,64 @@ export class FeedbackForwarder {
       };
     }
   }
+
+  async search(params: SearchParams): Promise<PublicFeedbackItem[]> {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.appScope) qs.set('appScope', params.appScope);
+    if (params.status) qs.set('status', params.status);
+    if (params.sort) qs.set('sort', params.sort);
+    if (params.limit !== undefined) qs.set('limit', String(params.limit));
+    const query = qs.toString();
+    const url = query ? `${this.intakeBaseUrl()}?${query}` : this.intakeBaseUrl();
+
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new FeedbackRemoteError(res.status, errText.slice(0, 300));
+    }
+    return (await res.json()) as PublicFeedbackItem[];
+  }
+
+  async vote(input: { feedbackId: string; comment?: string }): Promise<VoteResult> {
+    const instanceId = await this.instanceId.get();
+    const votedAt = new Date().toISOString();
+    const body = canonicalVoteBody({
+      feedbackId: input.feedbackId,
+      instanceId,
+      comment: input.comment ?? null,
+      votedAt,
+    });
+    const key = signHmac(instanceId, HMAC_KEY_CONSTANT);
+    const signature = `v1=${signHmac(body, key)}`;
+
+    const url = `${this.intakeBaseUrl()}/${encodeURIComponent(input.feedbackId)}/vote`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-munin-signature': signature,
+      },
+      body,
+    });
+    if (res.ok) {
+      return (await res.json()) as VoteResult;
+    }
+    const errText = await res.text().catch(() => '');
+    if (res.status === 404) throw new FeedbackItemNotFoundError(input.feedbackId);
+    if (res.status === 429) throw new FeedbackVoteQuotaExceededError();
+    throw new FeedbackRemoteError(res.status, errText.slice(0, 300));
+  }
+
+  private intakeBaseUrl(): string {
+    return process.env.MUNIN_FEEDBACK_INTAKE_URL ?? DEFAULT_INTAKE_URL;
+  }
 }
 
-function canonicalBody(p: {
+function canonicalSubmitBody(p: {
   title: string;
   body: string;
   appScope: string | null;
@@ -86,5 +185,19 @@ function canonicalBody(p: {
     attribution: p.attribution,
     instanceId: p.instanceId,
     submittedAt: p.submittedAt,
+  });
+}
+
+export function canonicalVoteBody(p: {
+  feedbackId: string;
+  instanceId: string;
+  comment: string | null;
+  votedAt: string;
+}): string {
+  return JSON.stringify({
+    feedbackId: p.feedbackId,
+    instanceId: p.instanceId,
+    comment: p.comment,
+    votedAt: p.votedAt,
   });
 }

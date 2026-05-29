@@ -2,7 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { desc, eq } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { getCurrentContext } from '@getmunin/core';
-import { FeedbackForwarder } from './feedback.forwarder.ts';
+import {
+  FeedbackForwarder,
+  type PublicFeedbackItem,
+  type SearchParams,
+  type VoteResult,
+} from './feedback.forwarder.ts';
 
 const APP_SCOPES = ['kb', 'conv', 'crm', 'cms', 'core'] as const;
 export type FeedbackAppScope = (typeof APP_SCOPES)[number];
@@ -123,6 +128,14 @@ export class FeedbackService {
         .where(eq(schema.feedbackOutbox.id, id));
     }
     throw new FeedbackForwardFailedError(result.status, errorText);
+  }
+
+  search(params: SearchParams): Promise<PublicFeedbackItem[]> {
+    return this.forwarder.search(params);
+  }
+
+  vote(input: { feedbackId: string; comment?: string }): Promise<VoteResult> {
+    return this.forwarder.vote(input);
   }
 
   private async findById(id: string) {

@@ -266,4 +266,45 @@ const skipReason = TEST_URL
     });
     expect((otherClaim.body as { items: unknown[] }).items).toHaveLength(0);
   });
+
+  it('rejects unknown skill:// URIs', async () => {
+    const res = await call('/v1/curation/jobs', {
+      method: 'POST',
+      body: { jobUri: 'skill://kb/not-a-real-skill', userPrompt: 'x' },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects unknown task:// URIs', async () => {
+    const res = await call('/v1/curation/jobs', {
+      method: 'POST',
+      body: { jobUri: 'task://web/run-arbitrary-code', userPrompt: 'x' },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects web-scrape jobs targeting the cloud metadata IP', async () => {
+    const res = await call('/v1/curation/jobs', {
+      method: 'POST',
+      body: { jobUri: 'task://web/scrape-website', userPrompt: 'http://169.254.169.254/' },
+    });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toMatch(/private|reserved|169\.254/);
+  });
+
+  it('rejects web-scrape jobs targeting localhost', async () => {
+    const res = await call('/v1/curation/jobs', {
+      method: 'POST',
+      body: { jobUri: 'task://web/scrape-website', userPrompt: 'http://localhost:6379' },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects web-scrape jobs with an unsupported scheme', async () => {
+    const res = await call('/v1/curation/jobs', {
+      method: 'POST',
+      body: { jobUri: 'task://web/scrape-website', userPrompt: 'ftp://example.com' },
+    });
+    expect(res.status).toBe(400);
+  });
 });

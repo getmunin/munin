@@ -1,7 +1,13 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
-import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import {
+  assertPublicHost,
+  getCurrentContext,
+  SsrfBlockedError,
+  WebhookDispatcher,
+} from '@getmunin/core';
+import { KNOWN_SKILL_URIS, KNOWN_TASK_URIS, WEB_SCRAPE_SITE_TASK_URI } from '@getmunin/types';
 
 export const CURATOR_JOB_STATUSES = [
   'pending',
@@ -83,11 +89,22 @@ export class CuratorJobsService {
   ) {}
 
   async enqueue(input: EnqueueInput): Promise<EnqueueResult> {
-    if (!input.jobUri.startsWith('skill://') && !input.jobUri.startsWith('task://')) {
+    if (input.jobUri.startsWith('skill://')) {
+      if (!KNOWN_SKILL_URIS.has(input.jobUri)) {
+        throw new BadRequestException(`unknown jobUri ${input.jobUri}`);
+      }
+    } else if (input.jobUri.startsWith('task://')) {
+      if (!KNOWN_TASK_URIS.has(input.jobUri)) {
+        throw new BadRequestException(`unknown jobUri ${input.jobUri}`);
+      }
+    } else {
       throw new BadRequestException('jobUri must start with skill:// or task://');
     }
     if (!input.userPrompt.trim()) {
       throw new BadRequestException('userPrompt is required');
+    }
+    if (input.jobUri === WEB_SCRAPE_SITE_TASK_URI) {
+      await assertWebScrapeUrlIsPublic(input.userPrompt);
     }
     const ctx = getCurrentContext();
     if (!ctx.actor?.orgId) throw new BadRequestException('actor org required to enqueue');
@@ -334,6 +351,26 @@ function toDto(row: Row, assistantName: string | null = null): CuratorJobDto {
 
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+async function assertWebScrapeUrlIsPublic(rawPrompt: string): Promise<void> {
+  const trimmed = rawPrompt.trim();
+  const candidate = trimmed.includes('://') ? trimmed : `https://${trimmed}`;
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new BadRequestException(`web scrape jobUri requires a valid URL: got "${rawPrompt}"`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new BadRequestException(`web scrape URL must be http(s): got ${url.protocol}`);
+  }
+  try {
+    await assertPublicHost(url.hostname);
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) throw new BadRequestException(err.message);
+    throw err;
+  }
 }
 
 function isUniqueViolation(err: unknown, constraint: string): boolean {

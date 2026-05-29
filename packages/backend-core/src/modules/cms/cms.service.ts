@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -95,6 +96,8 @@ export interface AssetDto {
 
 export interface AssetUploadHandle extends AssetDto {
   uploadUrl: string;
+  uploadMethod: 'PUT' | 'POST';
+  uploadFields: Record<string, string>;
   uploadExpiresAt: string;
 }
 
@@ -550,12 +553,38 @@ export class CmsService {
     return {
       ...toAssetDto(row!),
       uploadUrl: presigned.uploadUrl,
+      uploadMethod: presigned.uploadMethod,
+      uploadFields: presigned.uploadFields,
       uploadExpiresAt: presigned.expiresAt.toISOString(),
     };
   }
 
   async completeAssetUpload(input: { id: string }): Promise<AssetDto> {
     const ctx = getCurrentContext();
+    const [existing] = await ctx.db
+      .select()
+      .from(schema.cmsAssets)
+      .where(eq(schema.cmsAssets.id, input.id))
+      .limit(1);
+    if (!existing) throw new NotFoundException(`cms_not_found: asset ${input.id}`);
+
+    const actualBytes = await this.storage.statBytes(existing.storageKey);
+    if (actualBytes == null) {
+      throw new BadRequestException(
+        `cms_upload_missing: object ${existing.storageKey} not found in storage`,
+      );
+    }
+    if (actualBytes !== existing.sizeBytes) {
+      await this.storage.delete(existing.storageKey).catch((err) => {
+        console.warn(
+          `[cms] failed to delete oversized upload ${existing.storageKey}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+      throw new BadRequestException(
+        `cms_upload_size_mismatch: declared ${existing.sizeBytes} bytes, uploaded ${actualBytes}`,
+      );
+    }
+
     const [row] = await ctx.db
       .update(schema.cmsAssets)
       .set({ uploaded: true, updatedAt: new Date() })

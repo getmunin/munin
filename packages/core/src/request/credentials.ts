@@ -2,13 +2,15 @@ import { createHash } from 'node:crypto';
 import type { Db } from '@getmunin/db';
 import { schema } from '@getmunin/db';
 import { and, eq, gt, isNull } from 'drizzle-orm';
-import { ActorIdentity, type Audience } from './context.ts';
+import { ActorIdentity, type ActorType, type Audience } from './context.ts';
 import { hashSecret } from '../crypto/primitives.ts';
 import { looksLikeJwt, resolveOauthJwtAccessToken } from './oauth-jwt.ts';
 
 function hashOauthOpaqueToken(rawToken: string): string {
   return createHash('sha256').update(rawToken).digest('base64url');
 }
+
+const WIDGET_ALLOWED_SCOPES: ReadonlySet<string> = new Set(['conv:widget:write']);
 
 export interface ResolvedCredential {
   actor: ActorIdentity;
@@ -124,12 +126,25 @@ export class CredentialResolver {
     if (!row) return null;
 
     const orgId = row.orgId ?? '';
-    const audiences = (row.audiences as Audience[] | null | undefined) ?? ['admin'];
+    let actorType: ActorType;
+    let audiences: readonly Audience[];
+    let scopes: readonly string[];
+    if (row.type === 'admin') {
+      actorType = 'admin_agent';
+      audiences = (row.audiences as Audience[] | null | undefined) ?? ['admin'];
+      scopes = row.scopes;
+    } else if (row.type === 'widget') {
+      actorType = 'widget_agent';
+      audiences = ['self_service'];
+      scopes = row.scopes.filter((s) => WIDGET_ALLOWED_SCOPES.has(s));
+    } else {
+      return null;
+    }
     const actor = new ActorIdentity(
-      'admin_agent',
+      actorType,
       row.id,
       orgId,
-      row.scopes,
+      scopes,
       audiences,
       undefined,
       undefined,

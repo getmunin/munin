@@ -89,6 +89,15 @@ export { CrmModule } from './modules/crm/crm.module.ts';
 export { CmsModule } from './modules/cms/cms.module.ts';
 export { RateLimitModule } from './common/rate-limit/rate-limit.module.ts';
 export { QuotasModule } from './common/quotas/quotas.module.ts';
+export {
+  QUOTAS_SERVICE,
+  QuotasService,
+  DefaultQuotasService,
+  QuotaExceededError,
+  type QuotaResource,
+  type QuotaCallKind,
+} from './common/quotas/quotas.service.ts';
+export { CallQuotaInterceptor } from './common/quotas/call-quota.interceptor.ts';
 export { WebhookModule } from './common/webhooks/webhook.module.ts';
 export { OAuthModule } from './oauth/oauth.module.ts';
 export {

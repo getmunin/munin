@@ -37,17 +37,22 @@ const TABLE_FOR: Record<QuotaResource, string> = {
   cms_assets: 'cms_assets',
 };
 
+function isEnabled(): boolean {
+  const raw = process.env.MUNIN_QUOTAS_ENABLED;
+  if (raw === undefined) return false;
+  return raw.toLowerCase() === 'true' || raw === '1';
+}
+
 /**
- * Free-tier row caps. Counted at write time inside the request transaction;
- * the count and the insert see the same MVCC snapshot, so two concurrent
- * inserts cannot both pass when the org is one row from the cap (the second
- * will block on lock acquisition or fail at insert with a serialization error
- * if the table is heavily contended — neither is worse than rejecting at
- * the cap edge).
+ * Row caps for tiered deployments. Opt-in via MUNIN_QUOTAS_ENABLED so OSS
+ * self-hosters aren't capped on their own hardware. When enabled, the count
+ * runs inside the request transaction, so the count and the insert see the
+ * same MVCC snapshot and concurrent inserts at the cap edge can't both pass.
  */
 @Injectable()
 export class QuotasService {
   async assertCanAdd(resource: QuotaResource): Promise<void> {
+    if (!isEnabled()) return;
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     if (!orgId) return;

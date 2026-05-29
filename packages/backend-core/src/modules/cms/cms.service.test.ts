@@ -609,6 +609,16 @@ class StubStorage implements AssetStorage {
   // ─── Quotas / RLS ────────────────────────────────────────────────────
 
   describe('quotas and RLS', () => {
+    let previousQuotasEnv: string | undefined;
+    beforeAll(() => {
+      previousQuotasEnv = process.env.MUNIN_QUOTAS_ENABLED;
+      process.env.MUNIN_QUOTAS_ENABLED = 'true';
+    });
+    afterAll(() => {
+      if (previousQuotasEnv === undefined) delete process.env.MUNIN_QUOTAS_ENABLED;
+      else process.env.MUNIN_QUOTAS_ENABLED = previousQuotasEnv;
+    });
+
     it('createCollection respects org quota cap', async () => {
       await db
         .update(schema.orgs)

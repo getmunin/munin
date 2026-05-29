@@ -158,7 +158,8 @@ const skipReason = TEST_URL
   });
 
   it('createDocument throws QuotaExceededError at the org cap and writes no row', async () => {
-    // Tighten the cap for this test only.
+    const previous = process.env.MUNIN_QUOTAS_ENABLED;
+    process.env.MUNIN_QUOTAS_ENABLED = 'true';
     await db
       .update(schema.orgs)
       .set({ settings: { quotas: { kb_documents: 1 } } })
@@ -175,6 +176,8 @@ const skipReason = TEST_URL
       expect(rows[0]!.count).toBe(1);
     } finally {
       await db.update(schema.orgs).set({ settings: {} }).where(sql`id = ${orgId}`);
+      if (previous === undefined) delete process.env.MUNIN_QUOTAS_ENABLED;
+      else process.env.MUNIN_QUOTAS_ENABLED = previous;
     }
   });
 

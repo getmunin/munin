@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
 import { OutreachService, OutreachInvalidError } from './outreach.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
+import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
 import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
 import { VapiService } from '../conv/vapi/vapi.service.ts';
@@ -51,7 +52,7 @@ const skipReason = TEST_URL
     actor = new ActorIdentity('admin_agent', 'agt_outreach_test', orgId, ['*'], ['admin']);
 
     const dispatcher = new WebhookDispatcher();
-    crm = new CrmService(dispatcher);
+    crm = new CrmService(dispatcher, new DefaultQuotasService());
     const claims = new ConversationClaimsService(dispatcher);
     const curatorJobs = new CuratorJobsService(dispatcher);
     conv = new ConvService(dispatcher, claims, curatorJobs);

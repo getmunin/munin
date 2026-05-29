@@ -2,6 +2,7 @@ import { ConflictException, Inject, Injectable, NotFoundException } from '@nestj
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 
 export class CrmInvalidError extends Error {
   readonly code = 'crm_invalid';
@@ -163,6 +164,7 @@ export interface MergeProposalDto {
 export class CrmService {
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
+    @Inject(QUOTAS_SERVICE) private readonly quotas: QuotasService,
   ) {}
 
   // ─── Contacts ───────────────────────────────────────────────────────────
@@ -239,6 +241,7 @@ export class CrmService {
     tags?: string[];
     customFields?: Record<string, unknown>;
   }): Promise<ContactDto> {
+    await this.quotas.assertCanAdd('crm_contacts');
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const [row] = await ctx.db

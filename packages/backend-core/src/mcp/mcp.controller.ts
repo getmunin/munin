@@ -19,6 +19,7 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { McpRegistryService } from './mcp.registry.ts';
 import { McpSkillRegistryService } from './mcp.skill-registry.service.ts';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service.ts';
+import { QUOTAS_SERVICE, type QuotasService } from '../common/quotas/quotas.service.ts';
 
 /**
  * Streamable HTTP entry point for the MCP server.
@@ -41,6 +42,7 @@ export class McpController {
     @Inject(McpRegistryService) private readonly registry: McpRegistryService,
     @Inject(McpSkillRegistryService) private readonly skills: McpSkillRegistryService,
     @Inject(RateLimitService) private readonly rateLimit: RateLimitService,
+    @Inject(QUOTAS_SERVICE) private readonly quotas: QuotasService,
   ) {}
 
   @Post()
@@ -71,7 +73,10 @@ export class McpController {
       audience,
       actor,
       audit: this.audit,
-      rateLimit: () => this.rateLimit.consume(),
+      rateLimit: async (toolName: string) => {
+        await this.rateLimit.consume();
+        await this.quotas.recordCall('mcp_tool', toolName);
+      },
       skills: this.skills,
       instructions: this.skills.instructions(),
     });

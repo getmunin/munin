@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { KbService } from './kb.service.ts';
 import { KbSearchService } from './kb.search.ts';
 import { EmbeddingProviderHolder } from './embedding.provider.ts';
-import { QuotasService } from '../../common/quotas/quotas.service.ts';
+import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL
@@ -64,7 +64,7 @@ const skipReason = TEST_URL
         return new StubEmbeddingProvider();
       }
     })();
-    kb = new KbService(holder, new QuotasService(), new WebhookDispatcher());
+    kb = new KbService(holder, new DefaultQuotasService(), new WebhookDispatcher());
     search = new KbSearchService(holder);
   });
 

@@ -3,7 +3,8 @@ import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core'
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { QuotaExceededError, QuotasService } from './quotas.service.ts';
+import type { QuotasService } from './quotas.service.ts';
+import { DefaultQuotasService, QuotaExceededError } from './quotas.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 const skipReason = TEST_URL
@@ -35,7 +36,7 @@ const skipReason = TEST_URL
       .returning();
     orgId = org!.id;
     actor = new ActorIdentity('admin_agent', 'agt_q', orgId, ['*'], ['admin']);
-    svc = new QuotasService();
+    svc = new DefaultQuotasService();
   });
 
   afterAll(async () => {
@@ -73,6 +74,30 @@ const skipReason = TEST_URL
       { orgId, name: 'B', slug: 'b' },
     ]);
     await expect(run(() => svc.assertCanAdd('kb_spaces'))).rejects.toThrow(QuotaExceededError);
+  });
+
+  it('throws QuotaExceededError on crm_contacts at cap', async () => {
+    await db
+      .update(schema.orgs)
+      .set({ settings: { quotas: { crm_contacts: 1 } } })
+      .where(sql`id = ${orgId}`);
+    try {
+      await db
+        .insert(schema.crmContacts)
+        .values({ orgId, name: 'A', email: 'a@example.com' });
+      await expect(run(() => svc.assertCanAdd('crm_contacts'))).rejects.toThrow(
+        QuotaExceededError,
+      );
+    } finally {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.delete(schema.crmContacts).where(sql`org_id = ${orgId}`);
+      await db.update(schema.orgs).set({ settings: { quotas: { kb_spaces: 2 } } }).where(sql`id = ${orgId}`);
+    }
+  });
+
+  it('recordCall is a no-op on the default impl', async () => {
+    await expect(run(() => svc.recordCall('mcp_tool', 'kb_search'))).resolves.toBeUndefined();
+    await expect(run(() => svc.recordCall('api_request', 'GET /v1/orgs'))).resolves.toBeUndefined();
   });
 
   it('falls back to free-tier defaults when settings.quotas is absent', async () => {

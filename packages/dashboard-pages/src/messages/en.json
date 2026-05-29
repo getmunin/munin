@@ -39,7 +39,8 @@
     "title": "The open source customer platform for the <accent>agentic</accent> era.",
     "subtitle": "CRM, knowledge, content, outreach, and conversations in one MCP-first system. Agents work against the same tools and data as your team — with review and handover where it matters.",
     "getStarted": "Get started",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "readTheDocs": "Read the docs"
   },
   "auth": {
     "signIn": {

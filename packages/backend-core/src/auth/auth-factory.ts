@@ -3,7 +3,10 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { jwt } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { schema, type Db } from '@getmunin/db';
-import { SUPPORTED_SCOPES as MUNIN_SUPPORTED_SCOPES } from '../oauth/oauth.constants.ts';
+import {
+  SUPPORTED_SCOPES as MUNIN_SUPPORTED_SCOPES,
+  mcpResourceUrl,
+} from '../oauth/oauth.constants.ts';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
 
@@ -68,7 +71,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
     /\/+$/,
     '',
   );
-  const validAudiences = computeValidAudiences(opts.baseUrl);
+  const validAudiences = computeValidAudiences(opts.baseUrl, mcpResourceUrl());
   const issuer = opts.baseUrl.replace(/\/+$/, '');
 
   const socialProviders = buildSocialProviders(opts.socialProviders);
@@ -153,20 +156,31 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
   }));
 }
 
-export function computeValidAudiences(baseUrl: string): string[] {
-  const canonical = baseUrl.replace(/\/+$/, '');
-  const variants = new Set<string>([canonical, `${canonical}/`]);
+export function computeValidAudiences(
+  baseUrl: string,
+  mcpResourceUrl?: string | null,
+): string[] {
+  const variants = new Set<string>();
+  addUrlVariants(variants, baseUrl);
+  if (mcpResourceUrl) addUrlVariants(variants, mcpResourceUrl);
+  return Array.from(variants);
+}
+
+function addUrlVariants(variants: Set<string>, url: string): void {
+  const canonical = url.replace(/\/+$/, '');
+  if (!canonical) return;
+  variants.add(canonical);
+  variants.add(`${canonical}/`);
   try {
     const origin = new URL(canonical).origin;
     variants.add(origin);
     variants.add(`${origin}/`);
   } catch (err) {
-    console.warn('[auth-factory] computeValidAudiences: baseUrl is not a parseable URL', {
-      baseUrl,
+    console.warn('[auth-factory] computeValidAudiences: url is not a parseable URL', {
+      url,
       err,
     });
   }
-  return Array.from(variants);
 }
 
 function uniqueOrigins(values: string[]): string[] {

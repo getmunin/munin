@@ -1,5 +1,18 @@
 # @getmunin/backend-core
 
+## 4.23.1
+
+### Patch Changes
+
+- 1f1a139: Export the tier-aware quota primitives so cloud builds can override the service.
+
+  Adds `QUOTAS_SERVICE` (DI token), `QuotasService` (abstract base), `DefaultQuotasService` (default impl), `QuotaExceededError`, the `QuotaResource` and `QuotaCallKind` types, and `CallQuotaInterceptor` to the public surface of `@getmunin/backend-core`. The implementations shipped in 4.23.0; only the index barrel changes here.
+  - @getmunin/core@4.23.1
+  - @getmunin/db@4.23.1
+  - @getmunin/types@4.23.1
+  - @getmunin/mcp-toolkit@4.23.1
+  - @getmunin/agent-runtime@4.23.1
+
 ## 4.23.0
 
 ### Minor Changes

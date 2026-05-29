@@ -3,6 +3,7 @@ import { schema } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { assertOwnerOrAdmin } from './role-guard.ts';
@@ -25,7 +26,7 @@ interface ExportPayload {
  * not user content.
  */
 @Controller('v1/export')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ExportController {
   @Get()

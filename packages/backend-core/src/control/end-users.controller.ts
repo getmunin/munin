@@ -17,6 +17,7 @@ import { schema } from '@getmunin/db';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { assertOwnerOrAdmin } from './role-guard.ts';
@@ -51,7 +52,7 @@ interface EndUserDto {
 }
 
 @Controller('v1/end-users')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class EndUsersController {
   constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}

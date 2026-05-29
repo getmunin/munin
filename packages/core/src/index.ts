@@ -64,6 +64,14 @@ export {
   readAssetStorageFromEnv,
 } from './providers/storage.ts';
 
+export {
+  assertPublicHost,
+  isPrivateIp,
+  safeFetch,
+  SsrfBlockedError,
+  type SafeFetchOptions,
+} from './net/safe-fetch.ts';
+
 export { WebhookDispatcher, type WebhookEventInput } from './webhooks.ts';
 export {
   chunkDocument,

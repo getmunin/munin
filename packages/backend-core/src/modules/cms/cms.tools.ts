@@ -377,7 +377,7 @@ export class CmsAdminTools {
     name: 'cms_request_asset_upload',
     title: 'CMS: Request asset upload URL',
     description:
-      'Mint a presigned upload URL for a new asset. The asset row is created in `uploaded:false` state; PUT the file body to `uploadUrl`, then call cms_complete_asset_upload to mark it live.',
+      'Mint a presigned upload for a new asset. The asset row is created in `uploaded:false` state. Look at `uploadMethod`: if `"PUT"`, send the file body as the raw PUT body to `uploadUrl`. If `"POST"`, send multipart/form-data to `uploadUrl` including every key/value in `uploadFields` followed by a `file` part (the binary body); the embedded policy enforces an exact `Content-Length` match. Then call `cms_complete_asset_upload` to verify and mark the row live.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: RequestUploadInput,

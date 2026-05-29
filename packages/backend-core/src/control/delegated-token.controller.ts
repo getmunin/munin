@@ -12,6 +12,7 @@ import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { buildApiKey, getCurrentContext, hashSecret } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 
@@ -49,7 +50,7 @@ interface MintResult {
  * is restricted to self-service tools, scoped to that one EndUser.
  */
 @Controller('v1/tokens/delegated')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class DelegatedTokenController {
   @Post()

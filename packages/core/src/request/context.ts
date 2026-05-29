@@ -6,7 +6,13 @@ import type { Db, Tx } from '@getmunin/db';
  * variant is reserved for downstream packages that mint partner-style
  * credentials; OSS code paths never produce it.
  */
-export type ActorType = 'user' | 'admin_agent' | 'end_user_agent' | 'partner' | 'system';
+export type ActorType =
+  | 'user'
+  | 'admin_agent'
+  | 'widget_agent'
+  | 'end_user_agent'
+  | 'partner'
+  | 'system';
 
 /** Tool surfaces a token can call. */
 export type Audience = 'admin' | 'self_service';

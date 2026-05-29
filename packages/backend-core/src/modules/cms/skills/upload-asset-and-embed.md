@@ -1,17 +1,17 @@
 ---
 title: CMS: Upload an asset and embed it
-description: Two-phase asset upload (request presigned URL → PUT binary → complete), embed in entries, and audit unused assets.
+description: Two-phase asset upload (request presigned upload → send binary → complete), embed in entries, and audit unused assets.
 audiences: [admin]
 ---
 
 # Upload an asset and embed it
-CMS assets are uploaded out-of-band: the server hands you a **presigned URL**, you PUT the file directly to object storage, then you tell the server the upload is done. This avoids streaming binaries through the MCP/HTTP layer.
+CMS assets are uploaded out-of-band: the server hands you a **presigned upload**, you send the binary directly to object storage, then you tell the server the upload is done. This avoids streaming binaries through the MCP/HTTP layer. The exact HTTP shape depends on the storage backend — read `uploadMethod` and branch.
 
 ## TL;DR
 
-1. `cms_request_asset_upload` — server creates an `uploaded: false` row, returns `uploadUrl` + `uploadExpiresAt`.
-2. PUT the binary to `uploadUrl` (this is **not an MCP call**; the agent or a connector executes it directly against storage).
-3. `cms_complete_asset_upload` — flips `uploaded: true`. Now the asset is referenceable.
+1. `cms_request_asset_upload` — server creates an `uploaded: false` row, returns `uploadUrl`, `uploadMethod`, `uploadFields`, `uploadExpiresAt`.
+2. Send the binary to `uploadUrl` using `uploadMethod` (PUT raw body for local self-host; POST multipart for S3, including every field from `uploadFields` plus a `file` part). On S3 the embedded policy enforces `Content-Length-Range` so an oversized body is rejected by the bucket itself.
+3. `cms_complete_asset_upload` — verifies the on-storage size matches what was declared, then flips `uploaded: true`. On size mismatch the storage object is deleted; the row stays at `uploaded:false` and you can retry from step 1.
 4. Embed by writing the asset id into an entry's `data` field via `cms_update_entry`.
 
 ## Step 1 — request the upload
@@ -29,7 +29,7 @@ CMS assets are uploaded out-of-band: the server hands you a **presigned URL**, y
 }
 ```
 
-Response:
+Response (PUT-style, local self-host):
 ```jsonc
 {
   "id": "<assetId>",
@@ -37,14 +37,35 @@ Response:
   "mime": "image/jpeg",
   "sizeBytes": 482301,
   "uploaded": false,
-  "uploadUrl": "https://storage.example/...?X-Amz-Signature=...",
+  "uploadUrl": "http://localhost:3001/static/assets/upload?key=...&sig=...",
+  "uploadMethod": "PUT",
+  "uploadFields": {},
   "uploadExpiresAt": "2026-05-01T12:34:56Z"
 }
 ```
 
-## Step 2 — PUT the binary
+Response (POST-style, S3):
+```jsonc
+{
+  "id": "<assetId>",
+  "uploadUrl": "https://s3.example.com/bucket/",
+  "uploadMethod": "POST",
+  "uploadFields": {
+    "key": "org_x/abc.jpg",
+    "Content-Type": "image/jpeg",
+    "policy": "<base64-policy>",
+    "x-amz-algorithm": "AWS4-HMAC-SHA256",
+    "x-amz-credential": "AKIA.../20260501/eu-west-1/s3/aws4_request",
+    "x-amz-date": "20260501T123456Z",
+    "x-amz-signature": "<hex>"
+  },
+  "uploadExpiresAt": "2026-05-01T12:34:56Z"
+}
+```
 
-The presigned URL is a direct upload target. From a connector or the agent's environment:
+## Step 2 — send the binary
+
+If `uploadMethod === "PUT"`:
 
 ```bash
 curl --upload-file ./spring-launch-hero.jpg \
@@ -52,7 +73,15 @@ curl --upload-file ./spring-launch-hero.jpg \
      "<uploadUrl>"
 ```
 
-Must complete before `uploadExpiresAt` (typically ~1 hour). Headers must match the `mime` you declared in step 1.
+If `uploadMethod === "POST"`:
+
+```bash
+curl -X POST "<uploadUrl>" \
+     $(printf -- '-F %s=%s ' key "$KEY" Content-Type image/jpeg policy "$POLICY" x-amz-algorithm AWS4-HMAC-SHA256 ...) \
+     -F "file=@./spring-launch-hero.jpg"
+```
+
+The `file` part must come **last** in the multipart body. Send every key in `uploadFields` as a form field; the embedded policy fixes the allowed byte size to exactly `sizeBytes`, so an oversized body is rejected at S3. Must complete before `uploadExpiresAt` (typically ~15 min).
 
 ## Step 3 — complete
 

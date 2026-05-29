@@ -18,6 +18,7 @@ import { schema } from '@getmunin/db';
 import { and, asc, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { assertOwner, assertOwnerOrAdmin } from './role-guard.ts';
@@ -41,7 +42,7 @@ interface MemberDto {
 }
 
 @Controller('v1/orgs/me/members')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class MembersController {
   @Get()

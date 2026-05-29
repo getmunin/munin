@@ -1,5 +1,31 @@
 # @getmunin/backend-core
 
+## 4.23.0
+
+### Minor Changes
+
+- 2dd56ef: Make row-count quotas opt-in via `MUNIN_QUOTAS_ENABLED`.
+
+  OSS self-hosters on their own hardware were being capped at the cloud free-tier ceilings (10K KB docs, 100 KB spaces, 50 CMS collections, 10K CMS entries, 1K CMS assets) because `QuotasService.assertCanAdd` ran unconditionally. The defaults make sense for a tiered SaaS but not for someone running Munin on their own box.
+
+  `assertCanAdd` now no-ops unless `MUNIN_QUOTAS_ENABLED=true`. Set it in cloud deployments to keep the existing behavior; leave it unset (or `false`) on self-hosted instances. The per-org `orgs.settings.quotas.<resource>` override path is unchanged.
+
+- 31f5346: Lay groundwork for tier-aware quotas: split `QuotasService` into an abstract base + DI token + `DefaultQuotasService` so cloud can swap in a tier-aware implementation.
+  - New injection token `QUOTAS_SERVICE`; consumers (`KbService`, `CmsService`, `CrmService`) now inject via the token.
+  - `crm_contacts` joins the row-count quota set (`QuotaResource`, `FREE_TIER_QUOTAS`, `TABLE_FOR`) and `CrmService.createContact` gates on it. Still off by default — `MUNIN_QUOTAS_ENABLED=true` to enable.
+  - New `recordCall(kind, key?)` method on `QuotasService` for call-count metering (MCP tool invocations, REST requests). Default impl is a no-op; cloud will override to do tier-aware soft/hard caps with windowed counters.
+  - Seams: MCP dispatch wires `recordCall('mcp_tool', toolName)` through the existing `rateLimit` hook on the controller; a globally-registered `CallQuotaInterceptor` calls `recordCall('api_request', "<verb> <route>")` for `/v1` traffic.
+
+  OSS behavior unchanged: `recordCall` is a no-op everywhere on the default impl, and `assertCanAdd` still respects the `MUNIN_QUOTAS_ENABLED` gate.
+
+### Patch Changes
+
+- @getmunin/core@4.23.0
+- @getmunin/db@4.23.0
+- @getmunin/types@4.23.0
+- @getmunin/mcp-toolkit@4.23.0
+- @getmunin/agent-runtime@4.23.0
+
 ## 4.22.0
 
 ### Minor Changes

@@ -12,7 +12,7 @@ import {
   WebhookDispatcher,
   type AssetStorage,
 } from '@getmunin/core';
-import { QuotasService } from '../../common/quotas/quotas.service.ts';
+import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 import { STORAGE } from '../../common/storage/storage.token.ts';
 import {
   buildSearchText,
@@ -109,7 +109,7 @@ export interface LocaleDto {
 @Injectable()
 export class CmsService {
   constructor(
-    @Inject(QuotasService) private readonly quotas: QuotasService,
+    @Inject(QUOTAS_SERVICE) private readonly quotas: QuotasService,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(STORAGE) private readonly storage: AssetStorage,
     @Inject(EmbeddingProviderHolder) private readonly embeddings: EmbeddingProviderHolder,

@@ -4,7 +4,7 @@ import { schema } from '@getmunin/db';
 import { chunkDocument, contentHash, getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import type { ActorIdentity, Audience } from '@getmunin/core';
 import { EmbeddingProviderHolder } from './embedding.provider.ts';
-import { QuotasService } from '../../common/quotas/quotas.service.ts';
+import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 
 const AUDIENCES: readonly Audience[] = ['admin', 'self_service'];
 
@@ -100,7 +100,7 @@ export interface VersionDto {
 export class KbService {
   constructor(
     @Inject(EmbeddingProviderHolder) private readonly embeddings: EmbeddingProviderHolder,
-    @Inject(QuotasService) private readonly quotas: QuotasService,
+    @Inject(QUOTAS_SERVICE) private readonly quotas: QuotasService,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
   ) {}
 

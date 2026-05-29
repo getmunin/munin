@@ -58,6 +58,19 @@ describe('assertOwnerOrAdmin', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('throws for admin_agent with a scoped key (no "*")', async () => {
+    const scoped = new ActorIdentity(
+      'admin_agent',
+      'k_scoped',
+      'org_a',
+      ['kb:read'],
+      ['admin'],
+    );
+    await expect(
+      withContext(ctxFor(scoped, null), () => assertOwnerOrAdmin('org_a', 'k_scoped')),
+    ).rejects.toThrow(/scoped admin keys/);
+  });
+
   it('throws for widget_agent actors (no role bypass)', async () => {
     await expect(
       withContext(ctxFor(makeActor('widget_agent'), null), () =>

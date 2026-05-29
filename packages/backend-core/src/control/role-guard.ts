@@ -27,7 +27,13 @@ export async function assertOwner(orgId: string, userId: string): Promise<void> 
 export async function assertOwnerOrAdmin(orgId: string, userId: string): Promise<void> {
   const actor = getCurrentContext().actor;
   if (!actor) throw new ForbiddenException('unauthenticated');
-  if (actor.type === 'system' || actor.type === 'admin_agent') return;
+  if (actor.type === 'system') return;
+  if (actor.type === 'admin_agent') {
+    if (!actor.hasScope('*')) {
+      throw new ForbiddenException('scoped admin keys cannot perform owner/admin actions');
+    }
+    return;
+  }
   if (actor.type !== 'user') {
     throw new ForbiddenException('this action requires an owner or admin user');
   }

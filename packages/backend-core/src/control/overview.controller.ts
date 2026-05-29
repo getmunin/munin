@@ -3,6 +3,7 @@ import { schema } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { CURATION_INBOX_SLUG } from '../modules/kb/kb.service.ts';
@@ -22,7 +23,7 @@ export interface AgentStatus {
 }
 
 @Controller('v1/overview')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class OverviewController {
   constructor(@Inject(RealtimeGateway) private readonly realtime: RealtimeGateway) {}

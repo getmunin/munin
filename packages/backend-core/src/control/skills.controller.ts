@@ -16,6 +16,7 @@ import {
   type ModelTier,
 } from '@getmunin/types';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.ts';
@@ -33,7 +34,7 @@ interface SkillDto {
 }
 
 @Controller('v1/skills')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class SkillsController {
   constructor(

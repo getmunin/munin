@@ -113,7 +113,9 @@ function normalizeUrl(input: string): string | null {
   try {
     const u = new URL(withProtocol);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    if (!u.hostname.includes('.')) return null;
+    const host = u.hostname.toLowerCase();
+    if (!host.includes('.')) return null;
+    if (isLikelyPrivateHost(host)) return null;
     u.hash = '';
     u.search = '';
     return u.toString();
@@ -121,4 +123,20 @@ function normalizeUrl(input: string): string | null {
     console.debug('[website-import] could not parse URL', { input, err });
     return null;
   }
+}
+
+function isLikelyPrivateHost(host: string): boolean {
+  if (host === 'localhost') return true;
+  if (host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) {
+    return true;
+  }
+  if (/^127\./.test(host)) return true;
+  if (/^10\./.test(host)) return true;
+  if (/^192\.168\./.test(host)) return true;
+  if (/^169\.254\./.test(host)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
+  if (host === '::1' || host.startsWith('[::1]')) return true;
+  if (/^\[?(fc|fd)[0-9a-f]{2}:/i.test(host)) return true;
+  if (/^\[?fe80:/i.test(host)) return true;
+  return false;
 }

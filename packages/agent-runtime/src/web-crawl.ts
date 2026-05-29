@@ -1,3 +1,5 @@
+import { safeFetch } from '@getmunin/core';
+
 const USER_AGENT = 'MuninOnboardingBot/1.0 (+https://getmunin.com/bot)';
 const DEFAULT_MAX_PAGES = 25;
 const HARD_MAX_PAGES = 50;
@@ -501,9 +503,8 @@ const defaultFetcher: HtmlFetcher = async (url) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       method: 'GET',
-      redirect: 'follow',
       signal: controller.signal,
       headers: {
         'user-agent': USER_AGENT,

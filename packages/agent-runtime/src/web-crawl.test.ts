@@ -257,4 +257,13 @@ describe('WebCrawler.crawl', () => {
     const svc = new WebCrawler({ fetcher: makeFetcher({}), extractor: passthroughExtractor });
     await expect(svc.crawl({ url: '' })).rejects.toThrow(/invalid url/);
   });
+
+  it('default fetcher refuses to fetch a loopback URL (SSRF guard)', async () => {
+    const svc = new WebCrawler({ extractor: passthroughExtractor });
+    const result = await svc.crawl({ url: 'http://127.0.0.1' });
+    expect(result.pages).toHaveLength(0);
+    expect(result.skipped.length).toBeGreaterThan(0);
+    const blocked = result.skipped.find((s) => /private|reserved|ssrf|blocked/i.test(s.detail ?? ''));
+    expect(blocked).toBeTruthy();
+  });
 });

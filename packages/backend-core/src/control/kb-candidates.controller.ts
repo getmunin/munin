@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -38,7 +39,7 @@ interface CandidateListResponse {
 }
 
 @Controller('v1/kb/curation/candidates')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class KbCandidatesController {
   constructor(private readonly kb: KbService) {}
@@ -95,7 +96,7 @@ export class KbCandidatesController {
 }
 
 @Controller('v1/kb/spaces')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class KbSpacesController {
   constructor(private readonly kb: KbService) {}

@@ -17,6 +17,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { buildApiKey, getCurrentContext, hashSecret, keyPrefix, WebhookDispatcher } from '@getmunin/core';
 import { Inject } from '@nestjs/common';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { assertOwnerOrAdmin } from './role-guard.ts';
@@ -46,7 +47,7 @@ interface ApiKeySummary {
 }
 
 @Controller('v1/api-keys')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ApiKeysController {
   constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}

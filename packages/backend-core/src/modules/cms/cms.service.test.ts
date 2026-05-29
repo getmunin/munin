@@ -10,7 +10,7 @@ import {
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import {
   CmsService,
   CmsConflictError,
@@ -27,19 +27,29 @@ const skipReason = TEST_URL
 class StubStorage implements AssetStorage {
   readonly provider = 'local' as const;
   readonly deletes: string[] = [];
+  readonly objects = new Map<string, number>();
   presignedUpload(opts: { key: string; mime: string; sizeBytes: number }) {
     return Promise.resolve({
       uploadUrl: `https://upload.test/${opts.key}`,
+      uploadMethod: 'PUT' as const,
+      uploadFields: {},
       publicUrl: `https://cdn.test/${opts.key}`,
       expiresAt: new Date(Date.now() + 60_000),
     });
   }
   delete(key: string): Promise<void> {
     this.deletes.push(key);
+    this.objects.delete(key);
     return Promise.resolve();
   }
   publicUrlFor(key: string): string {
     return `https://cdn.test/${key}`;
+  }
+  statBytes(key: string): Promise<number | null> {
+    return Promise.resolve(this.objects.get(key) ?? null);
+  }
+  setObject(key: string, sizeBytes: number): void {
+    this.objects.set(key, sizeBytes);
   }
 }
 
@@ -94,6 +104,7 @@ class StubStorage implements AssetStorage {
     await db.execute(sql`DELETE FROM events WHERE org_id = ${orgId}`);
     await db.update(schema.orgs).set({ settings: {} }).where(sql`id = ${orgId}`);
     storage.deletes.length = 0;
+    storage.objects.clear();
   });
 
   function run<T>(fn: () => Promise<T>, runAs: ActorIdentity = actor): Promise<T> {
@@ -494,10 +505,11 @@ class StubStorage implements AssetStorage {
       ).rejects.toThrow(CmsInvalidError);
     });
 
-    it('completeAssetUpload flips the uploaded flag', async () => {
+    it('completeAssetUpload flips the uploaded flag when actual size matches', async () => {
       const handle = await run(() =>
         svc.requestAssetUpload({ name: 'pic.png', mime: 'image/png', sizeBytes: 1024 }),
       );
+      storage.setObject(handle.storageKey, 1024);
       const completed = await run(() => svc.completeAssetUpload({ id: handle.id }));
       expect(completed.uploaded).toBe(true);
     });
@@ -506,6 +518,41 @@ class StubStorage implements AssetStorage {
       await expect(run(() => svc.completeAssetUpload({ id: randomUUID() }))).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('completeAssetUpload rejects when no object landed in storage', async () => {
+      const handle = await run(() =>
+        svc.requestAssetUpload({ name: 'pic.png', mime: 'image/png', sizeBytes: 1024 }),
+      );
+      await expect(run(() => svc.completeAssetUpload({ id: handle.id }))).rejects.toThrow(
+        BadRequestException,
+      );
+      const list = await run(() => svc.listAssets({}));
+      expect(list.find((a) => a.id === handle.id)?.uploaded).toBe(false);
+    });
+
+    it('completeAssetUpload rejects + deletes storage object when uploaded body exceeds declared size', async () => {
+      const handle = await run(() =>
+        svc.requestAssetUpload({ name: 'pic.png', mime: 'image/png', sizeBytes: 1024 }),
+      );
+      storage.setObject(handle.storageKey, 2048);
+      await expect(run(() => svc.completeAssetUpload({ id: handle.id }))).rejects.toThrow(
+        /cms_upload_size_mismatch/,
+      );
+      expect(storage.deletes).toContain(handle.storageKey);
+      const list = await run(() => svc.listAssets({}));
+      expect(list.find((a) => a.id === handle.id)?.uploaded).toBe(false);
+    });
+
+    it('completeAssetUpload rejects + deletes storage object when uploaded body is smaller than declared size', async () => {
+      const handle = await run(() =>
+        svc.requestAssetUpload({ name: 'pic.png', mime: 'image/png', sizeBytes: 1024 }),
+      );
+      storage.setObject(handle.storageKey, 512);
+      await expect(run(() => svc.completeAssetUpload({ id: handle.id }))).rejects.toThrow(
+        /cms_upload_size_mismatch/,
+      );
+      expect(storage.deletes).toContain(handle.storageKey);
     });
 
     it('deleteAsset deletes the row and asks storage to delete the key', async () => {

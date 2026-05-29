@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
@@ -54,7 +55,7 @@ interface SegmentContactsResponse {
 }
 
 @Controller('v1/crm/segments')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class CrmSegmentsController {
   constructor(private readonly crm: CrmService) {}

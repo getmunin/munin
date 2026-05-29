@@ -173,6 +173,96 @@ interface OrgFixture {
       });
       expect(res.status).toBe(404);
     });
+
+    it('widget key cannot mint admin API keys', async () => {
+      const widgetKey = buildApiKey('widget');
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'widget',
+        name: 'cp-widget-escalation-test',
+        keyHash: hashSecret(widgetKey),
+        keyPrefix: keyPrefix(widgetKey),
+        scopes: ['conv:widget:write'],
+      });
+
+      const create = await fetch(`${baseUrl}/v1/api-keys`, {
+        method: 'POST',
+        headers: authHeaders(widgetKey),
+        body: JSON.stringify({ name: 'pwned', scopes: ['*'] }),
+      });
+      expect(create.status).toBe(403);
+
+      const list = await fetch(`${baseUrl}/v1/api-keys`, { headers: authHeaders(widgetKey) });
+      expect(list.status).toBe(403);
+
+      const revoke = await fetch(`${baseUrl}/v1/api-keys/${orgA.adminKeyId}`, {
+        method: 'DELETE',
+        headers: authHeaders(widgetKey),
+      });
+      expect(revoke.status).toBe(403);
+    });
+
+    it('scoped admin key (no "*") cannot mint, list, or revoke', async () => {
+      const scopedKey = buildApiKey('admin');
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'admin',
+        name: 'cp-scoped-admin',
+        keyHash: hashSecret(scopedKey),
+        keyPrefix: keyPrefix(scopedKey),
+        scopes: ['kb:read'],
+      });
+      const create = await fetch(`${baseUrl}/v1/api-keys`, {
+        method: 'POST',
+        headers: authHeaders(scopedKey),
+        body: JSON.stringify({ name: 'escalate', scopes: ['*'] }),
+      });
+      expect(create.status).toBe(403);
+      const list = await fetch(`${baseUrl}/v1/api-keys`, { headers: authHeaders(scopedKey) });
+      expect(list.status).toBe(403);
+    });
+  });
+
+  describe('control-plane guard on other admin routes', () => {
+    it('widget key cannot list channels or enqueue curator jobs', async () => {
+      const widgetKey = buildApiKey('widget');
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'widget',
+        name: 'cp-widget-cross-route',
+        keyHash: hashSecret(widgetKey),
+        keyPrefix: keyPrefix(widgetKey),
+        scopes: ['conv:widget:write'],
+      });
+      const channels = await fetch(`${baseUrl}/v1/conversations/channels`, {
+        headers: authHeaders(widgetKey),
+      });
+      expect(channels.status).toBe(403);
+      const enq = await fetch(`${baseUrl}/v1/curation/jobs`, {
+        method: 'POST',
+        headers: authHeaders(widgetKey),
+        body: JSON.stringify({ jobUri: 'skill://kb/review-content', userPrompt: 'try' }),
+      });
+      expect(enq.status).toBe(403);
+    });
+
+    it('scoped admin key cannot enqueue curator jobs', async () => {
+      const scopedKey = buildApiKey('admin');
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'admin',
+        name: 'cp-scoped-admin-curator',
+        keyHash: hashSecret(scopedKey),
+        keyPrefix: keyPrefix(scopedKey),
+        scopes: ['kb:read'],
+      });
+      const enq = await fetch(`${baseUrl}/v1/curation/jobs`, {
+        method: 'POST',
+        headers: authHeaders(scopedKey),
+        body: JSON.stringify({ jobUri: 'skill://kb/review-content', userPrompt: 'try' }),
+      });
+      expect(enq.status).toBe(403);
+    });
   });
 
   // ─── tokens ──────────────────────────────────────────────────────────

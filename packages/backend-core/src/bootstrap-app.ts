@@ -267,6 +267,7 @@ function staticAssetsMiddleware(storage: LocalFsStorage) {
       res.setHeader('content-type', guessMime(key));
       res.setHeader('cache-control', 'public, max-age=300, stale-while-revalidate=86400');
       res.setHeader('etag', `"${info.mtimeMs.toFixed(0)}-${info.size}"`);
+      res.setHeader('x-content-type-options', 'nosniff');
       if (req.method === 'HEAD') {
         res.status(200).end();
         return;

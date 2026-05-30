@@ -1,5 +1,12 @@
 # @getmunin/docs-pages
 
+## 4.23.4
+
+### Patch Changes
+
+- Updated dependencies [6dfabd2]
+  - @getmunin/backend-core@4.23.4
+
 ## 4.23.3
 
 ### Patch Changes

@@ -1,5 +1,34 @@
 # @getmunin/backend-core
 
+## 4.24.0
+
+### Minor Changes
+
+- e095d61: Forward BetterAuth log errors to Sentry.
+
+  `createMuninAuthCore` now accepts a `logger` option (passthrough to BetterAuth). The OSS `apps/backend` wires it up with `sentryForwardingLogger(Sentry.captureException)`, which captures every `level === 'error'` log entry — including the background-task failures BetterAuth catches internally (e.g. SMTP errors during `sendResetPassword`).
+
+  Without this, BetterAuth's `try { … } catch (err) { logger.error('Failed to run background task', err) }` pattern swallowed real failures: the error never reached Sentry's unhandled-exception/rejection hooks, so issues like the recent `551 5.5.3 Domain name must be added` SMTP rejection were invisible to alerting.
+
+  Consumers passing a custom `logger` can either omit the helper or extend it; the option type matches `BetterAuthOptions['logger']` directly.
+
+### Patch Changes
+
+- bbfc677: Integration tests now strictly require `TEST_DATABASE_URL` instead of silently falling back to `DATABASE_URL`. Yesterday's "Failed to decrypt private key" boot loop on dev was caused by `oauth-jwt-resolver.integration.test` running against the dev database (because `TEST_DATABASE_URL` was unset and the fallback let it use `DATABASE_URL`), writing an unencrypted JWK row directly via Drizzle, and never cleaning it up — so the next `pnpm dev` boot tried to read it through BetterAuth's encrypted-key code path and crashed.
+
+  Two changes close the loop:
+  - Every integration + database-touching test in this package (and elsewhere across the workspace) now reads `process.env.TEST_DATABASE_URL` only. When unset, `describe.skip` runs cleanly with a clear "Set TEST_DATABASE_URL" message instead of pointing the test at whatever DB happens to be in `process.env.DATABASE_URL` (typically dev).
+  - `oauth-jwt-resolver.integration.test` now `afterAll`-deletes its fixture JWK row by `kid`, so even within the dedicated test database no plaintext key lingers between runs.
+
+  CI already sets `TEST_DATABASE_URL` in `.github/workflows/ci.yml`, so the pipeline is unaffected. For local development, `.env.example` now declares the variable (default: `postgres://munin_app:munin_app@localhost:5432/munin_test`).
+
+- Updated dependencies [ef55e18]
+  - @getmunin/core@4.24.0
+  - @getmunin/db@4.24.0
+  - @getmunin/agent-runtime@4.24.0
+  - @getmunin/mcp-toolkit@4.24.0
+  - @getmunin/types@4.24.0
+
 ## 4.23.5
 
 ### Patch Changes

@@ -4,6 +4,7 @@ import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema, type Db } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
 import { getCurrentContext, type Mailer } from '@getmunin/core';
+import { renderChannelTestEmail } from '@getmunin/emails';
 import { createTransport } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 import { DB } from '../../../common/db/db.module.ts';
@@ -116,10 +117,10 @@ export class EmailAdminTools {
     const fromAddress = config.addressing.fromAddress;
     const fromName = config.addressing.fromName;
     const from = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
-    const subject = `Munin test message — ${channel.name}`;
-    const text =
-      `This is a test message from your Munin email channel "${channel.name}".\n\n` +
-      `If you can read this, outbound delivery is working.\n`;
+    const tpl = await renderChannelTestEmail({
+      channelName: channel.name,
+      channelAddress: fromAddress,
+    });
 
     try {
       if (config.outbound.provider === 'smtp') {
@@ -136,8 +137,9 @@ export class EmailAdminTools {
           await transport.sendMail({
             from,
             to: args.to,
-            subject,
-            text,
+            subject: tpl.subject,
+            text: tpl.text,
+            html: tpl.html,
             envelope: { from: fromAddress, to: args.to },
           });
         } finally {
@@ -147,8 +149,9 @@ export class EmailAdminTools {
         await this.mailer.send({
           from,
           to: args.to,
-          subject,
-          text,
+          subject: tpl.subject,
+          text: tpl.text,
+          html: tpl.html,
         });
       }
     } catch (err) {

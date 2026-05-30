@@ -2,34 +2,33 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Link, useRouter } from '@/i18n/navigation';
 import { useTranslations } from 'next-intl';
+import { authClient } from '../../auth-client';
+import { Link, useRouter } from '../../i18n-navigation';
+import { useTranslateError } from '../../i18n/translate-error';
+import { safeRedirect, resumeOauthAuthorizeUrl } from '../../auth/post-signin-redirect';
 import {
-  authClient,
   AuthShell,
-  AuthEpigraph,
   AuthHeading,
   AuthSubheading,
   AuthFootnote,
-  AuthField,
-  AuthLabel,
-  AuthInput,
-  AuthSubmit,
-  AuthOAuthButton,
   AuthDivider,
-  ErrorAlert,
-  OSS_AUTH_FOOTER,
-  GoogleLogo,
-  GithubLogo,
-  safeRedirect,
-  resumeOauthAuthorizeUrl,
-  type AuthProviders,
-} from '@getmunin/dashboard-pages';
-import { useTranslateError } from '@/lib/translate-error';
+} from './auth-shell';
+import { AuthEpigraph } from './auth-epigraph';
+import { ErrorAlert } from './error-alert';
+import { AuthField, AuthLabel, AuthInput, AuthSubmit, AuthOAuthButton } from './auth-form';
+import { GoogleLogo, GithubLogo } from './oauth-logos';
+import type { AuthFooter } from './epigraphs';
+import type { AuthProviders } from './fetch-auth-providers';
 
 type SignInError = { kind: 'invalid' | 'unreachable'; detail: string };
 
-export function LoginForm({ providers }: { providers: AuthProviders }) {
+export interface LoginFormProps {
+  providers: AuthProviders;
+  footer: AuthFooter;
+}
+
+export function LoginForm({ providers, footer }: LoginFormProps) {
   const t = useTranslations('auth.signIn');
   const tInvalid = useTranslations('auth.signIn.invalid');
   const tUnreachable = useTranslations('auth.signIn.unreachable');
@@ -88,7 +87,7 @@ export function LoginForm({ providers }: { providers: AuthProviders }) {
 
   return (
     <AuthShell
-      rightZone={<AuthEpigraph state={epigraphState} footer={OSS_AUTH_FOOTER} />}
+      rightZone={<AuthEpigraph state={epigraphState} footer={footer} />}
       leftZone={
         <>
           <AuthHeading>{t('title')}</AuthHeading>
@@ -155,14 +154,6 @@ export function LoginForm({ providers }: { providers: AuthProviders }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              <div className="mt-2 text-right">
-                <Link
-                  href="/forgot-password"
-                  className="font-mono text-[11px] tracking-wide text-ink-soft underline underline-offset-[3px] decoration-1 hover:text-ink"
-                >
-                  {tForgot('linkLabel')}
-                </Link>
-              </div>
             </AuthField>
             <AuthSubmit type="submit" disabled={submitting}>
               {submitting ? t('submitting') : t('submit')}
@@ -176,6 +167,13 @@ export function LoginForm({ providers }: { providers: AuthProviders }) {
               className="text-ink underline underline-offset-[3px] decoration-1"
             >
               {t('createAccount')}
+            </Link>
+            {' · '}
+            <Link
+              href="/forgot-password"
+              className="text-ink underline underline-offset-[3px] decoration-1"
+            >
+              {tForgot('linkLabel')}
             </Link>
           </AuthFootnote>
         </>

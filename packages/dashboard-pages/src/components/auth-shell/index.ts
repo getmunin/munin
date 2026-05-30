@@ -23,3 +23,9 @@ export {
   fetchAuthProviders,
   type AuthProviders,
 } from './fetch-auth-providers';
+export { LoginForm, type LoginFormProps } from './login-form';
+export { SignupForm, type SignupFormProps } from './signup-form';
+export { ForgotPasswordPage, type ForgotPasswordPageProps } from './forgot-password-page';
+export { ResetPasswordPage, type ResetPasswordPageProps } from './reset-password-page';
+export { VerifyEmailPage, type VerifyEmailPageProps } from './verify-email-page';
+export { AuthLoading } from './auth-loading';

@@ -117,7 +117,7 @@
       "sent": "If an account exists for that email, we've sent a reset link.",
       "failed": "Could not start the reset flow.",
       "backToSignIn": "Back to sign in",
-      "linkLabel": "Forgot your password?",
+      "linkLabel": "Forgot password?",
       "sentTitleRichPre": "Check your ",
       "sentTitleRichEm": "inbox",
       "sentTitleRichPost": ".",

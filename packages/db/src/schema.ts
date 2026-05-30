@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -26,7 +27,28 @@ import {
 } from 'drizzle-orm/pg-core';
 import { makeId } from './id.ts';
 
-export const EMBEDDING_DIMENSIONS = 1536;
+export const EMBEDDING_DIMENSIONS = readEmbeddingDimensionsFromEnv();
+
+function readEmbeddingDimensionsFromEnv(): number {
+  const raw = process.env.MUNIN_EMBEDDING_DIMENSIONS;
+  if (!raw) return 1536;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isInteger(n) || n < 32 || n > 4000) {
+    throw new Error(`MUNIN_EMBEDDING_DIMENSIONS must be an integer in 32..4000, got ${raw}`);
+  }
+  return n;
+}
+
+const halfvec = customType<{ data: number[]; driverData: string; config: { dimensions: number } }>({
+  dataType: (config) => `halfvec(${config?.dimensions ?? EMBEDDING_DIMENSIONS})`,
+  toDriver: (v) => `[${v.join(',')}]`,
+  fromDriver: (v) => JSON.parse(v) as number[],
+});
+
+const embeddingColumn = (name: string) =>
+  EMBEDDING_DIMENSIONS <= 2000
+    ? vector(name, { dimensions: EMBEDDING_DIMENSIONS })
+    : halfvec(name, { dimensions: EMBEDDING_DIMENSIONS });
 
 const id = (prefix: string) =>
   text('id')
@@ -668,7 +690,7 @@ export const kbDocumentChunks = pgTable(
     chunkIndex: integer('chunk_index').notNull(),
     content: text('content').notNull(),
     tokenCount: integer('token_count').notNull(),
-    embedding: vector('embedding', { dimensions: EMBEDDING_DIMENSIONS }),
+    embedding: embeddingColumn('embedding'),
     createdAt,
   },
   (t) => ({
@@ -1348,7 +1370,7 @@ export const cmsEntries = pgTable(
     version: integer('version').notNull().default(1),
     contentHash: varchar('content_hash', { length: 64 }).notNull(),
     searchText: text('search_text').notNull().default(''),
-    embedding: vector('embedding', { dimensions: EMBEDDING_DIMENSIONS }),
+    embedding: embeddingColumn('embedding'),
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     createdByType: varchar('created_by_type', { length: 16 }).notNull(),

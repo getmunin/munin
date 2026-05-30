@@ -59,6 +59,8 @@ export interface MuninAuthCoreOptions {
   crossSubDomainCookies?: { domain: string };
 
   rateLimit?: BetterAuthOptions['rateLimit'];
+
+  logger?: BetterAuthOptions['logger'];
 }
 
 export type MuninAuthInstance = BetterAuthInstance;
@@ -81,6 +83,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
     basePath: '/auth',
     secret: opts.authSecret,
     rateLimit: opts.rateLimit,
+    logger: opts.logger,
     database: drizzleAdapter(opts.db, {
       provider: 'pg',
       schema: {

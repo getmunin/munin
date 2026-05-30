@@ -8,10 +8,10 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../app.module.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run end-user conversations REST integration tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run end-user conversations REST integration tests.';
 
 (skipReason ? describe.skip : describe)('End-user conversations REST controller', () => {
   let app: INestApplication;

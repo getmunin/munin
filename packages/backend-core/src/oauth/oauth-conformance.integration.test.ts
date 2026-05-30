@@ -6,10 +6,10 @@ import { NestFactory } from '@nestjs/core';
 import { runMigrations } from '@getmunin/db';
 import { AppModule } from '../app.module.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run OAuth conformance tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run OAuth conformance tests.';
 
 (skipReason ? describe.skip : describe)('OAuth 2.1 / MCP resource-server conformance', () => {
   let app: INestApplication;

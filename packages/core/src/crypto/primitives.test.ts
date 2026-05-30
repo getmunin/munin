@@ -63,8 +63,8 @@ describe('timingSafeEqual', () => {
   });
 });
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
-const skipPgcrypto = TEST_URL ? null : 'Set DATABASE_URL or TEST_DATABASE_URL to run pgcrypto tests';
+const TEST_URL = process.env.TEST_DATABASE_URL;
+const skipPgcrypto = TEST_URL ? null : 'Set TEST_DATABASE_URL to run pgcrypto tests';
 
 (skipPgcrypto ? describe.skip : describe)('pgcrypto secret encryption', () => {
   let db: Db;

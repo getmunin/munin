@@ -10,10 +10,10 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run voice-callback channelId tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run voice-callback channelId tests.';
 
 (skipReason ? describe.skip : describe)('conv_voice_call_contact — optional channelId routing', () => {
   let app: INestApplication;

@@ -6,13 +6,13 @@ import { NestFactory } from '@nestjs/core';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { randomUUID } from 'node:crypto';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { AppModule } from '../app.module.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run OAuth JWT resolver integration tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run OAuth JWT resolver integration tests.';
 
 (skipReason ? describe.skip : describe)('OAuth JWT resolver: end-to-end /mcp verification', () => {
   let app: INestApplication;
@@ -78,6 +78,7 @@ const skipReason = TEST_URL
 
   afterAll(async () => {
     if (app) await app.close();
+    if (db && kid) await db.delete(schema.jwks).where(eq(schema.jwks.id, kid));
     delete process.env.NEXT_PUBLIC_MCP_URL;
   });
 

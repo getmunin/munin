@@ -6,10 +6,10 @@ import { CredentialResolver } from './credentials.ts';
 import { buildApiKey, keyPrefix } from '../crypto/keys.ts';
 import { hashSecret } from '../crypto/primitives.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run credential resolver tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run credential resolver tests.';
 
 (skipReason ? describe.skip : describe)('CredentialResolver.resolveApiKey', () => {
   let db: Db;

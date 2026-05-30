@@ -6,10 +6,10 @@ import { createApp } from '@getmunin/backend-core';
 import { runMigrations } from '@getmunin/db';
 import { AppModule } from '../app.module.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run OAuth AS conformance tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run OAuth AS conformance tests.';
 
 const FIXED_PORT = 17345;
 const PRESET_BASE_URL = `http://127.0.0.1:${FIXED_PORT}`;

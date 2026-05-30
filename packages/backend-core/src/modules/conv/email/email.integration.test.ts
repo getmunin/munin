@@ -15,10 +15,10 @@ import { InboundPollWorker } from '../channels/inbound-poll.worker.ts';
 import { OutboundDeliveryWorker } from '../channels/outbound-delivery.worker.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run email integration tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run email integration tests.';
 
 const REPLY_DOMAIN = 'reply.example.test';
 

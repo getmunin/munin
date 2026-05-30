@@ -10,10 +10,10 @@ import { createApp } from '../../../bootstrap-app.ts';
 import { VapiService } from './vapi.service.ts';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run Vapi integration tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run Vapi integration tests.';
 
 (skipReason ? describe.skip : describe)('Vapi voice channel integration', () => {
   let app: INestApplication;

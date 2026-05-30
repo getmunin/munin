@@ -12,10 +12,10 @@ import { createApp } from '../../../bootstrap-app.ts';
 import { VapiService } from '../vapi/vapi.service.ts';
 import { VapiClientService } from '../vapi/vapi-client.service.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run widget-voice integration tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run widget-voice integration tests.';
 
 (skipReason ? describe.skip : describe)('Widget voice/start endpoint', () => {
   let app: INestApplication;

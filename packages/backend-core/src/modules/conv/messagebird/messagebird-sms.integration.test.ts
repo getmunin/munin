@@ -10,10 +10,10 @@ import { createApp } from '../../../bootstrap-app.ts';
 import { MessageBirdSmsService } from './messagebird-sms.service.ts';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run MessageBird SMS integration tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run MessageBird SMS integration tests.';
 
 (skipReason ? describe.skip : describe)('MessageBird SMS inbound webhook integration', () => {
   let app: INestApplication;

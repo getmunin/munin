@@ -14,10 +14,10 @@ import { createApp } from '../../bootstrap-app.ts';
 import { AppModule } from '../../app.module.ts';
 import { CmsScheduleWorker } from './cms.schedule.worker.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run CMS integration tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run CMS integration tests.';
 
 (skipReason ? describe.skip : describe)('CMS integration: admin authoring + public delivery', () => {
   let app: INestApplication;

@@ -11,10 +11,10 @@ import { DB } from '../common/db/db.module.ts';
 import { openAdminAgentMcpClient, type AgentMcpClient } from '../agent/in-process-context.ts';
 import type { Db } from '@getmunin/db';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run MCP tools smoke tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run MCP tools smoke tests.';
 
 const EXPECTED_BY_MODULE: Record<string, RegExp> = {
   kb: /^kb_/,

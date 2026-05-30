@@ -10,10 +10,10 @@ import { sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
 import { WebhookWorker } from './webhook.worker.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
-  : 'Set DATABASE_URL or TEST_DATABASE_URL to a Postgres URL to run webhook worker tests.';
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run webhook worker tests.';
 
 interface ReceivedRequest {
   body: string;

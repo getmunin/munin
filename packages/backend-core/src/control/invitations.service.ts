@@ -15,6 +15,7 @@ import {
   randomToken,
   type Mailer,
 } from '@getmunin/core';
+import { renderOrgInviteEmail } from '@getmunin/emails';
 import { DB } from '../common/db/db.module.ts';
 import { MAILER } from '../common/mail/mail.module.ts';
 import { assertOwner, assertOwnerOrAdmin, VALID_ROLES } from './role-guard.ts';
@@ -104,7 +105,7 @@ export class InvitationsService {
       .returning();
 
     const acceptUrl = await this.buildAcceptUrl(token);
-    await this.sendInviteEmail(email, acceptUrl, actor.orgId);
+    await this.sendInviteEmail(email, acceptUrl, actor.orgId, actor.userId ?? null);
 
     return {
       ...toDto(row!),
@@ -232,7 +233,12 @@ export class InvitationsService {
     return Promise.resolve(`${webBase}/accept-invite?token=${encodeURIComponent(token)}`);
   }
 
-  private async sendInviteEmail(email: string, acceptUrl: string, orgId: string): Promise<void> {
+  private async sendInviteEmail(
+    email: string,
+    acceptUrl: string,
+    orgId: string,
+    inviterUserId: string | null,
+  ): Promise<void> {
     const ctx = getCurrentContext();
     const orgRows = await ctx.db
       .select({ name: schema.orgs.name })
@@ -240,18 +246,22 @@ export class InvitationsService {
       .where(eq(schema.orgs.id, orgId))
       .limit(1);
     const orgName = orgRows[0]?.name ?? 'a Munin org';
+    let inviterName: string | null = null;
+    if (inviterUserId) {
+      const userRows = await ctx.db
+        .select({ name: schema.users.name, email: schema.users.email })
+        .from(schema.users)
+        .where(eq(schema.users.id, inviterUserId))
+        .limit(1);
+      inviterName = userRows[0]?.name?.trim() || userRows[0]?.email || null;
+    }
     try {
+      const tpl = await renderOrgInviteEmail({ acceptUrl, orgName, inviterName });
       await this.mailer.send({
         to: email,
-        subject: `You've been invited to ${orgName} on Munin`,
-        text: [
-          `You've been invited to join ${orgName} on Munin.`,
-          '',
-          `Accept the invitation by signing in or signing up at:`,
-          acceptUrl,
-          '',
-          'The link is valid for 7 days. If you weren\'t expecting this invite, you can ignore this email.',
-        ].join('\n'),
+        subject: tpl.subject,
+        text: tpl.text,
+        html: tpl.html,
       });
     } catch {
       // Send failures must not block invite creation — the inviter sees the

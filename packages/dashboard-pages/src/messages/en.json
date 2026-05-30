@@ -108,6 +108,59 @@
         "eyebrow": "An invitation",
         "quote": "Even Muninn forgets, when too many days have passed. Ask again, and the flock will remember."
       }
+    },
+    "forgotPassword": {
+      "title": "Reset your password",
+      "subtitle": "Enter your account email and we'll send you a reset link.",
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "sent": "If an account exists for that email, we've sent a reset link.",
+      "failed": "Could not start the reset flow.",
+      "backToSignIn": "Back to sign in",
+      "linkLabel": "Forgot your password?",
+      "sentTitleRichPre": "Check your ",
+      "sentTitleRichEm": "inbox",
+      "sentTitleRichPost": ".",
+      "sentBody": "We sent a reset link to {email}. It's good for the next 30 minutes.",
+      "sentInfo": "Didn't get it? Check spam, or wait a minute and try again. The link expires after one use.",
+      "resend": "Resend link"
+    },
+    "resetPassword": {
+      "title": "Pick a new password",
+      "subtitle": "For {email}. At least 10 characters.",
+      "submit": "Update password",
+      "submitting": "Updating…",
+      "success": "Password updated. You can sign in now.",
+      "mismatch": "Passwords do not match.",
+      "tooShort": "Password must be at least 8 characters.",
+      "missingToken": "This reset link is missing or invalid. Request a new one.",
+      "failed": "Could not reset your password.",
+      "signIn": "Sign in",
+      "titleRichPre": "Set a new ",
+      "titleRichEm": "password",
+      "titleRichPost": ".",
+      "rules": {
+        "length": "at least 10 characters",
+        "numberOrSymbol": "a number or symbol",
+        "notPrevious": "not your previous password"
+      },
+      "doneTitleRichPre": "Password ",
+      "doneTitleRichEm": "updated",
+      "doneTitleRichPost": ".",
+      "doneSubtitle": "You're all set. Sign in with your new password to continue.",
+      "doneCta": "Continue to sign in",
+      "subtitleNoEmail": "At least 10 characters."
+    },
+    "verifyEmail": {
+      "successTitle": "Email verified",
+      "successSubtitle": "Your account is ready. Sign in to continue.",
+      "successCta": "Sign in",
+      "expiredTitle": "This link has expired",
+      "expiredSubtitle": "Verification links are valid for 24 hours. Sign in to receive a new one.",
+      "expiredCta": "Go to sign in",
+      "invalidTitle": "Invalid link",
+      "invalidSubtitle": "We didn't recognize this verification link. Sign in to request a new one.",
+      "invalidCta": "Go to sign in"
     }
   },
   "nav": {

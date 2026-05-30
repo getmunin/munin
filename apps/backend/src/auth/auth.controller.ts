@@ -10,9 +10,11 @@ import {
   readTrustedOriginsFromEnv,
   requireAuthSecret,
 } from '@getmunin/backend-core';
+import * as Sentry from '@sentry/nestjs';
 import {
   createMuninAuth,
   readAllowedEmailDomainsFromEnv,
+  sentryForwardingLogger,
   type MuninAuth,
 } from './auth.config.ts';
 
@@ -37,6 +39,7 @@ export class AuthController {
       allowedEmailDomains: readAllowedEmailDomainsFromEnv(),
       google: readGoogleProviderFromEnv(),
       github: readGithubProviderFromEnv(),
+      logger: sentryForwardingLogger(Sentry.captureException),
     });
   }
 

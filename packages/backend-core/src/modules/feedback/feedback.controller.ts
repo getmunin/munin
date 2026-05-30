@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthGuard } from '../../common/auth/auth.guard.ts';
+import { ControlPlaneGuard } from '../../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../../common/audit/audit.interceptor.ts';
 import {
@@ -44,6 +45,7 @@ export class FeedbackController {
   }
 
   @Post(':id/approve')
+  @UseGuards(ControlPlaneGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async approve(@Param('id') id: string): Promise<void> {
     try {
@@ -60,6 +62,7 @@ export class FeedbackController {
   }
 
   @Post(':id/reject')
+  @UseGuards(ControlPlaneGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async reject(@Param('id') id: string): Promise<void> {
     try {

@@ -121,6 +121,8 @@ function publicUrl(): string {
 }
 
 export function jwtIssuer(): string {
+  const explicit = process.env.NEXT_PUBLIC_AUTH_URL;
+  if (explicit) return explicit.replace(/\/+$/, '');
   try {
     return new URL(publicUrl()).origin;
   } catch {

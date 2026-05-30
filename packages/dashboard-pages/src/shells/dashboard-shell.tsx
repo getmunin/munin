@@ -37,7 +37,7 @@ export function DashboardShell({
   const inSettings = pathname.startsWith('/dashboard/settings');
 
   const content = (
-    <div className="flex min-h-screen flex-col bg-bone dark:bg-background">
+    <div className="group flex min-h-screen flex-col bg-bone dark:bg-background">
       <AgentHealthBanner />
       {!inSettings && (
         <DashboardTopbar

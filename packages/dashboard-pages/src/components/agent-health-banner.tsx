@@ -66,14 +66,14 @@ export function AgentHealthBanner() {
     <div
       role="alert"
       aria-live="polite"
-      className="border-b-[0.5px] border-ink bg-amber-100 text-ink dark:bg-amber-200/90 dark:text-ink"
+      className="agent-banner sticky top-0 z-50 h-12 border-b-[0.5px] border-ink bg-amber-100 text-ink dark:bg-amber-200/90 dark:text-ink"
     >
-      <div className="mx-auto flex items-center gap-4 px-10 py-2.5">
+      <div className="mx-auto flex h-full items-center gap-4 px-10">
         <span className="flex shrink-0 items-center gap-2 whitespace-nowrap border-r border-ink/25 pr-3.5 font-mono text-[10px] uppercase tracking-[0.16em]">
           <span className="size-[7px] animate-pulse rounded-full bg-ink" aria-hidden />
           {state.tag}
         </span>
-        <span className="min-w-0 flex-1 font-sans text-[13px] leading-[1.4]">{state.message}</span>
+        <span className="min-w-0 flex-1 truncate font-sans text-[13px] leading-[1.4]">{state.message}</span>
         {state.cta && (
           <Link
             href={state.cta.href}

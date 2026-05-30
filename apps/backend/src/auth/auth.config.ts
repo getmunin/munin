@@ -1,4 +1,5 @@
 import { APIError } from 'better-auth/api';
+import type { BetterAuthOptions } from 'better-auth';
 import {
   createMuninAuthCore,
   type MuninAuthInstance,
@@ -22,6 +23,7 @@ export interface MuninAuthOptions {
   allowedEmailDomains?: string[];
   google?: { clientId: string; clientSecret: string };
   github?: { clientId: string; clientSecret: string };
+  logger?: BetterAuthOptions['logger'];
 }
 
 export function createMuninAuth({
@@ -34,6 +36,7 @@ export function createMuninAuth({
   allowedEmailDomains = [],
   google,
   github,
+  logger,
 }: MuninAuthOptions): MuninAuthInstance {
   return createMuninAuthCore({
     db,
@@ -41,6 +44,7 @@ export function createMuninAuth({
     authSecret,
     trustedOrigins,
     webBaseUrl,
+    logger,
     socialProviders: google || github ? { google, github } : undefined,
     sendResetPassword: mailer
       ? async ({ user, url }) => {
@@ -150,4 +154,30 @@ export function readAllowedEmailDomainsFromEnv(): string[] {
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
+}
+
+type CaptureExceptionFn = (
+  err: unknown,
+  hint?: { tags?: Record<string, string>; extra?: Record<string, unknown> },
+) => unknown;
+
+export function sentryForwardingLogger(
+  captureException: CaptureExceptionFn,
+): NonNullable<BetterAuthOptions['logger']> {
+  return {
+    log(level, message, ...args) {
+      const safeArgs = args as unknown[];
+      const out = level === 'error' || level === 'warn' ? console.error : console.log;
+      out(`[Better Auth] [${level}] ${message}`, ...safeArgs);
+      if (level !== 'error') return;
+      const err = safeArgs.find((a): a is Error => a instanceof Error);
+      captureException(err ?? new Error(`[BetterAuth] ${message}`), {
+        tags: { source: 'better-auth' },
+        extra: {
+          message,
+          args: err ? safeArgs.filter((a) => a !== err) : safeArgs,
+        },
+      });
+    },
+  };
 }

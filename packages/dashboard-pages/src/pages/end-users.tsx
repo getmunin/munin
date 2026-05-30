@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useFormatter, useTranslations } from 'next-intl';
+import { useFormatter, useNow, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
@@ -27,6 +27,7 @@ export function EndUsersPage() {
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const format = useFormatter();
+  const now = useNow();
   const [items, setItems] = useState<EndUserDto[] | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -145,7 +146,7 @@ export function EndUsersPage() {
                     {eu.externalId ?? '—'}
                   </td>
                   <td className="py-4 pr-4 font-mono text-xs text-ink-mute">
-                    {format.relativeTime(new Date(eu.updatedAt))}
+                    {format.relativeTime(new Date(eu.updatedAt), now)}
                   </td>
                   <td className="py-4 text-right">
                     <Button

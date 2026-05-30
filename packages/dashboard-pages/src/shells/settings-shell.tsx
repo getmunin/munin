@@ -87,7 +87,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-paper dark:bg-background">
+    <div className="flex min-h-screen flex-col bg-paper group-has-[.agent-banner]:min-h-[calc(100vh_-_3rem)] dark:bg-background">
       <SettingsTopbar
         title={tNav('settings')}
         backLabel={tCommon('back')}
@@ -96,8 +96,8 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
         openMenuLabel={tNav('openMenu')}
       />
 
-      <div className="flex min-h-[calc(100vh-3.5rem)]">
-        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-72 shrink-0 flex-col self-start border-r-[0.5px] border-rule-soft bg-bone md:flex dark:border-rule-on-dark dark:bg-secondary">
+      <div className="flex min-h-[calc(100vh_-_3.5rem)] group-has-[.agent-banner]:min-h-[calc(100vh_-_6.5rem)]">
+        <aside className="sticky top-14 hidden h-[calc(100vh_-_3.5rem)] w-72 shrink-0 flex-col self-start border-r-[0.5px] border-rule-soft bg-bone group-has-[.agent-banner]:top-[6.5rem] group-has-[.agent-banner]:h-[calc(100vh_-_6.5rem)] md:flex dark:border-rule-on-dark dark:bg-secondary">
           <div className="flex-1 overflow-y-auto px-6 py-10">{navTree}</div>
           <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
             {signOutButton}

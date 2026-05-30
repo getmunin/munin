@@ -108,6 +108,59 @@
         "eyebrow": "En invitasjon",
         "quote": "Selv Munin glemmer, når for mange dager er gått. Spør igjen, og flokken vil huske."
       }
+    },
+    "forgotPassword": {
+      "title": "Tilbakestill passord",
+      "subtitle": "Skriv inn e-postadressen din, så sender vi en tilbakestillingslenke.",
+      "submit": "Send tilbakestillingslenke",
+      "submitting": "Sender…",
+      "sent": "Hvis det finnes en konto med den e-postadressen, har vi sendt en lenke.",
+      "failed": "Kunne ikke starte tilbakestilling.",
+      "backToSignIn": "Tilbake til innlogging",
+      "linkLabel": "Glemt passord?",
+      "sentTitleRichPre": "Sjekk ",
+      "sentTitleRichEm": "innboksen",
+      "sentTitleRichPost": " din.",
+      "sentBody": "Vi sendte en tilbakestillingslenke til {email}. Den varer i 30 minutter.",
+      "sentInfo": "Fikk du den ikke? Sjekk søppelpost, eller vent et minutt og prøv igjen. Lenken er gyldig én gang.",
+      "resend": "Send lenken på nytt"
+    },
+    "resetPassword": {
+      "title": "Velg et nytt passord",
+      "subtitle": "For {email}. Minst 10 tegn.",
+      "submit": "Oppdater passord",
+      "submitting": "Oppdaterer…",
+      "success": "Passordet er oppdatert. Du kan logge inn nå.",
+      "mismatch": "Passordene er ikke like.",
+      "tooShort": "Passordet må være minst 8 tegn.",
+      "missingToken": "Denne lenken mangler eller er ugyldig. Be om en ny.",
+      "failed": "Kunne ikke tilbakestille passordet.",
+      "signIn": "Logg inn",
+      "titleRichPre": "Velg et nytt ",
+      "titleRichEm": "passord",
+      "titleRichPost": ".",
+      "rules": {
+        "length": "minst 10 tegn",
+        "numberOrSymbol": "et tall eller symbol",
+        "notPrevious": "ikke ditt forrige passord"
+      },
+      "doneTitleRichPre": "Passordet er ",
+      "doneTitleRichEm": "oppdatert",
+      "doneTitleRichPost": ".",
+      "doneSubtitle": "Klar. Logg inn med det nye passordet for å fortsette.",
+      "doneCta": "Fortsett til innlogging",
+      "subtitleNoEmail": "Minst 10 tegn."
+    },
+    "verifyEmail": {
+      "successTitle": "E-postadressen er bekreftet",
+      "successSubtitle": "Kontoen din er klar. Logg inn for å fortsette.",
+      "successCta": "Logg inn",
+      "expiredTitle": "Lenken er utløpt",
+      "expiredSubtitle": "Lenker for e-postbekreftelse varer i 24 timer. Logg inn for å få sendt en ny.",
+      "expiredCta": "Gå til innlogging",
+      "invalidTitle": "Lenken er ugyldig",
+      "invalidSubtitle": "Vi kjente ikke igjen denne bekreftelseslenken. Be om en ny ved å logge inn.",
+      "invalidCta": "Gå til innlogging"
     }
   },
   "nav": {

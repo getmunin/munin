@@ -7,8 +7,8 @@ import {
 } from '@getmunin/backend-core';
 import { schema, type Db } from '@getmunin/db';
 import type { Mailer } from '@getmunin/core';
+import { renderResetPasswordEmail, renderVerifyEmail } from '@getmunin/emails';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
-import { resetPasswordEmail, verifyEmailEmail } from './email-templates.ts';
 
 export type MuninAuth = MuninAuthInstance;
 
@@ -44,14 +44,14 @@ export function createMuninAuth({
     socialProviders: google || github ? { google, github } : undefined,
     sendResetPassword: mailer
       ? async ({ user, url }) => {
-          const tpl = resetPasswordEmail(url);
-          await mailer.send({ to: user.email, subject: tpl.subject, text: tpl.text });
+          const tpl = await renderResetPasswordEmail({ url });
+          await mailer.send({ to: user.email, subject: tpl.subject, text: tpl.text, html: tpl.html });
         }
       : undefined,
     sendVerificationEmail: mailer
       ? async ({ user, url }) => {
-          const tpl = verifyEmailEmail(url);
-          await mailer.send({ to: user.email, subject: tpl.subject, text: tpl.text });
+          const tpl = await renderVerifyEmail({ url });
+          await mailer.send({ to: user.email, subject: tpl.subject, text: tpl.text, html: tpl.html });
         }
       : undefined,
     signupBefore: (user: SignupBeforeUser) =>

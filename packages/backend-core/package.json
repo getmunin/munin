@@ -40,11 +40,13 @@
     "docs:generate": "pnpm openapi:generate && node --import @swc-node/register/esm-register ./scripts/generate-docs-fixtures.ts"
   },
   "dependencies": {
+    "@better-auth/oauth-provider": "^1.6.10",
+    "@getmunin/agent-runtime": "workspace:*",
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",
+    "@getmunin/emails": "workspace:*",
     "@getmunin/mcp-toolkit": "workspace:*",
     "@getmunin/types": "workspace:*",
-    "@better-auth/oauth-provider": "^1.6.10",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^11.1.19",
     "@nestjs/core": "^11.1.19",
@@ -65,8 +67,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "ws": "^8.18.0",
-    "zod": "^4.3.6",
-    "@getmunin/agent-runtime": "workspace:*"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",

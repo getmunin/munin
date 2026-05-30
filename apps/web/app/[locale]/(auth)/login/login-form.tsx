@@ -34,6 +34,7 @@ export function LoginForm({ providers }: { providers: AuthProviders }) {
   const tInvalid = useTranslations('auth.signIn.invalid');
   const tUnreachable = useTranslations('auth.signIn.unreachable');
   const tFields = useTranslations('auth.fields');
+  const tForgot = useTranslations('auth.forgotPassword');
   const tCommon = useTranslations('common');
   const tGoogle = useTranslations('ui.googleButton');
   const tGithub = useTranslations('ui.githubButton');
@@ -154,6 +155,14 @@ export function LoginForm({ providers }: { providers: AuthProviders }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <div className="mt-2 text-right">
+                <Link
+                  href="/forgot-password"
+                  className="font-mono text-[11px] tracking-wide text-ink-soft underline underline-offset-[3px] decoration-1 hover:text-ink"
+                >
+                  {tForgot('linkLabel')}
+                </Link>
+              </div>
             </AuthField>
             <AuthSubmit type="submit" disabled={submitting}>
               {submitting ? t('submitting') : t('submit')}

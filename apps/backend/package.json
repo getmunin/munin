@@ -16,23 +16,24 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@better-auth/oauth-provider": "^1.6.10",
     "@getmunin/agent-host": "workspace:*",
     "@getmunin/backend-core": "workspace:*",
     "@getmunin/chat-widget": "workspace:*",
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",
+    "@getmunin/emails": "workspace:*",
     "@nestjs/common": "^11.1.19",
     "@nestjs/core": "^11.1.19",
     "@nestjs/platform-express": "^11.1.19",
+    "@sentry/nestjs": "^10.51.0",
+    "@sentry/profiling-node": "^10.51.0",
     "better-auth": "^1.6.10",
-    "@better-auth/oauth-provider": "^1.6.10",
     "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
     "postgres": "^3.4.5",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "@sentry/nestjs": "^10.51.0",
-    "@sentry/profiling-node": "^10.51.0"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",

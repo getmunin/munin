@@ -1,6 +1,5 @@
 ---
 '@getmunin/backend-core': minor
-'@getmunin/backend': minor
 ---
 
 Forward BetterAuth log errors to Sentry.

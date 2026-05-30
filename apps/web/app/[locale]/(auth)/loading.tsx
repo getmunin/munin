@@ -1,5 +1,3 @@
-import { PageSpinner } from '@getmunin/ui';
+import { AuthLoading } from '@getmunin/dashboard-pages';
 
-export default function AuthLoading() {
-  return <PageSpinner className="min-h-screen" />;
-}
+export default AuthLoading;

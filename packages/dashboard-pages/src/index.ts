@@ -64,7 +64,19 @@ export {
   useAuthProviders,
   fetchAuthProviders,
   type AuthProviders,
+  LoginForm,
+  type LoginFormProps,
+  SignupForm,
+  type SignupFormProps,
+  ForgotPasswordPage,
+  type ForgotPasswordPageProps,
+  ResetPasswordPage,
+  type ResetPasswordPageProps,
+  VerifyEmailPage,
+  type VerifyEmailPageProps,
+  AuthLoading,
 } from './components/auth-shell';
+export { useTranslateError, translateError, getErrorCode } from './i18n/translate-error';
 export {
   useActiveRole,
   useActiveMembership,

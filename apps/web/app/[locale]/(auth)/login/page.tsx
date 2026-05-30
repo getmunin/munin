@@ -1,12 +1,15 @@
 import { Suspense } from 'react';
-import { fetchAuthProviders } from '@getmunin/dashboard-pages';
-import { LoginForm } from './login-form';
+import {
+  fetchAuthProviders,
+  LoginForm,
+  OSS_AUTH_FOOTER,
+} from '@getmunin/dashboard-pages';
 
 export default async function LoginPage() {
   const providers = await fetchAuthProviders();
   return (
     <Suspense fallback={null}>
-      <LoginForm providers={providers} />
+      <LoginForm providers={providers} footer={OSS_AUTH_FOOTER} />
     </Suspense>
   );
 }

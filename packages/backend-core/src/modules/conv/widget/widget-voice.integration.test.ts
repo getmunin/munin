@@ -54,7 +54,13 @@ const skipReason = TEST_URL
 
     const [chatChannel] = await db
       .insert(schema.convChannels)
-      .values({ orgId, type: 'chat', vendor: 'munin', name: 'Web chat' })
+      .values({
+        orgId,
+        type: 'chat',
+        vendor: 'munin',
+        name: 'Web chat',
+        config: { provider: 'widget', originAllowlist: [], requireVerifiedIdentity: false },
+      })
       .returning();
     widgetChannelId = chatChannel!.id;
 
@@ -234,6 +240,27 @@ const skipReason = TEST_URL
     expect(JSON.stringify(json)).toContain('conversation_session_mismatch');
   });
 
+  it('rejects when the bound widget channel has been deactivated', async () => {
+    await db
+      .update(schema.convChannels)
+      .set({ active: false })
+      .where(eq(schema.convChannels.id, widgetChannelId));
+    try {
+      const { status, json } = await call({
+        channelId: widgetChannelId,
+        conversationId: aliceConvId,
+        sessionId: ALICE_SESSION_ID,
+      });
+      expect(status).toBe(403);
+      expect(JSON.stringify(json)).toContain('is inactive');
+    } finally {
+      await db
+        .update(schema.convChannels)
+        .set({ active: true })
+        .where(eq(schema.convChannels.id, widgetChannelId));
+    }
+  });
+
   it('returns available:false when voice channel has no publicKey', async () => {
     await db
       .update(schema.convChannels)
@@ -359,7 +386,7 @@ const skipReason = TEST_URL
     } finally {
       await db
         .update(schema.convChannels)
-        .set({ config: sql`config - 'voiceChannelId' - 'provider'` })
+        .set({ config: sql`config - 'voiceChannelId'` })
         .where(eq(schema.convChannels.id, widgetChannelId));
       await db.delete(schema.convChannels).where(eq(schema.convChannels.id, extra.id));
     }
@@ -386,7 +413,7 @@ const skipReason = TEST_URL
     } finally {
       await db
         .update(schema.convChannels)
-        .set({ config: sql`config - 'voiceChannelId' - 'provider'` })
+        .set({ config: sql`config - 'voiceChannelId'` })
         .where(eq(schema.convChannels.id, widgetChannelId));
     }
   });

@@ -43,7 +43,7 @@ import type {
   WidgetVoiceStartInputT,
   WidgetVoiceStartResult,
 } from './widget.types.ts';
-import { enforceOriginAllowlist, verifyIdentity } from './widget-ingest.service.ts';
+import { enforceOriginAllowlist, loadWidgetChannel, verifyIdentity } from './widget-ingest.service.ts';
 
 const HISTORY_TURN_LIMIT = 20;
 const PROMPT_CACHE_TTL_MS = 60_000;
@@ -111,24 +111,13 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
 
-      const widgetChannelRows = await tx
-        .select({ config: schema.convChannels.config })
-        .from(schema.convChannels)
-        .where(eq(schema.convChannels.id, input.channelId))
-        .limit(1);
-      const widgetConfigParsed = widgetChannelRows[0]
-        ? WidgetChannelConfig.safeParse(widgetChannelRows[0].config)
-        : null;
-      const widgetConfig = widgetConfigParsed?.success ? widgetConfigParsed.data : null;
-      if (widgetConfig) {
-        enforceOriginAllowlist(widgetConfig, requestContext.origin);
-      }
-      const identity = widgetConfig
-        ? verifyIdentity(widgetConfig, {
-            verifiedExternalId: input.verifiedExternalId,
-            userHash: input.userHash,
-          })
-        : { mode: 'anonymous' as const };
+      const widgetChannel = await loadWidgetChannel(tx, orgId, input.channelId);
+      const widgetConfig = WidgetChannelConfig.parse(widgetChannel.config);
+      enforceOriginAllowlist(widgetConfig, requestContext.origin);
+      const identity = verifyIdentity(widgetConfig, {
+        verifiedExternalId: input.verifiedExternalId,
+        userHash: input.userHash,
+      });
 
       const convRows = await tx
         .select({
@@ -168,7 +157,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
         return { available: false, reason: 'conversation_has_no_end_user' };
       }
 
-      const voiceChannelId = widgetConfig?.voiceChannelId;
+      const voiceChannelId = widgetConfig.voiceChannelId;
 
       const voiceBaseConditions = [
         eq(schema.convChannels.orgId, orgId),
@@ -296,24 +285,13 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     const messageId = await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
 
-      const widgetChannelRows = await tx
-        .select({ config: schema.convChannels.config })
-        .from(schema.convChannels)
-        .where(eq(schema.convChannels.id, input.channelId))
-        .limit(1);
-      const widgetConfigParsed = widgetChannelRows[0]
-        ? WidgetChannelConfig.safeParse(widgetChannelRows[0].config)
-        : null;
-      const widgetConfig = widgetConfigParsed?.success ? widgetConfigParsed.data : null;
-      if (widgetConfig) {
-        enforceOriginAllowlist(widgetConfig, requestContext.origin);
-      }
-      const identity = widgetConfig
-        ? verifyIdentity(widgetConfig, {
-            verifiedExternalId: input.verifiedExternalId,
-            userHash: input.userHash,
-          })
-        : { mode: 'anonymous' as const };
+      const widgetChannel = await loadWidgetChannel(tx, orgId, input.channelId);
+      const widgetConfig = WidgetChannelConfig.parse(widgetChannel.config);
+      enforceOriginAllowlist(widgetConfig, requestContext.origin);
+      const identity = verifyIdentity(widgetConfig, {
+        verifiedExternalId: input.verifiedExternalId,
+        userHash: input.userHash,
+      });
 
       const [conv] = await tx
         .select({

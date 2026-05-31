@@ -686,24 +686,7 @@ export class WidgetIngestService {
     orgId: string,
     channelId: string,
   ): Promise<typeof schema.convChannels.$inferSelect> {
-    const rows = await tx
-      .select()
-      .from(schema.convChannels)
-      .where(and(eq(schema.convChannels.id, channelId), eq(schema.convChannels.orgId, orgId)))
-      .limit(1);
-    const channel = rows[0];
-    if (!channel) throw new NotFoundException(`channel ${channelId} not found`);
-    if (channel.type !== 'chat') {
-      throw new BadRequestException(`channel ${channelId} is not a chat channel`);
-    }
-    if (!channel.active) {
-      throw new ForbiddenException(`channel ${channelId} is inactive`);
-    }
-    const parsed = WidgetChannelConfig.safeParse(channel.config);
-    if (!parsed.success) {
-      throw new BadRequestException(`channel ${channelId} is not configured as a widget channel`);
-    }
-    return channel;
+    return loadWidgetChannel(tx, orgId, channelId);
   }
 
   private async findOrCreateEndUser(
@@ -943,6 +926,31 @@ export function enforceOriginAllowlist(
   if (!origin) throw new ForbiddenException('origin_required');
   const allowed = list.some((entry) => originMatches(entry, origin));
   if (!allowed) throw new ForbiddenException('origin_not_allowed');
+}
+
+export async function loadWidgetChannel(
+  tx: Tx,
+  orgId: string,
+  channelId: string,
+): Promise<typeof schema.convChannels.$inferSelect> {
+  const rows = await tx
+    .select()
+    .from(schema.convChannels)
+    .where(and(eq(schema.convChannels.id, channelId), eq(schema.convChannels.orgId, orgId)))
+    .limit(1);
+  const channel = rows[0];
+  if (!channel) throw new NotFoundException(`channel ${channelId} not found`);
+  if (channel.type !== 'chat') {
+    throw new BadRequestException(`channel ${channelId} is not a chat channel`);
+  }
+  if (!channel.active) {
+    throw new ForbiddenException(`channel ${channelId} is inactive`);
+  }
+  const parsed = WidgetChannelConfig.safeParse(channel.config);
+  if (!parsed.success) {
+    throw new BadRequestException(`channel ${channelId} is not configured as a widget channel`);
+  }
+  return channel;
 }
 
 function originMatches(allowlistEntry: string, origin: string): boolean {

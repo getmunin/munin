@@ -892,15 +892,23 @@ const skipReason = TEST_URL
       body: JSON.stringify({
         channelId,
         sessionId,
-        messages: [
-          { role: 'end_user', body: 'hello' },
-          { role: 'agent', body: 'first reply' },
-          { role: 'agent', body: 'second reply' },
-          { role: 'agent', body: 'third reply' },
-        ],
+        messages: [{ role: 'end_user', body: 'hello' }],
       }),
     });
     const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    for (const body of ['first reply', 'second reply', 'third reply']) {
+      await db.insert(schema.convMessages).values({
+        orgId,
+        conversationId,
+        authorType: 'agent',
+        authorId: 'widget-agent',
+        body,
+        internal: false,
+        metadata: { sessionId },
+      });
+    }
 
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const agentRows = await db

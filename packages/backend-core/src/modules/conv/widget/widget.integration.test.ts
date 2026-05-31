@@ -143,8 +143,10 @@ const skipReason = TEST_URL
   ): Promise<{ status: number; json: unknown }> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      Origin: 'https://customer.example',
       ...extraHeaders,
     };
+    if (headers.Origin === '') delete headers.Origin;
     if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(`${baseUrl}${path}`, {
       method,
@@ -159,6 +161,33 @@ const skipReason = TEST_URL
       json = text;
     }
     return { status: res.status, json };
+  }
+
+  async function insertAgentMessage(
+    conversationId: string,
+    body: string,
+    sessionId?: string,
+    providerMessageId?: string,
+    extra: Partial<typeof schema.convMessages.$inferInsert> = {},
+  ): Promise<string> {
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const meta: Record<string, unknown> = {};
+    if (sessionId) meta.sessionId = sessionId;
+    if (providerMessageId) meta.providerMessageId = providerMessageId;
+    const [row] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId,
+        authorType: 'agent',
+        authorId: 'widget-agent',
+        body,
+        internal: false,
+        metadata: meta,
+        ...extra,
+      })
+      .returning({ id: schema.convMessages.id });
+    return row!.id;
   }
 
   it('mints a widget key bound to a chat channel', async () => {
@@ -188,13 +217,14 @@ const skipReason = TEST_URL
       visitor: { name: 'Vita', email: 'vita@example.com' },
       messages: [
         { role: 'end_user', body: 'Where is my order?', providerMessageId: 'evt_1' },
-        { role: 'agent', body: 'Let me check…', providerMessageId: 'evt_2' },
       ],
     });
     expect(res.status).toBe(201);
     const out = res.json as { conversationId: string; inserted: number; skipped: number };
-    expect(out.inserted).toBe(2);
+    expect(out.inserted).toBe(1);
     expect(out.skipped).toBe(0);
+
+    await insertAgentMessage(out.conversationId, 'Let me check…', sessionId, 'evt_2');
 
     await waitFor(async () => {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
@@ -660,26 +690,36 @@ const skipReason = TEST_URL
     );
     expect(allowed.status).toBe(201);
 
-    const noOrigin = await call('POST', '/v1/widget/messages', widgetKey, {
-      channelId,
-      sessionId: 'vis_origin_none',
-      messages: [{ role: 'end_user', body: 'no origin' }],
-    });
+    const noOrigin = await call(
+      'POST',
+      '/v1/widget/messages',
+      widgetKey,
+      {
+        channelId,
+        sessionId: 'vis_origin_none',
+        messages: [{ role: 'end_user', body: 'no origin' }],
+      },
+      { Origin: '' },
+    );
     expect(noOrigin.status).toBe(403);
   });
 
   it('lists messages ordered ascending and filters by since', async () => {
     const sessionId = 'vis_list_basic';
-    const t0 = await call('POST', '/v1/widget/messages', widgetKey, {
+    const first = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
-      messages: [
-        { role: 'end_user', body: 'one' },
-        { role: 'agent', body: 'two' },
-        { role: 'end_user', body: 'three' },
-      ],
+      messages: [{ role: 'end_user', body: 'one' }],
     });
-    expect(t0.status).toBe(201);
+    expect(first.status).toBe(201);
+    const conversationId = (first.json as { conversationId: string }).conversationId;
+    await insertAgentMessage(conversationId, 'two', sessionId);
+    const third = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'three' }],
+    });
+    expect(third.status).toBe(201);
 
     const all = await call(
       'GET',
@@ -888,15 +928,6 @@ const skipReason = TEST_URL
     expect(JSON.stringify(tooBig.json)).toMatch(/exceeds 1000 chars|too_big/i);
   });
 
-  it('still accepts long agent bodies (operator-pushed messages keep the 50K cap)', async () => {
-    const res = await call('POST', '/v1/widget/messages', widgetKey, {
-      channelId,
-      sessionId: 'vis_charcap_agent',
-      messages: [{ role: 'agent', body: 'b'.repeat(20_000) }],
-    });
-    expect(res.status).toBe(201);
-  });
-
   it('rejects an end_user bodyHtml over 4000 chars', async () => {
     const tooBig = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
@@ -1013,14 +1044,13 @@ const skipReason = TEST_URL
 
   it('returns authorKind and authorName on listed agent messages', async () => {
     const sid = `vis_author_${Date.now()}`;
-    await call('POST', '/v1/widget/messages', widgetKey, {
+    const first = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: sid,
-      messages: [
-        { role: 'end_user', body: 'help' },
-        { role: 'agent', body: 'sure thing' },
-      ],
+      messages: [{ role: 'end_user', body: 'help' }],
     });
+    expect(first.status).toBe(201);
+    await insertAgentMessage((first.json as { conversationId: string }).conversationId, 'sure thing', sid);
     const res = await call(
       'GET',
       `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
@@ -1048,14 +1078,13 @@ const skipReason = TEST_URL
       });
     try {
       const sid = `vis_assistant_${Date.now()}`;
-      await call('POST', '/v1/widget/messages', widgetKey, {
+      const first = await call('POST', '/v1/widget/messages', widgetKey, {
         channelId,
         sessionId: sid,
-        messages: [
-          { role: 'end_user', body: 'hi' },
-          { role: 'agent', body: 'hello there' },
-        ],
+        messages: [{ role: 'end_user', body: 'hi' }],
       });
+      expect(first.status).toBe(201);
+      await insertAgentMessage((first.json as { conversationId: string }).conversationId, 'hello there', sid);
       const res = await call(
         'GET',
         `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
@@ -1124,14 +1153,17 @@ const skipReason = TEST_URL
 
   it('returns readAt on listed messages, null until a conv_message_reads row exists', async () => {
     const sid = `vis_read_${Date.now()}`;
-    await call('POST', '/v1/widget/messages', widgetKey, {
+    const first = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: sid,
-      messages: [
-        { role: 'end_user', body: 'hello there' },
-        { role: 'agent', body: 'an agent reply for read-state test' },
-      ],
+      messages: [{ role: 'end_user', body: 'hello there' }],
     });
+    expect(first.status).toBe(201);
+    await insertAgentMessage(
+      (first.json as { conversationId: string }).conversationId,
+      'an agent reply for read-state test',
+      sid,
+    );
 
     const firstRes = await call(
       'GET',

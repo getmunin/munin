@@ -18,9 +18,24 @@ CREATE INDEX IF NOT EXISTS cms_entries_fts_idx
 
 -- ───────────────────────── HNSW vector index ──────────────────────────────
 -- Cosine similarity for hybrid search. Pairs with the embedding column on
--- cms_entries; reads use `1 - (embedding <=> q)` for similarity.
-CREATE INDEX IF NOT EXISTS cms_entries_embedding_hnsw_idx
-  ON cms_entries USING hnsw (embedding vector_cosine_ops);
+-- cms_entries; reads use `1 - (embedding <=> q)` for similarity. Picks the
+-- opclass that matches the column type (see kb.sql for the why).
+DO $$
+DECLARE
+  col_udt text;
+BEGIN
+  SELECT udt_name INTO col_udt FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'cms_entries'
+      AND column_name = 'embedding';
+  IF col_udt = 'halfvec' THEN
+    CREATE INDEX IF NOT EXISTS cms_entries_embedding_hnsw_idx
+      ON cms_entries USING hnsw (embedding halfvec_cosine_ops);
+  ELSE
+    CREATE INDEX IF NOT EXISTS cms_entries_embedding_hnsw_idx
+      ON cms_entries USING hnsw (embedding vector_cosine_ops);
+  END IF;
+END $$;
 
 -- ───────────────────────── CMS RLS ────────────────────────────────────────
 -- Collections, locales, assets, references: org-scoped, admin-only. End-

@@ -187,11 +187,12 @@ const skipReason = TEST_URL
       });
     });
 
-    const a = await getBacklog(adminKeyA);
-    expect(a.kbCurationPending).toBe(2);
-
-    const b = await getBacklog(adminKeyB);
-    expect(b.kbCurationPending).toBe(1);
+    await expect
+      .poll(async () => (await getBacklog(adminKeyA)).kbCurationPending, { timeout: 2000 })
+      .toBe(2);
+    await expect
+      .poll(async () => (await getBacklog(adminKeyB)).kbCurationPending, { timeout: 2000 })
+      .toBe(1);
   });
 
   it('counts pending CRM merge proposals scoped to caller org and ignores applied/dismissed', async () => {

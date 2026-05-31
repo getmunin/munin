@@ -16,7 +16,15 @@ import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 
-export const SELF_SERVICE_SCOPES = ['conv:write', 'crm:read', 'crm:write'] as const;
+export const SELF_SERVICE_SCOPES = [
+  'cms:read',
+  'conv:read',
+  'conv:write',
+  'crm:read',
+  'crm:write',
+  'kb:read',
+  'outreach:read',
+] as const;
 
 export const MintDto = z
   .object({

@@ -366,13 +366,20 @@ const skipReason = TEST_URL
       });
     });
 
+    await expect
+      .poll(
+        async () =>
+          (await rest<Detail>(endUserToken, 'GET', `/v1/end-users/me/conversations/${conv.id}`))
+            .body.needsHumanAttention,
+        { timeout: 2000 },
+      )
+      .toBe(true);
+
     const endUserDetail = await rest<Detail>(
       endUserToken,
       'GET',
       `/v1/end-users/me/conversations/${conv.id}`,
     );
-
-    expect(endUserDetail.body.needsHumanAttention).toBe(true);
     const publicAgentMessages = endUserDetail.body.messages.filter(
       (m) => m.authorType === 'agent' && !m.internal,
     );

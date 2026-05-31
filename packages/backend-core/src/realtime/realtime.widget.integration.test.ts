@@ -249,15 +249,16 @@ const skipReason = TEST_URL
     ws.terminate();
   });
 
-  it('rejects upgrade with no Origin (browser keys must declare one)', async () => {
-    // Origin is required for browser-style widget keys; the upgrade gate
-    // calls enforceOriginAllowlist which only short-circuits when Origin
-    // is absent. We test absence-equals-pass at the REST layer; for WS
-    // we additionally don't expose any subprotocol hint that the caller
-    // is server-side, so the gate's permissive "no Origin" branch must
-    // still be exercised.
+  it('rejects upgrade with no Origin when an allowlist is configured', async () => {
     const ws = connectWs(widgetKey, {});
-    await waitForOpen(ws);
+    let err: Error | null = null;
+    try {
+      await waitForOpen(ws);
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err).toBeTruthy();
+    expect(err!.message).toMatch(/upgrade rejected: 401/i);
     ws.terminate();
   });
 

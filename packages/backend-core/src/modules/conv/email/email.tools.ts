@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema, type Db } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
-import { getCurrentContext, type Mailer } from '@getmunin/core';
+import { assertPublicHost, getCurrentContext, type Mailer } from '@getmunin/core';
 import { renderChannelTestEmail } from '@getmunin/emails';
 import { createTransport } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
@@ -164,6 +164,7 @@ export class EmailAdminTools {
   private async testSmtp(config: StoredEmailChannelConfig): Promise<string> {
     if (config.outbound.provider === 'mailer') return 'ok';
     try {
+      await assertPublicHost(config.outbound.host);
       const password = await this.serviceDb.transaction((tx) =>
         this.email.decryptSmtpPassword(
           tx,
@@ -194,6 +195,7 @@ export class EmailAdminTools {
     // imapflow is loaded lazily so the dependency stays out of code paths that
     // don't need it. See M8.3 for the inbound worker that uses it for real.
     try {
+      await assertPublicHost(config.inbound.host);
       const password = await this.serviceDb.transaction((tx) =>
         this.email.decryptImapPassword(tx, config.inbound!.encryptedPassword),
       );

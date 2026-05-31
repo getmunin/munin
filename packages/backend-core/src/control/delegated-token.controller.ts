@@ -16,7 +16,9 @@ import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 
-const MintDto = z
+export const SELF_SERVICE_SCOPES = ['conv:write', 'crm:read', 'crm:write'] as const;
+
+export const MintDto = z
   .object({
     endUserId: z.string().optional(),
     externalId: z.string().optional(),
@@ -25,8 +27,10 @@ const MintDto = z
     name: z.string().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
     ttlSeconds: z.number().int().min(60).max(60 * 60 * 24).default(30 * 60),
-    audiences: z.array(z.enum(['admin', 'self_service'])).default(['self_service']),
-    scopes: z.array(z.string()).default([]),
+    audiences: z
+      .array(z.literal('self_service'))
+      .default(['self_service']),
+    scopes: z.array(z.enum(SELF_SERVICE_SCOPES)).default([]),
   })
   .refine((v) => v.endUserId || v.externalId || v.email || v.phone, {
     message: 'at least one of endUserId, externalId, email, phone is required',

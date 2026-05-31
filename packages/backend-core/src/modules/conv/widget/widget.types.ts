@@ -14,44 +14,18 @@ export type WidgetChannelConfigT = z.infer<typeof WidgetChannelConfig>;
 export const WIDGET_END_USER_BODY_MAX_CHARS = 1_000;
 export const WIDGET_END_USER_BODY_HTML_MAX_CHARS = 4_000;
 
-export const WidgetIngestMessage = z
-  .object({
-    role: z.enum(['end_user', 'agent', 'system']),
-    body: z.string().min(1).max(50_000),
-    bodyHtml: z.string().max(200_000).optional(),
-    providerMessageId: z.string().min(1).max(200).optional(),
-    inReplyTo: z.string().min(1).max(200).optional(),
-    at: z
-      .string()
-      .datetime()
-      .optional()
-      .transform((s) => (s ? new Date(s) : undefined)),
-  })
-  .superRefine((msg, ctx) => {
-    if (msg.role !== 'end_user') return;
-    if (msg.body.length > WIDGET_END_USER_BODY_MAX_CHARS) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.too_big,
-        maximum: WIDGET_END_USER_BODY_MAX_CHARS,
-        type: 'string',
-        inclusive: true,
-        origin: 'string',
-        path: ['body'],
-        message: `end_user body exceeds ${WIDGET_END_USER_BODY_MAX_CHARS} chars`,
-      });
-    }
-    if (msg.bodyHtml && msg.bodyHtml.length > WIDGET_END_USER_BODY_HTML_MAX_CHARS) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.too_big,
-        maximum: WIDGET_END_USER_BODY_HTML_MAX_CHARS,
-        type: 'string',
-        inclusive: true,
-        origin: 'string',
-        path: ['bodyHtml'],
-        message: `end_user bodyHtml exceeds ${WIDGET_END_USER_BODY_HTML_MAX_CHARS} chars`,
-      });
-    }
-  });
+export const WidgetIngestMessage = z.object({
+  role: z.literal('end_user').default('end_user'),
+  body: z.string().min(1).max(WIDGET_END_USER_BODY_MAX_CHARS),
+  bodyHtml: z.string().max(WIDGET_END_USER_BODY_HTML_MAX_CHARS).optional(),
+  providerMessageId: z.string().min(1).max(200).optional(),
+  inReplyTo: z.string().min(1).max(200).optional(),
+  at: z
+    .string()
+    .datetime()
+    .optional()
+    .transform((s) => (s ? new Date(s) : undefined)),
+});
 
 export const WidgetIngestInput = z.object({
   channelId: z.string().min(1),

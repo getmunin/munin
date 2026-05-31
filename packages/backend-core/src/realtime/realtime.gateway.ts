@@ -34,6 +34,7 @@ import {
   verifyIdentity,
 } from '../modules/conv/widget/widget-ingest.service.ts';
 import { WidgetChannelConfig } from '../modules/conv/widget/widget.types.ts';
+import { readAllowedOrigins } from '../bootstrap-app.ts';
 
 const PATH = '/v1/realtime';
 
@@ -157,14 +158,22 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     socket: Duplex,
     head: Buffer,
   ): Promise<void> {
-    let credential: ResolvedCredential | null = null;
+    let authResult: { credential: ResolvedCredential; fromCookie: boolean } | null = null;
     try {
-      credential = await this.authenticate(req);
+      authResult = await this.authenticate(req);
     } catch (err) {
       this.logger.debug(`upgrade auth failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-    if (!credential) {
+    if (!authResult) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    const credential = authResult.credential;
+
+    if (authResult.fromCookie && !isOriginAllowedForCookieAuth(readHeader(req, 'origin'))) {
+      this.logger.debug('upgrade rejected: cookie-authed WS origin not in allowlist');
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
       socket.destroy();
       return;
     }
@@ -691,19 +700,24 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     };
   }
 
-  private async authenticate(req: IncomingMessage): Promise<ResolvedCredential | null> {
+  private async authenticate(
+    req: IncomingMessage,
+  ): Promise<{ credential: ResolvedCredential; fromCookie: boolean } | null> {
     const headerToken = readBearerToken(readHeader(req, 'authorization'));
     if (headerToken) {
-      return this.resolveToken(headerToken);
+      const credential = await this.resolveToken(headerToken);
+      return credential ? { credential, fromCookie: false } : null;
     }
     const subprotocolToken = readBearerSubprotocol(readHeader(req, 'sec-websocket-protocol'));
     if (subprotocolToken) {
-      return this.resolveToken(subprotocolToken);
+      const credential = await this.resolveToken(subprotocolToken);
+      return credential ? { credential, fromCookie: false } : null;
     }
     const cookieValue = readHeader(req, 'cookie');
     const sessionToken = readSessionCookie(cookieValue);
     if (sessionToken) {
-      return this.resolver.resolveSessionToken(sessionToken);
+      const credential = await this.resolver.resolveSessionToken(sessionToken);
+      return credential ? { credential, fromCookie: true } : null;
     }
     return null;
   }
@@ -774,6 +788,13 @@ function readSessionCookie(cookieHeader: string | undefined): string | null {
 
 function looksLikeApiKey(raw: string): boolean {
   return /^mn_[a-z]+_[A-Za-z0-9_-]+$/.test(raw);
+}
+
+export function isOriginAllowedForCookieAuth(origin: string | undefined): boolean {
+  if (!origin) return false;
+  const allowed = readAllowedOrigins();
+  if (allowed === true) return true;
+  return allowed.includes(origin);
 }
 
 function encodeChannel(msg: ClientMessage): string | null {

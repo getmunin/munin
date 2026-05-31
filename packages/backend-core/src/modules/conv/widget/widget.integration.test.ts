@@ -660,13 +660,12 @@ const skipReason = TEST_URL
     );
     expect(allowed.status).toBe(201);
 
-    // No Origin (server-to-server) still passes the allowlist gate.
     const noOrigin = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId: 'vis_origin_none',
       messages: [{ role: 'end_user', body: 'no origin' }],
     });
-    expect(noOrigin.status).toBe(201);
+    expect(noOrigin.status).toBe(403);
   });
 
   it('lists messages ordered ascending and filters by since', async () => {

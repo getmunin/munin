@@ -18,7 +18,7 @@ const DEFAULT_DEV_WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000
  */
 const HASHED_WIDGET_FILE_RE = /^widget\.[a-f0-9]{12}\.js(\.map)?$/;
 
-function readAllowedOrigins(): string[] | true {
+export function readAllowedOrigins(): string[] | true {
   const env = process.env.MUNIN_CORS_ORIGINS;
   if (!env) return DEFAULT_DEV_WEB_ORIGINS;
   if (env === '*') return true;
@@ -194,7 +194,7 @@ export function hostAllowlistMiddleware(allowedHosts: string[]) {
   };
 }
 
-function corsMiddleware(strictOrigins: string[] | true) {
+export function corsMiddleware(strictOrigins: string[] | true) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
     const allowAny = isPublicCorsPath(req.path);
@@ -205,7 +205,9 @@ function corsMiddleware(strictOrigins: string[] | true) {
     if (allowed && origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      if (!allowAny) {
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      }
       res.setHeader('Access-Control-Expose-Headers', 'x-request-id');
     }
 

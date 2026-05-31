@@ -11,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { schema } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
@@ -52,7 +53,7 @@ import { WidgetVoiceService } from './widget-voice.service.ts';
  * the bound org.
  */
 @Controller('v1/widget')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ThrottlerGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class WidgetController {
   constructor(

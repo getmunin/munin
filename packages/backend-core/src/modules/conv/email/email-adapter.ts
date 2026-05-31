@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
+  assertPublicHost,
   signEmailOpenToken,
   withContext,
   type Mailer,
@@ -79,6 +80,7 @@ class ImapFlowFetcher implements ImapFetcher {
     sinceUid: number | null;
     limit: number;
   }): Promise<ImapMessageMin[]> {
+    await assertPublicHost(opts.host);
     const client = new ImapFlow({
       host: opts.host,
       port: opts.port,
@@ -170,6 +172,7 @@ export class EmailAdapter implements ChannelAdapter {
     });
 
     if (config.outbound.provider === 'smtp') {
+      await assertPublicHost(config.outbound.host);
       const password = await this.db.transaction(async (tx) => {
         return this.emailService.decryptSmtpPassword(
           tx,

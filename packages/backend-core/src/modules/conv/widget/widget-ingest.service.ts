@@ -591,8 +591,8 @@ export class WidgetIngestService {
       if (input.url) meta.url = input.url;
       if (input.providerThreadId) meta.providerThreadId = input.providerThreadId;
 
-      const authorType = msg.role;
-      const authorId = authorType === 'end_user' ? contact.id : 'widget-agent';
+      const authorType = 'end_user';
+      const authorId = contact.id;
 
       let insertedId: string | null = null;
       let dup = false;
@@ -938,9 +938,9 @@ export function enforceOriginAllowlist(
   channelConfig: { originAllowlist: string[] },
   origin: string | undefined,
 ): void {
-  if (!origin) return;
   const list = channelConfig.originAllowlist ?? [];
   if (list.length === 0) return;
+  if (!origin) throw new ForbiddenException('origin_required');
   const allowed = list.some((entry) => originMatches(entry, origin));
   if (!allowed) throw new ForbiddenException('origin_not_allowed');
 }

@@ -60,8 +60,9 @@ describe('isOriginAllowedForCookieAuth', () => {
     expect(isOriginAllowedForCookieAuth('https://app.example.com')).toBe(true);
   });
 
-  it('accepts everything when MUNIN_CORS_ORIGINS is *', () => {
+  it('rejects everything when MUNIN_CORS_ORIGINS is * (wildcard never grants cookie origins)', () => {
     process.env.MUNIN_CORS_ORIGINS = '*';
-    expect(isOriginAllowedForCookieAuth('https://anywhere.example')).toBe(true);
+    expect(isOriginAllowedForCookieAuth('https://anywhere.example')).toBe(false);
+    expect(isOriginAllowedForCookieAuth('http://localhost:3000')).toBe(false);
   });
 });

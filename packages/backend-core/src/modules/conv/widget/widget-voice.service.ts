@@ -43,6 +43,7 @@ import type {
   WidgetVoiceStartInputT,
   WidgetVoiceStartResult,
 } from './widget.types.ts';
+import { enforceOriginAllowlist, verifyIdentity } from './widget-ingest.service.ts';
 
 const HISTORY_TURN_LIMIT = 20;
 const PROMPT_CACHE_TTL_MS = 60_000;
@@ -101,6 +102,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     orgId: string,
     boundChannelId: string,
     input: WidgetVoiceStartInputT,
+    requestContext: { origin?: string } = {},
   ): Promise<WidgetVoiceStartResult> {
     if (input.channelId !== boundChannelId) {
       throw new ForbiddenException('widget_channel_mismatch');
@@ -109,11 +111,31 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
 
+      const widgetChannelRows = await tx
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, input.channelId))
+        .limit(1);
+      const widgetConfigParsed = widgetChannelRows[0]
+        ? WidgetChannelConfig.safeParse(widgetChannelRows[0].config)
+        : null;
+      const widgetConfig = widgetConfigParsed?.success ? widgetConfigParsed.data : null;
+      if (widgetConfig) {
+        enforceOriginAllowlist(widgetConfig, requestContext.origin);
+      }
+      const identity = widgetConfig
+        ? verifyIdentity(widgetConfig, {
+            verifiedExternalId: input.verifiedExternalId,
+            userHash: input.userHash,
+          })
+        : { mode: 'anonymous' as const };
+
       const convRows = await tx
         .select({
           id: schema.convConversations.id,
           channelId: schema.convConversations.channelId,
           endUserId: schema.convConversations.endUserId,
+          contactId: schema.convConversations.contactId,
           orgId: schema.convConversations.orgId,
           metadata: schema.convConversations.metadata,
         })
@@ -127,19 +149,26 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       if (conv.channelId !== input.channelId) {
         throw new ForbiddenException('conversation_channel_mismatch');
       }
+      const convSessionId = (conv.metadata as { sessionId?: unknown } | null)?.sessionId;
+      if (convSessionId !== input.sessionId) {
+        throw new ForbiddenException('conversation_session_mismatch');
+      }
+      if (identity.mode === 'verified' && conv.contactId) {
+        const [contactRow] = await tx
+          .select({ metadata: schema.convContacts.metadata })
+          .from(schema.convContacts)
+          .where(eq(schema.convContacts.id, conv.contactId))
+          .limit(1);
+        const contactExt = (contactRow?.metadata as { externalId?: unknown } | null)?.externalId;
+        if (contactExt !== identity.externalId) {
+          throw new ForbiddenException('conversation_identity_mismatch');
+        }
+      }
       if (!conv.endUserId) {
         return { available: false, reason: 'conversation_has_no_end_user' };
       }
 
-      const widgetChannelRows = await tx
-        .select({ config: schema.convChannels.config })
-        .from(schema.convChannels)
-        .where(eq(schema.convChannels.id, input.channelId))
-        .limit(1);
-      const widgetConfig = widgetChannelRows[0]
-        ? WidgetChannelConfig.safeParse(widgetChannelRows[0].config)
-        : null;
-      const voiceChannelId = widgetConfig?.success ? widgetConfig.data.voiceChannelId : undefined;
+      const voiceChannelId = widgetConfig?.voiceChannelId;
 
       const voiceBaseConditions = [
         eq(schema.convChannels.orgId, orgId),
@@ -258,6 +287,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     orgId: string,
     boundChannelId: string,
     input: WidgetVoiceEventInputT,
+    requestContext: { origin?: string } = {},
   ): Promise<WidgetVoiceEventResult> {
     if (input.channelId !== boundChannelId) {
       throw new ForbiddenException('widget_channel_mismatch');
@@ -266,10 +296,30 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     const messageId = await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
 
+      const widgetChannelRows = await tx
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, input.channelId))
+        .limit(1);
+      const widgetConfigParsed = widgetChannelRows[0]
+        ? WidgetChannelConfig.safeParse(widgetChannelRows[0].config)
+        : null;
+      const widgetConfig = widgetConfigParsed?.success ? widgetConfigParsed.data : null;
+      if (widgetConfig) {
+        enforceOriginAllowlist(widgetConfig, requestContext.origin);
+      }
+      const identity = widgetConfig
+        ? verifyIdentity(widgetConfig, {
+            verifiedExternalId: input.verifiedExternalId,
+            userHash: input.userHash,
+          })
+        : { mode: 'anonymous' as const };
+
       const [conv] = await tx
         .select({
           id: schema.convConversations.id,
           channelId: schema.convConversations.channelId,
+          contactId: schema.convConversations.contactId,
           orgId: schema.convConversations.orgId,
           assigneeUserId: schema.convConversations.assigneeUserId,
           metadata: schema.convConversations.metadata,
@@ -282,6 +332,21 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       }
       if (conv.channelId !== input.channelId) {
         throw new ForbiddenException('conversation_channel_mismatch');
+      }
+      const convSessionId = (conv.metadata as { sessionId?: unknown } | null)?.sessionId;
+      if (convSessionId !== input.sessionId) {
+        throw new ForbiddenException('conversation_session_mismatch');
+      }
+      if (identity.mode === 'verified' && conv.contactId) {
+        const [contactRow] = await tx
+          .select({ metadata: schema.convContacts.metadata })
+          .from(schema.convContacts)
+          .where(eq(schema.convContacts.id, conv.contactId))
+          .limit(1);
+        const contactExt = (contactRow?.metadata as { externalId?: unknown } | null)?.externalId;
+        if (contactExt !== identity.externalId) {
+          throw new ForbiddenException('conversation_identity_mismatch');
+        }
       }
 
       let body: string;

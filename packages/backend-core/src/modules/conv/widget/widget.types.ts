@@ -61,6 +61,12 @@ export interface WidgetIngestResult {
 export const WidgetVoiceStartInput = z.object({
   channelId: z.string().min(1),
   conversationId: z.string().min(1),
+  sessionId: z.string().min(1).max(200),
+  verifiedExternalId: z.string().min(1).max(200).optional(),
+  userHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
+    .optional(),
 });
 
 export type WidgetVoiceStartInputT = z.infer<typeof WidgetVoiceStartInput>;
@@ -68,6 +74,12 @@ export type WidgetVoiceStartInputT = z.infer<typeof WidgetVoiceStartInput>;
 export const WidgetVoiceEventInput = z.object({
   channelId: z.string().min(1),
   conversationId: z.string().min(1),
+  sessionId: z.string().min(1).max(200),
+  verifiedExternalId: z.string().min(1).max(200).optional(),
+  userHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
+    .optional(),
   kind: z.enum(['started', 'ended']),
   durationSeconds: z.number().int().min(0).max(60 * 60 * 12).optional(),
 });

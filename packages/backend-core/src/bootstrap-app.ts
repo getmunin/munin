@@ -205,7 +205,8 @@ export function corsMiddleware(strictOrigins: string[] | true) {
     if (allowed && origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
-      if (!allowAny) {
+      const explicitlyAllowed = !allowAny && Array.isArray(strictOrigins) && strictOrigins.includes(origin);
+      if (explicitlyAllowed) {
         res.setHeader('Access-Control-Allow-Credentials', 'true');
       }
       res.setHeader('Access-Control-Expose-Headers', 'x-request-id');

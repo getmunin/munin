@@ -18,6 +18,7 @@ const skipReason = TEST_URL
   : 'Set TEST_DATABASE_URL to a Postgres URL to run widget-voice integration tests.';
 
 (skipReason ? describe.skip : describe)('Widget voice/start endpoint', () => {
+  const ALICE_SESSION_ID = 'voice_alice_session';
   let app: INestApplication;
   let baseUrl: string;
   let db: ReturnType<typeof createDb>;
@@ -87,6 +88,7 @@ const skipReason = TEST_URL
         contactId: aliceContact!.id,
         endUserId: alice!.id,
         status: 'open',
+        metadata: { sessionId: ALICE_SESSION_ID },
       })
       .returning();
     aliceConvId = aliceConv!.id;
@@ -162,6 +164,7 @@ const skipReason = TEST_URL
     const { status, json } = await call({
       channelId: widgetChannelId,
       conversationId: aliceConvId,
+      sessionId: ALICE_SESSION_ID,
     });
     expect(status).toBe(201);
     const body = json as {
@@ -191,6 +194,7 @@ const skipReason = TEST_URL
     const { status, json } = await call({
       channelId: 'cch_someone_elses',
       conversationId: aliceConvId,
+      sessionId: ALICE_SESSION_ID,
     });
     expect(status).toBe(403);
     expect(JSON.stringify(json)).toContain('widget_channel_mismatch');
@@ -204,18 +208,30 @@ const skipReason = TEST_URL
         displayId: 99,
         channelId: voiceChannelId,
         status: 'open',
+        metadata: { sessionId: ALICE_SESSION_ID },
       })
       .returning();
     try {
       const { status, json } = await call({
         channelId: widgetChannelId,
         conversationId: otherConv!.id,
+        sessionId: ALICE_SESSION_ID,
       });
       expect(status).toBe(403);
       expect(JSON.stringify(json)).toContain('conversation_channel_mismatch');
     } finally {
       await db.delete(schema.convConversations).where(eq(schema.convConversations.id, otherConv!.id));
     }
+  });
+
+  it('rejects when sessionId does not match the conversation', async () => {
+    const { status, json } = await call({
+      channelId: widgetChannelId,
+      conversationId: aliceConvId,
+      sessionId: 'someone_elses_session',
+    });
+    expect(status).toBe(403);
+    expect(JSON.stringify(json)).toContain('conversation_session_mismatch');
   });
 
   it('returns available:false when voice channel has no publicKey', async () => {
@@ -229,6 +245,7 @@ const skipReason = TEST_URL
       const { status, json } = await call({
         channelId: widgetChannelId,
         conversationId: aliceConvId,
+        sessionId: ALICE_SESSION_ID,
       });
       expect(status).toBe(201);
       expect(json).toEqual({ available: false, reason: 'voice_channel_missing_public_key' });
@@ -251,6 +268,7 @@ const skipReason = TEST_URL
       const { status, json } = await call({
         channelId: widgetChannelId,
         conversationId: aliceConvId,
+        sessionId: ALICE_SESSION_ID,
       });
       expect(status).toBe(201);
       expect(json).toEqual({ available: false, reason: 'no_active_voice_channel' });
@@ -284,6 +302,7 @@ const skipReason = TEST_URL
       const { status, json } = await call({
         channelId: widgetChannelId,
         conversationId: aliceConvId,
+        sessionId: ALICE_SESSION_ID,
       });
       expect(status).toBe(201);
       expect(json).toEqual({
@@ -327,6 +346,7 @@ const skipReason = TEST_URL
       const { status, json } = await call({
         channelId: widgetChannelId,
         conversationId: aliceConvId,
+        sessionId: ALICE_SESSION_ID,
       });
       expect(status).toBe(201);
       const body = json as {
@@ -356,6 +376,7 @@ const skipReason = TEST_URL
       const { status, json } = await call({
         channelId: widgetChannelId,
         conversationId: aliceConvId,
+        sessionId: ALICE_SESSION_ID,
       });
       expect(status).toBe(201);
       expect(json).toEqual({

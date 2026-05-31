@@ -230,7 +230,10 @@ export class WidgetController {
   }
 
   @Post('voice/start')
-  async startVoice(@Body() rawBody: unknown): Promise<WidgetVoiceStartResult> {
+  async startVoice(
+    @Body() rawBody: unknown,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetVoiceStartResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor;
     if (!actor) throw new ForbiddenException('widget_auth_required');
@@ -251,11 +254,14 @@ export class WidgetController {
     }
 
     const orgId = key.orgId ?? actor.orgId;
-    return this.voiceService.startSession(orgId, key.channelId, parsed.data);
+    return this.voiceService.startSession(orgId, key.channelId, parsed.data, { origin });
   }
 
   @Post('voice/event')
-  async voiceEvent(@Body() rawBody: unknown): Promise<WidgetVoiceEventResult> {
+  async voiceEvent(
+    @Body() rawBody: unknown,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetVoiceEventResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor;
     if (!actor) throw new ForbiddenException('widget_auth_required');
@@ -276,6 +282,6 @@ export class WidgetController {
     }
 
     const orgId = key.orgId ?? actor.orgId;
-    return this.voiceService.recordEvent(orgId, key.channelId, parsed.data);
+    return this.voiceService.recordEvent(orgId, key.channelId, parsed.data, { origin });
   }
 }

@@ -144,6 +144,15 @@ describe('corsMiddleware', () => {
     });
     expect(headers['Access-Control-Allow-Origin']).toBeUndefined();
   });
+
+  it('does NOT set Allow-Credentials when strictOrigins is wildcard, even for non-public paths', () => {
+    const { headers } = runCors(true, {
+      path: '/v1/kb/spaces',
+      origin: 'https://anywhere.example',
+    });
+    expect(headers['Access-Control-Allow-Origin']).toBe('https://anywhere.example');
+    expect(headers['Access-Control-Allow-Credentials']).toBeUndefined();
+  });
 });
 
 describe('publicUrlRewriteMiddleware', () => {

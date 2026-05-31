@@ -793,7 +793,7 @@ function looksLikeApiKey(raw: string): boolean {
 export function isOriginAllowedForCookieAuth(origin: string | undefined): boolean {
   if (!origin) return false;
   const allowed = readAllowedOrigins();
-  if (allowed === true) return true;
+  if (allowed === true) return false;
   return allowed.includes(origin);
 }
 

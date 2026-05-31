@@ -31,9 +31,29 @@ CREATE INDEX IF NOT EXISTS kb_chunks_fts_idx
 -- ───────────────────────── HNSW vector index ───────────────────────────────
 -- Cosine distance — pairs with `1 - (embedding <=> query)` similarity in
 -- queries. m=16, ef_construction=64 are pgvector defaults (good enough for
--- corpus sizes we expect through v0.5).
-CREATE INDEX IF NOT EXISTS kb_chunks_embedding_hnsw_idx
-  ON kb_document_chunks USING hnsw (embedding vector_cosine_ops);
+-- corpus sizes we expect through v0.5). Picks the opclass that matches the
+-- column type, which differs per deployment when MUNIN_EMBEDDING_DIMENSIONS
+-- pushes the schema past pgvector's 2000-dim `vector` HNSW cap into halfvec.
+-- `CREATE INDEX IF NOT EXISTS` would otherwise validate the opclass against
+-- the column type *before* the name-existence check, so a re-run after the
+-- column has been switched to halfvec would error out even though the index
+-- already exists.
+DO $$
+DECLARE
+  col_udt text;
+BEGIN
+  SELECT udt_name INTO col_udt FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'kb_document_chunks'
+      AND column_name = 'embedding';
+  IF col_udt = 'halfvec' THEN
+    CREATE INDEX IF NOT EXISTS kb_chunks_embedding_hnsw_idx
+      ON kb_document_chunks USING hnsw (embedding halfvec_cosine_ops);
+  ELSE
+    CREATE INDEX IF NOT EXISTS kb_chunks_embedding_hnsw_idx
+      ON kb_document_chunks USING hnsw (embedding vector_cosine_ops);
+  END IF;
+END $$;
 
 -- ───────────────────────── KB RLS policies ─────────────────────────────────
 -- All KB tables are org-scoped. Documents have an `audiences` jsonb array

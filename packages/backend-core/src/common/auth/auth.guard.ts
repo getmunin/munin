@@ -1,4 +1,16 @@
-import { CanActivate, ExecutionContext, Inject, Injectable, Optional, SetMetadata, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  Controller,
+  ExecutionContext,
+  Inject,
+  Injectable,
+  Optional,
+  SetMetadata,
+  UnauthorizedException,
+  UseGuards,
+  applyDecorators,
+} from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../db/db.module.ts';
@@ -15,6 +27,26 @@ import { mcpResourceUrl, resourceMetadataUrl } from '../../oauth/oauth.constants
  */
 export const ALLOW_ANONYMOUS = 'munin:allow-anonymous';
 export const AllowAnonymous = () => SetMetadata(ALLOW_ANONYMOUS, true);
+
+export interface PublicControllerOpts {
+  throttle?: boolean;
+}
+
+/**
+ * Class decorator for controllers whose every route is intentionally
+ * anonymous. Bundles `@Controller(path)` + `@AllowAnonymous()` so the
+ * "public" intent is a single, greppable declaration — keeping a new
+ * public route from accidentally inheriting the cloud build's global
+ * AuthGuard. Pass `{ throttle: true }` to also wrap `ThrottlerGuard`.
+ */
+export function PublicController(
+  path: string,
+  opts: PublicControllerOpts = {},
+): ClassDecorator {
+  const decorators: ClassDecorator[] = [Controller(path), AllowAnonymous()];
+  if (opts.throttle) decorators.push(UseGuards(ThrottlerGuard));
+  return applyDecorators(...decorators);
+}
 
 /**
  * Extension point: try additional resolvers when the built-in resolver

@@ -1,5 +1,5 @@
-import { Controller, Get, Header } from '@nestjs/common';
-import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { Get, Header } from '@nestjs/common';
+import { PublicController } from '../common/auth/auth.guard.ts';
 import {
   authorizationServerUrl,
   mcpResourceUrl,
@@ -15,10 +15,9 @@ interface ProtectedResourceMetadata {
   resource_indicators_supported: boolean;
 }
 
-@Controller('.well-known/oauth-protected-resource')
+@PublicController('.well-known/oauth-protected-resource')
 export class OAuthResourceController {
   @Get()
-  @AllowAnonymous()
   @Header('content-type', 'application/json; charset=utf-8')
   @Header('cache-control', 'public, max-age=3600')
   metadata(): ProtectedResourceMetadata {

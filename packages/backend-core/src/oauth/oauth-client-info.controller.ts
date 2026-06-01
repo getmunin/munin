@@ -1,5 +1,4 @@
 import {
-  Controller,
   Get,
   Header,
   Inject,
@@ -8,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
-import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 
 interface OAuthClientInfo {
@@ -28,12 +27,11 @@ interface OAuthClientInfo {
  * Anonymous on purpose — the consent page is rendered for any user
  * mid-authorization, before the OAuth flow has issued any credential.
  */
-@Controller('v1/oauth/clients')
+@PublicController('v1/oauth/clients')
 export class OAuthClientInfoController {
   constructor(@Inject(DB) private readonly db: Db) {}
 
   @Get(':clientId')
-  @AllowAnonymous()
   @Header('cache-control', 'public, max-age=60')
   async lookup(@Param('clientId') clientId: string): Promise<OAuthClientInfo> {
     const rows = await this.db

@@ -1,5 +1,5 @@
-import { Controller, Get, Header } from '@nestjs/common';
-import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { Get, Header } from '@nestjs/common';
+import { PublicController } from '../common/auth/auth.guard.ts';
 import { authorizationServerUrl, SUPPORTED_SCOPES } from './oauth.constants.ts';
 
 interface AuthorizationServerMetadata {
@@ -19,10 +19,9 @@ interface AuthorizationServerMetadata {
   resource_indicators_supported: boolean;
 }
 
-@Controller('.well-known/oauth-authorization-server')
+@PublicController('.well-known/oauth-authorization-server')
 export class OAuthAsAliasController {
   @Get()
-  @AllowAnonymous()
   @Header('content-type', 'application/json; charset=utf-8')
   @Header('cache-control', 'public, max-age=300')
   metadata(): AuthorizationServerMetadata {

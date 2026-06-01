@@ -1,5 +1,4 @@
 import {
-  Controller,
   HttpException,
   HttpStatus,
   Inject,
@@ -13,6 +12,7 @@ import {
 import type { Request, Response } from 'express';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull } from 'drizzle-orm';
+import { PublicController } from '../../../common/auth/auth.guard.ts';
 import { DB } from '../../../common/db/db.module.ts';
 import {
   CHANNEL_ADAPTERS,
@@ -24,7 +24,7 @@ import {
 } from './adapter.ts';
 import { ChannelIngestService } from './channel-ingest.service.ts';
 
-@Controller('v1/conversations/channels')
+@PublicController('v1/conversations/channels')
 export class ChannelWebhookController {
   private readonly logger = new Logger(ChannelWebhookController.name);
   private readonly registry: ChannelAdapterRegistry;

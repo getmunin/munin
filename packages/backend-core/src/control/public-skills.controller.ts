@@ -1,6 +1,5 @@
-import { Controller, Get, Inject, NotFoundException, Param, UseGuards } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
-import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { Get, Inject, NotFoundException, Param } from '@nestjs/common';
+import { PublicController } from '../common/auth/auth.guard.ts';
 import { McpSkillRegistryService } from '../mcp/mcp.skill-registry.service.ts';
 
 interface PublicSkillListItem {
@@ -16,9 +15,7 @@ interface PublicSkillDetail extends PublicSkillListItem {
   mimeType: string;
 }
 
-@Controller('v1/public/skills')
-@AllowAnonymous()
-@UseGuards(ThrottlerGuard)
+@PublicController('v1/public/skills', { throttle: true })
 export class PublicSkillsController {
   constructor(
     @Inject(McpSkillRegistryService) private readonly skills: McpSkillRegistryService,

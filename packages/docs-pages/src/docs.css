@@ -684,6 +684,7 @@
   .mcp-grid {
     grid-template-columns: 1fr;
   }
+  .docs-switcher .search-wrap { display: none; }
 }
 .mcp-card {
   background: var(--docs-card);
@@ -1271,6 +1272,13 @@
   }
   .docs-topbar {
     padding: 14px 20px;
+  }
+  .docs-topbar .docs-btn {
+    display: none;
+  }
+  .gs-next-row {
+    grid-template-columns: 96px minmax(0, 1fr) 24px;
+    gap: 16px;
   }
 }
 

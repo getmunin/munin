@@ -7,12 +7,14 @@ export { default as GuideConnectClaude } from './guides/connect-claude/page';
 export { default as GuideConnectChatGpt } from './guides/connect-chatgpt/page';
 export { default as GuideConnectGemini } from './guides/connect-gemini/page';
 export { default as GuideSkillsVsToolsVsRest } from './guides/skills-vs-tools-vs-rest/page';
-export { default as GuideRecipeKbCurator } from './guides/recipe-kb-curator/page';
-export { default as GuideRecipeContentMarketer } from './guides/recipe-content-marketer/page';
-export { default as GuideRecipeCrmDeduper } from './guides/recipe-crm-deduper/page';
+export { default as GuideRecipeLeadEnricher } from './guides/recipe-lead-enricher/page';
+export { default as GuideRecipeLeadScorer } from './guides/recipe-lead-scorer/page';
+export { default as GuideRecipeConversationDistiller } from './guides/recipe-conversation-distiller/page';
 export { default as GuideRecipeOutreachDrafter } from './guides/recipe-outreach-drafter/page';
 export { default as GuideRecipeBugSpotter } from './guides/recipe-bug-spotter/page';
 export { default as GuideRecipeRenewalWatcher } from './guides/recipe-renewal-watcher/page';
+export { default as GuideRecipeWinBack } from './guides/recipe-win-back/page';
+export { default as GuideRecipeEventFollowup } from './guides/recipe-event-followup/page';
 export { default as McpDocs, type McpIndexProps } from './mcp/page';
 export { default as RestDocs, type RestIndexProps } from './rest/page';
 export {

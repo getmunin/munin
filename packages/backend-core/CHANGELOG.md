@@ -1,5 +1,30 @@
 # @getmunin/backend-core
 
+## 4.25.0
+
+### Minor Changes
+
+- 33b6613: feat(cms): expand asset fields inline on read paths. The public delivery API (`/v1/cms/:org/:collection[/:slug]`), admin `cms_get_entry` / `cms_list_entries`, and `cms_search` previously returned bare asset ids (e.g. `"cma_xyz"`) for `type: 'asset'` and `array<asset>` fields, leaving external renderers no way to derive a URL. Reads now replace those ids with `{ id, publicUrl, altText, mime, sizeBytes }` via a single batched, org-scoped `cms_assets` lookup per response. Pending (`uploaded=false`) and unknown ids surface as `null` so renderers can treat them as missing rather than render a broken id. Write paths (`cms_create_entry` / `cms_update_entry` / publish / restore) intentionally stay raw so agent round-trips remain clean.
+
+  Also: new CMS uploads are now keyed under `cms/{orgId}/...` instead of `{orgId}/...` so bucket policies can scope `s3:GetObject` to `cms/*` and the same bucket can later hold non-public objects without exposing them. Existing rows keep working — `publicUrl` is stored absolute, so old keys are unaffected.
+
+### Patch Changes
+
+- 7ddf932: **Security**: address four audit findings.
+  - **High**: gate every sensitive control-plane endpoint on owner/admin role (webhooks, conversation channels, agent-config, org/assistant PATCH, etc.). Previously any signed-in member could rotate widget keys, change LLM provider credentials, or create event-exfiltrating webhooks.
+  - **High**: agent provider URLs (`providerBaseUrl`) now route through `safeFetch` (blocks private/loopback/link-local hosts) and reject `http://` unless `MUNIN_SSRF_ALLOW_PRIVATE` is set. Closes the SSRF + credential-exfil path that let a misconfigured base URL leak the provider API key.
+  - **High**: add RLS policy on `conv_widget_email_fallbacks` (the ledger had `org_id` but no policy). Plus a meta-test in `rls.test.ts` that fails when any `org_id`-bearing table is missing RLS.
+  - **Medium**: expand role-coverage integration tests to cover the newly-gated endpoints (webhooks, conv channels, org/assistant PATCH).
+
+  **Ergonomics**: introduce `@RequireRole(...)` / `@RequireActorType(...)` decorators + a single `RoleGuard` to replace inline `assertOwnerOrAdmin(...)` calls scattered across ~13 controllers. Conditional / body-dependent checks (`members:patch`) stay inline.
+
+- Updated dependencies [7ddf932]
+  - @getmunin/agent-runtime@4.25.0
+  - @getmunin/db@4.25.0
+  - @getmunin/core@4.25.0
+  - @getmunin/mcp-toolkit@4.25.0
+  - @getmunin/types@4.25.0
+
 ## 4.24.3
 
 ### Patch Changes

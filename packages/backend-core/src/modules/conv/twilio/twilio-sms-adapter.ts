@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { sql, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
 import type {
@@ -122,7 +122,13 @@ export class TwilioSmsAdapter implements ChannelAdapter {
       await tx
         .update(schema.convMessageDeliveries)
         .set(update)
-        .where(eq(schema.convMessageDeliveries.messageIdHeader, sid));
+        .where(
+          and(
+            eq(schema.convMessageDeliveries.orgId, channel.orgId),
+            eq(schema.convMessageDeliveries.channelId, channel.id),
+            eq(schema.convMessageDeliveries.messageIdHeader, sid),
+          ),
+        );
     });
     this.logger.log(`twilio status callback sid=${sid} status=${params.MessageStatus} → ${status}`);
   }

@@ -160,7 +160,14 @@ export async function assertPublicHost(
   hostname: string,
   opts: AssertPublicHostOptions = {},
 ): Promise<void> {
-  if (envBool('MUNIN_SSRF_ALLOW_PRIVATE')) return;
+  await resolvePublicHost(hostname, opts);
+}
+
+export async function resolvePublicHost(
+  hostname: string,
+  opts: AssertPublicHostOptions = {},
+): Promise<{ address: string; family: number } | null> {
+  if (envBool('MUNIN_SSRF_ALLOW_PRIVATE')) return null;
   const host = hostname.toLowerCase();
   if (!host) throw new SsrfBlockedError('empty host');
   if (BLOCKED_HOSTNAMES.has(host)) {
@@ -173,7 +180,7 @@ export async function assertPublicHost(
     if (isPrivateIp(host)) {
       throw new SsrfBlockedError(`ip ${hostname} is private/reserved`);
     }
-    return;
+    return { address: host, family: isIp(host) === 6 ? 6 : 4 };
   }
   const resolver = opts.resolver ?? defaultResolver;
   let records: { address: string; family: number }[];
@@ -192,6 +199,7 @@ export async function assertPublicHost(
       throw new SsrfBlockedError(`host ${hostname} resolves to private ip ${r.address}`);
     }
   }
+  return records[0]!;
 }
 
 function makeBlockingAgent(): Agent {

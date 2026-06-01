@@ -1,7 +1,7 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull, lt, lte } from 'drizzle-orm';
-import { WebhookDispatcher } from '@getmunin/core';
+import { safeFetch, WebhookDispatcher } from '@getmunin/core';
 import { DB } from '../db/db.module.ts';
 import { withSchedulerLock } from '../scheduler-lock/index.ts';
 
@@ -135,7 +135,7 @@ export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
     let statusCode: number | null = null;
     let error: string | null = null;
     try {
-      const res = await fetch(webhookRow.url, {
+      const res = await safeFetch(webhookRow.url, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

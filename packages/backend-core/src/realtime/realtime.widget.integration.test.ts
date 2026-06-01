@@ -249,15 +249,16 @@ const skipReason = TEST_URL
     ws.terminate();
   });
 
-  it('rejects upgrade with no Origin (browser keys must declare one)', async () => {
-    // Origin is required for browser-style widget keys; the upgrade gate
-    // calls enforceOriginAllowlist which only short-circuits when Origin
-    // is absent. We test absence-equals-pass at the REST layer; for WS
-    // we additionally don't expose any subprotocol hint that the caller
-    // is server-side, so the gate's permissive "no Origin" branch must
-    // still be exercised.
+  it('rejects upgrade with no Origin when an allowlist is configured', async () => {
     const ws = connectWs(widgetKey, {});
-    await waitForOpen(ws);
+    let err: Error | null = null;
+    try {
+      await waitForOpen(ws);
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err).toBeTruthy();
+    expect(err!.message).toMatch(/upgrade rejected: 401/i);
     ws.terminate();
   });
 
@@ -891,15 +892,23 @@ const skipReason = TEST_URL
       body: JSON.stringify({
         channelId,
         sessionId,
-        messages: [
-          { role: 'end_user', body: 'hello' },
-          { role: 'agent', body: 'first reply' },
-          { role: 'agent', body: 'second reply' },
-          { role: 'agent', body: 'third reply' },
-        ],
+        messages: [{ role: 'end_user', body: 'hello' }],
       }),
     });
     const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    for (const body of ['first reply', 'second reply', 'third reply']) {
+      await db.insert(schema.convMessages).values({
+        orgId,
+        conversationId,
+        authorType: 'agent',
+        authorId: 'widget-agent',
+        body,
+        internal: false,
+        metadata: { sessionId },
+      });
+    }
 
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const agentRows = await db

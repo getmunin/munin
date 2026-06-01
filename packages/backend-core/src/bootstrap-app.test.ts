@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import {
+  corsMiddleware,
   hostAllowlistMiddleware,
   isPublicCorsPath,
   publicUrlRewriteMiddleware,
@@ -78,6 +79,79 @@ describe('isPublicCorsPath', () => {
     expect(isPublicCorsPath('/v1/kb/spaces')).toBe(false);
     expect(isPublicCorsPath('/auth/sign-in')).toBe(false);
     expect(isPublicCorsPath('/healthz')).toBe(false);
+  });
+});
+
+describe('corsMiddleware', () => {
+  function runCors(
+    strict: string[] | true,
+    init: { method?: string; path: string; origin?: string },
+  ): { headers: Record<string, string>; status: number | null; nextCalled: boolean } {
+    const headers: Record<string, string> = {};
+    let status: number | null = null;
+    const req = {
+      method: init.method ?? 'GET',
+      path: init.path,
+      headers: init.origin ? { origin: init.origin } : {},
+    } as unknown as Request;
+    const res = {
+      setHeader: (k: string, v: string) => {
+        headers[k] = v;
+      },
+      status: (code: number) => {
+        status = code;
+        return { end: () => undefined };
+      },
+    } as unknown as Response;
+    const next = vi.fn() as NextFunction;
+    corsMiddleware(strict)(req, res, next);
+    return { headers, status, nextCalled: (next as { mock?: { calls: unknown[] } }).mock!.calls.length > 0 };
+  }
+
+  it('reflects strict-origin requests with credentials', () => {
+    const { headers } = runCors(['https://app.example.com'], {
+      path: '/v1/kb/spaces',
+      origin: 'https://app.example.com',
+    });
+    expect(headers['Access-Control-Allow-Origin']).toBe('https://app.example.com');
+    expect(headers['Access-Control-Allow-Credentials']).toBe('true');
+  });
+
+  it('does NOT set Allow-Credentials on /mcp even when origin is reflected', () => {
+    const { headers } = runCors(['https://app.example.com'], {
+      path: '/mcp',
+      origin: 'https://evil.example',
+    });
+    expect(headers['Access-Control-Allow-Origin']).toBe('https://evil.example');
+    expect(headers['Access-Control-Allow-Credentials']).toBeUndefined();
+  });
+
+  it('does NOT set Allow-Credentials on other public CORS paths', () => {
+    for (const path of ['/widget.js', '/v1/widget/messages', '/.well-known/oauth-authorization-server']) {
+      const { headers } = runCors(['https://app.example.com'], {
+        path,
+        origin: 'https://anything.example',
+      });
+      expect(headers['Access-Control-Allow-Origin']).toBe('https://anything.example');
+      expect(headers['Access-Control-Allow-Credentials']).toBeUndefined();
+    }
+  });
+
+  it('rejects strict-only paths from non-allowlisted origins (no CORS headers set)', () => {
+    const { headers } = runCors(['https://app.example.com'], {
+      path: '/v1/kb/spaces',
+      origin: 'https://evil.example',
+    });
+    expect(headers['Access-Control-Allow-Origin']).toBeUndefined();
+  });
+
+  it('does NOT set Allow-Credentials when strictOrigins is wildcard, even for non-public paths', () => {
+    const { headers } = runCors(true, {
+      path: '/v1/kb/spaces',
+      origin: 'https://anywhere.example',
+    });
+    expect(headers['Access-Control-Allow-Origin']).toBe('https://anywhere.example');
+    expect(headers['Access-Control-Allow-Credentials']).toBeUndefined();
   });
 });
 

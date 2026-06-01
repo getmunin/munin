@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema, type Db } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
-import { getCurrentContext, type Mailer } from '@getmunin/core';
+import { getCurrentContext, resolvePublicHost, type Mailer } from '@getmunin/core';
 import { renderChannelTestEmail } from '@getmunin/emails';
 import { createTransport } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
@@ -124,14 +124,18 @@ export class EmailAdminTools {
 
     try {
       if (config.outbound.provider === 'smtp') {
+        const resolved = await resolvePublicHost(config.outbound.host);
         const password = await this.serviceDb.transaction((tx) =>
           this.email.decryptSmtpPassword(tx, config.outbound.provider === 'smtp' ? config.outbound.encryptedPassword : ''),
         );
         const transport = createTransport(
-          smtpTransportOptions(config.outbound.host, config.outbound.port, config.outbound.secure, {
-            user: config.outbound.username,
-            pass: password,
-          }),
+          smtpTransportOptions(
+            config.outbound.host,
+            config.outbound.port,
+            config.outbound.secure,
+            { user: config.outbound.username, pass: password },
+            resolved?.address,
+          ),
         );
         try {
           await transport.sendMail({
@@ -164,6 +168,7 @@ export class EmailAdminTools {
   private async testSmtp(config: StoredEmailChannelConfig): Promise<string> {
     if (config.outbound.provider === 'mailer') return 'ok';
     try {
+      const resolved = await resolvePublicHost(config.outbound.host);
       const password = await this.serviceDb.transaction((tx) =>
         this.email.decryptSmtpPassword(
           tx,
@@ -171,10 +176,13 @@ export class EmailAdminTools {
         ),
       );
       const transport = createTransport({
-        ...smtpTransportOptions(config.outbound.host, config.outbound.port, config.outbound.secure, {
-          user: config.outbound.username,
-          pass: password,
-        }),
+        ...smtpTransportOptions(
+          config.outbound.host,
+          config.outbound.port,
+          config.outbound.secure,
+          { user: config.outbound.username, pass: password },
+          resolved?.address,
+        ),
         connectionTimeout: 5000,
         greetingTimeout: 5000,
       });
@@ -191,18 +199,20 @@ export class EmailAdminTools {
 
   private async testImap(config: StoredEmailChannelConfig): Promise<string> {
     if (!config.inbound) return 'not configured';
-    // imapflow is loaded lazily so the dependency stays out of code paths that
-    // don't need it. See M8.3 for the inbound worker that uses it for real.
     try {
+      const resolved = await resolvePublicHost(config.inbound.host);
       const password = await this.serviceDb.transaction((tx) =>
         this.email.decryptImapPassword(tx, config.inbound!.encryptedPassword),
       );
       const client = new ImapFlow({
-        host: config.inbound.host,
+        host: resolved?.address ?? config.inbound.host,
         port: config.inbound.port,
         secure: config.inbound.secure,
         auth: { user: config.inbound.username, pass: password },
         logger: false,
+        ...(resolved && resolved.address !== config.inbound.host
+          ? { tls: { servername: config.inbound.host } }
+          : {}),
       });
       try {
         await client.connect();
@@ -230,12 +240,14 @@ export function smtpTransportOptions(
   port: number,
   secureHint: boolean,
   auth: { user: string; pass: string },
+  resolvedAddress?: string,
 ): {
   host: string;
   port: number;
   secure: boolean;
   requireTLS: boolean;
   auth: { user: string; pass: string };
+  tls?: { servername: string };
 } {
   let secure: boolean;
   let requireTLS: boolean;
@@ -248,6 +260,9 @@ export function smtpTransportOptions(
   } else {
     secure = secureHint;
     requireTLS = !secureHint;
+  }
+  if (resolvedAddress && resolvedAddress !== host) {
+    return { host: resolvedAddress, port, secure, requireTLS, auth, tls: { servername: host } };
   }
   return { host, port, secure, requireTLS, auth };
 }

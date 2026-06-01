@@ -4,6 +4,7 @@ const USER_AGENT = 'MuninOnboardingBot/1.0 (+https://getmunin.com/bot)';
 const DEFAULT_MAX_PAGES = 25;
 const HARD_MAX_PAGES = 50;
 const FETCH_TIMEOUT_MS = 5000;
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const FETCH_CONCURRENCY = 8;
 const MIN_BODY_CHARS = 200;
 const BFS_MAX_DEPTH = 2;
@@ -513,7 +514,12 @@ const defaultFetcher: HtmlFetcher = async (url) => {
         'accept-encoding': 'gzip, deflate, br',
       },
     });
-    const body = await res.text();
+    const declared = Number(res.headers.get('content-length') ?? '');
+    if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error(`response_too_large: content-length ${declared} > ${MAX_RESPONSE_BYTES}`);
+    }
+    const body = await readBodyCapped(res, MAX_RESPONSE_BYTES);
     return {
       finalUrl: res.url || url,
       status: res.status,
@@ -524,6 +530,30 @@ const defaultFetcher: HtmlFetcher = async (url) => {
     clearTimeout(timer);
   }
 };
+
+async function readBodyCapped(res: { body: ReadableStream<Uint8Array> | null }, cap: number): Promise<string> {
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8', { fatal: false });
+  let total = 0;
+  let out = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > cap) {
+        await reader.cancel().catch(() => {});
+        throw new Error(`response_too_large: streamed ${total} > ${cap}`);
+      }
+      out += decoder.decode(value, { stream: true });
+    }
+    out += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+  return out;
+}
 
 const DEFUDDLE_NOISE = /^Initial parse returned very little content/;
 

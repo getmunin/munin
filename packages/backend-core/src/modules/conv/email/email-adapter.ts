@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
+  resolvePublicHost,
   signEmailOpenToken,
   withContext,
   type Mailer,
@@ -79,12 +80,16 @@ class ImapFlowFetcher implements ImapFetcher {
     sinceUid: number | null;
     limit: number;
   }): Promise<ImapMessageMin[]> {
+    const resolved = await resolvePublicHost(opts.host);
     const client = new ImapFlow({
-      host: opts.host,
+      host: resolved?.address ?? opts.host,
       port: opts.port,
       secure: opts.secure,
       auth: { user: opts.username, pass: opts.password },
       logger: false,
+      ...(resolved && resolved.address !== opts.host
+        ? { tls: { servername: opts.host } }
+        : {}),
     });
     await client.connect();
     try {
@@ -170,6 +175,7 @@ export class EmailAdapter implements ChannelAdapter {
     });
 
     if (config.outbound.provider === 'smtp') {
+      const resolved = await resolvePublicHost(config.outbound.host);
       const password = await this.db.transaction(async (tx) => {
         return this.emailService.decryptSmtpPassword(
           tx,
@@ -177,10 +183,13 @@ export class EmailAdapter implements ChannelAdapter {
         );
       });
       const transport: Transporter = createTransport(
-        smtpTransportOptions(config.outbound.host, config.outbound.port, config.outbound.secure, {
-          user: config.outbound.username,
-          pass: password,
-        }),
+        smtpTransportOptions(
+          config.outbound.host,
+          config.outbound.port,
+          config.outbound.secure,
+          { user: config.outbound.username, pass: password },
+          resolved?.address,
+        ),
       );
       await transport.sendMail({
         envelope: { from: config.addressing.fromAddress, to: recipient },

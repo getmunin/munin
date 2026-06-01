@@ -68,6 +68,7 @@ class StubImapFetcher implements ImapFetcher {
     process.env.MUNIN_MAIL_PROVIDER = 'stub';
     process.env.MUNIN_ENCRYPTION_KEY ??= 'integration-test-encryption-key';
     process.env.MUNIN_EMAIL_REPLY_DOMAIN = REPLY_DOMAIN;
+    process.env.MUNIN_SSRF_ALLOW_PRIVATE = '1';
 
     await runMigrations(TEST_URL!);
 

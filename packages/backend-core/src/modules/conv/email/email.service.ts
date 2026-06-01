@@ -7,6 +7,7 @@ import {
 import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import {
+  assertPublicHost,
   decryptSecretSql,
   encryptSecretSql,
   getCurrentContext,
@@ -98,6 +99,12 @@ export type StoredEmailChannelConfig = z.infer<typeof StoredEmailChannelConfigSc
 @Injectable()
 export class EmailService {
   async toStored(input: EmailChannelConfigInputT): Promise<StoredEmailChannelConfig> {
+    if (input.outbound.provider === 'smtp') {
+      await assertPublicHost(input.outbound.host);
+    }
+    if (input.inbound) {
+      await assertPublicHost(input.inbound.host);
+    }
     const out: StoredEmailChannelConfig = {
       addressing: { ...input.addressing },
       outbound:

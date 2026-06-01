@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CuratorModule } from '../curator/curator.module.ts';
 import { McpModule } from '../../mcp/mcp.module.ts';
 import { RealtimeModule } from '../../realtime/realtime.module.ts';
+import { PublicThrottleModule } from '../../common/rate-limit/public-throttle.module.ts';
 import { ConvService } from './conv.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { ConvAdminTools } from './conv.tools.ts';
@@ -37,7 +38,7 @@ import { WidgetEmailFallbackWorker } from './widget/widget-email-fallback.worker
 import { WidgetAdminTools } from './widget/widget.tools.ts';
 
 @Module({
-  imports: [CuratorModule, McpModule, RealtimeModule],
+  imports: [CuratorModule, McpModule, RealtimeModule, PublicThrottleModule],
   controllers: [WidgetController, ChannelWebhookController],
   providers: [
     ConvService,

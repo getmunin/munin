@@ -238,10 +238,19 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
     },
 
     async voiceStart(conversationId) {
+      const payload: Record<string, unknown> = {
+        channelId: deps.channelId,
+        conversationId,
+        sessionId,
+      };
+      if (deps.identity) {
+        payload.verifiedExternalId = deps.identity.externalId;
+        payload.userHash = deps.identity.userHash;
+      }
       const res = await fetchImpl(`${base}/voice/start`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ channelId: deps.channelId, conversationId }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
       return (await res.json()) as VoiceStartResult;
@@ -251,8 +260,13 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       const payload: Record<string, unknown> = {
         channelId: deps.channelId,
         conversationId,
+        sessionId,
         kind,
       };
+      if (deps.identity) {
+        payload.verifiedExternalId = deps.identity.externalId;
+        payload.userHash = deps.identity.userHash;
+      }
       if (typeof durationSeconds === 'number') payload.durationSeconds = durationSeconds;
       const res = await fetchImpl(`${base}/voice/event`, {
         method: 'POST',

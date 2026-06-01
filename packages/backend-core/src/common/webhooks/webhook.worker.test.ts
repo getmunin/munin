@@ -4,7 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { buildApiKey, hashSecret, keyPrefix, verifyHmac } from '@getmunin/core';
+import { randomToken, verifyHmac } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
@@ -24,10 +24,8 @@ interface ReceivedRequest {
 
 (skipReason ? describe.skip : describe)('WebhookWorker', () => {
   let app: INestApplication;
-  let baseUrl: string;
   let db: ReturnType<typeof createDb>;
   let orgId: string;
-  let adminKey: string;
   let receiver: Server;
   let received: ReceivedRequest[];
   let receiverShouldFail: boolean;
@@ -39,6 +37,7 @@ interface ReceivedRequest {
     process.env.MUNIN_EMBEDDING_PROVIDER = 'stub';
     process.env.MUNIN_MAIL_PROVIDER = 'stub';
     process.env.MUNIN_WEBHOOK_WORKER_DISABLED = '1';
+    process.env.MUNIN_SSRF_ALLOW_PRIVATE = '1';
 
     await runMigrations(TEST_URL!);
 
@@ -48,22 +47,11 @@ interface ReceivedRequest {
     db = createDb(TEST_URL!, { serviceRole: true });
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
 
-    const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
       .values({ name: 'Webhook Org' })
       .returning();
     orgId = org!.id;
-
-    adminKey = buildApiKey('admin');
-    await db.insert(schema.apiKeys).values({
-      orgId,
-      type: 'admin',
-      name: 'wh-admin',
-      keyHash: hashSecret(adminKey),
-      keyPrefix: keyPrefix(adminKey),
-      scopes: ['*'],
-    });
 
     received = [];
     receiverShouldFail = false;
@@ -90,11 +78,7 @@ interface ReceivedRequest {
     receiverUrl = `http://127.0.0.1:${recvAddr.port}`;
 
     app = await NestFactory.create(AppModule, { logger: false });
-    await app.listen(0, '127.0.0.1');
-    const server = app.getHttpServer() as { address(): AddressInfo | string | null };
-    const address = server.address();
-    if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
-    baseUrl = `http://127.0.0.1:${address.port}`;
+    await app.init();
   });
 
   afterAll(async () => {
@@ -106,21 +90,18 @@ interface ReceivedRequest {
     }
   });
 
-  async function rest(method: string, path: string, body?: unknown): Promise<Response> {
-    return fetch(`${baseUrl}${path}`, {
-      method,
-      headers: { Authorization: `Bearer ${adminKey}`, 'content-type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  }
-
   it('emits + delivers a signed conversation.created event', async () => {
-    const create = await rest('POST', '/v1/webhooks', {
-      url: receiverUrl,
-      events: ['conversation.created', 'conversation.message.received'],
-    });
-    expect(create.status).toBe(201);
-    const webhook = (await create.json()) as { id: string; secret: string };
+    const [webhookRow] = await db
+      .insert(schema.webhooks)
+      .values({
+        orgId,
+        url: receiverUrl,
+        secret: `whsec_${randomToken(24)}`,
+        events: ['conversation.created', 'conversation.message.received'],
+        active: true,
+      })
+      .returning();
+    const webhook = { id: webhookRow!.id, secret: webhookRow!.secret };
 
     // Set up a chat channel so end-user start_conversation can pick one up.
     const [channel] = await db
@@ -186,11 +167,17 @@ interface ReceivedRequest {
   }, 30_000);
 
   it('retries on non-2xx and stops after MAX_ATTEMPTS', async () => {
-    const create = await rest('POST', '/v1/webhooks', {
-      url: receiverUrl,
-      events: ['failure.test'],
-    });
-    const webhook = (await create.json()) as { id: string };
+    const [webhookRow] = await db
+      .insert(schema.webhooks)
+      .values({
+        orgId,
+        url: receiverUrl,
+        secret: `whsec_${randomToken(24)}`,
+        events: ['failure.test'],
+        active: true,
+      })
+      .returning();
+    const webhook = { id: webhookRow!.id };
 
     const [event] = await db
       .insert(schema.events)

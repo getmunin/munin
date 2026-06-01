@@ -21,14 +21,25 @@ import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 
+export const WebhookUrl = z
+  .string()
+  .url()
+  .refine((u) => {
+    try {
+      return new URL(u).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'webhook URL must use https://');
+
 const CreateDto = z.object({
-  url: z.string().url(),
+  url: WebhookUrl,
   events: z.array(z.string().min(1).max(64)).default([]),
   active: z.boolean().optional(),
 });
 
 const PatchDto = z.object({
-  url: z.string().url().optional(),
+  url: WebhookUrl.optional(),
   events: z.array(z.string().min(1).max(64)).optional(),
   active: z.boolean().optional(),
 });

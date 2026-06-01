@@ -64,9 +64,8 @@ export class McpController {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
 
-    // For now: admin agents see admin tools, end-user agents see self_service.
-    // If a token has both audiences (rare; mainly admin keys), prefer 'admin'.
-    const audience: Audience = actor.audiences.includes('admin') ? 'admin' : 'self_service';
+    const audience: Audience =
+      actor.type === 'admin_agent' && actor.audiences.includes('admin') ? 'admin' : 'self_service';
 
     const server = createMcpServer({
       registry: this.registry,

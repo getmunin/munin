@@ -20,7 +20,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
-import { assertOwnerOrAdmin } from './role-guard.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 
 const CreateApiKeyDto = z.object({
   name: z.string().min(1).max(128),
@@ -47,8 +48,9 @@ interface ApiKeySummary {
 }
 
 @Controller('v1/api-keys')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@RequireRole('owner', 'admin')
 export class ApiKeysController {
   constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
 
@@ -61,7 +63,6 @@ export class ApiKeysController {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     if (!actor.orgId) throw new BadRequestException('No org bound to caller');
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
 
     const rawKey = buildApiKey('admin');
     const [row] = await ctx.db
@@ -107,7 +108,6 @@ export class ApiKeysController {
   async list(): Promise<ApiKeySummary[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const rows = await ctx.db
       .select({
         id: schema.apiKeys.id,
@@ -136,7 +136,6 @@ export class ApiKeysController {
   async revoke(@Param('id') id: string): Promise<void> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const result = await ctx.db
       .update(schema.apiKeys)
       .set({ revokedAt: new Date() })

@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import * as core from '@getmunin/core';
 import {
   shouldEnablePromptCache,
   withSystemPromptCache,
@@ -6,49 +7,60 @@ import {
 } from './openai-compatible.ts';
 import type { ChatMessage, ChatToolDefinition } from '../types.ts';
 
-import { vi } from 'vitest';
 import { openAiCompatibleProvider } from './openai-compatible.ts';
 
+function stubSafeFetch(
+  handler: (url: string, init: { body?: unknown }) => { status?: number; body: unknown },
+): ReturnType<typeof vi.fn> {
+  const fn = vi.fn((url: string, init: { body?: unknown }) => {
+    const out = handler(url, init);
+    const status = out.status ?? 200;
+    return Promise.resolve({
+      ok: status >= 200 && status < 300,
+      status,
+      json: () => Promise.resolve(out.body),
+      text: () => Promise.resolve(typeof out.body === 'string' ? out.body : JSON.stringify(out.body)),
+    });
+  });
+  vi.spyOn(core, 'safeFetch').mockImplementation(fn as unknown as typeof core.safeFetch);
+  return fn;
+}
+
 describe('openAiCompatibleProvider request body', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('emits cache_control on system + last tool when targeting Anthropic', async () => {
     const captured: { url?: string; body?: Record<string, unknown> } = {};
-    const fakeFetch = vi.fn((url: string, init: RequestInit) => {
+    stubSafeFetch((url, init) => {
       captured.url = url;
       captured.body = JSON.parse(init.body as string) as Record<string, unknown>;
-      return Promise.resolve(new Response(
-        JSON.stringify({
+      return {
+        body: {
           choices: [
-            {
-              message: { role: 'assistant', content: 'ok' },
-              finish_reason: 'stop',
-            },
+            { message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' },
           ],
           usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ));
-    });
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = fakeFetch as typeof fetch;
-    try {
-      await openAiCompatibleProvider({
-        config: {
-          provider: { baseUrl: 'https://api.anthropic.com/v1', apiKey: 'sk-ant-xxx' },
-          model: 'claude-haiku-4-5',
-          systemPrompt: 'sys',
         },
-        messages: [
-          { role: 'system', content: 'sys' },
-          { role: 'user', content: 'hi' },
-        ],
-        tools: [
-          { type: 'function', function: { name: 'a', description: 'a', parameters: {} } },
-          { type: 'function', function: { name: 'b', description: 'b', parameters: {} } },
-        ],
-      });
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+      };
+    });
+
+    await openAiCompatibleProvider({
+      config: {
+        provider: { baseUrl: 'https://api.anthropic.com/v1', apiKey: 'sk-ant-xxx' },
+        model: 'claude-haiku-4-5',
+        systemPrompt: 'sys',
+      },
+      messages: [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'hi' },
+      ],
+      tools: [
+        { type: 'function', function: { name: 'a', description: 'a', parameters: {} } },
+        { type: 'function', function: { name: 'b', description: 'b', parameters: {} } },
+      ],
+    });
 
     const messages = captured.body?.messages as Array<{ role: string; content: unknown }>;
     expect(messages[0]?.content).toEqual([
@@ -62,30 +74,25 @@ describe('openAiCompatibleProvider request body', () => {
 
   it('does NOT emit cache_control on plain OpenAI backend', async () => {
     const captured: { body?: Record<string, unknown> } = {};
-    const fakeFetch = vi.fn((_url: string, init: RequestInit) => {
+    stubSafeFetch((_url, init) => {
       captured.body = JSON.parse(init.body as string) as Record<string, unknown>;
-      return Promise.resolve(new Response(
-        JSON.stringify({
+      return {
+        body: {
           choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ));
-    });
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = fakeFetch as typeof fetch;
-    try {
-      await openAiCompatibleProvider({
-        config: {
-          provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-xxx' },
-          model: 'gpt-4o-mini',
-          systemPrompt: 'sys',
         },
-        messages: [{ role: 'system', content: 'sys' }],
-        tools: [{ type: 'function', function: { name: 'a', description: 'a', parameters: {} } }],
-      });
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+      };
+    });
+
+    await openAiCompatibleProvider({
+      config: {
+        provider: { baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-xxx' },
+        model: 'gpt-4o-mini',
+        systemPrompt: 'sys',
+      },
+      messages: [{ role: 'system', content: 'sys' }],
+      tools: [{ type: 'function', function: { name: 'a', description: 'a', parameters: {} } }],
+    });
+
     const messages = captured.body?.messages as Array<{ content: unknown }>;
     expect(messages[0]?.content).toBe('sys');
     const tools = captured.body?.tools as Array<Record<string, unknown>>;

@@ -1,3 +1,4 @@
+import { safeFetch } from '@getmunin/core';
 import type { ChatMessage, ChatToolDefinition, Provider, ProviderResponse } from '../types.ts';
 
 interface OpenAIChoice {
@@ -38,7 +39,7 @@ export const openAiCompatibleProvider: Provider = async ({
     body.response_format = { type: 'json_object' };
   }
 
-  const res = await fetch(url, {
+  const res = await safeFetch(url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

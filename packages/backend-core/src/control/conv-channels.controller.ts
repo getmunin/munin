@@ -15,6 +15,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 import { ConvService, type ChannelDto } from '../modules/conv/conv.service.ts';
 import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.ts';
 import { EmailAdminTools } from '../modules/conv/email/email.tools.ts';
@@ -39,8 +41,9 @@ interface ChannelListResponse {
 }
 
 @Controller('v1/conversations/channels')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@RequireRole('owner', 'admin')
 export class ConvChannelsController {
   constructor(
     private readonly conv: ConvService,

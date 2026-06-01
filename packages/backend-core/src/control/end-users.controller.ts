@@ -20,7 +20,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
-import { assertOwnerOrAdmin } from './role-guard.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 
 const EndUserPatchDto = z.object({
   externalId: z.string().optional(),
@@ -52,7 +53,7 @@ interface EndUserDto {
 }
 
 @Controller('v1/end-users')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class EndUsersController {
   constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
@@ -78,10 +79,10 @@ export class EndUsersController {
   }
 
   @Get()
+  @RequireRole('owner', 'admin')
   async list(@Query('limit') limit?: string): Promise<EndUserDto[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const take = clampLimit(limit, 50, 200);
     const rows = await ctx.db
       .select()
@@ -94,10 +95,10 @@ export class EndUsersController {
 
   @Post(':id/revoke-tokens')
   @HttpCode(200)
+  @RequireRole('owner', 'admin')
   async revokeTokens(@Param('id') id: string): Promise<{ revoked: number }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const result = await ctx.db
       .update(schema.tokens)
       .set({ revokedAt: new Date() })
@@ -119,10 +120,10 @@ export class EndUsersController {
   }
 
   @Get(':id')
+  @RequireRole('owner', 'admin')
   async get(@Param('id') id: string): Promise<EndUserDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const rows = await ctx.db
       .select()
       .from(schema.endUsers)

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as core from '@getmunin/core';
 import { AgentModelsService } from './models.service.ts';
 import type { AgentConfigRepository, AgentConfigRow } from './config.repository.ts';
 
@@ -28,20 +29,19 @@ function makeRepo(overrides: { apiKey?: string | null; row?: AgentConfigRow } = 
   };
 }
 
-function mockFetch(response: { status: number; body?: unknown }): void {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({
-      ok: response.status >= 200 && response.status < 300,
-      status: response.status,
-      json: () => Promise.resolve(response.body),
-    }),
-  );
+function mockSafeFetch(response: { status: number; body?: unknown }): ReturnType<typeof vi.fn> {
+  const fn = vi.fn().mockResolvedValue({
+    ok: response.status >= 200 && response.status < 300,
+    status: response.status,
+    json: () => Promise.resolve(response.body),
+  });
+  vi.spyOn(core, 'safeFetch').mockImplementation(fn);
+  return fn;
 }
 
 describe('AgentModelsService', () => {
   beforeEach(() => {
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {
@@ -57,7 +57,7 @@ describe('AgentModelsService', () => {
   });
 
   it('parses OpenRouter-shaped responses with context_length and pricing', async () => {
-    mockFetch({
+    mockSafeFetch({
       status: 200,
       body: {
         data: [
@@ -88,7 +88,7 @@ describe('AgentModelsService', () => {
   });
 
   it('handles entries without pricing or context_length (raw OpenAI shape)', async () => {
-    mockFetch({
+    mockSafeFetch({
       status: 200,
       body: {
         data: [
@@ -108,7 +108,7 @@ describe('AgentModelsService', () => {
   });
 
   it('returns supported:false when the provider returns 404', async () => {
-    mockFetch({ status: 404 });
+    mockSafeFetch({ status: 404 });
     const svc = new AgentModelsService(makeRepo());
     const result = await svc.listForCurrentActor();
     expect(result.supported).toBe(false);
@@ -116,19 +116,14 @@ describe('AgentModelsService', () => {
   });
 
   it('returns supported:false when the body is not the expected shape', async () => {
-    mockFetch({ status: 200, body: { unexpected: 'shape' } });
+    mockSafeFetch({ status: 200, body: { unexpected: 'shape' } });
     const svc = new AgentModelsService(makeRepo());
     const result = await svc.listForCurrentActor();
     expect(result.supported).toBe(false);
   });
 
   it('caches the response for the same (id, baseUrl) pair', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ data: [{ id: 'm-1' }] }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = mockSafeFetch({ status: 200, body: { data: [{ id: 'm-1' }] } });
     const svc = new AgentModelsService(makeRepo());
     await svc.listForCurrentActor();
     await svc.listForCurrentActor();
@@ -136,12 +131,7 @@ describe('AgentModelsService', () => {
   });
 
   it('strips trailing slashes from the base URL before appending /models', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ data: [] }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = mockSafeFetch({ status: 200, body: { data: [] } });
     const repo = makeRepo({
       row: { ...baseRow, providerBaseUrl: 'https://provider.example/v1//' },
     });
@@ -152,12 +142,7 @@ describe('AgentModelsService', () => {
   });
 
   it('uses Bearer auth for OAI-compat providers', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ data: [] }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = mockSafeFetch({ status: 200, body: { data: [] } });
     const svc = new AgentModelsService(makeRepo({ apiKey: 'sk-or-test' }));
     await svc.listForCurrentActor();
     const call = fetchMock.mock.calls[0] as [unknown, { headers: Record<string, string> }];
@@ -167,12 +152,7 @@ describe('AgentModelsService', () => {
   });
 
   it('uses x-api-key + anthropic-version on api.anthropic.com', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ data: [] }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = mockSafeFetch({ status: 200, body: { data: [] } });
     const repo = makeRepo({
       apiKey: 'sk-ant-test',
       row: { ...baseRow, providerBaseUrl: 'https://api.anthropic.com/v1' },

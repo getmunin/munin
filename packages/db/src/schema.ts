@@ -656,6 +656,7 @@ export const kbDocuments = pgTable(
     version: integer('version').notNull().default(1),
     contentHash: varchar('content_hash', { length: 64 }).notNull(),
     tags: jsonb('tags').$type<string[]>().notNull().default([]),
+    isSystem: boolean('is_system').notNull().default(false),
     createdByType: varchar('created_by_type', { length: 16 }).notNull(),
     // 'agent' | 'user'
     createdById: text('created_by_id').notNull(),

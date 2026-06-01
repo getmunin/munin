@@ -124,6 +124,14 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         }
       : undefined,
     socialProviders,
+    account: {
+      // Encrypt provider-issued tokens (access/refresh/id) at rest. BetterAuth
+      // wraps these with `symmetricEncrypt` using the same `secret` we already
+      // pass below. Without this they sit in the `accounts` table as
+      // plaintext — and a leaked DB dump would yield usable Google/GitHub
+      // refresh tokens for every linked account.
+      encryptOAuthTokens: true,
+    },
     user: opts.deleteUser
       ? {
           deleteUser: {

@@ -36,6 +36,7 @@ import { WidgetVoiceService } from './widget/widget-voice.service.ts';
 import { WidgetController } from './widget/widget.controller.ts';
 import { WidgetEmailFallbackWorker } from './widget/widget-email-fallback.worker.ts';
 import { WidgetAdminTools } from './widget/widget.tools.ts';
+import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
 
 @Module({
   imports: [CuratorModule, McpModule, RealtimeModule, PublicThrottleModule],
@@ -71,6 +72,7 @@ import { WidgetAdminTools } from './widget/widget.tools.ts';
     WidgetIngestService,
     WidgetVoiceService,
     WidgetAdminTools,
+    WidgetThrottlerGuard,
     {
       provide: CHANNEL_ADAPTERS,
       useFactory: (

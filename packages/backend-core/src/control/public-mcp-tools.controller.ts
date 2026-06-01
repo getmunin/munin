@@ -1,6 +1,5 @@
-import { Controller, Get, Inject, NotFoundException, Param, UseGuards } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
-import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { Get, Inject, NotFoundException, Param } from '@nestjs/common';
+import { PublicController } from '../common/auth/auth.guard.ts';
 import { McpRegistryService } from '../mcp/mcp.registry.ts';
 import type { RegisteredMcpTool } from '@getmunin/mcp-toolkit';
 
@@ -18,9 +17,7 @@ interface PublicMcpToolDetail extends PublicMcpToolListItem {
   inputSchema: object;
 }
 
-@Controller('v1/public/mcp-tools')
-@AllowAnonymous()
-@UseGuards(ThrottlerGuard)
+@PublicController('v1/public/mcp-tools', { throttle: true })
 export class PublicMcpToolsController {
   constructor(@Inject(McpRegistryService) private readonly registry: McpRegistryService) {}
 

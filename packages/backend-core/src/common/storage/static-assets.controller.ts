@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Controller,
   ForbiddenException,
   Inject,
   NotFoundException,
@@ -13,6 +12,7 @@ import {
 import { LocalFsStorage, type AssetStorage } from '@getmunin/core';
 import type { Request, Response } from 'express';
 
+import { PublicController } from '../auth/auth.guard.ts';
 import { STORAGE } from './storage.token.ts';
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB; tighten via Org.settings later.
@@ -33,7 +33,7 @@ const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB; tighten via Org.settings la
  * S3 URL, reads go to the bucket's public host (or a CDN front
  * configured via MUNIN_STORAGE_S3_PUBLIC_BASE_URL).
  */
-@Controller('static/assets')
+@PublicController('static/assets')
 export class StaticAssetsController {
   constructor(@Inject(STORAGE) private readonly storage: AssetStorage) {}
 

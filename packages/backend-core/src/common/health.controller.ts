@@ -1,6 +1,7 @@
-import { Controller, Get } from '@nestjs/common';
+import { Get } from '@nestjs/common';
+import { PublicController } from './auth/auth.guard.ts';
 
-@Controller()
+@PublicController('')
 export class HealthController {
   @Get('healthz')
   healthz() {

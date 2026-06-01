@@ -1,6 +1,5 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
-import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { Get } from '@nestjs/common';
+import { PublicController } from '../common/auth/auth.guard.ts';
 import {
   readGithubProviderFromEnv,
   readGoogleProviderFromEnv,
@@ -11,9 +10,7 @@ interface AuthProvidersResponse {
   github: boolean;
 }
 
-@Controller('v1/auth/providers')
-@AllowAnonymous()
-@UseGuards(ThrottlerGuard)
+@PublicController('v1/auth/providers', { throttle: true })
 export class AuthProvidersController {
   @Get()
   list(): AuthProvidersResponse {

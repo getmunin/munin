@@ -1,5 +1,4 @@
 import {
-  Controller,
   Get,
   Header,
   Inject,
@@ -8,12 +7,11 @@ import {
   Query,
   Req,
   Res,
-  UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 import { CmsSearchService } from '../modules/cms/cms.search.ts';
 import { projectData, type FieldDef } from '../modules/cms/cms.fields.ts';
@@ -30,8 +28,7 @@ import { projectData, type FieldDef } from '../modules/cms/cms.fields.ts';
  * context, and there's no auth here. Every SELECT hard-filters
  * `org_id` and `status='published'` so cross-org leakage is impossible.
  */
-@Controller('v1/cms')
-@UseGuards(ThrottlerGuard)
+@PublicController('v1/cms', { throttle: true })
 export class CmsDeliveryController {
   constructor(
     @Inject(DB) private readonly db: Db,

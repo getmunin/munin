@@ -41,6 +41,8 @@ export {
 export {
   AuthGuard,
   AllowAnonymous,
+  PublicController,
+  type PublicControllerOpts,
   type AuthenticatedRequest,
   ALLOW_ANONYMOUS,
   ADDITIONAL_CREDENTIAL_RESOLVERS,

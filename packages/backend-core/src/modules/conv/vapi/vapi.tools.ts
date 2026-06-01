@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
+import { sensitive } from '@getmunin/types';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
@@ -19,20 +20,24 @@ const ConfigureInput = z.object({
     .optional()
     .describe('Pass an existing channel id to update; omit to create a new channel.'),
   name: z.string().min(1).max(120).optional(),
-  apiKey: z
-    .string()
-    .min(1)
-    .max(256)
-    .optional()
-    .describe('Vapi API key. Required on create. On update, omit to keep the existing value.'),
-  webhookSecret: z
-    .string()
-    .min(1)
-    .max(256)
-    .optional()
-    .describe(
-      'Shared secret used to authenticate inbound webhooks from Vapi. In the Vapi dashboard go to the assistant\'s Advanced → Webhook Server → HTTP Headers and add header `X-Webhook-Secret` with this value. Required on create.',
-    ),
+  apiKey: sensitive(
+    z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe('Vapi API key. Required on create. On update, omit to keep the existing value.'),
+  ),
+  webhookSecret: sensitive(
+    z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe(
+        'Shared secret used to authenticate inbound webhooks from Vapi. In the Vapi dashboard go to the assistant\'s Advanced → Webhook Server → HTTP Headers and add header `X-Webhook-Secret` with this value. Required on create.',
+      ),
+  ),
   assistantId: z
     .string()
     .min(1)

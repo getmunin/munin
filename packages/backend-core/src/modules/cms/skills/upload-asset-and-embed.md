@@ -2,6 +2,7 @@
 title: CMS: Upload an asset and embed it
 description: Two-phase asset upload (request presigned upload → send binary → complete), embed in entries, and audit unused assets.
 audiences: [admin]
+public: true
 ---
 
 # Upload an asset and embed it

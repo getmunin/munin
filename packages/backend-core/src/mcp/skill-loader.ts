@@ -84,7 +84,14 @@ function parseSkill(file: string, src: SkillSource): RegisteredSkill | null {
   const scheme = fm.kind === 'task' ? 'task' : 'skill';
   const uri = `${scheme}://${moduleSegment}/${slug}`;
   const audiences = normalizeAudiences(fm.audiences ?? fm.audience);
-  const publicDefault = scheme === 'skill';
+  // Skills default to public *only* when they target self_service — i.e.
+  // end-user-facing how-tos. Admin-audience skills (operator playbooks,
+  // setup procedures, escalation guides) default to private: their
+  // content is operationally sensitive and shouldn't be served via the
+  // anonymous /v1/public/skills endpoint or the published docs site
+  // unless an operator explicitly opts each one in with `public: true`.
+  // Task URIs are always private; only authenticated curator runs see them.
+  const publicDefault = scheme === 'skill' && audiences.includes('self_service');
   return {
     uri,
     name: typeof fm.title === 'string' && fm.title ? fm.title : slug,

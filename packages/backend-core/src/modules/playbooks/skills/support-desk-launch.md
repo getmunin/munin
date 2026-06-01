@@ -2,6 +2,7 @@
 title: Playbook: Support desk launch (Conv + CRM + KB)
 description: Stand up a working support desk for a new tenant — channels, contacts, knowledge base — so the first ticket has tooling around it.
 audiences: [admin]
+public: true
 ---
 
 # Support desk launch (Conv + CRM + KB)

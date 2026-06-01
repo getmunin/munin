@@ -2,6 +2,7 @@
 title: KB: Create the first space
 description: Stand up a fresh org's knowledge base — pick a space taxonomy, create the first space, optionally seed a welcome doc.
 audiences: [admin]
+public: true
 ---
 
 # Create the first knowledge-base space

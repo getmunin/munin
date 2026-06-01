@@ -140,6 +140,23 @@ describe('loadSkills', () => {
     expect(defaultPublic.public).toBe(true);
   });
 
+  it('defaults admin-only skills to private (must opt in with public: true)', () => {
+    const found = loadSkills([{ root }]);
+    const adminOnly = found.find((s) => s.uri === 'skill://conv/email-setup')!;
+    expect(adminOnly.audiences).toEqual(['admin']);
+    expect(adminOnly.public).toBe(false);
+    const playbook = found.find((s) => s.uri === 'skill://playbooks/customer-acquisition')!;
+    expect(playbook.audiences).toEqual(['admin']);
+    expect(playbook.public).toBe(false);
+  });
+
+  it('defaults skills with mixed audiences to public (self_service in the list)', () => {
+    const found = loadSkills([{ root }]);
+    const mixed = found.find((s) => s.uri === 'skill://crm/onboarding')!;
+    expect(mixed.audiences).toEqual(['admin', 'self_service']);
+    expect(mixed.public).toBe(true);
+  });
+
   it('skips malformed frontmatter lines without crashing the file', () => {
     const found = loadSkills([{ root }]);
     const malformed = found.find((s) => s.uri === 'skill://kb/malformed-frontmatter')!;

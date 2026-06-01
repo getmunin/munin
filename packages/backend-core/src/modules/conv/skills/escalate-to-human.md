@@ -2,6 +2,7 @@
 title: Conv: Escalate a conversation to a human
 description: How an external chat-widget bot detects that a human/agent in Munin has replied and yields the conversation.
 audiences: [admin]
+public: true
 ---
 
 # Escalate a conversation to a human

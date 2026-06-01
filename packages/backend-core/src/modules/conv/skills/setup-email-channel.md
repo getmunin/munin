@@ -2,6 +2,7 @@
 title: Conv: Set up an email channel
 description: Configure SMTP outbound and optional IMAP inbound for an email channel, then verify the credentials.
 audiences: [admin]
+public: true
 ---
 
 # Set up an email channel

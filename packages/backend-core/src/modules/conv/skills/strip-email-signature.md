@@ -2,6 +2,7 @@
 title: Conv: Strip the signature from an inbound email message
 description: Cleanup pass that removes the sender's sign-off and contact block from an inbound email body that has already had its quoted reply stripped, then writes the cleaned body back via `conv_strip_message_signature`.
 audiences: [admin]
+public: true
 ---
 
 # Strip the signature from an inbound email message

@@ -2,6 +2,7 @@
 title: KB: Import articles in bulk from CSV or JSON
 description: Generalized bulk import pipeline for KB articles from any structured source. Companion to import-from-google-docs — that one covers chunking; this one covers source handling and idempotency.
 audiences: [admin]
+public: true
 ---
 
 # Import articles in bulk from CSV or JSON

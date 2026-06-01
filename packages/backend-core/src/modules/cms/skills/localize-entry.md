@@ -2,6 +2,7 @@
 title: CMS: Localize an entry
 description: Configure locales, author entries per language, and switch the org's default locale without breaking already-published entries.
 audiences: [admin]
+public: true
 ---
 
 # Localize an entry

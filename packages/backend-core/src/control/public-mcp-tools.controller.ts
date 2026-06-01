@@ -17,21 +17,34 @@ interface PublicMcpToolDetail extends PublicMcpToolListItem {
   inputSchema: object;
 }
 
+/**
+ * Anonymous tool catalog. Only surfaces tools that include the
+ * `self_service` audience — admin-only tool schemas would otherwise leak
+ * operational surface area (input shapes, scopes, descriptions) to
+ * unauthenticated callers. Admin tools remain visible inside MCP for
+ * authenticated admin agents via `tools/list`.
+ */
 @PublicController('v1/public/mcp-tools', { throttle: true })
 export class PublicMcpToolsController {
   constructor(@Inject(McpRegistryService) private readonly registry: McpRegistryService) {}
 
   @Get()
   list(): PublicMcpToolListItem[] {
-    return this.registry.list().map(toListItem);
+    return this.registry.list().filter(isPubliclyVisible).map(toListItem);
   }
 
   @Get(':name')
   read(@Param('name') name: string): PublicMcpToolDetail {
     const tool = this.registry.get(name);
-    if (!tool) throw new NotFoundException(`MCP tool ${name} not found`);
+    if (!tool || !isPubliclyVisible(tool)) {
+      throw new NotFoundException(`MCP tool ${name} not found`);
+    }
     return { ...toListItem(tool), inputSchema: tool.inputJsonSchema };
   }
+}
+
+function isPubliclyVisible(tool: RegisteredMcpTool): boolean {
+  return tool.meta.audiences.includes('self_service');
 }
 
 function toListItem(tool: RegisteredMcpTool): PublicMcpToolListItem {

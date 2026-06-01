@@ -2,6 +2,7 @@
 title: Conv: Set up a chat widget
 description: Provision a per-channel widget API key, push transcripts via POST /v1/widget/messages, and wire the human-handoff webhook.
 audiences: [admin]
+public: true
 ---
 
 # Set up a chat widget

@@ -83,12 +83,14 @@ describe('PublicMcpToolsController', () => {
     if (app) await app.close();
   });
 
-  it('GET /v1/public/mcp-tools lists every registered tool', async () => {
+  it('GET /v1/public/mcp-tools lists only self_service tools (admin-only tools hidden)', async () => {
     const res = await fetch(`${baseUrl}/v1/public/mcp-tools`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as Array<{ name: string }>;
     const names = body.map((t) => t.name).sort();
-    expect(names).toEqual(['conv_reply', 'crm_delete_person', 'kb_search']);
+    // kb_search is admin+self_service; conv_reply and crm_delete_person are
+    // admin-only and must not leak into the anonymous tool catalog.
+    expect(names).toEqual(['kb_search']);
   });
 
   it('list response carries audiences, scopes, and danger derived from hints', async () => {
@@ -105,15 +107,9 @@ describe('PublicMcpToolsController', () => {
       danger: null,
     });
     expect(search).not.toHaveProperty('inputSchema');
-
-    const reply = body.find((t) => t.name === 'conv_reply')!;
-    expect(reply).toMatchObject({ danger: 'writes', readOnly: false });
-
-    const del = body.find((t) => t.name === 'crm_delete_person')!;
-    expect(del).toMatchObject({ danger: 'destructive', readOnly: false });
   });
 
-  it('GET /v1/public/mcp-tools/:name returns the input JSON Schema', async () => {
+  it('GET /v1/public/mcp-tools/:name returns the input JSON Schema for self_service tools', async () => {
     const res = await fetch(`${baseUrl}/v1/public/mcp-tools/kb_search`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
@@ -121,6 +117,11 @@ describe('PublicMcpToolsController', () => {
     expect(body.inputSchema).toBeTypeOf('object');
     expect((body.inputSchema as { type?: string }).type).toBe('object');
     expect((body.inputSchema as { properties?: object }).properties).toHaveProperty('query');
+  });
+
+  it('GET /v1/public/mcp-tools/:name returns 404 for an admin-only tool', async () => {
+    const res = await fetch(`${baseUrl}/v1/public/mcp-tools/conv_reply`);
+    expect(res.status).toBe(404);
   });
 
   it('GET /v1/public/mcp-tools/:name returns 404 for unknown name', async () => {

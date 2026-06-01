@@ -2,6 +2,7 @@
 title: CRM: Extract a contact from a message
 description: When a conversation closes, read the thread for identifying info the end-user volunteered (name, email, phone, company, title) and persist it to the CRM as a contact — auto-applied, no proposal queue. Designed to fire on every `conversation.closed` event so visitor-volunteered identity becomes structured CRM data without operator intervention.
 audiences: [admin]
+public: true
 ---
 
 # Extract a contact from a message

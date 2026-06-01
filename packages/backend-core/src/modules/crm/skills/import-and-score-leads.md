@@ -2,6 +2,7 @@
 title: CRM: Import and score leads
 description: Bulk-import contacts, attach them to companies and a deal pipeline, log the source touchpoint, and seed AI summaries for downstream prioritization.
 audiences: [admin]
+public: true
 ---
 
 # Import and score leads

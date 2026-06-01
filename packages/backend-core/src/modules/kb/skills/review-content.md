@@ -2,6 +2,7 @@
 title: KB: Review and curate content
 description: How an admin agent turns resolved-handover conversations into KB documents, so the next end-user with the same question gets a real answer instead of another handover.
 audiences: [admin]
+public: true
 ---
 
 # Review and curate content

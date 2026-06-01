@@ -2,6 +2,7 @@
 title: Playbook: Customer acquisition (CRM + Conv)
 description: End-to-end flow from a fresh lead list to first conversation — bulk-import contacts, send a welcome email, log the touchpoint, hand off to a human if interest signals fire.
 audiences: [admin]
+public: true
 ---
 
 # Customer acquisition (CRM + Conv)

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7-labs
 # Multistage build for the Munin Next.js web app (output: standalone).
 # Build context expected to be the monorepo root.
 
@@ -8,21 +9,16 @@ WORKDIR /repo
 # ─── deps ──────────────────────────────────────────────────────────────
 FROM base AS deps
 COPY pnpm-workspace.yaml pnpm-lock.yaml* package.json ./
-COPY apps/web/package.json apps/web/
-COPY packages/sdk/package.json packages/sdk/
-COPY packages/types/package.json packages/types/
-COPY packages/tsconfig/package.json packages/tsconfig/
-COPY packages/eslint-config/package.json packages/eslint-config/
+COPY --parents apps/*/package.json packages/*/package.json ./
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter @getmunin/web...
 
 # ─── build ─────────────────────────────────────────────────────────────
 FROM deps AS build
 COPY tsconfig.base.json turbo.json ./
-COPY packages/ packages/
-COPY apps/web apps/web
-RUN pnpm --filter @getmunin/sdk build && pnpm --filter @getmunin/types build
-RUN pnpm --filter @getmunin/web build
+COPY packages packages
+COPY apps apps
+RUN pnpm --filter @getmunin/web... build
 
 # ─── runtime ───────────────────────────────────────────────────────────
 FROM base AS runtime

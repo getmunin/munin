@@ -1,5 +1,13 @@
 # @getmunin/dashboard-pages
 
+## 4.24.2
+
+### Patch Changes
+
+- 70a7388: fix(dashboard): keep agent-health banner at a stable 48px height across state changes, match topbar's mobile padding, and hide the CTA below `md` so the message text gets the freed width
+  - @getmunin/types@4.24.2
+  - @getmunin/ui@4.24.2
+
 ## 4.24.1
 
 ### Patch Changes

@@ -48,6 +48,20 @@ export {
   ADDITIONAL_CREDENTIAL_RESOLVERS,
   type AdditionalCredentialResolver,
 } from './common/auth/auth.guard.ts';
+export { ControlPlaneGuard } from './common/auth/control-plane.guard.ts';
+export {
+  assertOwner,
+  assertOwnerOrAdmin,
+  VALID_ROLES,
+  type OrgRole,
+} from './control/role-guard.ts';
+export { RoleGuard } from './control/role.guard.ts';
+export {
+  RequireRole,
+  RequireActorType,
+  REQUIRE_ROLE_KEY,
+  REQUIRE_ACTOR_TYPE_KEY,
+} from './control/role.decorator.ts';
 export { TenancyInterceptor } from './common/tenancy/tenancy.interceptor.ts';
 export { AuditInterceptor } from './common/audit/audit.interceptor.ts';
 export { DB, DbModule } from './common/db/db.module.ts';

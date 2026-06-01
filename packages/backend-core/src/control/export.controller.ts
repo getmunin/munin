@@ -6,7 +6,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
-import { assertOwnerOrAdmin } from './role-guard.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 
 interface ExportPayload {
   exportedAt: string;
@@ -26,15 +27,15 @@ interface ExportPayload {
  * not user content.
  */
 @Controller('v1/export')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@RequireRole('owner', 'admin')
 export class ExportController {
   @Get()
   @Header('content-disposition', 'attachment; filename="munin-export.json"')
   async export(): Promise<ExportPayload> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
 
     const [org, endUsers, agents, kbSpaces, kbDocuments, kbDocumentVersions] =
       await Promise.all([

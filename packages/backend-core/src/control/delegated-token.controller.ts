@@ -15,6 +15,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireActorType } from './role.decorator.ts';
 
 export const SELF_SERVICE_SCOPES = [
   'cms:read',
@@ -62,8 +64,9 @@ interface MintResult {
  * is restricted to self-service tools, scoped to that one EndUser.
  */
 @Controller('v1/tokens/delegated')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@RequireActorType('admin_agent')
 export class DelegatedTokenController {
   @Post()
   @HttpCode(201)
@@ -74,9 +77,6 @@ export class DelegatedTokenController {
 
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (actor.type !== 'admin_agent') {
-      throw new BadRequestException('only admin credentials may mint delegated tokens');
-    }
 
     // Resolve / upsert EndUser.
     let endUserId = input.endUserId;

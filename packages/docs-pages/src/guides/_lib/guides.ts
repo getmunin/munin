@@ -81,6 +81,26 @@ export const GUIDES: GuideMeta[] = [
     tags: ['architecture'],
   },
   {
+    slug: 'recipe-lead-enricher',
+    category: 'recipes',
+    title: 'Lead Enricher',
+    kicker:
+      'When a contact lands, scrapes their company site and fills role, seniority, and industry on the CRM record.',
+    minutes: 4,
+    updated: 'today',
+    tags: ['recipe', 'crm'],
+  },
+  {
+    slug: 'recipe-lead-scorer',
+    category: 'recipes',
+    title: 'Lead Scorer',
+    kicker:
+      'Ranks a segment by fit and intent using enrichment data, conversation tone, and recent activity.',
+    minutes: 5,
+    updated: 'today',
+    tags: ['recipe', 'crm'],
+  },
+  {
     slug: 'recipe-bug-spotter',
     category: 'recipes',
     title: 'Bug Spotter',
@@ -91,44 +111,14 @@ export const GUIDES: GuideMeta[] = [
     tags: ['recipe', 'conversations'],
   },
   {
-    slug: 'recipe-content-marketer',
+    slug: 'recipe-conversation-distiller',
     category: 'recipes',
-    title: 'Content Marketer',
+    title: 'Conversation Distiller',
     kicker:
-      'Mines weekly conversations for recurring questions and drafts CMS posts that answer them in customers’ own words.',
+      'Reads recent conversations for recurring themes — questions, complaints, feature asks — and drafts a CMS entry for each.',
     minutes: 4,
     updated: 'today',
-    tags: ['recipe', 'cms'],
-  },
-  {
-    slug: 'recipe-crm-deduper',
-    category: 'recipes',
-    title: 'CRM Deduper',
-    kicker:
-      'Walks the contact list, scores near-duplicates, and files structured merge proposals — never merges on its own.',
-    minutes: 4,
-    updated: 'today',
-    tags: ['recipe', 'crm'],
-  },
-  {
-    slug: 'recipe-kb-curator',
-    category: 'recipes',
-    title: 'KB Curator',
-    kicker:
-      'Watches conversations for KB gaps, drafts new articles, queues them for review — never publishes without a human.',
-    minutes: 4,
-    updated: 'today',
-    tags: ['recipe', 'knowledge-base'],
-  },
-  {
-    slug: 'recipe-outreach-drafter',
-    category: 'recipes',
-    title: 'Outreach Drafter',
-    kicker:
-      'Takes a campaign brief, targets a CRM segment, and queues personalised opener emails for human approval.',
-    minutes: 5,
-    updated: 'today',
-    tags: ['recipe', 'outreach'],
+    tags: ['recipe', 'cms', 'conversations'],
   },
   {
     slug: 'recipe-renewal-watcher',
@@ -139,6 +129,36 @@ export const GUIDES: GuideMeta[] = [
     minutes: 5,
     updated: 'today',
     tags: ['recipe', 'crm', 'outreach'],
+  },
+  {
+    slug: 'recipe-win-back',
+    category: 'recipes',
+    title: 'Win-Back Agent',
+    kicker:
+      'Finds contacts dormant for 90+ days and drafts a re-engagement note tied to something new in the KB.',
+    minutes: 5,
+    updated: 'today',
+    tags: ['recipe', 'outreach', 'crm'],
+  },
+  {
+    slug: 'recipe-event-followup',
+    category: 'recipes',
+    title: 'Event Follow-up',
+    kicker:
+      'Bulk-loads an attendee list into the CRM, then drafts personalised post-event openers tied to what was discussed.',
+    minutes: 4,
+    updated: 'today',
+    tags: ['recipe', 'outreach', 'crm'],
+  },
+  {
+    slug: 'recipe-outreach-drafter',
+    category: 'recipes',
+    title: 'Outreach Drafter',
+    kicker:
+      'Takes a campaign brief, targets a CRM segment, and queues personalised opener emails for human approval.',
+    minutes: 5,
+    updated: 'today',
+    tags: ['recipe', 'outreach'],
   },
 ];
 

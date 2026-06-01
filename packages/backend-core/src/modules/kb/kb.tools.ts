@@ -215,7 +215,7 @@ export class KbAdminTools {
     name: 'kb_delete_document',
     title: 'KB: Delete document',
     description:
-      'Delete a knowledge-base document. Pass `ifVersion` for optimistic concurrency. Cascades to chunks and versions.',
+      'Delete a knowledge-base document. Pass `ifVersion` for optimistic concurrency. Cascades to chunks and versions. System-managed docs (e.g. the seeded `agent-runtime` prompts) cannot be deleted — edit their content with `kb_update_document` instead.',
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: DeleteDocumentInput,

@@ -135,3 +135,13 @@ export const SEEDABLE_PROMPTS: readonly SeedablePrompt[] = [
 export function getSeedablePrompt(slug: string): SeedablePrompt | undefined {
   return SEEDABLE_PROMPTS.find((p) => p.slug === slug);
 }
+
+export function isSystemRuntimeDoc(
+  spaceSlug: string | null | undefined,
+  docSlug: string | null | undefined,
+): boolean {
+  if (!spaceSlug || !docSlug) return false;
+  if (spaceSlug !== AGENT_RUNTIME_PROMPT_SPACE_SLUG) return false;
+  if (SEEDABLE_PROMPTS.some((p) => p.slug === docSlug)) return true;
+  return docSlug.startsWith(CHANNEL_PROMPT_PREFIX);
+}

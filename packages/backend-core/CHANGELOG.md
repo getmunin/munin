@@ -1,5 +1,16 @@
 # @getmunin/backend-core
 
+## 4.24.3
+
+### Patch Changes
+
+- 622745a: fix(mcp): allow OAuth-authorized callers (`actor.type === 'user'`) to reach admin tools. The audience-derivation gate added in #289 required `actor.type === 'admin_agent'`, which excluded the OAuth bearer-token flow used by claude.ai-style MCP connectors and collapsed every admin tool to `self_service`. Replace the actor-type equality check with an allowlist (`'admin_agent'` + `'user'`) so the defense-in-depth against `widget_agent` / `end_user_agent` / `partner` / `system` actors with a forged admin audience stays in place while OAuth users get the admin surface their granted scopes already entitle them to.
+  - @getmunin/core@4.24.3
+  - @getmunin/db@4.24.3
+  - @getmunin/types@4.24.3
+  - @getmunin/mcp-toolkit@4.24.3
+  - @getmunin/agent-runtime@4.24.3
+
 ## 4.24.2
 
 ### Patch Changes

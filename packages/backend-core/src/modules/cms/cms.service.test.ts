@@ -483,6 +483,7 @@ class StubStorage implements AssetStorage {
       expect(handle.uploaded).toBe(false);
       expect(handle.uploadUrl).toContain('upload.test');
       expect(handle.publicUrl).toContain('cdn.test');
+      expect(handle.storageKey.startsWith('cms/')).toBe(true);
 
       const list = await run(() => svc.listAssets({}));
       expect(list.find((a) => a.id === handle.id)).toBeTruthy();

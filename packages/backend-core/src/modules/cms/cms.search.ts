@@ -7,7 +7,8 @@ import { DB } from '../../common/db/db.module.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 import { CmsService, type EntryStatus } from './cms.service.ts';
 import type { FieldDef } from './cms.fields.ts';
-import { projectData } from './cms.fields.ts';
+import { applyAssetExpansion, collectAssetIds, projectData } from './cms.fields.ts';
+import { loadAssetMap } from './cms.asset-loader.ts';
 
 export interface SearchHit {
   entryId: string;
@@ -165,7 +166,29 @@ export class CmsSearchService {
         `)
       : [];
 
-    return reciprocalRankFuse(ftsRows, vectorRows, limit);
+    const fused = reciprocalRankFuse(ftsRows, vectorRows, limit);
+    if (fused.length === 0) return fused;
+
+    const fieldsByEntryId = new Map<string, FieldDef[]>();
+    for (const row of ftsRows) fieldsByEntryId.set(row.entry_id, row.fields);
+    for (const row of vectorRows) {
+      if (!fieldsByEntryId.has(row.entry_id)) fieldsByEntryId.set(row.entry_id, row.fields);
+    }
+
+    const orgId = opts?.orgId ?? getCurrentContext().actor!.orgId;
+    const ids = new Set<string>();
+    for (const hit of fused) {
+      const fields = fieldsByEntryId.get(hit.entryId);
+      if (!fields) continue;
+      for (const id of collectAssetIds(fields, hit.data)) ids.add(id);
+    }
+    const assets = await loadAssetMap(db, orgId, ids);
+    for (const hit of fused) {
+      const fields = fieldsByEntryId.get(hit.entryId);
+      if (!fields) continue;
+      hit.data = applyAssetExpansion(fields, hit.data, assets);
+    }
+    return fused;
   }
 
   private async lookupCollection(

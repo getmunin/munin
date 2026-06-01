@@ -525,6 +525,11 @@ export class CmsService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const ext = (input.name.split('.').pop() ?? 'bin').toLowerCase().slice(0, 16);
+    if (ext === 'svg' || isSvgMime(input.mime)) {
+      throw new CmsInvalidError(
+        'svg uploads are not allowed: SVG can carry inline scripts that execute in the browser',
+      );
+    }
     const key = `${actor.orgId}/${randomKeySegment()}.${ext}`;
     const presigned = await this.storage.presignedUpload({
       key,
@@ -977,4 +982,9 @@ function makePayload(
 
 function randomKeySegment(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isSvgMime(mime: string): boolean {
+  const normalized = mime.trim().toLowerCase().split(';')[0]!.trim();
+  return normalized === 'image/svg+xml' || normalized === 'image/svg';
 }

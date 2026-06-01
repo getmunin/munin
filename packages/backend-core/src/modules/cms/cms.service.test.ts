@@ -505,6 +505,39 @@ class StubStorage implements AssetStorage {
       ).rejects.toThrow(CmsInvalidError);
     });
 
+    it('requestAssetUpload rejects SVG by extension', async () => {
+      await expect(
+        run(() =>
+          svc.requestAssetUpload({
+            name: 'logo.svg',
+            mime: 'application/octet-stream',
+            sizeBytes: 1024,
+          }),
+        ),
+      ).rejects.toThrow(/svg uploads are not allowed/);
+    });
+
+    it('requestAssetUpload rejects SVG by mime even when extension is laundered', async () => {
+      await expect(
+        run(() =>
+          svc.requestAssetUpload({
+            name: 'logo.png',
+            mime: 'image/svg+xml',
+            sizeBytes: 1024,
+          }),
+        ),
+      ).rejects.toThrow(/svg uploads are not allowed/);
+      await expect(
+        run(() =>
+          svc.requestAssetUpload({
+            name: 'logo.png',
+            mime: 'IMAGE/SVG+XML; charset=utf-8',
+            sizeBytes: 1024,
+          }),
+        ),
+      ).rejects.toThrow(/svg uploads are not allowed/);
+    });
+
     it('completeAssetUpload flips the uploaded flag when actual size matches', async () => {
       const handle = await run(() =>
         svc.requestAssetUpload({ name: 'pic.png', mime: 'image/png', sizeBytes: 1024 }),

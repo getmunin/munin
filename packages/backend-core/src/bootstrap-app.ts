@@ -435,8 +435,6 @@ function guessMime(key: string): string {
       return 'image/gif';
     case 'webp':
       return 'image/webp';
-    case 'svg':
-      return 'image/svg+xml';
     case 'pdf':
       return 'application/pdf';
     case 'json':

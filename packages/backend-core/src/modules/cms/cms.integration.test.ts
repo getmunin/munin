@@ -298,6 +298,125 @@ const skipReason = TEST_URL
     expect(((await enQuery.json()) as { locale: string }).locale).toBe('en');
   }, 30_000);
 
+  it('delivery: asset fields are expanded inline with publicUrl/mime/altText', async () => {
+    const [asset] = await db
+      .insert(schema.cmsAssets)
+      .values({
+        orgId,
+        name: 'hero.png',
+        mime: 'image/png',
+        sizeBytes: 4096,
+        storageProvider: 'local',
+        storageKey: `cms/${orgId}/it-hero.png`,
+        publicUrl: 'https://assets.test/hero.png',
+        altText: 'Hero image',
+        uploaded: true,
+        createdByType: 'user',
+        createdById: 'usr_test',
+      })
+      .returning();
+    const assetId = asset!.id;
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'with-hero',
+          data: {
+            title: 'With hero',
+            slug: 'with-hero',
+            body: 'Body.',
+            hero_image: assetId,
+          },
+          status: 'published',
+        },
+      });
+    });
+
+    const res = await fetchUntil(
+      `${baseUrl}/v1/cms/${orgId}/pages/with-hero`,
+      (r) => r.status === 200,
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { data: { hero_image: unknown } };
+    expect(json.data.hero_image).toMatchObject({
+      id: assetId,
+      publicUrl: 'https://assets.test/hero.png',
+      altText: 'Hero image',
+      mime: 'image/png',
+      sizeBytes: 4096,
+    });
+
+    const list = await fetch(`${baseUrl}/v1/cms/${orgId}/pages`);
+    const listJson = (await list.json()) as {
+      items: Array<{ slug: string; data: { hero_image: unknown } }>;
+    };
+    const item = listJson.items.find((i) => i.slug === 'with-hero');
+    expect(item?.data.hero_image).toMatchObject({ id: assetId });
+  }, 30_000);
+
+  it('delivery: pending (not-yet-uploaded) and unknown asset ids surface as null', async () => {
+    const [pending] = await db
+      .insert(schema.cmsAssets)
+      .values({
+        orgId,
+        name: 'pending.png',
+        mime: 'image/png',
+        sizeBytes: 100,
+        storageProvider: 'local',
+        storageKey: `cms/${orgId}/it-pending.png`,
+        publicUrl: 'https://assets.test/pending.png',
+        uploaded: false,
+        createdByType: 'user',
+        createdById: 'usr_test',
+      })
+      .returning();
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'with-pending-hero',
+          data: {
+            title: 'Pending',
+            slug: 'with-pending-hero',
+            body: 'b',
+            hero_image: pending!.id,
+          },
+          status: 'published',
+        },
+      });
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'with-missing-hero',
+          data: {
+            title: 'Missing',
+            slug: 'with-missing-hero',
+            body: 'b',
+            hero_image: 'cma_nope_does_not_exist',
+          },
+          status: 'published',
+        },
+      });
+    });
+
+    const pendingRes = await fetchUntil(
+      `${baseUrl}/v1/cms/${orgId}/pages/with-pending-hero`,
+      (r) => r.status === 200,
+    );
+    expect(((await pendingRes.json()) as { data: { hero_image: unknown } }).data.hero_image).toBeNull();
+
+    const missingRes = await fetchUntil(
+      `${baseUrl}/v1/cms/${orgId}/pages/with-missing-hero`,
+      (r) => r.status === 200,
+    );
+    expect(((await missingRes.json()) as { data: { hero_image: unknown } }).data.hero_image).toBeNull();
+  }, 30_000);
+
   it('end-user agent has no cms_* tools (CMS is admin-only)', async () => {
     await withClient(endUserToken, async (c) => {
       const { tools } = await c.listTools();

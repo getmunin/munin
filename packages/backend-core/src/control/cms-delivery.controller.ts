@@ -14,7 +14,13 @@ import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 import { CmsSearchService } from '../modules/cms/cms.search.ts';
-import { projectData, type FieldDef } from '../modules/cms/cms.fields.ts';
+import {
+  applyAssetExpansion,
+  collectAssetIds,
+  projectData,
+  type FieldDef,
+} from '../modules/cms/cms.fields.ts';
+import { loadAssetMap } from '../modules/cms/cms.asset-loader.ts';
 
 /**
  * Public delivery API — anonymous JSON for external websites / mobile
@@ -106,13 +112,18 @@ export class CmsDeliveryController {
       .limit(take);
 
     const fields = collection.fields as FieldDef[];
-    const items = rows.map((r) => ({
+    const projected = rows.map((r) => ({
       slug: r.slug,
       locale: r.locale,
       data: projectData(fields, r.data),
       version: r.version,
       publishedAt: r.publishedAt?.toISOString() ?? null,
       updatedAt: r.updatedAt.toISOString(),
+    }));
+    const assets = await this.fetchAssets(org.id, fields, projected.map((p) => p.data));
+    const items = projected.map((p) => ({
+      ...p,
+      data: applyAssetExpansion(fields, p.data, assets),
     }));
 
     const etag = computeEtag(rows.map((r) => r.updatedAt.getTime()));
@@ -152,10 +163,12 @@ export class CmsDeliveryController {
     const etag = computeEtag([row.updatedAt.getTime()]);
     if (handleEtag(req, res, etag)) return;
     setCdnHeaders(res);
+    const projected = projectData(fields, row.data);
+    const assets = await this.fetchAssets(org.id, fields, [projected]);
     return {
       slug: row.slug,
       locale: row.locale,
-      data: projectData(fields, row.data),
+      data: applyAssetExpansion(fields, projected, assets),
       version: row.version,
       publishedAt: row.publishedAt?.toISOString() ?? null,
       updatedAt: row.updatedAt.toISOString(),
@@ -163,6 +176,18 @@ export class CmsDeliveryController {
   }
 
   // ─── helpers ─────────────────────────────────────────────────────────
+
+  private async fetchAssets(
+    orgId: string,
+    fields: FieldDef[],
+    datas: Array<Record<string, unknown>>,
+  ) {
+    const ids = new Set<string>();
+    for (const data of datas) {
+      for (const id of collectAssetIds(fields, data)) ids.add(id);
+    }
+    return loadAssetMap(this.db, orgId, ids);
+  }
 
   private async resolveOrg(orgId: string): Promise<{ id: string }> {
     const rows = await this.db

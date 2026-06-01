@@ -1,5 +1,12 @@
 # @getmunin/mcp-toolkit
 
+## 4.24.2
+
+### Patch Changes
+
+- @getmunin/core@4.24.2
+- @getmunin/types@4.24.2
+
 ## 4.24.1
 
 ### Patch Changes

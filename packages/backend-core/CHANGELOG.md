@@ -1,5 +1,25 @@
 # @getmunin/backend-core
 
+## 4.24.2
+
+### Patch Changes
+
+- b8da5b6: Fix accidentally protected public endpoints in cloud builds. Cloud
+  registers AuthGuard globally via `APP_GUARD`, so any controller without
+  `@AllowAnonymous()` gets a 401 — that left `/v1/cms/...` delivery,
+  provider webhooks (`POST /v1/conversations/channels/:id/webhook`),
+  health probes (`/healthz`, `/readyz`, `/version`), and signed-URL
+  uploads (`/static/assets/upload`) accidentally auth-gated.
+
+  Adds a `@PublicController(path, { throttle? })` helper that bundles
+  `@Controller` + `@AllowAnonymous` (and optionally `ThrottlerGuard`)
+  so the "public" intent is a single greppable declaration.
+  - @getmunin/core@4.24.2
+  - @getmunin/db@4.24.2
+  - @getmunin/types@4.24.2
+  - @getmunin/mcp-toolkit@4.24.2
+  - @getmunin/agent-runtime@4.24.2
+
 ## 4.24.1
 
 ### Patch Changes

@@ -11,7 +11,8 @@
         ".next/**",
         "!.next/cache/**",
         "build/**",
-        "tsconfig.tsbuildinfo"
+        "tsconfig.tsbuildinfo",
+        "tsconfig.build.tsbuildinfo"
       ]
     },
     "dev": {

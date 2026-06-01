@@ -1,9 +1,10 @@
-import { All, Controller, Inject, Req, Res } from '@nestjs/common';
+import { All, Inject, Req, Res } from '@nestjs/common';
 import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import type { Db } from '@getmunin/db';
 import { readMailerFromEnv } from '@getmunin/core';
 import {
   DB,
+  PublicController,
   handleAuthRequest,
   readGithubProviderFromEnv,
   readGoogleProviderFromEnv,
@@ -20,7 +21,7 @@ import {
 
 const AUTH_URL_FALLBACK = 'http://localhost:3001';
 
-@Controller('auth')
+@PublicController('auth')
 export class AuthController {
   private readonly auth: MuninAuth;
 

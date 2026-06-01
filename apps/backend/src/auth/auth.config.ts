@@ -45,6 +45,7 @@ export function createMuninAuth({
     trustedOrigins,
     webBaseUrl,
     logger,
+    rateLimit: buildAuthRateLimit(),
     socialProviders: google || github ? { google, github } : undefined,
     sendResetPassword: mailer
       ? async ({ user, url }) => {
@@ -154,6 +155,39 @@ export function readAllowedEmailDomainsFromEnv(): string[] {
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
+}
+
+/**
+ * Per-endpoint rate limits for `/auth/*`. Two complementary defences:
+ *
+ *   1. `PublicController('auth', { throttle: true })` wraps everything in
+ *      Nest's `ThrottlerGuard` — a generic per-IP ceiling (60/min, 1000/hr)
+ *      that runs before BetterAuth touches the request.
+ *   2. BetterAuth's own rate limiter runs inside the auth handler, keyed
+ *      by IP + path and storing counters in the `auth_rate_limit` table so
+ *      they survive across replicas. `customRules` ratchets the sensitive
+ *      endpoints down further than the default (10 / 60s).
+ *
+ * All tunable via env without code changes; defaults are intentionally
+ * conservative since legitimate users hit each of these once or twice per
+ * incident.
+ */
+export function buildAuthRateLimit(): BetterAuthOptions['rateLimit'] {
+  return {
+    enabled: true,
+    storage: 'database',
+    window: Number(process.env.MUNIN_AUTH_RATELIMIT_WINDOW ?? 60),
+    max: Number(process.env.MUNIN_AUTH_RATELIMIT_MAX ?? 30),
+    customRules: {
+      '/sign-in/email': { window: 60, max: 5 },
+      '/sign-up/email': { window: 60, max: 5 },
+      '/forget-password': { window: 60, max: 3 },
+      '/reset-password': { window: 60, max: 5 },
+      '/verify-email': { window: 60, max: 5 },
+      '/oauth2/register': { window: 60, max: 10 },
+      '/oauth2/token': { window: 60, max: 30 },
+    },
+  };
 }
 
 type CaptureExceptionFn = (

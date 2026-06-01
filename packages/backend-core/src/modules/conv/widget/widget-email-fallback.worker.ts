@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nest
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { createTransport, type Transporter } from 'nodemailer';
-import { type Mailer } from '@getmunin/core';
+import { resolvePublicHost, type Mailer } from '@getmunin/core';
 import { DB } from '../../../common/db/db.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
 import { EmailService, jsonbToStored, type StoredEmailChannelConfig } from '../email/email.service.ts';
@@ -433,6 +433,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
     built: BuiltMessage,
   ): Promise<void> {
     if (config.outbound.provider === 'smtp') {
+      const resolved = await resolvePublicHost(config.outbound.host);
       const password = await this.db.transaction((tx) =>
         this.emailService.decryptSmtpPassword(
           tx,
@@ -445,6 +446,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
           config.outbound.port,
           config.outbound.secure,
           { user: config.outbound.username, pass: password },
+          resolved?.address,
         ),
       );
       try {

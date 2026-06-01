@@ -67,6 +67,7 @@ export {
 export {
   assertPublicHost,
   isPrivateIp,
+  resolvePublicHost,
   safeFetch,
   SsrfBlockedError,
   type SafeFetchOptions,

@@ -87,7 +87,7 @@ export class AuthGuard implements CanActivate {
       } else {
         credential = await this.resolver.resolveBearerToken(raw);
       }
-    } else {
+    } else if (!isMcpRequest(request)) {
       const cookieHeader = request.headers['cookie'];
       const cookieValue = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader;
       const sessionToken = readSessionCookie(cookieValue);

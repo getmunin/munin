@@ -66,10 +66,10 @@ export function AgentHealthBanner() {
     <div
       role="alert"
       aria-live="polite"
-      className="agent-banner sticky top-0 z-50 h-12 border-b-[0.5px] border-ink bg-amber-100 text-ink dark:bg-amber-200/90 dark:text-ink"
+      className="agent-banner sticky top-0 z-50 h-12 overflow-hidden border-b-[0.5px] border-ink bg-amber-100 text-ink dark:bg-amber-200/90 dark:text-ink"
     >
-      <div className="mx-auto flex h-full items-center gap-4 px-10">
-        <span className="flex shrink-0 items-center gap-2 whitespace-nowrap border-r border-ink/25 pr-3.5 font-mono text-[10px] uppercase tracking-[0.16em]">
+      <div className="mx-auto flex h-full items-center gap-4 px-4 md:px-10">
+        <span className="flex shrink-0 items-center gap-2 whitespace-nowrap border-r border-ink/25 pr-3.5 font-mono text-[10px] uppercase leading-none tracking-[0.16em]">
           <span className="size-[7px] animate-pulse rounded-full bg-ink" aria-hidden />
           {state.tag}
         </span>
@@ -77,7 +77,7 @@ export function AgentHealthBanner() {
         {state.cta && (
           <Link
             href={state.cta.href}
-            className="whitespace-nowrap border border-ink bg-transparent px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink transition-colors hover:bg-ink hover:text-amber-100"
+            className="hidden h-7 shrink-0 items-center whitespace-nowrap border border-ink bg-transparent px-3 font-mono text-[10px] uppercase leading-none tracking-[0.14em] text-ink transition-colors hover:bg-ink hover:text-amber-100 md:inline-flex"
           >
             {state.cta.label}
           </Link>

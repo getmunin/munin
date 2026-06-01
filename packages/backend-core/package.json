@@ -62,6 +62,7 @@
     "jose": "^6.0.0",
     "mailparser": "^3.9.8",
     "marked": "^18.0.3",
+    "nestjs-zod": "^5.4.0",
     "nodemailer": "^8.0.7",
     "postgres": "^3.4.5",
     "reflect-metadata": "^0.2.2",

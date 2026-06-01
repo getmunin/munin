@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -12,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, isNull } from 'drizzle-orm';
@@ -23,7 +23,7 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
 
-const EndUserPatchDto = z.object({
+const EndUserPatchSchema = z.object({
   externalId: z.string().optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
@@ -31,15 +31,19 @@ const EndUserPatchDto = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-const LookupDto = z
-  .object({
-    externalId: z.string().optional(),
-    email: z.string().email().optional(),
-    phone: z.string().optional(),
-  })
-  .refine((v) => v.externalId || v.email || v.phone, {
-    message: 'at least one of externalId, email, phone is required',
-  });
+class CreateEndUserBody extends createZodDto(EndUserPatchSchema) {}
+
+class LookupEndUserBody extends createZodDto(
+  z
+    .object({
+      externalId: z.string().optional(),
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
+    })
+    .refine((v) => v.externalId || v.email || v.phone, {
+      message: 'at least one of externalId, email, phone is required',
+    }),
+) {}
 
 interface EndUserDto {
   id: string;
@@ -64,18 +68,14 @@ export class EndUsersController {
    */
   @Post('lookup')
   @HttpCode(200)
-  async lookup(@Body() body: unknown): Promise<EndUserDto> {
-    const parsed = LookupDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.findOrCreate(parsed.data);
+  async lookup(@Body() input: LookupEndUserBody): Promise<EndUserDto> {
+    return this.findOrCreate(input);
   }
 
   @Post()
   @HttpCode(201)
-  async create(@Body() body: unknown): Promise<EndUserDto> {
-    const parsed = EndUserPatchDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.findOrCreate(parsed.data);
+  async create(@Body() input: CreateEndUserBody): Promise<EndUserDto> {
+    return this.findOrCreate(input);
   }
 
   @Get()
@@ -134,7 +134,7 @@ export class EndUsersController {
     return toDto(row);
   }
 
-  private async findOrCreate(input: z.infer<typeof EndUserPatchDto>): Promise<EndUserDto> {
+  private async findOrCreate(input: z.infer<typeof EndUserPatchSchema>): Promise<EndUserDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
 

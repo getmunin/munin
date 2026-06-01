@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, asc, eq } from 'drizzle-orm';
@@ -34,17 +34,21 @@ export const WebhookUrl = z
     }
   }, 'webhook URL must use https://');
 
-const CreateDto = z.object({
-  url: WebhookUrl,
-  events: z.array(z.string().min(1).max(64)).default([]),
-  active: z.boolean().optional(),
-});
+class CreateWebhookBody extends createZodDto(
+  z.object({
+    url: WebhookUrl,
+    events: z.array(z.string().min(1).max(64)).default([]),
+    active: z.boolean().optional(),
+  }),
+) {}
 
-const PatchDto = z.object({
-  url: WebhookUrl.optional(),
-  events: z.array(z.string().min(1).max(64)).optional(),
-  active: z.boolean().optional(),
-});
+class PatchWebhookBody extends createZodDto(
+  z.object({
+    url: WebhookUrl.optional(),
+    events: z.array(z.string().min(1).max(64)).optional(),
+    active: z.boolean().optional(),
+  }),
+) {}
 
 interface WebhookDto {
   id: string;
@@ -76,9 +80,7 @@ export class WebhooksController {
 
   @Post()
   @HttpCode(201)
-  async create(@Body() body: unknown): Promise<WebhookDto> {
-    const parsed = CreateDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async create(@Body() input: CreateWebhookBody): Promise<WebhookDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const secret = `whsec_${randomToken(24)}`;
@@ -86,25 +88,23 @@ export class WebhooksController {
       .insert(schema.webhooks)
       .values({
         orgId: actor.orgId,
-        url: parsed.data.url,
+        url: input.url,
         secret,
-        events: parsed.data.events,
-        active: parsed.data.active ?? true,
+        events: input.events,
+        active: input.active ?? true,
       })
       .returning();
     return { ...toDto(row!), secret };
   }
 
   @Patch(':id')
-  async patch(@Param('id') id: string, @Body() body: unknown): Promise<WebhookDto> {
-    const parsed = PatchDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async patch(@Param('id') id: string, @Body() input: PatchWebhookBody): Promise<WebhookDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const updates: Record<string, unknown> = { updatedAt: new Date() };
-    if (parsed.data.url !== undefined) updates.url = parsed.data.url;
-    if (parsed.data.events !== undefined) updates.events = parsed.data.events;
-    if (parsed.data.active !== undefined) updates.active = parsed.data.active;
+    if (input.url !== undefined) updates.url = input.url;
+    if (input.events !== undefined) updates.events = input.events;
+    if (input.active !== undefined) updates.active = input.active;
     const result = await ctx.db
       .update(schema.webhooks)
       .set(updates)

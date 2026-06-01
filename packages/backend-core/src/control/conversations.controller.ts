@@ -11,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
@@ -35,51 +36,68 @@ import {
 
 const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
-const AgentModeBody = z.object({ mode: AgentModeSchema });
 
-const ReplyBody = z.object({
-  body: z.string().min(1).max(50_000),
-  internal: z.boolean().optional(),
-  inReplyToId: z.string().optional(),
-  preserveAttention: z.boolean().optional(),
-  sinceMessageId: z.string().optional(),
-  claim: z.boolean().optional(),
-});
+class AgentModeBody extends createZodDto(z.object({ mode: AgentModeSchema })) {}
 
-const AcquireBody = z.object({
-  holder: z.string().min(1).max(128),
-  leaseSeconds: z.number().int().min(30).max(86_400).optional(),
-});
+class ReplyBody extends createZodDto(
+  z.object({
+    body: z.string().min(1).max(50_000),
+    internal: z.boolean().optional(),
+    inReplyToId: z.string().optional(),
+    preserveAttention: z.boolean().optional(),
+    sinceMessageId: z.string().optional(),
+    claim: z.boolean().optional(),
+  }),
+) {}
 
-const ReleaseBody = z.object({
-  holder: z.string().min(1).max(128),
-});
+class AcquireBody extends createZodDto(
+  z.object({
+    holder: z.string().min(1).max(128),
+    leaseSeconds: z.number().int().min(30).max(86_400).optional(),
+  }),
+) {}
 
-const AssignBody = z.object({
-  assigneeUserId: z.string().nullable(),
-});
+class ReleaseBody extends createZodDto(
+  z.object({
+    holder: z.string().min(1).max(128),
+  }),
+) {}
 
-const StatusBody = z.object({
-  status: StatusSchema,
-  snoozeUntil: z.string().datetime().optional(),
-});
+class AssignBody extends createZodDto(
+  z.object({
+    assigneeUserId: z.string().nullable(),
+  }),
+) {}
 
-const HandoverBody = z
-  .object({
-    reason: z.string().max(500).optional(),
-    publicFallbackMessage: z.string().max(2000).optional(),
-  })
-  .partial();
+class StatusBody extends createZodDto(
+  z.object({
+    status: StatusSchema,
+    snoozeUntil: z.string().datetime().optional(),
+  }),
+) {}
 
-const TopicBody = z.object({
-  topicId: z.string().nullable(),
-});
+class HandoverBody extends createZodDto(
+  z
+    .object({
+      reason: z.string().max(500).optional(),
+      publicFallbackMessage: z.string().max(2000).optional(),
+    })
+    .partial(),
+) {}
 
-const TakeOverBody = z
-  .object({
-    ttlMinutes: z.number().int().positive().max(240).optional(),
-  })
-  .partial();
+class TopicBody extends createZodDto(
+  z.object({
+    topicId: z.string().nullable(),
+  }),
+) {}
+
+class TakeOverBody extends createZodDto(
+  z
+    .object({
+      ttlMinutes: z.number().int().positive().max(240).optional(),
+    })
+    .partial(),
+) {}
 
 interface ConversationListResponse {
   items: ConversationSummary[];
@@ -148,20 +166,18 @@ export class ConversationsController {
 
   @Post(':id/messages')
   @HttpCode(201)
-  async reply(@Param('id') id: string, @Body() body: unknown): Promise<MessageDto> {
-    const parsed = ReplyBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async reply(@Param('id') id: string, @Body() input: ReplyBody): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     return translate(() =>
       this.conv.sendMessage({
         conversationId: id,
-        body: parsed.data.body,
-        internal: parsed.data.internal,
-        inReplyToId: parsed.data.inReplyToId,
-        preserveAttention: parsed.data.preserveAttention,
-        sinceMessageId: parsed.data.sinceMessageId,
-        claim: parsed.data.claim,
+        body: input.body,
+        internal: input.internal,
+        inReplyToId: input.inReplyToId,
+        preserveAttention: input.preserveAttention,
+        sinceMessageId: input.sinceMessageId,
+        claim: input.claim,
         authorType: actor.type === 'user' ? 'user' : 'agent',
         authorId: actor.id,
       }),
@@ -172,15 +188,13 @@ export class ConversationsController {
   @HttpCode(200)
   async runnerClaim(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: AcquireBody,
   ): Promise<{ acquired: boolean; leaseExpiresAt?: string; heldBy?: string | null }> {
-    const parsed = AcquireBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return translate(() =>
       this.conv.tryAcquireConversation({
         conversationId: id,
-        holder: parsed.data.holder,
-        leaseSeconds: parsed.data.leaseSeconds ?? 3600,
+        holder: input.holder,
+        leaseSeconds: input.leaseSeconds ?? 3600,
       }),
     );
   }
@@ -189,35 +203,29 @@ export class ConversationsController {
   @HttpCode(200)
   async runnerRelease(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: ReleaseBody,
   ): Promise<{ released: boolean }> {
-    const parsed = ReleaseBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return translate(() =>
-      this.conv.releaseConversationClaim({ conversationId: id, holder: parsed.data.holder }),
+      this.conv.releaseConversationClaim({ conversationId: id, holder: input.holder }),
     );
   }
 
   @Post(':id/assign')
   @HttpCode(200)
-  async assign(@Param('id') id: string, @Body() body: unknown): Promise<ConversationSummary> {
-    const parsed = AssignBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async assign(@Param('id') id: string, @Body() input: AssignBody): Promise<ConversationSummary> {
     return translate(() =>
-      this.conv.assignConversation({ id, assigneeUserId: parsed.data.assigneeUserId }),
+      this.conv.assignConversation({ id, assigneeUserId: input.assigneeUserId }),
     );
   }
 
   @Post(':id/status')
   @HttpCode(200)
-  async status(@Param('id') id: string, @Body() body: unknown): Promise<ConversationSummary> {
-    const parsed = StatusBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async status(@Param('id') id: string, @Body() input: StatusBody): Promise<ConversationSummary> {
     return translate(async () => {
-      if (parsed.data.status === 'closed') {
+      if (input.status === 'closed') {
         await this.claims.release({ conversationId: id, force: true });
       }
-      return this.conv.changeStatus({ id, ...parsed.data });
+      return this.conv.changeStatus({ id, ...input });
     });
   }
 
@@ -225,22 +233,18 @@ export class ConversationsController {
   @HttpCode(200)
   async agentMode(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: AgentModeBody,
   ): Promise<ConversationSummary> {
-    const parsed = AgentModeBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() => this.conv.setAgentMode({ id, mode: parsed.data.mode }));
+    return translate(() => this.conv.setAgentMode({ id, mode: input.mode }));
   }
 
   @Post(':id/take-over')
   @HttpCode(200)
   async takeOver(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: TakeOverBody,
   ): Promise<{ holderType: 'user' | 'agent'; holderId: string; expiresAt: string }> {
-    const parsed = TakeOverBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    const ttlMs = parsed.data.ttlMinutes ? parsed.data.ttlMinutes * 60_000 : undefined;
+    const ttlMs = input.ttlMinutes ? input.ttlMinutes * 60_000 : undefined;
     const claim = await translate(() => this.claims.claim({ conversationId: id, ttlMs }));
     return { holderType: claim.holderType, holderId: claim.holderId, expiresAt: claim.expiresAt };
   }
@@ -256,15 +260,13 @@ export class ConversationsController {
   @HttpCode(200)
   async requestHandover(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: HandoverBody,
   ): Promise<ConversationSummary> {
-    const parsed = HandoverBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return translate(() =>
       this.conv.requestHandover({
         conversationId: id,
-        reason: parsed.data.reason,
-        publicFallbackMessage: parsed.data.publicFallbackMessage,
+        reason: input.reason,
+        publicFallbackMessage: input.publicFallbackMessage,
       }),
     );
   }
@@ -273,12 +275,10 @@ export class ConversationsController {
   @HttpCode(200)
   async setTopic(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: TopicBody,
   ): Promise<ConversationSummary> {
-    const parsed = TopicBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return translate(() =>
-      this.conv.setTopic({ conversationId: id, topicId: parsed.data.topicId }),
+      this.conv.setTopic({ conversationId: id, topicId: input.topicId }),
     );
   }
 }

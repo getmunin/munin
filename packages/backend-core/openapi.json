@@ -228,6 +228,16 @@
       "post": {
         "operationId": "ApiKeysController_create",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -301,6 +311,16 @@
       "post": {
         "operationId": "EndUsersController_lookup",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LookupEndUserBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -323,6 +343,16 @@
       "post": {
         "operationId": "EndUsersController_create",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEndUserBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -436,6 +466,16 @@
       "post": {
         "operationId": "DelegatedTokenController_mint",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MintBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -531,6 +571,16 @@
       "patch": {
         "operationId": "OrgsController_update",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchOrgBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -595,6 +645,16 @@
       "patch": {
         "operationId": "AssistantsController_update",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchAssistantBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -805,6 +865,16 @@
       "post": {
         "operationId": "WebhooksController_create",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -836,6 +906,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchWebhookBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1071,6 +1151,16 @@
       "post": {
         "operationId": "InvitationsController_create",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInviteBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -1168,6 +1258,16 @@
       "post": {
         "operationId": "AcceptInvitationController_accept",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1214,6 +1314,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchMemberBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1287,6 +1397,16 @@
       "patch": {
         "operationId": "MembershipsController_setActive",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetActiveBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1417,6 +1537,16 @@
       "post": {
         "operationId": "ConvChannelsController_createWidget",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWidgetBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -1448,6 +1578,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWidgetBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1532,6 +1672,16 @@
       "post": {
         "operationId": "ConvChannelsController_setupEmail",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupEmailBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1594,6 +1744,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendEmailTestBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1616,6 +1776,16 @@
       "post": {
         "operationId": "ConvChannelsController_configureTwilioSms",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureTwilioSmsBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1678,6 +1848,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendTwilioSmsTestBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1700,6 +1880,16 @@
       "post": {
         "operationId": "ConvChannelsController_configureMessageBirdSms",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureMessageBirdSmsBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1762,6 +1952,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageBirdSmsTestBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1784,6 +1984,16 @@
       "post": {
         "operationId": "ConvChannelsController_configureVapi",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureVapiBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1846,6 +2056,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VapiCallInitiateBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2032,6 +2252,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -2063,6 +2293,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcquireBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2094,6 +2334,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2125,6 +2375,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2156,6 +2416,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2187,6 +2457,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentModeBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2218,6 +2498,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeOverBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2280,6 +2570,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoverBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2311,6 +2611,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2404,6 +2714,16 @@
       "post": {
         "operationId": "EndUserConversationsController_start",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -2511,6 +2831,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -2709,6 +3039,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissMergeBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2751,6 +3091,16 @@
       "post": {
         "operationId": "CrmSegmentsController_create",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSegmentBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -2811,6 +3161,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSegmentBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3050,6 +3410,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProposalBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3112,6 +3482,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissProposalBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3171,6 +3551,16 @@
       "post": {
         "operationId": "CuratorJobsController_enqueue",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnqueueJobBody"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -3224,6 +3614,16 @@
       "post": {
         "operationId": "CuratorJobsController_claim",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimJobBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3255,6 +3655,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AckJobBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3286,6 +3696,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FailJobBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3368,6 +3788,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCandidateBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3399,6 +3829,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishCandidateBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3824,6 +4264,1168 @@
         "name": "munin_session"
       }
     },
-    "schemas": {}
+    "schemas": {
+      "CreateApiKeyBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "scopes": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "LookupEndUserBody": {
+        "type": "object",
+        "properties": {
+          "externalId": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "phone": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateEndUserBody": {
+        "type": "object",
+        "properties": {
+          "externalId": {
+            "type": "string",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "phone": {
+            "type": "string",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "name": {
+            "type": "string",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          }
+        }
+      },
+      "MintBody": {
+        "type": "object",
+        "properties": {
+          "endUserId": {
+            "type": "string",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "externalId": {
+            "type": "string",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "phone": {
+            "type": "string",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "name": {
+            "type": "string",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          },
+          "ttlSeconds": {
+            "default": 1800,
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 86400,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "audiences": {
+            "default": [
+              "self_service"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "const": "self_service"
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "scopes": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "cms:read",
+                "conv:read",
+                "conv:write",
+                "crm:read",
+                "crm:write",
+                "kb:read",
+                "outreach:read"
+              ]
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        }
+      },
+      "PatchOrgBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "settings": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          }
+        }
+      },
+      "PatchAssistantBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "greeting": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          }
+        }
+      },
+      "CreateWebhookBody": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "events": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "PatchWebhookBody": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateInviteBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "AcceptBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "PatchMemberBody": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "SetActiveBody": {
+        "type": "object",
+        "properties": {
+          "orgId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "orgId"
+        ]
+      },
+      "CreateWidgetBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "originAllowlist": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "webhookOnEscalation": {
+            "type": "string",
+            "format": "uri"
+          },
+          "requireVerifiedIdentity": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateWidgetBody": {
+        "type": "object",
+        "properties": {
+          "originAllowlist": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "webhookOnEscalation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "requireVerifiedIdentity": {
+            "type": "boolean",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        }
+      },
+      "SetupEmailBody": {
+        "type": "object",
+        "properties": {
+          "channelId": {
+            "type": "string",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "config": {
+            "type": "object",
+            "properties": {
+              "addressing": {
+                "type": "object",
+                "properties": {
+                  "fromAddress": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "fromName": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "replyToTemplate": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "fromAddress"
+                ]
+              },
+              "outbound": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "const": "smtp"
+                      },
+                      "host": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 253,
+                        "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "secure": {
+                        "type": "boolean"
+                      },
+                      "username": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "password": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "trackOpens": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "provider",
+                      "host",
+                      "port",
+                      "secure",
+                      "username"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "const": "mailer"
+                      },
+                      "trackOpens": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "provider"
+                    ]
+                  }
+                ]
+              },
+              "inbound": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "const": "imap"
+                  },
+                  "host": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253,
+                    "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  },
+                  "secure": {
+                    "type": "boolean"
+                  },
+                  "username": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "mailbox": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "provider",
+                  "host",
+                  "port",
+                  "secure",
+                  "username"
+                ]
+              },
+              "sendLimits": {
+                "type": "object",
+                "properties": {
+                  "perDayMax": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000
+                  },
+                  "perHourMax": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000
+                  }
+                }
+              }
+            },
+            "required": [
+              "addressing",
+              "outbound"
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": true
+          }
+        },
+        "required": [
+          "name",
+          "config"
+        ]
+      },
+      "SendEmailTestBody": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
+      "ConfigureTwilioSmsBody": {
+        "type": "object",
+        "properties": {
+          "channelId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "accountSid": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 64
+          },
+          "authToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "fromNumber": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^\\+[1-9]\\d{4,18}$"
+          },
+          "messagingServiceSid": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 64
+          }
+        }
+      },
+      "SendTwilioSmsTestBody": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^\\+[1-9]\\d{4,18}$"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1600
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
+      "ConfigureMessageBirdSmsBody": {
+        "type": "object",
+        "properties": {
+          "channelId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "accessKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "signingKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "originator": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        }
+      },
+      "SendMessageBirdSmsTestBody": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^\\+[1-9]\\d{4,18}$"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1600
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
+      "ConfigureVapiBody": {
+        "type": "object",
+        "properties": {
+          "channelId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "apiKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "webhookSecret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "assistantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "phoneNumberId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "publicKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "VapiCallInitiateBody": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^\\+[1-9]\\d{4,18}$"
+          },
+          "customerName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
+      "ReplyBody": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "AcquireBody": {
+        "type": "object",
+        "properties": {
+          "holder": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "leaseSeconds": {
+            "type": "integer",
+            "minimum": 30,
+            "maximum": 86400
+          }
+        },
+        "required": [
+          "holder"
+        ]
+      },
+      "ReleaseBody": {
+        "type": "object",
+        "properties": {
+          "holder": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "holder"
+        ]
+      },
+      "AssignBody": {
+        "type": "object",
+        "properties": {
+          "assigneeUserId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          }
+        },
+        "required": [
+          "assigneeUserId"
+        ]
+      },
+      "StatusBody": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "snoozed",
+              "closed",
+              "spam"
+            ]
+          },
+          "snoozeUntil": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "AgentModeBody": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "draft_only",
+              "off"
+            ]
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "TakeOverBody": {
+        "type": "object",
+        "properties": {
+          "ttlMinutes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 240,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        }
+      },
+      "HandoverBody": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "publicFallbackMessage": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "TopicBody": {
+        "type": "object",
+        "properties": {
+          "topicId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          }
+        },
+        "required": [
+          "topicId"
+        ]
+      },
+      "StartBody": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "channelHint": {
+            "type": "string",
+            "enum": [
+              "email",
+              "voice",
+              "chat",
+              "sms"
+            ]
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "DismissMergeBody": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "CreateSegmentBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "filter": {
+            "type": "object",
+            "properties": {
+              "tagsAny": {
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "tagsAll": {
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "companyId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "searchQuery": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "contactedSince": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              }
+            },
+            "x-nestjs_zod-self-required": true
+          }
+        },
+        "required": [
+          "name",
+          "filter"
+        ]
+      },
+      "UpdateSegmentBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "filter": {
+            "type": "object",
+            "properties": {
+              "tagsAny": {
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "tagsAll": {
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "companyId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "searchQuery": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "contactedSince": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              }
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          }
+        }
+      },
+      "UpdateProposalBody": {
+        "type": "object",
+        "properties": {
+          "draftSubject": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "draftBody": {
+            "type": "string",
+            "minLength": 1,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        }
+      },
+      "DismissProposalBody": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "EnqueueJobBody": {
+        "type": "object",
+        "properties": {
+          "jobUri": {
+            "type": "string",
+            "minLength": 1
+          },
+          "userPrompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceEventType": {
+            "type": "string"
+          },
+          "sourceEventPayload": {
+            "type": "",
+            "x-nestjs_zod-empty-type": true
+          },
+          "dedupeKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "delaySeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86400
+          }
+        },
+        "required": [
+          "jobUri",
+          "userPrompt"
+        ]
+      },
+      "ClaimJobBody": {
+        "type": "object",
+        "properties": {
+          "holder": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 25
+          },
+          "leaseSeconds": {
+            "type": "integer",
+            "minimum": 30,
+            "maximum": 3600
+          }
+        },
+        "required": [
+          "holder"
+        ]
+      },
+      "AckJobBody": {
+        "type": "object",
+        "properties": {
+          "replyText": {
+            "type": "string"
+          },
+          "toolCalls": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "totalTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "FailJobBody": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "failedStep": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "UpdateCandidateBody": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "PublishCandidateBody": {
+        "type": "object",
+        "properties": {
+          "targetSpaceSlug": {
+            "type": "string",
+            "minLength": 1
+          },
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "targetSpaceSlug"
+        ]
+      }
+    }
   }
 }

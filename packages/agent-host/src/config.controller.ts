@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,6 +7,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import {
   AuditInterceptor,
@@ -38,15 +38,17 @@ export const ProviderBaseUrl = z
     }
   }, 'provider base URL must use https:// (http:// only allowed when MUNIN_SSRF_ALLOW_PRIVATE is set)');
 
-const UpsertDto = z.object({
-  fastModel: z.string().min(1).optional(),
-  smartModel: z.string().min(1).nullable().optional(),
-  providerBaseUrl: ProviderBaseUrl.optional(),
-  providerApiKey: z.string().min(1).nullable().optional(),
-  maxHistoryChars: z.number().int().positive().optional(),
-  maxToolIterations: z.number().int().positive().optional(),
-  debounceMs: z.number().int().nonnegative().optional(),
-});
+class UpsertAgentConfigBody extends createZodDto(
+  z.object({
+    fastModel: z.string().min(1).optional(),
+    smartModel: z.string().min(1).nullable().optional(),
+    providerBaseUrl: ProviderBaseUrl.optional(),
+    providerApiKey: z.string().min(1).nullable().optional(),
+    maxHistoryChars: z.number().int().positive().optional(),
+    maxToolIterations: z.number().int().positive().optional(),
+    debounceMs: z.number().int().nonnegative().optional(),
+  }),
+) {}
 
 @Controller('v1/agent-config')
 @UseGuards(AuthGuard, RoleGuard)
@@ -65,10 +67,8 @@ export class AgentConfigController {
 
   @Put()
   @RequireRole('owner', 'admin')
-  async upsert(@Body() body: unknown): Promise<AgentConfigDto> {
-    const parsed = UpsertDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.service.upsertForCurrentActor(parsed.data);
+  async upsert(@Body() input: UpsertAgentConfigBody): Promise<AgentConfigDto> {
+    return this.service.upsertForCurrentActor(input);
   }
 
   @Get('models')

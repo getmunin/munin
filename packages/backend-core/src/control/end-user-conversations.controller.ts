@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
@@ -29,15 +30,19 @@ import {
 
 const StatusSchema = z.enum(STATUSES);
 
-const StartBody = z.object({
-  body: z.string().min(1).max(50_000),
-  subject: z.string().max(300).optional(),
-  channelHint: z.enum(['email', 'voice', 'chat', 'sms']).optional(),
-});
+class StartBody extends createZodDto(
+  z.object({
+    body: z.string().min(1).max(50_000),
+    subject: z.string().max(300).optional(),
+    channelHint: z.enum(['email', 'voice', 'chat', 'sms']).optional(),
+  }),
+) {}
 
-const ReplyBody = z.object({
-  body: z.string().min(1).max(50_000),
-});
+class ReplyBody extends createZodDto(
+  z.object({
+    body: z.string().min(1).max(50_000),
+  }),
+) {}
 
 interface ConversationListResponse {
   items: ConversationSummary[];
@@ -52,12 +57,10 @@ export class EndUserConversationsController {
 
   @Post()
   @HttpCode(201)
-  async start(@Body() body: unknown): Promise<ConversationDetail> {
-    const parsed = StartBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async start(@Body() input: StartBody): Promise<ConversationDetail> {
     const actor = this.requireEndUserActor();
     const channel =
-      (await this.conv.firstActiveChannel(parsed.data.channelHint ?? 'chat')) ??
+      (await this.conv.firstActiveChannel(input.channelHint ?? 'chat')) ??
       (await this.conv.firstActiveChannel());
     if (!channel) {
       throw new BadRequestException(
@@ -67,8 +70,8 @@ export class EndUserConversationsController {
     return translate(() =>
       this.conv.createConversation({
         channelId: channel.id,
-        body: parsed.data.body,
-        subject: parsed.data.subject,
+        body: input.body,
+        subject: input.subject,
         endUserId: actor.endUserId,
         authorType: 'end_user',
         authorId: actor.endUserId,
@@ -109,14 +112,12 @@ export class EndUserConversationsController {
 
   @Post(':id/messages')
   @HttpCode(201)
-  async reply(@Param('id') id: string, @Body() body: unknown): Promise<MessageDto> {
-    const parsed = ReplyBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async reply(@Param('id') id: string, @Body() input: ReplyBody): Promise<MessageDto> {
     const actor = this.requireEndUserActor();
     return translate(() =>
       this.conv.sendMessage({
         conversationId: id,
-        body: parsed.data.body,
+        body: input.body,
         internal: false,
         authorType: 'end_user',
         authorId: actor.endUserId,

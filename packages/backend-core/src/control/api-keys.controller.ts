@@ -11,6 +11,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, eq, isNull } from 'drizzle-orm';
@@ -23,10 +24,12 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
 
-const CreateApiKeyDto = z.object({
-  name: z.string().min(1).max(128),
-  scopes: z.array(z.string()).default([]),
-});
+class CreateApiKeyBody extends createZodDto(
+  z.object({
+    name: z.string().min(1).max(128),
+    scopes: z.array(z.string()).default([]),
+  }),
+) {}
 
 interface CreatedApiKey {
   id: string;
@@ -56,10 +59,7 @@ export class ApiKeysController {
 
   @Post()
   @HttpCode(201)
-  async create(@Body() body: unknown): Promise<CreatedApiKey> {
-    const parsed = CreateApiKeyDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-
+  async create(@Body() input: CreateApiKeyBody): Promise<CreatedApiKey> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     if (!actor.orgId) throw new BadRequestException('No org bound to caller');
@@ -70,10 +70,10 @@ export class ApiKeysController {
       .values({
         orgId: actor.orgId,
         type: 'admin',
-        name: parsed.data.name,
+        name: input.name,
         keyHash: hashSecret(rawKey),
         keyPrefix: keyPrefix(rawKey),
-        scopes: parsed.data.scopes,
+        scopes: input.scopes,
         createdByUserId: actor.userId ?? null,
       })
       .returning({

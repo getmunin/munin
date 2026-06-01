@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -20,10 +20,12 @@ import { RoleGuard } from './role.guard.ts';
 import { RequireActorType, RequireRole } from './role.decorator.ts';
 import { InvitationsService } from './invitations.service.ts';
 
-const CreateInviteDto = z.object({
-  email: z.string().email(),
-  role: z.enum(['owner', 'admin', 'member']).optional(),
-});
+class CreateInviteBody extends createZodDto(
+  z.object({
+    email: z.string().email(),
+    role: z.enum(['owner', 'admin', 'member']).optional(),
+  }),
+) {}
 
 @Controller('v1/orgs/me/invitations')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
@@ -35,10 +37,8 @@ export class InvitationsController {
   @HttpCode(201)
   @RequireActorType('user')
   @RequireRole('owner')
-  async create(@Body() body: unknown) {
-    const parsed = CreateInviteDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.invites.create(parsed.data);
+  async create(@Body() input: CreateInviteBody) {
+    return this.invites.create(input);
   }
 
   @Get()

@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,6 +6,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
@@ -18,10 +18,12 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
 
-const PatchDto = z.object({
-  name: z.string().min(1).max(128).optional(),
-  settings: z.record(z.string(), z.unknown()).optional(),
-});
+class PatchOrgBody extends createZodDto(
+  z.object({
+    name: z.string().min(1).max(128).optional(),
+    settings: z.record(z.string(), z.unknown()).optional(),
+  }),
+) {}
 
 interface OrgDto {
   id: string;
@@ -54,16 +56,14 @@ export class OrgsController {
 
   @Patch()
   @RequireRole('owner', 'admin')
-  async update(@Body() body: unknown): Promise<OrgDto> {
-    const parsed = PatchDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async update(@Body() input: PatchOrgBody): Promise<OrgDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const [updated] = await ctx.db
       .update(schema.orgs)
       .set({
-        ...(parsed.data.name && { name: parsed.data.name }),
-        ...(parsed.data.settings && { settings: parsed.data.settings }),
+        ...(input.name && { name: input.name }),
+        ...(input.settings && { settings: input.settings }),
         updatedAt: new Date(),
       })
       .where(eq(schema.orgs.id, actor.orgId))

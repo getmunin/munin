@@ -11,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -26,11 +27,16 @@ import {
 
 const StatusSchema = z.enum(PROPOSAL_STATUSES);
 const KindSchema = z.enum(PROPOSAL_KINDS);
-const DismissBody = z.object({ reason: z.string().max(500).optional() });
-const UpdateBody = z.object({
-  draftSubject: z.string().max(500).nullable().optional(),
-  draftBody: z.string().min(1).optional(),
-});
+class DismissProposalBody extends createZodDto(
+  z.object({ reason: z.string().max(500).optional() }),
+) {}
+
+class UpdateProposalBody extends createZodDto(
+  z.object({
+    draftSubject: z.string().max(500).nullable().optional(),
+    draftBody: z.string().min(1).optional(),
+  }),
+) {}
 
 interface ProposalListResponse {
   items: ProposalDto[];
@@ -77,14 +83,15 @@ export class OutreachProposalsController {
 
   @Patch(':id')
   @HttpCode(200)
-  async update(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
-    const parsed = UpdateBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async update(
+    @Param('id') id: string,
+    @Body() input: UpdateProposalBody,
+  ): Promise<ProposalDto> {
     return translate(() =>
       this.outreach.updateProposal({
         id,
-        draftSubject: parsed.data.draftSubject,
-        draftBody: parsed.data.draftBody,
+        draftSubject: input.draftSubject,
+        draftBody: input.draftBody,
       }),
     );
   }
@@ -98,10 +105,11 @@ export class OutreachProposalsController {
 
   @Post(':id/dismiss')
   @HttpCode(200)
-  async dismiss(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
-    const parsed = DismissBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() => this.outreach.dismissProposal({ id, reason: parsed.data.reason }));
+  async dismiss(
+    @Param('id') id: string,
+    @Body() input: DismissProposalBody,
+  ): Promise<ProposalDto> {
+    return translate(() => this.outreach.dismissProposal({ id, reason: input.reason }));
   }
 }
 

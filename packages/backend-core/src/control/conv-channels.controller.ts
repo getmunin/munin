@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
@@ -24,17 +24,28 @@ import { TwilioSmsAdminTools } from '../modules/conv/twilio/twilio-sms.tools.ts'
 import { MessageBirdSmsAdminTools } from '../modules/conv/messagebird/messagebird-sms.tools.ts';
 import { VapiAdminTools } from '../modules/conv/vapi/vapi.tools.ts';
 import {
-  CreateWidgetBody,
-  UpdateWidgetBody,
-  SetupEmailBody,
-  SendEmailTestBody,
-  ConfigureTwilioSmsBody,
-  SendTwilioSmsTestBody,
-  ConfigureMessageBirdSmsBody,
-  SendMessageBirdSmsTestBody,
-  ConfigureVapiBody,
-  VapiCallInitiateBody,
+  CreateWidgetBody as CreateWidgetSchema,
+  UpdateWidgetBody as UpdateWidgetSchema,
+  SetupEmailBody as SetupEmailSchema,
+  SendEmailTestBody as SendEmailTestSchema,
+  ConfigureTwilioSmsBody as ConfigureTwilioSmsSchema,
+  SendTwilioSmsTestBody as SendTwilioSmsTestSchema,
+  ConfigureMessageBirdSmsBody as ConfigureMessageBirdSmsSchema,
+  SendMessageBirdSmsTestBody as SendMessageBirdSmsTestSchema,
+  ConfigureVapiBody as ConfigureVapiSchema,
+  VapiCallInitiateBody as VapiCallInitiateSchema,
 } from '@getmunin/types';
+
+class CreateWidgetBody extends createZodDto(CreateWidgetSchema) {}
+class UpdateWidgetBody extends createZodDto(UpdateWidgetSchema) {}
+class SetupEmailBody extends createZodDto(SetupEmailSchema) {}
+class SendEmailTestBody extends createZodDto(SendEmailTestSchema) {}
+class ConfigureTwilioSmsBody extends createZodDto(ConfigureTwilioSmsSchema) {}
+class SendTwilioSmsTestBody extends createZodDto(SendTwilioSmsTestSchema) {}
+class ConfigureMessageBirdSmsBody extends createZodDto(ConfigureMessageBirdSmsSchema) {}
+class SendMessageBirdSmsTestBody extends createZodDto(SendMessageBirdSmsTestSchema) {}
+class ConfigureVapiBody extends createZodDto(ConfigureVapiSchema) {}
+class VapiCallInitiateBody extends createZodDto(VapiCallInitiateSchema) {}
 
 interface ChannelListResponse {
   items: ChannelDto[];
@@ -63,22 +74,18 @@ export class ConvChannelsController {
   @Post('widget')
   @HttpCode(201)
   async createWidget(
-    @Body() body: unknown,
+    @Body() input: CreateWidgetBody,
   ): Promise<Awaited<ReturnType<WidgetAdminTools['createChannel']>>> {
-    const parsed = CreateWidgetBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.widgetTools.createChannel(parsed.data);
+    return this.widgetTools.createChannel(input);
   }
 
   @Patch('widget/:id')
   @HttpCode(200)
   async updateWidget(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: UpdateWidgetBody,
   ): Promise<Awaited<ReturnType<WidgetAdminTools['updateChannel']>>> {
-    const parsed = UpdateWidgetBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.widgetTools.updateChannel({ channelId: id, ...parsed.data });
+    return this.widgetTools.updateChannel({ channelId: id, ...input });
   }
 
   @Post('widget/:id/rotate-key')
@@ -98,11 +105,9 @@ export class ConvChannelsController {
   @Post('email')
   @HttpCode(200)
   async setupEmail(
-    @Body() body: unknown,
+    @Body() input: SetupEmailBody,
   ): Promise<Awaited<ReturnType<EmailAdminTools['setupChannel']>>> {
-    const parsed = SetupEmailBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.emailTools.setupChannel(parsed.data);
+    return this.emailTools.setupChannel(input);
   }
 
   @Post('email/:id/test')
@@ -117,21 +122,17 @@ export class ConvChannelsController {
   @HttpCode(200)
   async sendTestEmail(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: SendEmailTestBody,
   ): Promise<Awaited<ReturnType<EmailAdminTools['sendTest']>>> {
-    const parsed = SendEmailTestBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.emailTools.sendTest({ channelId: id, to: parsed.data.to });
+    return this.emailTools.sendTest({ channelId: id, to: input.to });
   }
 
   @Post('twilio-sms')
   @HttpCode(200)
   async configureTwilioSms(
-    @Body() body: unknown,
+    @Body() input: ConfigureTwilioSmsBody,
   ): Promise<Awaited<ReturnType<TwilioSmsAdminTools['configure']>>> {
-    const parsed = ConfigureTwilioSmsBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.twilioSmsTools.configure(parsed.data);
+    return this.twilioSmsTools.configure(input);
   }
 
   @Post('twilio-sms/:id/test')
@@ -146,25 +147,21 @@ export class ConvChannelsController {
   @HttpCode(200)
   async sendTwilioSmsTest(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: SendTwilioSmsTestBody,
   ): Promise<Awaited<ReturnType<TwilioSmsAdminTools['sendTest']>>> {
-    const parsed = SendTwilioSmsTestBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.twilioSmsTools.sendTest({
       channelId: id,
-      to: parsed.data.to,
-      body: parsed.data.body,
+      to: input.to,
+      body: input.body,
     });
   }
 
   @Post('messagebird-sms')
   @HttpCode(200)
   async configureMessageBirdSms(
-    @Body() body: unknown,
+    @Body() input: ConfigureMessageBirdSmsBody,
   ): Promise<Awaited<ReturnType<MessageBirdSmsAdminTools['configure']>>> {
-    const parsed = ConfigureMessageBirdSmsBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.messageBirdSmsTools.configure(parsed.data);
+    return this.messageBirdSmsTools.configure(input);
   }
 
   @Post('messagebird-sms/:id/test')
@@ -179,25 +176,21 @@ export class ConvChannelsController {
   @HttpCode(200)
   async sendMessageBirdSmsTest(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: SendMessageBirdSmsTestBody,
   ): Promise<Awaited<ReturnType<MessageBirdSmsAdminTools['sendTest']>>> {
-    const parsed = SendMessageBirdSmsTestBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.messageBirdSmsTools.sendTest({
       channelId: id,
-      to: parsed.data.to,
-      body: parsed.data.body,
+      to: input.to,
+      body: input.body,
     });
   }
 
   @Post('vapi')
   @HttpCode(200)
   async configureVapi(
-    @Body() body: unknown,
+    @Body() input: ConfigureVapiBody,
   ): Promise<Awaited<ReturnType<VapiAdminTools['configure']>>> {
-    const parsed = ConfigureVapiBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.vapiTools.configure(parsed.data);
+    return this.vapiTools.configure(input);
   }
 
   @Post('vapi/:id/test')
@@ -212,14 +205,12 @@ export class ConvChannelsController {
   @HttpCode(200)
   async vapiCall(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: VapiCallInitiateBody,
   ): Promise<Awaited<ReturnType<VapiAdminTools['callInitiate']>>> {
-    const parsed = VapiCallInitiateBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.vapiTools.callInitiate({
       channelId: id,
-      to: parsed.data.to,
-      customerName: parsed.data.customerName,
+      to: input.to,
+      customerName: input.customerName,
     });
   }
 

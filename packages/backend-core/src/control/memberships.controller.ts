@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -9,6 +8,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, asc, eq, sql } from 'drizzle-orm';
@@ -18,9 +18,11 @@ import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 
-const ActiveDto = z.object({
-  orgId: z.string().min(1),
-});
+class SetActiveBody extends createZodDto(
+  z.object({
+    orgId: z.string().min(1),
+  }),
+) {}
 
 interface MembershipDto {
   orgId: string;
@@ -65,10 +67,7 @@ export class MembershipsController {
   }
 
   @Patch('active')
-  async setActive(@Body() body: unknown): Promise<{ active: string }> {
-    const parsed = ActiveDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-
+  async setActive(@Body() input: SetActiveBody): Promise<{ active: string }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     if (actor.type !== 'user' || !actor.userId) {
@@ -83,7 +82,7 @@ export class MembershipsController {
       .where(
         and(
           eq(schema.orgMembers.userId, actor.userId),
-          eq(schema.orgMembers.orgId, parsed.data.orgId),
+          eq(schema.orgMembers.orgId, input.orgId),
         ),
       )
       .limit(1);
@@ -101,10 +100,10 @@ export class MembershipsController {
       .where(
         and(
           eq(schema.orgMembers.userId, actor.userId),
-          eq(schema.orgMembers.orgId, parsed.data.orgId),
+          eq(schema.orgMembers.orgId, input.orgId),
         ),
       );
 
-    return { active: parsed.data.orgId };
+    return { active: input.orgId };
   }
 }

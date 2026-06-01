@@ -10,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -24,11 +25,13 @@ import {
 
 const StatusSchema = z.enum(MERGE_STATUSES);
 
-const DismissBody = z
-  .object({
-    reason: z.string().max(500).optional(),
-  })
-  .partial();
+class DismissMergeBody extends createZodDto(
+  z
+    .object({
+      reason: z.string().max(500).optional(),
+    })
+    .partial(),
+) {}
 
 interface MergeProposalListResponse {
   items: MergeProposalDto[];
@@ -73,11 +76,9 @@ export class CrmMergeProposalsController {
   @HttpCode(200)
   async dismiss(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: DismissMergeBody,
   ): Promise<MergeProposalDto> {
-    const parsed = DismissBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() => this.crm.dismissMergeProposal({ id, reason: parsed.data.reason }));
+    return translate(() => this.crm.dismissMergeProposal({ id, reason: input.reason }));
   }
 }
 

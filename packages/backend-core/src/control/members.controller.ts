@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -13,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, asc, eq } from 'drizzle-orm';
@@ -25,14 +25,16 @@ import { assertOwner, assertOwnerOrAdmin } from './role-guard.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
 
-const PatchMemberDto = z
-  .object({
-    role: z.enum(['owner', 'admin', 'member']).optional(),
-    name: z.string().min(1).max(128).optional(),
-  })
-  .refine((data) => data.role !== undefined || data.name !== undefined, {
-    message: 'at least one of role or name must be provided',
-  });
+class PatchMemberBody extends createZodDto(
+  z
+    .object({
+      role: z.enum(['owner', 'admin', 'member']).optional(),
+      name: z.string().min(1).max(128).optional(),
+    })
+    .refine((data) => data.role !== undefined || data.name !== undefined, {
+      message: 'at least one of role or name must be provided',
+    }),
+) {}
 
 interface MemberDto {
   userId: string;
@@ -76,18 +78,18 @@ export class MembersController {
   }
 
   @Patch(':userId')
-  async patch(@Param('userId') userId: string, @Body() body: unknown): Promise<MemberDto> {
-    const parsed = PatchMemberDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-
+  async patch(
+    @Param('userId') userId: string,
+    @Body() input: PatchMemberBody,
+  ): Promise<MemberDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const actorId = actor.userId ?? actor.id;
 
-    if (parsed.data.role !== undefined) {
+    if (input.role !== undefined) {
       await assertOwner(actor.orgId, actorId);
 
-      if (parsed.data.role !== 'owner') {
+      if (input.role !== 'owner') {
         const owners = await ctx.db
           .select({ userId: schema.orgMembers.userId })
           .from(schema.orgMembers)
@@ -103,7 +105,7 @@ export class MembersController {
 
       const result = await ctx.db
         .update(schema.orgMembers)
-        .set({ role: parsed.data.role })
+        .set({ role: input.role })
         .where(
           and(eq(schema.orgMembers.orgId, actor.orgId), eq(schema.orgMembers.userId, userId)),
         )
@@ -112,7 +114,7 @@ export class MembersController {
         throw new NotFoundException(`member ${userId} not found in this org`);
     }
 
-    if (parsed.data.name !== undefined) {
+    if (input.name !== undefined) {
       if (actor.type !== 'user') {
         throw new ForbiddenException('API keys cannot edit member names');
       }
@@ -131,7 +133,7 @@ export class MembersController {
 
       await ctx.db
         .update(schema.users)
-        .set({ name: parsed.data.name, updatedAt: new Date() })
+        .set({ name: input.name, updatedAt: new Date() })
         .where(eq(schema.users.id, userId));
     }
 

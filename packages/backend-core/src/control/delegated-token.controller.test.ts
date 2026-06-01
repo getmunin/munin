@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MintDto } from './delegated-token.controller.ts';
+import { MintSchema } from './delegated-token.controller.ts';
 
-describe('Delegated token MintDto', () => {
+describe('Delegated token MintSchema', () => {
   it('accepts a self_service mint with a known scope', () => {
-    const r = MintDto.safeParse({
+    const r = MintSchema.safeParse({
       externalId: 'u_123',
       audiences: ['self_service'],
       scopes: ['crm:read'],
@@ -12,13 +12,13 @@ describe('Delegated token MintDto', () => {
   });
 
   it('defaults audiences to [self_service] when omitted', () => {
-    const r = MintDto.safeParse({ externalId: 'u_123' });
+    const r = MintSchema.safeParse({ externalId: 'u_123' });
     expect(r.success).toBe(true);
     expect(r.success && r.data.audiences).toEqual(['self_service']);
   });
 
   it('rejects audience=admin', () => {
-    const r = MintDto.safeParse({
+    const r = MintSchema.safeParse({
       externalId: 'u_123',
       audiences: ['admin'],
     });
@@ -26,7 +26,7 @@ describe('Delegated token MintDto', () => {
   });
 
   it('rejects wildcard scope *', () => {
-    const r = MintDto.safeParse({
+    const r = MintSchema.safeParse({
       externalId: 'u_123',
       scopes: ['*'],
     });
@@ -34,7 +34,7 @@ describe('Delegated token MintDto', () => {
   });
 
   it('rejects an admin-only scope like kb:write', () => {
-    const r = MintDto.safeParse({
+    const r = MintSchema.safeParse({
       externalId: 'u_123',
       scopes: ['kb:write'],
     });
@@ -42,7 +42,7 @@ describe('Delegated token MintDto', () => {
   });
 
   it('requires at least one of endUserId/externalId/email/phone', () => {
-    const r = MintDto.safeParse({});
+    const r = MintSchema.safeParse({});
     expect(r.success).toBe(false);
   });
 });

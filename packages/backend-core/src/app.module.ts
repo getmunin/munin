@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { Module, type Provider } from '@nestjs/common';
+import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { ZodValidationPipe } from 'nestjs-zod';
 import { DbModule } from './common/db/db.module.ts';
 import { HealthController } from './common/health.controller.ts';
 import { WhoamiController } from './common/whoami.controller.ts';
@@ -41,11 +42,12 @@ export const BACKEND_FEATURE_MODULES = [
 ];
 
 export const BACKEND_BASE_CONTROLLERS = [HealthController, WhoamiController];
-export const BACKEND_BASE_PROVIDERS = [
+export const BACKEND_BASE_PROVIDERS: Provider[] = [
   AuthGuard,
   TenancyInterceptor,
   AuditInterceptor,
   { provide: APP_INTERCEPTOR, useExisting: CallQuotaInterceptor },
+  { provide: APP_PIPE, useClass: ZodValidationPipe },
 ];
 
 @Module({

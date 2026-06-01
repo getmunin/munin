@@ -16,15 +16,18 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { CredentialResolver } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../common/db/db.module.ts';
 import { InvitationsService } from './invitations.service.ts';
 
-const AcceptDto = z.object({
-  token: z.string().min(8).max(128),
-});
+class AcceptBody extends createZodDto(
+  z.object({
+    token: z.string().min(8).max(128),
+  }),
+) {}
 
 interface AcceptRequest {
   headers: Record<string, string | string[] | undefined>;
@@ -82,11 +85,9 @@ export class AcceptInvitationController {
   @Post('accept')
   @HttpCode(200)
   @UseGuards(SessionOnlyGuard)
-  async accept(@Body() body: unknown, @Req() req: AcceptRequest) {
-    const parsed = AcceptDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async accept(@Body() input: AcceptBody, @Req() req: AcceptRequest) {
     if (!req.userId) throw new ForbiddenException('not_signed_in');
-    return this.invites.accept({ token: parsed.data.token, userId: req.userId });
+    return this.invites.accept({ token: input.token, userId: req.userId });
   }
 }
 

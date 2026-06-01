@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,6 +6,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
@@ -18,10 +18,12 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
 
-const PatchDto = z.object({
-  name: z.string().max(64).nullable().optional(),
-  greeting: z.string().max(500).nullable().optional(),
-});
+class PatchAssistantBody extends createZodDto(
+  z.object({
+    name: z.string().max(64).nullable().optional(),
+    greeting: z.string().max(500).nullable().optional(),
+  }),
+) {}
 
 interface AssistantDto {
   id: string;
@@ -43,14 +45,11 @@ export class AssistantsController {
 
   @Patch()
   @RequireRole('owner', 'admin')
-  async update(@Body() body: unknown): Promise<AssistantDto> {
-    const parsed = PatchDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-
+  async update(@Body() input: PatchAssistantBody): Promise<AssistantDto> {
     const existing = await findOrCreateAssistant();
     const set: Record<string, unknown> = { updatedAt: new Date() };
-    if (parsed.data.name !== undefined) set.name = emptyToNull(parsed.data.name);
-    if (parsed.data.greeting !== undefined) set.greeting = emptyToNull(parsed.data.greeting);
+    if (input.name !== undefined) set.name = emptyToNull(input.name);
+    if (input.greeting !== undefined) set.greeting = emptyToNull(input.greeting);
 
     const ctx = getCurrentContext();
     const [updated] = await ctx.db

@@ -42,6 +42,7 @@
     "@nestjs/common": "^11.1.19",
     "@nestjs/core": "^11.1.19",
     "drizzle-orm": "^0.45.2",
+    "nestjs-zod": "^5.4.0",
     "postgres": "^3.4.5",
     "reflect-metadata": "^0.2.2",
     "zod": "^4.3.6"

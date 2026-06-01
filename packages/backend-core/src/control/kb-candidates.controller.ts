@@ -10,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -25,14 +26,19 @@ import {
   type SpaceDto,
 } from '../modules/kb/kb.service.ts';
 
-const PublishBody = z.object({
-  targetSpaceSlug: z.string().min(1),
-  audiences: z.array(z.string().min(1)).optional(),
-});
-const UpdateBody = z.object({
-  title: z.string().min(1).optional(),
-  body: z.string().min(1).optional(),
-});
+class PublishCandidateBody extends createZodDto(
+  z.object({
+    targetSpaceSlug: z.string().min(1),
+    audiences: z.array(z.string().min(1)).optional(),
+  }),
+) {}
+
+class UpdateCandidateBody extends createZodDto(
+  z.object({
+    title: z.string().min(1).optional(),
+    body: z.string().min(1).optional(),
+  }),
+) {}
 
 interface CandidateListResponse {
   items: CurationCandidateSummary[];
@@ -57,16 +63,17 @@ export class KbCandidatesController {
 
   @Patch(':id')
   @HttpCode(200)
-  async update(@Param('id') id: string, @Body() body: unknown): Promise<CurationCandidateDto> {
-    const parsed = UpdateBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async update(
+    @Param('id') id: string,
+    @Body() input: UpdateCandidateBody,
+  ): Promise<CurationCandidateDto> {
     return translate(async () => {
       const existing = await this.kb.getCurationCandidate(id);
       await this.kb.updateDocument({
         id,
         ifVersion: existing.version,
-        title: parsed.data.title,
-        body: parsed.data.body,
+        title: input.title,
+        body: input.body,
       });
       return this.kb.getCurationCandidate(id);
     });
@@ -74,14 +81,15 @@ export class KbCandidatesController {
 
   @Post(':id/publish')
   @HttpCode(200)
-  async publish(@Param('id') id: string, @Body() body: unknown): Promise<DocumentDto> {
-    const parsed = PublishBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async publish(
+    @Param('id') id: string,
+    @Body() input: PublishCandidateBody,
+  ): Promise<DocumentDto> {
     return translate(() =>
       this.kb.publishCurationCandidate({
         candidateDocumentId: id,
-        targetSpaceSlug: parsed.data.targetSpaceSlug,
-        audiences: parsed.data.audiences,
+        targetSpaceSlug: input.targetSpaceSlug,
+        audiences: input.audiences,
       }),
     );
   }

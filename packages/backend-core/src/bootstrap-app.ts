@@ -31,6 +31,30 @@ function readAllowedHosts(): string[] | null {
   return env.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
 
+/**
+ * Parse `MUNIN_TRUST_PROXY` for Express's `trust proxy` setting.
+ *
+ *   unset / empty                → null (no trust proxy; `req.ip` is the
+ *                                  socket address — safe default for local
+ *                                  dev where nothing fronts the app)
+ *   "true" / "1"                 → boolean true (trust the first hop)
+ *   numeric ("2")                → number of hops to trust
+ *   anything else                → forwarded verbatim (IPs / CIDRs / csv)
+ *
+ * Behind a proxy (LB, Cloudflare, ALB), set this so `x-forwarded-for` is
+ * parsed by Express and `req.ip` returns the real client IP — which the
+ * widget throttler keys on.
+ */
+export function readTrustProxySetting(): boolean | number | string | null {
+  const raw = process.env.MUNIN_TRUST_PROXY?.trim();
+  if (!raw) return null;
+  if (raw === 'true' || raw === '1') return true;
+  if (raw === 'false' || raw === '0') return null;
+  const n = Number(raw);
+  if (Number.isFinite(n) && Number.isInteger(n) && n >= 0) return n;
+  return raw;
+}
+
 export interface CreateAppOptions extends NestApplicationOptions {
   /**
    * Absolute path to the directory holding the chat-widget's hashed
@@ -71,6 +95,16 @@ export async function createApp(
 ): Promise<INestApplication> {
   const { widgetAssetDir, iconAssetDir, ...nestOpts } = opts;
   const app = await NestFactory.create(appModule, { rawBody: true, ...nestOpts });
+  const trustProxy = readTrustProxySetting();
+  if (trustProxy !== null) {
+    // Hand the value to Express verbatim — it accepts boolean, number of
+    // hops, IP, CIDR, or comma-separated list. Anything else than null
+    // means "we are behind a known proxy and req.ip should reflect XFF".
+    (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set(
+      'trust proxy',
+      trustProxy,
+    );
+  }
   const allowedHosts = readAllowedHosts();
   if (allowedHosts) app.use(hostAllowlistMiddleware(allowedHosts));
   app.use(publicUrlRewriteMiddleware());

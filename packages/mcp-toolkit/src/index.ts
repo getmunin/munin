@@ -13,3 +13,5 @@ export {
   type ToolCallResult,
   type ToolListing,
 } from './dispatch.ts';
+export { redactSensitive } from './sensitive.ts';
+export { sensitive, isSensitiveSchema } from '@getmunin/types';

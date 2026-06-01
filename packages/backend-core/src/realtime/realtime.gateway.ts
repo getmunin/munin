@@ -306,14 +306,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
     const unsubscribe = this.listener.subscribe((event) => {
       if (event.org_id !== actor.orgId) return;
-      if (
-        !isWidget &&
-        actor.type === 'end_user_agent' &&
-        actor.endUserId &&
-        !ownsEvent(event, actor.endUserId)
-      ) {
-        return;
-      }
       for (const channel of subscriptions) {
         if (isWidget) {
           void this.matchWidgetEvent(channel, event, conversationMetaCache, widgetCtx).then(
@@ -360,8 +352,21 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       if (isWidget) {
         if (!key.startsWith(`widget:${widgetCtx.channelId}:`)) return;
       }
-      if (msg.type === 'subscribe') addChannelSubscription(key);
-      else if (msg.type === 'unsubscribe') removeChannelSubscription(key);
+      if (msg.type === 'subscribe') {
+        if (isWidget) {
+          addChannelSubscription(key);
+        } else {
+          this.allowSubscription(actor, key)
+            .then((allowed) => {
+              if (allowed) addChannelSubscription(key);
+            })
+            .catch((err: unknown) =>
+              this.logger.warn(`subscription gate failed: ${describeError(err)}`),
+            );
+        }
+      } else if (msg.type === 'unsubscribe') {
+        removeChannelSubscription(key);
+      }
     });
 
     ws.on('close', () => {
@@ -700,6 +705,30 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     };
   }
 
+  private async allowSubscription(actor: ActorIdentity, key: string): Promise<boolean> {
+    if (actor.type !== 'end_user_agent') return true;
+    if (!actor.endUserId) return false;
+    if (key.startsWith('conversation:')) {
+      const conversationId = key.slice('conversation:'.length);
+      const rows = await this.db
+        .select({ endUserId: schema.convConversations.endUserId })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, conversationId))
+        .limit(1);
+      return rows[0]?.endUserId === actor.endUserId;
+    }
+    if (key.startsWith('contact:')) {
+      const contactId = key.slice('contact:'.length);
+      const rows = await this.db
+        .select({ endUserId: schema.convContacts.endUserId })
+        .from(schema.convContacts)
+        .where(eq(schema.convContacts.id, contactId))
+        .limit(1);
+      return rows[0]?.endUserId === actor.endUserId;
+    }
+    return false;
+  }
+
   private async authenticate(
     req: IncomingMessage,
   ): Promise<{ credential: ResolvedCredential; fromCookie: boolean } | null> {
@@ -822,12 +851,6 @@ function channelMatches(channel: string, event: EventRow): boolean {
     return event.payload?.['contactId'] === id;
   }
   return false;
-}
-
-function ownsEvent(event: EventRow, endUserId: string): boolean {
-  const owner = event.payload?.['endUserId'];
-  if (typeof owner === 'string') return owner === endUserId;
-  return event.type.startsWith('conversation.');
 }
 
 function describeError(err: unknown): string {

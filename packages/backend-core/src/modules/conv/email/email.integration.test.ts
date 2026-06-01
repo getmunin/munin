@@ -176,6 +176,18 @@ class StubImapFetcher implements ImapFetcher {
       return rows.length === 1;
     });
 
+    const setupAudit = await db
+      .select({ args: schema.auditLog.args })
+      .from(schema.auditLog)
+      .where(
+        and(
+          eq(schema.auditLog.orgId, orgId),
+          eq(schema.auditLog.tool, 'conv_email_setup_channel'),
+        ),
+      );
+    expect(setupAudit).toHaveLength(1);
+    expect(JSON.stringify(setupAudit[0]!.args)).not.toContain('app-pw-stub');
+
     // 2. Push an inbound email from a brand-new sender.
     fetcher.push(rfc822({
       from: 'Customer One <c1@customer.test>',

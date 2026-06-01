@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sensitive } from './sensitive.ts';
 
 const HOST_RE =
   /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
@@ -11,7 +12,7 @@ export const SmtpOutboundSchema = z.object({
   port: z.number().int().min(1).max(65535),
   secure: z.boolean(),
   username: z.string().min(1),
-  password: z.string().min(1).optional(),
+  password: sensitive(z.string().min(1).optional()),
   trackOpens: z.boolean().optional(),
 });
 
@@ -31,7 +32,7 @@ export const ImapInboundSchema = z.object({
   port: z.number().int().min(1).max(65535),
   secure: z.boolean(),
   username: z.string().min(1),
-  password: z.string().min(1).optional(),
+  password: sensitive(z.string().min(1).optional()),
   mailbox: z.string().max(120).optional(),
 });
 
@@ -93,7 +94,7 @@ export const ConfigureTwilioSmsBody = z
     channelId: z.string().optional(),
     name: z.string().min(1).max(120).optional(),
     accountSid: z.string().min(2).max(64).optional(),
-    authToken: z.string().min(1).max(256).optional(),
+    authToken: sensitive(z.string().min(1).max(256).optional()),
     fromNumber: z.string().regex(E164, 'must be E.164').max(32).optional(),
     messagingServiceSid: z.string().min(2).max(64).optional(),
   })
@@ -123,8 +124,8 @@ export const ConfigureMessageBirdSmsBody = z
   .object({
     channelId: z.string().optional(),
     name: z.string().min(1).max(120).optional(),
-    accessKey: z.string().min(1).max(256).optional(),
-    signingKey: z.string().min(1).max(256).optional(),
+    accessKey: sensitive(z.string().min(1).max(256).optional()),
+    signingKey: sensitive(z.string().min(1).max(256).optional()),
     originator: z.string().min(1).max(32).optional(),
   })
   .refine(
@@ -150,8 +151,8 @@ export const ConfigureVapiBody = z
   .object({
     channelId: z.string().optional(),
     name: z.string().min(1).max(120).optional(),
-    apiKey: z.string().min(1).max(256).optional(),
-    webhookSecret: z.string().min(1).max(256).optional(),
+    apiKey: sensitive(z.string().min(1).max(256).optional()),
+    webhookSecret: sensitive(z.string().min(1).max(256).optional()),
     assistantId: z.string().min(1).max(128).optional(),
     phoneNumberId: z.string().min(1).max(128).optional(),
     publicKey: z.string().min(1).max(256).optional(),

@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
+import { sensitive } from '@getmunin/types';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
@@ -17,22 +18,26 @@ const ConfigureInput = z.object({
     .optional()
     .describe('Pass an existing channel id to update; omit to create a new channel.'),
   name: z.string().min(1).max(120).optional(),
-  accessKey: z
-    .string()
-    .min(1)
-    .max(256)
-    .optional()
-    .describe(
-      'MessageBird live or test Access Key (used to authorize outbound SMS). Required on create. On update, omit to keep the existing value.',
-    ),
-  signingKey: z
-    .string()
-    .min(1)
-    .max(256)
-    .optional()
-    .describe(
-      'MessageBird signing key (used to verify the JWT on incoming webhooks). Required on create. On update, omit to keep the existing value.',
-    ),
+  accessKey: sensitive(
+    z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe(
+        'MessageBird live or test Access Key (used to authorize outbound SMS). Required on create. On update, omit to keep the existing value.',
+      ),
+  ),
+  signingKey: sensitive(
+    z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe(
+        'MessageBird signing key (used to verify the JWT on incoming webhooks). Required on create. On update, omit to keep the existing value.',
+      ),
+  ),
   originator: z
     .string()
     .min(1)

@@ -5,6 +5,7 @@ import {
   type Audience,
 } from '@getmunin/core';
 import type { McpToolRegistry } from './registry.ts';
+import { redactSensitive } from './sensitive.ts';
 import type { RegisteredSkill, SkillRegistry } from './skill-registry.ts';
 
 export interface DispatchContext {
@@ -123,7 +124,7 @@ export async function callTool(
   }
   await ctx.audit.record({
     tool: tool.meta.name,
-    args: parseResult.data,
+    args: redactSensitive(tool.meta.input, parseResult.data) as Record<string, unknown>,
     result: 'ok',
     durationMs: Date.now() - startedAt,
   });

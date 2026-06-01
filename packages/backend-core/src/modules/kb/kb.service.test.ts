@@ -193,6 +193,48 @@ const skipReason = TEST_URL
     await expect(run(() => svc.getDocument(doc.id))).rejects.toThrow(KbNotFoundError);
   });
 
+  it('marks seeded agent-runtime docs as system and rejects deletion', async () => {
+    const space = await run(() =>
+      svc.createSpace({ name: 'Agent runtime', slug: 'agent-runtime' }),
+    );
+    const sysDoc = await run(() =>
+      svc.createDocument({
+        spaceId: space.id,
+        slug: 'system-prompt',
+        title: 'System prompt',
+        body: 'You are helpful.',
+      }),
+    );
+    expect(sysDoc.isSystem).toBe(true);
+
+    await expect(
+      run(() => svc.deleteDocument({ id: sysDoc.id, ifVersion: sysDoc.version })),
+    ).rejects.toThrow(KbInvalidError);
+
+    const edited = await run(() =>
+      svc.updateDocument({
+        id: sysDoc.id,
+        ifVersion: sysDoc.version,
+        body: 'You are very helpful.',
+      }),
+    );
+    expect(edited.body).toBe('You are very helpful.');
+    expect(edited.isSystem).toBe(true);
+
+    const userDoc = await run(() =>
+      svc.createDocument({
+        spaceId: space.id,
+        slug: 'team-handbook',
+        title: 'Team handbook',
+        body: 'Internal notes.',
+      }),
+    );
+    expect(userDoc.isSystem).toBe(false);
+    await run(() =>
+      svc.deleteDocument({ id: userDoc.id, ifVersion: userDoc.version }),
+    );
+  });
+
   it('round-trips a slug through createDocument and getDocumentBySlug', async () => {
     const space = await run(() =>
       svc.createSpace({ name: 'Agent runtime', slug: 'agent-runtime' }),

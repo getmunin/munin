@@ -106,6 +106,7 @@ export {
   SEEDABLE_PROMPTS,
   type SeedablePrompt,
   getSeedablePrompt,
+  isSystemRuntimeDoc,
   type KbDocLocation,
   type KbDocReader,
   type PromptCache,

@@ -1,7 +1,13 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
-import { chunkDocument, contentHash, getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import {
+  chunkDocument,
+  contentHash,
+  getCurrentContext,
+  isSystemRuntimeDoc,
+  WebhookDispatcher,
+} from '@getmunin/core';
 import type { ActorIdentity, Audience } from '@getmunin/core';
 import { EmbeddingProviderHolder } from './embedding.provider.ts';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
@@ -61,6 +67,7 @@ export interface DocumentDto {
   audiences: Audience[];
   version: number;
   tags: string[];
+  isSystem: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -207,13 +214,14 @@ export class KbService {
   }): Promise<DocumentDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await this.assertSpaceExists(input.spaceId);
+    const space = await this.loadSpace(input.spaceId);
     await this.quotas.assertCanAdd('kb_documents');
     if (input.slug !== undefined && !isValidSlug(input.slug)) {
       throw new KbInvalidError(`slug must match [a-z0-9][a-z0-9-]{0,63}`);
     }
     const audiences = normaliseAudiences(input.audiences);
     const hash = contentHash(input.title, input.body);
+    const isSystem = isSystemRuntimeDoc(space.slug, input.slug ?? null);
     const [doc] = await ctx.db
       .insert(schema.kbDocuments)
       .values({
@@ -226,6 +234,7 @@ export class KbService {
         version: 1,
         contentHash: hash,
         tags: input.tags ?? [],
+        isSystem,
         ...stampCreator(actor),
       })
       .returning();
@@ -315,6 +324,11 @@ export class KbService {
   async deleteDocument(input: { id: string; ifVersion: number }): Promise<{ deleted: true }> {
     const ctx = getCurrentContext();
     const existing = await this.loadForUpdate(input.id);
+    if (existing.isSystem) {
+      throw new KbInvalidError(
+        `document ${input.id} is system-managed and cannot be deleted (content can still be edited via kb_update_document)`,
+      );
+    }
     if (existing.version !== input.ifVersion) {
       throw new KbConflictError(existing.version, input.ifVersion);
     }
@@ -506,14 +520,16 @@ export class KbService {
 
   // ─── Internals ──────────────────────────────────────────────────────────
 
-  private async assertSpaceExists(spaceId: string): Promise<void> {
+  private async loadSpace(spaceId: string): Promise<typeof schema.kbSpaces.$inferSelect> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
-      .select({ id: schema.kbSpaces.id })
+      .select()
       .from(schema.kbSpaces)
       .where(eq(schema.kbSpaces.id, spaceId))
       .limit(1);
-    if (!rows[0]) throw new KbNotFoundError('space', spaceId);
+    const row = rows[0];
+    if (!row) throw new KbNotFoundError('space', spaceId);
+    return row;
   }
 
   private async assertDocumentExists(documentId: string): Promise<void> {
@@ -607,6 +623,7 @@ function toDocumentDto(row: typeof schema.kbDocuments.$inferSelect): DocumentDto
     audiences: row.audiences,
     version: row.version,
     tags: row.tags,
+    isSystem: row.isSystem,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

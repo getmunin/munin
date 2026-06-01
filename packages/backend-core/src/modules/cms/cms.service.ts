@@ -16,13 +16,16 @@ import {
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 import { STORAGE } from '../../common/storage/storage.token.ts';
 import {
+  applyAssetExpansion,
   buildSearchText,
+  collectAssetIds,
   extractReferences,
   FIELD_TYPES,
   projectData,
   validateEntryData,
   type FieldDef,
 } from './cms.fields.ts';
+import { loadAssetMap } from './cms.asset-loader.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 
 export class CmsInvalidError extends Error {
@@ -260,9 +263,14 @@ export class CmsService {
       .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(desc(schema.cmsEntries.updatedAt))
       .limit(limit);
-    return rows.map((r) =>
+    const dtos = rows.map((r) =>
       toEntryDto(r.entry, r.collection.slug, r.collection.fields as FieldDef[]),
     );
+    const fieldsByEntryId = new Map<string, FieldDef[]>(
+      rows.map((r) => [r.entry.id, r.collection.fields as FieldDef[]]),
+    );
+    await this.expandAssetsInDtos(ctx.actor!.orgId, dtos, fieldsByEntryId);
+    return dtos;
   }
 
   async getEntry(id: string): Promise<EntryDto> {
@@ -277,7 +285,35 @@ export class CmsService {
       .where(eq(schema.cmsEntries.id, id))
       .limit(1);
     if (!rows[0]) throw new NotFoundException(`cms_not_found: entry ${id}`);
-    return toEntryDto(rows[0].entry, rows[0].collection.slug, rows[0].collection.fields as FieldDef[]);
+    const fields = rows[0].collection.fields as FieldDef[];
+    const dto = toEntryDto(rows[0].entry, rows[0].collection.slug, fields);
+    await this.expandAssetsInDtos(
+      ctx.actor!.orgId,
+      [dto],
+      new Map([[rows[0].entry.id, fields]]),
+    );
+    return dto;
+  }
+
+  private async expandAssetsInDtos(
+    orgId: string,
+    dtos: EntryDto[],
+    fieldsByEntryId: Map<string, FieldDef[]>,
+  ): Promise<void> {
+    const ids = new Set<string>();
+    for (const dto of dtos) {
+      const fields = fieldsByEntryId.get(dto.id);
+      if (!fields) continue;
+      for (const id of collectAssetIds(fields, dto.data)) ids.add(id);
+    }
+    if (ids.size === 0) return;
+    const ctx = getCurrentContext();
+    const assets = await loadAssetMap(ctx.db, orgId, ids);
+    for (const dto of dtos) {
+      const fields = fieldsByEntryId.get(dto.id);
+      if (!fields) continue;
+      dto.data = applyAssetExpansion(fields, dto.data, assets);
+    }
   }
 
   async createEntry(input: {
@@ -530,7 +566,7 @@ export class CmsService {
         'svg uploads are not allowed: SVG can carry inline scripts that execute in the browser',
       );
     }
-    const key = `${actor.orgId}/${randomKeySegment()}.${ext}`;
+    const key = `cms/${actor.orgId}/${randomKeySegment()}.${ext}`;
     const presigned = await this.storage.presignedUpload({
       key,
       mime: input.mime,

@@ -1,10 +1,3 @@
-/**
- * CMS field-shape engine. The collection's `fields` jsonb is an array of
- * FieldDef; entries' `data` jsonb is keyed by field name. Types are
- * intentionally plain (string-tagged unions, JSON-serializable) — they
- * round-trip through Postgres jsonb without bespoke encoding.
- */
-
 export const FIELD_TYPES = [
   'text',
   'rich_text',
@@ -31,11 +24,8 @@ export interface FieldDef {
   description?: string;
   default?: unknown;
   options?: {
-    /** For 'select' / 'multi_select'. */
     choices?: string[];
-    /** For 'reference'. The collection slug being referenced. */
     targetCollection?: string;
-    /** For 'array'. Inner field definition. */
     items?: FieldDef;
   };
 }
@@ -47,11 +37,6 @@ export interface ValidationError {
   message: string;
 }
 
-/**
- * Validate `data` against `fields`. Returns null on success; on failure,
- * a list of (field, message) errors so the agent caller can fix all of
- * them in one shot rather than ping-ponging.
- */
 export function validateEntryData(
   fields: FieldDef[],
   data: Record<string, unknown>,
@@ -120,18 +105,12 @@ function validateValue(field: FieldDef, value: unknown): string | null {
       return null;
     }
     case 'json':
-      return null; // accept any JSON-serializable value
+      return null;
     default:
       return null;
   }
 }
 
-/**
- * Project an entry's raw `data` jsonb through the collection's current
- * field schema. Renamed/dropped fields are silently dropped (lossy
- * migration); missing fields surface as null. This is the only path
- * through which the public delivery API ever reads `data`.
- */
 export function projectData(
   fields: FieldDef[],
   data: Record<string, unknown>,
@@ -143,12 +122,6 @@ export function projectData(
   return out;
 }
 
-/**
- * Concatenate searchable field values (text / rich_text / markdown by
- * default; `collection.settings.searchableFields` overrides) into a
- * single string. Stored on cms_entries.search_text and indexed via the
- * generated tsvector.
- */
 export function buildSearchText(
   fields: FieldDef[],
   data: Record<string, unknown>,
@@ -170,11 +143,59 @@ export function buildSearchText(
   return parts.join('\n\n');
 }
 
-/**
- * Walk `data` and yield (fieldName, refEntryId) pairs for every
- * `reference` and `array<reference>` value. The service uses this to
- * rewrite cms_references on every entry write.
- */
+export interface AssetSummary {
+  id: string;
+  publicUrl: string;
+  altText: string | null;
+  mime: string;
+  sizeBytes: number;
+}
+
+export function collectAssetIds(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+): string[] {
+  const out: string[] = [];
+  for (const field of fields) {
+    const value = data[field.name];
+    if (value === undefined || value === null) continue;
+    if (field.type === 'asset' && typeof value === 'string') {
+      out.push(value);
+    } else if (
+      field.type === 'array' &&
+      field.options?.items?.type === 'asset' &&
+      Array.isArray(value)
+    ) {
+      for (const v of value) if (typeof v === 'string') out.push(v);
+    }
+  }
+  return out;
+}
+
+export function applyAssetExpansion(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+  assets: Map<string, AssetSummary>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  for (const field of fields) {
+    const value = out[field.name];
+    if (value === undefined || value === null) continue;
+    if (field.type === 'asset' && typeof value === 'string') {
+      out[field.name] = assets.get(value) ?? null;
+    } else if (
+      field.type === 'array' &&
+      field.options?.items?.type === 'asset' &&
+      Array.isArray(value)
+    ) {
+      out[field.name] = value.map((v) =>
+        typeof v === 'string' ? assets.get(v) ?? null : null,
+      );
+    }
+  }
+  return out;
+}
+
 export function* extractReferences(
   fields: FieldDef[],
   data: Record<string, unknown>,

@@ -33,17 +33,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file: ../.env
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgres://${POSTGRES_USER:-munin}:${POSTGRES_PASSWORD:-munin}@postgres:5432/${POSTGRES_DB:-munin}
-      NEXT_PUBLIC_MCP_URL: ${NEXT_PUBLIC_MCP_URL:-http://localhost:3001/mcp}
-      NEXT_PUBLIC_AUTH_URL: ${NEXT_PUBLIC_AUTH_URL:-http://localhost:3001}
-      MUNIN_AUTH_SECRET: ${MUNIN_AUTH_SECRET:?set MUNIN_AUTH_SECRET in .env}
-      MUNIN_CURATOR_KB_SWEEP_CRON: ${MUNIN_CURATOR_KB_SWEEP_CRON:-}
-      MUNIN_CURATOR_CRM_HYGIENE_CRON: ${MUNIN_CURATOR_CRM_HYGIENE_CRON:-}
-      MUNIN_CURATOR_CMS_STALE_CRON: ${MUNIN_CURATOR_CMS_STALE_CRON:-}
-      MUNIN_CURATOR_SCHEDULER_DISABLED: ${MUNIN_CURATOR_SCHEDULER_DISABLED:-0}
+      MUNIN_MIGRATE_URL: postgres://${POSTGRES_USER:-munin}:${POSTGRES_PASSWORD:-munin}@postgres:5432/${POSTGRES_DB:-munin}
+      DATABASE_URL: postgres://munin_app:munin_app@postgres:5432/${POSTGRES_DB:-munin}
+    command: ["sh", "-c", "node dist/migrate.js && node dist/main.js"]
     ports:
       - "${BACKEND_PORT:-3001}:3001"
 
@@ -54,13 +50,10 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    env_file: ../.env
     environment:
       NODE_ENV: production
       PORT: 3000
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
-      NEXT_PUBLIC_MCP_URL: ${NEXT_PUBLIC_MCP_URL:-http://localhost:3001/mcp}
-      NEXT_PUBLIC_AUTH_URL: ${NEXT_PUBLIC_AUTH_URL:-http://localhost:3001}
-      NEXT_PUBLIC_DOCS_URL: ${NEXT_PUBLIC_DOCS_URL:-http://localhost:3000/docs}
     ports:
       - "${WEB_PORT:-3000}:3000"
 

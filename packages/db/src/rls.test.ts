@@ -115,4 +115,55 @@ const skipReason = TEST_URL
     expect(rows.length).toBe(1);
     expect(rows[0]!.id).toBe(aEu);
   });
+
+  // Meta-test: enforce the "every org-scoped table has RLS" invariant.
+  // If you add a new table with an `org_id` column, you must also enable
+  // row-level security on it and add a tenant_isolation policy (typically
+  // in packages/db/src/sql/<module>.sql). The few exempt tables are listed
+  // explicitly below — usually because tenancy is delegated to a parent
+  // table's policy via FK or the table is a system-level catalog.
+  it('every table with an org_id column has RLS enabled', async () => {
+    const exempt = new Set<string>([
+      // org_members: composite (org_id, user_id) primary key + service-role
+      // reads via assertOwnerOrAdmin. Documented in rls.sql.
+      'org_members',
+    ]);
+    const rows = await client.begin(async (sql) => {
+      await sql`SELECT set_config('app.bypass_rls', 'on', true)`;
+      return sql<{ table_name: string; relrowsecurity: boolean; relforcerowsecurity: boolean; policy_count: number }[]>`
+        SELECT
+          c.relname AS table_name,
+          c.relrowsecurity,
+          c.relforcerowsecurity,
+          (SELECT count(*) FROM pg_policies p
+            WHERE p.schemaname = 'public' AND p.tablename = c.relname)::int AS policy_count
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relkind = 'r'
+          AND EXISTS (
+            SELECT 1 FROM information_schema.columns col
+            WHERE col.table_schema = 'public'
+              AND col.table_name = c.relname
+              AND col.column_name = 'org_id'
+          )
+        ORDER BY c.relname`;
+    });
+
+    const offenders = rows
+      .filter((r) => !exempt.has(r.table_name))
+      .filter((r) => !r.relrowsecurity || !r.relforcerowsecurity || r.policy_count === 0);
+
+    if (offenders.length > 0) {
+      const detail = offenders
+        .map(
+          (r) =>
+            `  - ${r.table_name}: rls=${r.relrowsecurity} force=${r.relforcerowsecurity} policies=${r.policy_count}`,
+        )
+        .join('\n');
+      throw new Error(
+        `Tables with an org_id column are missing RLS:\n${detail}\n\nAdd a tenant_isolation policy to packages/db/src/sql/<module>.sql, or add the table to the exempt set with a comment justifying why.`,
+      );
+    }
+  });
 });

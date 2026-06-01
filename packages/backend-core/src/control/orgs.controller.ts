@@ -15,6 +15,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 
 const PatchDto = z.object({
   name: z.string().min(1).max(128).optional(),
@@ -29,7 +31,7 @@ interface OrgDto {
 }
 
 @Controller('v1/orgs/me')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class OrgsController {
   @Get()
@@ -51,6 +53,7 @@ export class OrgsController {
   }
 
   @Patch()
+  @RequireRole('owner', 'admin')
   async update(@Body() body: unknown): Promise<OrgDto> {
     const parsed = PatchDto.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.message);

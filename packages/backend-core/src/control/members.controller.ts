@@ -22,6 +22,8 @@ import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { assertOwner, assertOwnerOrAdmin } from './role-guard.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 
 const PatchMemberDto = z
   .object({
@@ -42,14 +44,14 @@ interface MemberDto {
 }
 
 @Controller('v1/orgs/me/members')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class MembersController {
   @Get()
+  @RequireRole('owner', 'admin')
   async list(): Promise<MemberDto[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const rows = await ctx.db
       .select({
         userId: schema.orgMembers.userId,
@@ -141,10 +143,10 @@ export class MembersController {
 
   @Delete(':userId')
   @HttpCode(204)
+  @RequireRole('owner')
   async remove(@Param('userId') userId: string): Promise<void> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwner(actor.orgId, actor.userId ?? actor.id);
 
     const target = await ctx.db
       .select({ role: schema.orgMembers.role })

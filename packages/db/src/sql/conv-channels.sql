@@ -61,3 +61,16 @@ CREATE POLICY tenant_isolation ON conv_message_reads
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- Widget → email fallback ledger. Org-scoped; the sweeper writes with
+-- app.bypass_rls=on. End-users never see these rows; admin dashboard
+-- callers see only their own org.
+ALTER TABLE conv_widget_email_fallbacks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_widget_email_fallbacks FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_widget_email_fallbacks;
+CREATE POLICY tenant_isolation ON conv_widget_email_fallbacks
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

@@ -15,7 +15,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
-import { assertOwnerOrAdmin } from './role-guard.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 
 interface TokenDto {
   id: string;
@@ -30,14 +31,14 @@ interface TokenDto {
 }
 
 @Controller('v1/tokens')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@RequireRole('owner', 'admin')
 export class TokensController {
   @Get()
   async list(): Promise<TokenDto[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const rows = await ctx.db
       .select()
       .from(schema.tokens)
@@ -51,7 +52,6 @@ export class TokensController {
   async revoke(@Param('id') id: string): Promise<void> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const result = await ctx.db
       .update(schema.tokens)
       .set({ revokedAt: new Date() })

@@ -774,6 +774,60 @@ interface OrgFixture {
       });
       expect(res.status).toBe(403);
     });
+
+    const WEBHOOK_MEMBER_DENIED = [
+      ['GET', '/v1/webhooks', undefined],
+      ['POST', '/v1/webhooks', { url: 'https://hook.example/x', events: [] }],
+    ] as const;
+    for (const [method, path, body] of WEBHOOK_MEMBER_DENIED) {
+      it(`member cannot ${method} ${path} (403)`, async () => {
+        const res = await fetch(`${baseUrl}${path}`, {
+          method,
+          headers: memberCookie,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        expect(res.status).toBe(403);
+      });
+    }
+
+    it('admin can list /v1/webhooks (200)', async () => {
+      const res = await fetch(`${baseUrl}/v1/webhooks`, { headers: adminCookie });
+      expect(res.status).toBe(200);
+    });
+
+    it('member cannot PATCH /v1/orgs/me (403)', async () => {
+      const res = await fetch(`${baseUrl}/v1/orgs/me`, {
+        method: 'PATCH',
+        headers: memberCookie,
+        body: JSON.stringify({ name: 'member-rename' }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('member cannot PATCH /v1/assistants/me (403)', async () => {
+      const res = await fetch(`${baseUrl}/v1/assistants/me`, {
+        method: 'PATCH',
+        headers: memberCookie,
+        body: JSON.stringify({ name: 'Hacky Hal' }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    const CONV_CHANNEL_MEMBER_DENIED = [
+      ['POST', '/v1/conversations/channels/widget', { name: 'w' }],
+      ['POST', '/v1/conversations/channels/widget/c_x/rotate-key', undefined],
+      ['POST', '/v1/conversations/channels/widget/c_x/rotate-identity-secret', undefined],
+    ] as const;
+    for (const [method, path, body] of CONV_CHANNEL_MEMBER_DENIED) {
+      it(`member cannot ${method} ${path} (403)`, async () => {
+        const res = await fetch(`${baseUrl}${path}`, {
+          method,
+          headers: memberCookie,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        expect(res.status).toBe(403);
+      });
+    }
   });
 
   // ─── realtime gateway (websocket auth) ──────────────────────────────

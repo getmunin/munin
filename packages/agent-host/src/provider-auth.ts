@@ -1,9 +1,10 @@
 import { UnauthorizedException } from '@nestjs/common';
+import { safeFetch } from '@getmunin/core';
 
 export async function validateProviderCredentials(baseUrl: string, apiKey: string): Promise<void> {
   const root = baseUrl.replace(/\/+$/, '');
   if (/openrouter\.ai/i.test(baseUrl)) {
-    const res = await fetch(`${root}/auth/key`, {
+    const res = await safeFetch(`${root}/auth/key`, {
       headers: { authorization: `Bearer ${apiKey}`, accept: 'application/json' },
     });
     if (res.status === 401 || res.status === 403) {
@@ -11,7 +12,7 @@ export async function validateProviderCredentials(baseUrl: string, apiKey: strin
     }
     return;
   }
-  const res = await fetch(`${root}/models`, { headers: authHeaders(baseUrl, apiKey) });
+  const res = await safeFetch(`${root}/models`, { headers: authHeaders(baseUrl, apiKey) });
   if (res.status === 401 || res.status === 403) {
     throw new UnauthorizedException(`provider rejected the API key (${res.status})`);
   }

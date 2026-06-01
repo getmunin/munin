@@ -1,10 +1,10 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   GoneException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
@@ -18,7 +18,7 @@ import {
 import { renderOrgInviteEmail } from '@getmunin/emails';
 import { DB } from '../common/db/db.module.ts';
 import { MAILER } from '../common/mail/mail.module.ts';
-import { assertOwner, assertOwnerOrAdmin, VALID_ROLES } from './role-guard.ts';
+import { VALID_ROLES } from './role-guard.ts';
 
 const INVITE_TTL_DAYS = 7;
 
@@ -43,19 +43,16 @@ export interface CreatedInvitation extends InvitationDto {
 
 @Injectable()
 export class InvitationsService {
+  private readonly logger = new Logger(InvitationsService.name);
+
   constructor(
     @Inject(DB) private readonly serviceDb: Db,
     @Inject(MAILER) private readonly mailer: Mailer,
   ) {}
 
-  /** Issued by an owner via the dashboard's session-cookie path. */
   async create(input: { email: string; role?: string }): Promise<CreatedInvitation> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (actor.type !== 'user') {
-      throw new ForbiddenException('only signed-in users can create invitations');
-    }
-    await assertOwner(actor.orgId, actor.userId ?? actor.id);
 
     const role = input.role ?? 'member';
     if (!VALID_ROLES.has(role)) {
@@ -66,7 +63,6 @@ export class InvitationsService {
       throw new BadRequestException('invalid email');
     }
 
-    // Already a member?
     const existingMember = await ctx.db
       .select({ userId: schema.orgMembers.userId })
       .from(schema.orgMembers)
@@ -77,7 +73,6 @@ export class InvitationsService {
       throw new ConflictException(`${email} is already a member of this org`);
     }
 
-    // Existing pending invite for the same email? Revoke it; re-issue.
     await ctx.db
       .update(schema.orgInvitations)
       .set({ revokedAt: new Date() })
@@ -118,7 +113,6 @@ export class InvitationsService {
   async listPending(): Promise<InvitationDto[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const rows = await ctx.db
       .select()
       .from(schema.orgInvitations)
@@ -136,7 +130,6 @@ export class InvitationsService {
   async revoke(invitationId: string): Promise<{ revoked: true }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwner(actor.orgId, actor.userId ?? actor.id);
     const result = await ctx.db
       .update(schema.orgInvitations)
       .set({ revokedAt: new Date() })
@@ -209,7 +202,6 @@ export class InvitationsService {
 
     await this.serviceDb.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-      // Insert membership; if already a member, no-op via ON CONFLICT.
       await tx
         .insert(schema.orgMembers)
         .values({
@@ -225,8 +217,6 @@ export class InvitationsService {
     });
     return { orgId: invitation.orgId, role: invitation.role };
   }
-
-  // ─── helpers ─────────────────────────────────────────────────────────
 
   private buildAcceptUrl(token: string): Promise<string> {
     const webBase = (process.env.MUNIN_WEB_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -263,9 +253,10 @@ export class InvitationsService {
         text: tpl.text,
         html: tpl.html,
       });
-    } catch {
-      // Send failures must not block invite creation — the inviter sees the
-      // accept URL in the API response and can resend manually.
+    } catch (err) {
+      this.logger.warn(
+        `invite email send failed for ${email}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 }

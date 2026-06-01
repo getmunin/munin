@@ -6,7 +6,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
-import { assertOwnerOrAdmin } from './role-guard.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 
 interface AuditDto {
   id: string;
@@ -30,8 +31,9 @@ const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;
 
 @Controller('v1/admin/audit-logs')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@RequireRole('owner', 'admin')
 export class AuditLogController {
   /**
    * Newest-first cursor pagination. `before` is the createdAt of the last
@@ -49,7 +51,6 @@ export class AuditLogController {
   ): Promise<{ items: AuditDto[]; nextCursor: string | null }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const take = clampLimit(limit, PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX);
 
     const filters: SQL[] = [eq(schema.auditLog.orgId, actor.orgId)];

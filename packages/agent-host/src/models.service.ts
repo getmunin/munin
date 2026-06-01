@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { safeFetch } from '@getmunin/core';
 import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 import { authHeaders } from './provider-auth.ts';
@@ -51,9 +52,9 @@ export class AgentModelsService {
 
   private async fetchModels(baseUrl: string, apiKey: string): Promise<ListModelsResult> {
     const url = `${baseUrl.replace(/\/+$/, '')}/models`;
-    let res: Response;
+    let res: Awaited<ReturnType<typeof safeFetch>>;
     try {
-      res = await fetch(url, {
+      res = await safeFetch(url, {
         method: 'GET',
         headers: authHeaders(baseUrl, apiKey),
       });

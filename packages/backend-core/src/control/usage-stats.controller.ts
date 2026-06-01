@@ -6,7 +6,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
-import { assertOwnerOrAdmin } from './role-guard.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 
 export interface UsageSummaryTile {
   current: number;
@@ -56,14 +57,14 @@ type DailyBigIntRow = {
 } & Record<string, unknown>;
 
 @Controller('v1/usage')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@RequireRole('owner', 'admin')
 export class UsageStatsController {
   @Get('summary')
   async summary(): Promise<UsageSummaryDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const orgId = actor.orgId;
 
     const now = new Date();
@@ -93,7 +94,6 @@ export class UsageStatsController {
   async byAgent(@Query('days') daysRaw?: string): Promise<UsageByAgentDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    await assertOwnerOrAdmin(actor.orgId, actor.userId ?? actor.id);
     const orgId = actor.orgId;
 
     const days = clampDays(daysRaw, 30);

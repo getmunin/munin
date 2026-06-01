@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { AuditLogger, getCurrentContext, type Audience } from '@getmunin/core';
+import { AuditLogger, getCurrentContext } from '@getmunin/core';
 import { createMcpServer } from '@getmunin/mcp-toolkit';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
@@ -20,6 +20,7 @@ import { McpRegistryService } from './mcp.registry.ts';
 import { McpSkillRegistryService } from './mcp.skill-registry.service.ts';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service.ts';
 import { QUOTAS_SERVICE, type QuotasService } from '../common/quotas/quotas.service.ts';
+import { deriveMcpAudience } from './mcp.audience.ts';
 
 /**
  * Streamable HTTP entry point for the MCP server.
@@ -64,8 +65,7 @@ export class McpController {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
 
-    const audience: Audience =
-      actor.type === 'admin_agent' && actor.audiences.includes('admin') ? 'admin' : 'self_service';
+    const audience = deriveMcpAudience(actor);
 
     const server = createMcpServer({
       registry: this.registry,

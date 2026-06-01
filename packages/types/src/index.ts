@@ -30,6 +30,7 @@ export {
   VapiCallInitiateBody,
   type VapiCallInitiateBodyT,
 } from './channels.ts';
+export { sensitive, isSensitiveSchema } from './sensitive.ts';
 export {
   KNOWN_SKILL_URIS,
   KNOWN_TASK_URIS,

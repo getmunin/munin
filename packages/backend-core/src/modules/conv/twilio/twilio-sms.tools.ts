@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
+import { sensitive } from '@getmunin/types';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
@@ -24,14 +25,16 @@ const ConfigureInput = z.object({
     .max(64)
     .optional()
     .describe('Twilio Account SID — starts with "AC". Required on create.'),
-  authToken: z
-    .string()
-    .min(1)
-    .max(256)
-    .optional()
-    .describe(
-      'Twilio Auth Token (plaintext). Required on create. On update, omit to keep the existing token, or pass a new value to rotate.',
-    ),
+  authToken: sensitive(
+    z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe(
+        'Twilio Auth Token (plaintext). Required on create. On update, omit to keep the existing token, or pass a new value to rotate.',
+      ),
+  ),
   fromNumber: z
     .string()
     .min(2)

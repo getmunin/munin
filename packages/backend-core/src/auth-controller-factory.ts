@@ -24,7 +24,35 @@ export async function handleAuthRequest(
 export function requireAuthSecret(): string {
   const secret = process.env.MUNIN_AUTH_SECRET;
   if (!secret) throw new Error('MUNIN_AUTH_SECRET is required');
+  assertProductionAuthSecret(secret);
   return secret;
+}
+
+export function assertProductionAuthSecret(secret: string): void {
+  if (process.env.NODE_ENV !== 'production') return;
+  if (secret.length < 32) {
+    throw new Error(
+      'MUNIN_AUTH_SECRET must be at least 32 characters in production. Generate one with `openssl rand -base64 48`.',
+    );
+  }
+  if (isPlaceholderSecret(secret)) {
+    throw new Error(
+      'MUNIN_AUTH_SECRET looks like a placeholder/dev value. Generate a real secret with `openssl rand -base64 48`.',
+    );
+  }
+}
+
+const PLACEHOLDER_PATTERNS: readonly RegExp[] = [
+  /^replace[-_]?me/i,
+  /^dev[-_]?secret/i,
+  /^test[-_]?secret/i,
+  /^changeme/i,
+  /do[-_]?not[-_]?use/i,
+  /^(?:[a-z]+|x+|0+)$/i,
+];
+
+function isPlaceholderSecret(secret: string): boolean {
+  return PLACEHOLDER_PATTERNS.some((p) => p.test(secret));
 }
 
 function expressRequestToFetch(req: ExpressRequest): globalThis.Request {

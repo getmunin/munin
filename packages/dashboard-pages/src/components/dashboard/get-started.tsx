@@ -161,7 +161,7 @@ export function GetStarted() {
             {RECIPES.map((r) => (
               <li key={r.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
                 <a
-                  href={`/docs/guides/recipe-${r.id}`}
+                  href={`${docsHost ?? ''}/guides/recipe-${r.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="no-underline text-inherit grid grid-cols-[1fr_auto] gap-5 items-center px-1.5 py-3.5 transition-[padding,background] duration-fast ease-munin hover:bg-paper-deep hover:pl-3 focus:outline-none focus:bg-paper-deep dark:hover:bg-secondary dark:focus:bg-secondary"

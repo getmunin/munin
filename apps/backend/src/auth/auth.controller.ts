@@ -21,7 +21,7 @@ import {
 
 const AUTH_URL_FALLBACK = 'http://localhost:3001';
 
-@PublicController('auth')
+@PublicController('auth', { throttle: true })
 export class AuthController {
   private readonly auth: MuninAuth;
 

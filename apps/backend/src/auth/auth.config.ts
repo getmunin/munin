@@ -45,6 +45,7 @@ export function createMuninAuth({
     trustedOrigins,
     webBaseUrl,
     logger,
+    rateLimit: buildAuthRateLimit(),
     socialProviders: google || github ? { google, github } : undefined,
     sendResetPassword: mailer
       ? async ({ user, url }) => {
@@ -154,6 +155,24 @@ export function readAllowedEmailDomainsFromEnv(): string[] {
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
+}
+
+export function buildAuthRateLimit(): BetterAuthOptions['rateLimit'] {
+  return {
+    enabled: true,
+    storage: 'database',
+    window: Number(process.env.MUNIN_AUTH_RATELIMIT_WINDOW ?? 60),
+    max: Number(process.env.MUNIN_AUTH_RATELIMIT_MAX ?? 30),
+    customRules: {
+      '/sign-in/email': { window: 60, max: 5 },
+      '/sign-up/email': { window: 60, max: 5 },
+      '/forget-password': { window: 60, max: 3 },
+      '/reset-password': { window: 60, max: 5 },
+      '/verify-email': { window: 60, max: 5 },
+      '/oauth2/register': { window: 60, max: 10 },
+      '/oauth2/token': { window: 60, max: 30 },
+    },
+  };
 }
 
 type CaptureExceptionFn = (

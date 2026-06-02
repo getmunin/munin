@@ -3,7 +3,7 @@ import { GuidesSidebar } from '../../_components/guides-sidebar';
 import { CopyPromptButton } from '../../_components/copy-prompt-button';
 
 export const metadata = {
-  title: 'Munin · Lead Scorer recipe',
+  title: 'Munin · Lead Scoring recipe',
   description:
     'Agent recipe that ranks a CRM segment by fit and intent using enrichment data, conversation tone, and recent activity.',
 };
@@ -41,7 +41,7 @@ Constraints:
 - A contact with no enrichment yet is cold by default; flag for the enricher
   rather than scoring on missing data.`;
 
-export default function RecipeLeadScorer() {
+export default function RecipeLeadScoring() {
   return (
     <>
       <GuidesSidebar />
@@ -55,7 +55,7 @@ export default function RecipeLeadScorer() {
           <header className="docs-hero">
             <div className="eyebrow">Recipe · Weekly</div>
             <h1>
-              <em>Lead Scorer</em>.
+              <em>Lead Scoring</em>.
             </h1>
             <p className="lede">
               Ranks a target segment by fit and intent, leaves a one-line rationale a salesperson

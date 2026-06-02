@@ -25,7 +25,8 @@ const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 const HANDOVER_TOOL_NAME = 'conv_request_handover_in_my_conversation';
 const RUNTIME_HANDOVER_FALLBACK_MESSAGE =
-  "Thanks for your message — I'm having trouble responding right now. A teammate will follow up shortly.";
+  "I'm having trouble responding right now. A teammate will follow up shortly.";
+const RUNTIME_GREET_FALLBACK_MESSAGE = 'Hi, what can we do for you?';
 
 export interface OpenedMcp extends McpToolHandle {
   close(): Promise<void>;
@@ -313,17 +314,31 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const reason = providerErrorCode
       ? `provider unavailable (${providerErrorCode})`
       : `agent retries exhausted (${lastError?.message ?? 'unknown'})`;
-    log.error(`${conversationId} handover: ${reason}`);
-    await deps.rest
-      .requestHandover(conversationId, {
-        reason,
-        publicFallbackMessage: RUNTIME_HANDOVER_FALLBACK_MESSAGE,
-      })
-      .catch((err) => {
-        log.error(
-          `${conversationId} handover request failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
+
+    if (mode === 'greet') {
+      log.warn(`${conversationId} greet fallback: ${reason}`);
+      await deps.rest
+        .postAgentMessage(conversationId, RUNTIME_GREET_FALLBACK_MESSAGE, {
+          sinceMessageId,
+        })
+        .catch((err) => {
+          log.error(
+            `${conversationId} greet fallback post failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
+    } else {
+      log.error(`${conversationId} handover: ${reason}`);
+      await deps.rest
+        .requestHandover(conversationId, {
+          reason,
+          publicFallbackMessage: RUNTIME_HANDOVER_FALLBACK_MESSAGE,
+        })
+        .catch((err) => {
+          log.error(
+            `${conversationId} handover request failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
+    }
     } finally {
       stopTyping();
       await releaseClaim(conversationId);

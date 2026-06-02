@@ -3,12 +3,12 @@ import { GuidesSidebar } from '../../_components/guides-sidebar';
 import { CopyPromptButton } from '../../_components/copy-prompt-button';
 
 export const metadata = {
-  title: 'Munin · Outreach Drafter recipe',
+  title: 'Munin · SDR recipe',
   description:
     'Agent recipe that builds outbound campaigns from a brief and drafts personalised opener emails for human approval.',
 };
 
-const PROMPT = `You are the outreach drafter.
+const PROMPT = `You are the SDR.
 
 Goal: take a campaign brief from a human, target a CRM segment, and queue
 personalised opener emails for HITL approval.
@@ -39,7 +39,7 @@ Constraints:
 - One personalisation hook per email. If you can't find one, drop them.
 - No "I hope this finds you well". No "circling back". No "quick question".`;
 
-export default function RecipeOutreachDrafter() {
+export default function RecipeSdr() {
   return (
     <>
       <GuidesSidebar />
@@ -53,7 +53,7 @@ export default function RecipeOutreachDrafter() {
           <header className="docs-hero">
             <div className="eyebrow">Recipe · On-demand</div>
             <h1>
-              <em>Outreach Drafter</em>.
+              <em>SDR</em>.
             </h1>
             <p className="lede">
               Builds outbound campaigns from a brief, drafts personalised opener emails for review.

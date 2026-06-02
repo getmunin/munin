@@ -3,12 +3,12 @@ import { GuidesSidebar } from '../../_components/guides-sidebar';
 import { CopyPromptButton } from '../../_components/copy-prompt-button';
 
 export const metadata = {
-  title: 'Munin · Lead Enricher recipe',
+  title: 'Munin · Lead Research recipe',
   description:
-    'Agent recipe that enriches new CRM contacts with company context and stamps an AI summary on every record.',
+    'Agent recipe that researches new CRM contacts, fills company context, and stamps an AI summary on every record.',
 };
 
-const PROMPT = `You are the lead enricher.
+const PROMPT = `You are the lead researcher.
 
 Goal: turn a sparse new contact into one that a salesperson can act on
 without opening five tabs. Never invent facts — if you can't verify it, leave
@@ -44,7 +44,7 @@ Constraints:
 - If the company has fewer than 5 visible employees and no pricing page,
   flag it in the aiSummary so sales doesn't waste a touch.`;
 
-export default function RecipeLeadEnricher() {
+export default function RecipeLeadResearch() {
   return (
     <>
       <GuidesSidebar />
@@ -58,7 +58,7 @@ export default function RecipeLeadEnricher() {
           <header className="docs-hero">
             <div className="eyebrow">Recipe · On signup</div>
             <h1>
-              <em>Lead Enricher</em>.
+              <em>Lead Research</em>.
             </h1>
             <p className="lede">
               Turns a sparse new contact into a record a salesperson can act on without opening five

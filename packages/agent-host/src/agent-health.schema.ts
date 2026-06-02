@@ -6,8 +6,6 @@ const updatedAt = timestamp('updated_at', { withTimezone: true }).notNull().defa
 
 export const agentHealth = pgTable('agent_health', {
   id: text('id').primaryKey(),
-  lastProviderErrorCode: text('last_provider_error_code'),
-  lastProviderErrorMessage: text('last_provider_error_message'),
   lastErrorAt: timestamp('last_error_at', { withTimezone: true }),
   lastOkAt: timestamp('last_ok_at', { withTimezone: true }),
   createdAt,
@@ -17,8 +15,6 @@ export const agentHealth = pgTable('agent_health', {
 export const AGENT_HEALTH_SINGLETON_DDL = sql`
   CREATE TABLE IF NOT EXISTS agent_health (
     id text PRIMARY KEY DEFAULT 'singleton',
-    last_provider_error_code text,
-    last_provider_error_message text,
     last_error_at timestamptz,
     last_ok_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -27,16 +23,20 @@ export const AGENT_HEALTH_SINGLETON_DDL = sql`
   );
 
   INSERT INTO agent_health (id) VALUES ('singleton') ON CONFLICT (id) DO NOTHING;
+
+  ALTER TABLE agent_health DROP COLUMN IF EXISTS last_provider_error_code;
+  ALTER TABLE agent_health DROP COLUMN IF EXISTS last_provider_error_message;
 `;
 
 export const AGENT_HEALTH_MULTI_TENANT_DDL = sql`
   CREATE TABLE IF NOT EXISTS agent_health (
     id text PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
-    last_provider_error_code text,
-    last_provider_error_message text,
     last_error_at timestamptz,
     last_ok_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+
+  ALTER TABLE agent_health DROP COLUMN IF EXISTS last_provider_error_code;
+  ALTER TABLE agent_health DROP COLUMN IF EXISTS last_provider_error_message;
 `;

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import {
@@ -70,6 +70,8 @@ export interface ImapFetcher {
 }
 
 class ImapFlowFetcher implements ImapFetcher {
+  private static readonly logger = new Logger(ImapFlowFetcher.name);
+
   async fetchSince(opts: {
     host: string;
     port: number;
@@ -91,7 +93,17 @@ class ImapFlowFetcher implements ImapFetcher {
         ? { tls: { servername: opts.host } }
         : {}),
     });
-    await client.connect();
+    client.on('error', (err) => {
+      ImapFlowFetcher.logger.warn(
+        `imap late error host=${opts.host} user=${opts.username}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+    try {
+      await client.connect();
+    } catch (err) {
+      client.close();
+      throw err;
+    }
     try {
       await client.mailboxOpen(opts.mailbox);
       const range = opts.sinceUid ? `${opts.sinceUid + 1}:*` : '1:*';
@@ -103,7 +115,12 @@ class ImapFlowFetcher implements ImapFetcher {
       }
       return out;
     } finally {
-      await client.logout().catch(() => {});
+      await client.logout().catch((err) => {
+        ImapFlowFetcher.logger.warn(
+          `imap logout failed host=${opts.host}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        client.close();
+      });
     }
   }
 }
@@ -119,6 +136,7 @@ export class EmailAdapter implements ChannelAdapter {
   readonly kind = 'email' as const;
   readonly vendors = ['smtp', 'mailer'] as const;
 
+  private readonly logger = new Logger(EmailAdapter.name);
   private fetcher: ImapFetcher = new ImapFlowFetcher();
 
   constructor(
@@ -238,7 +256,7 @@ export class EmailAdapter implements ChannelAdapter {
     });
 
     if (messages.length === 0) {
-      await this.writeCursor(channel.id, { lastUid: sinceUid ?? null }, null);
+      await this.writeCursor(channel.id, { lastUid: sinceUid ?? null });
       return { messagesIngested: 0 };
     }
 
@@ -251,11 +269,13 @@ export class EmailAdapter implements ChannelAdapter {
         await this.ingest(channel, parsed);
         ingested += 1;
       } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        lastError = errMsg;
+        this.logger.warn(`parse failed uid=${msg.uid} channel=${channel.id}: ${errMsg}`);
       }
       if (msg.uid > highWater) highWater = msg.uid;
     }
-    await this.writeCursor(channel.id, { lastUid: highWater }, lastError);
+    await this.writeCursor(channel.id, { lastUid: highWater });
     return { messagesIngested: ingested, lastError };
   }
 
@@ -398,16 +418,15 @@ export class EmailAdapter implements ChannelAdapter {
   private async writeCursor(
     channelId: string,
     cursor: Record<string, unknown>,
-    lastError: string | null,
   ): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
       await tx
         .insert(schema.convInboundState)
-        .values({ channelId, cursor, lastPolledAt: new Date(), lastError })
+        .values({ channelId, cursor, lastPolledAt: new Date() })
         .onConflictDoUpdate({
           target: schema.convInboundState.channelId,
-          set: { cursor, lastPolledAt: new Date(), lastError, updatedAt: new Date() },
+          set: { cursor, lastPolledAt: new Date(), updatedAt: new Date() },
         });
     });
   }

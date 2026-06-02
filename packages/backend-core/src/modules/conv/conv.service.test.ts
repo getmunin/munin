@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { NotFoundException } from '@nestjs/common';
 import { ConvService, ConvInvalidError } from './conv.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
+import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -50,6 +51,7 @@ const skipReason = TEST_URL
       dispatcher,
       new ConversationClaimsService(dispatcher),
       new CuratorJobsService(dispatcher),
+      new AlertsService(dispatcher),
     );
   });
 

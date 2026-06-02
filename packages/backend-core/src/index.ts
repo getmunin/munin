@@ -26,6 +26,21 @@ export {
   type FeedbackAppScope,
 } from './modules/feedback/feedback.service.ts';
 
+export { SystemAlertsModule } from './modules/system-alerts/system-alerts.module.ts';
+export {
+  AlertsService,
+  AlertNotFoundError,
+  ALERT_SOURCES,
+  ALERT_SEVERITIES,
+  type AlertDto,
+  type AlertSource,
+  type AlertSeverity,
+  type OpenAlertInput,
+  type OpenAlertResult,
+  type ResolveAlertInput,
+  type ResolveAlertResult,
+} from './modules/system-alerts/system-alerts.service.ts';
+
 export {
   createMuninAuthCore,
   computeValidAudiences,

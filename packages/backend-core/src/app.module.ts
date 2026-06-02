@@ -21,6 +21,7 @@ import { WebhookModule } from './common/webhooks/webhook.module.ts';
 import { StorageModule } from './common/storage/storage.module.ts';
 import { RealtimeModule } from './realtime/realtime.module.ts';
 import { OAuthModule } from './oauth/oauth.module.ts';
+import { SystemAlertsModule } from './modules/system-alerts/system-alerts.module.ts';
 
 export const BACKEND_FEATURE_MODULES = [
   DbModule,
@@ -38,6 +39,7 @@ export const BACKEND_FEATURE_MODULES = [
   CmsModule,
   RealtimeModule,
   OAuthModule,
+  SystemAlertsModule,
 ];
 
 export const BACKEND_BASE_CONTROLLERS = [HealthController, WhoamiController];

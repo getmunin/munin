@@ -4,6 +4,7 @@ import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, 
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
+import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
 
 export class ConvInvalidError extends Error {
@@ -125,6 +126,7 @@ export class ConvService {
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(ConversationClaimsService) private readonly claims: ConversationClaimsService,
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
+    @Inject(AlertsService) private readonly alerts: AlertsService,
   ) {}
 
   // ─── Channels ───────────────────────────────────────────────────────────
@@ -163,6 +165,28 @@ export class ConvService {
           isNull(schema.apiKeys.revokedAt),
         ),
       );
+    await this.alerts.resolveAlert({ source: 'channel_inbound', subjectId: channelId });
+  }
+
+  async setChannelActive(channelId: string, active: boolean): Promise<ChannelDto> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .update(schema.convChannels)
+      .set({ active, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.convChannels.id, channelId),
+          isNull(schema.convChannels.archivedAt),
+        ),
+      )
+      .returning();
+    if (!row) {
+      throw new NotFoundException(`channel ${channelId} not found or archived`);
+    }
+    if (active) {
+      await this.alerts.resolveAlert({ source: 'channel_inbound', subjectId: channelId });
+    }
+    return toChannelDto(row);
   }
 
   async createChannel(input: {

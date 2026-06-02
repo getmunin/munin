@@ -214,6 +214,16 @@ CREATE POLICY tenant_isolation ON feedback_outbox
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
+-- ───────────────────────── org_alerts ──────────────────────────────────────
+-- Org-scoped operational alerts. Admin-only (no end-user audience). Writers
+-- across modules call AlertsService which sets tenancy GUCs before insert.
+ALTER TABLE org_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_alerts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON org_alerts;
+CREATE POLICY tenant_isolation ON org_alerts
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
 -- ───────────────────────── org_members ─────────────────────────────────────
 -- Membership rows. Tenant-scoped by `org_id`. Some legitimate code paths read
 -- across orgs:

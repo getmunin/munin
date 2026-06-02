@@ -1,5 +1,29 @@
 # @getmunin/backend-core
 
+## 4.28.0
+
+### Minor Changes
+
+- 7436b8c: Add `cms_upload_asset_bytes` MCP tool: agentic clients can now upload small assets (≤2 MB after base64 decode) in a single call, without the `cms_request_asset_upload` → out-of-band S3 PUT → `cms_complete_asset_upload` round-trip. The new tool decodes server-side, writes the bytes through the storage abstraction, and persists the row already marked `uploaded: true`. SVG is rejected on the same grounds as the request/complete path. For larger files the existing two-step flow remains the right shape.
+
+  To support this, `S3CompatibleStorage` now implements `writeDirect` using a SigV4 `PUT` with full-payload `x-amz-content-sha256` hashing (compatible with strict S3 implementations). The Nest JSON body limit moves from the Express default (~100 kB) to 4 MB to accommodate base64-inflated payloads.
+
+### Patch Changes
+
+- 4e09934: `POST /v1/conversations/channels/email` now returns a `400` with the underlying reason when an SMTP or IMAP host fails the SSRF guard, instead of an opaque `500`. The dashboard's generic error renderer surfaces the message verbatim, so a typo like `imag.gmail.com` now reads as `SMTP: dns lookup failed for imag.gmail.com: getaddrinfo ENOTFOUND imag.gmail.com` rather than "Munin couldn't reach the server".
+
+  Only `SsrfBlockedError`s thrown during the inbound/outbound host validation are remapped; all other failures stay as-is.
+
+- Updated dependencies [7436b8c]
+- Updated dependencies [47e5b30]
+- Updated dependencies [025b064]
+  - @getmunin/core@4.28.0
+  - @getmunin/emails@4.23.6
+  - @getmunin/agent-runtime@4.28.0
+  - @getmunin/mcp-toolkit@4.28.0
+  - @getmunin/db@4.28.0
+  - @getmunin/types@4.28.0
+
 ## 4.27.1
 
 ### Patch Changes

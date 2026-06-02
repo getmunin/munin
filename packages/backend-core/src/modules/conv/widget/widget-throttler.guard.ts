@@ -3,21 +3,8 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
 import type { ResolvedCredential } from '@getmunin/core';
 
-/**
- * Tracker key for widget POSTs / GETs.
- *
- * Key shape: `widget:<apiKeyId>|<channelId>|<ip>`.
- *
- * sessionId is *not* part of the key. It's caller-controlled — a hostile
- * embed can rotate session IDs ad infinitum, so including it lets a flood
- * trivially defeat the per-session bucket. Limiting per (apiKey, channel,
- * ip) means even a session-rotating flood from one source hits the cap.
- *
- * IP comes from `req.ip`, which uses Express's `trust proxy` setting
- * (configured at bootstrap from `MUNIN_TRUST_PROXY`). Trusting raw
- * `x-forwarded-for` was wrong: without a proxy in front, any client can
- * spoof it.
- */
+// Key by (apiKeyId, channelId, ip) — never sessionId, which is
+// caller-controlled and would let a rotating-session flood defeat the bucket.
 @Injectable()
 export class WidgetThrottlerGuard extends ThrottlerGuard {
   protected override getTracker(req: Request): Promise<string> {

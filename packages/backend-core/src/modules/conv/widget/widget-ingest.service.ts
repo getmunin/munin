@@ -923,10 +923,7 @@ export function enforceOriginAllowlist(
 ): void {
   const list = channelConfig.originAllowlist ?? [];
   if (list.length === 0) {
-    // Empty allowlist defaults to allow-all so that fresh channels work in
-    // dev before an operator has configured origins. In production this
-    // becomes deny-all when MUNIN_WIDGET_REQUIRE_ALLOWLIST is set — an
-    // unconfigured channel should not be a free conversation faucet.
+    // Empty = allow-all in dev; deny-all under MUNIN_WIDGET_REQUIRE_ALLOWLIST.
     if (requireWidgetAllowlist()) {
       throw new ForbiddenException('origin_allowlist_required');
     }

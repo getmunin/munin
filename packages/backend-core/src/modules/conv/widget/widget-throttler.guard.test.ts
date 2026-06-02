@@ -89,10 +89,6 @@ describe('WidgetThrottlerGuard.getTracker', () => {
   });
 
   it('uses req.ip and does not parse x-forwarded-for itself', async () => {
-    // req.ip is what Express produces — when trust proxy is unset it's the
-    // socket address; when set it reflects XFF. Either way, the guard does
-    // not parse XFF directly, so spoofing the header from an unproxied
-    // client has no effect on the bucket key.
     const t = await guard.publicGetTracker(
       makeReq({ ip: '10.0.0.1', apiKeyId: 'ak_1', body: { channelId: 'chan_a' } }),
     );

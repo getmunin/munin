@@ -110,9 +110,6 @@ async function ensureSingletonOrgMembershipFor(
   user: { id: string; email: string; name?: string | null },
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    // org_members is RLS-managed and we have no tenancy context yet — must
-    // bypass before reading or inserting. Inlined inside the tx so both the
-    // existence check and the singleton-org creation use the same bypass.
     await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
 
     const existing = await tx

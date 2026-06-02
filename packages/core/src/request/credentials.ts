@@ -6,14 +6,6 @@ import { ActorIdentity, type ActorType, type Audience } from './context.ts';
 import { hashSecret } from '../crypto/primitives.ts';
 import { looksLikeJwt, resolveOauthJwtAccessToken } from './oauth-jwt.ts';
 
-/**
- * Read the user's membership rows by user_id with RLS bypassed. Credential
- * resolution runs *before* the TenancyInterceptor sets `app.org_id`, so a
- * direct query under RLS would always return zero rows. The query filters
- * by user_id, which is sufficient narrowing — RLS is the policy backstop
- * for org-scoped controllers that might forget the WHERE clause, not for
- * this code path which is structurally cross-org.
- */
 async function readMembershipsForUser(
   db: Db,
   userId: string,

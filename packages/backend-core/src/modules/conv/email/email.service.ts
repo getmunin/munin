@@ -12,6 +12,7 @@ import {
   encryptSecretSql,
   getCurrentContext,
   setEncryptionKeySql,
+  SsrfBlockedError,
 } from '@getmunin/core';
 import { z } from 'zod';
 import {
@@ -100,10 +101,10 @@ export type StoredEmailChannelConfig = z.infer<typeof StoredEmailChannelConfigSc
 export class EmailService {
   async toStored(input: EmailChannelConfigInputT): Promise<StoredEmailChannelConfig> {
     if (input.outbound.provider === 'smtp') {
-      await assertPublicHost(input.outbound.host);
+      await assertReachableMailHost('SMTP', input.outbound.host);
     }
     if (input.inbound) {
-      await assertPublicHost(input.inbound.host);
+      await assertReachableMailHost('IMAP', input.inbound.host);
     }
     const out: StoredEmailChannelConfig = {
       addressing: { ...input.addressing },
@@ -443,4 +444,13 @@ async function decryptString(tx: Db | Tx, ciphertext: string): Promise<string> {
   const pt = rows[0]?.pt;
   if (pt === undefined || pt === null) throw new ConflictException('decryption_failed');
   return pt;
+}
+
+async function assertReachableMailHost(role: 'SMTP' | 'IMAP', host: string): Promise<void> {
+  try {
+    await assertPublicHost(host);
+  } catch (err) {
+    if (!(err instanceof SsrfBlockedError)) throw err;
+    throw new BadRequestException(`${role}: ${err.message}`);
+  }
 }

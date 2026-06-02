@@ -382,11 +382,11 @@ describe('ui: agent typing', () => {
 });
 
 describe('ui: composer', () => {
-  let onSend: ReturnType<typeof vi.fn>;
-  let onTypingIntent: ReturnType<typeof vi.fn>;
+  let onSend: ReturnType<typeof vi.fn<(text: string) => void>>;
+  let onTypingIntent: ReturnType<typeof vi.fn<(intent: 'typing' | 'stopped') => void>>;
   beforeEach(() => {
-    onSend = vi.fn();
-    onTypingIntent = vi.fn();
+    onSend = vi.fn<(text: string) => void>();
+    onTypingIntent = vi.fn<(intent: 'typing' | 'stopped') => void>();
     controller = mount(baseConfig, strings, { onSend, onTypingIntent });
     ($('.launcher')).click();
     controller.setView('chat');

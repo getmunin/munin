@@ -210,25 +210,35 @@ function makeBlockingAgent(): Agent {
         lookupOpts: LookupOptions,
         cb: (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family: number) => void,
       ) => {
+        const wantAll = lookupOpts.all === true;
         const rejectSsrf = (msg: string): void => {
           const e = new Error(msg) as NodeJS.ErrnoException;
           e.code = 'ESSRF_BLOCKED';
-          cb(e, '', 0);
+          cb(e, wantAll ? [] : '', 0);
         };
         const hostOk = isIp(hostname) ? !isPrivateIp(hostname) : !isBannedHostname(hostname);
         if (!hostOk && !envBool('MUNIN_SSRF_ALLOW_PRIVATE')) {
           rejectSsrf(`host ${hostname} is not allowed`);
           return;
         }
-        dnsLookupCallback(hostname, { ...lookupOpts, all: false }, (err, address, family) => {
-          if (err) return cb(err, '', 0);
-          if (typeof address !== 'string' || !address) {
-            return cb(new Error('no address resolved'), '', 0);
+        dnsLookupCallback(hostname, { ...lookupOpts, all: true }, (err, records) => {
+          if (err) return cb(err, wantAll ? [] : '', 0);
+          if (!Array.isArray(records) || records.length === 0) {
+            return cb(new Error('no address resolved'), wantAll ? [] : '', 0);
           }
-          if (!envBool('MUNIN_SSRF_ALLOW_PRIVATE') && isPrivateIp(address)) {
-            return rejectSsrf(`host ${hostname} resolved to private ip ${address}`);
+          if (!envBool('MUNIN_SSRF_ALLOW_PRIVATE')) {
+            for (const r of records) {
+              if (isPrivateIp(r.address)) {
+                return rejectSsrf(`host ${hostname} resolved to private ip ${r.address}`);
+              }
+            }
           }
-          cb(null, address, family ?? (isIp(address) === 6 ? 6 : 4));
+          if (wantAll) {
+            cb(null, records, 0);
+          } else {
+            const first = records[0]!;
+            cb(null, first.address, first.family);
+          }
         });
       },
     },

@@ -3,6 +3,12 @@ export function safeRedirect(raw: string | null, fallback = '/dashboard'): strin
   return fallback;
 }
 
+export function absoluteCallbackUrl(path: string): string {
+  if (typeof window === 'undefined') return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  return new URL(path, window.location.origin).toString();
+}
+
 export function resumeOauthAuthorizeUrl(params: URLSearchParams): string | null {
   if (params.get('response_type') !== 'code') return null;
   if (!params.get('client_id')) return null;

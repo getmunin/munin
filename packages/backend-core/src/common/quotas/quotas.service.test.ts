@@ -25,7 +25,6 @@ const skipReason = TEST_URL
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
     appDb = createDb(appUrl);
 
-    const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
       .values({
@@ -101,7 +100,6 @@ const skipReason = TEST_URL
   });
 
   it('falls back to free-tier defaults when settings.quotas is absent', async () => {
-    const ts = Date.now();
     const [defaultOrg] = await db
       .insert(schema.orgs)
       .values({ name: 'Default Org' })

@@ -4,13 +4,12 @@ import { useTranslations, useLocale } from 'next-intl';
 import { Hero } from '@getmunin/ui';
 
 interface DashboardHeroProps {
-  orgName: string | null;
   date: Date;
   liveCount: number;
   queueCount: number;
 }
 
-export function DashboardHero({ orgName, date, liveCount, queueCount }: DashboardHeroProps) {
+export function DashboardHero({ date, liveCount, queueCount }: DashboardHeroProps) {
   const t = useTranslations('dashboard.overview');
   const locale = useLocale();
   const dateLabel = new Intl.DateTimeFormat(locale, {

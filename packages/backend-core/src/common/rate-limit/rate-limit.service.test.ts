@@ -23,7 +23,6 @@ const skipReason = TEST_URL
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
     appDb = createDb(appUrl);
 
-    const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
       .values({
@@ -79,7 +78,6 @@ const skipReason = TEST_URL
   });
 
   it('uses free-tier defaults when org settings have no rateLimits', async () => {
-    const ts = Date.now();
     const [defaultOrg] = await db
       .insert(schema.orgs)
       .values({ name: 'Default Org' })
@@ -111,7 +109,6 @@ const skipReason = TEST_URL
   });
 
   it('different orgs have isolated counters', async () => {
-    const ts = Date.now();
     const [otherOrg] = await db
       .insert(schema.orgs)
       .values({

@@ -23,7 +23,7 @@ export interface AssetStorage {
 
   publicUrlFor(key: string): string;
 
-  writeDirect?(key: string, body: Buffer): Promise<void>;
+  writeDirect?(key: string, body: Buffer, opts?: { mime?: string }): Promise<void>;
 
   statBytes(key: string): Promise<number | null>;
 }
@@ -80,7 +80,7 @@ export class LocalFsStorage implements AssetStorage {
     return `${this.publicBaseUrl}/${sanitizeKey(key)}`;
   }
 
-  async writeDirect(key: string, body: Buffer): Promise<void> {
+  async writeDirect(key: string, body: Buffer, _opts?: { mime?: string }): Promise<void> {
     const safeKey = sanitizeKey(key);
     const fullPath = join(this.rootDir, safeKey);
     if (!fullPath.startsWith(this.rootDir)) {
@@ -190,6 +190,75 @@ export class S3CompatibleStorage implements AssetStorage {
     if (!lenHeader) return null;
     const n = Number(lenHeader);
     return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  async writeDirect(key: string, body: Buffer, opts?: { mime?: string }): Promise<void> {
+    const safeKey = sanitizeKey(key);
+    const mime = opts?.mime ?? 'application/octet-stream';
+    const { url, headers } = this.signPutHeaders(safeKey, body, mime);
+    const res = await fetch(url, { method: 'PUT', headers, body });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`s3 put failed: ${res.status} ${detail}`);
+    }
+  }
+
+  private signPutHeaders(
+    key: string,
+    body: Buffer,
+    contentType: string,
+  ): { url: string; headers: Record<string, string> } {
+    const now = new Date();
+    const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+    const dateStamp = amzDate.slice(0, 8);
+    const credentialScope = `${dateStamp}/${this.region}/s3/aws4_request`;
+    const url = new URL(`${this.endpoint}/${this.bucket}/${key}`);
+    const host = url.host;
+    const payloadHash = sha256Hex(body);
+    const contentLength = String(body.length);
+
+    const headersForSigning: Record<string, string> = {
+      'content-length': contentLength,
+      'content-type': contentType,
+      host,
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDate,
+    };
+    const signedHeaderNames = Object.keys(headersForSigning).sort();
+    const signedHeadersList = signedHeaderNames.join(';');
+    const canonicalHeaders =
+      signedHeaderNames.map((h) => `${h}:${headersForSigning[h]}`).join('\n') + '\n';
+
+    const canonicalRequest = [
+      'PUT',
+      url.pathname,
+      '',
+      canonicalHeaders,
+      signedHeadersList,
+      payloadHash,
+    ].join('\n');
+
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      credentialScope,
+      sha256Hex(canonicalRequest),
+    ].join('\n');
+
+    const signingKey = deriveSigningKey(this.secretKey, dateStamp, this.region, 's3');
+    const signature = hmacHex(signingKey, stringToSign);
+    const authorization = `AWS4-HMAC-SHA256 Credential=${this.accessKey}/${credentialScope}, SignedHeaders=${signedHeadersList}, Signature=${signature}`;
+
+    return {
+      url: `${url.origin}${url.pathname}`,
+      headers: {
+        Authorization: authorization,
+        'Content-Length': contentLength,
+        'Content-Type': contentType,
+        'x-amz-content-sha256': payloadHash,
+        'x-amz-date': amzDate,
+      },
+    };
   }
 
   private signPostPolicy(

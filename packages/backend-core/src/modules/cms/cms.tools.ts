@@ -109,6 +109,14 @@ const RequestUploadInput = z.object({
 const CompleteUploadInput = z.object({ id: z.string() });
 const DeleteAssetInput = z.object({ id: z.string() });
 
+const UploadAssetBytesInput = z.object({
+  name: z.string().min(1).max(255),
+  mime: z.string().min(1).max(120),
+  base64Body: z.string().min(1).max(2_800_000),
+  altText: z.string().max(500).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
 const CreateLocaleInput = z.object({
   code: z.string().min(2).max(16),
   name: z.string().min(1).max(120),
@@ -386,6 +394,21 @@ export class CmsAdminTools {
   })
   requestUpload(args: z.infer<typeof RequestUploadInput>) {
     return this.cms.requestAssetUpload(args);
+  }
+
+  @McpTool({
+    name: 'cms_upload_asset_bytes',
+    title: 'CMS: Upload asset bytes',
+    description:
+      'Upload a small asset (≤2 MB after base64 decode) in one call by passing the file body as base64. Skips the request/complete handshake — the row is created in `uploaded:true` state. For larger files, use cms_request_asset_upload + cms_complete_asset_upload instead. SVG is rejected.',
+    audiences: ['admin'],
+    scopes: ['cms:write'],
+    input: UploadAssetBytesInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  uploadAssetBytes(args: z.infer<typeof UploadAssetBytesInput>) {
+    return this.cms.uploadAssetBytes(args);
   }
 
   @McpTool({

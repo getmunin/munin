@@ -253,4 +253,61 @@ describe('S3CompatibleStorage SigV4', () => {
       spy.mockRestore();
     }
   });
+
+  it('writeDirect sends a SigV4-signed PUT with hashed payload', async () => {
+    const s3 = new S3CompatibleStorage({
+      bucket: 'test-bucket',
+      region: 'fr-par',
+      endpoint: 'https://s3.fr-par.scw.cloud',
+      accessKey: 'AKIA-test',
+      secretKey: 'shhh',
+    });
+    const body = Buffer.from('hello-binary-bytes');
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    try {
+      await s3.writeDirect('images/a.png', body, { mime: 'image/png' });
+      expect(spy).toHaveBeenCalledOnce();
+      const [calledUrlArg, calledInit] = spy.mock.calls[0]!;
+      const href =
+        typeof calledUrlArg === 'string'
+          ? calledUrlArg
+          : calledUrlArg instanceof URL
+            ? calledUrlArg.href
+            : String((calledUrlArg as { url: string }).url);
+      expect(href).toBe('https://s3.fr-par.scw.cloud/test-bucket/images/a.png');
+      expect(calledInit?.method).toBe('PUT');
+      expect(calledInit?.body).toBe(body);
+      const headers = calledInit?.headers as Record<string, string>;
+      expect(headers['Content-Type']).toBe('image/png');
+      expect(headers['Content-Length']).toBe(String(body.length));
+      const expectedHash = createHash('sha256').update(body).digest('hex');
+      expect(headers['x-amz-content-sha256']).toBe(expectedHash);
+      expect(headers['x-amz-date']).toMatch(/^\d{8}T\d{6}Z$/);
+      expect(headers['Authorization']).toMatch(
+        /^AWS4-HMAC-SHA256 Credential=AKIA-test\/\d{8}\/fr-par\/s3\/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-content-sha256;x-amz-date, Signature=[a-f0-9]{64}$/,
+      );
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('writeDirect throws on non-2xx response', async () => {
+    const s3 = new S3CompatibleStorage({
+      bucket: 'b',
+      region: 'r',
+      endpoint: 'https://s3.example.com',
+      accessKey: 'a',
+      secretKey: 's',
+    });
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('AccessDenied', { status: 403 }));
+    try {
+      await expect(s3.writeDirect('x', Buffer.from('y'))).rejects.toThrow(/s3 put failed: 403/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

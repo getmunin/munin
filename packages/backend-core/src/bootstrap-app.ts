@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication, NestApplicationOptions, Type } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { LocalFsStorage, type AssetStorage } from '@getmunin/core';
 import { createReadStream, existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
@@ -8,6 +9,8 @@ import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { STORAGE } from './common/storage/storage.token.ts';
+
+const JSON_BODY_LIMIT = '4mb';
 
 const DEFAULT_DEV_WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
@@ -80,7 +83,12 @@ export async function createApp(
   opts: CreateAppOptions = {},
 ): Promise<INestApplication> {
   const { widgetAssetDir, iconAssetDir, ...nestOpts } = opts;
-  const app = await NestFactory.create(appModule, { rawBody: true, ...nestOpts });
+  const app = await NestFactory.create<NestExpressApplication>(appModule, {
+    rawBody: true,
+    ...nestOpts,
+  });
+  app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
+  app.useBodyParser('urlencoded', { extended: true, limit: JSON_BODY_LIMIT });
   const trustProxy = readTrustProxySetting();
   if (trustProxy !== null) {
     (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set(

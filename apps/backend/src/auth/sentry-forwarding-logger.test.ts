@@ -7,8 +7,6 @@ type CaptureCall = [unknown, CaptureHint?];
 describe('sentryForwardingLogger', () => {
   let calls: CaptureCall[];
   let capture: (err: unknown, hint?: CaptureHint) => unknown;
-  let consoleError: ReturnType<typeof vi.spyOn>;
-  let consoleLog: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     calls = [];
@@ -16,13 +14,12 @@ describe('sentryForwardingLogger', () => {
       calls.push([err, hint]);
       return undefined;
     };
-    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    consoleError.mockRestore();
-    consoleLog.mockRestore();
+    vi.restoreAllMocks();
   });
 
   it('forwards Errors from error-level logs to captureException', () => {

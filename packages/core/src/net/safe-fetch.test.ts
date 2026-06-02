@@ -146,6 +146,19 @@ describe('safeFetch', () => {
     }
   });
 
+  it('returns the array shape undici expects when lookup is called with all:true', async () => {
+    await start();
+    process.env.MUNIN_SSRF_ALLOW_PRIVATE = 'true';
+    try {
+      const res = await safeFetch(`http://127.0.0.1.nip.io:${port}/`);
+      expect(res.status).toBe(200);
+      await res.body?.cancel().catch(() => {});
+    } finally {
+      delete process.env.MUNIN_SSRF_ALLOW_PRIVATE;
+      await stop();
+    }
+  });
+
   it('blocks rebinding: upfront resolver lies "public" but real DNS returns private', async () => {
     await start();
     const lyingResolver = () => Promise.resolve([{ address: '93.184.216.34', family: 4 }]);

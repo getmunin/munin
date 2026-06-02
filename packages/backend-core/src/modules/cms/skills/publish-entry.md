@@ -32,14 +32,14 @@ If you're picking from the queue: `cms_list_entries` with `{ "status": "draft", 
   "arguments": {
     "id": "<entryId>",
     "ifVersion": 7,
-    "data": { /* the full updated payload */ },
+    "data": { /* just the keys you want to change; omitted keys are preserved. Send `key: null` to clear. */ },
     "slug": "optional-new-slug",
     "locale": "optional-new-locale"
   }
 }
 ```
 
-Update increments `version` to 8 and re-validates against the collection schema, regenerates the search-text + embedding, and rewires inbound references. **You now have version 8** — use it for the next write.
+Update merges the patch into the existing payload, then increments `version` to 8 and re-validates the merged result against the collection schema, regenerates the search-text + embedding, and rewires inbound references. **You now have version 8** — use it for the next write.
 
 If you get a `cms_version_conflict` error, re-read with `cms_get_entry` and retry. Don't blindly bump the number.
 

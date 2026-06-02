@@ -704,7 +704,20 @@ export class WidgetIngestService {
       .from(schema.endUsers)
       .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
       .limit(1);
-    if (existing[0]) return existing[0];
+    if (existing[0]) {
+      const currentLocale = (existing[0].metadata as { locale?: string } | null)?.locale ?? null;
+      if (input.locale && currentLocale !== input.locale) {
+        const [updated] = await tx
+          .update(schema.endUsers)
+          .set({
+            metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || ${JSON.stringify({ locale: input.locale })}::jsonb`,
+          })
+          .where(eq(schema.endUsers.id, existing[0].id))
+          .returning();
+        return updated!;
+      }
+      return existing[0];
+    }
     const baseMetadata: Record<string, unknown> =
       identity.mode === 'verified'
         ? {}

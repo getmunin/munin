@@ -270,6 +270,37 @@ const skipReason = TEST_URL
     expect((rows[0]!.metadata as { locale?: string }).locale).toBe('nb');
   });
 
+  it('updates end_users.metadata.locale on subsequent ingest when locale changes', async () => {
+    const sessionId = 'vis_locale_update';
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      locale: 'en',
+      messages: [{ role: 'end_user', body: 'Hi', providerMessageId: 'upd_1' }],
+    });
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      locale: 'nb',
+      messages: [{ role: 'end_user', body: 'Hei', providerMessageId: 'upd_2' }],
+    });
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(
+        and(
+          eq(schema.endUsers.orgId, orgId),
+          eq(schema.endUsers.externalId, `anon:${sessionId}`),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+    const meta = rows[0]!.metadata as { locale?: string; sessionId?: string };
+    expect(meta.locale).toBe('nb');
+    expect(meta.sessionId).toBe(sessionId);
+  });
+
   it('omits locale from end_users.metadata when not supplied', async () => {
     const sessionId = 'vis_no_locale';
     const res = await call('POST', '/v1/widget/messages', widgetKey, {

@@ -1,7 +1,6 @@
 ---
 '@getmunin/db': patch
 '@getmunin/core': patch
-'@getmunin/backend': patch
 ---
 
 **Security**: enable RLS on `org_members`.

@@ -51,6 +51,12 @@ class StubStorage implements AssetStorage {
   setObject(key: string, sizeBytes: number): void {
     this.objects.set(key, sizeBytes);
   }
+  readonly directWrites: { key: string; size: number; mime?: string }[] = [];
+  writeDirect(key: string, body: Buffer, opts?: { mime?: string }): Promise<void> {
+    this.directWrites.push({ key, size: body.length, mime: opts?.mime });
+    this.objects.set(key, body.length);
+    return Promise.resolve();
+  }
 }
 
 (skipReason ? describe.skip : describe)('CmsService', () => {
@@ -650,6 +656,70 @@ class StubStorage implements AssetStorage {
       await expect(run(() => svc.deleteAsset({ id: randomUUID() }))).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('uploadAssetBytes writes bytes directly and persists an uploaded row', async () => {
+      const body = Buffer.from('hello-world-binary');
+      const asset = await run(() =>
+        svc.uploadAssetBytes({
+          name: 'pic.png',
+          mime: 'image/png',
+          base64Body: body.toString('base64'),
+        }),
+      );
+      expect(asset.uploaded).toBe(true);
+      expect(asset.sizeBytes).toBe(body.length);
+      const write = storage.directWrites.find((w) => w.key === asset.storageKey);
+      expect(write).toBeTruthy();
+      expect(write!.size).toBe(body.length);
+      expect(write!.mime).toBe('image/png');
+    });
+
+    it('uploadAssetBytes rejects empty body', async () => {
+      await expect(
+        run(() =>
+          svc.uploadAssetBytes({ name: 'pic.png', mime: 'image/png', base64Body: '' }),
+        ),
+      ).rejects.toThrow();
+    });
+
+    it('uploadAssetBytes rejects >2MB decoded body', async () => {
+      const huge = Buffer.alloc(2 * 1024 * 1024 + 1, 1);
+      await expect(
+        run(() =>
+          svc.uploadAssetBytes({
+            name: 'big.bin',
+            mime: 'application/octet-stream',
+            base64Body: huge.toString('base64'),
+          }),
+        ),
+      ).rejects.toThrow(/exceeds 2MB/);
+    });
+
+    it('uploadAssetBytes rejects malformed base64', async () => {
+      await expect(
+        run(() =>
+          svc.uploadAssetBytes({
+            name: 'pic.png',
+            mime: 'image/png',
+            base64Body: 'not!base64@@@',
+          }),
+        ),
+      ).rejects.toThrow(/invalid characters/);
+    });
+
+    it('uploadAssetBytes rejects SVG by extension and by mime', async () => {
+      const body = Buffer.from('<svg/>').toString('base64');
+      await expect(
+        run(() =>
+          svc.uploadAssetBytes({ name: 'logo.svg', mime: 'application/octet-stream', base64Body: body }),
+        ),
+      ).rejects.toThrow(/svg uploads are not allowed/);
+      await expect(
+        run(() =>
+          svc.uploadAssetBytes({ name: 'logo.png', mime: 'image/svg+xml', base64Body: body }),
+        ),
+      ).rejects.toThrow(/svg uploads are not allowed/);
     });
   });
 

@@ -559,16 +559,12 @@ export class CmsService {
     if (input.sizeBytes <= 0 || input.sizeBytes > 50 * 1024 * 1024) {
       throw new CmsInvalidError('sizeBytes must be in (0, 50MB]');
     }
+    const ext = assetExtensionFromName(input.name);
+    rejectSvgAsset(ext, input.mime);
     await this.quotas.assertCanAdd('cms_assets');
 
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const ext = (input.name.split('.').pop() ?? 'bin').toLowerCase().slice(0, 16);
-    if (ext === 'svg' || isSvgMime(input.mime)) {
-      throw new CmsInvalidError(
-        'svg uploads are not allowed: SVG can carry inline scripts that execute in the browser',
-      );
-    }
     const key = `cms/${actor.orgId}/${randomKeySegment()}.${ext}`;
     const presigned = await this.storage.presignedUpload({
       key,
@@ -601,6 +597,46 @@ export class CmsService {
       uploadFields: presigned.uploadFields,
       uploadExpiresAt: presigned.expiresAt.toISOString(),
     };
+  }
+
+  async uploadAssetBytes(input: {
+    name: string;
+    mime: string;
+    base64Body: string;
+    altText?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<AssetDto> {
+    const body = decodeAssetBody(input.base64Body);
+    const ext = assetExtensionFromName(input.name);
+    rejectSvgAsset(ext, input.mime);
+    await this.quotas.assertCanAdd('cms_assets');
+
+    if (!this.storage.writeDirect) {
+      throw new Error('storage backend does not support direct writes');
+    }
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const key = `cms/${actor.orgId}/${randomKeySegment()}.${ext}`;
+    await this.storage.writeDirect(key, body, { mime: input.mime });
+
+    const [row] = await ctx.db
+      .insert(schema.cmsAssets)
+      .values({
+        orgId: actor.orgId,
+        name: input.name,
+        mime: input.mime,
+        sizeBytes: body.length,
+        storageProvider: this.storage.provider,
+        storageKey: key,
+        publicUrl: this.storage.publicUrlFor(key),
+        altText: input.altText ?? null,
+        metadata: input.metadata ?? {},
+        uploaded: true,
+        createdByType: actor.type === 'user' ? 'user' : 'agent',
+        createdById: actor.id,
+      })
+      .returning();
+    return toAssetDto(row!);
   }
 
   async completeAssetUpload(input: { id: string }): Promise<AssetDto> {
@@ -1026,4 +1062,39 @@ function randomKeySegment(): string {
 function isSvgMime(mime: string): boolean {
   const normalized = mime.trim().toLowerCase().split(';')[0]!.trim();
   return normalized === 'image/svg+xml' || normalized === 'image/svg';
+}
+
+const UPLOAD_BYTES_MAX = 2 * 1024 * 1024;
+
+function decodeAssetBody(base64Body: string): Buffer {
+  let body: Buffer;
+  try {
+    body = Buffer.from(base64Body, 'base64');
+  } catch {
+    throw new CmsInvalidError('base64Body is not valid base64');
+  }
+  if (body.length === 0) {
+    throw new CmsInvalidError('base64Body decoded to 0 bytes');
+  }
+  if (body.length > UPLOAD_BYTES_MAX) {
+    throw new CmsInvalidError(
+      'base64Body decoded size exceeds 2MB; use cms_request_asset_upload + cms_complete_asset_upload for larger files',
+    );
+  }
+  if (body.toString('base64').replace(/=+$/, '') !== base64Body.replace(/=+$/, '')) {
+    throw new CmsInvalidError('base64Body contains invalid characters');
+  }
+  return body;
+}
+
+function assetExtensionFromName(name: string): string {
+  return (name.split('.').pop() ?? 'bin').toLowerCase().slice(0, 16);
+}
+
+function rejectSvgAsset(ext: string, mime: string): void {
+  if (ext === 'svg' || isSvgMime(mime)) {
+    throw new CmsInvalidError(
+      'svg uploads are not allowed: SVG can carry inline scripts that execute in the browser',
+    );
+  }
 }

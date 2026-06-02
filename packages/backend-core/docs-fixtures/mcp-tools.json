@@ -459,7 +459,7 @@
   {
     "name": "cms_update_entry",
     "title": "CMS: Update entry",
-    "description": "Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. Updating `data` re-validates against the collection schema, regenerates search_text + embedding, and rewrites references.",
+    "description": "Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. `data` is a partial patch — keys you send replace the corresponding keys on the existing entry; keys you omit are preserved. Pass an explicit `null` to clear a single key. The merged payload is then re-validated against the collection schema, and search_text + embedding + references are regenerated.",
     "audiences": [
       "admin"
     ],
@@ -773,6 +773,57 @@
         "name",
         "mime",
         "sizeBytes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_upload_asset_bytes",
+    "title": "CMS: Upload asset bytes",
+    "description": "Upload a small asset (≤2 MB after base64 decode) in one call by passing the file body as base64. Skips the request/complete handshake — the row is created in `uploaded:true` state. For larger files, use cms_request_asset_upload + cms_complete_asset_upload instead. SVG is rejected.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "mime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "base64Body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2800000
+        },
+        "altText": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "name",
+        "mime",
+        "base64Body"
       ],
       "additionalProperties": false
     }
@@ -2423,7 +2474,7 @@
   {
     "name": "crm_update_contact",
     "title": "CRM: Update contact",
-    "description": "Update fields on a contact. Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
+    "description": "Update fields on a contact. Only keys present in `patch` are touched; omitted keys are preserved. `customFields` is a partial patch — keys you send replace the corresponding keys; keys you omit are preserved (send `key: null` to clear a single custom field). Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
     "audiences": [
       "admin"
     ],
@@ -3952,7 +4003,7 @@
   {
     "name": "kb_delete_document",
     "title": "KB: Delete document",
-    "description": "Delete a knowledge-base document. Pass `ifVersion` for optimistic concurrency. Cascades to chunks and versions.",
+    "description": "Delete a knowledge-base document. Pass `ifVersion` for optimistic concurrency. Cascades to chunks and versions. System-managed docs (e.g. the seeded `agent-runtime` prompts) cannot be deleted — edit their content with `kb_update_document` instead.",
     "audiences": [
       "admin"
     ],

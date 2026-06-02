@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
-import { useActiveMembership } from '../auth/use-active-role';
 import { useRealtime } from '../realtime';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { GetStarted } from '../components/dashboard/get-started';
@@ -20,9 +19,7 @@ import {
 export function DashboardPage() {
   const inbox = useInboxData();
   const [summary, setSummary] = useState<UsageSummary | null>(null);
-  const { membership } = useActiveMembership();
   const buildLoadFailedProps = useInboxLoadFailedProps();
-  const orgName = membership?.name ?? null;
 
   const loadSummary = useCallback(() => {
     void api<UsageSummary>('/v1/usage/summary')
@@ -59,7 +56,6 @@ export function DashboardPage() {
     <>
       <div className="px-4 md:px-10 pt-11 pb-6 max-w-7xl mx-auto space-y-9">
         <DashboardHero
-        orgName={orgName}
         date={new Date()}
         liveCount={inbox.items.length}
         queueCount={inbox.queue.length}

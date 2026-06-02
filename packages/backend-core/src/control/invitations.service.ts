@@ -112,7 +112,6 @@ export class InvitationsService {
 
   async listPending(): Promise<InvitationDto[]> {
     const ctx = getCurrentContext();
-    const actor = ctx.actor!;
     const rows = await ctx.db
       .select()
       .from(schema.orgInvitations)

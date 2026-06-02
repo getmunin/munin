@@ -213,8 +213,5 @@ export function deriveAudiencesFromScopes(scopes: string[]): Audience[] {
     if (scope === 'mcp:admin') set.add('admin');
     if (scope === 'mcp:self_service') set.add('self_service');
   }
-  if (set.size === 0) {
-    if (scopes.length > 0) set.add('admin');
-  }
   return Array.from(set);
 }

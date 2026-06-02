@@ -134,7 +134,12 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('invalid or expired credential');
     }
 
-    if (isMcpRequest(request) && credential.audience) {
+    if (credential.audience) {
+      if (!isMcpRequest(request)) {
+        throw new UnauthorizedException(
+          'token was issued for the MCP resource and cannot be used on this endpoint',
+        );
+      }
       if (credential.audience !== mcpResourceUrl()) {
         maybeSetMcpResourceMetadataHeader(context, request);
         throw new UnauthorizedException('token audience does not match the requested resource');

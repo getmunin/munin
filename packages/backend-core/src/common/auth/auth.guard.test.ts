@@ -1,6 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResolvedCredential } from '@getmunin/core';
 import { AuthGuard, type AuthenticatedRequest } from './auth.guard.ts';
 
@@ -67,5 +67,64 @@ describe('AuthGuard cookie fallback', () => {
     });
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(resolveSessionToken).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthGuard audience binding', () => {
+  let originalMcp: string | undefined;
+
+  beforeEach(() => {
+    originalMcp = process.env.NEXT_PUBLIC_MCP_URL;
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://api.example.com/mcp';
+  });
+  afterEach(() => {
+    if (originalMcp === undefined) delete process.env.NEXT_PUBLIC_MCP_URL;
+    else process.env.NEXT_PUBLIC_MCP_URL = originalMcp;
+  });
+
+  function mcpCred(audience = 'https://api.example.com/mcp'): ResolvedCredential {
+    return {
+      actor: {
+        type: 'user',
+        scopes: ['mcp:admin'],
+        audiences: ['admin'],
+      } as never,
+      audience,
+    };
+  }
+
+  it('rejects an MCP-audience bearer when presented to /v1/*', async () => {
+    const resolveBearerToken = vi.fn().mockResolvedValue(mcpCred());
+    const guard = makeGuard({ resolveBearerToken });
+    const ctx = makeContext({
+      headers: { authorization: 'Bearer some-oauth-token' },
+      url: '/v1/conversations',
+      path: '/v1/conversations',
+    });
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('accepts an MCP-audience bearer on /mcp when audience matches exactly', async () => {
+    const resolveBearerToken = vi.fn().mockResolvedValue(mcpCred());
+    const guard = makeGuard({ resolveBearerToken });
+    const ctx = makeContext({
+      headers: { authorization: 'Bearer some-oauth-token' },
+      url: '/mcp',
+      path: '/mcp',
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+
+  it('rejects an MCP-audience bearer on /mcp when audience does not match', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(mcpCred('https://wrong.example.com/mcp'));
+    const guard = makeGuard({ resolveBearerToken });
+    const ctx = makeContext({
+      headers: { authorization: 'Bearer some-oauth-token' },
+      url: '/mcp',
+      path: '/mcp',
+    });
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });

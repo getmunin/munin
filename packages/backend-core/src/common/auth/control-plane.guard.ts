@@ -18,7 +18,15 @@ export class ControlPlaneGuard implements CanActivate {
       throw new UnauthorizedException('unauthenticated');
     }
     const actor = credential.actor;
-    if (actor.type === 'system' || actor.type === 'user') {
+    if (actor.type === 'system') {
+      return true;
+    }
+    if (actor.type === 'user') {
+      if (credential.audience) {
+        throw new ForbiddenException(
+          'OAuth bearer tokens cannot access control-plane routes; use a session cookie or an admin API key',
+        );
+      }
       return true;
     }
     if (actor.type === 'admin_agent') {

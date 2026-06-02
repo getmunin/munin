@@ -16,6 +16,9 @@ permissions:
   packages: write
   id-token: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: lint · typecheck · test · build · release
@@ -75,7 +78,28 @@ jobs:
         run: pnpm typecheck
 
       - name: Test
-        run: pnpm test
+        run: |
+          set -e
+          pkgs=$(node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const out = [];
+            for (const dir of ['packages', 'apps']) {
+              if (!fs.existsSync(dir)) continue;
+              for (const sub of fs.readdirSync(dir)) {
+                const pj = path.join(dir, sub, 'package.json');
+                if (!fs.existsSync(pj)) continue;
+                const m = JSON.parse(fs.readFileSync(pj, 'utf8'));
+                if (m.scripts && m.scripts.test) out.push(m.name);
+              }
+            }
+            console.log(out.join(' '));
+          ")
+          for pkg in $pkgs; do
+            echo "::group::Test $pkg"
+            pnpm --filter "$pkg" test
+            echo "::endgroup::"
+          done
 
       - name: Build
         run: pnpm build

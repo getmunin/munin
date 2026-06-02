@@ -22,10 +22,6 @@ export class ControlPlaneGuard implements CanActivate {
       return true;
     }
     if (actor.type === 'user') {
-      // OAuth-derived credentials carry an `audience` field naming the MCP
-      // resource they were issued for. The control plane is the dashboard's
-      // session-cookie surface — MCP bearer tokens (even with broad scopes)
-      // must not pass. Session-cookie credentials never set `audience`.
       if (credential.audience) {
         throw new ForbiddenException(
           'OAuth bearer tokens cannot access control-plane routes; use a session cookie or an admin API key',

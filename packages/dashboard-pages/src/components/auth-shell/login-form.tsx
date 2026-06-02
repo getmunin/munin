@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { authClient } from '../../auth-client';
 import { Link, useRouter } from '../../i18n-navigation';
 import { useTranslateError } from '../../i18n/translate-error';
-import { safeRedirect, resumeOauthAuthorizeUrl } from '../../auth/post-signin-redirect';
+import { absoluteCallbackUrl, safeRedirect, resumeOauthAuthorizeUrl } from '../../auth/post-signin-redirect';
 import {
   AuthShell,
   AuthHeading,
@@ -100,7 +100,7 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
               onClick={() => {
                 void authClient.signIn.social({
                   provider: 'google',
-                  callbackURL: redirectTo,
+                  callbackURL: absoluteCallbackUrl(redirectTo),
                 });
               }}
             >
@@ -114,7 +114,7 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
               onClick={() => {
                 void authClient.signIn.social({
                   provider: 'github',
-                  callbackURL: redirectTo,
+                  callbackURL: absoluteCallbackUrl(redirectTo),
                 });
               }}
             >

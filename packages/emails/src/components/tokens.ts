@@ -23,4 +23,4 @@ export const sizes = {
 };
 
 export const RAVEN_PNG_URL =
-  process.env.MUNIN_EMAIL_LOGO_URL ?? 'https://getmunin.com/email-assets/raven-flying.png';
+  process.env.MUNIN_EMAIL_LOGO_URL ?? 'https://www.getmunin.com/email-assets/raven-flying.png';

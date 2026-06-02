@@ -335,6 +335,20 @@ export class CrmService {
     for (const [k, v] of Object.entries(effectivePatch)) {
       if (v !== undefined) updates[k] = v;
     }
+    if (effectivePatch.customFields !== undefined) {
+      const incoming = effectivePatch.customFields as Record<string, unknown>;
+      let existingCustom: Record<string, unknown> = {};
+      if (mode !== 'fill-null') {
+        const [row] = await ctx.db
+          .select({ customFields: schema.crmContacts.customFields })
+          .from(schema.crmContacts)
+          .where(eq(schema.crmContacts.id, input.id))
+          .limit(1);
+        if (!row) throw new NotFoundException(`crm_not_found: contact ${input.id}`);
+        existingCustom = (row.customFields ?? {});
+      }
+      updates.customFields = { ...existingCustom, ...incoming };
+    }
     if (effectivePatch.doNotContact === false) {
       updates.unsubscribedAt = null;
     } else if (effectivePatch.doNotContact === true) {

@@ -260,7 +260,7 @@ export class CmsAdminTools {
     name: 'cms_update_entry',
     title: 'CMS: Update entry',
     description:
-      'Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. Updating `data` re-validates against the collection schema, regenerates search_text + embedding, and rewrites references.',
+      'Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. `data` is a partial patch — keys you send replace the corresponding keys on the existing entry; keys you omit are preserved. Pass an explicit `null` to clear a single key. The merged payload is then re-validated against the collection schema, and search_text + embedding + references are regenerated.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: UpdateEntryInput,

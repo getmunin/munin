@@ -399,7 +399,10 @@ export class CmsService {
     }
     const collection = await this.getCollectionById(existing.collectionId);
 
-    const newData = input.data ?? existing.data;
+    const existingData = (existing.data ?? {});
+    const newData = input.data
+      ? { ...existingData, ...input.data }
+      : existingData;
     if (input.data) {
       const errors = validateEntryData(collection.fields, newData);
       if (errors.length > 0) {

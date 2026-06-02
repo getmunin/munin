@@ -170,6 +170,20 @@ const skipReason = TEST_URL
       ).rejects.toThrow(NotFoundException);
     });
 
+    it('updateContact shallow-merges customFields with existing', async () => {
+      const c = await run(() =>
+        svc.createContact({ name: 'A', email: 'a@x', customFields: { region: 'EU', plan: 'pro' } }),
+      );
+      const updated = await run(() =>
+        svc.updateContact({ id: c.id, patch: { customFields: { plan: 'enterprise' } } }),
+      );
+      expect(updated.customFields).toEqual({ region: 'EU', plan: 'enterprise' });
+      const cleared = await run(() =>
+        svc.updateContact({ id: c.id, patch: { customFields: { region: null } } }),
+      );
+      expect(cleared.customFields).toEqual({ region: null, plan: 'enterprise' });
+    });
+
     it('updateContact toggling doNotContact stamps unsubscribedAt', async () => {
       const c = await run(() => svc.createContact({ name: 'A', email: 'a@x' }));
       const subscribed = await run(() =>

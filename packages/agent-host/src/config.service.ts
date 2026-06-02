@@ -55,6 +55,10 @@ export class AgentConfigService {
       }
     }
 
+    const modelChanged =
+      (input.fastModel !== undefined && input.fastModel !== before.fastModel) ||
+      (input.smartModel !== undefined && input.smartModel !== before.smartModel);
+
     const after = await this.repo.update(id, input);
 
     await this.webhooks.emit({
@@ -62,7 +66,7 @@ export class AgentConfigService {
       payload: { configId: id },
     });
 
-    if (credentialsValidated) {
+    if (credentialsValidated || modelChanged) {
       await this.health.recordSuccess(id).catch((err) => {
         this.log.warn(`recordSuccess after save failed for ${id}: ${describe(err)}`);
       });

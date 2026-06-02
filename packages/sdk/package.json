@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/sdk",
-  "version": "4.26.0",
+  "version": "4.27.0",
   "license": "MIT",
   "description": "TypeScript client for the Munin REST API (token minting, end-user lookup, webhooks).",
   "publishConfig": {

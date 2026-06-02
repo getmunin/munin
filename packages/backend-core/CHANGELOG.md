@@ -1,5 +1,100 @@
 # @getmunin/backend-core
 
+## 4.27.0
+
+### Minor Changes
+
+- ee1098c: `cms_update_entry` and `crm_update_contact` now do partial updates on their jsonb payloads. Previously you had to send every field on `cms_update_entry.data` (or every key on `crm_update_contact.patch.customFields`) even if you only wanted to change one — and for CMS the validator then re-ran against the full payload, so omitted required fields blew up the call.
+
+  Both tools now shallow-merge the incoming patch into the existing payload: keys you send replace the corresponding keys, keys you omit are preserved, and `key: null` clears a single key. CMS still re-validates the merged result against the collection schema, regenerates search_text + embedding, and rewires references.
+
+  No behavior change for callers that were already sending the full payload. The "wipe everything" case (set the whole bag to a new object) is rare in practice — if you need it, send the new payload plus explicit `null`s for the keys you want gone.
+
+- 6c585ba: Localize the AI-down greet and handover fallback messages to the visitor's widget locale across all 13 widget-supported locales (en, nb, da, sv, fi, is, de, fr, es, it, pt, nl, pl). Previously a Norwegian visitor whose widget was in `nb` still saw English fallback copy when the LLM provider was unreachable.
+
+  The chat widget now sends its picked locale on every conv-create / message-ingest request. The backend stashes it in `end_users.metadata.locale` (no schema migration — the column was already jsonb). `ConversationDetail.endUserLocale` exposes the value to the agent runtime, which looks up the localized string from a new `fallback-messages` module. Unknown locales and other channels (email, SMS, voice) fall back to English at lookup time.
+
+  Greet copy mirrors the widget's existing `defaultGreeting` tone per locale (e.g. `nb: "Hei. Hva kan vi hjelpe deg med?"`); handover copy is a fresh translation matching each locale's existing widget tone.
+
+### Patch Changes
+
+- 489b65c: **Security**: encrypt social-provider tokens at rest (`accounts.accessToken`,
+  `refreshToken`, `idToken`).
+
+  Audit of finding #5 (sensitive auth material plaintext at rest):
+
+  | Column                                      | Status                                                                                                            |
+  | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+  | `accounts.password`                         | ✅ Already hashed (scrypt) by BetterAuth.                                                                         |
+  | `accounts.accessToken/refreshToken/idToken` | ❌ **Plaintext by default.** Fixed.                                                                               |
+  | `jwks.privateKey`                           | ✅ Encrypted (BetterAuth's jwt plugin wraps with `symmetricEncrypt` unless `disablePrivateKeyEncryption` is set). |
+  | `oauthClient.clientSecret`                  | ✅ Hashed (SHA-256) by `@better-auth/oauth-provider`'s `storeClientSecret` (default `'hashed'`).                  |
+  | `oauthRefreshToken.token`                   | ✅ Hashed (SHA-256) by `storeToken`.                                                                              |
+  | `oauthAccessToken.token`                    | ✅ Hashed (SHA-256). Matches our `credentials.ts` lookup hash.                                                    |
+
+  Only `accounts.*Token` columns were actually plaintext. Set
+  `account.encryptOAuthTokens: true` in the BetterAuth factory — provider tokens
+  are now `symmetricEncrypt`-wrapped with the existing `secret`. Decryption
+  happens transparently on read.
+
+  The remaining columns the auditor flagged were already protected at the
+  application layer despite their `text` shape in the Drizzle schema.
+
+  **Existing rows**: any social-provider tokens already in `accounts` from
+  previous logins remain plaintext until that row is rewritten. BetterAuth's
+  `decryptOAuthToken` helper detects "looks-encrypted" tokens and only attempts
+  decryption when the format matches, so existing plaintext tokens keep working
+  on read. New tokens (refresh on next sign-in) land encrypted.
+
+- 2605e0f: **Security (critical)**: prevent OAuth bearer tokens from acting as control-plane credentials.
+
+  Before this patch, an OAuth access token with any non-empty scope set — even one
+  containing only `openid` — resolved to a `user` actor whose `ControlPlaneGuard`
+  branch (`actor.type === 'user' → return true`) admitted it without checking the
+  token's audience or scopes. Combined with `deriveAudiencesFromScopes` defaulting
+  to the `admin` audience for any scope-bearing token, every issued OAuth token
+  was effectively a full org-admin key for the dashboard's `/v1/*` REST surface
+  (conversations, inbox, activity, curator jobs, CRM, CMS, …).
+
+  Three changes:
+  - `deriveAudiencesFromScopes` no longer falls back to `admin` when no `mcp:*`
+    scope is present. `admin` requires `mcp:admin`, `self_service` requires
+    `mcp:self_service`.
+  - `ControlPlaneGuard` rejects `user` actors whose credential carries an MCP
+    resource `audience` (i.e. was issued via OAuth). Session-cookie users — whose
+    credentials never set `audience` — still pass.
+  - `AuthGuard` enforces audience binding on every route, not just `/mcp`. A
+    bearer minted for the MCP resource cannot be presented to `/v1/*`.
+
+- 524a812: **Security**: harden chat-widget rate limiting and origin enforcement.
+  - **Throttler key**: drop caller-controlled `sessionId` from the tracker key.
+    The widget previously bucketed by `ip|channelId|sessionId`, so an embed
+    that rotated session IDs through the same IP could open unbounded
+    conversations. The key is now `apiKeyId|channelId|ip` — independent of
+    session and indexed by the resolved widget credential.
+  - **Trusted IP**: the guard now reads `req.ip` (which honours Express's
+    `trust proxy` setting) instead of parsing `x-forwarded-for` directly. New
+    `MUNIN_TRUST_PROXY` env (forwarded to `app.set('trust proxy', …)`) lets
+    deployments behind a load balancer / CDN trust their proxy hop and have
+    `req.ip` reflect the real client. Left unset, Express trusts no proxy
+    and `req.ip` is the socket address — so an unproxied app no longer
+    honours a spoofed XFF.
+  - **Origin allowlist (opt-in strict mode)**: `enforceOriginAllowlist` keeps
+    the dev-friendly default (empty allowlist allows any origin) but now
+    rejects when `MUNIN_WIDGET_REQUIRE_ALLOWLIST=1` is set. Production
+    deployments should set it.
+
+- Updated dependencies [97bfdb8]
+- Updated dependencies [2605e0f]
+- Updated dependencies [24905e6]
+- Updated dependencies [6c585ba]
+- Updated dependencies [b46a41c]
+  - @getmunin/core@4.27.0
+  - @getmunin/db@4.27.0
+  - @getmunin/agent-runtime@4.27.0
+  - @getmunin/mcp-toolkit@4.27.0
+  - @getmunin/types@4.27.0
+
 ## 4.26.0
 
 ### Patch Changes

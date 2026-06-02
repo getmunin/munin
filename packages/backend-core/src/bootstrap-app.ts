@@ -31,6 +31,16 @@ function readAllowedHosts(): string[] | null {
   return env.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
 
+export function readTrustProxySetting(): boolean | number | string | null {
+  const raw = process.env.MUNIN_TRUST_PROXY?.trim();
+  if (!raw) return null;
+  if (raw === 'true' || raw === '1') return true;
+  if (raw === 'false' || raw === '0') return null;
+  const n = Number(raw);
+  if (Number.isFinite(n) && Number.isInteger(n) && n >= 0) return n;
+  return raw;
+}
+
 export interface CreateAppOptions extends NestApplicationOptions {
   /**
    * Absolute path to the directory holding the chat-widget's hashed
@@ -71,6 +81,13 @@ export async function createApp(
 ): Promise<INestApplication> {
   const { widgetAssetDir, iconAssetDir, ...nestOpts } = opts;
   const app = await NestFactory.create(appModule, { rawBody: true, ...nestOpts });
+  const trustProxy = readTrustProxySetting();
+  if (trustProxy !== null) {
+    (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set(
+      'trust proxy',
+      trustProxy,
+    );
+  }
   const allowedHosts = readAllowedHosts();
   if (allowedHosts) app.use(hostAllowlistMiddleware(allowedHosts));
   app.use(publicUrlRewriteMiddleware());

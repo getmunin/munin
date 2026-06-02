@@ -361,7 +361,7 @@ const skipReason = TEST_URL
           conversationId: conv.id,
           reason: 'provider unavailable (provider_other)',
           publicFallbackMessage:
-            "Thanks for your message — I'm having trouble responding right now. A teammate will follow up shortly.",
+            "I'm having trouble responding right now. A teammate will follow up shortly.",
         },
       });
     });

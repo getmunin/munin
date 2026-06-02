@@ -3,7 +3,7 @@ import { GuidesSidebar } from '../../_components/guides-sidebar';
 import { CopyPromptButton } from '../../_components/copy-prompt-button';
 
 export const metadata = {
-  title: 'Munin · Win-Back Agent recipe',
+  title: 'Munin · Win-Back recipe',
   description:
     'Agent recipe that finds dormant contacts and drafts a re-engagement note tied to something new in the KB.',
 };
@@ -54,7 +54,7 @@ export default function RecipeWinBack() {
           <header className="docs-hero">
             <div className="eyebrow">Recipe · Weekly</div>
             <h1>
-              <em>Win-Back Agent</em>.
+              <em>Win-Back</em>.
             </h1>
             <p className="lede">
               Re-engages dormant contacts with a reason they will actually care about — not a

@@ -54,8 +54,8 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
     this.dimensions = opts.dimensions ?? DEFAULT_DIMENSIONS;
     this.sendDimensions = opts.dimensions !== undefined;
     this.name = this.sendDimensions
-      ? `openai:${this.model}@${this.dimensions}`
-      : `openai:${this.model}`;
+      ? `${this.model}@${this.dimensions}`
+      : this.model;
   }
 
   async embed(texts: readonly string[]): Promise<number[][]> {
@@ -72,7 +72,10 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
     });
     if (!res.ok) {
       const errBody = await res.text();
-      throw new Error(`openai embeddings failed: ${res.status} ${errBody}`);
+      throw new Error(
+        `embedding provider request failed: ${res.status} ${errBody} ` +
+          `(${this.name} via ${this.baseUrl})`,
+      );
     }
     const json = (await res.json()) as { data: { embedding: number[]; index: number }[] };
     const ordered = [...json.data].sort((a, b) => a.index - b.index).map((d) => d.embedding);

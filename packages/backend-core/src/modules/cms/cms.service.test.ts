@@ -323,6 +323,52 @@ class StubStorage implements AssetStorage {
       ).rejects.toThrow(CmsConflictError);
     });
 
+    it('updateEntry shallow-merges data into the existing entry', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'merge',
+          data: { title: 'Original', body: 'Body stays' },
+        }),
+      );
+      const updated = await run(() =>
+        svc.updateEntry({ id: entry.id, ifVersion: 1, data: { title: 'Patched' } }),
+      );
+      expect(updated.data.title).toBe('Patched');
+      expect(updated.data.body).toBe('Body stays');
+    });
+
+    it('updateEntry passes validation on partial patch that omits required fields', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'partial',
+          data: { title: 'Required is set', body: 'b' },
+        }),
+      );
+      await expect(
+        run(() => svc.updateEntry({ id: entry.id, ifVersion: 1, data: { body: 'b2' } })),
+      ).resolves.toBeTruthy();
+    });
+
+    it('updateEntry clears a single field when patch sends null', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'clear',
+          data: { title: 'Keep', body: 'remove me' },
+        }),
+      );
+      const updated = await run(() =>
+        svc.updateEntry({ id: entry.id, ifVersion: 1, data: { body: null } }),
+      );
+      expect(updated.data.title).toBe('Keep');
+      expect(updated.data.body).toBeNull();
+    });
+
     it('updateEntry with no field change does not invoke embedding rebuild', async () => {
       const col = await seedCollection();
       const entry = await run(() =>

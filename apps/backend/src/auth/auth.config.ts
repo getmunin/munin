@@ -157,9 +157,6 @@ export function readAllowedEmailDomainsFromEnv(): string[] {
     .filter(Boolean);
 }
 
-// BetterAuth's per-path rate limiter, DB-backed (cross-replica) with tighter
-// custom rules on the credential-bruteforce endpoints. Runs alongside the
-// generic Nest ThrottlerGuard on /auth/*.
 export function buildAuthRateLimit(): BetterAuthOptions['rateLimit'] {
   return {
     enabled: true,

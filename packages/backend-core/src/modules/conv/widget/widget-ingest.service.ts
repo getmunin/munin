@@ -922,10 +922,20 @@ export function enforceOriginAllowlist(
   origin: string | undefined,
 ): void {
   const list = channelConfig.originAllowlist ?? [];
-  if (list.length === 0) return;
+  if (list.length === 0) {
+    if (requireWidgetAllowlist()) {
+      throw new ForbiddenException('origin_allowlist_required');
+    }
+    return;
+  }
   if (!origin) throw new ForbiddenException('origin_required');
   const allowed = list.some((entry) => originMatches(entry, origin));
   if (!allowed) throw new ForbiddenException('origin_not_allowed');
+}
+
+function requireWidgetAllowlist(): boolean {
+  const raw = process.env.MUNIN_WIDGET_REQUIRE_ALLOWLIST?.trim().toLowerCase();
+  return raw === '1' || raw === 'true';
 }
 
 export async function loadWidgetChannel(

@@ -80,7 +80,7 @@ describe('OpenAIEmbeddingProvider', () => {
     const spy = installFetchSpy(new Array<number>(1536).fill(0.1));
     const p = new OpenAIEmbeddingProvider({ apiKey: 'sk-test' });
     expect(p.dimensions).toBe(1536);
-    expect(p.name).toBe('openai:text-embedding-3-small');
+    expect(p.name).toBe('text-embedding-3-small');
     await p.embed(['hi']);
     expect(spy.lastCall().body.dimensions).toBeUndefined();
   });
@@ -94,7 +94,7 @@ describe('OpenAIEmbeddingProvider', () => {
       dimensions: 4000,
     });
     expect(p.dimensions).toBe(4000);
-    expect(p.name).toBe('openai:qwen3-embedding-8b@4000');
+    expect(p.name).toBe('qwen3-embedding-8b@4000');
     await p.embed(['hi']);
     expect(spy.lastCall().body).toMatchObject({
       model: 'qwen3-embedding-8b',
@@ -177,7 +177,7 @@ describe('readEmbeddingProviderFromEnv', () => {
     const p = readEmbeddingProviderFromEnv();
     expect(p).toBeInstanceOf(OpenAIEmbeddingProvider);
     expect(p.dimensions).toBe(4000);
-    expect(p.name).toBe('openai:qwen3-embedding-8b@4000');
+    expect(p.name).toBe('qwen3-embedding-8b@4000');
   });
 
   it('keeps the OSS default (no env vars) producing a 1536-dim OpenAI provider', () => {
@@ -185,6 +185,6 @@ describe('readEmbeddingProviderFromEnv', () => {
     const p = readEmbeddingProviderFromEnv();
     expect(p).toBeInstanceOf(OpenAIEmbeddingProvider);
     expect(p.dimensions).toBe(1536);
-    expect(p.name).toBe('openai:text-embedding-3-small');
+    expect(p.name).toBe('text-embedding-3-small');
   });
 });

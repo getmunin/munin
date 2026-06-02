@@ -6,6 +6,7 @@ import { ActorIdentity } from './context.ts';
 import {
   deriveAudiencesFromScopes,
   oauthMcpResourceAudience,
+  readMembershipsForUser,
   type ResolvedCredential,
 } from './credentials.ts';
 
@@ -63,10 +64,7 @@ export async function resolveOauthJwtAccessToken(
   const scopes =
     typeof payload['scope'] === 'string' ? payload['scope'].split(/\s+/).filter(Boolean) : [];
 
-  const memberships = await db
-    .select()
-    .from(schema.orgMembers)
-    .where(eq(schema.orgMembers.userId, userId));
+  const memberships = await readMembershipsForUser(db, userId);
   const active = memberships.find((m) => m.isDefault) ?? memberships[0];
   if (!active) return null;
 

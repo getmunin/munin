@@ -109,15 +109,15 @@ async function ensureSingletonOrgMembershipFor(
   db: Db,
   user: { id: string; email: string; name?: string | null },
 ): Promise<void> {
-  const existing = await db
-    .select({ orgId: schema.orgMembers.orgId })
-    .from(schema.orgMembers)
-    .where(eq(schema.orgMembers.userId, user.id))
-    .limit(1);
-  if (existing[0]) return;
-
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+
+    const existing = await tx
+      .select({ orgId: schema.orgMembers.orgId })
+      .from(schema.orgMembers)
+      .where(eq(schema.orgMembers.userId, user.id))
+      .limit(1);
+    if (existing[0]) return;
 
     let orgRow = (
       await tx

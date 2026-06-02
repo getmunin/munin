@@ -214,9 +214,27 @@ CREATE POLICY tenant_isolation ON feedback_outbox
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
+-- ───────────────────────── org_members ─────────────────────────────────────
+-- Membership rows. Tenant-scoped by `org_id`. Some legitimate code paths read
+-- across orgs:
+--   - credential resolvers pick the user's default org *before* TenancyInterceptor
+--     sets app.org_id, so they have to query by user_id with bypass_rls.
+--   - /v1/me/memberships lists every org the signed-in user belongs to so the
+--     dashboard can render the org switcher; this also runs under bypass_rls.
+--   - signup creates the very first membership row before a tenancy context
+--     exists.
+-- All three paths explicitly opt into bypass_rls and the app-layer queries
+-- filter by user_id. A future "missed filter" inside an org-scoped controller
+-- is what RLS catches.
+ALTER TABLE org_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_members FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON org_members;
+CREATE POLICY tenant_isolation ON org_members
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
 -- ───────────────────────── tables intentionally WITHOUT RLS ────────────────
 -- These are accessed only by the service role / migrations:
 --   users          (BetterAuth-managed; tenant scoping via org_members)
---   org_members    (composite key already enforces tenancy)
 --   system_config  (deployment-wide singleton; no org_id; read through
 --                   InstanceIdService which sets app.bypass_rls explicitly)

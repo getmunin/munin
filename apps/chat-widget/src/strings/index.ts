@@ -53,11 +53,20 @@ export function pickLocale(prefer?: string | null): { locale: string; strings: S
   return { locale: DEFAULT_LOCALE, strings: en };
 }
 
+const LOCALE_ALIASES: Record<string, string> = {
+  no: 'nb',
+  nn: 'nb',
+  nob: 'nb',
+  nor: 'nb',
+  nno: 'nb',
+};
+
 function normalizeTag(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const lower = raw.toLowerCase();
   const short = lower.split('-')[0] ?? lower;
-  return short || null;
+  if (!short) return null;
+  return LOCALE_ALIASES[short] ?? short;
 }
 
 export { format, isPluralValue, type PluralValue, type Strings, type StringValue } from './types.ts';

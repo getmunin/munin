@@ -402,6 +402,7 @@ export class WidgetIngestService {
       userHash: input.userHash,
       visitor: input.visitor,
       url: input.url,
+      locale: input.locale,
       messages: [],
     };
 
@@ -703,7 +704,29 @@ export class WidgetIngestService {
       .from(schema.endUsers)
       .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
       .limit(1);
-    if (existing[0]) return existing[0];
+    if (existing[0]) {
+      const currentLocale = (existing[0].metadata as { locale?: string } | null)?.locale ?? null;
+      if (input.locale && currentLocale !== input.locale) {
+        const [updated] = await tx
+          .update(schema.endUsers)
+          .set({
+            metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || ${JSON.stringify({ locale: input.locale })}::jsonb`,
+          })
+          .where(eq(schema.endUsers.id, existing[0].id))
+          .returning();
+        return updated!;
+      }
+      return existing[0];
+    }
+    const baseMetadata: Record<string, unknown> =
+      identity.mode === 'verified'
+        ? {}
+        : {
+            anonymous: true,
+            sessionId: input.sessionId,
+            ...(input.visitorId ? { visitorId: input.visitorId } : {}),
+          };
+    if (input.locale) baseMetadata.locale = input.locale;
     const [created] = await tx
       .insert(schema.endUsers)
       .values({
@@ -711,14 +734,7 @@ export class WidgetIngestService {
         externalId,
         email: input.visitor?.email?.trim().toLowerCase() ?? null,
         name: input.visitor?.name ?? null,
-        metadata:
-          identity.mode === 'verified'
-            ? {}
-            : {
-                anonymous: true,
-                sessionId: input.sessionId,
-                ...(input.visitorId ? { visitorId: input.visitorId } : {}),
-              },
+        metadata: baseMetadata,
       })
       .returning();
     return created!;

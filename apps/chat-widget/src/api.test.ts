@@ -221,6 +221,45 @@ describe('api: backfillSince', () => {
   });
 });
 
+describe('api: startConversation', () => {
+  it('includes locale in the POST body when provided', async () => {
+    const { fetchImpl, calls } = mockFetch(() => ({
+      status: 201,
+      body: { conversationId: 'cnv_1', displayId: 1, contactId: 'ctc_1' },
+    }));
+    const client = createApiClient({
+      host: 'https://munin.example',
+      widgetKey: 'mn_widget_abc',
+      channelId: 'cnv_chan',
+      sessionId: 'sess_1',
+      locale: 'nb',
+      fetchImpl,
+    });
+    await client.startConversation();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('https://munin.example/v1/widget/conversations');
+    const body = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
+    expect(body.locale).toBe('nb');
+  });
+
+  it('omits locale when not provided', async () => {
+    const { fetchImpl, calls } = mockFetch(() => ({
+      status: 201,
+      body: { conversationId: 'cnv_1', displayId: 1, contactId: 'ctc_1' },
+    }));
+    const client = createApiClient({
+      host: 'https://munin.example',
+      widgetKey: 'mn_widget_abc',
+      channelId: 'cnv_chan',
+      sessionId: 'sess_1',
+      fetchImpl,
+    });
+    await client.startConversation();
+    const body = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('locale');
+  });
+});
+
 describe('api: clients are not polling', () => {
   it('createApiClient never installs a setInterval', async () => {
     const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');

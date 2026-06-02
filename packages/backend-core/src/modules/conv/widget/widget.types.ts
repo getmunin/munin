@@ -45,6 +45,7 @@ export const WidgetIngestInput = z.object({
     .optional(),
   url: z.string().url().optional(),
   providerThreadId: z.string().max(200).optional(),
+  locale: z.string().min(2).max(16).optional(),
   messages: z.array(WidgetIngestMessage).min(1).max(50),
 });
 
@@ -223,6 +224,7 @@ export const WidgetStartConversationInput = z.object({
     })
     .optional(),
   url: z.string().url().optional(),
+  locale: z.string().min(2).max(16).optional(),
 });
 
 export type WidgetStartConversationInputT = z.infer<typeof WidgetStartConversationInput>;

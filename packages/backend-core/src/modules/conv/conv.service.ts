@@ -116,6 +116,7 @@ export interface ConversationDetail extends ConversationSummary {
    * caller controls its own fallback policy.
    */
   assistantName: string | null;
+  endUserLocale: string | null;
 }
 
 @Injectable()
@@ -366,10 +367,12 @@ export class ConvService {
         conv: schema.convConversations,
         channelType: schema.convChannels.type,
         assistantName: schema.assistants.name,
+        endUserLocale: sql<string | null>`(${schema.endUsers.metadata}->>'locale')`.as('end_user_locale'),
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
       .leftJoin(schema.assistants, eq(schema.assistants.orgId, schema.convConversations.orgId))
+      .leftJoin(schema.endUsers, eq(schema.endUsers.id, schema.convConversations.endUserId))
       .where(eq(schema.convConversations.id, id))
       .limit(1);
     const row = conversations[0];
@@ -401,6 +404,7 @@ export class ConvService {
       ...toConversationSummary(row.conv, row.channelType),
       messages: rows.map((r) => toMessageDto(r.msg, authorNames, r.seenAt)),
       assistantName: row.assistantName ?? null,
+      endUserLocale: row.endUserLocale ?? null,
     };
   }
 

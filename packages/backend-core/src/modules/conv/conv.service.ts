@@ -367,7 +367,7 @@ export class ConvService {
         conv: schema.convConversations,
         channelType: schema.convChannels.type,
         assistantName: schema.assistants.name,
-        endUserLocale: sql<string | null>`(${schema.endUsers.metadata}->>'locale')`,
+        endUserLocale: sql<string | null>`(${schema.endUsers.metadata}->>'locale')`.as('end_user_locale'),
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))

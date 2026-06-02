@@ -157,21 +157,9 @@ export function readAllowedEmailDomainsFromEnv(): string[] {
     .filter(Boolean);
 }
 
-/**
- * Per-endpoint rate limits for `/auth/*`. Two complementary defences:
- *
- *   1. `PublicController('auth', { throttle: true })` wraps everything in
- *      Nest's `ThrottlerGuard` — a generic per-IP ceiling (60/min, 1000/hr)
- *      that runs before BetterAuth touches the request.
- *   2. BetterAuth's own rate limiter runs inside the auth handler, keyed
- *      by IP + path and storing counters in the `auth_rate_limit` table so
- *      they survive across replicas. `customRules` ratchets the sensitive
- *      endpoints down further than the default (10 / 60s).
- *
- * All tunable via env without code changes; defaults are intentionally
- * conservative since legitimate users hit each of these once or twice per
- * incident.
- */
+// BetterAuth's per-path rate limiter, DB-backed (cross-replica) with tighter
+// custom rules on the credential-bruteforce endpoints. Runs alongside the
+// generic Nest ThrottlerGuard on /auth/*.
 export function buildAuthRateLimit(): BetterAuthOptions['rateLimit'] {
   return {
     enabled: true,

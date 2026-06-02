@@ -124,6 +124,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         }
       : undefined,
     socialProviders,
+    account: { encryptOAuthTokens: true },
     user: opts.deleteUser
       ? {
           deleteUser: {

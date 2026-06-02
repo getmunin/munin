@@ -923,7 +923,6 @@ export function enforceOriginAllowlist(
 ): void {
   const list = channelConfig.originAllowlist ?? [];
   if (list.length === 0) {
-    // Empty = allow-all in dev; deny-all under MUNIN_WIDGET_REQUIRE_ALLOWLIST.
     if (requireWidgetAllowlist()) {
       throw new ForbiddenException('origin_allowlist_required');
     }

@@ -31,9 +31,6 @@ function readAllowedHosts(): string[] | null {
   return env.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
 
-// Parse MUNIN_TRUST_PROXY for Express's `trust proxy` setting. Returns
-// null when unset (req.ip = socket addr), true/number/string verbatim
-// otherwise. Set this behind any LB/CDN so XFF is honoured.
 export function readTrustProxySetting(): boolean | number | string | null {
   const raw = process.env.MUNIN_TRUST_PROXY?.trim();
   if (!raw) return null;

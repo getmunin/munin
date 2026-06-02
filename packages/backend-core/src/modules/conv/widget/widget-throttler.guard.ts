@@ -3,8 +3,6 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
 import type { ResolvedCredential } from '@getmunin/core';
 
-// Key by (apiKeyId, channelId, ip) — never sessionId, which is
-// caller-controlled and would let a rotating-session flood defeat the bucket.
 @Injectable()
 export class WidgetThrottlerGuard extends ThrottlerGuard {
   protected override getTracker(req: Request): Promise<string> {

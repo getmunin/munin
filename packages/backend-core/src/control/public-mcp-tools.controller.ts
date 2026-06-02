@@ -17,13 +17,6 @@ interface PublicMcpToolDetail extends PublicMcpToolListItem {
   inputSchema: object;
 }
 
-/**
- * Anonymous tool catalog. Only surfaces tools that include the
- * `self_service` audience — admin-only tool schemas would otherwise leak
- * operational surface area (input shapes, scopes, descriptions) to
- * unauthenticated callers. Admin tools remain visible inside MCP for
- * authenticated admin agents via `tools/list`.
- */
 @PublicController('v1/public/mcp-tools', { throttle: true })
 export class PublicMcpToolsController {
   constructor(@Inject(McpRegistryService) private readonly registry: McpRegistryService) {}

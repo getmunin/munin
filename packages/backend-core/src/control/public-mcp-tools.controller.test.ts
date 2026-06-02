@@ -88,8 +88,6 @@ describe('PublicMcpToolsController', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as Array<{ name: string }>;
     const names = body.map((t) => t.name).sort();
-    // kb_search is admin+self_service; conv_reply and crm_delete_person are
-    // admin-only and must not leak into the anonymous tool catalog.
     expect(names).toEqual(['kb_search']);
   });
 

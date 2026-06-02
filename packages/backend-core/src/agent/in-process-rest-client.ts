@@ -106,6 +106,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
           voiceActive: detail.voiceActive,
           outreachCampaignId: detail.outreachCampaignId,
           assistantName: detail.assistantName,
+          endUserLocale: detail.endUserLocale,
           messages: detail.messages.map((m) => ({
             id: m.id,
             authorType: m.authorType,

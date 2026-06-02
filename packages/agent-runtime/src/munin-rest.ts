@@ -15,6 +15,7 @@ export interface ConversationDetail {
   voiceActive?: boolean;
   outreachCampaignId?: string | null;
   assistantName?: string | null;
+  endUserLocale?: string | null;
   messages: Array<{
     id: string;
     authorType: 'user' | 'agent' | 'end_user' | 'system';

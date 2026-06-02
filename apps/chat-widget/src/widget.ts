@@ -53,6 +53,7 @@ function start(config: WidgetConfig): void {
     visitorId,
     identity,
     visitor: config.visitor,
+    locale: pickLocale(config.locale).locale,
   });
   const realtime = createRealtimeClient({
     host: config.host,

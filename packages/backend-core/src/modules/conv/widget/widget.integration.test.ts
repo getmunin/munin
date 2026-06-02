@@ -246,6 +246,53 @@ const skipReason = TEST_URL
     expect((first.metadata).providerMessageId).toBe('evt_1');
   });
 
+  it('persists locale into end_users.metadata on first ingest', async () => {
+    const sessionId = 'vis_locale_nb';
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      locale: 'nb',
+      messages: [{ role: 'end_user', body: 'Hei!', providerMessageId: 'loc_1' }],
+    });
+    expect(res.status).toBe(201);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(
+        and(
+          eq(schema.endUsers.orgId, orgId),
+          eq(schema.endUsers.externalId, `anon:${sessionId}`),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+    expect((rows[0]!.metadata as { locale?: string }).locale).toBe('nb');
+  });
+
+  it('omits locale from end_users.metadata when not supplied', async () => {
+    const sessionId = 'vis_no_locale';
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'Hi!', providerMessageId: 'nol_1' }],
+    });
+    expect(res.status).toBe(201);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(
+        and(
+          eq(schema.endUsers.orgId, orgId),
+          eq(schema.endUsers.externalId, `anon:${sessionId}`),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+    expect((rows[0]!.metadata).locale).toBeUndefined();
+  });
+
   it('is idempotent on providerMessageId', async () => {
     const sessionId = 'vis_idempotent';
     const body = {

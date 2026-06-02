@@ -9,6 +9,7 @@ import type {
 } from './types.ts';
 import type { PromptResolver } from './prompt-resolver.ts';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.ts';
+import { FALLBACK_GREET, FALLBACK_HANDOVER, pickFallback } from './fallback-messages.ts';
 
 export interface HandlerConfig {
   providerBaseUrl: string;
@@ -24,9 +25,6 @@ export interface HandlerConfig {
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 const HANDOVER_TOOL_NAME = 'conv_request_handover_in_my_conversation';
-const RUNTIME_HANDOVER_FALLBACK_MESSAGE =
-  "I'm having trouble responding right now. A teammate will follow up shortly.";
-const RUNTIME_GREET_FALLBACK_MESSAGE = 'Hi, what can we do for you?';
 
 export interface OpenedMcp extends McpToolHandle {
   close(): Promise<void>;
@@ -314,11 +312,12 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const reason = providerErrorCode
       ? `provider unavailable (${providerErrorCode})`
       : `agent retries exhausted (${lastError?.message ?? 'unknown'})`;
+    const fallbackLocale = pickFallback(detail.endUserLocale);
 
     if (mode === 'greet') {
-      log.warn(`${conversationId} greet fallback: ${reason}`);
+      log.warn(`${conversationId} greet fallback (${fallbackLocale}): ${reason}`);
       await deps.rest
-        .postAgentMessage(conversationId, RUNTIME_GREET_FALLBACK_MESSAGE, {
+        .postAgentMessage(conversationId, FALLBACK_GREET[fallbackLocale], {
           sinceMessageId,
         })
         .catch((err) => {
@@ -327,11 +326,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           );
         });
     } else {
-      log.error(`${conversationId} handover: ${reason}`);
+      log.error(`${conversationId} handover (${fallbackLocale}): ${reason}`);
       await deps.rest
         .requestHandover(conversationId, {
           reason,
-          publicFallbackMessage: RUNTIME_HANDOVER_FALLBACK_MESSAGE,
+          publicFallbackMessage: FALLBACK_HANDOVER[fallbackLocale],
         })
         .catch((err) => {
           log.error(

@@ -28,6 +28,7 @@ export interface ApiClientDeps {
   visitorId?: string;
   identity?: ApiIdentity;
   visitor?: WidgetVisitor;
+  locale?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -209,6 +210,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
         payload.userHash = deps.identity.userHash;
       }
       if (deps.visitor) payload.visitor = deps.visitor;
+      if (deps.locale) payload.locale = deps.locale;
       const res = await fetchImpl(conversationsUrl, {
         method: 'POST',
         headers: authHeaders(),

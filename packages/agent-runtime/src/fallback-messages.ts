@@ -19,6 +19,14 @@ export type FallbackLocale = (typeof FALLBACK_LOCALES)[number];
 const SUPPORTED = new Set<string>(FALLBACK_LOCALES);
 const DEFAULT_LOCALE: FallbackLocale = 'en';
 
+const LOCALE_ALIASES: Record<string, FallbackLocale> = {
+  no: 'nb',
+  nn: 'nb',
+  nob: 'nb',
+  nor: 'nb',
+  nno: 'nb',
+};
+
 export const FALLBACK_GREET: Record<FallbackLocale, string> = {
   en: 'Hi there. How can we help?',
   nb: 'Hei. Hva kan vi hjelpe deg med?',
@@ -54,5 +62,8 @@ export const FALLBACK_HANDOVER: Record<FallbackLocale, string> = {
 export function pickFallback(locale: string | null | undefined): FallbackLocale {
   if (!locale) return DEFAULT_LOCALE;
   const short = locale.toLowerCase().split('-')[0] ?? '';
+  if (!short) return DEFAULT_LOCALE;
+  const aliased = LOCALE_ALIASES[short];
+  if (aliased) return aliased;
   return SUPPORTED.has(short) ? (short as FallbackLocale) : DEFAULT_LOCALE;
 }

@@ -23,6 +23,15 @@ describe('pickFallback', () => {
     expect(pickFallback('zh-CN')).toBe('en');
   });
 
+  it('aliases Norwegian variants to nb', () => {
+    expect(pickFallback('no')).toBe('nb');
+    expect(pickFallback('no-NO')).toBe('nb');
+    expect(pickFallback('nn')).toBe('nb');
+    expect(pickFallback('nn-NO')).toBe('nb');
+    expect(pickFallback('nob')).toBe('nb');
+    expect(pickFallback('nor')).toBe('nb');
+  });
+
   it.each([null, undefined, '', 'xx', 'klingon', 'zh'])(
     'falls back to en for %s',
     (input) => {

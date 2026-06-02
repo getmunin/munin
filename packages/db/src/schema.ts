@@ -1023,7 +1023,6 @@ export const convInboundState = pgTable('conv_inbound_state', {
     .references(() => convChannels.id, { onDelete: 'cascade' }),
   cursor: jsonb('cursor').$type<Record<string, unknown>>().notNull().default({}),
   lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
-  lastError: text('last_error'),
   createdAt,
   updatedAt,
 });
@@ -1683,6 +1682,41 @@ export const feedbackOutbox = pgTable(
   }),
 );
 
+// Org-scoped operational alerts. First member of the `system_*` MCP/REST
+// namespace for platform-health surfaces. Lifecycle: open → (ack) → resolved.
+// One open alert per (org, source, subject) is enforced by a partial unique
+// index defined in the migration (uses COALESCE on subject_id so NULL-subject
+// alerts dedupe correctly).
+export const orgAlerts = pgTable(
+  'org_alerts',
+  {
+    id: id('alr'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    source: varchar('source', { length: 32 }).notNull(),
+    subjectId: text('subject_id'),
+    severity: varchar('severity', { length: 16 }).notNull(),
+    title: text('title').notNull(),
+    detail: text('detail'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    ctaHref: text('cta_href'),
+    ctaLabelKey: text('cta_label_key'),
+    openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    occurrenceCount: integer('occurrence_count').notNull().default(1),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    acknowledgedBy: text('acknowledged_by'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgOpenIdx: index('org_alerts_org_resolved_idx').on(t.orgId, t.resolvedAt),
+    orgOpenedIdx: index('org_alerts_org_opened_idx').on(t.orgId, t.openedAt),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   orgs,
@@ -1742,6 +1776,7 @@ export const allTables = {
   curatorJobs,
   systemConfig,
   feedbackOutbox,
+  orgAlerts,
 };
 
 export type AllTables = typeof allTables;

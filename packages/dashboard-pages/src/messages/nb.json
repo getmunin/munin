@@ -63,7 +63,7 @@
     },
     "signUp": {
       "title": "Opprett konto",
-      "subtitle": "Munin — agent-native forretningsapper.",
+      "subtitle": "Kundeplattformen for den agentiske æraen.",
       "invitationSubtitle": "Du aksepterer en invitasjon for {email}.",
       "submit": "Opprett konto",
       "submitting": "Oppretter konto…",
@@ -196,7 +196,13 @@
       "providerErrorRegional": "leverandørens region er ikke aktivert — sjekk leverandørkontoen eller bytt leverandør",
       "providerErrorRateLimit": "leverandørens rategrense er nådd — sannsynligvis et abonnements- eller faktureringsproblem",
       "providerErrorModelNotFound": "valgt modell er ikke tilgjengelig — velg en annen modell",
-      "providerUnavailable": "leverandør utilgjengelig"
+      "providerUnavailable": "leverandør utilgjengelig",
+      "alertOpenTag": "Krever oppmerksomhet",
+      "alertOpenMessage": "<em>{reason}</em>",
+      "alertReasonSingle": "{title}",
+      "alertReasonMultiple": "{title} (+{count} til)",
+      "channelInboundFailing": "Innkommende henting feiler på «{name}»",
+      "openChannelSettings": "Åpne kanalinnstillinger →"
     },
     "saveFailed": {
       "title": "Lagring feilet",
@@ -468,7 +474,11 @@
         "success": "Test-e-post sendt til {to}. Sjekk innboksen om et øyeblikk.",
         "errorTitle": "Testen feilet"
       },
-      "inactive": "Inaktiv",
+      "status": {
+        "deactivatedMessage": "Auto-deaktivert etter {threshold} feilede henteforsøk",
+        "failingMessage": "Innkommende henting feiler · {attempt}/{threshold} · deaktiveres ved {threshold}",
+        "activate": "Aktiver"
+      },
       "emptyTitle": "Ingen kanaler ennå",
       "emptyBody": "Legg til en chat-widget- eller e-post-kanal for å begynne å motta meldinger.",
       "test": "Test",
@@ -628,6 +638,7 @@
         "sendTest": "Kunne ikke sende test-e-post.",
         "sendTestSms": "Kunne ikke sende test-SMS.",
         "delete": "Kunne ikke slette kanalen.",
+        "activate": "Kunne ikke aktivere kanalen.",
         "saveFailedEyebrow": "Lagring · feilet"
       }
     },

@@ -1,5 +1,66 @@
 # @getmunin/core
 
+## 4.27.0
+
+### Patch Changes
+
+- 97bfdb8: Drop the misleading `openai` label from embedding-provider output.
+
+  The HTTP embedding provider is OpenAI-protocol compatible but routinely
+  points at Scaleway, Ollama, vLLM, etc. — calling its errors and telemetry
+  name `openai:…` made production failures look like OpenAI outages when
+  they were really upstream IAM/permission errors at the configured base URL.
+  - Error on non-2xx response is now `embedding provider request failed: <status> <body> (<name> via <baseUrl>)` instead of `openai embeddings failed: …`. The model name and endpoint are included so the failure is self-diagnosing.
+  - `EmbeddingProvider.name` no longer prefixes `openai:`; it's just `<model>` or `<model>@<dimensions>`. Anything consuming this for telemetry/audit will see the bare model identifier.
+
+- 2605e0f: **Security (critical)**: prevent OAuth bearer tokens from acting as control-plane credentials.
+
+  Before this patch, an OAuth access token with any non-empty scope set — even one
+  containing only `openid` — resolved to a `user` actor whose `ControlPlaneGuard`
+  branch (`actor.type === 'user' → return true`) admitted it without checking the
+  token's audience or scopes. Combined with `deriveAudiencesFromScopes` defaulting
+  to the `admin` audience for any scope-bearing token, every issued OAuth token
+  was effectively a full org-admin key for the dashboard's `/v1/*` REST surface
+  (conversations, inbox, activity, curator jobs, CRM, CMS, …).
+
+  Three changes:
+  - `deriveAudiencesFromScopes` no longer falls back to `admin` when no `mcp:*`
+    scope is present. `admin` requires `mcp:admin`, `self_service` requires
+    `mcp:self_service`.
+  - `ControlPlaneGuard` rejects `user` actors whose credential carries an MCP
+    resource `audience` (i.e. was issued via OAuth). Session-cookie users — whose
+    credentials never set `audience` — still pass.
+  - `AuthGuard` enforces audience binding on every route, not just `/mcp`. A
+    bearer minted for the MCP resource cannot be presented to `/v1/*`.
+
+- 24905e6: **Security**: enable RLS on `org_members`.
+
+  `org_members` was the last org-scoped table without a tenant-isolation policy.
+  The composite `(org_id, user_id)` primary key meant correct controllers couldn't
+  return cross-org rows by accident, but the database stopped catching mistakes —
+  any future controller that forgot the WHERE clause would leak membership info
+  across tenants. The meta-test in `rls.test.ts` was suppressed with an
+  exemption.
+
+  This patch:
+  - Adds a `tenant_isolation` policy on `org_members` mirroring the other
+    org-scoped tables (`org_id = app_org_id() OR app_bypass_rls()`).
+  - Wraps the three structurally cross-org reads (OAuth credential resolver,
+    JWT credential resolver, session credential resolver, signup) in a
+    `bypass_rls` transaction — they filter by `user_id` and run before
+    `TenancyInterceptor` sets `app.org_id`, so they could not satisfy a strict
+    policy. Introduces a shared `readMembershipsForUser` helper in
+    `@getmunin/core` so the three sites stay consistent.
+  - Drops the `org_members` exemption from the "every org_id table has RLS"
+    meta-test.
+
+  Migrations are idempotent and re-apply `rls.sql` on each run, so existing
+  deployments pick up the policy on next migrate.
+
+- Updated dependencies [24905e6]
+  - @getmunin/db@4.27.0
+  - @getmunin/types@4.27.0
+
 ## 4.26.0
 
 ### Patch Changes

@@ -41,7 +41,10 @@ function makeWebhooks(): WebhookDispatcher & { emit: ReturnType<typeof vi.fn> } 
   return stub;
 }
 
-function makeHealthStub(): AgentHealthRecorder {
+function makeHealthStub(): AgentHealthRecorder & {
+  recordSuccess: ReturnType<typeof vi.fn>;
+  recordFailure: ReturnType<typeof vi.fn>;
+} {
   return {
     recordSuccess: vi.fn().mockResolvedValue({ flipped: false }),
     recordFailure: vi.fn().mockResolvedValue(undefined),
@@ -91,5 +94,35 @@ describe('AgentConfigService', () => {
       type: 'agent.config.updated',
       payload: { configId: 'singleton' },
     });
+  });
+
+  it('records success when fastModel changes so a degraded agent can recover', async () => {
+    const repo = makeRepo({ before: baseRow, after: baseRow });
+    const health = makeHealthStub();
+    const svc = new AgentConfigService(repo, makeWebhooks(), health);
+
+    await svc.upsertForCurrentActor({ fastModel: 'anthropic/claude-sonnet-4.6' });
+
+    expect(health.recordSuccess).toHaveBeenCalledWith('singleton');
+  });
+
+  it('records success when smartModel changes', async () => {
+    const repo = makeRepo({ before: baseRow, after: baseRow });
+    const health = makeHealthStub();
+    const svc = new AgentConfigService(repo, makeWebhooks(), health);
+
+    await svc.upsertForCurrentActor({ smartModel: 'anthropic/claude-opus-4.7' });
+
+    expect(health.recordSuccess).toHaveBeenCalledWith('singleton');
+  });
+
+  it('does not record success when model patch matches the existing value', async () => {
+    const repo = makeRepo({ before: baseRow, after: baseRow });
+    const health = makeHealthStub();
+    const svc = new AgentConfigService(repo, makeWebhooks(), health);
+
+    await svc.upsertForCurrentActor({ fastModel: baseRow.fastModel });
+
+    expect(health.recordSuccess).not.toHaveBeenCalled();
   });
 });

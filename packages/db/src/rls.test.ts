@@ -123,11 +123,7 @@ const skipReason = TEST_URL
   // explicitly below — usually because tenancy is delegated to a parent
   // table's policy via FK or the table is a system-level catalog.
   it('every table with an org_id column has RLS enabled', async () => {
-    const exempt = new Set<string>([
-      // org_members: composite (org_id, user_id) primary key + service-role
-      // reads via assertOwnerOrAdmin. Documented in rls.sql.
-      'org_members',
-    ]);
+    const exempt = new Set<string>([]);
     const rows = await client.begin(async (sql) => {
       await sql`SELECT set_config('app.bypass_rls', 'on', true)`;
       return sql<{ table_name: string; relrowsecurity: boolean; relforcerowsecurity: boolean; policy_count: number }[]>`

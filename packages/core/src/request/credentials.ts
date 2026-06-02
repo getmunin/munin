@@ -1,10 +1,25 @@
 import { createHash } from 'node:crypto';
 import type { Db } from '@getmunin/db';
 import { schema } from '@getmunin/db';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { ActorIdentity, type ActorType, type Audience } from './context.ts';
 import { hashSecret } from '../crypto/primitives.ts';
 import { looksLikeJwt, resolveOauthJwtAccessToken } from './oauth-jwt.ts';
+
+async function readMembershipsForUser(
+  db: Db,
+  userId: string,
+): Promise<Array<typeof schema.orgMembers.$inferSelect>> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    return tx
+      .select()
+      .from(schema.orgMembers)
+      .where(eq(schema.orgMembers.userId, userId));
+  });
+}
+
+export { readMembershipsForUser };
 
 function hashOauthOpaqueToken(rawToken: string): string {
   return createHash('sha256').update(rawToken).digest('base64url');
@@ -77,10 +92,7 @@ export class CredentialResolver {
     if (tokenRow.expiresAt < new Date()) return null;
     if (!tokenRow.userId) return null;
 
-    const memberships = await this.db
-      .select()
-      .from(schema.orgMembers)
-      .where(eq(schema.orgMembers.userId, tokenRow.userId));
+    const memberships = await readMembershipsForUser(this.db, tokenRow.userId);
     const active = memberships.find((m) => m.isDefault) ?? memberships[0];
     if (!active) return null;
 
@@ -170,10 +182,7 @@ export class CredentialResolver {
     const session = sessionRows[0];
     if (!session) return null;
 
-    const memberships = await this.db
-      .select()
-      .from(schema.orgMembers)
-      .where(eq(schema.orgMembers.userId, session.userId));
+    const memberships = await readMembershipsForUser(this.db, session.userId);
     const membership =
       memberships.find((m) => m.isDefault) ??
       [...memberships].sort((a, b) => +a.createdAt - +b.createdAt)[0];

@@ -10,9 +10,10 @@ export interface Recipe {
 
 export const RECIPES: Recipe[] = [
   {
-    id: 'bug-spotter',
-    name: 'Bug Spotter',
-    summary: 'Spots repeated themes in conversations and flags real product issues for engineering.',
+    id: 'bug-triage',
+    name: 'Bug Triage',
+    summary:
+      'Clusters broken-behaviour phrases across conversations and files internal notes engineering can triage.',
     cadence: 'daily',
     tools: [
       'conv_list_conversations',
@@ -60,8 +61,8 @@ export const RECIPES: Recipe[] = [
     ],
   },
   {
-    id: 'outreach-drafter',
-    name: 'Outreach Drafter',
+    id: 'sdr',
+    name: 'SDR',
     summary: 'Builds outbound campaigns from a brief, drafts personalised opener emails for review.',
     cadence: 'on-demand',
     tools: [
@@ -73,8 +74,8 @@ export const RECIPES: Recipe[] = [
     ],
   },
   {
-    id: 'renewal-watcher',
-    name: 'Renewal Watcher',
+    id: 'renewal-watch',
+    name: 'Renewal Watch',
     summary: 'Watches deals for upcoming renewals and drafts outreach when contracts approach end.',
     cadence: 'daily',
     tools: [

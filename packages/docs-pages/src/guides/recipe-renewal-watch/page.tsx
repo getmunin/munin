@@ -3,7 +3,7 @@ import { GuidesSidebar } from '../../_components/guides-sidebar';
 import { CopyPromptButton } from '../../_components/copy-prompt-button';
 
 export const metadata = {
-  title: 'Munin · Renewal Watcher recipe',
+  title: 'Munin · Renewal Watch recipe',
   description:
     'Agent recipe that watches deals for upcoming renewals and drafts outreach when contracts approach end.',
 };
@@ -37,7 +37,7 @@ Constraints:
 - No "just checking in". Lead with a fact from the account.
 - Don't draft for an account that already has an open conversation thread.`;
 
-export default function RecipeRenewalWatcher() {
+export default function RecipeRenewalWatch() {
   return (
     <>
       <GuidesSidebar />
@@ -51,7 +51,7 @@ export default function RecipeRenewalWatcher() {
           <header className="docs-hero">
             <div className="eyebrow">Recipe · Daily</div>
             <h1>
-              <em>Renewal Watcher</em>.
+              <em>Renewal Watch</em>.
             </h1>
             <p className="lede">
               Watches deals for upcoming renewals and drafts outreach when contracts approach end.

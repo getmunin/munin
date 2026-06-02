@@ -3,12 +3,12 @@ import { GuidesSidebar } from '../../_components/guides-sidebar';
 import { CopyPromptButton } from '../../_components/copy-prompt-button';
 
 export const metadata = {
-  title: 'Munin · Bug Spotter recipe',
+  title: 'Munin · Bug Triage recipe',
   description:
-    'Agent recipe that spots repeated themes in conversations and flags real product issues for engineering.',
+    'Agent recipe that clusters broken-behaviour phrases across conversations and files internal notes engineering can triage.',
 };
 
-const PROMPT = `You are the bug spotter.
+const PROMPT = `You are the bug triage agent.
 
 Goal: catch real product issues hiding in conversations and flag them as
 internal notes — not noise.
@@ -30,14 +30,14 @@ Workflow (run daily, 10:00 local):
    - what they expected
    - what happened
    - the conversation IDs of the cluster
-   Prefix the body with "[bug-spotter] " so reviewers can filter.
+   Prefix the body with "[bug-triage] " so reviewers can filter.
 
 Constraints:
 - Never reply to the end-user. Internal notes only.
 - Never flag from a single conversation. Wait for the cluster.
 - If you're not sure it's a bug, classify confusion and stop.`;
 
-export default function RecipeBugSpotter() {
+export default function RecipeBugTriage() {
   return (
     <>
       <GuidesSidebar />
@@ -51,10 +51,11 @@ export default function RecipeBugSpotter() {
           <header className="docs-hero">
             <div className="eyebrow">Recipe · Daily</div>
             <h1>
-              <em>Bug Spotter</em>.
+              <em>Bug Triage</em>.
             </h1>
             <p className="lede">
-              Spots repeated themes in conversations and flags real product issues for engineering.
+              Clusters broken-behaviour phrases across conversations and files internal notes
+              engineering can triage.
             </p>
           </header>
 

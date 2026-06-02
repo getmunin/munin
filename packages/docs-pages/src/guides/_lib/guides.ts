@@ -50,6 +50,24 @@ export const GUIDES: GuideMeta[] = [
     tags: ['mcp', 'gemini'],
   },
   {
+    slug: 'connect-hermes',
+    category: 'clients',
+    title: 'Connect Hermes Agent',
+    kicker: "Wire Nous Research's Hermes Agent to your Munin org over MCP.",
+    minutes: 4,
+    updated: 'today',
+    tags: ['mcp', 'hermes'],
+  },
+  {
+    slug: 'connect-openclaw',
+    category: 'clients',
+    title: 'Connect OpenClaw',
+    kicker: 'Wire the OpenClaw personal assistant to your Munin org over MCP.',
+    minutes: 4,
+    updated: 'today',
+    tags: ['mcp', 'openclaw'],
+  },
+  {
     slug: 'chat-widget',
     category: 'embeds',
     title: 'The embeddable chat widget',
@@ -81,9 +99,9 @@ export const GUIDES: GuideMeta[] = [
     tags: ['architecture'],
   },
   {
-    slug: 'recipe-lead-enricher',
+    slug: 'recipe-lead-research',
     category: 'recipes',
-    title: 'Lead Enricher',
+    title: 'Lead Research',
     kicker:
       'When a contact lands, scrapes their company site and fills role, seniority, and industry on the CRM record.',
     minutes: 4,
@@ -91,9 +109,9 @@ export const GUIDES: GuideMeta[] = [
     tags: ['recipe', 'crm'],
   },
   {
-    slug: 'recipe-lead-scorer',
+    slug: 'recipe-lead-scoring',
     category: 'recipes',
-    title: 'Lead Scorer',
+    title: 'Lead Scoring',
     kicker:
       'Ranks a segment by fit and intent using enrichment data, conversation tone, and recent activity.',
     minutes: 5,
@@ -101,9 +119,9 @@ export const GUIDES: GuideMeta[] = [
     tags: ['recipe', 'crm'],
   },
   {
-    slug: 'recipe-bug-spotter',
+    slug: 'recipe-bug-triage',
     category: 'recipes',
-    title: 'Bug Spotter',
+    title: 'Bug Triage',
     kicker:
       'Clusters broken-behaviour phrases across conversations and posts internal notes engineering can triage.',
     minutes: 4,
@@ -121,9 +139,9 @@ export const GUIDES: GuideMeta[] = [
     tags: ['recipe', 'cms', 'conversations'],
   },
   {
-    slug: 'recipe-renewal-watcher',
+    slug: 'recipe-renewal-watch',
     category: 'recipes',
-    title: 'Renewal Watcher',
+    title: 'Renewal Watch',
     kicker:
       'Surfaces deals approaching renewal, scores account health, and drafts account-management outreach for review.',
     minutes: 5,
@@ -133,7 +151,7 @@ export const GUIDES: GuideMeta[] = [
   {
     slug: 'recipe-win-back',
     category: 'recipes',
-    title: 'Win-Back Agent',
+    title: 'Win-Back',
     kicker:
       'Finds contacts dormant for 90+ days and drafts a re-engagement note tied to something new in the KB.',
     minutes: 5,
@@ -151,9 +169,9 @@ export const GUIDES: GuideMeta[] = [
     tags: ['recipe', 'outreach', 'crm'],
   },
   {
-    slug: 'recipe-outreach-drafter',
+    slug: 'recipe-sdr',
     category: 'recipes',
-    title: 'Outreach Drafter',
+    title: 'SDR',
     kicker:
       'Takes a campaign brief, targets a CRM segment, and queues personalised opener emails for human approval.',
     minutes: 5,
@@ -166,6 +184,8 @@ export function guidesByCategory(): Map<GuideMeta['category'], GuideMeta[]> {
   const map = new Map<GuideMeta['category'], GuideMeta[]>();
   for (const g of GUIDE_GROUPS) map.set(g.id, []);
   for (const g of GUIDES) map.get(g.category)?.push(g);
+  map.get('recipes')?.sort((a, b) => a.title.localeCompare(b.title));
+  map.get('clients')?.sort((a, b) => a.title.localeCompare(b.title));
   return map;
 }
 

@@ -228,4 +228,10 @@ export class ConvChannelsController {
   async archive(@Param('id') id: string): Promise<void> {
     await this.conv.archiveChannel(id);
   }
+
+  @Post(':id/activate')
+  @HttpCode(200)
+  async activate(@Param('id') id: string): Promise<ChannelDto> {
+    return this.conv.setChannelActive(id, true);
+  }
 }

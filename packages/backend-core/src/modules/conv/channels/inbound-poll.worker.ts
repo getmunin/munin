@@ -1,8 +1,11 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { ActorIdentity, getCurrentContext, withContext, type RequestContext } from '@getmunin/core';
 import { DB } from '../../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../../common/scheduler-lock/index.ts';
+import { AlertsService } from '../../system-alerts/system-alerts.service.ts';
 import { CHANNEL_ADAPTERS, ChannelAdapterRegistry, type ChannelAdapter } from './adapter.ts';
 
 const POLL_INTERVAL_MS = Number(
@@ -10,6 +13,8 @@ const POLL_INTERVAL_MS = Number(
     process.env.MUNIN_EMAIL_INBOUND_POLL_MS ??
     60_000,
 );
+
+const AUTO_DEACTIVATE_THRESHOLD = 5;
 
 /**
  * Generic poll-mode inbound worker. Iterates active channels whose adapter
@@ -36,6 +41,7 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(CHANNEL_ADAPTERS) adapters: ChannelAdapter[],
+    @Inject(AlertsService) private readonly alerts: AlertsService,
   ) {
     this.registry = new ChannelAdapterRegistry(adapters);
   }
@@ -90,12 +96,77 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
         } else {
           this.logger.debug(`poll ${channel.type} channel=${channel.id} (no new messages)`);
         }
+        await this.resolveAlertFor(channel);
       } catch (err) {
-        this.logger.error(
-          `poll ${channel.type} channel=${channel.id} threw: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`poll ${channel.type} channel=${channel.id} threw: ${message}`);
+        await this.openAlertFor(channel, message);
       }
     }
     return { channelsPolled: polled, messagesIngested: ingested };
+  }
+
+  private async openAlertFor(
+    channel: { id: string; orgId: string; type: string; name: string | null },
+    detail: string,
+  ): Promise<void> {
+    await this.withChannelContext(channel.orgId, async () => {
+      const result = await this.alerts.openAlert({
+        source: 'channel_inbound',
+        subjectId: channel.id,
+        severity: 'error',
+        title: 'Inbound polling failing',
+        detail,
+        metadata: {
+          channelType: channel.type,
+          channelId: channel.id,
+          channelName: channel.name ?? channel.type,
+          threshold: AUTO_DEACTIVATE_THRESHOLD,
+        },
+      });
+      if (result.occurrenceCount >= AUTO_DEACTIVATE_THRESHOLD) {
+        await this.autoDeactivate(channel, result.alertId, result.occurrenceCount);
+      } else {
+        await this.alerts.updateMetadata(result.alertId, {
+          attemptCount: result.occurrenceCount,
+        });
+      }
+    });
+  }
+
+  private async autoDeactivate(
+    channel: { id: string; orgId: string; type: string; name: string | null },
+    alertId: string,
+    occurrenceCount: number,
+  ): Promise<void> {
+    const ctx = getCurrentContext();
+    await ctx.db
+      .update(schema.convChannels)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(schema.convChannels.id, channel.id));
+    await this.alerts.setTitle(alertId, 'Auto-deactivated after repeated polling failures');
+    await this.alerts.updateMetadata(alertId, {
+      deactivatedAt: new Date().toISOString(),
+      attemptCount: occurrenceCount,
+      threshold: AUTO_DEACTIVATE_THRESHOLD,
+    });
+    this.logger.error(
+      `auto-deactivated channel=${channel.id} after ${occurrenceCount} failed polls`,
+    );
+  }
+
+  private async resolveAlertFor(channel: { id: string; orgId: string }): Promise<void> {
+    await this.withChannelContext(channel.orgId, async () => {
+      await this.alerts.resolveAlert({ source: 'channel_inbound', subjectId: channel.id });
+    });
+  }
+
+  private async withChannelContext(orgId: string, fn: () => Promise<void>): Promise<void> {
+    const actor = new ActorIdentity('system', 'inbound-poll-worker', orgId, ['*'], ['admin']);
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+      await withContext(ctx, fn);
+    });
   }
 }

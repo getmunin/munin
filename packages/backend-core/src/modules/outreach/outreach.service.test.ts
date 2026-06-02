@@ -13,6 +13,7 @@ import { OutreachService, OutreachInvalidError } from './outreach.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
+import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
 import { VapiService } from '../conv/vapi/vapi.service.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
@@ -55,7 +56,7 @@ const skipReason = TEST_URL
     crm = new CrmService(dispatcher, new DefaultQuotasService());
     const claims = new ConversationClaimsService(dispatcher);
     const curatorJobs = new CuratorJobsService(dispatcher);
-    conv = new ConvService(dispatcher, claims, curatorJobs);
+    conv = new ConvService(dispatcher, claims, curatorJobs, new AlertsService(dispatcher));
     const email = new EmailService();
     const vapi = new VapiClientService(db);
     svc = new OutreachService(dispatcher, conv, crm, email, vapi, db);

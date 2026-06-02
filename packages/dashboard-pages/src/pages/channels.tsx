@@ -136,6 +136,23 @@ interface RotatedIdentity {
   identityVerificationSecret: string;
 }
 
+interface ChannelAlertDto {
+  id: string;
+  source: string;
+  subjectId: string | null;
+  severity: 'warning' | 'error';
+  title: string;
+  detail: string | null;
+  metadata: {
+    attemptCount?: number;
+    threshold?: number;
+    deactivatedAt?: string;
+    channelName?: string;
+  };
+  resolvedAt: string | null;
+  openedAt: string;
+}
+
 const KEY_DISPLAY_TIMEOUT_MS = 1500;
 
 export function ChannelsPage() {
@@ -160,10 +177,21 @@ export function ChannelsPage() {
   const [sendSmsTestFor, setSendSmsTestFor] = useState<TwilioSmsChannelDto | null>(null);
   const [sendMessageBirdTestFor, setSendMessageBirdTestFor] =
     useState<MessageBirdSmsChannelDto | null>(null);
+  const [alerts, setAlerts] = useState<Record<string, ChannelAlertDto>>({});
 
   const load = useCallback(async () => {
-    const list = await api<{ items: ChannelDto[] }>('/v1/conversations/channels');
+    const [list, alertsRes] = await Promise.all([
+      api<{ items: ChannelDto[] }>('/v1/conversations/channels'),
+      api<{ items: ChannelAlertDto[] }>('/v1/system/alerts?source=channel_inbound').catch(() => ({
+        items: [],
+      })),
+    ]);
     setChannels(list.items);
+    const byChannel: Record<string, ChannelAlertDto> = {};
+    for (const alert of alertsRes.items) {
+      if (alert.subjectId && !alert.resolvedAt) byChannel[alert.subjectId] = alert;
+    }
+    setAlerts(byChannel);
   }, []);
 
   const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
@@ -212,6 +240,15 @@ export function ChannelsPage() {
       });
     } catch (err) {
       notify.error(translate(err) || t('errors.rotateIdentity'));
+    }
+  }
+
+  async function activateChannel(channel: ChannelDto) {
+    try {
+      await api(`/v1/conversations/channels/${channel.id}/activate`, { method: 'POST' });
+      await tryLoad();
+    } catch (err) {
+      notify.error(translate(err) || t('errors.activate'));
     }
   }
 
@@ -430,6 +467,10 @@ export function ChannelsPage() {
               <ChannelRow
                 key={c.id}
                 channel={c}
+                alert={alerts[c.id] ?? null}
+                onActivate={() => {
+                  void activateChannel(c);
+                }}
                 onRotate={() => {
                   void rotateKey(c);
                 }}
@@ -474,6 +515,8 @@ export function ChannelsPage() {
 
 function ChannelRow({
   channel,
+  alert,
+  onActivate,
   onRotate,
   onRotateIdentity,
   onDelete,
@@ -482,6 +525,8 @@ function ChannelRow({
   onSendTest,
 }: {
   channel: ChannelDto;
+  alert: ChannelAlertDto | null;
+  onActivate: () => void;
   onRotate: () => void;
   onRotateIdentity: () => void;
   onDelete: () => void;
@@ -519,20 +564,17 @@ function ChannelRow({
             ? t('typeEmail')
             : channel.type;
 
+  const isDeactivated = !channel.active;
+
   return (
     <li className="border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
       <div className="flex items-start justify-between gap-6">
-        <div className="min-w-0 flex-1 space-y-3">
+        <div className={cn('min-w-0 flex-1 space-y-3', isDeactivated && 'opacity-50')}>
           <div className="flex items-center gap-3 flex-wrap">
             <TypeBadge kind={badgeKind} label={badgeLabel} />
             <h3 className="font-serif text-lg leading-none text-ink dark:text-foreground">
               {channel.name}
             </h3>
-            {!channel.active && (
-              <span className="border-[0.5px] border-amber-300 bg-amber-50 px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow text-amber-900">
-                {t('inactive')}
-              </span>
-            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
@@ -670,7 +712,48 @@ function ChannelRow({
           </div>
         </div>
       </div>
+      {alert && (
+        <AlertFooter alert={alert} channel={channel} onActivate={onActivate} t={t} />
+      )}
     </li>
+  );
+}
+
+function AlertFooter({
+  alert,
+  channel,
+  onActivate,
+  t,
+}: {
+  alert: ChannelAlertDto;
+  channel: ChannelDto;
+  onActivate: () => void;
+  t: ReturnType<typeof useTranslations<'dashboard.channels'>>;
+}) {
+  const isDeactivated = !channel.active;
+  const attempt = alert.metadata.attemptCount ?? 1;
+  const threshold = alert.metadata.threshold ?? 5;
+  const dotClass = isDeactivated ? 'bg-destructive' : 'bg-amber-500';
+  const message = isDeactivated
+    ? t('status.deactivatedMessage', { threshold })
+    : t('status.failingMessage', { attempt, threshold });
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t-[0.5px] border-rule-soft pt-3 dark:border-rule-on-dark">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <span className={cn('size-[7px] shrink-0 rounded-full', dotClass)} aria-hidden />
+        <span className="truncate text-[13px] text-ink dark:text-foreground">{message}</span>
+        {alert.detail && (
+          <span className="hidden truncate font-mono text-[11px] text-ink-mute md:inline">
+            · {alert.detail}
+          </span>
+        )}
+      </div>
+      {isDeactivated && (
+        <Button size="sm" onClick={onActivate}>
+          {t('status.activate')}
+        </Button>
+      )}
+    </div>
   );
 }
 

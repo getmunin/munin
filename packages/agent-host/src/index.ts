@@ -20,7 +20,8 @@ export type {
 export { SingletonConfigRepository } from './singleton-config.repository.ts';
 export { PerOrgConfigRepository } from './per-org-config.repository.ts';
 
-export { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.ts';
+export { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB, ALERT_RECORDER } from './injection-tokens.ts';
+export type { AlertRecorder } from './alert-recorder.ts';
 
 export { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.ts';
 export { runWithServiceContext } from './service-context.ts';
@@ -34,7 +35,6 @@ export {
   type AgentHealthDto,
   type AgentHealthStatus,
 } from './agent-health.service.ts';
-export { AgentHealthController } from './agent-health.controller.ts';
 export {
   AgentModelsService,
   type ListModelsResult,

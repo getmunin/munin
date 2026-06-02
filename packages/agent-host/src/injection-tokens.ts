@@ -1,2 +1,3 @@
 export const AGENT_CONFIG_REPOSITORY = Symbol('AGENT_CONFIG_REPOSITORY');
 export const AGENT_HOST_DB = Symbol('AGENT_HOST_DB');
+export const ALERT_RECORDER = Symbol('ALERT_RECORDER');

@@ -322,6 +322,56 @@ class StubImapFetcher implements ImapFetcher {
     expect(messages.some((m) => m.body.includes('Plus-addressed reply'))).toBe(true);
   }, 30_000);
 
+  it('5 consecutive poll failures auto-deactivate the channel and flag the alert', async () => {
+    const channel = (
+      await db
+        .select()
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.orgId, orgId))
+    )[0]!;
+
+    const original = emailAdapter['fetcher'];
+    const throwing: ImapFetcher = {
+      fetchSince: () => Promise.reject(new Error('Command failed')),
+    };
+    emailAdapter.setFetcher(throwing);
+
+    try {
+      for (let i = 0; i < 5; i++) {
+        await inboundWorker.tick();
+      }
+    } finally {
+      emailAdapter.setFetcher(original);
+    }
+
+    const refreshed = (
+      await db
+        .select()
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, channel.id))
+    )[0]!;
+    expect(refreshed.active).toBe(false);
+
+    const alerts = await db
+      .select()
+      .from(schema.orgAlerts)
+      .where(
+        and(eq(schema.orgAlerts.orgId, orgId), eq(schema.orgAlerts.subjectId, channel.id)),
+      );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.occurrenceCount).toBe(5);
+    expect((alerts[0]!.metadata as { deactivatedAt?: string }).deactivatedAt).toBeDefined();
+
+    await db
+      .update(schema.convChannels)
+      .set({ active: true })
+      .where(eq(schema.convChannels.id, channel.id));
+    await db
+      .update(schema.orgAlerts)
+      .set({ resolvedAt: new Date() })
+      .where(eq(schema.orgAlerts.id, alerts[0]!.id));
+  }, 30_000);
+
   it('inbound from a fresh sender opens a new conversation + new contact', async () => {
     const before = await db
       .select()

@@ -63,7 +63,7 @@
     },
     "signUp": {
       "title": "Create your account",
-      "subtitle": "Munin — agent-native business apps.",
+      "subtitle": "The customer platform for the agentic era.",
       "invitationSubtitle": "You're accepting an invitation for {email}.",
       "submit": "Create account",
       "submitting": "Creating account…",
@@ -196,7 +196,13 @@
       "providerErrorRegional": "provider region not enabled — check provider account or change provider",
       "providerErrorRateLimit": "provider rate limit hit — likely a plan or billing issue",
       "providerErrorModelNotFound": "selected model not available — pick a different model",
-      "providerUnavailable": "provider unavailable"
+      "providerUnavailable": "provider unavailable",
+      "alertOpenTag": "Needs attention",
+      "alertOpenMessage": "<em>{reason}</em>",
+      "alertReasonSingle": "{title}",
+      "alertReasonMultiple": "{title} (+{count} more)",
+      "channelInboundFailing": "Inbound polling failing on \"{name}\"",
+      "openChannelSettings": "Open channel settings →"
     },
     "saveFailed": {
       "title": "Save failed",
@@ -442,7 +448,11 @@
       },
       "createdAt": "Created {date}",
       "createdAtShort": "created {date}",
-      "inactive": "Inactive",
+      "status": {
+        "deactivatedMessage": "Auto-deactivated after {threshold} failed polls",
+        "failingMessage": "Inbound polling failing · {attempt}/{threshold} · auto-deactivates at {threshold}",
+        "activate": "Activate"
+      },
       "emptyTitle": "No channels yet",
       "emptyBody": "Add a chat widget or email channel to start collecting messages.",
       "channelsTitleCount": "Channels · {count}",
@@ -628,6 +638,7 @@
         "sendTest": "Could not send test email.",
         "sendTestSms": "Could not send test SMS.",
         "delete": "Could not delete channel.",
+        "activate": "Could not activate channel.",
         "saveFailedEyebrow": "Save · failed"
       }
     },

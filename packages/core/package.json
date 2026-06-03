@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/core",
-  "version": "4.30.0",
+  "version": "4.31.0",
   "license": "MIT",
   "description": "Munin core: actor identity, request context, mailer, storage, crypto helpers.",
   "publishConfig": {
@@ -48,6 +48,6 @@
     "@types/nodemailer": "^7.0.5",
     "eslint": "^9.10.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.0"
   }
 }

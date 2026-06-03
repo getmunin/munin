@@ -651,38 +651,40 @@ export function LiveNowSection({ controller }: { controller: InboxController }) 
   if (items.length === 0) return null;
 
   return (
-    <section className="bg-paper-deep -mx-4 px-4 py-6 md:-mx-10 md:px-10 dark:bg-secondary">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
-          <span
-            className="size-2 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
-            aria-hidden
-          />
-          <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
-            {t('eyebrow')} · {items.length}
-          </h2>
+    <section className="bg-paper-deep dark:bg-secondary relative left-1/2 right-1/2 -translate-x-1/2 w-screen py-6">
+      <div className="max-w-7xl mx-auto px-4 md:px-10">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <span
+              className="size-2 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
+              aria-hidden
+            />
+            <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+              {t('eyebrow')} · {items.length}
+            </h2>
+          </div>
+          <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            {t('subtitle')}
+          </span>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-          {t('subtitle')}
-        </span>
+        <ul className="space-y-3">
+          {items.map((c) => (
+            <LiveCard
+              key={c.id}
+              conv={c}
+              detail={details[c.id]}
+              pending={pending}
+              actionError={actionError?.conversationId === c.id ? actionError : null}
+              onOpen={(mode) => {
+                setReply('');
+                setDraftEdit(null);
+                setConvDrawer({ id: c.id, mode });
+              }}
+              onTakeOver={() => void takeOver(c.id, true)}
+            />
+          ))}
+        </ul>
       </div>
-      <ul className="space-y-3">
-        {items.map((c) => (
-          <LiveCard
-            key={c.id}
-            conv={c}
-            detail={details[c.id]}
-            pending={pending}
-            actionError={actionError?.conversationId === c.id ? actionError : null}
-            onOpen={(mode) => {
-              setReply('');
-              setDraftEdit(null);
-              setConvDrawer({ id: c.id, mode });
-            }}
-            onTakeOver={() => void takeOver(c.id, true)}
-          />
-        ))}
-      </ul>
     </section>
   );
 }
@@ -1166,7 +1168,7 @@ function SimplifiedConvDrawer({
               value={draftBody}
               onChange={(e) => setDraftEdit(e.target.value)}
               rows={8}
-              className="w-full rounded-input border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark dark:text-foreground"
+              className="w-full rounded-input border-[0.5px] border-ink bg-paper px-4 py-3 text-base md:text-sm leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark dark:text-foreground"
               autoFocus
             />
           ) : (
@@ -1337,7 +1339,7 @@ function FullConvDrawer({
             }}
             rows={3}
             placeholder={t('replyPlaceholder')}
-            className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
+            className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-base md:text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
           />
           <div className="mt-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">

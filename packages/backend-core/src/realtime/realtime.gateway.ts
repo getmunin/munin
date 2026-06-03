@@ -16,6 +16,7 @@ import {
   ActorIdentity,
   CredentialResolver,
   WebhookDispatcher,
+  parseEnvDisableFlag,
   withContext,
   type RequestContext,
   type ResolvedCredential,
@@ -99,7 +100,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   onApplicationBootstrap(): void {
-    if (process.env.MUNIN_REALTIME_DISABLED === '1') {
+    if (parseEnvDisableFlag('MUNIN_REALTIME_DISABLED')) {
       this.logger.log('realtime gateway disabled via MUNIN_REALTIME_DISABLED');
       return;
     }
@@ -514,6 +515,17 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const rows: { message_id: string; read_at: Date | string }[] = Array.isArray(inserted)
       ? (inserted as { message_id: string; read_at: Date | string }[])
       : ((inserted as { rows?: { message_id: string; read_at: Date | string }[] }).rows ?? []);
+
+    if (entry.ws.readyState === entry.ws.OPEN) {
+      entry.ws.send(
+        JSON.stringify({
+          type: 'read_ack',
+          conversationId,
+          messageIds: rows.map((r) => r.message_id),
+        }),
+      );
+    }
+
     if (rows.length === 0) return;
 
     const actor = new ActorIdentity(

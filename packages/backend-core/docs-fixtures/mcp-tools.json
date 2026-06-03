@@ -829,6 +829,54 @@
     }
   },
   {
+    "name": "cms_upload_asset_from_url",
+    "title": "CMS: Upload asset from URL",
+    "description": "Fetch a publicly reachable HTTPS asset and store it as a CMS asset in one call. Use this when your runtime cannot PUT to a presigned URL or pass large base64 payloads — typical for ChatGPT/Claude workspace agents whose sandbox blocks outbound PUTs and truncates long base64 strings. The server fetches the URL with SSRF protection, validates content-type (image/*, video/*, audio/*, application/pdf — SVG rejected) and size (≤50 MB), and creates the asset row in `uploaded:true` state. Filename and MIME are inferred from the response unless overridden. The original URL is recorded in `metadata.sourceUrl`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "mime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "altText": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "sourceUrl"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "cms_complete_asset_upload",
     "title": "CMS: Complete asset upload",
     "description": "Mark a previously-requested asset upload as complete.",
@@ -4575,6 +4623,325 @@
       "required": [
         "conversationId",
         "draftBody"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "webhooks_list",
+    "title": "Webhooks: List",
+    "description": "List all webhook subscriptions for your org. Secrets are not returned — they are only shown once at creation. Use webhooks_rotate_secret if you lost it.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "webhooks_create",
+    "title": "Webhooks: Create",
+    "description": "Create a webhook subscription. `url` must be https://. `events` is an array of event type strings (e.g. [\"cms.entry.published\"]); omit or pass an empty array to subscribe to all events. The response includes a one-time `secret` of the form `whsec_…` — store it now; it cannot be retrieved later. Deliveries are signed with `x-munin-signature: sha256=<HMAC-SHA256(body, secret)>` and include `x-munin-event`, `x-munin-delivery-id` headers. Retries: up to 5 attempts with exponential backoff (30s → 8m). Use webhooks_list_event_types to discover known event names.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "events": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "active": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "webhooks_update",
+    "title": "Webhooks: Update",
+    "description": "Patch a webhook subscription. Pass only the fields you want to change. Replacing `events` overwrites the full array — read first if you mean to append.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "events": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "active": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "patch"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "webhooks_delete",
+    "title": "Webhooks: Delete",
+    "description": "Delete a webhook. Pending deliveries are cascade-deleted; in-flight HTTP attempts finish their current run.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "webhooks_rotate_secret",
+    "title": "Webhooks: Rotate signing secret",
+    "description": "Generate a new `whsec_…` secret for a webhook. The previous secret stops signing deliveries immediately — update your receiver before rotating. The new secret is returned once in the response.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "webhooks_list_deliveries",
+    "title": "Webhooks: List deliveries",
+    "description": "List delivery attempts for one webhook, newest first. Each row has attempt count, statusCode, durationMs, error, deliveredAt, nextAttemptAt, and a rolled-up `status` (pending / delivered / failed). Filter with `status` and cap with `limit` (default 50, max 200).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "webhookId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "delivered",
+            "failed"
+          ]
+        }
+      },
+      "required": [
+        "webhookId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "webhooks_list_event_types",
+    "title": "Webhooks: List event types",
+    "description": "List the known event type strings emitted across modules (cms, crm, kb, conv, outreach, system). Use the returned strings as input to webhooks_create. The subscription accepts arbitrary strings, so future event types work without a tool update — but this is the canonical catalog today.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "system_alerts_list",
+    "title": "System alerts: list",
+    "description": "List operational alerts for the org. Defaults to open alerts only; pass includeResolved to see history.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "includeResolved": {
+          "type": "boolean"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "system_alerts_get",
+    "title": "System alerts: get",
+    "description": "Read a single alert by id.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "system_alerts_acknowledge",
+    "title": "System alerts: acknowledge",
+    "description": "Mark an alert as acknowledged. Does not resolve it; only signals that someone is on it.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "system_alerts_resolve",
+    "title": "System alerts: resolve",
+    "description": "Manually resolve the open alert for the given source+subject. Writers normally self-resolve; use this when the underlying state can no longer be observed.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "llm_provider",
+            "channel_inbound",
+            "channel_outbound",
+            "curator",
+            "delivery",
+            "quota"
+          ]
+        },
+        "subjectId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source"
       ],
       "additionalProperties": false
     }

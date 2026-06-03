@@ -89,6 +89,7 @@ export class ResendMailer implements Mailer {
 // ─── Generic SMTP (covers Scaleway TEM, Postmark, Mailgun, etc.) ────────────
 
 import { createTransport, type Transporter, type SendMailOptions } from 'nodemailer';
+import { parseEnvBool } from '../env/index.ts';
 
 export interface SmtpMailerOptions {
   host: string;
@@ -202,7 +203,7 @@ export function readMailerFromEnv(): Mailer {
       user,
       password,
       from,
-      secure: process.env.MUNIN_SMTP_SECURE === '1',
+      secure: parseEnvBool({ name: 'MUNIN_SMTP_SECURE', default: false }),
     });
   }
   const apiKey = process.env.RESEND_API_KEY;

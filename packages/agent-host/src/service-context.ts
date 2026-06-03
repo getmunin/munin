@@ -7,8 +7,10 @@ export function runWithServiceContext<T>(
   db: Db,
   configId: string,
   fn: () => Promise<T>,
+  options?: { orgId?: string },
 ): Promise<T> {
-  const actor = new ActorIdentity('system', 'agent-host', configId, ['*'], ['admin']);
+  const orgId = options?.orgId ?? configId;
+  const actor = new ActorIdentity('system', 'agent-host', orgId, ['*'], ['admin']);
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
     const cryptKey = process.env.MUNIN_ENCRYPTION_KEY;

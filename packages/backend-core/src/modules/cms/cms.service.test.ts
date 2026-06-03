@@ -774,6 +774,12 @@ class StubStorage implements AssetStorage {
         ),
       ).rejects.toThrow(/svg uploads are not allowed/);
     });
+
+    it('uploadAssetFromUrl rejects loopback host via SSRF guard', async () => {
+      await expect(
+        run(() => svc.uploadAssetFromUrl({ sourceUrl: 'https://127.0.0.1/x.png' })),
+      ).rejects.toThrow(/sourceUrl blocked/);
+    });
   });
 
   // ─── Locales ─────────────────────────────────────────────────────────

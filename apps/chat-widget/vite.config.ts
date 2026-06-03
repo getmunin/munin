@@ -18,7 +18,10 @@ import { resolve, join } from 'node:path';
  * The bundle is fully self-contained — no runtime CSS imports, no async
  * chunks. Operators paste one `<script>` line; that's it.
  */
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  resolve: {
+    conditions: mode === 'development' ? ['development'] : [],
+  },
   build: {
     target: 'es2020',
     cssCodeSplit: false,
@@ -92,4 +95,4 @@ export default defineConfig({
       },
     },
   ],
-});
+}));

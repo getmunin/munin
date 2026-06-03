@@ -10,6 +10,8 @@ import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
 import {
   contentHash,
   getCurrentContext,
+  safeFetch,
+  SsrfBlockedError,
   WebhookDispatcher,
   type AssetStorage,
 } from '@getmunin/core';
@@ -662,6 +664,61 @@ export class CmsService {
     metadata?: Record<string, unknown>;
   }): Promise<AssetDto> {
     const body = decodeAssetBody(input.base64Body);
+    return this.persistAssetBytes({
+      name: input.name,
+      mime: input.mime,
+      body,
+      altText: input.altText,
+      metadata: input.metadata,
+    });
+  }
+
+  async uploadAssetFromUrl(input: {
+    sourceUrl: string;
+    name?: string;
+    mime?: string;
+    altText?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<AssetDto> {
+    const res = await safeFetch(input.sourceUrl, {
+      method: 'GET',
+      headers: { 'user-agent': 'Munin-CMS/1.0 (+https://getmunin.com)' },
+      signal: AbortSignal.timeout(15_000),
+    }).catch((err) => {
+      throw new CmsInvalidError(
+        err instanceof SsrfBlockedError
+          ? `sourceUrl blocked: ${err.message}`
+          : `fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+    if (!res.ok) throw new CmsInvalidError(`fetch failed with status ${res.status}`);
+
+    const mime = (
+      input.mime ?? res.headers.get('content-type')?.split(';')[0]?.trim() ?? 'application/octet-stream'
+    ).toLowerCase();
+    if (!isAllowedFetchedMime(mime)) {
+      throw new CmsInvalidError(`fetched content-type "${mime}" is not allowed`);
+    }
+
+    const body = await readBodyWithCap(res, FETCH_BYTES_MAX);
+    if (body.length === 0) throw new CmsInvalidError('fetched body is empty');
+
+    return this.persistAssetBytes({
+      name: input.name ?? deriveNameFromUrl(new URL(input.sourceUrl), mime),
+      mime,
+      body,
+      altText: input.altText,
+      metadata: { ...(input.metadata ?? {}), sourceUrl: input.sourceUrl },
+    });
+  }
+
+  private async persistAssetBytes(input: {
+    name: string;
+    mime: string;
+    body: Buffer;
+    altText?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<AssetDto> {
     const ext = assetExtensionFromName(input.name);
     rejectSvgAsset(ext, input.mime);
     await this.quotas.assertCanAdd('cms_assets');
@@ -672,7 +729,7 @@ export class CmsService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const key = `cms/${actor.orgId}/${randomKeySegment()}.${ext}`;
-    await this.storage.writeDirect(key, body, { mime: input.mime });
+    await this.storage.writeDirect(key, input.body, { mime: input.mime });
 
     const [row] = await ctx.db
       .insert(schema.cmsAssets)
@@ -680,7 +737,7 @@ export class CmsService {
         orgId: actor.orgId,
         name: input.name,
         mime: input.mime,
-        sizeBytes: body.length,
+        sizeBytes: input.body.length,
         storageProvider: this.storage.provider,
         storageKey: key,
         publicUrl: this.storage.publicUrlFor(key),
@@ -1172,4 +1229,62 @@ function rejectSvgAsset(ext: string, mime: string): void {
       'svg uploads are not allowed: SVG can carry inline scripts that execute in the browser',
     );
   }
+}
+
+const FETCH_BYTES_MAX = 50 * 1024 * 1024;
+
+const FETCHED_MIME_ALLOWLIST = [/^image\//, /^video\//, /^audio\//, /^application\/pdf$/];
+
+function isAllowedFetchedMime(mime: string): boolean {
+  if (isSvgMime(mime)) return false;
+  return FETCHED_MIME_ALLOWLIST.some((re) => re.test(mime));
+}
+
+async function readBodyWithCap(
+  res: { body: ReadableStream<Uint8Array> | null; arrayBuffer: () => Promise<ArrayBuffer> },
+  cap: number,
+): Promise<Buffer> {
+  if (!res.body) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > cap) {
+      throw new CmsInvalidError(`fetched body exceeds ${cap} bytes`);
+    }
+    return buf;
+  }
+  const reader = res.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel().catch(() => {});
+      throw new CmsInvalidError(`fetched body exceeds ${cap} bytes`);
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, total);
+}
+
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'application/pdf': 'pdf',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'audio/mpeg': 'mp3',
+  'audio/ogg': 'ogg',
+};
+
+function deriveNameFromUrl(url: URL, mime: string): string {
+  const last = url.pathname.split('/').filter(Boolean).pop();
+  if (last && last.includes('.')) return decodeURIComponent(last).slice(0, 200);
+  const ext = MIME_TO_EXT[mime] ?? mime.split('/')[1] ?? 'bin';
+  return `asset.${ext.replace(/[^a-z0-9]/gi, '').slice(0, 16) || 'bin'}`;
 }

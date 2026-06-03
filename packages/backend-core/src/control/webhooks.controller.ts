@@ -5,23 +5,25 @@ import {
   Delete,
   Get,
   HttpCode,
-  NotFoundException,
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { schema } from '@getmunin/db';
-import { and, asc, eq } from 'drizzle-orm';
-import { getCurrentContext, randomToken } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
+import {
+  WebhooksService,
+  type WebhookDto,
+  type WebhookDeliveryDto,
+} from '../modules/webhooks/webhooks.service.ts';
 
 export const WebhookUrl = z
   .string()
@@ -46,94 +48,61 @@ const PatchDto = z.object({
   active: z.boolean().optional(),
 });
 
-interface WebhookDto {
-  id: string;
-  url: string;
-  events: string[];
-  active: boolean;
-  /** Plaintext shared secret — returned ONCE at creation time. */
-  secret?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+const DeliveriesQuery = z.object({
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  status: z.enum(['pending', 'delivered', 'failed']).optional(),
+});
 
 @Controller('v1/webhooks')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 @RequireRole('owner', 'admin')
 export class WebhooksController {
+  constructor(private readonly webhooks: WebhooksService) {}
+
   @Get()
-  async list(): Promise<WebhookDto[]> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const rows = await ctx.db
-      .select()
-      .from(schema.webhooks)
-      .where(eq(schema.webhooks.orgId, actor.orgId))
-      .orderBy(asc(schema.webhooks.createdAt));
-    return rows.map(toDto);
+  list(): Promise<WebhookDto[]> {
+    return this.webhooks.list();
+  }
+
+  @Get('event-types')
+  listEventTypes() {
+    return this.webhooks.listEventTypes();
   }
 
   @Post()
   @HttpCode(201)
-  async create(@Body() body: unknown): Promise<WebhookDto> {
+  create(@Body() body: unknown): Promise<WebhookDto> {
     const parsed = CreateDto.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const secret = `whsec_${randomToken(24)}`;
-    const [row] = await ctx.db
-      .insert(schema.webhooks)
-      .values({
-        orgId: actor.orgId,
-        url: parsed.data.url,
-        secret,
-        events: parsed.data.events,
-        active: parsed.data.active ?? true,
-      })
-      .returning();
-    return { ...toDto(row!), secret };
+    return this.webhooks.create(parsed.data);
   }
 
   @Patch(':id')
-  async patch(@Param('id') id: string, @Body() body: unknown): Promise<WebhookDto> {
+  patch(@Param('id') id: string, @Body() body: unknown): Promise<WebhookDto> {
     const parsed = PatchDto.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const updates: Record<string, unknown> = { updatedAt: new Date() };
-    if (parsed.data.url !== undefined) updates.url = parsed.data.url;
-    if (parsed.data.events !== undefined) updates.events = parsed.data.events;
-    if (parsed.data.active !== undefined) updates.active = parsed.data.active;
-    const result = await ctx.db
-      .update(schema.webhooks)
-      .set(updates)
-      .where(and(eq(schema.webhooks.id, id), eq(schema.webhooks.orgId, actor.orgId)))
-      .returning();
-    if (!result[0]) throw new NotFoundException(`webhook ${id} not found`);
-    return toDto(result[0]);
+    return this.webhooks.update(id, parsed.data);
   }
 
   @Delete(':id')
   @HttpCode(204)
   async remove(@Param('id') id: string): Promise<void> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const result = await ctx.db
-      .delete(schema.webhooks)
-      .where(and(eq(schema.webhooks.id, id), eq(schema.webhooks.orgId, actor.orgId)))
-      .returning({ id: schema.webhooks.id });
-    if (result.length === 0) throw new NotFoundException(`webhook ${id} not found`);
+    await this.webhooks.delete(id);
   }
-}
 
-function toDto(row: typeof schema.webhooks.$inferSelect): WebhookDto {
-  return {
-    id: row.id,
-    url: row.url,
-    events: row.events,
-    active: row.active,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
+  @Post(':id/rotate-secret')
+  rotateSecret(@Param('id') id: string): Promise<WebhookDto> {
+    return this.webhooks.rotateSecret(id);
+  }
+
+  @Get(':id/deliveries')
+  listDeliveries(
+    @Param('id') id: string,
+    @Query() query: unknown,
+  ): Promise<WebhookDeliveryDto[]> {
+    const parsed = DeliveriesQuery.safeParse(query);
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.webhooks.listDeliveries({ webhookId: id, ...parsed.data });
+  }
 }

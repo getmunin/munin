@@ -56,20 +56,21 @@ export function ForgotPasswordPage({ footer }: ForgotPasswordPageProps) {
             </AuthHeading>
             <AuthSubheading>{t('sentBody', { email })}</AuthSubheading>
 
-            <div className="mb-6 rounded-[12px] border-[0.5px] border-rule-soft bg-paper-deep px-5 py-4 text-[13px] leading-[1.55] text-ink-soft">
+            <div className="mb-[22px] bg-paper-deep px-4 py-3.5 text-[13px] leading-[1.5] text-ink-soft">
               {t('sentInfo')}
             </div>
 
-            <AuthSubmit
-              type="button"
-              variant="ghost"
-              onClick={() => {
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
                 setSent(false);
                 setError(null);
               }}
             >
-              {t('resend')}
-            </AuthSubmit>
+              <AuthSubmit type="submit" variant="ghost" autoFocus>
+                {t('resend')}
+              </AuthSubmit>
+            </form>
 
             <AuthFootnote>
               <Link

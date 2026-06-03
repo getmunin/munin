@@ -43,7 +43,8 @@ function VerifyEmailInner({ footer }: VerifyEmailPageProps) {
           <AuthSubheading>{subtitle}</AuthSubheading>
           <Link
             href="/login"
-            className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-[12px] border-[0.5px] border-auth-navy bg-auth-navy px-[18px] py-4 text-[15px] font-medium text-white transition-colors duration-fast ease-munin hover:border-auth-navy-hover hover:bg-auth-navy-hover"
+            autoFocus
+            className="mt-2 inline-flex w-full items-center justify-center gap-2 border-[0.5px] border-ink bg-ink px-[18px] py-4 text-[15px] font-medium text-paper transition-colors duration-fast ease-munin hover:border-cobalt-deep hover:bg-cobalt-deep active:translate-y-px"
           >
             {cta}
           </Link>

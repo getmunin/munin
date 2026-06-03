@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createServer, type Server, type RequestListener } from 'node:http';
+import type { LookupAddress } from 'node:dns';
 import type { AddressInfo } from 'node:net';
 import {
   assertPublicHost,
@@ -149,8 +150,14 @@ describe('safeFetch', () => {
   it('returns the array shape undici expects when lookup is called with all:true', async () => {
     await start();
     process.env.MUNIN_SSRF_ALLOW_PRIVATE = 'true';
+    const loopbackLookup = (
+      _host: string,
+      cb: (err: NodeJS.ErrnoException | null, records: LookupAddress[]) => void,
+    ) => cb(null, [{ address: '127.0.0.1', family: 4 }]);
     try {
-      const res = await safeFetch(`http://127.0.0.1.nip.io:${port}/`);
+      const res = await safeFetch(`http://public.example:${port}/`, {
+        __connectLookup: loopbackLookup,
+      });
       expect(res.status).toBe(200);
       await res.body?.cancel().catch(() => {});
     } finally {
@@ -159,13 +166,20 @@ describe('safeFetch', () => {
     }
   });
 
-  it('blocks rebinding: upfront resolver lies "public" but real DNS returns private', async () => {
+  it('blocks rebinding: upfront resolver lies "public" but connect-time DNS returns private', async () => {
     await start();
     const lyingResolver = () => Promise.resolve([{ address: '93.184.216.34', family: 4 }]);
+    const rebindingLookup = (
+      _host: string,
+      cb: (err: NodeJS.ErrnoException | null, records: LookupAddress[]) => void,
+    ) => cb(null, [{ address: '127.0.0.1', family: 4 }]);
     try {
       let caught: unknown;
       try {
-        await safeFetch(`http://127.0.0.1.nip.io:${port}/`, { resolver: lyingResolver });
+        await safeFetch(`http://public.example:${port}/`, {
+          resolver: lyingResolver,
+          __connectLookup: rebindingLookup,
+        });
       } catch (err) {
         caught = err;
       }

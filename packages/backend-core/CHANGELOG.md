@@ -1,5 +1,18 @@
 # @getmunin/backend-core
 
+## 4.29.1
+
+### Patch Changes
+
+- 84b988d: KB and CMS vector search now cast the query embedding to match the deployed column type. The hard-coded `::vector` cast in `kb.search.ts` and `cms.search.ts` bypassed the HNSW index when the column was switched to `halfvec` (required for embeddings above 2000 dimensions, since pgvector's `vector` type caps HNSW indexing at 2000). Queries fell back to sequential scans of every chunk in the org. A new `embeddingColumnType()` helper in `@getmunin/core` reads `MUNIN_EMBEDDING_COLUMN_TYPE` (defaulting to `vector`), and the search SQL uses it via `sql.raw` to keep the index in play. Set `MUNIN_EMBEDDING_COLUMN_TYPE=halfvec` on deployments where the column was migrated to `halfvec`.
+- 84b988d: `TenancyInterceptor` and `AuditInterceptor` are now idempotent across nested invocations. Previously, if either was registered both globally (via `APP_INTERCEPTOR`) and per-controller (via `@UseInterceptors`) — as can happen when a downstream backend composes the OSS module — every authenticated request would open a second `db.transaction` and write a duplicate audit row. The second transaction acquired a separate pool connection that sat in `BEGIN` for the lifetime of the request, capping useful concurrency well below the configured pool size. The guards short-circuit on a second pass: `TenancyInterceptor` skips when `RequestContextStore.getStore()` is already populated; `AuditInterceptor` skips when the request was already audited.
+- Updated dependencies [84b988d]
+  - @getmunin/core@4.29.1
+  - @getmunin/agent-runtime@4.29.1
+  - @getmunin/mcp-toolkit@4.29.1
+  - @getmunin/db@4.29.1
+  - @getmunin/types@4.29.1
+
 ## 4.29.0
 
 ### Minor Changes

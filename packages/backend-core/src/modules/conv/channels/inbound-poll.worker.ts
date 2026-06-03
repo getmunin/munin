@@ -2,17 +2,23 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nest
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { ActorIdentity, getCurrentContext, withContext, type RequestContext } from '@getmunin/core';
+import {
+  ActorIdentity,
+  getCurrentContext,
+  parseEnvDisableFlag,
+  parseEnvInt,
+  withContext,
+  type RequestContext,
+} from '@getmunin/core';
 import { DB } from '../../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../../common/scheduler-lock/index.ts';
 import { AlertsService } from '../../system-alerts/system-alerts.service.ts';
 import { CHANNEL_ADAPTERS, ChannelAdapterRegistry, type ChannelAdapter } from './adapter.ts';
 
-const POLL_INTERVAL_MS = Number(
-  process.env.MUNIN_INBOUND_POLL_WORKER_INTERVAL_MS ??
-    process.env.MUNIN_EMAIL_INBOUND_POLL_MS ??
-    60_000,
-);
+const POLL_INTERVAL_MS = parseEnvInt({
+  name: 'MUNIN_INBOUND_POLL_WORKER_INTERVAL_MS',
+  default: parseEnvInt({ name: 'MUNIN_EMAIL_INBOUND_POLL_MS', default: 60_000 }),
+});
 
 const AUTO_DEACTIVATE_THRESHOLD = 5;
 
@@ -32,8 +38,8 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private disabled =
-    process.env.MUNIN_INBOUND_POLL_WORKER_DISABLED === '1' ||
-    process.env.MUNIN_EMAIL_INBOUND_WORKER_DISABLED === '1' ||
+    parseEnvDisableFlag('MUNIN_INBOUND_POLL_WORKER_DISABLED') ||
+    parseEnvDisableFlag('MUNIN_EMAIL_INBOUND_WORKER_DISABLED') ||
     process.env.NODE_ENV === 'test';
 
   private readonly registry: ChannelAdapterRegistry;

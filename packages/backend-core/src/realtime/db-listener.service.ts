@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import postgres from 'postgres';
+import { parseEnvDisableFlag } from '@getmunin/core';
 
 export interface EventRow {
   id: string;
@@ -21,7 +22,7 @@ export class DbListenerService implements OnModuleInit, OnModuleDestroy {
   private readonly handlers = new Set<EventHandler>();
 
   async onModuleInit(): Promise<void> {
-    if (process.env.MUNIN_REALTIME_DISABLED === '1') {
+    if (parseEnvDisableFlag('MUNIN_REALTIME_DISABLED')) {
       this.logger.log('realtime listener disabled via MUNIN_REALTIME_DISABLED');
       return;
     }

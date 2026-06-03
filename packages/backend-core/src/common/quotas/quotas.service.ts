@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
-import { getCurrentContext } from '@getmunin/core';
+import { getCurrentContext, parseEnvBool } from '@getmunin/core';
 
 export const QUOTAS_SERVICE = Symbol('QUOTAS_SERVICE');
 
@@ -45,9 +45,7 @@ const TABLE_FOR: Record<QuotaResource, string> = {
 };
 
 function isEnabled(): boolean {
-  const raw = process.env.MUNIN_QUOTAS_ENABLED;
-  if (raw === undefined) return false;
-  return raw.toLowerCase() === 'true' || raw === '1';
+  return parseEnvBool({ name: 'MUNIN_QUOTAS_ENABLED', default: false });
 }
 
 export abstract class QuotasService {

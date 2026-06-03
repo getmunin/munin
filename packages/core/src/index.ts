@@ -43,6 +43,8 @@ export {
 
 export {
   type EmbeddingProvider,
+  type EmbeddingColumnType,
+  embeddingColumnType,
   OpenAIEmbeddingProvider,
   StubEmbeddingProvider,
   readEmbeddingProviderFromEnv,

@@ -17,6 +17,12 @@ export interface EmbeddingProvider {
   embed(texts: readonly string[]): Promise<number[][]>;
 }
 
+export type EmbeddingColumnType = 'vector' | 'halfvec';
+
+export function embeddingColumnType(): EmbeddingColumnType {
+  return process.env.MUNIN_EMBEDDING_COLUMN_TYPE === 'halfvec' ? 'halfvec' : 'vector';
+}
+
 // ─── OpenAI ──────────────────────────────────────────────────────────────────
 
 export interface OpenAIEmbeddingOptions {

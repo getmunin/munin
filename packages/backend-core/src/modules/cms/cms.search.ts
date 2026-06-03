@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type SQL, and, eq } from 'drizzle-orm';
-import { getCurrentContext } from '@getmunin/core';
+import { embeddingColumnType, getCurrentContext } from '@getmunin/core';
 import type { Db, Tx } from '@getmunin/db';
 import { schema } from '@getmunin/db';
 import { DB } from '../../common/db/db.module.ts';
@@ -144,6 +144,7 @@ export class CmsSearchService {
     `);
 
     const [queryVec] = await this.embeddings.get().embed([trimmed]);
+    const colType = sql.raw(embeddingColumnType());
     const vectorRows = queryVec
       ? await db.execute<VectorRow>(sql`
           SELECT
@@ -156,8 +157,8 @@ export class CmsSearchService {
             e.data            AS data,
             c.fields          AS fields,
             left(e.search_text, 400) AS excerpt,
-            1 - (e.embedding <=> ${formatVector(queryVec)}::vector) AS similarity,
-            ROW_NUMBER() OVER (ORDER BY e.embedding <=> ${formatVector(queryVec)}::vector ASC) AS rn
+            1 - (e.embedding <=> ${formatVector(queryVec)}::${colType}) AS similarity,
+            ROW_NUMBER() OVER (ORDER BY e.embedding <=> ${formatVector(queryVec)}::${colType} ASC) AS rn
           FROM cms_entries e
           JOIN cms_collections c ON c.id = e.collection_id
           WHERE e.embedding IS NOT NULL AND ${whereExpr}

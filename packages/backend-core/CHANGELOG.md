@@ -1,5 +1,20 @@
 # @getmunin/backend-core
 
+## 4.31.0
+
+### Minor Changes
+
+- 8b270d4: Trim audit-log write volume and add retention. The `AuditInterceptor` now skips chatty polling GETs (`/agent-health`, `/agent-config`, `/widget/messages`, `/widget/conversations`, `/inbox`, `/usage/summary`, `/system/alerts` — under both `/v1` and `/api/v1`); non-GET requests on the same paths are still audited. The in-process agent runner no longer records `runner:claimCuratorJobs` ticks. A new `AuditRetentionService` prunes `audit_log` rows daily; window is configurable via `MUNIN_AUDIT_RETENTION_DAYS` (default `30`, set to `off` or `0` to disable) and `MUNIN_AUDIT_RETENTION_CRON` (default `0 3 * * *`).
+
+### Patch Changes
+
+- @getmunin/core@4.31.0
+- @getmunin/db@4.31.0
+- @getmunin/types@4.31.0
+- @getmunin/mcp-toolkit@4.31.0
+- @getmunin/agent-runtime@4.31.0
+- @getmunin/emails@4.31.0
+
 ## 4.30.0
 
 ### Patch Changes

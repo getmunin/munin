@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import { getCurrentContext, type Audience } from '@getmunin/core';
+import { embeddingColumnType, getCurrentContext, type Audience } from '@getmunin/core';
 import { EmbeddingProviderHolder } from './embedding.provider.ts';
 
 export interface SearchHit {
@@ -89,6 +89,7 @@ export class KbSearchService {
     `);
 
     const [queryVec] = await this.embeddings.get().embed([trimmed]);
+    const colType = sql.raw(embeddingColumnType());
     const vectorRows = queryVec
       ? await ctx.db.execute<VectorRow>(sql`
           WITH ranked AS (
@@ -98,10 +99,10 @@ export class KbSearchService {
               d.title         AS title,
               d.audiences     AS audiences,
               left(c.content, 400) AS excerpt,
-              1 - (c.embedding <=> ${formatVector(queryVec)}::vector) AS similarity,
+              1 - (c.embedding <=> ${formatVector(queryVec)}::${colType}) AS similarity,
               ROW_NUMBER() OVER (
                 PARTITION BY c.document_id
-                ORDER BY c.embedding <=> ${formatVector(queryVec)}::vector ASC
+                ORDER BY c.embedding <=> ${formatVector(queryVec)}::${colType} ASC
               ) AS chunk_rn
             FROM kb_document_chunks c
             JOIN kb_documents d ON d.id = c.document_id

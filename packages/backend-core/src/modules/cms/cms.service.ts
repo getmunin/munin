@@ -76,6 +76,19 @@ export interface EntryDto {
   updatedAt: string;
 }
 
+export interface CmsDraftEntrySummary {
+  id: string;
+  collectionId: string;
+  collectionSlug: string;
+  collectionName: string;
+  slug: string;
+  locale: string;
+  title: string | null;
+  wordCount: number | null;
+  version: number;
+  updatedAt: string;
+}
+
 export interface VersionDto {
   id: string;
   entryId: string;
@@ -273,6 +286,48 @@ export class CmsService {
     );
     await this.expandAssetsInDtos(ctx.actor!.orgId, dtos, fieldsByEntryId);
     return dtos;
+  }
+
+  async listDraftEntries(limit = 50): Promise<CmsDraftEntrySummary[]> {
+    const ctx = getCurrentContext();
+    const take = clampLimit(limit, 50, 200);
+    const rows = await ctx.db
+      .select({
+        id: schema.cmsEntries.id,
+        collectionId: schema.cmsEntries.collectionId,
+        slug: schema.cmsEntries.slug,
+        locale: schema.cmsEntries.locale,
+        data: schema.cmsEntries.data,
+        version: schema.cmsEntries.version,
+        updatedAt: schema.cmsEntries.updatedAt,
+        collectionName: schema.cmsCollections.name,
+        collectionSlug: schema.cmsCollections.slug,
+      })
+      .from(schema.cmsEntries)
+      .innerJoin(
+        schema.cmsCollections,
+        eq(schema.cmsCollections.id, schema.cmsEntries.collectionId),
+      )
+      .where(eq(schema.cmsEntries.status, 'draft'))
+      .orderBy(desc(schema.cmsEntries.updatedAt))
+      .limit(take);
+
+    return rows.map((r) => ({
+      id: r.id,
+      collectionId: r.collectionId,
+      collectionSlug: r.collectionSlug,
+      collectionName: r.collectionName,
+      slug: r.slug,
+      locale: r.locale,
+      title: readStringField(r.data, 'title'),
+      wordCount: countWordsInBody(r.data),
+      version: r.version,
+      updatedAt: r.updatedAt.toISOString(),
+    }));
+  }
+
+  async archiveEntry(input: { id: string; ifVersion: number }): Promise<EntryDto> {
+    return this.transition(input, 'archived');
   }
 
   async getEntry(id: string): Promise<EntryDto> {
@@ -865,6 +920,8 @@ export class CmsService {
       updates.scheduledAt = input.scheduledAt;
     } else if (status === 'draft') {
       updates.publishedAt = null;
+    } else if (status === 'archived') {
+      updates.scheduledAt = null;
     }
 
     const [updated] = await ctx.db
@@ -887,6 +944,11 @@ export class CmsService {
     } else if (status === 'scheduled') {
       await this.webhooks.emit({
         type: 'cms.entry.scheduled',
+        payload: makePayload(updated!, collection.slug),
+      });
+    } else if (status === 'archived') {
+      await this.webhooks.emit({
+        type: 'cms.entry.archived',
         payload: makePayload(updated!, collection.slug),
       });
     }
@@ -1146,6 +1208,19 @@ function decodeAssetBody(base64Body: string): Buffer {
 
 function assetExtensionFromName(name: string): string {
   return (name.split('.').pop() ?? 'bin').toLowerCase().slice(0, 16);
+}
+
+function readStringField(data: unknown, field: string): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const value = (data as Record<string, unknown>)[field];
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function countWordsInBody(data: unknown): number | null {
+  const body = readStringField(data, 'body');
+  if (body == null) return null;
+  const matches = body.match(/\S+/g);
+  return matches ? matches.length : 0;
 }
 
 function rejectSvgAsset(ext: string, mime: string): void {

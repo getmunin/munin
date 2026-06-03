@@ -523,6 +523,59 @@ class StubStorage implements AssetStorage {
         run(() => svc.restoreVersion({ entryId: entry.id, version: 1, ifVersion: 99 })),
       ).rejects.toThrow(CmsConflictError);
     });
+
+    it('listDraftEntries returns only drafts with collection name and word count', async () => {
+      const col = await seedCollection();
+      await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'd1',
+          data: { title: 'Draft one', body: 'one two three' },
+        }),
+      );
+      await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'd2',
+          data: { title: 'Draft two' },
+        }),
+      );
+      await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'pub',
+          data: { title: 'Published', body: 'should not appear' },
+          status: 'published',
+        }),
+      );
+
+      const drafts = await run(() => svc.listDraftEntries());
+      const byId = new Map(drafts.map((d) => [d.slug, d]));
+      expect([...byId.keys()].sort()).toEqual(['d1', 'd2']);
+      expect(byId.get('d1')).toMatchObject({
+        title: 'Draft one',
+        wordCount: 3,
+        collectionName: 'Articles',
+        collectionSlug: 'articles',
+        locale: 'en',
+      });
+      expect(byId.get('d2')).toMatchObject({ title: 'Draft two', wordCount: null });
+    });
+
+    it('archiveEntry transitions draft to archived and emits webhook', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'a1', data: { title: 'A' } }),
+      );
+      const archived = await run(() =>
+        svc.archiveEntry({ id: entry.id, ifVersion: entry.version }),
+      );
+      expect(archived.status).toBe('archived');
+      expect(archived.version).toBe(entry.version + 1);
+      const drafts = await run(() => svc.listDraftEntries());
+      expect(drafts.find((d) => d.id === entry.id)).toBeUndefined();
+      expect(await eventTypes()).toContain('cms.entry.archived');
+    });
   });
 
   // ─── Assets ──────────────────────────────────────────────────────────

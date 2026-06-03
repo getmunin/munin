@@ -28,6 +28,7 @@ import { OutreachUnsubscribeController } from './outreach-unsubscribe.controller
 import { EmailOpensController } from './email-opens.controller.ts';
 import { OutreachProposalsController } from './outreach-proposals.controller.ts';
 import { OutreachModule } from '../modules/outreach/outreach.module.ts';
+import { WebhooksModule } from '../modules/webhooks/webhooks.module.ts';
 import { PublicSkillsController } from './public-skills.controller.ts';
 import { PublicMcpToolsController } from './public-mcp-tools.controller.ts';
 import { InvitationsController } from './invitations.controller.ts';
@@ -60,6 +61,7 @@ import { AuthProvidersController } from './auth-providers.controller.ts';
     McpModule,
     OutreachModule,
     RealtimeModule,
+    WebhooksModule,
   ],
   controllers: [
     ApiKeysController,

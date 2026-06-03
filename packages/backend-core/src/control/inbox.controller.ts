@@ -29,6 +29,7 @@ import { CrmService, type MergeProposalDto } from '../modules/crm/crm.service.ts
 import { OutreachService, type ProposalDto } from '../modules/outreach/outreach.service.ts';
 import { FeedbackService } from '../modules/feedback/feedback.service.ts';
 import type { FeedbackOutboxDto } from '../modules/feedback/feedback.service.ts';
+import { CmsService, type CmsDraftEntrySummary } from '../modules/cms/cms.service.ts';
 
 interface LiveConversation extends ConversationSummary {
   latestEndUserMessage: { body: string; createdAt: string } | null;
@@ -43,6 +44,7 @@ interface InboxQueueResponse {
     kb: CurationCandidateSummary[];
     crm: MergeProposalDto[];
     outreach: ProposalDto[];
+    cms: CmsDraftEntrySummary[];
     feedback?: FeedbackOutboxDto[];
   };
 }
@@ -57,16 +59,18 @@ export class InboxController {
     private readonly kb: KbService,
     private readonly crm: CrmService,
     private readonly outreach: OutreachService,
+    private readonly cms: CmsService,
     @Optional() @Inject(FeedbackService) private readonly feedback: FeedbackService | null = null,
   ) {}
 
   @Get()
   async queue(): Promise<InboxQueueResponse> {
-    const [live, kbItems, crmItems, outreachItems, feedbackItems] = await Promise.all([
+    const [live, kbItems, crmItems, outreachItems, cmsItems, feedbackItems] = await Promise.all([
       this.loadLive(),
       this.kb.listCurationCandidates(50),
       this.crm.listMergeProposals({ status: 'pending', limit: 50 }),
       this.outreach.listProposals({ status: 'pending', limit: 50 }),
+      this.cms.listDraftEntries(50),
       this.feedback ? this.feedback.listPending() : Promise.resolve(undefined),
     ]);
 
@@ -76,6 +80,7 @@ export class InboxController {
         kb: kbItems,
         crm: crmItems,
         outreach: outreachItems,
+        cms: cmsItems,
         ...(feedbackItems ? { feedback: feedbackItems } : {}),
       },
     };

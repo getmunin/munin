@@ -12,6 +12,7 @@ import { UsageStatsController } from './usage-stats.controller.ts';
 import { ExportController } from './export.controller.ts';
 import { WebhooksController } from './webhooks.controller.ts';
 import { CmsDeliveryController } from './cms-delivery.controller.ts';
+import { CmsDraftsController } from './cms-drafts.controller.ts';
 import { CmsModule } from '../modules/cms/cms.module.ts';
 import { ConvModule } from '../modules/conv/conv.module.ts';
 import { CrmModule } from '../modules/crm/crm.module.ts';
@@ -75,6 +76,7 @@ import { AuthProvidersController } from './auth-providers.controller.ts';
     ExportController,
     WebhooksController,
     CmsDeliveryController,
+    CmsDraftsController,
     InvitationsController,
     AcceptInvitationController,
     MembersController,

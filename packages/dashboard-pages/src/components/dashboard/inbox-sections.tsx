@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, MessageSquare, Unplug, User } from 'lucide-react';
-import ReactMarkdown, { type Components } from 'react-markdown';
 import { useTranslations } from 'next-intl';
 import {
   Button,
@@ -15,6 +14,20 @@ import { api, ApiError } from '../../api';
 import { notify } from '../../lib/notify';
 import { useRelative } from '../../lib/use-relative';
 import { useRealtime, type RealtimeStatus, type SubscriptionChannel } from '../../realtime';
+import { QueueDrawer } from './queue-drawers';
+import {
+  queueLabelKey,
+  queueTone,
+  type CmsDraftDetailDto,
+  type CmsDraftSummaryDto,
+  type CrmContactSummary,
+  type CrmMergeProposalDto,
+  type FeedbackOutboxDto,
+  type KbCandidateDto,
+  type OutreachProposalDto,
+  type QueueItem,
+} from './queue-drawers/types';
+import { DrawerFooter, DrawerHeader, useCmdEnter } from './queue-drawers/shared';
 
 type Status = 'open' | 'snoozed' | 'closed' | 'spam';
 
@@ -62,63 +75,7 @@ interface ActivityDto {
   createdAt: string;
 }
 
-interface KbCandidateDto {
-  id: string;
-  title: string;
-  body?: string;
-  updatedAt: string;
-  proposedTargetSpaceSlug: string | null;
-}
-
-interface CrmContactSummary {
-  id: string;
-  name: string | null;
-  email: string | null;
-  phone: string | null;
-}
-
-interface CrmMergeProposalDto {
-  id: string;
-  contactA: CrmContactSummary;
-  contactB: CrmContactSummary;
-  confidence: 'high' | 'medium';
-  recommendedKeeperId: string;
-  evidence?: Record<string, unknown>;
-  createdAt: string;
-}
-
-interface OutreachProposalDto {
-  id: string;
-  campaignId: string;
-  contactId: string;
-  conversationId: string | null;
-  kind: 'initial' | 'reply';
-  draftSubject: string | null;
-  draftBody: string;
-  campaign?: { name: string } | null;
-  contact?: { name: string | null; email: string | null } | null;
-  evidence?: Record<string, unknown>;
-  createdAt: string;
-}
-
-interface FeedbackOutboxDto {
-  id: string;
-  title: string;
-  body: string;
-  appScope: string | null;
-  includeOrgName: boolean;
-  includeUserName: boolean;
-  submittedByUserId: string | null;
-  createdAt: string;
-  approvedAt: string | null;
-  forwardError: string | null;
-}
-
-export type QueueItem =
-  | { kind: 'kb'; id: string; title: string; snippet: string; createdAt: string; raw: KbCandidateDto }
-  | { kind: 'crm'; id: string; title: string; snippet: string; createdAt: string; raw: CrmMergeProposalDto }
-  | { kind: 'outreach'; id: string; title: string; snippet: string; createdAt: string; raw: OutreachProposalDto }
-  | { kind: 'feedback'; id: string; title: string; snippet: string; createdAt: string; raw: FeedbackOutboxDto };
+export type { QueueItem };
 
 type ConvDrawer = { id: string; mode: 'simplified' | 'full' } | null;
 
@@ -133,6 +90,7 @@ interface InboxQueueResponse {
     kb: KbCandidateDto[];
     crm: CrmMergeProposalDto[];
     outreach: OutreachProposalDto[];
+    cms: CmsDraftSummaryDto[];
     feedback?: FeedbackOutboxDto[];
   };
 }
@@ -170,6 +128,17 @@ function useQueueBuilder() {
         createdAt: o.createdAt,
         raw: o,
       }));
+      const cms = (q.cms ?? []).map<QueueItem>((c) => ({
+        kind: 'cms',
+        id: c.id,
+        title: c.title ?? tQueue('cmsUntitled'),
+        snippet:
+          c.wordCount != null
+            ? tQueue('cmsSnippet', { collection: c.collectionName, wordCount: c.wordCount })
+            : tQueue('cmsSnippetNoBody', { collection: c.collectionName }),
+        createdAt: c.updatedAt,
+        raw: c,
+      }));
       const feedback = (q.feedback ?? []).map<QueueItem>((f) => ({
         kind: 'feedback',
         id: f.id,
@@ -178,7 +147,7 @@ function useQueueBuilder() {
         createdAt: f.createdAt,
         raw: f,
       }));
-      return [...kb, ...crm, ...outreach, ...feedback].sort(
+      return [...kb, ...crm, ...outreach, ...cms, ...feedback].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
     },
@@ -258,6 +227,7 @@ export interface InboxController {
   draftEdit: string | null;
   setDraftEdit: (next: string | null) => void;
   kbBodies: Record<string, string>;
+  cmsDetails: Record<string, CmsDraftDetailDto>;
   detailErrors: Record<string, string>;
   reloadDetail: (id: string) => Promise<void>;
   actionError: ConvActionError;
@@ -270,6 +240,7 @@ export interface InboxController {
   approveQueue: (item: QueueItem) => Promise<void>;
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
   dismissQueue: (item: QueueItem) => Promise<void>;
+  scheduleQueue: (item: QueueItem, scheduledAt: string) => Promise<void>;
 }
 
 export function useInboxData(): InboxController {
@@ -278,6 +249,7 @@ export function useInboxData(): InboxController {
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [kbBodies, setKbBodies] = useState<Record<string, string>>({});
+  const [cmsDetails, setCmsDetails] = useState<Record<string, CmsDraftDetailDto>>({});
   const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
   const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
   const [reply, setReply] = useState('');
@@ -361,6 +333,14 @@ export function useInboxData(): InboxController {
       .then((doc) => setKbBodies((prev) => ({ ...prev, [queueDrawer.id]: doc.body })))
       .catch(() => {});
   }, [queueDrawer, kbBodies]);
+
+  useEffect(() => {
+    if (!queueDrawer || queueDrawer.kind !== 'cms') return;
+    if (cmsDetails[queueDrawer.id] !== undefined) return;
+    void api<CmsDraftDetailDto>(`/v1/cms-drafts/${queueDrawer.id}`)
+      .then((doc) => setCmsDetails((prev) => ({ ...prev, [queueDrawer.id]: doc })))
+      .catch(() => {});
+  }, [queueDrawer, cmsDetails]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];
@@ -519,6 +499,8 @@ export function useInboxData(): InboxController {
           await api(`/v1/crm/merge-proposals/${item.id}/apply`, { method: 'POST' });
         } else if (item.kind === 'feedback') {
           await api(`/v1/feedback/${item.id}/approve`, { method: 'POST' });
+        } else if (item.kind === 'cms') {
+          await api(`/v1/cms-drafts/${item.id}/approve`, { method: 'POST', body: '{}' });
         } else {
           await api(`/v1/outreach/proposals/${item.id}/approve`, { method: 'POST' });
         }
@@ -548,6 +530,12 @@ export function useInboxData(): InboxController {
             method: 'PATCH',
             body: JSON.stringify({ draftBody: body }),
           });
+        } else if (item.kind === 'cms') {
+          const updated = await api<CmsDraftDetailDto>(`/v1/cms-drafts/${item.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ data: { body } }),
+          });
+          setCmsDetails((prev) => ({ ...prev, [item.id]: updated }));
         }
         await loadInbox();
       } catch (err) {
@@ -573,6 +561,8 @@ export function useInboxData(): InboxController {
           });
         } else if (item.kind === 'feedback') {
           await api(`/v1/feedback/${item.id}/reject`, { method: 'POST' });
+        } else if (item.kind === 'cms') {
+          await api(`/v1/cms-drafts/${item.id}/dismiss`, { method: 'POST', body: '{}' });
         } else {
           await api(`/v1/outreach/proposals/${item.id}/dismiss`, {
             method: 'POST',
@@ -583,6 +573,27 @@ export function useInboxData(): InboxController {
         setQueueDrawer(null);
       } catch (err) {
         notify.error(messageOf(err));
+      } finally {
+        setPending(false);
+      }
+    },
+    [loadInbox],
+  );
+
+  const scheduleQueue = useCallback(
+    async (item: QueueItem, scheduledAt: string) => {
+      if (item.kind !== 'cms') return;
+      setPending(true);
+      try {
+        await api(`/v1/cms-drafts/${item.id}/schedule`, {
+          method: 'POST',
+          body: JSON.stringify({ scheduledAt }),
+        });
+        await loadInbox();
+        setQueueDrawer(null);
+      } catch (err) {
+        notify.error(messageOf(err));
+        throw err;
       } finally {
         setPending(false);
       }
@@ -608,6 +619,7 @@ export function useInboxData(): InboxController {
     draftEdit,
     setDraftEdit,
     kbBodies,
+    cmsDetails,
     detailErrors,
     reloadDetail,
     actionError,
@@ -620,6 +632,7 @@ export function useInboxData(): InboxController {
     approveQueue,
     saveQueue,
     dismissQueue,
+    scheduleQueue,
   };
 }
 
@@ -719,6 +732,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     draftEdit,
     setDraftEdit,
     kbBodies,
+    cmsDetails,
     detailErrors,
     reloadDetail,
     actionError,
@@ -730,6 +744,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     approveQueue,
     saveQueue,
     dismissQueue,
+    scheduleQueue,
   } = controller;
   const selectedConv = convDrawer ? details[convDrawer.id] : null;
   const convError = convDrawer ? detailErrors[convDrawer.id] : null;
@@ -796,10 +811,14 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
             <QueueDrawer
               item={queueDrawer}
               kbBody={queueDrawer.kind === 'kb' ? kbBodies[queueDrawer.id] : undefined}
+              cmsDetail={
+                queueDrawer.kind === 'cms' ? cmsDetails[queueDrawer.id] : undefined
+              }
               pending={pending}
               onApprove={() => void approveQueue(queueDrawer)}
               onDismiss={() => void dismissQueue(queueDrawer)}
               onSave={(body) => saveQueue(queueDrawer, body)}
+              onSchedule={(scheduledAt) => scheduleQueue(queueDrawer, scheduledAt)}
               onClose={() => setQueueDrawer(null)}
             />
           )}
@@ -988,16 +1007,8 @@ function QueueRow({
 }) {
   const t = useTranslations('dashboard.overview.queue');
   const age = useRelative();
-  const tone: 'kb' | 'crm' | 'out' | 'feedback' =
-    item.kind === 'outreach' ? 'out' : item.kind === 'feedback' ? 'feedback' : item.kind;
-  const labelKey =
-    item.kind === 'outreach'
-      ? 'kindOutreach'
-      : item.kind === 'kb'
-        ? 'kindKb'
-        : item.kind === 'feedback'
-          ? 'kindFeedback'
-          : 'kindCrm';
+  const tone = queueTone(item);
+  const labelKey = queueLabelKey(item);
   return (
     <li className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
       <div
@@ -1358,337 +1369,6 @@ function FullConvDrawer({
   );
 }
 
-const MD_COMPONENTS: Components = {
-  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-  ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5">{children}</ul>,
-  ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5">{children}</ol>,
-  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-  strong: ({ children }) => (
-    <strong className="font-semibold text-ink dark:text-foreground">{children}</strong>
-  ),
-  em: ({ children }) => <em className="italic">{children}</em>,
-  h1: ({ children }) => <p className="mb-2 font-serif text-base font-medium">{children}</p>,
-  h2: ({ children }) => <p className="mb-2 font-serif text-base font-medium">{children}</p>,
-  h3: ({ children }) => <p className="mb-2 font-serif text-base font-medium">{children}</p>,
-  code: ({ children }) => (
-    <code className="font-mono text-xs bg-paper-deep px-1 py-0.5 dark:bg-secondary">{children}</code>
-  ),
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      className="text-cobalt underline-offset-2 hover:underline dark:text-cobalt-soft"
-    >
-      {children}
-    </a>
-  ),
-};
-
-function QueueDrawer({
-  item,
-  kbBody,
-  pending,
-  onApprove,
-  onDismiss,
-  onSave,
-  onClose,
-}: {
-  item: QueueItem;
-  kbBody?: string;
-  pending: boolean;
-  onApprove: () => void;
-  onDismiss: () => void;
-  onSave: (body: string) => Promise<void>;
-  onClose: () => void;
-}) {
-  const t = useTranslations('dashboard.overview.drawer');
-  const tQueue = useTranslations('dashboard.overview.queue');
-  const age = useRelative();
-  const initialBody =
-    item.kind === 'outreach' ? item.raw.draftBody : item.kind === 'kb' ? (kbBody ?? '') : '';
-  const [editing, setEditing] = useState(false);
-  const [editedBody, setEditedBody] = useState<string>(initialBody);
-
-  useEffect(() => {
-    setEditing(false);
-    setEditedBody(initialBody);
-  }, [item.id, initialBody]);
-
-  const tone: 'kb' | 'crm' | 'out' | 'feedback' =
-    item.kind === 'outreach' ? 'out' : item.kind === 'feedback' ? 'feedback' : item.kind;
-  const labelKey =
-    item.kind === 'outreach'
-      ? 'kindOutreach'
-      : item.kind === 'kb'
-        ? 'kindKb'
-        : item.kind === 'feedback'
-          ? 'kindFeedback'
-          : 'kindCrm';
-  const editable = item.kind === 'kb' || item.kind === 'outreach';
-
-  const cancelEdit = useCallback(() => {
-    setEditing(false);
-    setEditedBody(initialBody);
-  }, [initialBody]);
-
-  const saveEdit = async () => {
-    if (!editedBody.trim() || pending) return;
-    await onSave(editedBody);
-    setEditing(false);
-  };
-
-  useCmdEnter(() => {
-    if (pending) return;
-    if (editing) void saveEdit();
-    else onApprove();
-  });
-
-  useEffect(() => {
-    if (!editing) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        cancelEdit();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [editing, cancelEdit]);
-
-  let meta: string;
-  if (item.kind === 'outreach') {
-    const kind =
-      item.raw.kind === 'reply' ? t('outreachKindReply') : t('outreachKindInitial');
-    const handle = item.raw.contact?.email ?? item.raw.campaign?.name ?? t('handleFallback');
-    meta = t('metaOutreach', { kind, handle, age: age(item.createdAt) });
-  } else if (item.kind === 'crm') {
-    meta = t('metaCrm', { confidence: item.raw.confidence, age: age(item.createdAt) });
-  } else if (item.kind === 'feedback') {
-    meta = t('metaFeedback', {
-      scope: item.raw.appScope ? item.raw.appScope.toUpperCase() : tQueue('feedbackScopeFallback'),
-      age: age(item.createdAt),
-    });
-  } else {
-    meta = t('metaKb', {
-      slug: item.raw.proposedTargetSpaceSlug ?? t('kbSlugFallback'),
-      age: age(item.createdAt),
-    });
-  }
-
-  return (
-    <>
-      <DrawerHeader
-        pillTone={tone}
-        pillLabel={tQueue(labelKey)}
-        title={item.title}
-        meta={meta}
-        onClose={onClose}
-        closeLabel={t('close')}
-      />
-
-      <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-        {item.kind === 'outreach' && item.raw.kind === 'reply' && (
-          <section className="space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-              {t('replyFrom')}
-            </p>
-            <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
-              &ldquo;{item.snippet}&rdquo;
-            </p>
-          </section>
-        )}
-
-        <section className="space-y-2">
-          <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-            {t('proposal')}
-          </p>
-          {editing ? (
-            <textarea
-              value={editedBody}
-              onChange={(e) => setEditedBody(e.target.value)}
-              rows={14}
-              className="w-full resize-y rounded-input border-[0.5px] border-cobalt bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:text-foreground"
-              autoFocus
-            />
-          ) : (
-            <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
-              {item.kind === 'outreach' ? (
-                <>
-                  {item.raw.draftSubject && (
-                    <p className="mb-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-                      {t('subject', { subject: item.raw.draftSubject })}
-                    </p>
-                  )}
-                  <ReactMarkdown components={MD_COMPONENTS}>{editedBody}</ReactMarkdown>
-                </>
-              ) : item.kind === 'crm' ? (
-                <CrmMergeBody proposal={item.raw} />
-              ) : item.kind === 'feedback' ? (
-                <FeedbackBody item={item.raw} />
-              ) : kbBody !== undefined ? (
-                <ReactMarkdown components={MD_COMPONENTS}>{editedBody}</ReactMarkdown>
-              ) : (
-                <span className="text-ink-mute italic">{t('loading')}</span>
-              )}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {editing ? (
-        <DrawerFooter
-          primary={{
-            label: t('save'),
-            onClick: () => void saveEdit(),
-            disabled: pending || !editedBody.trim(),
-          }}
-          secondary={[{ label: t('cancel'), onClick: cancelEdit }]}
-          shortcut={t('shortcutSave')}
-        />
-      ) : (
-        <DrawerFooter
-          primary={{ label: t('approve'), onClick: onApprove, disabled: pending }}
-          secondary={[
-            { label: t('edit'), onClick: () => setEditing(true), disabled: !editable },
-            { label: t('dismiss'), onClick: onDismiss, disabled: pending },
-          ]}
-          shortcut={t('shortcutApprove')}
-        />
-      )}
-    </>
-  );
-}
-
-function FeedbackBody({ item }: { item: FeedbackOutboxDto }) {
-  const t = useTranslations('dashboard.overview.drawer');
-  const attributionKey = item.includeOrgName && item.includeUserName
-    ? 'feedbackAttributionBoth'
-    : item.includeOrgName
-      ? 'feedbackAttributionOrg'
-      : item.includeUserName
-        ? 'feedbackAttributionUser'
-        : 'feedbackAttributionAnonymous';
-  return (
-    <>
-      <p className="whitespace-pre-wrap">{item.body}</p>
-      <p className="mt-3 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-        {t(attributionKey, { orgName: '—', userName: '—' })}
-      </p>
-      <p className="mt-2 text-ink-mute text-xs">{t('feedbackApproveConfirm')}</p>
-      {item.forwardError && (
-        <p className="mt-2 text-xs text-destructive">{item.forwardError}</p>
-      )}
-    </>
-  );
-}
-
-function CrmMergeBody({ proposal }: { proposal: CrmMergeProposalDto }) {
-  const t = useTranslations('dashboard.overview.drawer');
-  const keeper =
-    proposal.recommendedKeeperId === proposal.contactA.id ? proposal.contactA : proposal.contactB;
-  const loser =
-    proposal.recommendedKeeperId === proposal.contactA.id ? proposal.contactB : proposal.contactA;
-  const fmt = (c: CrmContactSummary) => [c.name, c.email].filter(Boolean).join(' · ') || c.id;
-  return (
-    <>
-      <p>
-        {t.rich('crmMergeBody', {
-          loser: fmt(loser),
-          keeper: fmt(keeper),
-          strong: (chunks) => <strong>{chunks}</strong>,
-        })}
-      </p>
-      <p className="mt-2 text-ink-mute">{t('crmMergeExplain')}</p>
-    </>
-  );
-}
-
-function DrawerHeader({
-  pillTone,
-  pillLabel,
-  title,
-  meta,
-  rightExtra,
-  onClose,
-  closeLabel,
-}: {
-  pillTone: 'live' | 'ink' | 'draft' | 'kb' | 'crm' | 'out' | 'feedback' | 'review';
-  pillLabel: string;
-  title: string;
-  meta?: string;
-  rightExtra?: React.ReactNode;
-  onClose: () => void;
-  closeLabel: string;
-}) {
-  return (
-    <div className="border-b-[0.5px] border-rule-soft px-6 pb-4 pt-5 dark:border-rule-on-dark">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
-          <div className="flex items-center gap-2">
-            <Pill tone={pillTone}>{pillLabel}</Pill>
-            {rightExtra}
-          </div>
-          <h2 className="font-serif text-2xl leading-tight font-normal tracking-tight text-ink dark:text-foreground">
-            {title}
-          </h2>
-          {meta && (
-            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{meta}</p>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-ink dark:hover:text-foreground"
-          aria-label={closeLabel}
-        >
-          {closeLabel}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function DrawerFooter({
-  primary,
-  secondary,
-  shortcut,
-  bordered = true,
-}: {
-  primary: { label: string; onClick: () => void; disabled?: boolean };
-  secondary: Array<{ label: string; onClick: () => void; disabled?: boolean }>;
-  shortcut?: string;
-  bordered?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-between gap-2 px-6 py-3',
-        bordered && 'border-t-[0.5px] border-rule-soft dark:border-rule-on-dark',
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <Button variant="accent" size="sm" onClick={primary.onClick} disabled={primary.disabled}>
-          {primary.label}
-        </Button>
-        {secondary.map((b, i) => (
-          <Button
-            key={i}
-            variant={i === 0 ? 'default' : 'outline'}
-            size="sm"
-            onClick={b.onClick}
-            disabled={b.disabled}
-          >
-            {b.label}
-          </Button>
-        ))}
-      </div>
-      {shortcut && (
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-          {shortcut}
-        </span>
-      )}
-    </div>
-  );
-}
 
 function MessageBubble({ message }: { message: MessageDto }) {
   const t = useTranslations('dashboard.overview.drawer');
@@ -1838,19 +1518,6 @@ function ActivityRail({
       )}
     </div>
   );
-}
-
-function useCmdEnter(handler: () => void) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        handler();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [handler]);
 }
 
 

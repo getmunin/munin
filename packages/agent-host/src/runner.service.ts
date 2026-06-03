@@ -350,15 +350,20 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       onTyping: (conversationId, isTyping) =>
         this.eventBus.publishConversationTyping(orgId, conversationId, isTyping),
       onProviderError: (code, message) => {
-        void runWithServiceContext(this.db, id, () =>
-          this.health.recordFailure(id, code, message),
+        void runWithServiceContext(
+          this.db,
+          id,
+          () => this.health.recordFailure(id, code, message),
+          { orgId },
         ).catch((err) =>
           this.scopedLogger(id, 'chat').warn(`recordFailure failed: ${describe(err)}`),
         );
       },
       onProviderSuccess: () => {
-        void runWithServiceContext(this.db, id, () => this.health.recordSuccess(id)).catch(
-          (err) => this.scopedLogger(id, 'chat').warn(`recordSuccess failed: ${describe(err)}`),
+        void runWithServiceContext(this.db, id, () => this.health.recordSuccess(id), {
+          orgId,
+        }).catch((err) =>
+          this.scopedLogger(id, 'chat').warn(`recordSuccess failed: ${describe(err)}`),
         );
       },
     });
@@ -465,8 +470,11 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           })
           .catch((e) => log.error(`ack failed: ${describe(e)}`));
         if (result.totalTokens > 0) {
-          await runWithServiceContext(this.db, opts.id, () =>
-            this.health.recordSuccess(opts.id),
+          await runWithServiceContext(
+            this.db,
+            opts.id,
+            () => this.health.recordSuccess(opts.id),
+            { orgId: opts.orgId },
           ).catch((e) => log.warn(`recordSuccess failed: ${describe(e)}`));
         }
         return;
@@ -485,8 +493,11 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         failBody.code = result.code;
         if (result.failedStep) failBody.failedStep = result.failedStep;
         const code = result.code;
-        await runWithServiceContext(this.db, opts.id, () =>
-          this.health.recordFailure(opts.id, code, result.error ?? result.skipped),
+        await runWithServiceContext(
+          this.db,
+          opts.id,
+          () => this.health.recordFailure(opts.id, code, result.error ?? result.skipped),
+          { orgId: opts.orgId },
         ).catch((e) => log.warn(`recordFailure failed: ${describe(e)}`));
       }
       await opts.rest

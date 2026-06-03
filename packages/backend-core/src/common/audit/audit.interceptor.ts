@@ -7,14 +7,29 @@ import {
 import { Observable, catchError, from, mergeMap, throwError } from 'rxjs';
 import { AuditLogger, getCurrentContext } from '@getmunin/core';
 
-/**
- * Records every controller invocation as an audit row. Runs INSIDE the
- * tenancy transaction (via getCurrentContext()) so the audit row is
- * committed atomically with the request's other writes.
- *
- * Skips routes where there's no active request context (anonymous routes
- * that didn't open a transaction).
- */
+const POLLING_GET_PREFIXES = [
+  '/agent-health',
+  '/agent-config',
+  '/widget/messages',
+  '/widget/conversations',
+  '/inbox',
+  '/usage/summary',
+  '/system/alerts',
+];
+
+function stripVersionPrefix(path: string): string {
+  if (path.startsWith('/api/v1/') || path === '/api/v1') return path.slice(7);
+  if (path.startsWith('/v1/') || path === '/v1') return path.slice(3);
+  return path;
+}
+
+function isPollingGet(path: string): boolean {
+  const stripped = stripVersionPrefix(path);
+  return POLLING_GET_PREFIXES.some(
+    (p) => stripped === p || stripped.startsWith(`${p}/`),
+  );
+}
+
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   private readonly audit = new AuditLogger();
@@ -47,6 +62,9 @@ export class AuditInterceptor implements NestInterceptor {
       return next.handle();
     }
     if (verb === 'GET' && path === '/mcp') {
+      return next.handle();
+    }
+    if (verb === 'GET' && isPollingGet(path)) {
       return next.handle();
     }
 

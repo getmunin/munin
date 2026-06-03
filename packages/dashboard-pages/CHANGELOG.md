@@ -1,5 +1,12 @@
 # @getmunin/dashboard-pages
 
+## 4.29.1
+
+### Patch Changes
+
+- @getmunin/types@4.29.1
+- @getmunin/ui@4.29.1
+
 ## 4.29.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @getmunin/chat-widget
 
+## 4.32.0
+
+### Patch Changes
+
+- f6cb178: Vite config now adds `development` to `resolve.conditions` when running in dev mode (`vite build --watch --mode development`). Without it, the chat-widget watcher resolved workspace deps like `@getmunin/widget-voice` through the `default` (production) export and required their `dist/` to exist before `pnpm dev` could start. With the condition wired up, dev resolves directly to each workspace package's `src/index.ts`. Production builds are unchanged.
+
 ## 4.31.0
 
 ## 4.30.0

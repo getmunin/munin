@@ -1,5 +1,20 @@
 # @getmunin/core
 
+## 4.32.0
+
+### Minor Changes
+
+- 211f215: feat(core): add shared env-parsing helpers (`parseEnvInt`, `parseEnvBool`, `parseEnvDisableFlag`, `parseEnvCron`) and migrate existing call sites in core, backend-core, agent-host, and apps/backend.
+
+  `Number(process.env.X ?? D)` patterns previously passed NaN through silently when an env var was set to garbage; `parseEnvInt` falls back to the default in that case. `parseEnvDisableFlag` and `parseEnvBool` accept both `'1'` and `'true'` (case-insensitive). `parseEnvCron` returns `null` when the value is `'off'` or `'0'`, so callers can opt out of a cron without an inline guard.
+
+### Patch Changes
+
+- f6cb178: `safeFetch`: factor the agent's connect-time DNS lookup behind a `ConnectLookup` seam and expose it as the optional `__connectLookup` option on `SafeFetchOptions`. Behavior is unchanged when the option is not passed — the default uses `dns.lookup` with `{ all: true, verbatim: true }`. The SSRF DNS-rebinding regression test stops depending on real-world DNS for `127.0.0.1.nip.io` (a flaky source of test timeouts on CI) and uses the seam to deterministically simulate a connect-time DNS that returns a private address.
+- Updated dependencies [03d62af]
+  - @getmunin/types@4.32.0
+  - @getmunin/db@4.32.0
+
 ## 4.31.0
 
 ### Patch Changes

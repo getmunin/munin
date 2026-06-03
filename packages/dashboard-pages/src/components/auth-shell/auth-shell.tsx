@@ -18,7 +18,7 @@ export function AuthShell({ leftZone, rightZone, variant = 'form' }: AuthShellPr
 
       <Link
         href="/"
-        className="absolute left-14 top-9 z-10 inline-flex items-center gap-3 text-ink"
+        className="absolute left-8 top-9 z-10 inline-flex items-center gap-3 text-ink md:left-14"
         aria-label="Munin home"
       >
         <Image

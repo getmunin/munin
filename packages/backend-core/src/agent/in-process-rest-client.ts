@@ -228,7 +228,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
     },
 
     async claimCuratorJobs(input: ClaimCuratorJobsInput): Promise<CuratorJob[]> {
-      return audited('runner:claimCuratorJobs', () =>
+      return withTenancy(() =>
         opts.curator.claim({
           holder: input.holder,
           limit: input.limit,

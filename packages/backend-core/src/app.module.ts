@@ -6,6 +6,7 @@ import { WhoamiController } from './common/whoami.controller.ts';
 import { AuthGuard } from './common/auth/auth.guard.ts';
 import { TenancyInterceptor } from './common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from './common/audit/audit.interceptor.ts';
+import { AuditModule } from './common/audit/audit.module.ts';
 import { CallQuotaInterceptor } from './common/quotas/call-quota.interceptor.ts';
 import { McpModule } from './mcp/mcp.module.ts';
 import { ControlModule } from './control/control.module.ts';
@@ -40,6 +41,7 @@ export const BACKEND_FEATURE_MODULES = [
   RealtimeModule,
   OAuthModule,
   SystemAlertsModule,
+  AuditModule,
 ];
 
 export const BACKEND_BASE_CONTROLLERS = [HealthController, WhoamiController];

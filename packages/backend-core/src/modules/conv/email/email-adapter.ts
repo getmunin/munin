@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
+  parseEnvInt,
   resolvePublicHost,
   signEmailOpenToken,
   withContext,
@@ -47,7 +48,7 @@ import type {
   SendResult,
 } from '../channels/adapter.ts';
 
-const POLL_INTERVAL_MS = Number(process.env.MUNIN_EMAIL_INBOUND_POLL_MS ?? 60_000);
+const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_EMAIL_INBOUND_POLL_MS', default: 60_000 });
 const MAX_MESSAGES_PER_TICK = 100;
 
 interface ImapMessageMin {

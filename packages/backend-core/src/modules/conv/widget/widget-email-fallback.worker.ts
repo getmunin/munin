@@ -2,7 +2,12 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nest
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { createTransport, type Transporter } from 'nodemailer';
-import { resolvePublicHost, type Mailer } from '@getmunin/core';
+import {
+  parseEnvDisableFlag,
+  parseEnvInt,
+  resolvePublicHost,
+  type Mailer,
+} from '@getmunin/core';
 import { DB } from '../../../common/db/db.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
 import { EmailService, jsonbToStored, type StoredEmailChannelConfig } from '../email/email.service.ts';
@@ -44,14 +49,16 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private readonly disabled =
-    process.env.MUNIN_WIDGET_EMAIL_FALLBACK_DISABLED === '1' ||
+    parseEnvDisableFlag('MUNIN_WIDGET_EMAIL_FALLBACK_DISABLED') ||
     process.env.NODE_ENV === 'test';
-  private readonly intervalMs = Number(
-    process.env.MUNIN_WIDGET_EMAIL_FALLBACK_INTERVAL_MS ?? DEFAULT_INTERVAL_MS,
-  );
-  private readonly thresholdMs = Number(
-    process.env.MUNIN_WIDGET_EMAIL_FALLBACK_THRESHOLD_MS ?? DEFAULT_THRESHOLD_MS,
-  );
+  private readonly intervalMs = parseEnvInt({
+    name: 'MUNIN_WIDGET_EMAIL_FALLBACK_INTERVAL_MS',
+    default: DEFAULT_INTERVAL_MS,
+  });
+  private readonly thresholdMs = parseEnvInt({
+    name: 'MUNIN_WIDGET_EMAIL_FALLBACK_THRESHOLD_MS',
+    default: DEFAULT_THRESHOLD_MS,
+  });
 
   constructor(
     @Inject(DB) private readonly db: Db,

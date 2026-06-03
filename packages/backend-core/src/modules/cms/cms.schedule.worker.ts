@@ -1,12 +1,19 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, lte, sql } from 'drizzle-orm';
-import { WebhookDispatcher, ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
+import {
+  ActorIdentity,
+  WebhookDispatcher,
+  parseEnvDisableFlag,
+  parseEnvInt,
+  withContext,
+  type RequestContext,
+} from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 
-const POLL_INTERVAL_MS = Number(process.env.MUNIN_CMS_SCHEDULE_POLL_MS ?? 60_000);
+const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_CMS_SCHEDULE_POLL_MS', default: 60_000 });
 const BATCH_SIZE = 50;
 
 /**
@@ -27,7 +34,7 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private disabled =
-    process.env.MUNIN_CMS_SCHEDULE_WORKER_DISABLED === '1' ||
+    parseEnvDisableFlag('MUNIN_CMS_SCHEDULE_WORKER_DISABLED') ||
     process.env.NODE_ENV === 'test';
 
   constructor(

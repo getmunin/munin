@@ -7,7 +7,7 @@ import {
   type SignupHookUser,
 } from '@getmunin/backend-core';
 import { schema, type Db } from '@getmunin/db';
-import type { Mailer } from '@getmunin/core';
+import { parseEnvInt, type Mailer } from '@getmunin/core';
 import { renderResetPasswordEmail, renderVerifyEmail } from '@getmunin/emails';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 
@@ -161,8 +161,8 @@ export function buildAuthRateLimit(): BetterAuthOptions['rateLimit'] {
   return {
     enabled: true,
     storage: 'database',
-    window: Number(process.env.MUNIN_AUTH_RATELIMIT_WINDOW ?? 60),
-    max: Number(process.env.MUNIN_AUTH_RATELIMIT_MAX ?? 30),
+    window: parseEnvInt({ name: 'MUNIN_AUTH_RATELIMIT_WINDOW', default: 60 }),
+    max: parseEnvInt({ name: 'MUNIN_AUTH_RATELIMIT_MAX', default: 30 }),
     customRules: {
       '/sign-in/email': { window: 60, max: 5 },
       '/sign-up/email': { window: 60, max: 5 },

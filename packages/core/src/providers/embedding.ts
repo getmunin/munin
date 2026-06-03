@@ -8,6 +8,8 @@
  * controlled by `MUNIN_EMBEDDING_DIMENSIONS` (default 1536).
  */
 
+import { parseEnvInt } from '../env/index.ts';
+
 export interface EmbeddingProvider {
   /** Vector dimension this provider produces. Must match the kb schema. */
   readonly dimensions: number;
@@ -194,21 +196,16 @@ export function readEmbeddingProviderFromEnv(): EmbeddingProvider {
 }
 
 function parseOptionalDimensions(envName: string): number | undefined {
-  const raw = process.env[envName];
-  if (!raw) return undefined;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isInteger(n) || n < 32 || n > 4000) {
-    throw new Error(`${envName} must be an integer in 32..4000, got ${raw}`);
-  }
-  return n;
+  if (process.env[envName] === undefined || process.env[envName] === '') return undefined;
+  return parseEnvInt({ name: envName, min: 32, max: 4000, onInvalid: 'throw' });
 }
 
 function readSchemaDimensionsFromEnv(): number {
-  const raw = process.env.MUNIN_EMBEDDING_DIMENSIONS;
-  if (!raw) return DEFAULT_DIMENSIONS;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isInteger(n) || n < 32 || n > 4000) {
-    throw new Error(`MUNIN_EMBEDDING_DIMENSIONS must be an integer in 32..4000, got ${raw}`);
-  }
-  return n;
+  return parseEnvInt({
+    name: 'MUNIN_EMBEDDING_DIMENSIONS',
+    default: DEFAULT_DIMENSIONS,
+    min: 32,
+    max: 4000,
+    onInvalid: 'throw',
+  });
 }

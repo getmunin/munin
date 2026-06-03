@@ -1,11 +1,11 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull, lt, lte } from 'drizzle-orm';
-import { safeFetch, WebhookDispatcher } from '@getmunin/core';
+import { parseEnvDisableFlag, parseEnvInt, safeFetch, WebhookDispatcher } from '@getmunin/core';
 import { DB } from '../db/db.module.ts';
 import { withSchedulerLock } from '../scheduler-lock/index.ts';
 
-const POLL_INTERVAL_MS = Number(process.env.MUNIN_WEBHOOK_POLL_MS ?? 5000);
+const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_WEBHOOK_POLL_MS', default: 5000 });
 const MAX_ATTEMPTS = 5;
 const BATCH_SIZE = 25;
 const BACKOFF_BASE_MS = 30_000; // 30s, then 1m, 2m, 4m, 8m for ~16m total span.
@@ -30,7 +30,7 @@ export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private disabled =
-    process.env.MUNIN_WEBHOOK_WORKER_DISABLED === '1' ||
+    parseEnvDisableFlag('MUNIN_WEBHOOK_WORKER_DISABLED') ||
     process.env.NODE_ENV === 'test';
 
   constructor(@Inject(DB) private readonly db: Db) {}

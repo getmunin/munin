@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { parseEnvBool } from '@getmunin/core';
 import { FeedbackService } from './feedback.service.ts';
 import { FeedbackController } from './feedback.controller.ts';
 import { FeedbackTools } from './feedback.tools.ts';
@@ -14,7 +15,5 @@ import { InstanceIdService } from './instance-id.service.ts';
 export class FeedbackModule {}
 
 export function isFeedbackEnabled(): boolean {
-  const raw = process.env.MUNIN_FEEDBACK_ENABLED;
-  if (raw === undefined) return false;
-  return raw.toLowerCase() === 'true' || raw === '1';
+  return parseEnvBool({ name: 'MUNIN_FEEDBACK_ENABLED', default: false });
 }

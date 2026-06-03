@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { isIP as isIp } from 'node:net';
 import { Agent, fetch as undiciFetch } from 'undici';
 import type { RequestInit as UndiciRequestInit, Response as UndiciResponse } from 'undici';
+import { parseEnvBool } from '../env/index.ts';
 
 const dnsLookup = promisify((hostname: string, cb: (err: NodeJS.ErrnoException | null, addrs: LookupAddress[]) => void) =>
   dnsLookupCallback(hostname, { all: true, verbatim: true }, cb),
@@ -21,11 +22,6 @@ const BLOCKED_HOSTNAMES = new Set([
   'ip6-loopback',
   'broadcasthost',
 ]);
-
-function envBool(name: string): boolean {
-  const v = process.env[name];
-  return v === '1' || v === 'true';
-}
 
 function ipv4ToInt(ip: string): number | null {
   const parts = ip.split('.');
@@ -167,7 +163,7 @@ export async function resolvePublicHost(
   hostname: string,
   opts: AssertPublicHostOptions = {},
 ): Promise<{ address: string; family: number } | null> {
-  if (envBool('MUNIN_SSRF_ALLOW_PRIVATE')) return null;
+  if (parseEnvBool({ name: 'MUNIN_SSRF_ALLOW_PRIVATE', default: false })) return null;
   const host = hostname.toLowerCase();
   if (!host) throw new SsrfBlockedError('empty host');
   if (BLOCKED_HOSTNAMES.has(host)) {
@@ -217,7 +213,7 @@ function makeBlockingAgent(): Agent {
           cb(e, wantAll ? [] : '', 0);
         };
         const hostOk = isIp(hostname) ? !isPrivateIp(hostname) : !isBannedHostname(hostname);
-        if (!hostOk && !envBool('MUNIN_SSRF_ALLOW_PRIVATE')) {
+        if (!hostOk && !parseEnvBool({ name: 'MUNIN_SSRF_ALLOW_PRIVATE', default: false })) {
           rejectSsrf(`host ${hostname} is not allowed`);
           return;
         }
@@ -226,7 +222,7 @@ function makeBlockingAgent(): Agent {
           if (!Array.isArray(records) || records.length === 0) {
             return cb(new Error('no address resolved'), wantAll ? [] : '', 0);
           }
-          if (!envBool('MUNIN_SSRF_ALLOW_PRIVATE')) {
+          if (!parseEnvBool({ name: 'MUNIN_SSRF_ALLOW_PRIVATE', default: false })) {
             for (const r of records) {
               if (isPrivateIp(r.address)) {
                 return rejectSsrf(`host ${hostname} resolved to private ip ${r.address}`);

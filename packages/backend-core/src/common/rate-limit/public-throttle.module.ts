@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { parseEnvInt } from '@getmunin/core';
 
 /**
  * Per-IP rate limiting for anonymous public endpoints (CMS delivery,
@@ -25,12 +26,12 @@ import { ThrottlerModule } from '@nestjs/throttler';
       {
         name: 'public-minute',
         ttl: 60_000,
-        limit: Number(process.env.MUNIN_PUBLIC_THROTTLE_MIN ?? 60),
+        limit: parseEnvInt({ name: 'MUNIN_PUBLIC_THROTTLE_MIN', default: 60 }),
       },
       {
         name: 'public-hour',
         ttl: 60 * 60_000,
-        limit: Number(process.env.MUNIN_PUBLIC_THROTTLE_HOUR ?? 1_000),
+        limit: parseEnvInt({ name: 'MUNIN_PUBLIC_THROTTLE_HOUR', default: 1_000 }),
       },
     ]),
   ],

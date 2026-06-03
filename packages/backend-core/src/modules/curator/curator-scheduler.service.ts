@@ -3,7 +3,13 @@ import { CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { schema, type Db } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
-import { ActorIdentity, RequestContextStore, type RequestContext } from '@getmunin/core';
+import {
+  ActorIdentity,
+  RequestContextStore,
+  parseEnvCron,
+  parseEnvDisableFlag,
+  type RequestContext,
+} from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
@@ -20,8 +26,7 @@ const OUTREACH_DRAFT_INITIAL_PROMPT =
 
 interface SweepDef {
   name: string;
-  envCron: string | undefined;
-  defaultCron: string;
+  cron: string | null;
   jobUri: string;
   userPrompt: string;
   dedupeKey: string;
@@ -31,7 +36,7 @@ interface SweepDef {
 export class CuratorSchedulerService implements OnModuleInit {
   private readonly logger = new Logger(CuratorSchedulerService.name);
   private readonly disabled =
-    process.env.MUNIN_CURATOR_SCHEDULER_DISABLED === '1' ||
+    parseEnvDisableFlag('MUNIN_CURATOR_SCHEDULER_DISABLED') ||
     process.env.NODE_ENV === 'test';
 
   constructor(
@@ -49,32 +54,34 @@ export class CuratorSchedulerService implements OnModuleInit {
     const sweeps: SweepDef[] = [
       {
         name: 'curator-kb-sweep',
-        envCron: process.env.MUNIN_CURATOR_KB_SWEEP_CRON,
-        defaultCron: CronExpression.EVERY_WEEK,
+        cron: parseEnvCron({ name: 'MUNIN_CURATOR_KB_SWEEP_CRON', default: CronExpression.EVERY_WEEK }),
         jobUri: 'skill://kb/review-content',
         userPrompt: KB_SWEEP_PROMPT,
         dedupeKey: 'kb-sweep:scheduled',
       },
       {
         name: 'curator-crm-hygiene',
-        envCron: process.env.MUNIN_CURATOR_CRM_HYGIENE_CRON,
-        defaultCron: CronExpression.EVERY_WEEK,
+        cron: parseEnvCron({ name: 'MUNIN_CURATOR_CRM_HYGIENE_CRON', default: CronExpression.EVERY_WEEK }),
         jobUri: 'skill://crm/clean-contact-data',
         userPrompt: CRM_HYGIENE_PROMPT,
         dedupeKey: 'crm-hygiene:scheduled',
       },
       {
         name: 'curator-cms-stale',
-        envCron: process.env.MUNIN_CURATOR_CMS_STALE_CRON,
-        defaultCron: CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT,
+        cron: parseEnvCron({
+          name: 'MUNIN_CURATOR_CMS_STALE_CRON',
+          default: CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT,
+        }),
         jobUri: 'skill://cms/review-stale-entries',
         userPrompt: CMS_STALE_PROMPT,
         dedupeKey: 'cms-stale:scheduled',
       },
       {
         name: 'curator-outreach-draft-initial',
-        envCron: process.env.MUNIN_CURATOR_OUTREACH_INITIAL_CRON,
-        defaultCron: CronExpression.EVERY_WEEK,
+        cron: parseEnvCron({
+          name: 'MUNIN_CURATOR_OUTREACH_INITIAL_CRON',
+          default: CronExpression.EVERY_WEEK,
+        }),
         jobUri: 'skill://outreach/draft-initial-email',
         userPrompt: OUTREACH_DRAFT_INITIAL_PROMPT,
         dedupeKey: 'outreach-draft-initial:scheduled',
@@ -82,19 +89,18 @@ export class CuratorSchedulerService implements OnModuleInit {
     ];
 
     for (const sweep of sweeps) {
-      const cron = (sweep.envCron && sweep.envCron.trim()) || sweep.defaultCron;
-      if (cron === 'off' || cron === '0') {
+      if (sweep.cron === null) {
         this.logger.log(`${sweep.name} disabled by env`);
         continue;
       }
-      const job = new CronJob(cron, () => {
+      const job = new CronJob(sweep.cron, () => {
         void withSchedulerLock(this.db, `curator-scheduler:${sweep.name}`, () =>
           this.runSweep(sweep),
         );
       });
       this.registry.addCronJob(sweep.name, job);
       job.start();
-      this.logger.log(`${sweep.name} scheduled with "${cron}"`);
+      this.logger.log(`${sweep.name} scheduled with "${sweep.cron}"`);
     }
   }
 

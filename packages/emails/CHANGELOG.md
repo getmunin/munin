@@ -1,5 +1,7 @@
 # @getmunin/emails
 
+## 4.30.0
+
 ## 4.23.6
 
 ### Patch Changes

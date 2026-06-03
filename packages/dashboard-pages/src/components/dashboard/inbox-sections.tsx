@@ -1157,7 +1157,7 @@ function SimplifiedConvDrawer({
               value={draftBody}
               onChange={(e) => setDraftEdit(e.target.value)}
               rows={8}
-              className="w-full rounded-input border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark dark:text-foreground"
+              className="w-full rounded-input border-[0.5px] border-ink bg-paper px-4 py-3 text-base md:text-sm leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark dark:text-foreground"
               autoFocus
             />
           ) : (
@@ -1328,7 +1328,7 @@ function FullConvDrawer({
             }}
             rows={3}
             placeholder={t('replyPlaceholder')}
-            className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
+            className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-base md:text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
           />
           <div className="mt-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -1508,7 +1508,7 @@ function QueueDrawer({
               value={editedBody}
               onChange={(e) => setEditedBody(e.target.value)}
               rows={14}
-              className="w-full resize-y rounded-input border-[0.5px] border-cobalt bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:text-foreground"
+              className="w-full resize-y rounded-input border-[0.5px] border-cobalt bg-paper px-4 py-3 text-base md:text-sm leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:text-foreground"
               autoFocus
             />
           ) : (

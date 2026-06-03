@@ -921,7 +921,6 @@ const skipReason = TEST_URL
     const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
     await waitForOpen(wsVisitor);
     try {
-      // Single-id read — exercises the IN (...) path with one element.
       wsVisitor.send(
         JSON.stringify({
           type: 'read',
@@ -931,9 +930,8 @@ const skipReason = TEST_URL
           messageIds: [firstId],
         }),
       );
-      await new Promise((r) => setTimeout(r, 200));
+      await waitForReadAck(wsVisitor, [firstId!]);
 
-      // Multi-id read — exercises sql.join with multiple elements.
       wsVisitor.send(
         JSON.stringify({
           type: 'read',
@@ -943,7 +941,7 @@ const skipReason = TEST_URL
           messageIds: [secondId, thirdId],
         }),
       );
-      await new Promise((r) => setTimeout(r, 200));
+      await waitForReadAck(wsVisitor, [secondId!, thirdId!]);
 
       const readRows = await db
         .select({ messageId: schema.convMessageReads.messageId })
@@ -957,6 +955,30 @@ const skipReason = TEST_URL
     }
   });
 });
+
+function waitForReadAck(ws: WebSocket, expected: string[], timeoutMs = 5000): Promise<void> {
+  const want = new Set(expected);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`no read_ack for [${expected.join(', ')}] within ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    const onMessage = (data: WebSocket.RawData) => {
+      try {
+        const msg = JSON.parse(decodeWsData(data)) as { type?: string; messageIds?: string[] };
+        if (msg.type !== 'read_ack' || !Array.isArray(msg.messageIds)) return;
+        if (msg.messageIds.length !== want.size) return;
+        if (!msg.messageIds.every((id) => want.has(id))) return;
+        clearTimeout(timer);
+        ws.off('message', onMessage);
+        resolve();
+      } catch (err) {
+        console.warn(`waitForReadAck: failed to parse frame: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+    ws.on('message', onMessage);
+  });
+}
 
 function decodeWsData(data: WebSocket.RawData): string {
   if (typeof data === 'string') return data;

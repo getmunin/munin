@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/chat-widget",
-  "version": "4.29.2",
+  "version": "4.30.0",
   "license": "MIT",
   "description": "Drop-in browser chat widget for self-hosted Munin. Built as a single content-hashed IIFE bundle and served by the Munin backend.",
   "publishConfig": {

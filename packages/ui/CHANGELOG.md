@@ -1,5 +1,12 @@
 # @getmunin/ui
 
+## 4.32.0
+
+### Patch Changes
+
+- bd8cd79: Surface CMS draft entries in the dashboard approval queue. Adds `CmsService.listDraftEntries` + `archiveEntry`, a new `/v1/cms/drafts/*` control endpoint family for approve/schedule/dismiss/patch, and a dedicated CMS drawer with metadata grid, cover-image preview, inline body editor, and a schedule popover. The shared `QueueDrawer` is also split into per-kind files (`queue-drawers/{kb,crm,outreach,feedback,cms}.tsx`) backed by a small dispatcher so adding the next kind is a new file rather than another branch.
+- f6cb178: Inputs and dashboard reply/edit textareas now render at `text-base` (16px) on mobile and `md:text-sm` (14px) from the `md` breakpoint up. iOS Safari auto-zooms on focus whenever the focused field's effective font-size is below 16px; bumping mobile sizes avoids that without disabling viewport zoom (which is a WCAG 1.4.4 regression). Desktop density is unchanged.
+
 ## 4.31.0
 
 ## 4.30.0

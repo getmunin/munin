@@ -1,5 +1,21 @@
 # @getmunin/dashboard-pages
 
+## 4.32.0
+
+### Minor Changes
+
+- bd8cd79: Surface CMS draft entries in the dashboard approval queue. Adds `CmsService.listDraftEntries` + `archiveEntry`, a new `/v1/cms/drafts/*` control endpoint family for approve/schedule/dismiss/patch, and a dedicated CMS drawer with metadata grid, cover-image preview, inline body editor, and a schedule popover. The shared `QueueDrawer` is also split into per-kind files (`queue-drawers/{kb,crm,outreach,feedback,cms}.tsx`) backed by a small dispatcher so adding the next kind is a new file rather than another branch.
+
+### Patch Changes
+
+- f6cb178: Dashboard overview: the Live Now section's tinted background now spans the full page width instead of stopping at the page's `max-w-7xl` content cap. The section uses a full-bleed `w-screen` breakout and keeps inner content aligned via an inner `max-w-7xl` container. The dashboard shell `<main>` gets `overflow-x-clip` so the breakout can't introduce a horizontal scrollbar on browsers that reserve space for the vertical scrollbar.
+- f6cb178: Inputs and dashboard reply/edit textareas now render at `text-base` (16px) on mobile and `md:text-sm` (14px) from the `md` breakpoint up. iOS Safari auto-zooms on focus whenever the focused field's effective font-size is below 16px; bumping mobile sizes avoids that without disabling viewport zoom (which is a WCAG 1.4.4 regression). Desktop density is unchanged.
+- Updated dependencies [bd8cd79]
+- Updated dependencies [f6cb178]
+- Updated dependencies [03d62af]
+  - @getmunin/ui@4.32.0
+  - @getmunin/types@4.32.0
+
 ## 4.31.0
 
 ### Patch Changes

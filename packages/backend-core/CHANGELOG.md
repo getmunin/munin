@@ -1,5 +1,16 @@
 # @getmunin/backend-core
 
+## 4.30.0
+
+### Patch Changes
+
+- @getmunin/core@4.30.0
+- @getmunin/db@4.30.0
+- @getmunin/types@4.30.0
+- @getmunin/mcp-toolkit@4.30.0
+- @getmunin/agent-runtime@4.30.0
+- @getmunin/emails@4.30.0
+
 ## 4.29.2
 
 ### Patch Changes

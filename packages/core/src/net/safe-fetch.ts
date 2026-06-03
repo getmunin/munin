@@ -198,7 +198,18 @@ export async function resolvePublicHost(
   return records[0]!;
 }
 
-function makeBlockingAgent(): Agent {
+type ConnectLookup = (
+  hostname: string,
+  cb: (err: NodeJS.ErrnoException | null, records: LookupAddress[]) => void,
+) => void;
+
+const defaultConnectLookup: ConnectLookup = (hostname, cb) => {
+  dnsLookupCallback(hostname, { all: true, verbatim: true }, (err, records) => {
+    cb(err, Array.isArray(records) ? records : []);
+  });
+};
+
+function makeBlockingAgent(connectLookup: ConnectLookup): Agent {
   return new Agent({
     connect: {
       lookup: (
@@ -217,7 +228,7 @@ function makeBlockingAgent(): Agent {
           rejectSsrf(`host ${hostname} is not allowed`);
           return;
         }
-        dnsLookupCallback(hostname, { ...lookupOpts, all: true }, (err, records) => {
+        connectLookup(hostname, (err, records) => {
           if (err) return cb(err, wantAll ? [] : '', 0);
           if (!Array.isArray(records) || records.length === 0) {
             return cb(new Error('no address resolved'), wantAll ? [] : '', 0);
@@ -251,11 +262,12 @@ function isBannedHostname(host: string): boolean {
 export interface SafeFetchOptions extends Omit<UndiciRequestInit, 'redirect' | 'dispatcher'> {
   resolver?: (hostname: string) => Promise<{ address: string; family: number }[]>;
   maxRedirects?: number;
+  __connectLookup?: ConnectLookup;
 }
 
 export async function safeFetch(input: string, init: SafeFetchOptions = {}): Promise<UndiciResponse> {
-  const { resolver, maxRedirects = MAX_REDIRECTS, ...rest } = init;
-  const agent = makeBlockingAgent();
+  const { resolver, maxRedirects = MAX_REDIRECTS, __connectLookup, ...rest } = init;
+  const agent = makeBlockingAgent(__connectLookup ?? defaultConnectLookup);
   try {
     let currentUrl = input;
     let hops = 0;

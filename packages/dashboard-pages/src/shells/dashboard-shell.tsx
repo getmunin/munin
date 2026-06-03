@@ -47,7 +47,7 @@ export function DashboardShell({
           settingsLabel={tNav('settings')}
         />
       )}
-      <main className="flex-1 bg-paper dark:bg-background">{children}</main>
+      <main className="flex-1 overflow-x-clip bg-paper dark:bg-background">{children}</main>
     </div>
   );
 

@@ -24,6 +24,7 @@ import {
   type MessageReceivedBusEvent,
   type RealtimeBusSubscription,
 } from '@getmunin/backend-core';
+import { parseEnvBool } from '@getmunin/core';
 import {
   createConversationHandler,
   createPromptResolver,
@@ -128,7 +129,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   onApplicationBootstrap(): void {
-    if (process.env.MUNIN_BUILTIN_AGENT === '0') {
+    if (!parseEnvBool({ name: 'MUNIN_BUILTIN_AGENT', default: true })) {
       this.logger.log('bundled agent runner disabled via MUNIN_BUILTIN_AGENT=0');
       return;
     }

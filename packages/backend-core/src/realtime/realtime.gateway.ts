@@ -16,6 +16,7 @@ import {
   ActorIdentity,
   CredentialResolver,
   WebhookDispatcher,
+  parseEnvDisableFlag,
   withContext,
   type RequestContext,
   type ResolvedCredential,
@@ -99,7 +100,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   onApplicationBootstrap(): void {
-    if (process.env.MUNIN_REALTIME_DISABLED === '1') {
+    if (parseEnvDisableFlag('MUNIN_REALTIME_DISABLED')) {
       this.logger.log('realtime gateway disabled via MUNIN_REALTIME_DISABLED');
       return;
     }

@@ -17,12 +17,12 @@ import {
   RequireRole,
   RequireActorType,
 } from '@getmunin/backend-core';
+import { parseEnvBool } from '@getmunin/core';
 import { AgentConfigService, type AgentConfigDto } from './config.service.ts';
 import { AgentModelsService, type ListModelsResult } from './models.service.ts';
 
 function allowPrivateProviderHosts(): boolean {
-  const v = process.env.MUNIN_SSRF_ALLOW_PRIVATE;
-  return v === '1' || v === 'true';
+  return parseEnvBool({ name: 'MUNIN_SSRF_ALLOW_PRIVATE', default: false });
 }
 
 export const ProviderBaseUrl = z

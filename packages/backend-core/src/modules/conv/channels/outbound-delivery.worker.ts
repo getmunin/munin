@@ -4,6 +4,8 @@ import { and, eq, isNotNull, lt, lte, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
+  parseEnvDisableFlag,
+  parseEnvInt,
   withContext,
   type RequestContext,
 } from '@getmunin/core';
@@ -23,11 +25,10 @@ import {
   type SendCounts,
 } from './send-rate-limit.ts';
 
-const POLL_INTERVAL_MS = Number(
-  process.env.MUNIN_OUTBOUND_DELIVERY_WORKER_INTERVAL_MS ??
-    process.env.MUNIN_EMAIL_OUTBOUND_POLL_MS ??
-    10_000,
-);
+const POLL_INTERVAL_MS = parseEnvInt({
+  name: 'MUNIN_OUTBOUND_DELIVERY_WORKER_INTERVAL_MS',
+  default: parseEnvInt({ name: 'MUNIN_EMAIL_OUTBOUND_POLL_MS', default: 10_000 }),
+});
 const MAX_ATTEMPTS = 5;
 const BATCH_SIZE = 25;
 const BACKOFF_BASE_MS = 30_000;
@@ -49,8 +50,8 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private disabled =
-    process.env.MUNIN_OUTBOUND_DELIVERY_WORKER_DISABLED === '1' ||
-    process.env.MUNIN_EMAIL_OUTBOUND_WORKER_DISABLED === '1' ||
+    parseEnvDisableFlag('MUNIN_OUTBOUND_DELIVERY_WORKER_DISABLED') ||
+    parseEnvDisableFlag('MUNIN_EMAIL_OUTBOUND_WORKER_DISABLED') ||
     process.env.NODE_ENV === 'test';
 
   private readonly registry: ChannelAdapterRegistry;

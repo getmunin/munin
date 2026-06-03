@@ -23,6 +23,7 @@ const EXPECTED_BY_MODULE: Record<string, RegExp> = {
   cms: /^cms_/,
   outreach: /^outreach_/,
   system: /^system_/,
+  webhooks: /^webhooks_/,
 };
 
 const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
@@ -32,6 +33,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
   cms: 20,
   outreach: 7,
   system: 4,
+  webhooks: 7,
 };
 
 (skipReason ? describe.skip : describe)('MCP tools smoke: registry shape across all modules', () => {
@@ -110,6 +112,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
         cms: 'CMS:',
         outreach: 'Outreach:',
         system: 'System ',
+        webhooks: 'Webhooks:',
       };
       const tools = await admin.listTools();
       for (const t of tools) {

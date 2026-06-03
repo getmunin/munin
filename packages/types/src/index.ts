@@ -41,3 +41,16 @@ export {
   type JobKind,
   type ModelTier,
 } from './job-catalog.ts';
+export {
+  CMS_EVENT_TYPES,
+  CRM_EVENT_TYPES,
+  KB_EVENT_TYPES,
+  CONVERSATION_EVENT_TYPES,
+  OUTREACH_EVENT_TYPES,
+  SYSTEM_EVENT_TYPES,
+  EVENT_TYPES_BY_MODULE,
+  KNOWN_EVENT_TYPES,
+  isKnownEventType,
+  type KnownEventType,
+  type EventModule,
+} from './event-catalog.ts';

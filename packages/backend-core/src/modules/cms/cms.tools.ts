@@ -117,6 +117,23 @@ const UploadAssetBytesInput = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
+const UploadAssetFromUrlInput = z.object({
+  sourceUrl: z
+    .string()
+    .url()
+    .refine((u) => {
+      try {
+        return new URL(u).protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }, 'sourceUrl must use https://'),
+  name: z.string().min(1).max(255).optional(),
+  mime: z.string().min(1).max(120).optional(),
+  altText: z.string().max(500).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
 const CreateLocaleInput = z.object({
   code: z.string().min(2).max(16),
   name: z.string().min(1).max(120),
@@ -409,6 +426,21 @@ export class CmsAdminTools {
   })
   uploadAssetBytes(args: z.infer<typeof UploadAssetBytesInput>) {
     return this.cms.uploadAssetBytes(args);
+  }
+
+  @McpTool({
+    name: 'cms_upload_asset_from_url',
+    title: 'CMS: Upload asset from URL',
+    description:
+      'Fetch a publicly reachable HTTPS asset and store it as a CMS asset in one call. Use this when your runtime cannot PUT to a presigned URL or pass large base64 payloads — typical for ChatGPT/Claude workspace agents whose sandbox blocks outbound PUTs and truncates long base64 strings. The server fetches the URL with SSRF protection, validates content-type (image/*, video/*, audio/*, application/pdf — SVG rejected) and size (≤50 MB), and creates the asset row in `uploaded:true` state. Filename and MIME are inferred from the response unless overridden. The original URL is recorded in `metadata.sourceUrl`.',
+    audiences: ['admin'],
+    scopes: ['cms:write'],
+    input: UploadAssetFromUrlInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  uploadAssetFromUrl(args: z.infer<typeof UploadAssetFromUrlInput>) {
+    return this.cms.uploadAssetFromUrl(args);
   }
 
   @McpTool({

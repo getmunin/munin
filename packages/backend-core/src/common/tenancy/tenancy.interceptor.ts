@@ -55,6 +55,9 @@ export class TenancyInterceptor implements NestInterceptor {
   constructor(@Inject(DB) private readonly db: Db) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    if (RequestContextStore.getStore()) {
+      return next.handle();
+    }
     const request = context.switchToHttp().getRequest<RequestWithAuth>();
     const correlationId = request.correlationId ?? randomUUID();
     request.correlationId = correlationId;

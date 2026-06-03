@@ -30,7 +30,14 @@ export class AuditInterceptor implements NestInterceptor {
 
     const request = context
       .switchToHttp()
-      .getRequest<{ method: string; url: string; headers: Record<string, string | string[] | undefined> }>();
+      .getRequest<{
+        method: string;
+        url: string;
+        headers: Record<string, string | string[] | undefined>;
+        _auditRecorded?: boolean;
+      }>();
+    if (request._auditRecorded) return next.handle();
+    request._auditRecorded = true;
     const verb = request.method.toUpperCase();
     const path = request.url.split('?')[0] ?? request.url;
     const method = `${verb} ${path}`;

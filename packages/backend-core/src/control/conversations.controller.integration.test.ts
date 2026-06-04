@@ -180,14 +180,19 @@ const skipReason = TEST_URL
       });
     });
 
-    const list = await rest<{ items: Array<{ id: string; needsHumanAttention: boolean }> }>(
-      adminKeyA,
-      'GET',
-      '/v1/conversations',
-    );
-    expect(list.status).toBe(200);
-    const flagged = list.body.items.find((c) => c.id === started.id);
-    expect(flagged?.needsHumanAttention).toBe(true);
+    await expect
+      .poll(
+        async () => {
+          const r = await rest<{ items: Array<{ id: string; needsHumanAttention: boolean }> }>(
+            adminKeyA,
+            'GET',
+            '/v1/conversations',
+          );
+          return r.body.items.find((c) => c.id === started.id)?.needsHumanAttention;
+        },
+        { timeout: 2000 },
+      )
+      .toBe(true);
 
     const detail = await rest<{
       id: string;

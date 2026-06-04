@@ -1,0 +1,199 @@
+import {
+  Body,
+  Get,
+  HttpCode,
+  Headers,
+  Inject,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
+import { and, eq, isNull } from 'drizzle-orm';
+import { schema, type Db } from '@getmunin/db';
+import { hashSecret, isWellFormedKey, keyPrefix, looksLikeBot } from '@getmunin/core';
+import { PublicController } from '../common/auth/auth.guard.ts';
+import { DB } from '../common/db/db.module.ts';
+import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
+
+const TRANSPARENT_GIF = Buffer.from(
+  'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+  'base64',
+);
+
+const DEFAULT_SUBJECT_TYPE = 'page';
+
+interface TrackerBeaconBody {
+  key?: string;
+  subjectType?: string;
+  subjectId?: string;
+  path?: string;
+  referrer?: string;
+  visitorId?: string;
+  locale?: string;
+  dwellMs?: number;
+  readDepth?: number;
+  utm?: {
+    source?: string;
+    medium?: string;
+    campaign?: string;
+  };
+  metadata?: Record<string, unknown>;
+}
+
+interface ResolvedTracker {
+  trackerId: string;
+  orgId: string;
+  apiKeyId: string;
+  allowedOrigins: string[];
+}
+
+@PublicController('v1/a', { throttle: true })
+export class AnalyticsTrackerController {
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
+  ) {}
+
+  @Get('t/:key.gif')
+  async trackerPixel(
+    @Param('key') key: string,
+    @Headers('user-agent') userAgent: string | undefined,
+    @Headers('referer') referer: string | undefined,
+    @Headers('origin') origin: string | undefined,
+    @Query('s') subjectId: string | undefined,
+    @Query('t') subjectType: string | undefined,
+    @Query('v') visitorId: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    sendPixel(res);
+    if (looksLikeBot(userAgent)) return;
+    if (!subjectId) return;
+    const tracker = await this.resolveTrackerKey(key);
+    if (!tracker) return;
+    if (!originIsAllowed(tracker.allowedOrigins, origin)) return;
+
+    await this.analytics.recordView({
+      orgId: tracker.orgId,
+      subjectType: subjectType || DEFAULT_SUBJECT_TYPE,
+      subjectId,
+      source: 'tracker',
+      referrer: referer ?? null,
+      visitorId: visitorId ?? null,
+      userAgentClass: 'browser',
+    });
+  }
+
+  @Post('t')
+  @HttpCode(204)
+  async trackerBeacon(
+    @Body() body: TrackerBeaconBody,
+    @Headers('user-agent') userAgent: string | undefined,
+    @Headers('referer') referer: string | undefined,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<void> {
+    if (looksLikeBot(userAgent)) return;
+    if (!body || typeof body.key !== 'string' || typeof body.subjectId !== 'string') return;
+    const tracker = await this.resolveTrackerKey(body.key);
+    if (!tracker) return;
+    if (!originIsAllowed(tracker.allowedOrigins, origin)) return;
+
+    await this.analytics.recordView({
+      orgId: tracker.orgId,
+      subjectType: body.subjectType || DEFAULT_SUBJECT_TYPE,
+      subjectId: body.subjectId,
+      source: 'tracker',
+      path: body.path ?? null,
+      locale: body.locale ?? null,
+      referrer: body.referrer ?? referer ?? null,
+      visitorId: body.visitorId ?? null,
+      dwellMs: typeof body.dwellMs === 'number' ? body.dwellMs : null,
+      readDepth: typeof body.readDepth === 'number' ? body.readDepth : null,
+      utmSource: body.utm?.source ?? null,
+      utmMedium: body.utm?.medium ?? null,
+      utmCampaign: body.utm?.campaign ?? null,
+      userAgentClass: 'tracker',
+      metadata: body.metadata ?? null,
+    });
+  }
+
+  private async resolveTrackerKey(rawKey: string): Promise<ResolvedTracker | null> {
+    if (!rawKey || !isWellFormedKey(rawKey) || !rawKey.startsWith('mn_track_')) return null;
+    try {
+      const rows = await this.db
+        .select({
+          apiKeyId: schema.apiKeys.id,
+          orgId: schema.apiKeys.orgId,
+          trackerId: schema.analyticsTrackers.id,
+          allowedOrigins: schema.analyticsTrackers.allowedOrigins,
+        })
+        .from(schema.apiKeys)
+        .innerJoin(
+          schema.analyticsTrackers,
+          eq(schema.apiKeys.trackerId, schema.analyticsTrackers.id),
+        )
+        .where(
+          and(
+            eq(schema.apiKeys.keyPrefix, keyPrefix(rawKey)),
+            eq(schema.apiKeys.keyHash, hashSecret(rawKey)),
+            eq(schema.apiKeys.type, 'track'),
+            isNull(schema.apiKeys.revokedAt),
+          ),
+        )
+        .limit(1);
+      const row = rows[0];
+      if (!row || !row.orgId) return null;
+      void this.db
+        .update(schema.apiKeys)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(schema.apiKeys.id, row.apiKeyId))
+        .then(undefined, () => undefined);
+      return {
+        trackerId: row.trackerId,
+        orgId: row.orgId,
+        apiKeyId: row.apiKeyId,
+        allowedOrigins: row.allowedOrigins,
+      };
+    } catch {
+      return null;
+    }
+  }
+}
+
+export function originIsAllowed(
+  allowedOrigins: readonly string[],
+  origin: string | undefined,
+): boolean {
+  const list = allowedOrigins ?? [];
+  if (list.length === 0) {
+    return !requireTrackerAllowlist();
+  }
+  if (!origin) return false;
+  let viewerOrigin: string;
+  try {
+    viewerOrigin = new URL(origin).origin;
+  } catch {
+    return false;
+  }
+  return list.some((entry) => {
+    try {
+      return new URL(entry).origin === viewerOrigin;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function requireTrackerAllowlist(): boolean {
+  const raw = process.env.MUNIN_TRACKER_REQUIRE_ALLOWLIST?.trim().toLowerCase();
+  return raw === '1' || raw === 'true';
+}
+
+function sendPixel(res: Response): void {
+  res.setHeader('Content-Type', 'image/gif');
+  res.setHeader('Content-Length', String(TRANSPARENT_GIF.length));
+  res.setHeader('Cache-Control', 'no-store, private, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.status(200).end(TRANSPARENT_GIF);
+}

@@ -20,6 +20,8 @@ Call `conv_widget_create_channel`:
 
 Response includes `widgetKey: "mn_widget_…"` — shown once. Store it server-side.
 
+`originAllowlist` is required — the widget ingest endpoint rejects any request whose `Origin` header doesn't match one of the listed full origins (scheme + host + port, exact match). List every environment that should be allowed to ingest (`https://customer.example`, `https://staging.customer.example`, etc.).
+
 The widget key is bound to this channel via `api_keys.channel_id`. Rotate with `conv_widget_rotate_key`; update origins with `conv_widget_update_channel`.
 
 ## 2. Push transcripts from the agent

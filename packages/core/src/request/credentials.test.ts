@@ -44,6 +44,19 @@ const skipReason = TEST_URL
     revoked?: boolean;
   }): Promise<string> {
     const rawKey = args.rawKey ?? buildApiKey(args.type === 'widget' ? 'widget' : 'admin');
+    let channelId: string | null = null;
+    if (args.type === 'widget') {
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'chat',
+          vendor: 'munin',
+          name: `cred-resolver-widget-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        })
+        .returning();
+      channelId = channel!.id;
+    }
     await db.insert(schema.apiKeys).values({
       orgId,
       type: args.type,
@@ -52,6 +65,7 @@ const skipReason = TEST_URL
       keyPrefix: keyPrefix(rawKey),
       scopes: args.scopes ?? (args.type === 'widget' ? ['conv:widget:write'] : ['*']),
       audiences: args.audiences ?? ['admin'],
+      channelId,
       revokedAt: args.revoked ? new Date() : null,
     });
     return rawKey;

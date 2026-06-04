@@ -53,18 +53,28 @@ For each draft older than the collection's threshold, decide:
 { "name": "cms_list_entries", "arguments": { "status": "published", "limit": 200 } }
 ```
 
-For each entry older than the collection's threshold (per Step 1's per-collection velocity), check inbound references:
+For each entry older than the collection's threshold (per Step 1's per-collection velocity), check inbound references *and* reader engagement (if the delivery API is tracked — see `skill://analytics/track-website-traffic`):
 
 ```jsonc
 { "name": "cms_list_inbound_references", "arguments": { "entryId": "cme_..." } }
 ```
 
-Then judge:
+```jsonc
+{ "name": "analytics_subject_engagement",
+  "arguments": { "subjectType": "cms_entry", "subjectId": "cme_...", "sinceDays": 90 } }
+```
 
-- **Still load-bearing** — has many inbound references from active entries, or is in a top-level navigation collection. Recommend `refresh` (the operator should re-read it for accuracy) rather than archiving.
-- **Superseded but referenced** — newer entries cover the same topic and are linked-to in the same neighborhood. Recommend `archive` (`cms_unpublish_entry`) but flag the inbound references so the operator can decide whether to redirect or delete them.
-- **Orphaned** — no inbound references and `updatedAt` very old. Recommend `delete` (`cms_delete_entry`).
-- **Time-bound** — title or body references a date/event that has passed (campaign, version-specific docs). Recommend `archive` or `delete` with high confidence.
+Response: `{ views, visitors, avgDwellMs, avgReadDepth, lastViewAt }`. If analytics isn't wired up the values come back as 0 / null — fall back to the inbound-references signal alone.
+
+Then judge — combine the structural signal (inbound refs) with the behavioral signal (views/dwell):
+
+- **Still load-bearing** — many inbound references *and* meaningful views in the last 90 days. Recommend `refresh` (the operator should re-read it for accuracy) rather than archiving.
+- **Quietly important** — few inbound references but consistent traffic. Recommend `refresh` — readers find it via search/direct, the graph just doesn't reflect that.
+- **Superseded but referenced** — newer entries cover the same topic and are linked-to in the same neighborhood; views are trending down. Recommend `archive` (`cms_unpublish_entry`) but flag the inbound references so the operator can decide whether to redirect or delete them.
+- **Orphaned** — no inbound references, no recent views, and `updatedAt` very old. Recommend `delete` (`cms_delete_entry`).
+- **Time-bound** — title or body references a date/event that has passed (campaign, version-specific docs). Recommend `archive` or `delete` with high confidence regardless of view count (residual traffic to expired content is usually a sign of stale external links, not value).
+
+A useful complement: `analytics_zero_result_searches({sinceDays: 90})` surfaces the queries readers asked that returned nothing. If a stale entry is the closest match to a frequent zero-result query, that's a strong "refresh + retitle" signal — readers want this content, they just can't find it.
 
 ## Step 4 — orphaned assets
 

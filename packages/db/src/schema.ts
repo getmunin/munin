@@ -436,6 +436,9 @@ export const apiKeys = pgTable(
     channelId: text('channel_id').references((): AnyPgColumn => convChannels.id, {
       onDelete: 'cascade',
     }),
+    trackerId: text('tracker_id').references((): AnyPgColumn => analyticsTrackers.id, {
+      onDelete: 'cascade',
+    }),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     createdByUserId: text('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
@@ -445,6 +448,7 @@ export const apiKeys = pgTable(
     orgIdx: index('api_keys_org_idx').on(t.orgId),
     prefixIdx: index('api_keys_prefix_idx').on(t.keyPrefix),
     channelIdx: index('api_keys_channel_idx').on(t.channelId),
+    trackerIdx: index('api_keys_tracker_idx').on(t.trackerId),
   }),
 );
 
@@ -1495,6 +1499,23 @@ export const cmsReferences = pgTable(
 // routes, and other surfaces use their own subject types without
 // schema changes. Append-only; aggregation/rollups are deferred.
 
+export const analyticsTrackers = pgTable(
+  'analytics_trackers',
+  {
+    id: id('atr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    allowedOrigins: jsonb('allowed_origins').$type<string[]>().notNull().default([]),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('analytics_trackers_org_idx').on(t.orgId),
+  }),
+);
+
 export const analyticsViewEvents = pgTable(
   'analytics_view_events',
   {
@@ -1835,6 +1856,7 @@ export const allTables = {
   cmsAssets,
   cmsLocales,
   cmsReferences,
+  analyticsTrackers,
   analyticsViewEvents,
   analyticsSearchEvents,
   curatorJobs,

@@ -1,0 +1,37 @@
+{
+  "name": "@getmunin/analytics-tracker",
+  "version": "4.33.0",
+  "license": "MIT",
+  "description": "Drop-in browser analytics tracker for self-hosted Munin. Built as a single content-hashed IIFE bundle and served by the Munin backend.",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/getmunin/munin.git",
+    "directory": "apps/analytics-tracker"
+  },
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch --mode development",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@getmunin/eslint-config": "workspace:*",
+    "@getmunin/tsconfig": "workspace:*",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.10.0",
+    "happy-dom": "^20.9.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.5.0",
+    "vite": "^6.4.2",
+    "vitest": "^4.1.0"
+  }
+}

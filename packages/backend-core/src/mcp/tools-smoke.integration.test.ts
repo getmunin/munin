@@ -22,6 +22,7 @@ const EXPECTED_BY_MODULE: Record<string, RegExp> = {
   crm: /^crm_/,
   cms: /^cms_/,
   outreach: /^outreach_/,
+  analytics: /^analytics_/,
   system: /^system_/,
   webhooks: /^webhooks_/,
 };
@@ -32,6 +33,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
   crm: 25,
   cms: 20,
   outreach: 7,
+  analytics: 6,
   system: 4,
   webhooks: 7,
 };
@@ -111,6 +113,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
         crm: 'CRM:',
         cms: 'CMS:',
         outreach: 'Outreach:',
+        analytics: 'Analytics:',
         system: 'System ',
         webhooks: 'Webhooks:',
       };

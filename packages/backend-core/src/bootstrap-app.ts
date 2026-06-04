@@ -15,11 +15,12 @@ const JSON_BODY_LIMIT = '4mb';
 const DEFAULT_DEV_WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
 /**
- * Hashed widget bundles match `widget.<12-hex-sha>.js[.map]?`. Anything
- * else hitting `/widget/...` is rejected with 404 — no path traversal
- * surface, no accidental directory listing.
+ * Hashed widget / tracker bundles match `<name>.<12-hex-sha>.js[.map]?`.
+ * Anything else hitting `/widget/...` or `/tracker/...` is rejected with
+ * 404 — no path traversal surface, no accidental directory listing.
  */
 const HASHED_WIDGET_FILE_RE = /^widget\.[a-f0-9]{12}\.js(\.map)?$/;
+const HASHED_TRACKER_FILE_RE = /^tracker\.[a-f0-9]{12}\.js(\.map)?$/;
 
 export function readAllowedOrigins(): string[] | true {
   const env = process.env.MUNIN_CORS_ORIGINS;
@@ -55,6 +56,14 @@ export interface CreateAppOptions extends NestApplicationOptions {
    */
   widgetAssetDir?: string;
   /**
+   * Absolute path to the directory holding the analytics-tracker's hashed
+   * bundle + manifest.json. Defaults to `<cwd>/public/tracker` which
+   * matches `apps/backend/public/tracker/` after the prebuild copy step.
+   * Same shape as `widgetAssetDir`. Missing manifest → 503 on
+   * `/tracker.js`, rest of API still boots.
+   */
+  trackerAssetDir?: string;
+  /**
    * Absolute path to the directory holding the MCP host's brand icons —
    * `favicon.ico`, `icon.png`, `apple-icon.png`. Served at the root paths
    * `/favicon.ico`, `/icon.png`, `/apple-icon.png` with a long cache.
@@ -73,6 +82,8 @@ export interface CreateAppOptions extends NestApplicationOptions {
  *     `publicUrlFor()`.
  *   - Chat-widget bundle: `/widget/<sha>.js` (immutable, year-long cache)
  *     and `/widget.js` (302 redirect to the current sha, short cache).
+ *   - Analytics-tracker bundle: same shape at `/tracker/<sha>.js` and
+ *     `/tracker.js`.
  *
  * The caller supplies their AppModule (single-tenant for OSS, multi-tenant
  * for cloud). Both editions go through this factory so tests, prod, and
@@ -82,7 +93,7 @@ export async function createApp(
   appModule: Type<unknown>,
   opts: CreateAppOptions = {},
 ): Promise<INestApplication> {
-  const { widgetAssetDir, iconAssetDir, ...nestOpts } = opts;
+  const { widgetAssetDir, trackerAssetDir, iconAssetDir, ...nestOpts } = opts;
   const app = await NestFactory.create<NestExpressApplication>(appModule, {
     rawBody: true,
     ...nestOpts,
@@ -108,8 +119,12 @@ export async function createApp(
   }
 
   const resolvedWidgetDir = resolve(widgetAssetDir ?? join(process.cwd(), 'public', 'widget'));
-  app.use('/widget.js', widgetRedirectMiddleware(resolvedWidgetDir));
-  app.use('/widget', widgetBundleMiddleware(resolvedWidgetDir));
+  app.use('/widget.js', hashedBundleRedirectMiddleware(resolvedWidgetDir, HASHED_WIDGET_FILE_RE, '/widget'));
+  app.use('/widget', hashedBundleServeMiddleware(resolvedWidgetDir, HASHED_WIDGET_FILE_RE));
+
+  const resolvedTrackerDir = resolve(trackerAssetDir ?? join(process.cwd(), 'public', 'tracker'));
+  app.use('/tracker.js', hashedBundleRedirectMiddleware(resolvedTrackerDir, HASHED_TRACKER_FILE_RE, '/tracker'));
+  app.use('/tracker', hashedBundleServeMiddleware(resolvedTrackerDir, HASHED_TRACKER_FILE_RE));
 
   const resolvedIconDir = resolve(iconAssetDir ?? join(process.cwd(), 'public', 'icons'));
   app.use(brandIconMiddleware(resolvedIconDir));
@@ -122,6 +137,9 @@ export function isPublicCorsPath(path: string): boolean {
     path === '/widget.js' ||
     path.startsWith('/widget/') ||
     path.startsWith('/v1/widget') ||
+    path === '/tracker.js' ||
+    path.startsWith('/tracker/') ||
+    path.startsWith('/v1/a/') ||
     path === '/mcp' ||
     path.startsWith('/mcp/') ||
     path.startsWith('/.well-known/oauth-') ||
@@ -313,17 +331,20 @@ function staticAssetsMiddleware(storage: LocalFsStorage) {
  * a server restart. Returns `null` if the manifest is missing or
  * malformed — the route handlers translate that to a 503.
  */
-function manifestReader(widgetDir: string): () => Promise<{ current: string } | null> {
+function manifestReader(
+  bundleDir: string,
+  hashedFileRe: RegExp,
+): () => Promise<{ current: string } | null> {
   let cached: { current: string } | null = null;
   let cachedMtime = -1;
   return async () => {
-    const path = join(widgetDir, 'manifest.json');
+    const path = join(bundleDir, 'manifest.json');
     try {
       const info = await stat(path);
       if (info.mtimeMs !== cachedMtime) {
         const raw = await readFile(path, 'utf8');
         const parsed = JSON.parse(raw) as { current?: unknown };
-        if (typeof parsed.current === 'string' && HASHED_WIDGET_FILE_RE.test(parsed.current)) {
+        if (typeof parsed.current === 'string' && hashedFileRe.test(parsed.current)) {
           cached = { current: parsed.current };
           cachedMtime = info.mtimeMs;
         } else {
@@ -339,8 +360,12 @@ function manifestReader(widgetDir: string): () => Promise<{ current: string } | 
   };
 }
 
-function widgetRedirectMiddleware(widgetDir: string) {
-  const readManifest = manifestReader(widgetDir);
+function hashedBundleRedirectMiddleware(
+  bundleDir: string,
+  hashedFileRe: RegExp,
+  redirectBase: string,
+) {
+  const readManifest = manifestReader(bundleDir, hashedFileRe);
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       next();
@@ -354,23 +379,23 @@ function widgetRedirectMiddleware(widgetDir: string) {
     }
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('cache-control', 'public, max-age=300, must-revalidate');
-    res.redirect(302, `/widget/${manifest.current}`);
+    res.redirect(302, `${redirectBase}/${manifest.current}`);
   };
 }
 
-function widgetBundleMiddleware(widgetDir: string) {
+function hashedBundleServeMiddleware(bundleDir: string, hashedFileRe: RegExp) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       next();
       return;
     }
     const file = req.path.replace(/^\/+/, '');
-    if (!HASHED_WIDGET_FILE_RE.test(file)) {
+    if (!hashedFileRe.test(file)) {
       res.status(404).end();
       return;
     }
-    const filePath = resolve(join(widgetDir, file));
-    if (!filePath.startsWith(resolve(widgetDir))) {
+    const filePath = resolve(join(bundleDir, file));
+    if (!filePath.startsWith(resolve(bundleDir))) {
       res.status(404).end();
       return;
     }

@@ -34,6 +34,7 @@ function buildInstructions(adminSkills: ReadonlyArray<{ uri: string; name: strin
     '  • Conversations (conv_*)       — channels, messages, assignments',
     '  • CRM (crm_*)                  — contacts, companies, deals, activities',
     '  • CMS (cms_*)                  — collections, entries, assets, locales',
+    '  • Analytics (analytics_*)      — tracker keys, page-view + search events',
     '  • Org & access                 — api_keys, end_users, invitations, members, memberships',
     '',
     'Multi-step workflows have detailed skills. Call `resources/list` to discover',

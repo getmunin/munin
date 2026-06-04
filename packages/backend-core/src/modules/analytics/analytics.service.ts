@@ -6,7 +6,7 @@ export interface RecordViewInput {
   orgId: string;
   subjectType: string;
   subjectId: string;
-  source: 'pixel' | 'beacon';
+  source: 'pixel' | 'beacon' | 'tracker';
   path?: string | null;
   locale?: string | null;
   referrer?: string | null;

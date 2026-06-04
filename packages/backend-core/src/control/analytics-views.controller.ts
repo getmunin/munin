@@ -9,6 +9,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { z } from 'zod';
 import { ViewTokenError, looksLikeBot, verifyViewToken } from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
@@ -18,21 +19,23 @@ const TRANSPARENT_GIF = Buffer.from(
   'base64',
 );
 
-interface BeaconBody {
-  token?: string;
-  path?: string;
-  referrer?: string;
-  visitorId?: string;
-  locale?: string;
-  dwellMs?: number;
-  readDepth?: number;
-  utm?: {
-    source?: string;
-    medium?: string;
-    campaign?: string;
-  };
-  metadata?: Record<string, unknown>;
-}
+const BeaconBodySchema = z.object({
+  token: z.string(),
+  path: z.string().max(512).optional(),
+  referrer: z.string().max(512).optional(),
+  visitorId: z.string().max(64).optional(),
+  locale: z.string().max(16).optional(),
+  dwellMs: z.number().int().min(0).optional(),
+  readDepth: z.number().int().min(0).max(100).optional(),
+  utm: z
+    .object({
+      source: z.string().max(128).optional(),
+      medium: z.string().max(128).optional(),
+      campaign: z.string().max(128).optional(),
+    })
+    .optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
 
 @PublicController('v1/a/v', { throttle: true })
 export class AnalyticsViewsController {
@@ -70,12 +73,14 @@ export class AnalyticsViewsController {
   @Post()
   @HttpCode(204)
   async beacon(
-    @Body() body: BeaconBody,
+    @Body() rawBody: unknown,
     @Headers('user-agent') userAgent: string | undefined,
     @Headers('referer') referer: string | undefined,
   ): Promise<void> {
     if (looksLikeBot(userAgent)) return;
-    if (!body || typeof body.token !== 'string') return;
+    const parsed = BeaconBodySchema.safeParse(rawBody);
+    if (!parsed.success) return;
+    const body = parsed.data;
 
     let payload;
     try {
@@ -94,8 +99,8 @@ export class AnalyticsViewsController {
       locale: body.locale ?? null,
       referrer: body.referrer ?? referer ?? null,
       visitorId: body.visitorId ?? null,
-      dwellMs: typeof body.dwellMs === 'number' ? body.dwellMs : null,
-      readDepth: typeof body.readDepth === 'number' ? body.readDepth : null,
+      dwellMs: body.dwellMs ?? null,
+      readDepth: body.readDepth ?? null,
       utmSource: body.utm?.source ?? null,
       utmMedium: body.utm?.medium ?? null,
       utmCampaign: body.utm?.campaign ?? null,

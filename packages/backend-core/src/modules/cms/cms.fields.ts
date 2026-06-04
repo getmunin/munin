@@ -44,8 +44,7 @@ export function validateEntryData(
   const errors: ValidationError[] = [];
   for (const field of fields) {
     const value = data[field.name];
-    const present = value !== undefined && value !== null;
-    if (!present) {
+    if (isFieldEmpty(value)) {
       if (field.required) errors.push({ field: field.name, message: 'required' });
       continue;
     }
@@ -53,6 +52,13 @@ export function validateEntryData(
     if (err) errors.push({ field: field.name, message: err });
   }
   return errors;
+}
+
+function isFieldEmpty(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === 'string' && value.length === 0) return true;
+  if (Array.isArray(value) && value.length === 0) return true;
+  return false;
 }
 
 function validateValue(field: FieldDef, value: unknown): string | null {

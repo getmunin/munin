@@ -32,8 +32,13 @@ import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 
 export class CmsInvalidError extends Error {
   readonly code = 'cms_invalid';
-  constructor(message: string) {
+  readonly fieldErrors?: ReadonlyArray<{ field: string; message: string }>;
+  constructor(
+    message: string,
+    opts?: { fieldErrors?: ReadonlyArray<{ field: string; message: string }> },
+  ) {
     super(`cms_invalid: ${message}`);
+    this.fieldErrors = opts?.fieldErrors;
   }
 }
 
@@ -84,6 +89,7 @@ export interface CmsDraftEntrySummary {
   slug: string;
   locale: string;
   title: string | null;
+  titleFieldName: string | null;
   wordCount: number | null;
   version: number;
   updatedAt: string;
@@ -302,6 +308,7 @@ export class CmsService {
         updatedAt: schema.cmsEntries.updatedAt,
         collectionName: schema.cmsCollections.name,
         collectionSlug: schema.cmsCollections.slug,
+        collectionFields: schema.cmsCollections.fields,
       })
       .from(schema.cmsEntries)
       .innerJoin(
@@ -312,18 +319,24 @@ export class CmsService {
       .orderBy(desc(schema.cmsEntries.updatedAt))
       .limit(take);
 
-    return rows.map((r) => ({
-      id: r.id,
-      collectionId: r.collectionId,
-      collectionSlug: r.collectionSlug,
-      collectionName: r.collectionName,
-      slug: r.slug,
-      locale: r.locale,
-      title: readStringField(r.data, 'title'),
-      wordCount: countWordsInBody(r.data),
-      version: r.version,
-      updatedAt: r.updatedAt.toISOString(),
-    }));
+    return rows.map((r) => {
+      const fields = (r.collectionFields ?? []) as FieldDef[];
+      const data = (r.data ?? {});
+      const derived = deriveEntryTitle(fields, data);
+      return {
+        id: r.id,
+        collectionId: r.collectionId,
+        collectionSlug: r.collectionSlug,
+        collectionName: r.collectionName,
+        slug: r.slug,
+        locale: r.locale,
+        title: derived.title ?? r.slug,
+        titleFieldName: derived.fieldName,
+        wordCount: countWordsInBody(data),
+        version: r.version,
+        updatedAt: r.updatedAt.toISOString(),
+      };
+    });
   }
 
   async archiveEntry(input: { id: string; ifVersion: number }): Promise<EntryDto> {
@@ -389,6 +402,7 @@ export class CmsService {
     if (errors.length > 0) {
       throw new CmsInvalidError(
         `validation failed: ${errors.map((e) => `${e.field}: ${e.message}`).join('; ')}`,
+        { fieldErrors: errors },
       );
     }
 
@@ -465,6 +479,7 @@ export class CmsService {
       if (errors.length > 0) {
         throw new CmsInvalidError(
           `validation failed: ${errors.map((e) => `${e.field}: ${e.message}`).join('; ')}`,
+          { fieldErrors: errors },
         );
       }
     }
@@ -510,7 +525,13 @@ export class CmsService {
       type: 'cms.entry.updated',
       payload: makePayload(updated!, collection.slug),
     });
-    return toEntryDto(updated!, collection.slug, collection.fields);
+    const dto = toEntryDto(updated!, collection.slug, collection.fields);
+    await this.expandAssetsInDtos(
+      actor.orgId,
+      [dto],
+      new Map([[dto.id, collection.fields]]),
+    );
+    return dto;
   }
 
   async publishEntry(input: { id: string; ifVersion: number }): Promise<EntryDto> {
@@ -1221,6 +1242,25 @@ function countWordsInBody(data: unknown): number | null {
   if (body == null) return null;
   const matches = body.match(/\S+/g);
   return matches ? matches.length : 0;
+}
+
+const TITLE_FIELD_CANDIDATES = ['title', 'name', 'headline', 'subject'];
+
+export function deriveEntryTitle(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+): { title: string | null; fieldName: string | null } {
+  for (const name of TITLE_FIELD_CANDIDATES) {
+    if (!fields.some((f) => f.name === name)) continue;
+    const value = readStringField(data, name);
+    if (value) return { title: value, fieldName: name };
+  }
+  const firstShortText = fields.find((f) => f.type === 'text' && f.required);
+  if (firstShortText) {
+    const value = readStringField(data, firstShortText.name);
+    if (value) return { title: value, fieldName: firstShortText.name };
+  }
+  return { title: null, fieldName: null };
 }
 
 function rejectSvgAsset(ext: string, mime: string): void {

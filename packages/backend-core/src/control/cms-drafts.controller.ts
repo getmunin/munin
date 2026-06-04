@@ -20,8 +20,14 @@ import {
   CmsConflictError,
   CmsInvalidError,
   CmsService,
+  type AssetDto,
   type EntryDto,
 } from '../modules/cms/cms.service.ts';
+import type { FieldDef } from '../modules/cms/cms.fields.ts';
+
+export interface CmsDraftDetailDto extends EntryDto {
+  fields: FieldDef[];
+}
 
 const PatchBody = z.object({
   data: z.record(z.string(), z.unknown()).optional(),
@@ -33,6 +39,13 @@ const ScheduleBody = z.object({
   scheduledAt: z.string().min(1),
 });
 
+const AssetUploadBody = z.object({
+  name: z.string().min(1).max(255),
+  mime: z.string().min(1).max(120),
+  base64Body: z.string().min(1).max(2_800_000),
+  altText: z.string().max(500).optional(),
+});
+
 @Controller('v1/cms-drafts')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
@@ -40,16 +53,17 @@ export class CmsDraftsController {
   constructor(private readonly cms: CmsService) {}
 
   @Get(':id')
-  async get(@Param('id') id: string): Promise<EntryDto> {
-    return translate(() => this.cms.getEntry(id));
+  async get(@Param('id') id: string): Promise<CmsDraftDetailDto> {
+    const entry = await translate(() => this.cms.getEntry(id));
+    return this.attachFields(entry);
   }
 
   @Patch(':id')
   @HttpCode(200)
-  async patch(@Param('id') id: string, @Body() body: unknown): Promise<EntryDto> {
+  async patch(@Param('id') id: string, @Body() body: unknown): Promise<CmsDraftDetailDto> {
     const parsed = PatchBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(async () => {
+    const entry = await translate(async () => {
       const existing = await this.cms.getEntry(id);
       return this.cms.updateEntry({
         id,
@@ -59,6 +73,7 @@ export class CmsDraftsController {
         locale: parsed.data.locale,
       });
     });
+    return this.attachFields(entry);
   }
 
   @Post(':id/approve')
@@ -85,6 +100,17 @@ export class CmsDraftsController {
     });
   }
 
+  @Post(':id/assets')
+  @HttpCode(200)
+  async uploadAsset(@Param('id') id: string, @Body() body: unknown): Promise<AssetDto> {
+    const parsed = AssetUploadBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(async () => {
+      await this.cms.getEntry(id);
+      return this.cms.uploadAssetBytes(parsed.data);
+    });
+  }
+
   @Post(':id/dismiss')
   @HttpCode(200)
   async dismiss(@Param('id') id: string): Promise<{ dismissed: true }> {
@@ -94,13 +120,24 @@ export class CmsDraftsController {
     });
     return { dismissed: true };
   }
+
+  private async attachFields(entry: EntryDto): Promise<CmsDraftDetailDto> {
+    const collection = await this.cms.getCollection(entry.collectionId);
+    return { ...entry, fields: collection.fields };
+  }
 }
 
 async function translate<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    if (err instanceof CmsInvalidError) throw new BadRequestException(err.message);
+    if (err instanceof CmsInvalidError) {
+      throw new BadRequestException(
+        err.fieldErrors && err.fieldErrors.length > 0
+          ? { message: err.message, fieldErrors: err.fieldErrors }
+          : err.message,
+      );
+    }
     if (err instanceof CmsConflictError) throw new ConflictException(err.message);
     throw err;
   }

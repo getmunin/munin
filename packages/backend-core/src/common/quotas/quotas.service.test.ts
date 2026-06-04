@@ -1,131 +1,21 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
-import { createDb, runMigrations, schema } from '@getmunin/db';
-import { sql } from 'drizzle-orm';
-import { randomUUID } from 'node:crypto';
-import type { QuotasService } from './quotas.service.ts';
-import { DefaultQuotasService, QuotaExceededError } from './quotas.service.ts';
+import { describe, expect, it } from 'vitest';
+import { DefaultQuotasService } from './quotas.service.ts';
 
-const TEST_URL = process.env.TEST_DATABASE_URL;
-const skipReason = TEST_URL
-  ? null
-  : 'Set TEST_DATABASE_URL to a Postgres URL to run quotas tests.';
+describe('DefaultQuotasService', () => {
+  const svc = new DefaultQuotasService();
 
-(skipReason ? describe.skip : describe)('QuotasService', () => {
-  let db: ReturnType<typeof createDb>;
-  let appDb: ReturnType<typeof createDb>;
-  let svc: QuotasService;
-  let orgId: string;
-  let actor: ActorIdentity;
-
-  beforeAll(async () => {
-    process.env.MUNIN_QUOTAS_ENABLED = 'true';
-    await runMigrations(TEST_URL!);
-    db = createDb(TEST_URL!, { serviceRole: true });
-    const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
-    appDb = createDb(appUrl);
-
-    const [org] = await db
-      .insert(schema.orgs)
-      .values({
-        name: 'Quota Test Org',
-        // Tight cap to make the test fast.
-        settings: { quotas: { kb_spaces: 2 } },
-      })
-      .returning();
-    orgId = org!.id;
-    actor = new ActorIdentity('admin_agent', 'agt_q', orgId, ['*'], ['admin']);
-    svc = new DefaultQuotasService();
+  it('assertCanAdd is a no-op for every resource', async () => {
+    await expect(svc.assertCanAdd('kb_documents')).resolves.toBeUndefined();
+    await expect(svc.assertCanAdd('kb_spaces')).resolves.toBeUndefined();
+    await expect(svc.assertCanAdd('cms_collections')).resolves.toBeUndefined();
+    await expect(svc.assertCanAdd('cms_entries')).resolves.toBeUndefined();
+    await expect(svc.assertCanAdd('cms_assets')).resolves.toBeUndefined();
+    await expect(svc.assertCanAdd('crm_contacts')).resolves.toBeUndefined();
   });
 
-  afterAll(async () => {
-    if (db) {
-      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-      await db.delete(schema.orgs).where(sql`id = ${orgId}`);
-    }
-  });
-
-  beforeEach(async () => {
-    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-    await db.execute(sql`DELETE FROM kb_spaces WHERE org_id = ${orgId}`);
-  });
-
-  function run<T>(fn: () => Promise<T>): Promise<T> {
-    return appDb.transaction(async (tx) => {
-      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
-      await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
-      const ctx: RequestContext = {
-        db: tx,
-        actor,
-        correlationId: randomUUID(),
-      };
-      return withContext(ctx, fn);
-    });
-  }
-
-  it('passes when under cap', async () => {
-    await expect(run(() => svc.assertCanAdd('kb_spaces'))).resolves.toBeUndefined();
-  });
-
-  it('throws QuotaExceededError when at cap', async () => {
-    await db.insert(schema.kbSpaces).values([
-      { orgId, name: 'A', slug: 'a' },
-      { orgId, name: 'B', slug: 'b' },
-    ]);
-    await expect(run(() => svc.assertCanAdd('kb_spaces'))).rejects.toThrow(QuotaExceededError);
-  });
-
-  it('throws QuotaExceededError on crm_contacts at cap', async () => {
-    await db
-      .update(schema.orgs)
-      .set({ settings: { quotas: { crm_contacts: 1 } } })
-      .where(sql`id = ${orgId}`);
-    try {
-      await db
-        .insert(schema.crmContacts)
-        .values({ orgId, name: 'A', email: 'a@example.com' });
-      await expect(run(() => svc.assertCanAdd('crm_contacts'))).rejects.toThrow(
-        QuotaExceededError,
-      );
-    } finally {
-      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-      await db.delete(schema.crmContacts).where(sql`org_id = ${orgId}`);
-      await db.update(schema.orgs).set({ settings: { quotas: { kb_spaces: 2 } } }).where(sql`id = ${orgId}`);
-    }
-  });
-
-  it('recordCall is a no-op on the default impl', async () => {
-    await expect(run(() => svc.recordCall('mcp_tool', 'kb_search'))).resolves.toBeUndefined();
-    await expect(run(() => svc.recordCall('api_request', 'GET /v1/orgs'))).resolves.toBeUndefined();
-  });
-
-  it('falls back to free-tier defaults when settings.quotas is absent', async () => {
-    const [defaultOrg] = await db
-      .insert(schema.orgs)
-      .values({ name: 'Default Org' })
-      .returning();
-    const defaultActor = new ActorIdentity(
-      'admin_agent',
-      'agt_d',
-      defaultOrg!.id,
-      ['*'],
-      ['admin'],
-    );
-    try {
-      const cap = await appDb.transaction(async (tx) => {
-        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
-        await tx.execute(sql`SELECT set_config('app.org_id', ${defaultOrg!.id}, true)`);
-        const ctx: RequestContext = {
-          db: tx,
-          actor: defaultActor,
-          correlationId: randomUUID(),
-        };
-        return withContext(ctx, () => svc.cap(defaultOrg!.id, 'kb_documents'));
-      });
-      expect(cap).toBe(10_000);
-    } finally {
-      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-      await db.delete(schema.orgs).where(sql`id = ${defaultOrg!.id}`);
-    }
+  it('recordCall is a no-op for every kind', async () => {
+    await expect(svc.recordCall('mcp_tool', 'kb_search')).resolves.toBeUndefined();
+    await expect(svc.recordCall('api_request', 'GET /v1/orgs')).resolves.toBeUndefined();
+    await expect(svc.recordCall('arbitrary_downstream_kind')).resolves.toBeUndefined();
   });
 });

@@ -21,7 +21,6 @@ import { AuditInterceptor } from './audit.interceptor.ts';
 import { RateLimitService, type Bucket } from '../rate-limit/rate-limit.service.ts';
 import {
   QuotasService,
-  type QuotaCallKind,
   type QuotaResource,
 } from '../quotas/quotas.service.ts';
 
@@ -31,9 +30,9 @@ class MockRateLimitService extends RateLimitService {
 }
 
 class MockQuotasService extends QuotasService {
-  recordCallMock = vi.fn<(kind: QuotaCallKind, key?: string) => Promise<void>>().mockResolvedValue(undefined);
+  recordCallMock = vi.fn<(kind: string, key?: string) => Promise<void>>().mockResolvedValue(undefined);
   assertCanAdd(_resource: QuotaResource): Promise<void> { return Promise.resolve(); }
-  recordCall(kind: QuotaCallKind, key?: string): Promise<void> { return this.recordCallMock(kind, key); }
+  recordCall(kind: string, key?: string): Promise<void> { return this.recordCallMock(kind, key); }
   cap(_orgId: string, _resource: QuotaResource): Promise<number> { return Promise.resolve(Number.POSITIVE_INFINITY); }
   count(_resource: QuotaResource): Promise<number> { return Promise.resolve(0); }
 }
@@ -83,7 +82,7 @@ function makeActiveContext(actorType: ActorType = 'user'): RequestContext {
 }
 
 function makeInterceptor(
-  recordCallImpl: (kind: QuotaCallKind, key?: string) => Promise<void> = () => Promise.resolve(),
+  recordCallImpl: (kind: string, key?: string) => Promise<void> = () => Promise.resolve(),
 ): {
   interceptor: TestableAuditInterceptor;
   rateLimit: MockRateLimitService;

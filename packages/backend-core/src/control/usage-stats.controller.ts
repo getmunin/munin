@@ -173,21 +173,16 @@ export class UsageStatsController {
     now: Date,
   ): Promise<UsageSummaryTile> {
     const ctx = getCurrentContext();
-    const rows = await ctx.db.execute<DailyRow>(sql`
-      SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
-             count(*)::int AS value
-      FROM audit_log
+    const rows = await ctx.db.execute<DailyBigIntRow>(sql`
+      SELECT to_char(date_trunc('day', window_start AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+             sum(count)::bigint AS value
+      FROM rate_limit_counters
       WHERE org_id = ${orgId}
-        AND tool IS NULL
-        AND method IS NOT NULL
-        AND actor_type <> 'user'
-        AND method NOT LIKE 'POST /mcp%'
-        AND method NOT LIKE 'GET /mcp%'
-        AND method NOT LIKE 'DELETE /mcp%'
-        AND created_at >= ${prevMonthStart.toISOString()}::timestamptz
+        AND bucket = 'api_calls_day'
+        AND window_start >= ${prevMonthStart.toISOString()}::timestamptz
       GROUP BY 1
     `);
-    const byDay = mapDailyRows(rows);
+    const byDay = mapDailyRows(rows.map((r) => ({ day: r.day, value: Number(r.value) || 0 })));
     const monthKey = toUtcDateKey(monthStart);
     return {
       current: sumWhere(byDay, (k) => k >= monthKey),

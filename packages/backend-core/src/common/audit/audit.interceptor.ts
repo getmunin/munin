@@ -1,11 +1,13 @@
 import {
   CallHandler,
   ExecutionContext,
+  Inject,
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
 import { Observable, catchError, from, mergeMap, throwError } from 'rxjs';
 import { AuditLogger, getCurrentContext } from '@getmunin/core';
+import { RateLimitService } from '../rate-limit/rate-limit.service.ts';
 
 const POLLING_GET_PREFIXES = [
   '/agent-health',
@@ -33,6 +35,10 @@ function isPollingGet(path: string): boolean {
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   private readonly audit = new AuditLogger();
+
+  constructor(
+    @Inject(RateLimitService) private readonly rateLimit: RateLimitService,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     let hasContext = true;
@@ -70,6 +76,16 @@ export class AuditInterceptor implements NestInterceptor {
 
     const rawUa = request.headers['user-agent'];
     const userAgent = Array.isArray(rawUa) ? rawUa[0] : rawUa;
+    const actor = getCurrentContext().actor;
+    const countApiCall = actor?.type !== 'user' && !path.startsWith('/mcp');
+
+    const recordApiCall = async (): Promise<void> => {
+      try {
+        await this.rateLimit.record('api_calls_day');
+      } catch (err) {
+        console.error('[audit] failed to bump api_calls_day:', err);
+      }
+    };
 
     return next.handle().pipe(
       mergeMap(async (value: unknown) => {
@@ -79,17 +95,21 @@ export class AuditInterceptor implements NestInterceptor {
           durationMs: Date.now() - startedAt,
           userAgent,
         });
+        if (countApiCall) await recordApiCall();
         return value;
       }),
       catchError((err: unknown) =>
         from(
-          this.audit.record({
-            method,
-            result: 'error',
-            error: err instanceof Error ? err.message : String(err),
-            durationMs: Date.now() - startedAt,
-            userAgent,
-          }),
+          (async () => {
+            await this.audit.record({
+              method,
+              result: 'error',
+              error: err instanceof Error ? err.message : String(err),
+              durationMs: Date.now() - startedAt,
+              userAgent,
+            });
+            if (countApiCall) await recordApiCall();
+          })(),
         ).pipe(mergeMap(() => throwError(() => err))),
       ),
     );

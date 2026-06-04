@@ -108,6 +108,17 @@ const skipReason = TEST_URL
     }
   });
 
+  it('record returns the post-bump count and never throws on limit', async () => {
+    const c1 = await run(() => svc.record('mcp_calls_minute'));
+    const c2 = await run(() => svc.record('mcp_calls_minute'));
+    expect(c1).toBe(1);
+    expect(c2).toBe(2);
+
+    for (let i = 0; i < 100; i++) await run(() => svc.record('mcp_calls_minute'));
+    const u = await run(() => svc.usage());
+    expect(u.minute.used).toBe(102);
+  });
+
   it('different orgs have isolated counters', async () => {
     const [otherOrg] = await db
       .insert(schema.orgs)

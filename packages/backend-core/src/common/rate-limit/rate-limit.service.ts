@@ -26,10 +26,14 @@ const FREE_TIER_LIMITS: OrgLimits = {
   perDay: 1_000,
 };
 
+type Granularity = 'minute' | 'day';
+
 const BUCKETS = {
-  minute: 'mcp_calls_minute',
-  day: 'mcp_calls_day',
-} as const;
+  mcp_calls_minute: 'minute',
+  mcp_calls_day: 'day',
+} as const satisfies Record<string, Granularity>;
+
+export type Bucket = keyof typeof BUCKETS;
 
 interface OrgSettings {
   rateLimits?: Partial<OrgLimits>;
@@ -41,23 +45,31 @@ type BucketCountRow = {
 } & Record<string, unknown>;
 
 /**
- * Postgres-backed sliding-window-ish counter for MCP calls.
- *
- * One row per (org, bucket, window_start). Each call atomically inserts or
- * increments the current window's counter, then checks both windows against
- * the org's tier limits. Limits per org live in `orgs.settings.rateLimits`
- * (free-tier defaults if absent). Postgres is fine for this scale; Redis
- * comes later if hot paths demand it.
+ * Postgres-backed sliding-window counters keyed by `(org, bucket, window_start)`.
+ * Each `record(bucket)` upserts the current window and returns the post-bump
+ * count. Limit enforcement is the caller's responsibility — `consume()` packages
+ * the MCP-tool-call recipe (record + check minute, record + check day).
  */
 @Injectable()
 export class RateLimitService {
   /**
-   * Increment the per-minute and per-day counters for the calling org and
-   * throw `RateLimitExceededError` if either cap is now exceeded.
+   * Increment the bucket's counter for the current window and return the
+   * post-bump value. Pure record — never throws on limit; only DB errors.
    *
-   * Must be called inside a tenant-scoped transaction (TenancyInterceptor).
-   * The increment + read happens in that same transaction, so each request
-   * is monotonic against itself.
+   * Must be called inside the request transaction; uses `getCurrentContext()`
+   * for both the org id and the db handle.
+   */
+  async record(bucket: Bucket): Promise<number> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor?.orgId;
+    if (!orgId) return 0;
+    const windowStart = windowStartFor(BUCKETS[bucket], new Date());
+    return this.bumpAndCount(orgId, bucket, windowStart);
+  }
+
+  /**
+   * MCP tool-call gate: bump per-minute and per-day counters and throw
+   * `RateLimitExceededError` if either exceeds the org's tier limits.
    */
   async consume(): Promise<void> {
     const ctx = getCurrentContext();
@@ -66,11 +78,10 @@ export class RateLimitService {
 
     const limits = await this.loadLimits(orgId);
     const now = new Date();
-    const minuteWindow = floorTo(now, 60_000);
-    const dayWindow = floorToDay(now);
 
-    const minuteCount = await this.bumpAndCount(orgId, BUCKETS.minute, minuteWindow);
+    const minuteCount = await this.record('mcp_calls_minute');
     if (minuteCount > limits.perMinute) {
+      const minuteWindow = windowStartFor('minute', now);
       throw new RateLimitExceededError(
         'minute',
         limits.perMinute,
@@ -78,8 +89,9 @@ export class RateLimitService {
       );
     }
 
-    const dayCount = await this.bumpAndCount(orgId, BUCKETS.day, dayWindow);
+    const dayCount = await this.record('mcp_calls_day');
     if (dayCount > limits.perDay) {
+      const dayWindow = windowStartFor('day', now);
       throw new RateLimitExceededError(
         'day',
         limits.perDay,
@@ -88,7 +100,7 @@ export class RateLimitService {
     }
   }
 
-  private async bumpAndCount(orgId: string, bucket: string, windowStart: Date): Promise<number> {
+  private async bumpAndCount(orgId: string, bucket: Bucket, windowStart: Date): Promise<number> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .insert(schema.rateLimitCounters)
@@ -122,8 +134,8 @@ export class RateLimitService {
   }
 
   /**
-   * Read current usage for both windows without consuming. Used by the
-   * dashboard usage page.
+   * Read MCP usage for both windows without consuming. Used by the dashboard
+   * usage page.
    */
   async usage(): Promise<{
     minute: { used: number; limit: number; resetAt: string };
@@ -133,25 +145,25 @@ export class RateLimitService {
     const orgId = ctx.actor!.orgId;
     const limits = await this.loadLimits(orgId);
     const now = new Date();
-    const minuteWindow = floorTo(now, 60_000);
-    const dayWindow = floorToDay(now);
+    const minuteWindow = windowStartFor('minute', now);
+    const dayWindow = windowStartFor('day', now);
 
     const rows = await ctx.db.execute<BucketCountRow>(sql`
       SELECT bucket, count::int AS count
       FROM rate_limit_counters
       WHERE org_id = ${orgId}
-        AND ((bucket = ${BUCKETS.minute} AND window_start = ${minuteWindow.toISOString()}::timestamptz)
-          OR (bucket = ${BUCKETS.day} AND window_start = ${dayWindow.toISOString()}::timestamptz))
+        AND ((bucket = 'mcp_calls_minute' AND window_start = ${minuteWindow.toISOString()}::timestamptz)
+          OR (bucket = 'mcp_calls_day' AND window_start = ${dayWindow.toISOString()}::timestamptz))
     `);
     const byBucket = new Map(rows.map((r) => [r.bucket, r.count]));
     return {
       minute: {
-        used: byBucket.get(BUCKETS.minute) ?? 0,
+        used: byBucket.get('mcp_calls_minute') ?? 0,
         limit: limits.perMinute,
         resetAt: new Date(minuteWindow.getTime() + 60_000).toISOString(),
       },
       day: {
-        used: byBucket.get(BUCKETS.day) ?? 0,
+        used: byBucket.get('mcp_calls_day') ?? 0,
         limit: limits.perDay,
         resetAt: new Date(dayWindow.getTime() + 86_400_000).toISOString(),
       },
@@ -159,10 +171,9 @@ export class RateLimitService {
   }
 }
 
-function floorTo(date: Date, ms: number): Date {
-  return new Date(Math.floor(date.getTime() / ms) * ms);
-}
-
-function floorToDay(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+function windowStartFor(granularity: Granularity, now: Date): Date {
+  if (granularity === 'minute') {
+    return new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+  }
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }

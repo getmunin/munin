@@ -31,6 +31,7 @@ type Granularity = 'minute' | 'day';
 const BUCKETS = {
   mcp_calls_minute: 'minute',
   mcp_calls_day: 'day',
+  api_calls_day: 'day',
 } as const satisfies Record<string, Granularity>;
 
 export type Bucket = keyof typeof BUCKETS;

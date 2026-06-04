@@ -29,7 +29,7 @@ Rotate with `analytics_revoke_tracker` + a fresh `analytics_create_tracker`. Lis
 
 ```html
 <script async
-  src="https://api.your-munin.example/v1/a/tracker.js"
+  src="https://api.your-munin.example/tracker.js"
   data-key="mn_track_…">
 </script>
 ```

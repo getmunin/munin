@@ -16,7 +16,6 @@ import { hashSecret, isWellFormedKey, keyPrefix, looksLikeBot } from '@getmunin/
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
-import { TRACKER_JS } from '../modules/analytics/tracker-bundle.ts';
 
 const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
@@ -49,13 +48,6 @@ export class AnalyticsTrackerController {
     @Inject(DB) private readonly db: Db,
     @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
   ) {}
-
-  @Get('tracker.js')
-  trackerScript(@Res() res: Response): void {
-    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.status(200).send(TRACKER_JS);
-  }
 
   @Get('t/:key.gif')
   async trackerPixel(

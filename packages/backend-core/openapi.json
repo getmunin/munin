@@ -1398,21 +1398,6 @@
         "security": []
       }
     },
-    "/v1/a/tracker.js": {
-      "get": {
-        "operationId": "AnalyticsTrackerController_trackerScript",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "AnalyticsTracker"
-        ],
-        "security": []
-      }
-    },
     "/v1/a/t/{key}.gif": {
       "get": {
         "operationId": "AnalyticsTrackerController_trackerPixel",

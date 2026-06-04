@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "prebuild": "node scripts/copy-widget.mjs",
+    "prebuild": "node scripts/copy-widget.mjs && node scripts/copy-tracker.mjs",
     "build": "nest build",
     "dev": "node --import @swc-node/register/esm-register --watch --conditions=development src/main.ts",
     "start": "node dist/main.js",
@@ -18,6 +18,7 @@
   "dependencies": {
     "@better-auth/oauth-provider": "^1.6.10",
     "@getmunin/agent-host": "workspace:*",
+    "@getmunin/analytics-tracker": "workspace:*",
     "@getmunin/backend-core": "workspace:*",
     "@getmunin/chat-widget": "workspace:*",
     "@getmunin/core": "workspace:*",

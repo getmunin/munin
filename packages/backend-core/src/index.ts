@@ -119,6 +119,11 @@ export { ConvModule } from './modules/conv/conv.module.ts';
 export { CrmModule } from './modules/crm/crm.module.ts';
 export { CmsModule } from './modules/cms/cms.module.ts';
 export { RateLimitModule } from './common/rate-limit/rate-limit.module.ts';
+export {
+  RateLimitService,
+  RateLimitExceededError,
+  type Bucket,
+} from './common/rate-limit/rate-limit.service.ts';
 export { QuotasModule } from './common/quotas/quotas.module.ts';
 export {
   QUOTAS_SERVICE,

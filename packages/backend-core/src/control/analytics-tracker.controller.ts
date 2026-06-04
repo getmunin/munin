@@ -10,6 +10,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { z } from 'zod';
 import { and, eq, isNull } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
 import { hashSecret, isWellFormedKey, keyPrefix, looksLikeBot } from '@getmunin/core';
@@ -24,23 +25,31 @@ const TRANSPARENT_GIF = Buffer.from(
 
 const DEFAULT_SUBJECT_TYPE = 'page';
 
-interface TrackerBeaconBody {
-  key?: string;
-  subjectType?: string;
-  subjectId?: string;
-  path?: string;
-  referrer?: string;
-  visitorId?: string;
-  locale?: string;
-  dwellMs?: number;
-  readDepth?: number;
-  utm?: {
-    source?: string;
-    medium?: string;
-    campaign?: string;
-  };
-  metadata?: Record<string, unknown>;
-}
+const PixelQuerySchema = z.object({
+  s: z.string().min(1).max(512),
+  t: z.string().min(1).max(32).optional(),
+  v: z.string().min(1).max(64).optional(),
+});
+
+const BeaconBodySchema = z.object({
+  key: z.string(),
+  subjectType: z.string().min(1).max(32).optional(),
+  subjectId: z.string().min(1).max(512),
+  path: z.string().max(512).optional(),
+  referrer: z.string().max(512).optional(),
+  visitorId: z.string().max(64).optional(),
+  locale: z.string().max(16).optional(),
+  dwellMs: z.number().int().min(0).optional(),
+  readDepth: z.number().int().min(0).max(100).optional(),
+  utm: z
+    .object({
+      source: z.string().max(128).optional(),
+      medium: z.string().max(128).optional(),
+      campaign: z.string().max(128).optional(),
+    })
+    .optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
 
 interface ResolvedTracker {
   trackerId: string;
@@ -62,21 +71,21 @@ export class AnalyticsTrackerController {
     @Headers('user-agent') userAgent: string | undefined,
     @Headers('referer') referer: string | undefined,
     @Headers('origin') origin: string | undefined,
-    @Query('s') subjectId: string | undefined,
-    @Query('t') subjectType: string | undefined,
-    @Query('v') visitorId: string | undefined,
+    @Query() rawQuery: unknown,
     @Res() res: Response,
   ): Promise<void> {
     sendPixel(res);
     if (looksLikeBot(userAgent)) return;
-    if (!subjectId) return;
+    const parsed = PixelQuerySchema.safeParse(rawQuery);
+    if (!parsed.success) return;
+    const { s: subjectId, t: subjectType, v: visitorId } = parsed.data;
     const tracker = await this.resolveTrackerKey(key);
     if (!tracker) return;
     if (!originIsAllowed(tracker.allowedOrigins, origin)) return;
 
     await this.analytics.recordView({
       orgId: tracker.orgId,
-      subjectType: subjectType || DEFAULT_SUBJECT_TYPE,
+      subjectType: subjectType ?? DEFAULT_SUBJECT_TYPE,
       subjectId,
       source: 'tracker',
       referrer: referer ?? null,
@@ -88,28 +97,30 @@ export class AnalyticsTrackerController {
   @Post('t')
   @HttpCode(204)
   async trackerBeacon(
-    @Body() body: TrackerBeaconBody,
+    @Body() rawBody: unknown,
     @Headers('user-agent') userAgent: string | undefined,
     @Headers('referer') referer: string | undefined,
     @Headers('origin') origin: string | undefined,
   ): Promise<void> {
     if (looksLikeBot(userAgent)) return;
-    if (!body || typeof body.key !== 'string' || typeof body.subjectId !== 'string') return;
+    const parsed = BeaconBodySchema.safeParse(rawBody);
+    if (!parsed.success) return;
+    const body = parsed.data;
     const tracker = await this.resolveTrackerKey(body.key);
     if (!tracker) return;
     if (!originIsAllowed(tracker.allowedOrigins, origin)) return;
 
     await this.analytics.recordView({
       orgId: tracker.orgId,
-      subjectType: body.subjectType || DEFAULT_SUBJECT_TYPE,
+      subjectType: body.subjectType ?? DEFAULT_SUBJECT_TYPE,
       subjectId: body.subjectId,
       source: 'tracker',
       path: body.path ?? null,
       locale: body.locale ?? null,
       referrer: body.referrer ?? referer ?? null,
       visitorId: body.visitorId ?? null,
-      dwellMs: typeof body.dwellMs === 'number' ? body.dwellMs : null,
-      readDepth: typeof body.readDepth === 'number' ? body.readDepth : null,
+      dwellMs: body.dwellMs ?? null,
+      readDepth: body.readDepth ?? null,
       utmSource: body.utm?.source ?? null,
       utmMedium: body.utm?.medium ?? null,
       utmCampaign: body.utm?.campaign ?? null,

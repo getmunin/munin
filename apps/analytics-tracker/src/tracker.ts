@@ -45,15 +45,22 @@ const VISITOR_KEY = 'mn.vid';
 (function init(): void {
   const doc = document;
   const script = doc.currentScript as HTMLScriptElement | null;
-  if (!script) return;
+  if (!script) {
+    console.warn('[munin-tracker] document.currentScript unavailable; tracker disabled');
+    return;
+  }
   const key = script.getAttribute('data-key');
-  if (!key) return;
+  if (!key) {
+    console.warn('[munin-tracker] data-key attribute missing on script tag; tracker disabled');
+    return;
+  }
 
   let apiBase = script.getAttribute('data-api');
   if (!apiBase) {
     try {
       apiBase = new URL(script.src).origin;
-    } catch {
+    } catch (err) {
+      console.warn('[munin-tracker] could not resolve data-api or script.src origin:', err);
       return;
     }
   }
@@ -95,9 +102,11 @@ const VISITOR_KEY = 'mn.vid';
         body,
         keepalive: true,
         mode: 'no-cors',
-      }).catch(() => undefined);
-    } catch {
-      // best-effort: never throw to the host page
+      }).catch((err) => {
+        console.warn('[munin-tracker] beacon fetch failed:', err);
+      });
+    } catch (err) {
+      console.warn('[munin-tracker] failed to send beacon:', err);
     }
   }
 

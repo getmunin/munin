@@ -109,10 +109,14 @@ const RequestUploadInput = z.object({
 const CompleteUploadInput = z.object({ id: z.string() });
 const DeleteAssetInput = z.object({ id: z.string() });
 
-const UploadAssetBytesInput = z.object({
-  name: z.string().min(1).max(255),
-  mime: z.string().min(1).max(120),
-  base64Body: z.string().min(1).max(2_800_000),
+const UploadAssetFromFileInput = z.object({
+  file: z.object({
+    download_url: z.string().url(),
+    file_id: z.string().min(1),
+    mime_type: z.string().min(1).max(120).optional(),
+    file_name: z.string().min(1).max(255).optional(),
+  }),
+  name: z.string().min(1).max(255).optional(),
   altText: z.string().max(500).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
@@ -414,18 +418,19 @@ export class CmsAdminTools {
   }
 
   @McpTool({
-    name: 'cms_upload_asset_bytes',
-    title: 'CMS: Upload asset bytes',
+    name: 'cms_upload_asset_from_file',
+    title: 'CMS: Upload asset from a ChatGPT file',
     description:
-      'Upload a small asset (≤2 MB after base64 decode) in one call by passing the file body as base64. Skips the request/complete handshake — the row is created in `uploaded:true` state. For larger files, use cms_request_asset_upload + cms_complete_asset_upload instead. SVG is rejected.',
+      "Upload a file that's already in the ChatGPT conversation (e.g. a user-uploaded image or an image-gen output) as a CMS asset. ChatGPT mints a short-lived signed URL for the file and the server fetches it. Use this when your runtime can't PUT to a presigned URL — typical for ChatGPT workspace agents. Accepts image/*, video/*, audio/*, and application/pdf up to 50 MB. SVG is rejected.",
     audiences: ['admin'],
     scopes: ['cms:write'],
-    input: UploadAssetBytesInput,
+    input: UploadAssetFromFileInput,
     readOnlyHint: false,
     destructiveHint: false,
+    _meta: { 'openai/fileParams': ['file'] },
   })
-  uploadAssetBytes(args: z.infer<typeof UploadAssetBytesInput>) {
-    return this.cms.uploadAssetBytes(args);
+  uploadAssetFromFile(args: z.infer<typeof UploadAssetFromFileInput>) {
+    return this.cms.uploadAssetFromFile(args);
   }
 
   @McpTool({

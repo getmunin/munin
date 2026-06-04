@@ -69,7 +69,7 @@
   {
     "name": "cms_create_collection",
     "title": "CMS: Create collection",
-    "description": "Define a new collection. Fields is an array of { name, type, required?, options? } — see field types: text, rich_text, markdown, number, integer, boolean, date, datetime, select, multi_select, asset, reference, array, json.",
+    "description": "Define a new collection. Fields is an ORDERED array of { name, type, required?, options? } — field order is the render order in editor and public surfaces, so put fields in the sequence a human would read or fill them (e.g. lede asset → headline → excerpt → metadata → body → trailing/optional fields). See field types: text, rich_text, markdown, number, integer, boolean, date, datetime, select, multi_select, asset, reference, array, json.",
     "audiences": [
       "admin"
     ],
@@ -190,7 +190,7 @@
   {
     "name": "cms_update_collection",
     "title": "CMS: Update collection",
-    "description": "Patch a collection. Field migration is lossy: dropped or renamed fields stay in entries' `data` jsonb but stop being read by the projection layer.",
+    "description": "Patch a collection. When supplied, `fields` REPLACES the existing array — so include every field you want to keep, in the order they should render (the array order is the render order). Field migration is lossy: dropped or renamed fields stay in entries' `data` jsonb but stop being read by the projection layer.",
     "audiences": [
       "admin"
     ],
@@ -778,9 +778,9 @@
     }
   },
   {
-    "name": "cms_upload_asset_bytes",
-    "title": "CMS: Upload asset bytes",
-    "description": "Upload a small asset (≤2 MB after base64 decode) in one call by passing the file body as base64. Skips the request/complete handshake — the row is created in `uploaded:true` state. For larger files, use cms_request_asset_upload + cms_complete_asset_upload instead. SVG is rejected.",
+    "name": "cms_upload_asset_from_file",
+    "title": "CMS: Upload asset from a ChatGPT file",
+    "description": "Upload a file that's already in the ChatGPT conversation (e.g. a user-uploaded image or an image-gen output) as a CMS asset. ChatGPT mints a short-lived signed URL for the file and the server fetches it. Use this when your runtime can't PUT to a presigned URL — typical for ChatGPT workspace agents. Accepts image/*, video/*, audio/*, and application/pdf up to 50 MB. SVG is rejected.",
     "audiences": [
       "admin"
     ],
@@ -793,20 +793,38 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
+        "file": {
+          "type": "object",
+          "properties": {
+            "download_url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "file_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "mime_type": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "file_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          "required": [
+            "download_url",
+            "file_id"
+          ],
+          "additionalProperties": false
+        },
         "name": {
           "type": "string",
           "minLength": 1,
           "maxLength": 255
-        },
-        "mime": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "base64Body": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 2800000
         },
         "altText": {
           "type": "string",
@@ -821,9 +839,7 @@
         }
       },
       "required": [
-        "name",
-        "mime",
-        "base64Body"
+        "file"
       ],
       "additionalProperties": false
     }

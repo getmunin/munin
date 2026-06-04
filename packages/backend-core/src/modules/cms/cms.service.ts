@@ -694,6 +694,21 @@ export class CmsService {
     });
   }
 
+  async uploadAssetFromFile(input: {
+    file: { download_url: string; file_id: string; mime_type?: string; file_name?: string };
+    name?: string;
+    altText?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<AssetDto> {
+    return this.uploadAssetFromUrl({
+      sourceUrl: input.file.download_url,
+      name: input.name ?? input.file.file_name,
+      mime: input.file.mime_type,
+      altText: input.altText,
+      metadata: { ...(input.metadata ?? {}), openaiFileId: input.file.file_id },
+    });
+  }
+
   async uploadAssetFromUrl(input: {
     sourceUrl: string;
     name?: string;

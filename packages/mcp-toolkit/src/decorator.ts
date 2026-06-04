@@ -20,6 +20,7 @@ export interface McpToolMeta<TInput extends z.ZodObject = z.ZodObject> {
   title?: string;
   readOnlyHint?: boolean;
   destructiveHint?: boolean;
+  _meta?: Record<string, unknown>;
 }
 
 export const MCP_TOOL_META = Symbol.for('munin.mcp.tool.meta');

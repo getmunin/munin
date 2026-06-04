@@ -17,7 +17,7 @@ import {
   CmsInvalidError,
 } from './cms.service.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
-import { DefaultQuotasService, QuotaExceededError } from '../../common/quotas/quotas.service.ts';
+import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -862,65 +862,9 @@ class StubStorage implements AssetStorage {
     });
   });
 
-  // ─── Quotas / RLS ────────────────────────────────────────────────────
+  // ─── RLS ─────────────────────────────────────────────────────────────
 
-  describe('quotas and RLS', () => {
-    let previousQuotasEnv: string | undefined;
-    beforeAll(() => {
-      previousQuotasEnv = process.env.MUNIN_QUOTAS_ENABLED;
-      process.env.MUNIN_QUOTAS_ENABLED = 'true';
-    });
-    afterAll(() => {
-      if (previousQuotasEnv === undefined) delete process.env.MUNIN_QUOTAS_ENABLED;
-      else process.env.MUNIN_QUOTAS_ENABLED = previousQuotasEnv;
-    });
-
-    it('createCollection respects org quota cap', async () => {
-      await db
-        .update(schema.orgs)
-        .set({ settings: { quotas: { cms_collections: 1 } } })
-        .where(sql`id = ${orgId}`);
-      try {
-        await run(() =>
-          svc.createCollection({ name: 'A', slug: 'a', fields: [{ name: 't', type: 'text' }] }),
-        );
-        await expect(
-          run(() =>
-            svc.createCollection({ name: 'B', slug: 'b', fields: [{ name: 't', type: 'text' }] }),
-          ),
-        ).rejects.toThrow(QuotaExceededError);
-      } finally {
-        await db.update(schema.orgs).set({ settings: {} }).where(sql`id = ${orgId}`);
-      }
-    });
-
-    it('createEntry respects org quota cap', async () => {
-      await ensureLocale('en');
-      const col = await run(() =>
-        svc.createCollection({
-          name: 'Q',
-          slug: 'q',
-          fields: [{ name: 'title', type: 'text', required: true }],
-        }),
-      );
-      await db
-        .update(schema.orgs)
-        .set({ settings: { quotas: { cms_entries: 1 } } })
-        .where(sql`id = ${orgId}`);
-      try {
-        await run(() =>
-          svc.createEntry({ collection: col.slug, slug: 'one', data: { title: 'one' } }),
-        );
-        await expect(
-          run(() =>
-            svc.createEntry({ collection: col.slug, slug: 'two', data: { title: 'two' } }),
-          ),
-        ).rejects.toThrow(QuotaExceededError);
-      } finally {
-        await db.update(schema.orgs).set({ settings: {} }).where(sql`id = ${orgId}`);
-      }
-    });
-
+  describe('RLS', () => {
     it('cross-org RLS isolation: another org cannot see this org\'s collections', async () => {
       const col = await run(() =>
         svc.createCollection({

@@ -11,9 +11,11 @@ import {
 import type { Request, Response } from 'express';
 import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { readApiBaseUrl, signViewToken } from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 import { CmsSearchService } from '../modules/cms/cms.search.ts';
+import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
 import {
   applyAssetExpansion,
   collectAssetIds,
@@ -39,6 +41,7 @@ export class CmsDeliveryController {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(CmsSearchService) private readonly search: CmsSearchService,
+    @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
   ) {}
 
   @Get(':orgId/collections')
@@ -67,10 +70,11 @@ export class CmsDeliveryController {
     @Query('collection') collection?: string,
     @Query('locale') locale?: string,
     @Query('limit') limit?: string,
+    @Query('visitor_id') visitorId?: string,
   ) {
     if (!q || !q.trim()) return [];
     const org = await this.resolveOrg(orgId);
-    return this.search.search(
+    const hits = await this.search.search(
       {
         query: q,
         collection,
@@ -80,6 +84,15 @@ export class CmsDeliveryController {
       },
       { orgId: org.id },
     );
+    void this.analytics.recordSearch({
+      orgId: org.id,
+      subjectType: 'cms',
+      query: q,
+      resultCount: hits.length,
+      locale,
+      visitorId,
+    });
+    return hits;
   }
 
   @Get(':orgId/:collectionSlug')
@@ -91,6 +104,7 @@ export class CmsDeliveryController {
     @Query('locale') locale?: string,
     @Query('limit') limit?: string,
     @Query('before') before?: string,
+    @Query('tracking') tracking?: string,
   ) {
     const { org, collection } = await this.resolveOrgCollection(orgId, collectionSlug);
     const filters: SQL[] = [
@@ -112,7 +126,9 @@ export class CmsDeliveryController {
       .limit(take);
 
     const fields = collection.fields as FieldDef[];
+    const trackingOn = trackingEnabled(tracking);
     const projected = rows.map((r) => ({
+      id: r.id,
       slug: r.slug,
       locale: r.locale,
       data: projectData(fields, r.data),
@@ -121,9 +137,10 @@ export class CmsDeliveryController {
       updatedAt: r.updatedAt.toISOString(),
     }));
     const assets = await this.fetchAssets(org.id, fields, projected.map((p) => p.data));
-    const items = projected.map((p) => ({
+    const items = projected.map(({ id, ...p }) => ({
       ...p,
       data: applyAssetExpansion(fields, p.data, assets),
+      ...(trackingOn ? { _tracking: buildTracking(org.id, id) } : {}),
     }));
 
     const etag = computeEtag(rows.map((r) => r.updatedAt.getTime()));
@@ -140,6 +157,7 @@ export class CmsDeliveryController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
     @Query('locale') locale?: string,
+    @Query('tracking') tracking?: string,
   ) {
     const { org, collection } = await this.resolveOrgCollection(orgId, collectionSlug);
     const filters: SQL[] = [
@@ -172,6 +190,7 @@ export class CmsDeliveryController {
       version: row.version,
       publishedAt: row.publishedAt?.toISOString() ?? null,
       updatedAt: row.updatedAt.toISOString(),
+      ...(trackingEnabled(tracking) ? { _tracking: buildTracking(org.id, row.id) } : {}),
     };
   }
 
@@ -242,5 +261,27 @@ function handleEtag(req: Request, res: Response, etag: string): boolean {
 
 function setCdnHeaders(res: Response): void {
   res.setHeader('cache-control', 'public, max-age=60, stale-while-revalidate=600');
+}
+
+function trackingEnabled(flag: string | undefined): boolean {
+  if (!process.env.MUNIN_KEY_PEPPER) return false;
+  if (flag === '0' || flag === 'false' || flag === 'off') return false;
+  return true;
+}
+
+function buildTracking(
+  orgId: string,
+  entryId: string,
+): { pixelUrl: string; beaconUrl: string } | undefined {
+  try {
+    const token = signViewToken({ orgId, subjectType: 'cms_entry', subjectId: entryId });
+    const base = readApiBaseUrl();
+    return {
+      pixelUrl: `${base}/v1/a/v/${token}.gif`,
+      beaconUrl: `${base}/v1/a/v`,
+    };
+  } catch {
+    return undefined;
+  }
 }
 

@@ -25,19 +25,11 @@ import {
   vector,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { parseEnvInt } from './env.ts';
 import { makeId } from './id.ts';
 
-export const EMBEDDING_DIMENSIONS = readEmbeddingDimensionsFromEnv();
-
-function readEmbeddingDimensionsFromEnv(): number {
-  const raw = process.env.MUNIN_EMBEDDING_DIMENSIONS;
-  if (!raw) return 1536;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isInteger(n) || n < 32 || n > 4000) {
-    throw new Error(`MUNIN_EMBEDDING_DIMENSIONS must be an integer in 32..4000, got ${raw}`);
-  }
-  return n;
-}
+export const EMBEDDING_DIMENSIONS =
+  parseEnvInt('MUNIN_EMBEDDING_DIMENSIONS', { min: 32, max: 4000 }) ?? 1536;
 
 const halfvec = customType<{ data: number[]; driverData: string; config: { dimensions: number } }>({
   dataType: (config) => `halfvec(${config?.dimensions ?? EMBEDDING_DIMENSIONS})`,

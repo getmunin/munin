@@ -1,33 +1,32 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { parseEnvInt } from './env.ts';
 import * as schema from './schema.ts';
 
 export type Db = ReturnType<typeof createDb>;
 
-/**
- * A drizzle transaction handle (the value passed to `db.transaction(tx => …)`).
- * Has the same query methods as `Db` plus `rollback()`. Helpers that need to
- * accept either should type their argument as `Db | Tx`.
- */
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export interface CreateDbOptions {
-  /**
-   * If true, every connection in this pool starts with `app.bypass_rls = 'on'`
-   * at the session level. The TenancyInterceptor still overrides it per
-   * request via transaction-local `set_config(..., true)` so RLS policies
-   * apply during real tenant work.
-   *
-   * Use this for the "service-role" Db (auth resolution, scheduled jobs,
-   * background workers) that needs to read across orgs before a tenant
-   * context is established.
-   */
   serviceRole?: boolean;
+  poolMax?: number;
+}
+
+export function resolvePoolMax(explicit: number | undefined): number | undefined {
+  if (explicit !== undefined) {
+    if (!Number.isInteger(explicit) || explicit <= 0) {
+      throw new Error('createDb: poolMax must be a positive integer');
+    }
+    return explicit;
+  }
+  return parseEnvInt('MUNIN_DB_POOL_MAX', { min: 1 });
 }
 
 export function createDb(connectionString: string, options: CreateDbOptions = {}) {
+  const max = resolvePoolMax(options.poolMax);
   const client = postgres(connectionString, {
     prepare: false,
+    ...(max !== undefined && { max }),
     ...(options.serviceRole && {
       connection: {
         options: '-c app.bypass_rls=on',

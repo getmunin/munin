@@ -1,3 +1,7 @@
 # Built widget bundle copied in by `prebuild` (scripts/copy-widget.mjs).
 # Source of truth lives in apps/chat-widget/; never commit the artifacts.
 public/widget/
+
+# Built analytics-tracker bundle copied in by `prebuild` (scripts/copy-tracker.mjs).
+# Source of truth lives in apps/analytics-tracker/; never commit the artifacts.
+public/tracker/

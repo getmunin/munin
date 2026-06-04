@@ -178,6 +178,88 @@ const skipReason = TEST_URL
     await new Promise((r) => setTimeout(r, 200));
     expect(await countTrackerEvents(db, orgId)).toBe(afterRevoke);
   }, 30_000);
+
+  it('origin allowlist gates pixel + beacon', async () => {
+    const minted = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ id: string; trackerKey: string; allowedOrigins: string[] }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: {
+            name: 'gated tracker',
+            allowedOrigins: ['https://customer.example'],
+          },
+        }),
+      );
+    });
+    expect(minted.allowedOrigins).toEqual(['https://customer.example']);
+
+    const allowedBefore = await countTrackerEvents(db, orgId);
+    const allowed = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`, {
+      headers: { origin: 'https://customer.example' },
+    });
+    expect(allowed.status).toBe(200);
+    await waitFor(async () => (await countTrackerEvents(db, orgId)) > allowedBefore);
+
+    const beforeDenied = await countTrackerEvents(db, orgId);
+    const denied = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`, {
+      headers: { origin: 'https://attacker.example' },
+    });
+    expect(denied.status).toBe(200);
+
+    const missing = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`);
+    expect(missing.status).toBe(200);
+
+    const beaconDenied = await fetch(`${baseUrl}/v1/a/t`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'https://attacker.example' },
+      body: JSON.stringify({ key: minted.trackerKey, subjectId: 'home' }),
+    });
+    expect(beaconDenied.status).toBe(204);
+
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await countTrackerEvents(db, orgId)).toBe(beforeDenied);
+
+    await withClient(adminKey, async (c) => {
+      const updated = parseToolResult<{ allowedOrigins: string[] }>(
+        await c.callTool({
+          name: 'analytics_update_tracker',
+          arguments: { trackerId: minted.id, allowedOrigins: [] },
+        }),
+      );
+      expect(updated.allowedOrigins).toEqual([]);
+    });
+
+    const beforeOpen = await countTrackerEvents(db, orgId);
+    const openAccess = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`, {
+      headers: { origin: 'https://anything.example' },
+    });
+    expect(openAccess.status).toBe(200);
+    await waitFor(async () => (await countTrackerEvents(db, orgId)) > beforeOpen);
+  }, 30_000);
+
+  it('MUNIN_TRACKER_REQUIRE_ALLOWLIST=1 fail-closes empty allowlists', async () => {
+    const minted = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'no-allowlist' },
+        }),
+      );
+    });
+
+    process.env.MUNIN_TRACKER_REQUIRE_ALLOWLIST = '1';
+    try {
+      const before = await countTrackerEvents(db, orgId);
+      const res = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`, {
+        headers: { origin: 'https://anything.example' },
+      });
+      expect(res.status).toBe(200);
+      await new Promise((r) => setTimeout(r, 200));
+      expect(await countTrackerEvents(db, orgId)).toBe(before);
+    } finally {
+      delete process.env.MUNIN_TRACKER_REQUIRE_ALLOWLIST;
+    }
+  }, 30_000);
 });
 
 async function countTrackerEvents(

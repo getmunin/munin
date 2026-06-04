@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
@@ -7,6 +7,13 @@ import { buildApiKey, getCurrentContext, hashSecret, keyPrefix } from '@getmunin
 
 const CreateTrackerInput = z.object({
   name: z.string().min(1).max(120),
+  allowedOrigins: z.array(z.string().url()).optional(),
+});
+
+const UpdateTrackerInput = z.object({
+  trackerId: z.string(),
+  name: z.string().min(1).max(120).optional(),
+  allowedOrigins: z.array(z.string().url()).optional(),
 });
 
 const RevokeTrackerInput = z.object({
@@ -16,7 +23,8 @@ const RevokeTrackerInput = z.object({
 interface TrackerSummary {
   id: string;
   name: string;
-  keyPrefix: string;
+  allowedOrigins: string[];
+  keyPrefix: string | null;
   createdAt: string;
   lastUsedAt: string | null;
   revokedAt: string | null;
@@ -32,7 +40,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_create_tracker',
     title: 'Analytics: Create tracker key',
     description:
-      'Mint a public `mn_track_*` API key for a website / app surface. The key is safe to embed in `<script>` tags or mobile clients — it can only write page-view events scoped to your org, never read them. Returns the plaintext key once; store it where it needs to be embedded.',
+      'Create a tracker and mint a public `mn_track_*` API key bound to it. The key is safe to embed in `<script>` tags or mobile clients — it can only write page-view events scoped to your org, never read them. `allowedOrigins` is an optional list of full origins (`https://example.com`) the tracker will accept; when empty, any origin is accepted (set `MUNIN_TRACKER_REQUIRE_ALLOWLIST=1` to fail-closed instead). Returns the plaintext key once; store it where it needs to be embedded.',
     audiences: ['admin'],
     scopes: ['analytics:write'],
     input: CreateTrackerInput,
@@ -42,8 +50,16 @@ export class AnalyticsAdminTools {
   async createTracker(args: z.infer<typeof CreateTrackerInput>): Promise<CreateTrackerResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    const [tracker] = await ctx.db
+      .insert(schema.analyticsTrackers)
+      .values({
+        orgId: actor.orgId,
+        name: args.name,
+        allowedOrigins: args.allowedOrigins ?? [],
+      })
+      .returning();
     const rawKey = buildApiKey('track');
-    const [row] = await ctx.db
+    const [key] = await ctx.db
       .insert(schema.apiKeys)
       .values({
         orgId: actor.orgId,
@@ -53,14 +69,16 @@ export class AnalyticsAdminTools {
         keyPrefix: keyPrefix(rawKey),
         scopes: ['analytics:track:write'],
         audiences: ['public'],
+        trackerId: tracker!.id,
         createdByUserId: actor.userId ?? null,
       })
       .returning();
     return {
-      id: row!.id,
-      name: row!.name,
-      keyPrefix: row!.keyPrefix,
-      createdAt: row!.createdAt.toISOString(),
+      id: tracker!.id,
+      name: tracker!.name,
+      allowedOrigins: tracker!.allowedOrigins,
+      keyPrefix: key!.keyPrefix,
+      createdAt: tracker!.createdAt.toISOString(),
       lastUsedAt: null,
       revokedAt: null,
       trackerKey: rawKey,
@@ -71,7 +89,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_list_trackers',
     title: 'Analytics: List tracker keys',
     description:
-      'List all `mn_track_*` API keys for the current org. Plaintext keys are never returned; rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.',
+      'List analytics trackers for the current org with their key prefix, allowed origins, and revocation state. Plaintext keys are never returned; rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: z.object({ includeRevoked: z.boolean().optional() }),
@@ -81,22 +99,88 @@ export class AnalyticsAdminTools {
   async listTrackers(args: { includeRevoked?: boolean }): Promise<TrackerSummary[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const where = args.includeRevoked
-      ? and(eq(schema.apiKeys.orgId, actor.orgId), eq(schema.apiKeys.type, 'track'))
-      : and(
-          eq(schema.apiKeys.orgId, actor.orgId),
+    const rows = await ctx.db
+      .select({
+        id: schema.analyticsTrackers.id,
+        name: schema.analyticsTrackers.name,
+        allowedOrigins: schema.analyticsTrackers.allowedOrigins,
+        createdAt: schema.analyticsTrackers.createdAt,
+        keyPrefix: schema.apiKeys.keyPrefix,
+        lastUsedAt: schema.apiKeys.lastUsedAt,
+        revokedAt: schema.apiKeys.revokedAt,
+      })
+      .from(schema.analyticsTrackers)
+      .leftJoin(
+        schema.apiKeys,
+        and(
+          eq(schema.apiKeys.trackerId, schema.analyticsTrackers.id),
           eq(schema.apiKeys.type, 'track'),
-          isNull(schema.apiKeys.revokedAt),
-        );
-    const rows = await ctx.db.select().from(schema.apiKeys).where(where);
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      keyPrefix: r.keyPrefix,
-      createdAt: r.createdAt.toISOString(),
-      lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
-      revokedAt: r.revokedAt?.toISOString() ?? null,
-    }));
+        ),
+      )
+      .where(eq(schema.analyticsTrackers.orgId, actor.orgId));
+    return rows
+      .filter((r) => args.includeRevoked || r.revokedAt === null)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        allowedOrigins: r.allowedOrigins,
+        keyPrefix: r.keyPrefix,
+        createdAt: r.createdAt.toISOString(),
+        lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
+        revokedAt: r.revokedAt?.toISOString() ?? null,
+      }));
+  }
+
+  @McpTool({
+    name: 'analytics_update_tracker',
+    title: 'Analytics: Update tracker config',
+    description:
+      'Update a tracker\'s display name and/or `allowedOrigins`. The bound API key is unchanged — rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.',
+    audiences: ['admin'],
+    scopes: ['analytics:write'],
+    input: UpdateTrackerInput,
+    readOnlyHint: false,
+    destructiveHint: false,
+  })
+  async updateTracker(args: z.infer<typeof UpdateTrackerInput>): Promise<TrackerSummary> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const patch: { name?: string; allowedOrigins?: string[]; updatedAt: Date } = {
+      updatedAt: new Date(),
+    };
+    if (args.name !== undefined) patch.name = args.name;
+    if (args.allowedOrigins !== undefined) patch.allowedOrigins = args.allowedOrigins;
+    const [updated] = await ctx.db
+      .update(schema.analyticsTrackers)
+      .set(patch)
+      .where(
+        and(
+          eq(schema.analyticsTrackers.id, args.trackerId),
+          eq(schema.analyticsTrackers.orgId, actor.orgId),
+        ),
+      )
+      .returning();
+    if (!updated) throw new NotFoundException(`tracker ${args.trackerId} not found`);
+    const [key] = await ctx.db
+      .select({
+        keyPrefix: schema.apiKeys.keyPrefix,
+        lastUsedAt: schema.apiKeys.lastUsedAt,
+        revokedAt: schema.apiKeys.revokedAt,
+      })
+      .from(schema.apiKeys)
+      .where(
+        and(eq(schema.apiKeys.trackerId, args.trackerId), eq(schema.apiKeys.type, 'track')),
+      )
+      .limit(1);
+    return {
+      id: updated.id,
+      name: updated.name,
+      allowedOrigins: updated.allowedOrigins,
+      keyPrefix: key?.keyPrefix ?? null,
+      createdAt: updated.createdAt.toISOString(),
+      lastUsedAt: key?.lastUsedAt?.toISOString() ?? null,
+      revokedAt: key?.revokedAt?.toISOString() ?? null,
+    };
   }
 
   @McpTool({
@@ -265,7 +349,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_revoke_tracker',
     title: 'Analytics: Revoke tracker key',
     description:
-      'Revoke a tracker key by id. After this, the key is rejected by the ingest endpoints — any pages still embedding it will silently fail to record views.',
+      'Revoke the API key bound to a tracker. After this, the key is rejected by the ingest endpoints — any pages still embedding it will silently fail to record views. The tracker row stays for audit.',
     audiences: ['admin'],
     scopes: ['analytics:write'],
     input: RevokeTrackerInput,
@@ -275,14 +359,26 @@ export class AnalyticsAdminTools {
   async revokeTracker(args: z.infer<typeof RevokeTrackerInput>): Promise<{ revoked: boolean }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    const tracker = await ctx.db
+      .select({ id: schema.analyticsTrackers.id })
+      .from(schema.analyticsTrackers)
+      .where(
+        and(
+          eq(schema.analyticsTrackers.id, args.trackerId),
+          eq(schema.analyticsTrackers.orgId, actor.orgId),
+        ),
+      )
+      .limit(1);
+    if (!tracker[0]) return { revoked: false };
     const result = await ctx.db
       .update(schema.apiKeys)
       .set({ revokedAt: new Date() })
       .where(
         and(
-          eq(schema.apiKeys.id, args.trackerId),
+          eq(schema.apiKeys.trackerId, args.trackerId),
           eq(schema.apiKeys.orgId, actor.orgId),
           eq(schema.apiKeys.type, 'track'),
+          isNull(schema.apiKeys.revokedAt),
         ),
       )
       .returning({ id: schema.apiKeys.id });

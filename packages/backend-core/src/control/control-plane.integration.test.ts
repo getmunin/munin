@@ -176,6 +176,15 @@ interface OrgFixture {
 
     it('widget key cannot mint admin API keys', async () => {
       const widgetKey = buildApiKey('widget');
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId: orgA.id,
+          type: 'chat',
+          vendor: 'munin',
+          name: 'cp-widget-escalation-channel',
+        })
+        .returning();
       await db.insert(schema.apiKeys).values({
         orgId: orgA.id,
         type: 'widget',
@@ -183,6 +192,7 @@ interface OrgFixture {
         keyHash: hashSecret(widgetKey),
         keyPrefix: keyPrefix(widgetKey),
         scopes: ['conv:widget:write'],
+        channelId: channel!.id,
       });
 
       const create = await fetch(`${baseUrl}/v1/api-keys`, {
@@ -226,6 +236,15 @@ interface OrgFixture {
   describe('control-plane guard on other admin routes', () => {
     it('widget key cannot list channels or enqueue curator jobs', async () => {
       const widgetKey = buildApiKey('widget');
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId: orgA.id,
+          type: 'chat',
+          vendor: 'munin',
+          name: 'cp-widget-cross-route-channel',
+        })
+        .returning();
       await db.insert(schema.apiKeys).values({
         orgId: orgA.id,
         type: 'widget',
@@ -233,6 +252,7 @@ interface OrgFixture {
         keyHash: hashSecret(widgetKey),
         keyPrefix: keyPrefix(widgetKey),
         scopes: ['conv:widget:write'],
+        channelId: channel!.id,
       });
       const channels = await fetch(`${baseUrl}/v1/conversations/channels`, {
         headers: authHeaders(widgetKey),

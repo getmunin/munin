@@ -42,6 +42,13 @@ interface TrackerBeaconBody {
   metadata?: Record<string, unknown>;
 }
 
+interface ResolvedTracker {
+  trackerId: string;
+  orgId: string;
+  apiKeyId: string;
+  allowedOrigins: string[];
+}
+
 @PublicController('v1/a', { throttle: true })
 export class AnalyticsTrackerController {
   constructor(
@@ -54,6 +61,7 @@ export class AnalyticsTrackerController {
     @Param('key') key: string,
     @Headers('user-agent') userAgent: string | undefined,
     @Headers('referer') referer: string | undefined,
+    @Headers('origin') origin: string | undefined,
     @Query('s') subjectId: string | undefined,
     @Query('t') subjectType: string | undefined,
     @Query('v') visitorId: string | undefined,
@@ -62,11 +70,12 @@ export class AnalyticsTrackerController {
     sendPixel(res);
     if (looksLikeBot(userAgent)) return;
     if (!subjectId) return;
-    const cred = await this.resolveTrackerKey(key);
-    if (!cred) return;
+    const tracker = await this.resolveTrackerKey(key);
+    if (!tracker) return;
+    if (!originIsAllowed(tracker.allowedOrigins, origin)) return;
 
     await this.analytics.recordView({
-      orgId: cred.orgId,
+      orgId: tracker.orgId,
       subjectType: subjectType || DEFAULT_SUBJECT_TYPE,
       subjectId,
       source: 'tracker',
@@ -82,14 +91,16 @@ export class AnalyticsTrackerController {
     @Body() body: TrackerBeaconBody,
     @Headers('user-agent') userAgent: string | undefined,
     @Headers('referer') referer: string | undefined,
+    @Headers('origin') origin: string | undefined,
   ): Promise<void> {
     if (looksLikeBot(userAgent)) return;
     if (!body || typeof body.key !== 'string' || typeof body.subjectId !== 'string') return;
-    const cred = await this.resolveTrackerKey(body.key);
-    if (!cred) return;
+    const tracker = await this.resolveTrackerKey(body.key);
+    if (!tracker) return;
+    if (!originIsAllowed(tracker.allowedOrigins, origin)) return;
 
     await this.analytics.recordView({
-      orgId: cred.orgId,
+      orgId: tracker.orgId,
       subjectType: body.subjectType || DEFAULT_SUBJECT_TYPE,
       subjectId: body.subjectId,
       source: 'tracker',
@@ -107,12 +118,21 @@ export class AnalyticsTrackerController {
     });
   }
 
-  private async resolveTrackerKey(rawKey: string): Promise<{ orgId: string; id: string } | null> {
+  private async resolveTrackerKey(rawKey: string): Promise<ResolvedTracker | null> {
     if (!rawKey || !isWellFormedKey(rawKey) || !rawKey.startsWith('mn_track_')) return null;
     try {
       const rows = await this.db
-        .select({ id: schema.apiKeys.id, orgId: schema.apiKeys.orgId })
+        .select({
+          apiKeyId: schema.apiKeys.id,
+          orgId: schema.apiKeys.orgId,
+          trackerId: schema.analyticsTrackers.id,
+          allowedOrigins: schema.analyticsTrackers.allowedOrigins,
+        })
         .from(schema.apiKeys)
+        .innerJoin(
+          schema.analyticsTrackers,
+          eq(schema.apiKeys.trackerId, schema.analyticsTrackers.id),
+        )
         .where(
           and(
             eq(schema.apiKeys.keyPrefix, keyPrefix(rawKey)),
@@ -127,13 +147,47 @@ export class AnalyticsTrackerController {
       void this.db
         .update(schema.apiKeys)
         .set({ lastUsedAt: new Date() })
-        .where(eq(schema.apiKeys.id, row.id))
+        .where(eq(schema.apiKeys.id, row.apiKeyId))
         .then(undefined, () => undefined);
-      return { id: row.id, orgId: row.orgId };
+      return {
+        trackerId: row.trackerId,
+        orgId: row.orgId,
+        apiKeyId: row.apiKeyId,
+        allowedOrigins: row.allowedOrigins,
+      };
     } catch {
       return null;
     }
   }
+}
+
+export function originIsAllowed(
+  allowedOrigins: readonly string[],
+  origin: string | undefined,
+): boolean {
+  const list = allowedOrigins ?? [];
+  if (list.length === 0) {
+    return !requireTrackerAllowlist();
+  }
+  if (!origin) return false;
+  let viewerOrigin: string;
+  try {
+    viewerOrigin = new URL(origin).origin;
+  } catch {
+    return false;
+  }
+  return list.some((entry) => {
+    try {
+      return new URL(entry).origin === viewerOrigin;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function requireTrackerAllowlist(): boolean {
+  const raw = process.env.MUNIN_TRACKER_REQUIRE_ALLOWLIST?.trim().toLowerCase();
+  return raw === '1' || raw === 'true';
 }
 
 function sendPixel(res: Response): void {
@@ -143,4 +197,3 @@ function sendPixel(res: Response): void {
   res.setHeader('Pragma', 'no-cache');
   res.status(200).end(TRANSPARENT_GIF);
 }
-

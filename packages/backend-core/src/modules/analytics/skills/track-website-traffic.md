@@ -18,12 +18,22 @@ For tracking content served by Munin's CMS delivery API, you don't need this —
 ## 1. Mint a tracker key
 
 ```jsonc
-{ "name": "analytics_create_tracker", "arguments": { "name": "getmunin.com landing" } }
+{
+  "name": "analytics_create_tracker",
+  "arguments": {
+    "name": "getmunin.com landing",
+    "allowedOrigins": ["https://getmunin.com"]
+  }
+}
 ```
 
 Response includes `trackerKey: "mn_track_…"` — shown once. The key is **public** — safe to embed in HTML, mobile clients, anything browsers can see. It can only write view events scoped to your org, never read them.
 
-Rotate with `analytics_revoke_tracker` + a fresh `analytics_create_tracker`. List with `analytics_list_trackers`.
+**`allowedOrigins`** is required — the ingest endpoints reject any request whose `Origin` header doesn't match one of the listed full origins (scheme + host + port, exact match — no wildcards or path prefixes). Multi-environment? List each one (`https://getmunin.com`, `https://dev.getmunin.com`, `http://localhost:3000`).
+
+The `Origin` header is browser-set and trivially spoofable via curl — origin allowlisting stops casual JS-from-another-site abuse but is not a security boundary on its own. The real defences are key rotation (`analytics_revoke_tracker`) and per-IP rate-limiting at the ingest layer.
+
+Edit later with `analytics_update_tracker({trackerId, allowedOrigins})`. Rotate with `analytics_revoke_tracker` + a fresh `analytics_create_tracker`. List with `analytics_list_trackers`.
 
 ## 2. Drop the script tag
 

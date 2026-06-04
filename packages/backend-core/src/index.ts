@@ -126,7 +126,6 @@ export {
   DefaultQuotasService,
   QuotaExceededError,
   type QuotaResource,
-  type QuotaCallKind,
 } from './common/quotas/quotas.service.ts';
 export { WebhookModule } from './common/webhooks/webhook.module.ts';
 export { OAuthModule } from './oauth/oauth.module.ts';

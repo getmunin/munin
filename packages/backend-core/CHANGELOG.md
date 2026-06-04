@@ -1,5 +1,39 @@
 # @getmunin/backend-core
 
+## 4.36.0
+
+### Minor Changes
+
+- 15796b9: Move MCP burst protection from `rate_limit_counters` to an in-memory token bucket per replica. `McpBurstGuard` enforces `MUNIN_MCP_BURST_PER_MIN` (default 60) per `(org_id || ip)` within a rolling minute window, throwing 429 on overflow. `RateLimitService.consume()` no longer bumps a `mcp_calls_minute` bucket; that bucket and its check are removed, along with `OrgLimits.perMinute` and the per-minute view in `usage()`. The daily cap is unchanged.
+
+  Trade-off: multi-replica fleets no longer enforce a fleet-global per-minute cap — each pod independently allows up to `MUNIN_MCP_BURST_PER_MIN`. Adequate for runaway-agent protection (abusers don't load-balance themselves) and eliminates ~1440 rows/day/org of accumulating minute-bucket data.
+
+  Breaking shape change: `/v1/usage` no longer returns a `minute` field. Dashboard and any consumer scripts that read it need to drop that key.
+
+- de1b520: Strip SaaS-flavored code from `@getmunin/backend-core`'s quotas surface. The OSS module is now an abstract `QuotasService` (`assertCanAdd`, `recordCall`) plus a `DefaultQuotasService` that no-ops both. All tier numbers, the `MUNIN_QUOTAS_ENABLED` switch, the `FREE_TIER_QUOTAS` map, the `TABLE_FOR` row-count helpers, and the `cap` / `count` abstract methods are gone — those belong to whoever runs the SaaS, not to the OSS library.
+
+  Concretely:
+  - `QuotaCallKind` type removed (was `'mcp_tool' | 'api_request'` — cloud billing vocabulary). `recordCall(kind, key?)` now takes `kind: string`.
+  - `cap()` and `count()` removed from the abstract — only `CloudQuotasService` used them, and it still has them as concrete methods on the subclass.
+  - `DefaultQuotasService.assertCanAdd` is a no-op (previously executed row counts when `MUNIN_QUOTAS_ENABLED=true`).
+  - `MUNIN_QUOTAS_ENABLED` env var no longer read; removed from `.env.example`.
+
+  Coordinated cloud change: `@munin-cloud/quotas` must replace `import type { QuotaCallKind } from '@getmunin/backend-core'` with its existing local `CallKind` union from `@munin-cloud/plans` (or just `string`), and delete the now-pointless `_CallKindMatchesBackend` compile-time assertion. The existing `CloudQuotasService` row-count and tier logic continues to apply unchanged — it's just no longer a partial duplicate of code that was shipping in OSS.
+
+### Patch Changes
+
+- c3feb08: Move the `/v1/usage/summary` apiCalls tile off `audit_log` onto a dedicated `api_calls_day` bucket in `rate_limit_counters`. The `AuditInterceptor` now calls `RateLimitService.record('api_calls_day')` for any non-MCP HTTP request from a non-user actor (mirrors the previous query's filters: skips `HEAD`/`OPTIONS`, `/mcp*`, dashboard browser sessions, and the same chatty polling GETs that audit already skips). The tile is now independent of `audit_log` retention, so month-over-month no longer degrades as old audit rows are pruned. No backfill — existing apiCalls history stays in `audit_log` until it ages out; the tile will show partial data for ~1 month after deploy and recover naturally.
+- 584420d: Refactor `RateLimitService` to a bucket-registry shape: granularity is intrinsic to the bucket (`mcp_calls_minute` → minute window, `mcp_calls_day` → day window), and a new `record(bucket)` primitive performs the upsert and returns the post-bump count without checking limits. `consume()` is unchanged externally but is now a thin recipe over `record` + an inline threshold check — splitting "bump a counter" from "enforce a quota" so future buckets (e.g. metrics-only counters) don't have to choose between borrowing `consume()` and reimplementing the upsert. No behavior change: bucket strings, table layout, error shape, and `usage()` output are identical.
+- c10c12e: Unify call-quota and rate-limit storage on a single table (`rate_limit_counters`) and fix a dead-code interceptor bug. `CallQuotaInterceptor` was registered as a global `APP_INTERCEPTOR`, which placed it outside the `TenancyInterceptor`'s context store — its `getCurrentContext()` check always threw and the underlying `QuotasService.recordCall` was never invoked in production. The cloud `api_request` quota was therefore not enforced at all.
+
+  The `'api_request'` bump now lives in `AuditInterceptor` (which runs inside tenancy), so cloud's `recordCall` impl actually fires. The bucket registry in `RateLimitService` gains a `'month'` granularity and two month buckets (`api_calls_month`, `mcp_calls_month`) so the cloud `QuotasService` override can switch to `rate_limit_counters` and the OSS `org_call_counters` table can be retired in the matching cloud PR. `CallQuotaInterceptor` and the related export are removed; cloud must drop its `APP_INTERCEPTOR` registration in the coordinated cloud release.
+  - @getmunin/core@4.36.0
+  - @getmunin/db@4.36.0
+  - @getmunin/types@4.36.0
+  - @getmunin/mcp-toolkit@4.36.0
+  - @getmunin/agent-runtime@4.36.0
+  - @getmunin/emails@4.36.0
+
 ## 4.35.0
 
 ### Minor Changes

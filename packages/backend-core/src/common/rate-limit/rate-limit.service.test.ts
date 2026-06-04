@@ -27,8 +27,7 @@ const skipReason = TEST_URL
       .insert(schema.orgs)
       .values({
         name: 'Rate Test Org',
-        // Tight limits for fast tests.
-        settings: { rateLimits: { perMinute: 5, perDay: 10 } },
+        settings: { rateLimits: { perDay: 5 } },
       })
       .returning();
     orgId = org!.id;
@@ -61,16 +60,16 @@ const skipReason = TEST_URL
     });
   }
 
-  it('allows calls under the per-minute cap', async () => {
+  it('allows calls under the per-day cap', async () => {
     for (let i = 0; i < 5; i++) {
       await run(() => svc.consume());
     }
     const u = await run(() => svc.usage());
-    expect(u.minute.used).toBe(5);
-    expect(u.minute.limit).toBe(5);
+    expect(u.day.used).toBe(5);
+    expect(u.day.limit).toBe(5);
   });
 
-  it('throws RateLimitExceededError on the 6th call within the same minute', async () => {
+  it('throws RateLimitExceededError on the 6th call within the same day', async () => {
     for (let i = 0; i < 5; i++) {
       await run(() => svc.consume());
     }
@@ -100,7 +99,6 @@ const skipReason = TEST_URL
         };
         return withContext(ctx, () => svc.usage());
       });
-      expect(u.minute.limit).toBe(60);
       expect(u.day.limit).toBe(1000);
     } finally {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
@@ -109,14 +107,14 @@ const skipReason = TEST_URL
   });
 
   it('record returns the post-bump count and never throws on limit', async () => {
-    const c1 = await run(() => svc.record('mcp_calls_minute'));
-    const c2 = await run(() => svc.record('mcp_calls_minute'));
+    const c1 = await run(() => svc.record('mcp_calls_day'));
+    const c2 = await run(() => svc.record('mcp_calls_day'));
     expect(c1).toBe(1);
     expect(c2).toBe(2);
 
-    for (let i = 0; i < 100; i++) await run(() => svc.record('mcp_calls_minute'));
+    for (let i = 0; i < 100; i++) await run(() => svc.record('mcp_calls_day'));
     const u = await run(() => svc.usage());
-    expect(u.minute.used).toBe(102);
+    expect(u.day.used).toBe(102);
   });
 
   it('different orgs have isolated counters', async () => {
@@ -124,14 +122,12 @@ const skipReason = TEST_URL
       .insert(schema.orgs)
       .values({
         name: 'Other Rate Org',
-        settings: { rateLimits: { perMinute: 5, perDay: 10 } },
+        settings: { rateLimits: { perDay: 5 } },
       })
       .returning();
     const otherActor = new ActorIdentity('admin_agent', 'agt_o', otherOrg!.id, ['*'], ['admin']);
     try {
-      // Consume 5 in `orgId` so it's at the cap.
       for (let i = 0; i < 5; i++) await run(() => svc.consume());
-      // The other org should still pass.
       const otherUsage = await appDb.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
         await tx.execute(sql`SELECT set_config('app.org_id', ${otherOrg!.id}, true)`);
@@ -145,7 +141,7 @@ const skipReason = TEST_URL
           return svc.usage();
         });
       });
-      expect(otherUsage.minute.used).toBe(1);
+      expect(otherUsage.day.used).toBe(1);
     } finally {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);

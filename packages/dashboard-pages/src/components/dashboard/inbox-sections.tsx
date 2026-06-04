@@ -18,6 +18,7 @@ import { QueueDrawer } from './queue-drawers';
 import {
   queueLabelKey,
   queueTone,
+  type CmsAssetExpanded,
   type CmsDraftDetailDto,
   type CmsDraftSummaryDto,
   type CrmContactSummary,
@@ -193,6 +194,23 @@ function liveToStubDetail(c: LiveSummary): ConversationDetail {
   };
 }
 
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error('file read failed'));
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('file read returned non-string result'));
+        return;
+      }
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function mergeLive(
   prev: Record<string, ConversationDetail>,
   live: LiveSummary[],
@@ -239,6 +257,8 @@ export interface InboxController {
   send: (id: string, body: string, options?: { claim?: boolean; closeDrawer?: boolean }) => Promise<void>;
   approveQueue: (item: QueueItem) => Promise<void>;
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
+  saveCmsDraft: (item: QueueItem, data: Record<string, unknown>) => Promise<void>;
+  uploadCmsAsset: (item: QueueItem, file: File) => Promise<CmsAssetExpanded>;
   dismissQueue: (item: QueueItem) => Promise<void>;
   scheduleQueue: (item: QueueItem, scheduledAt: string) => Promise<void>;
 }
@@ -530,12 +550,6 @@ export function useInboxData(): InboxController {
             method: 'PATCH',
             body: JSON.stringify({ draftBody: body }),
           });
-        } else if (item.kind === 'cms') {
-          const updated = await api<CmsDraftDetailDto>(`/v1/cms-drafts/${item.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ data: { body } }),
-          });
-          setCmsDetails((prev) => ({ ...prev, [item.id]: updated }));
         }
         await loadInbox();
       } catch (err) {
@@ -546,6 +560,61 @@ export function useInboxData(): InboxController {
       }
     },
     [loadInbox],
+  );
+
+  const saveCmsDraft = useCallback(
+    async (item: QueueItem, data: Record<string, unknown>) => {
+      if (item.kind !== 'cms') {
+        throw new Error(`saveCmsDraft called for non-cms item: ${item.kind}`);
+      }
+      setPending(true);
+      try {
+        const updated = await api<CmsDraftDetailDto>(`/v1/cms-drafts/${item.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ data }),
+        });
+        setCmsDetails((prev) => ({ ...prev, [item.id]: updated }));
+        await loadInbox();
+      } catch (err) {
+        if (!(err instanceof ApiError && err.fieldErrors.length > 0)) {
+          notify.error(messageOf(err));
+        }
+        throw err;
+      } finally {
+        setPending(false);
+      }
+    },
+    [loadInbox],
+  );
+
+  const uploadCmsAsset = useCallback(
+    async (item: QueueItem, file: File): Promise<CmsAssetExpanded> => {
+      if (item.kind !== 'cms') {
+        throw new Error(`uploadCmsAsset called for non-cms item: ${item.kind}`);
+      }
+      setPending(true);
+      try {
+        const base64Body = await readFileAsBase64(file);
+        const asset = await api<{ id: string; publicUrl: string; altText: string | null }>(
+          `/v1/cms-drafts/${item.id}/assets`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              name: file.name,
+              mime: file.type || 'application/octet-stream',
+              base64Body,
+            }),
+          },
+        );
+        return { id: asset.id, publicUrl: asset.publicUrl, altText: asset.altText };
+      } catch (err) {
+        notify.error(messageOf(err));
+        throw err;
+      } finally {
+        setPending(false);
+      }
+    },
+    [],
   );
 
   const dismissQueue = useCallback(
@@ -631,6 +700,8 @@ export function useInboxData(): InboxController {
     send,
     approveQueue,
     saveQueue,
+    saveCmsDraft,
+    uploadCmsAsset,
     dismissQueue,
     scheduleQueue,
   };
@@ -725,6 +796,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
   const {
     convDrawer,
     setConvDrawer,
+    queue,
     queueDrawer,
     setQueueDrawer,
     details,
@@ -745,6 +817,8 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     closeConv,
     approveQueue,
     saveQueue,
+    saveCmsDraft,
+    uploadCmsAsset,
     dismissQueue,
     scheduleQueue,
   } = controller;
@@ -811,7 +885,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
         <SheetContent side="right" className="w-full max-w-[560px]">
           {queueDrawer && (
             <QueueDrawer
-              item={queueDrawer}
+              item={queue.find((q) => q.id === queueDrawer.id) ?? queueDrawer}
               kbBody={queueDrawer.kind === 'kb' ? kbBodies[queueDrawer.id] : undefined}
               cmsDetail={
                 queueDrawer.kind === 'cms' ? cmsDetails[queueDrawer.id] : undefined
@@ -820,6 +894,8 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
               onApprove={() => void approveQueue(queueDrawer)}
               onDismiss={() => void dismissQueue(queueDrawer)}
               onSave={(body) => saveQueue(queueDrawer, body)}
+              onSaveCmsDraft={(data) => saveCmsDraft(queueDrawer, data)}
+              onUploadCmsAsset={(file) => uploadCmsAsset(queueDrawer, file)}
               onSchedule={(scheduledAt) => scheduleQueue(queueDrawer, scheduledAt)}
               onClose={() => setQueueDrawer(null)}
             />

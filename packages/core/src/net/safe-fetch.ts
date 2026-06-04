@@ -5,8 +5,8 @@ import {
 } from 'node:dns';
 import { promisify } from 'node:util';
 import { isIP as isIp } from 'node:net';
-import { Agent, fetch as undiciFetch } from 'undici';
-import type { RequestInit as UndiciRequestInit, Response as UndiciResponse } from 'undici';
+import { Agent, fetch as undiciFetch, Response as UndiciResponse } from 'undici';
+import type { RequestInit as UndiciRequestInit } from 'undici';
 import { parseEnvBool } from '../env/index.ts';
 
 const dnsLookup = promisify((hostname: string, cb: (err: NodeJS.ErrnoException | null, addrs: LookupAddress[]) => void) =>
@@ -265,36 +265,95 @@ export interface SafeFetchOptions extends Omit<UndiciRequestInit, 'redirect' | '
   __connectLookup?: ConnectLookup;
 }
 
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+
+function closeAgent(agent: Agent): void {
+  void agent.close().catch((err: unknown) => {
+    console.warn('[safe-fetch] agent close failed', err);
+  });
+}
+
+function discardBody(res: UndiciResponse): Promise<void> {
+  if (!res.body) return Promise.resolve();
+  return res.body.cancel().catch((err: unknown) => {
+    console.warn('[safe-fetch] body cancel failed', err);
+  });
+}
+
+function redirectTarget(res: UndiciResponse, base: string): string | null {
+  if (!REDIRECT_STATUSES.has(res.status)) return null;
+  const location = res.headers.get('location');
+  return location ? new URL(location, base).toString() : null;
+}
+
+function assertHttpUrl(raw: string): URL {
+  const url = new URL(raw);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new SsrfBlockedError(`protocol ${url.protocol} is not allowed`);
+  }
+  return url;
+}
+
 export async function safeFetch(input: string, init: SafeFetchOptions = {}): Promise<UndiciResponse> {
   const { resolver, maxRedirects = MAX_REDIRECTS, __connectLookup, ...rest } = init;
   const agent = makeBlockingAgent(__connectLookup ?? defaultConnectLookup);
+  let currentUrl = input;
+  let hops = 0;
   try {
-    let currentUrl = input;
-    let hops = 0;
     while (true) {
-      const parsed = new URL(currentUrl);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new SsrfBlockedError(`protocol ${parsed.protocol} is not allowed`);
-      }
+      const parsed = assertHttpUrl(currentUrl);
       await assertPublicHost(parsed.hostname, { resolver });
       const res = await undiciFetch(currentUrl, {
         ...rest,
         redirect: 'manual',
         dispatcher: agent,
       });
-      const status = res.status;
-      const isRedirect = status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
-      if (!isRedirect) return res;
-      const location = res.headers.get('location');
-      if (!location) return res;
-      hops += 1;
-      if (hops > maxRedirects) {
+      const nextUrl = redirectTarget(res, currentUrl);
+      if (!nextUrl) return attachAgentLifetime(res, agent);
+      await discardBody(res);
+      if (++hops > maxRedirects) {
         throw new SsrfBlockedError(`too many redirects (>${maxRedirects})`);
       }
-      currentUrl = new URL(location, currentUrl).toString();
-      await res.body?.cancel().catch(() => {});
+      currentUrl = nextUrl;
     }
-  } finally {
-    await agent.close().catch(() => {});
+  } catch (err) {
+    closeAgent(agent);
+    throw err;
   }
+}
+
+function attachAgentLifetime(res: UndiciResponse, agent: Agent): UndiciResponse {
+  if (!res.body) {
+    closeAgent(agent);
+    return res;
+  }
+  const upstream: ReadableStreamDefaultReader<Uint8Array> = res.body.getReader();
+  const wrapped = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const next = await upstream.read();
+        if (next.done) {
+          controller.close();
+          closeAgent(agent);
+          return;
+        }
+        if (next.value) controller.enqueue(next.value);
+      } catch (err) {
+        controller.error(err);
+        closeAgent(agent);
+      }
+    },
+    async cancel(reason) {
+      try {
+        await upstream.cancel(reason);
+      } finally {
+        closeAgent(agent);
+      }
+    },
+  });
+  return new UndiciResponse(wrapped, {
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers,
+  });
 }

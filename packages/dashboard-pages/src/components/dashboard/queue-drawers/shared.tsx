@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { Button, Pill, cn } from '@getmunin/ui';
-import ReactMarkdown, { type Components } from 'react-markdown';
+import type { Components } from 'react-markdown';
 
 export type DrawerPillTone =
   | 'live'
@@ -92,7 +92,7 @@ export function DrawerHeader({
         <button
           type="button"
           onClick={onClose}
-          className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-ink dark:hover:text-foreground"
+          className="shrink-0 whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-ink dark:hover:text-foreground"
           aria-label={closeLabel}
         >
           {closeLabel}

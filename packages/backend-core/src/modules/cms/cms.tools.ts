@@ -195,7 +195,7 @@ export class CmsAdminTools {
     name: 'cms_create_collection',
     title: 'CMS: Create collection',
     description:
-      'Define a new collection. Fields is an array of { name, type, required?, options? } — see field types: text, rich_text, markdown, number, integer, boolean, date, datetime, select, multi_select, asset, reference, array, json.',
+      'Define a new collection. Fields is an ORDERED array of { name, type, required?, options? } — field order is the render order in editor and public surfaces, so put fields in the sequence a human would read or fill them (e.g. lede asset → headline → excerpt → metadata → body → trailing/optional fields). See field types: text, rich_text, markdown, number, integer, boolean, date, datetime, select, multi_select, asset, reference, array, json.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: CreateCollectionInput,
@@ -210,7 +210,7 @@ export class CmsAdminTools {
     name: 'cms_update_collection',
     title: 'CMS: Update collection',
     description:
-      'Patch a collection. Field migration is lossy: dropped or renamed fields stay in entries\' `data` jsonb but stop being read by the projection layer.',
+      'Patch a collection. When supplied, `fields` REPLACES the existing array — so include every field you want to keep, in the order they should render (the array order is the render order). Field migration is lossy: dropped or renamed fields stay in entries\' `data` jsonb but stop being read by the projection layer.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: UpdateCollectionInput,

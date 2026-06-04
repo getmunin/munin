@@ -58,6 +58,7 @@ export interface CmsDraftSummaryDto {
   slug: string;
   locale: string;
   title: string | null;
+  titleFieldName: string | null;
   wordCount: number | null;
   version: number;
   updatedAt: string;
@@ -69,6 +70,35 @@ export interface CmsAssetExpanded {
   altText: string | null;
 }
 
+export type CmsFieldType =
+  | 'text'
+  | 'rich_text'
+  | 'markdown'
+  | 'number'
+  | 'integer'
+  | 'boolean'
+  | 'date'
+  | 'datetime'
+  | 'select'
+  | 'multi_select'
+  | 'asset'
+  | 'reference'
+  | 'array'
+  | 'json';
+
+export interface CmsFieldDef {
+  name: string;
+  type: CmsFieldType;
+  required?: boolean;
+  localized?: boolean;
+  description?: string;
+  options?: {
+    choices?: string[];
+    targetCollection?: string;
+    items?: CmsFieldDef;
+  };
+}
+
 export interface CmsDraftDetailDto {
   id: string;
   collectionId: string;
@@ -78,6 +108,7 @@ export interface CmsDraftDetailDto {
   status: 'draft' | 'published' | 'scheduled' | 'archived';
   version: number;
   data: Record<string, unknown>;
+  fields: CmsFieldDef[];
   updatedAt: string;
 }
 
@@ -111,26 +142,12 @@ export function queueLabelKey(item: QueueItem): QueueLabelKey {
   return 'kindCrm';
 }
 
-export function readStringField(
+export function readAssetField(
   data: Record<string, unknown> | undefined,
   field: string,
-): string | null {
-  if (!data) return null;
-  const v = data[field];
-  return typeof v === 'string' && v.length > 0 ? v : null;
-}
-
-export function readBodyFromCmsData(data: Record<string, unknown> | undefined): string {
-  if (!data) return '';
-  const body = data['body'];
-  return typeof body === 'string' ? body : '';
-}
-
-export function readCoverImage(
-  data: Record<string, unknown> | undefined,
 ): CmsAssetExpanded | null {
   if (!data) return null;
-  const v = data['cover_image'];
+  const v = data[field];
   if (!v || typeof v !== 'object') return null;
   const obj = v as Record<string, unknown>;
   const id = typeof obj['id'] === 'string' ? obj['id'] : null;
@@ -138,4 +155,11 @@ export function readCoverImage(
   if (!id || !publicUrl) return null;
   const altText = typeof obj['altText'] === 'string' ? obj['altText'] : null;
   return { id, publicUrl, altText };
+}
+
+export function humanizeFieldName(name: string): string {
+  return name
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }

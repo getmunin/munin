@@ -5,6 +5,7 @@ import { randomToken } from './primitives.ts';
  *
  *   kind = 'admin' | 'dlg' (delegated end-user, short-lived)
  *        | 'widget' (chat-widget channel binding; api_keys.channel_id is set)
+ *        | 'track' (public analytics tracker key; safe to embed in browsers)
  *
  * The `'part'` kind exists in the type union for downstream packages
  * that mint partner-style credentials; OSS does not produce or accept
@@ -16,7 +17,7 @@ import { randomToken } from './primitives.ts';
  * bits of entropy).
  */
 
-export type KeyKind = 'admin' | 'part' | 'dlg' | 'widget';
+export type KeyKind = 'admin' | 'part' | 'dlg' | 'widget' | 'track';
 
 const PREFIX_LENGTH = 8;
 
@@ -30,5 +31,5 @@ export function keyPrefix(rawKey: string): string {
 }
 
 export function isWellFormedKey(rawKey: string): boolean {
-  return /^mn_(admin|part|dlg|widget)_[A-Za-z0-9_-]+$/.test(rawKey);
+  return /^mn_(admin|part|dlg|widget|track)_[A-Za-z0-9_-]+$/.test(rawKey);
 }

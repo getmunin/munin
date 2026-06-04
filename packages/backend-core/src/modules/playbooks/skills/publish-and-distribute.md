@@ -126,3 +126,4 @@ The published entry should be there too. If both surface and the announcement wa
 - `skill://cms/publish-entry` — the publish half.
 - `skill://kb/import-articles-in-bulk` — bulk mirroring for catch-up imports.
 - `skill://conv/setup-email-and-widget-channels` — making sure the announcement channel exists.
+- `skill://analytics/track-website-traffic` — measure which published entries actually get read; feed that signal back into the next quarter's review.

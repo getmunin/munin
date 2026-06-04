@@ -23,3 +23,13 @@ CREATE POLICY tenant_isolation ON analytics_search_events
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+ALTER TABLE analytics_trackers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE analytics_trackers FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON analytics_trackers;
+CREATE POLICY tenant_isolation ON analytics_trackers
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

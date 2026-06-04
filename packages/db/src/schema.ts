@@ -1497,6 +1497,76 @@ export const cmsReferences = pgTable(
   }),
 );
 
+// ───────────────────────────── Analytics ─────────────────────────────
+// Polymorphic page-view and search events. The first consumer is the
+// CMS delivery API (subject_type='cms_entry'); landing pages, dashboard
+// routes, and other surfaces use their own subject types without
+// schema changes. Append-only; aggregation/rollups are deferred.
+
+export const analyticsViewEvents = pgTable(
+  'analytics_view_events',
+  {
+    id: id('avw'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    subjectType: varchar('subject_type', { length: 32 }).notNull(),
+    subjectId: text('subject_id').notNull(),
+    path: varchar('path', { length: 512 }),
+    locale: varchar('locale', { length: 16 }),
+    referrer: varchar('referrer', { length: 512 }),
+    utmSource: varchar('utm_source', { length: 128 }),
+    utmMedium: varchar('utm_medium', { length: 128 }),
+    utmCampaign: varchar('utm_campaign', { length: 128 }),
+    visitorId: varchar('visitor_id', { length: 64 }),
+    userAgentClass: varchar('user_agent_class', { length: 16 }),
+    dwellMs: integer('dwell_ms'),
+    readDepth: integer('read_depth'),
+    source: varchar('source', { length: 8 }).notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+    createdAt,
+  },
+  (t) => ({
+    orgIdx: index('analytics_view_events_org_idx').on(t.orgId, t.createdAt),
+    subjectIdx: index('analytics_view_events_subject_idx').on(
+      t.orgId,
+      t.subjectType,
+      t.subjectId,
+      t.createdAt,
+    ),
+    typeIdx: index('analytics_view_events_type_idx').on(
+      t.orgId,
+      t.subjectType,
+      t.createdAt,
+    ),
+  }),
+);
+
+export const analyticsSearchEvents = pgTable(
+  'analytics_search_events',
+  {
+    id: id('asr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    subjectType: varchar('subject_type', { length: 32 }).notNull(),
+    query: varchar('query', { length: 256 }).notNull(),
+    locale: varchar('locale', { length: 16 }),
+    resultCount: integer('result_count').notNull(),
+    visitorId: varchar('visitor_id', { length: 64 }),
+    createdAt,
+  },
+  (t) => ({
+    zeroResultIdx: index('analytics_search_events_zero_idx').on(
+      t.orgId,
+      t.subjectType,
+      t.resultCount,
+      t.createdAt,
+    ),
+    orgIdx: index('analytics_search_events_org_idx').on(t.orgId, t.createdAt),
+  }),
+);
+
 // ───────────────────────────── Curator jobs ──────────────────────────
 // Persistent queue for curator background jobs. The bundled in-process
 // runner (or any admin-authenticated runner) claims pending rows via
@@ -1773,6 +1843,8 @@ export const allTables = {
   cmsAssets,
   cmsLocales,
   cmsReferences,
+  analyticsViewEvents,
+  analyticsSearchEvents,
   curatorJobs,
   systemConfig,
   feedbackOutbox,

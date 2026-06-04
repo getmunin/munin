@@ -1034,6 +1034,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "visitor_id",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1090,6 +1098,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "tracking",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1133,6 +1149,14 @@
           },
           {
             "name": "locale",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tracking",
             "required": true,
             "in": "query",
             "schema": {
@@ -1333,6 +1357,45 @@
             "session": []
           }
         ]
+      }
+    },
+    "/v1/a/v/{token}.gif": {
+      "get": {
+        "operationId": "AnalyticsViewsController_pixel",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsViews"
+        ],
+        "security": []
+      }
+    },
+    "/v1/a/v": {
+      "post": {
+        "operationId": "AnalyticsViewsController_beacon",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsViews"
+        ],
+        "security": []
       }
     },
     "/v1/orgs/me/invitations": {

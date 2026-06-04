@@ -1089,7 +1089,7 @@ SOFTWARE.
 
 ---
 
-## @better-auth/core@1.6.10
+## @better-auth/core@1.6.11
 
 > The most comprehensive authentication framework for TypeScript.
 - Homepage: https://www.better-auth.com
@@ -1120,7 +1120,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/drizzle-adapter@1.6.10
+## @better-auth/drizzle-adapter@1.6.11
 
 > Drizzle adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/drizzle
@@ -1151,7 +1151,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/kysely-adapter@1.6.10
+## @better-auth/kysely-adapter@1.6.11
 
 > Kysely adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/kysely
@@ -1182,7 +1182,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/memory-adapter@1.6.10
+## @better-auth/memory-adapter@1.6.11
 
 > Memory adapter for Better Auth
 - Homepage: https://www.better-auth.com
@@ -1213,7 +1213,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/mongo-adapter@1.6.10
+## @better-auth/mongo-adapter@1.6.11
 
 > Mongo adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/mongodb
@@ -1275,7 +1275,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/prisma-adapter@1.6.10
+## @better-auth/prisma-adapter@1.6.11
 
 > Prisma adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/prisma
@@ -1306,7 +1306,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/telemetry@1.6.10
+## @better-auth/telemetry@1.6.11
 
 > Telemetry package for Better Auth
 - Homepage: https://www.better-auth.com
@@ -11196,7 +11196,7 @@ Apache License
 
 ---
 
-## @opentelemetry/semantic-conventions@1.40.0
+## @opentelemetry/semantic-conventions@1.40.0, 1.41.1
 
 > OpenTelemetry semantic conventions
 - Homepage: https://github.com/open-telemetry/opentelemetry-js/tree/main/semantic-conventions
@@ -17509,7 +17509,7 @@ Apache License
 
 ---
 
-## better-auth@1.6.10
+## better-auth@1.6.11
 
 > The most comprehensive authentication framework for TypeScript.
 - Homepage: https://better-auth.com
@@ -39011,7 +39011,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## zod@3.25.76, 4.3.6
+## zod@3.25.76, 4.3.6, 4.4.3
 
 > TypeScript-first schema declaration and validation library with static type inference
 - Homepage: https://zod.dev

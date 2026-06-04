@@ -26,6 +26,7 @@ export interface ToolListing {
     readOnlyHint: boolean;
     destructiveHint: boolean;
   };
+  _meta?: Record<string, unknown>;
 }
 
 export interface ToolCallResult {
@@ -56,6 +57,7 @@ export function listTools(ctx: DispatchContext): ToolListing[] {
       readOnlyHint: t.meta.readOnlyHint ?? false,
       destructiveHint: t.meta.destructiveHint ?? false,
     },
+    ...(t.meta._meta ? { _meta: t.meta._meta } : {}),
   }));
 }
 

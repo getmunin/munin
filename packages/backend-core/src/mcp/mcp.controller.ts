@@ -18,6 +18,7 @@ import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { McpRegistryService } from './mcp.registry.ts';
 import { McpSkillRegistryService } from './mcp.skill-registry.service.ts';
+import { McpBurstGuard } from './mcp-burst.guard.ts';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service.ts';
 import { QUOTAS_SERVICE, type QuotasService } from '../common/quotas/quotas.service.ts';
 import { deriveMcpAudience } from './mcp.audience.ts';
@@ -34,7 +35,7 @@ import { deriveMcpAudience } from './mcp.audience.ts';
  * SDK exposes one (currently a no-op for stateless mode).
  */
 @Controller('mcp')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, McpBurstGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class McpController {
   private readonly audit = new AuditLogger();

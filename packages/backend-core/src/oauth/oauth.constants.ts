@@ -31,10 +31,6 @@ export function authorizationServerUrl(): string {
   return parsePublicUrl().origin;
 }
 
-export function readPublicBaseUrl(): string {
-  return authorizationServerUrl();
-}
-
 export function resourceMetadataUrl(): string {
   return `${authorizationServerUrl()}/.well-known/oauth-protected-resource`;
 }

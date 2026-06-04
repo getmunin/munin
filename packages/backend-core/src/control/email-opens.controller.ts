@@ -6,6 +6,7 @@ import {
   ActorIdentity,
   EmailOpenTokenError,
   WebhookDispatcher,
+  looksLikeBot,
   verifyEmailOpenToken,
   withContext,
   type RequestContext,
@@ -18,8 +19,6 @@ const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
   'base64',
 );
-
-const BOT_UA = /\b(bot|crawler|spider|preview|linkcheck|monitor)\b/i;
 
 @Controller('v1/c/o')
 export class EmailOpensController {
@@ -37,7 +36,7 @@ export class EmailOpensController {
   ): Promise<void> {
     sendPixel(res);
     if (!token) return;
-    if (userAgent && BOT_UA.test(userAgent)) return;
+    if (looksLikeBot(userAgent)) return;
 
     let payload;
     try {

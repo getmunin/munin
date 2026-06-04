@@ -5,13 +5,13 @@ import {
   ActorIdentity,
   WebhookDispatcher,
   parseEnvInt,
+  readApiBaseUrl,
   resolvePublicHost,
   signEmailOpenToken,
   withContext,
   type Mailer,
   type RequestContext,
 } from '@getmunin/core';
-import { readPublicBaseUrl } from '../../../oauth/oauth.constants.ts';
 import { ImapFlow } from 'imapflow';
 import { simpleParser, type ParsedMail, type AddressObject } from 'mailparser';
 import { randomUUID } from 'node:crypto';
@@ -568,7 +568,7 @@ function trackerUrlFor(
       orgId: ctx.channel.orgId,
       deliveryId: ctx.delivery.id,
     });
-    return `${readPublicBaseUrl()}/v1/c/o/${token}.gif`;
+    return `${readApiBaseUrl()}/v1/c/o/${token}.gif`;
   } catch {
     return undefined;
   }

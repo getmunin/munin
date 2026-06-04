@@ -424,7 +424,142 @@ const skipReason = TEST_URL
       expect(names.find((n) => n.startsWith('cms_'))).toBeFalsy();
     });
   }, 30_000);
+
+  it('analytics: delivery returns _tracking, pixel records a view, beacon records rich attrs', async () => {
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'tracked-page',
+          data: { title: 'Tracked', slug: 'tracked-page', body: 'Body.' },
+          status: 'published',
+        },
+      });
+    });
+
+    const res = await fetchUntil(
+      `${baseUrl}/v1/cms/${orgId}/pages/tracked-page`,
+      (r) => r.status === 200,
+    );
+    const entry = (await res.json()) as {
+      _tracking?: { pixelUrl: string; beaconUrl: string };
+    };
+    expect(entry._tracking?.pixelUrl).toMatch(/\/v1\/a\/v\/.+\.gif$/);
+    expect(entry._tracking?.beaconUrl).toMatch(/\/v1\/a\/v$/);
+
+    const pixelUrl = retarget(entry._tracking!.pixelUrl, baseUrl);
+    const beaconUrl = retarget(entry._tracking!.beaconUrl, baseUrl);
+
+    const beforePixel = await countViewEvents(db, orgId, 'pixel');
+    const pixel = await fetch(pixelUrl);
+    expect(pixel.status).toBe(200);
+    expect(pixel.headers.get('content-type')).toBe('image/gif');
+    await waitFor(async () => (await countViewEvents(db, orgId, 'pixel')) > beforePixel);
+
+    const pixelBot = await fetch(pixelUrl, {
+      headers: { 'user-agent': 'Googlebot/2.1' },
+    });
+    expect(pixelBot.status).toBe(200);
+    const afterBot = await countViewEvents(db, orgId, 'pixel');
+    expect(afterBot).toBe(beforePixel + 1);
+
+    const beforeBeacon = await countViewEvents(db, orgId, 'beacon');
+    const tokenMatch = pixelUrl.match(/\/v1\/a\/v\/(.+)\.gif$/);
+    const token = tokenMatch![1]!;
+    const beacon = await fetch(beaconUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        referrer: 'https://example.com/blog',
+        visitorId: 'visitor-xyz',
+        dwellMs: 42_000,
+        readDepth: 75,
+        utm: { source: 'twitter', medium: 'social', campaign: 'launch' },
+      }),
+    });
+    expect(beacon.status).toBe(204);
+    await waitFor(async () => (await countViewEvents(db, orgId, 'beacon')) > beforeBeacon);
+
+    const beaconRow = await db
+      .select()
+      .from(schema.analyticsViewEvents)
+      .where(sql`org_id = ${orgId} AND source = 'beacon' AND visitor_id = 'visitor-xyz'`)
+      .limit(1);
+    expect(beaconRow[0]?.dwellMs).toBe(42_000);
+    expect(beaconRow[0]?.readDepth).toBe(75);
+    expect(beaconRow[0]?.utmSource).toBe('twitter');
+    expect(beaconRow[0]?.subjectType).toBe('cms_entry');
+
+    const tampered = token.replace(/.$/, (c) => (c === 'a' ? 'b' : 'a'));
+    const bad = await fetch(beaconUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: tampered, visitorId: 'should-not-write' }),
+    });
+    expect(bad.status).toBe(204);
+    const tamperedCount = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.analyticsViewEvents)
+      .where(sql`org_id = ${orgId} AND visitor_id = 'should-not-write'`);
+    expect(tamperedCount[0]?.n ?? 0).toBe(0);
+  }, 30_000);
+
+  it('analytics: ?tracking=0 suppresses the _tracking block', async () => {
+    const res = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/tracked-page?tracking=0`);
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { _tracking?: unknown };
+    expect(json._tracking).toBeUndefined();
+  }, 30_000);
+
+  it('analytics: public search logs every query with its result_count', async () => {
+    const q = `analytics_probe_${Date.now()}`;
+    const res = await fetch(
+      `${baseUrl}/v1/cms/${orgId}/search?q=${encodeURIComponent(q)}&collection=pages&visitor_id=probe-v`,
+    );
+    expect(res.status).toBe(200);
+    const hits = (await res.json()) as unknown[];
+    await waitFor(async () => {
+      const rows = await db
+        .select()
+        .from(schema.analyticsSearchEvents)
+        .where(sql`org_id = ${orgId} AND query = ${q}`)
+        .limit(1);
+      return (
+        rows.length > 0 &&
+        rows[0]!.resultCount === hits.length &&
+        rows[0]!.subjectType === 'cms' &&
+        rows[0]!.visitorId === 'probe-v'
+      );
+    });
+  }, 30_000);
 });
+
+function retarget(url: string, baseUrl: string): string {
+  return url.replace(/^https?:\/\/[^/]+/, baseUrl);
+}
+
+async function countViewEvents(
+  db: ReturnType<typeof createDb>,
+  orgId: string,
+  source: 'pixel' | 'beacon',
+): Promise<number> {
+  const r = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.analyticsViewEvents)
+    .where(sql`org_id = ${orgId} AND source = ${source}`);
+  return r[0]?.n ?? 0;
+}
+
+async function waitFor(check: () => Promise<boolean>, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error('waitFor: condition not met before timeout');
+}
 
 function parseToolResult<T>(result: unknown): T {
   const r = result as { content?: Array<{ type: string; text?: string }> };

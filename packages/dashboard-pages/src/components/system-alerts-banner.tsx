@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslations } from 'next-intl';
 import { Link } from '../i18n-navigation';
 import { api, ApiError } from '../api';
-import { useRealtime, type RealtimeStatus } from '../realtime';
+import { useRealtime } from '../realtime';
 
 type AlertSource =
   | 'llm_provider'
@@ -35,11 +35,13 @@ interface AlertDto {
 }
 
 const POLL_INTERVAL_MS = 5 * 60_000;
+const DISCONNECT_GRACE_MS = 1500;
 
 export function SystemAlertsBanner() {
   const t = useTranslations('dashboard.runnerStatusBanner');
   const [alerts, setAlerts] = useState<AlertDto[]>([]);
   const [hasBeenConnected, setHasBeenConnected] = useState(false);
+  const [showDisconnected, setShowDisconnected] = useState(false);
   const cancelledRef = useRef(false);
 
   const fetchAlerts = useCallback(async () => {
@@ -66,6 +68,16 @@ export function SystemAlertsBanner() {
   }, [realtime]);
 
   useEffect(() => {
+    if (realtime === 'connected') {
+      setShowDisconnected(false);
+      return;
+    }
+    if (!hasBeenConnected) return;
+    const handle = window.setTimeout(() => setShowDisconnected(true), DISCONNECT_GRACE_MS);
+    return () => window.clearTimeout(handle);
+  }, [realtime, hasBeenConnected]);
+
+  useEffect(() => {
     cancelledRef.current = false;
     void fetchAlerts();
     const handle = window.setInterval(() => void fetchAlerts(), POLL_INTERVAL_MS);
@@ -75,7 +87,7 @@ export function SystemAlertsBanner() {
     };
   }, [fetchAlerts]);
 
-  const state = pickState({ realtime, hasBeenConnected, alerts, t });
+  const state = pickState({ showDisconnected, alerts, t });
   if (!state) return null;
 
   return (
@@ -110,13 +122,12 @@ interface BannerState {
 }
 
 function pickState(args: {
-  realtime: RealtimeStatus;
-  hasBeenConnected: boolean;
+  showDisconnected: boolean;
   alerts: AlertDto[];
   t: ReturnType<typeof useTranslations<'dashboard.runnerStatusBanner'>>;
 }): BannerState | null {
-  const { realtime, hasBeenConnected, alerts, t } = args;
-  if (hasBeenConnected && realtime !== 'connected') {
+  const { showDisconnected, alerts, t } = args;
+  if (showDisconnected) {
     return {
       tag: t('disconnectedTag'),
       message: t('disconnectedMessage'),

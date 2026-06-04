@@ -60,7 +60,7 @@ export function LoadFailed({
         <div className="flex items-center gap-2 font-mono uppercase tracking-eyebrow text-[11px] text-alert-bad-ink">
           <span
             aria-hidden
-            className="size-1.5 rounded-full bg-alert-bad-border-[0.5px]"
+            className="size-1.5 animate-pulse rounded-full bg-alert-bad-border"
           />
           <span>{eyebrow}</span>
         </div>

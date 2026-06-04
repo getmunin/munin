@@ -38,7 +38,7 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(
           'transition-colors duration-fast ease-munin',
           'focus:outline-none focus:ring-[3px] focus:ring-ink/[0.08]',
           invalid
-            ? 'border-alert-bad-border-[0.5px] focus:border-alert-bad-border-[0.5px]'
+            ? 'border-alert-bad-border focus:border-alert-bad-border'
             : 'border-rule-soft focus:border-ink',
           className,
         )}

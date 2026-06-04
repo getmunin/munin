@@ -44,7 +44,7 @@ export function DashboardPage() {
 
   if (inbox.loadError && !inbox.hasLoadedOnce) {
     return (
-      <div className="px-4 md:px-10 pt-11 pb-6 max-w-7xl mx-auto">
+      <div className="flex min-h-[70vh] items-center justify-center px-4 md:px-10 py-12">
         <LoadFailed
           {...buildLoadFailedProps(inbox.loadError, () => void inbox.retryLoad(), inbox.retrying)}
         />

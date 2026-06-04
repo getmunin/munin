@@ -304,14 +304,12 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
-  it('rate limit: per-minute cap is enforced and the second call returns rate_limited', async () => {
-    // Fresh org with a 1-call-per-minute cap so the test can hit the limit deterministically.
-    const ts = Date.now();
+  it('rate limit: per-day cap is enforced and the second call returns rate_limited', async () => {
     const [rlOrg] = await db
       .insert(schema.orgs)
       .values({
         name: 'RL Org',
-        settings: { rateLimits: { perMinute: 1, perDay: 1000 } },
+        settings: { rateLimits: { perDay: 1 } },
       })
       .returning();
     const rlAdminKey = buildApiKey('admin');

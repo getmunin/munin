@@ -194,6 +194,20 @@ const skipReason = TEST_URL
     });
     expect(adminReply.internal).toBe(false);
 
+    await expect
+      .poll(
+        async () => {
+          const r = await rest<{ messages: { body: string; internal: boolean }[] }>(
+            endUserToken,
+            'GET',
+            `/v1/end-users/me/conversations/${startedConv.id}`,
+          );
+          return r.body.messages.map((m) => m.body);
+        },
+        { timeout: 2000 },
+      )
+      .toContain('Hi Alice, I\'ve unlocked your account.');
+
     const detailResp = await rest<{ messages: { body: string; internal: boolean }[] }>(
       endUserToken,
       'GET',
@@ -202,8 +216,6 @@ const skipReason = TEST_URL
     expect(detailResp.status).toBe(200);
     const detail = detailResp.body;
     const bodies = detail.messages.map((m) => m.body);
-    expect(bodies).toContain('Hi Alice, I\'ve unlocked your account.');
-    // Internal note is filtered by RLS — never visible to end-users.
     expect(bodies.find((b) => /2FA/.test(b))).toBeUndefined();
     expect(detail.messages.every((m) => m.internal === false)).toBe(true);
 

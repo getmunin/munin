@@ -26,12 +26,14 @@ const FREE_TIER_LIMITS: OrgLimits = {
   perDay: 1_000,
 };
 
-type Granularity = 'minute' | 'day';
+type Granularity = 'minute' | 'day' | 'month';
 
 const BUCKETS = {
   mcp_calls_minute: 'minute',
   mcp_calls_day: 'day',
   api_calls_day: 'day',
+  mcp_calls_month: 'month',
+  api_calls_month: 'month',
 } as const satisfies Record<string, Granularity>;
 
 export type Bucket = keyof typeof BUCKETS;
@@ -173,8 +175,12 @@ export class RateLimitService {
 }
 
 function windowStartFor(granularity: Granularity, now: Date): Date {
-  if (granularity === 'minute') {
-    return new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+  switch (granularity) {
+    case 'minute':
+      return new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+    case 'day':
+      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    case 'month':
+      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   }
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }

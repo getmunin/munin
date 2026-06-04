@@ -128,7 +128,6 @@ export {
   type QuotaResource,
   type QuotaCallKind,
 } from './common/quotas/quotas.service.ts';
-export { CallQuotaInterceptor } from './common/quotas/call-quota.interceptor.ts';
 export { WebhookModule } from './common/webhooks/webhook.module.ts';
 export { OAuthModule } from './oauth/oauth.module.ts';
 export {

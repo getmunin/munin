@@ -1,19 +1,72 @@
 import { describe, expect, it, vi } from 'vitest';
-import { firstValueFrom, of } from 'rxjs';
+import { defer, firstValueFrom, of, type Observable } from 'rxjs';
 import {
   ActorIdentity,
   RequestContextStore,
   type ActorType,
   type RequestContext,
 } from '@getmunin/core';
-import type { CallHandler, ExecutionContext } from '@nestjs/common';
+import type {
+  CallHandler,
+  ContextType,
+  ExecutionContext,
+  Type,
+} from '@nestjs/common';
+import type { Db } from '@getmunin/db';
+
+type HttpArgumentsHost = ReturnType<ExecutionContext['switchToHttp']>;
+type RpcArgumentsHost = ReturnType<ExecutionContext['switchToRpc']>;
+type WsArgumentsHost = ReturnType<ExecutionContext['switchToWs']>;
 import { AuditInterceptor } from './audit.interceptor.ts';
-import type { RateLimitService } from '../rate-limit/rate-limit.service.ts';
+import { RateLimitService, type Bucket } from '../rate-limit/rate-limit.service.ts';
+import {
+  QuotasService,
+  type QuotaCallKind,
+  type QuotaResource,
+} from '../quotas/quotas.service.ts';
+
+class MockRateLimitService extends RateLimitService {
+  override record = vi.fn<(bucket: Bucket) => Promise<number>>().mockResolvedValue(1);
+  override consume = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+}
+
+class MockQuotasService extends QuotasService {
+  recordCallMock = vi.fn<(kind: QuotaCallKind, key?: string) => Promise<void>>().mockResolvedValue(undefined);
+  assertCanAdd(_resource: QuotaResource): Promise<void> { return Promise.resolve(); }
+  recordCall(kind: QuotaCallKind, key?: string): Promise<void> { return this.recordCallMock(kind, key); }
+  cap(_orgId: string, _resource: QuotaResource): Promise<number> { return Promise.resolve(Number.POSITIVE_INFINITY); }
+  count(_resource: QuotaResource): Promise<number> { return Promise.resolve(0); }
+}
+
+class TestableAuditInterceptor extends AuditInterceptor {
+  auditRecord = vi.fn<(...args: unknown[]) => Promise<void>>().mockResolvedValue(undefined);
+  constructor(rateLimit: RateLimitService, quotas: QuotasService) {
+    super(rateLimit, quotas);
+    Object.defineProperty(this, 'audit', { value: { record: this.auditRecord } });
+  }
+}
+
+class MockExecutionContext implements ExecutionContext {
+  constructor(private readonly request: Record<string, unknown>) {}
+  switchToHttp(): HttpArgumentsHost {
+    const req = this.request;
+    return {
+      getRequest<T>(): T { return req as T; },
+      getResponse<T>(): T { return {} as T; },
+      getNext<T>(): T { return undefined as T; },
+    };
+  }
+  switchToRpc(): RpcArgumentsHost { throw new Error('not implemented'); }
+  switchToWs(): WsArgumentsHost { throw new Error('not implemented'); }
+  getType<TContext extends string = ContextType>(): TContext { return 'http' as TContext; }
+  getClass<T = unknown>(): Type<T> { throw new Error('not implemented'); }
+  getHandler(): (...args: unknown[]) => unknown { throw new Error('not implemented'); }
+  getArgs<T extends Array<unknown> = unknown[]>(): T { return [] as unknown[] as T; }
+  getArgByIndex<T = unknown>(_index: number): T { throw new Error('not implemented'); }
+}
 
 function makeContext(request: Record<string, unknown>): ExecutionContext {
-  return {
-    switchToHttp: () => ({ getRequest: () => request }),
-  } as unknown as ExecutionContext;
+  return new MockExecutionContext(request);
 }
 
 function makeNext(value: unknown): CallHandler {
@@ -21,29 +74,32 @@ function makeNext(value: unknown): CallHandler {
 }
 
 function makeActiveContext(actorType: ActorType = 'user'): RequestContext {
+  const db: Pick<Db, 'execute'> = { execute: vi.fn().mockResolvedValue(undefined) as Db['execute'] };
   return {
-    db: { execute: vi.fn().mockResolvedValue(undefined) } as never,
+    db: db as Db,
     actor: new ActorIdentity(actorType, 'actor_1', 'org_1', ['*'], ['admin']),
     correlationId: 'corr-1',
   };
 }
 
-function makeInterceptor(): {
-  interceptor: AuditInterceptor;
-  record: ReturnType<typeof vi.fn>;
-  rateLimitRecord: ReturnType<typeof vi.fn>;
+function makeInterceptor(
+  recordCallImpl: (kind: QuotaCallKind, key?: string) => Promise<void> = () => Promise.resolve(),
+): {
+  interceptor: TestableAuditInterceptor;
+  rateLimit: MockRateLimitService;
+  quotas: MockQuotasService;
 } {
-  const rateLimitRecord = vi.fn().mockResolvedValue(1);
-  const rateLimit = { record: rateLimitRecord } as unknown as RateLimitService;
-  const interceptor = new AuditInterceptor(rateLimit);
-  const record = vi.fn().mockResolvedValue(undefined);
-  (interceptor as unknown as { audit: { record: typeof record } }).audit = { record };
-  return { interceptor, record, rateLimitRecord };
+  const rateLimit = new MockRateLimitService();
+  const quotas = new MockQuotasService();
+  quotas.recordCallMock.mockImplementation(recordCallImpl);
+  const interceptor = new TestableAuditInterceptor(rateLimit, quotas);
+  return { interceptor, rateLimit, quotas };
 }
 
 describe('AuditInterceptor double-wrap guard', () => {
   it('records exactly one audit row even if the interceptor runs twice on the same request', async () => {
-    const { interceptor, record } = makeInterceptor();
+    const { interceptor } = makeInterceptor();
+    const record = interceptor.auditRecord;
     const request = {
       method: 'GET',
       url: '/v1/whoami',
@@ -69,7 +125,8 @@ describe('AuditInterceptor double-wrap guard', () => {
     '/v1/system/alerts',
     '/v1/agent-config',
   ])('skips audit for chatty GET %s', async (url) => {
-    const { interceptor, record } = makeInterceptor();
+    const { interceptor } = makeInterceptor();
+    const record = interceptor.auditRecord;
     const request = { method: 'GET', url, headers: { 'user-agent': 'test' } };
 
     await RequestContextStore.run(makeActiveContext(), async () => {
@@ -80,7 +137,8 @@ describe('AuditInterceptor double-wrap guard', () => {
   });
 
   it('still audits non-polling GETs and all non-GETs on the same prefixes', async () => {
-    const { interceptor, record } = makeInterceptor();
+    const { interceptor } = makeInterceptor();
+    const record = interceptor.auditRecord;
     const requests = [
       { method: 'GET', url: '/v1/whoami', headers: {} },
       { method: 'POST', url: '/v1/inbox', headers: {} },
@@ -97,7 +155,8 @@ describe('AuditInterceptor double-wrap guard', () => {
   });
 
   it('short-circuits anonymous requests (no active context)', async () => {
-    const { interceptor, record } = makeInterceptor();
+    const { interceptor } = makeInterceptor();
+    const record = interceptor.auditRecord;
     const request = {
       method: 'GET',
       url: '/health',
@@ -111,7 +170,8 @@ describe('AuditInterceptor double-wrap guard', () => {
 
 describe('AuditInterceptor api_calls_day counter', () => {
   it('bumps the counter for non-user actors on non-MCP HTTP traffic', async () => {
-    const { interceptor, rateLimitRecord } = makeInterceptor();
+    const { interceptor, rateLimit } = makeInterceptor();
+    const rateLimitRecord = rateLimit.record;
     const request = { method: 'GET', url: '/v1/whoami', headers: {} };
 
     await RequestContextStore.run(makeActiveContext('admin_agent'), async () => {
@@ -123,7 +183,8 @@ describe('AuditInterceptor api_calls_day counter', () => {
   });
 
   it('does not bump for dashboard browser (user) sessions', async () => {
-    const { interceptor, rateLimitRecord } = makeInterceptor();
+    const { interceptor, rateLimit } = makeInterceptor();
+    const rateLimitRecord = rateLimit.record;
     const request = { method: 'GET', url: '/v1/whoami', headers: {} };
 
     await RequestContextStore.run(makeActiveContext('user'), async () => {
@@ -134,7 +195,8 @@ describe('AuditInterceptor api_calls_day counter', () => {
   });
 
   it.each(['POST', 'DELETE'])('does not bump for %s /mcp tool traffic', async (verb) => {
-    const { interceptor, rateLimitRecord } = makeInterceptor();
+    const { interceptor, rateLimit } = makeInterceptor();
+    const rateLimitRecord = rateLimit.record;
     const request = { method: verb, url: '/mcp', headers: {} };
 
     await RequestContextStore.run(makeActiveContext('admin_agent'), async () => {
@@ -150,7 +212,8 @@ describe('AuditInterceptor api_calls_day counter', () => {
     '/v1/inbox',
     '/v1/usage/summary',
   ])('does not bump for polling GET %s (mirrors existing tile semantics)', async (url) => {
-    const { interceptor, rateLimitRecord } = makeInterceptor();
+    const { interceptor, rateLimit } = makeInterceptor();
+    const rateLimitRecord = rateLimit.record;
     const request = { method: 'GET', url, headers: {} };
 
     await RequestContextStore.run(makeActiveContext('admin_agent'), async () => {
@@ -161,7 +224,8 @@ describe('AuditInterceptor api_calls_day counter', () => {
   });
 
   it('bumps once even when the interceptor runs twice on the same request', async () => {
-    const { interceptor, rateLimitRecord } = makeInterceptor();
+    const { interceptor, rateLimit } = makeInterceptor();
+    const rateLimitRecord = rateLimit.record;
     const request = { method: 'POST', url: '/v1/inbox', headers: {} };
 
     await RequestContextStore.run(makeActiveContext('admin_agent'), async () => {
@@ -170,5 +234,65 @@ describe('AuditInterceptor api_calls_day counter', () => {
     });
 
     expect(rateLimitRecord).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AuditInterceptor quota delegation', () => {
+  it('calls quotas.recordCall("api_request") for non-user, non-MCP HTTP traffic', async () => {
+    const { interceptor, quotas } = makeInterceptor();
+    const quotasRecordCall = quotas.recordCallMock;
+    const request = { method: 'POST', url: '/v1/inbox', headers: {} };
+
+    await RequestContextStore.run(makeActiveContext('admin_agent'), async () => {
+      await firstValueFrom(interceptor.intercept(makeContext(request), makeNext(null)));
+    });
+
+    expect(quotasRecordCall).toHaveBeenCalledTimes(1);
+    expect(quotasRecordCall).toHaveBeenCalledWith('api_request', 'POST /v1/inbox');
+  });
+
+  it('does not call quotas.recordCall for /mcp HTTP traffic', async () => {
+    const { interceptor, quotas } = makeInterceptor();
+    const quotasRecordCall = quotas.recordCallMock;
+    const request = { method: 'POST', url: '/mcp', headers: {} };
+
+    await RequestContextStore.run(makeActiveContext('admin_agent'), async () => {
+      await firstValueFrom(interceptor.intercept(makeContext(request), makeNext(null)));
+    });
+
+    expect(quotasRecordCall).not.toHaveBeenCalled();
+  });
+
+  it('does not call quotas.recordCall for dashboard browser sessions', async () => {
+    const { interceptor, quotas } = makeInterceptor();
+    const quotasRecordCall = quotas.recordCallMock;
+    const request = { method: 'POST', url: '/v1/inbox', headers: {} };
+
+    await RequestContextStore.run(makeActiveContext('user'), async () => {
+      await firstValueFrom(interceptor.intercept(makeContext(request), makeNext(null)));
+    });
+
+    expect(quotasRecordCall).not.toHaveBeenCalled();
+  });
+
+  it('propagates errors from quotas.recordCall (cloud quota exceeded) without subscribing the handler', async () => {
+    const quotaErr = new Error('quota_exceeded');
+    const { interceptor } = makeInterceptor(() => Promise.reject(quotaErr));
+    const request = { method: 'POST', url: '/v1/inbox', headers: {} };
+    let subscribed = 0;
+    const next: CallHandler = {
+      handle: (): Observable<unknown> => defer(() => {
+        subscribed += 1;
+        return of(null);
+      }),
+    };
+
+    await RequestContextStore.run(makeActiveContext('admin_agent'), async () => {
+      await expect(
+        firstValueFrom(interceptor.intercept(makeContext(request), next)),
+      ).rejects.toBe(quotaErr);
+    });
+
+    expect(subscribed).toBe(0);
   });
 });

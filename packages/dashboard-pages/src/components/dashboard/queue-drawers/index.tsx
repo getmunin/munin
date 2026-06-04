@@ -5,7 +5,7 @@ import { CrmQueueDrawer } from './crm';
 import { FeedbackQueueDrawer } from './feedback';
 import { KbQueueDrawer } from './kb';
 import { OutreachQueueDrawer } from './outreach';
-import type { CmsDraftDetailDto, QueueItem } from './types';
+import type { CmsAssetExpanded, CmsDraftDetailDto, QueueItem } from './types';
 
 export function QueueDrawer({
   item,
@@ -15,6 +15,8 @@ export function QueueDrawer({
   onApprove,
   onDismiss,
   onSave,
+  onSaveCmsDraft,
+  onUploadCmsAsset,
   onSchedule,
   onClose,
 }: {
@@ -25,6 +27,8 @@ export function QueueDrawer({
   onApprove: () => void;
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
+  onSaveCmsDraft: (data: Record<string, unknown>) => Promise<void>;
+  onUploadCmsAsset: (file: File) => Promise<CmsAssetExpanded>;
   onSchedule: (scheduledAt: string) => Promise<void>;
   onClose: () => void;
 }) {
@@ -80,7 +84,8 @@ export function QueueDrawer({
           pending={pending}
           onApprove={onApprove}
           onDismiss={onDismiss}
-          onSave={onSave}
+          onSaveData={onSaveCmsDraft}
+          onUploadAsset={onUploadCmsAsset}
           onSchedule={onSchedule}
           onClose={onClose}
         />

@@ -1273,6 +1273,37 @@
         ]
       }
     },
+    "/v1/cms-drafts/{id}/assets": {
+      "post": {
+        "operationId": "CmsDraftsController_uploadAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CmsDrafts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/cms-drafts/{id}/dismiss": {
       "post": {
         "operationId": "CmsDraftsController_dismiss",

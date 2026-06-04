@@ -200,4 +200,32 @@ describe('safeFetch', () => {
       await stop();
     }
   });
+
+  it('streams response bodies larger than the initial socket buffer to completion', async () => {
+    const payload = Buffer.alloc(2 * 1024 * 1024, 0x61);
+    const streamingHandler: RequestListener = (_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/octet-stream');
+      const half = payload.subarray(0, payload.length / 2);
+      res.write(half);
+      setTimeout(() => {
+        res.write(payload.subarray(payload.length / 2));
+        res.end();
+      }, 50);
+    };
+    const server = createServer(streamingHandler);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const localPort = (server.address() as AddressInfo).port;
+    process.env.MUNIN_SSRF_ALLOW_PRIVATE = 'true';
+    try {
+      const res = await safeFetch(`http://127.0.0.1:${localPort}/big`);
+      expect(res.status).toBe(200);
+      const buf = Buffer.from(await res.arrayBuffer());
+      expect(buf.length).toBe(payload.length);
+      expect(buf.equals(payload)).toBe(true);
+    } finally {
+      delete process.env.MUNIN_SSRF_ALLOW_PRIVATE;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 });

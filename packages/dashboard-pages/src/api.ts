@@ -8,12 +8,18 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
  * Throws `ApiError` with a usable message on non-2xx responses so pages can
  * decide between toast vs full-page error.
  */
+export interface ApiFieldError {
+  field: string;
+  message: string;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly statusText: string;
   readonly endpoint: string;
   readonly method: string;
   readonly requestId: string | null;
+  readonly fieldErrors: readonly ApiFieldError[];
 
   constructor(opts: {
     status: number;
@@ -22,6 +28,7 @@ export class ApiError extends Error {
     method: string;
     requestId: string | null;
     message: string;
+    fieldErrors?: readonly ApiFieldError[];
   }) {
     super(opts.message);
     this.status = opts.status;
@@ -29,6 +36,7 @@ export class ApiError extends Error {
     this.endpoint = opts.endpoint;
     this.method = opts.method;
     this.requestId = opts.requestId;
+    this.fieldErrors = opts.fieldErrors ?? [];
   }
 }
 
@@ -59,32 +67,54 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    const parsed = parseErrorBody(text);
     throw new ApiError({
       status: res.status,
       statusText: res.statusText || statusTextForCode(res.status),
       endpoint: path,
       method,
       requestId: res.headers.get('x-request-id'),
-      message: parseErrorMessage(text) || `${res.status} ${res.statusText}`,
+      message: parsed.message || `${res.status} ${res.statusText}`,
+      fieldErrors: parsed.fieldErrors,
     });
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
-function parseErrorMessage(body: string): string | null {
-  if (!body) return null;
+function parseErrorBody(body: string): { message: string | null; fieldErrors: ApiFieldError[] } {
+  if (!body) return { message: null, fieldErrors: [] };
   try {
     const parsed: unknown = JSON.parse(body);
     if (parsed && typeof parsed === 'object') {
       const obj = parsed as Record<string, unknown>;
-      if (typeof obj.message === 'string') return obj.message;
-      if (typeof obj.error === 'string') return obj.error;
+      const fieldErrors = readFieldErrors(obj);
+      const message =
+        typeof obj.message === 'string'
+          ? obj.message
+          : typeof obj.error === 'string'
+          ? obj.error
+          : null;
+      return { message, fieldErrors };
     }
   } catch (err) {
     console.warn('[munin/api] error body was not JSON, returning raw text', err);
   }
-  return body;
+  return { message: body, fieldErrors: [] };
+}
+
+function readFieldErrors(obj: Record<string, unknown>): ApiFieldError[] {
+  const raw = obj.fieldErrors;
+  if (!Array.isArray(raw)) return [];
+  const out: ApiFieldError[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    if (typeof e.field === 'string' && typeof e.message === 'string') {
+      out.push({ field: e.field, message: e.message });
+    }
+  }
+  return out;
 }
 
 function statusTextForCode(code: number): string {

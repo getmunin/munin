@@ -253,6 +253,13 @@
       "when": 1780600000000,
       "tag": "0035_analytics_events",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1780700000000,
+      "tag": "0036_analytics_tracker_source",
+      "breakpoints": true
     }
   ]
 }

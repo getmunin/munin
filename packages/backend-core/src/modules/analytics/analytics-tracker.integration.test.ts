@@ -1,0 +1,207 @@
+import 'reflect-metadata';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import type { INestApplication } from '@nestjs/common';
+import type { AddressInfo } from 'node:net';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
+import { createDb, runMigrations, schema } from '@getmunin/db';
+import { sql } from 'drizzle-orm';
+import { createApp } from '../../bootstrap-app.ts';
+import { AppModule } from '../../app.module.ts';
+
+const TEST_URL = process.env.TEST_DATABASE_URL;
+const skipReason = TEST_URL
+  ? null
+  : 'Set TEST_DATABASE_URL to a Postgres URL to run analytics tracker tests.';
+
+(skipReason ? describe.skip : describe)('Analytics tracker integration: public-key ingest', () => {
+  let app: INestApplication;
+  let baseUrl: string;
+  let db: ReturnType<typeof createDb>;
+  let orgId: string;
+  let adminKey: string;
+
+  beforeAll(async () => {
+    process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod';
+    process.env.MUNIN_KEY_PEPPER ??= 'test-pepper';
+    process.env.MUNIN_EMBEDDING_PROVIDER = 'stub';
+    process.env.MUNIN_MAIL_PROVIDER = 'stub';
+    process.env.MUNIN_WEBHOOK_WORKER_DISABLED = '1';
+    process.env.MUNIN_CMS_SCHEDULE_WORKER_DISABLED = '1';
+
+    await runMigrations(TEST_URL!);
+    const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
+    process.env.DATABASE_URL = appUrl;
+
+    db = createDb(TEST_URL!, { serviceRole: true });
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+
+    const [org] = await db
+      .insert(schema.orgs)
+      .values({ name: 'Analytics IT Org' })
+      .returning();
+    orgId = org!.id;
+
+    adminKey = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId,
+      type: 'admin',
+      name: 'analytics-it-admin',
+      keyHash: hashSecret(adminKey),
+      keyPrefix: keyPrefix(adminKey),
+      scopes: ['*'],
+    });
+
+    app = await createApp(AppModule, { logger: false });
+    await app.listen(0, '127.0.0.1');
+    const server = app.getHttpServer() as { address(): AddressInfo | string | null };
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
+    baseUrl = `http://127.0.0.1:${address.port}`;
+  });
+
+  afterAll(async () => {
+    if (app) await app.close();
+    if (db) {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.delete(schema.orgs).where(sql`id = ${orgId}`);
+    }
+  });
+
+  async function withClient<T>(token: string, fn: (c: Client) => Promise<T>): Promise<T> {
+    const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
+      requestInit: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const c = new Client({ name: 'munin-it', version: '0.0.0' });
+    await c.connect(transport);
+    try {
+      return await fn(c);
+    } finally {
+      await transport.close();
+      await c.close();
+    }
+  }
+
+  it('mint tracker → tracker.js served → pixel + beacon record rows; bot/invalid key dropped', async () => {
+    const minted = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ id: string; trackerKey: string; keyPrefix: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'getmunin.com landing' },
+        }),
+      );
+    });
+    expect(minted.trackerKey).toMatch(/^mn_track_[A-Za-z0-9_-]+$/);
+
+    const script = await fetch(`${baseUrl}/v1/a/tracker.js`);
+    expect(script.status).toBe(200);
+    expect(script.headers.get('content-type')).toMatch(/javascript/);
+    expect(await script.text()).toMatch(/data-key/);
+
+    const beforePixel = await countTrackerEvents(db, orgId);
+    const pixel = await fetch(
+      `${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=pricing&t=page&v=visitor-1`,
+    );
+    expect(pixel.status).toBe(200);
+    expect(pixel.headers.get('content-type')).toBe('image/gif');
+    await waitFor(async () => (await countTrackerEvents(db, orgId)) > beforePixel);
+
+    const pixelBot = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=pricing`, {
+      headers: { 'user-agent': 'Googlebot/2.1' },
+    });
+    expect(pixelBot.status).toBe(200);
+    expect(await countTrackerEvents(db, orgId)).toBe(beforePixel + 1);
+
+    const beforeBeacon = await countTrackerEvents(db, orgId);
+    const beacon = await fetch(`${baseUrl}/v1/a/t`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        key: minted.trackerKey,
+        subjectType: 'page',
+        subjectId: 'pricing',
+        path: '/pricing',
+        referrer: 'https://google.com',
+        visitorId: 'visitor-2',
+        dwellMs: 8000,
+        readDepth: 60,
+        utm: { source: 'reddit', medium: 'social', campaign: 'launch' },
+        metadata: { variant: 'b' },
+      }),
+    });
+    expect(beacon.status).toBe(204);
+    await waitFor(async () => (await countTrackerEvents(db, orgId)) > beforeBeacon);
+    const beaconRow = await db
+      .select()
+      .from(schema.analyticsViewEvents)
+      .where(sql`org_id = ${orgId} AND source = 'tracker' AND visitor_id = 'visitor-2'`)
+      .limit(1);
+    expect(beaconRow[0]?.dwellMs).toBe(8000);
+    expect(beaconRow[0]?.readDepth).toBe(60);
+    expect(beaconRow[0]?.utmSource).toBe('reddit');
+    expect(beaconRow[0]?.subjectType).toBe('page');
+    expect(beaconRow[0]?.metadata).toMatchObject({ variant: 'b' });
+
+    const badKey = 'mn_track_invalid_xxx';
+    const beforeBad = await countTrackerEvents(db, orgId);
+    const bad = await fetch(`${baseUrl}/v1/a/t/${badKey}.gif?s=pricing`);
+    expect(bad.status).toBe(200);
+    expect(await countTrackerEvents(db, orgId)).toBe(beforeBad);
+  }, 30_000);
+
+  it('revoked tracker key stops recording', async () => {
+    const minted = await withClient(adminKey, async (c) => {
+      return parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'short-lived' },
+        }),
+      );
+    });
+    const before = await countTrackerEvents(db, orgId);
+    await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`);
+    await waitFor(async () => (await countTrackerEvents(db, orgId)) > before);
+
+    await withClient(adminKey, async (c) => {
+      const res = parseToolResult<{ revoked: boolean }>(
+        await c.callTool({
+          name: 'analytics_revoke_tracker',
+          arguments: { trackerId: minted.id },
+        }),
+      );
+      expect(res.revoked).toBe(true);
+    });
+
+    const afterRevoke = await countTrackerEvents(db, orgId);
+    await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await countTrackerEvents(db, orgId)).toBe(afterRevoke);
+  }, 30_000);
+});
+
+async function countTrackerEvents(
+  db: ReturnType<typeof createDb>,
+  orgId: string,
+): Promise<number> {
+  const r = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.analyticsViewEvents)
+    .where(sql`org_id = ${orgId} AND source = 'tracker'`);
+  return r[0]?.n ?? 0;
+}
+
+async function waitFor(check: () => Promise<boolean>, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error('waitFor: condition not met before timeout');
+}
+
+function parseToolResult<T>(result: unknown): T {
+  const r = result as { content?: Array<{ type: string; text?: string }> };
+  const text = r.content?.[0]?.text ?? '';
+  return JSON.parse(text) as T;
+}

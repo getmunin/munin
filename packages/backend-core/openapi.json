@@ -1398,6 +1398,60 @@
         "security": []
       }
     },
+    "/v1/a/tracker.js": {
+      "get": {
+        "operationId": "AnalyticsTrackerController_trackerScript",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTracker"
+        ],
+        "security": []
+      }
+    },
+    "/v1/a/t/{key}.gif": {
+      "get": {
+        "operationId": "AnalyticsTrackerController_trackerPixel",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTracker"
+        ],
+        "security": []
+      }
+    },
+    "/v1/a/t": {
+      "post": {
+        "operationId": "AnalyticsTrackerController_trackerBeacon",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTracker"
+        ],
+        "security": []
+      }
+    },
     "/v1/orgs/me/invitations": {
       "post": {
         "operationId": "InvitationsController_create",

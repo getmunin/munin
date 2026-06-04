@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
 import { DbModule } from './common/db/db.module.ts';
 import { HealthController } from './common/health.controller.ts';
 import { WhoamiController } from './common/whoami.controller.ts';
@@ -7,7 +6,6 @@ import { AuthGuard } from './common/auth/auth.guard.ts';
 import { TenancyInterceptor } from './common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from './common/audit/audit.interceptor.ts';
 import { AuditModule } from './common/audit/audit.module.ts';
-import { CallQuotaInterceptor } from './common/quotas/call-quota.interceptor.ts';
 import { McpModule } from './mcp/mcp.module.ts';
 import { ControlModule } from './control/control.module.ts';
 import { KbModule } from './modules/kb/kb.module.ts';
@@ -49,7 +47,6 @@ export const BACKEND_BASE_PROVIDERS = [
   AuthGuard,
   TenancyInterceptor,
   AuditInterceptor,
-  { provide: APP_INTERCEPTOR, useExisting: CallQuotaInterceptor },
 ];
 
 @Module({

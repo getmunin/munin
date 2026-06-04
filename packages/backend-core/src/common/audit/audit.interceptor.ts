@@ -5,9 +5,10 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
-import { Observable, catchError, from, mergeMap, throwError } from 'rxjs';
+import { Observable, catchError, from, mergeMap, switchMap, throwError } from 'rxjs';
 import { AuditLogger, getCurrentContext } from '@getmunin/core';
 import { RateLimitService } from '../rate-limit/rate-limit.service.ts';
+import { QUOTAS_SERVICE, type QuotasService } from '../quotas/quotas.service.ts';
 
 const POLLING_GET_PREFIXES = [
   '/agent-health',
@@ -38,6 +39,7 @@ export class AuditInterceptor implements NestInterceptor {
 
   constructor(
     @Inject(RateLimitService) private readonly rateLimit: RateLimitService,
+    @Inject(QUOTAS_SERVICE) private readonly quotas: QuotasService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -87,7 +89,7 @@ export class AuditInterceptor implements NestInterceptor {
       }
     };
 
-    return next.handle().pipe(
+    const handler = next.handle().pipe(
       mergeMap(async (value: unknown) => {
         await this.audit.record({
           method,
@@ -112,6 +114,12 @@ export class AuditInterceptor implements NestInterceptor {
           })(),
         ).pipe(mergeMap(() => throwError(() => err))),
       ),
+    );
+
+    if (!countApiCall) return handler;
+
+    return from(this.quotas.recordCall('api_request', method)).pipe(
+      switchMap(() => handler),
     );
   }
 }

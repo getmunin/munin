@@ -19,3 +19,5 @@ if (root) {
     process.loadEnvFile(envPath);
   }
 }
+
+process.env.MUNIN_MCP_BURST_PER_MIN ??= '0';

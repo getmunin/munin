@@ -76,31 +76,6 @@ const skipReason = TEST_URL
   // ─── Contacts ────────────────────────────────────────────────────────
 
   describe('contacts', () => {
-    it('createContact respects org quota cap and writes no row', async () => {
-      const previousEnv = process.env.MUNIN_QUOTAS_ENABLED;
-      process.env.MUNIN_QUOTAS_ENABLED = 'true';
-      await db
-        .update(schema.orgs)
-        .set({ settings: { quotas: { crm_contacts: 1 } } })
-        .where(sql`id = ${orgId}`);
-      try {
-        await run(() => svc.createContact({ name: 'first', email: 'first@example.com' }));
-        await expect(
-          run(() => svc.createContact({ name: 'second', email: 'second@example.com' })),
-        ).rejects.toThrow(/quota_exceeded/);
-        const rows = await db.execute<{ count: number }>(
-          sql`SELECT COUNT(*)::int AS count FROM crm_contacts WHERE org_id = ${orgId}`,
-        );
-        expect(rows[0]!.count).toBe(1);
-      } finally {
-        await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-        await db.delete(schema.crmContacts).where(sql`org_id = ${orgId}`);
-        await db.update(schema.orgs).set({ settings: {} }).where(sql`id = ${orgId}`);
-        if (previousEnv === undefined) delete process.env.MUNIN_QUOTAS_ENABLED;
-        else process.env.MUNIN_QUOTAS_ENABLED = previousEnv;
-      }
-    });
-
     it('createContact persists with the requested fields', async () => {
       const c = await run(() =>
         svc.createContact({

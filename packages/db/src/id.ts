@@ -1,13 +1,17 @@
 import { randomBytes } from 'node:crypto';
 
 const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
+const ACCEPT_MAX = 256 - (256 % ALPHABET.length);
 
-/** Generate a short random suffix using a-z0-9, length 22 (≈110 bits of entropy). */
+/** Generate a short random suffix using a-z0-9, length 22 (≈113 bits of entropy). */
 function suffix(): string {
-  const bytes = randomBytes(22);
   let out = '';
-  for (let i = 0; i < bytes.length; i += 1) {
-    out += ALPHABET[bytes[i]! % ALPHABET.length];
+  while (out.length < 22) {
+    const bytes = randomBytes(32);
+    for (let i = 0; i < bytes.length && out.length < 22; i += 1) {
+      const b = bytes[i]!;
+      if (b < ACCEPT_MAX) out += ALPHABET[b % ALPHABET.length];
+    }
   }
   return out;
 }

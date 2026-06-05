@@ -1,7 +1,13 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull, lt, lte } from 'drizzle-orm';
-import { parseEnvDisableFlag, parseEnvInt, safeFetch, WebhookDispatcher } from '@getmunin/core';
+import {
+  describeError,
+  parseEnvDisableFlag,
+  parseEnvInt,
+  safeFetch,
+  WebhookDispatcher,
+} from '@getmunin/core';
 import { DB } from '../db/db.module.ts';
 import { withSchedulerLock } from '../scheduler-lock/index.ts';
 
@@ -149,7 +155,7 @@ export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
       statusCode = res.status;
       if (!res.ok) error = `non-2xx: ${res.status}`;
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = describeError(err);
     }
     const durationMs = Date.now() - start;
 

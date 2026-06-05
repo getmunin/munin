@@ -1,4 +1,4 @@
-import { safeFetch } from '@getmunin/core';
+import { describeError, safeFetch } from '@getmunin/core';
 
 const USER_AGENT = 'MuninOnboardingBot/1.0 (+https://getmunin.com/bot)';
 const DEFAULT_MAX_PAGES = 25;
@@ -145,7 +145,7 @@ export class WebCrawler {
       try {
         fetched = await this.fetcher(target);
       } catch (err) {
-        const message = describe(err);
+        const message = describeError(err);
         const reason: SkipReason = /timeout|aborted/i.test(message) ? 'timeout' : 'fetch_failed';
         skipped.push({ url: target, reason, detail: message });
         return;
@@ -170,7 +170,7 @@ export class WebCrawler {
       try {
         extracted = await this.extractor(fetched.body, fetched.finalUrl);
       } catch (err) {
-        skipped.push({ url: target, reason: 'extract_failed', detail: describe(err) });
+        skipped.push({ url: target, reason: 'extract_failed', detail: describeError(err) });
         return;
       }
       if (!extracted) {
@@ -206,7 +206,7 @@ export class WebCrawler {
         return parseRobots(res.body);
       }
     } catch (err) {
-      console.debug(`[web-crawl] robots.txt fetch failed for ${origin}: ${describe(err)}`);
+      console.debug(`[web-crawl] robots.txt fetch failed for ${origin}: ${describeError(err)}`);
     }
     return parseRobots('');
   }
@@ -225,7 +225,7 @@ export class WebCrawler {
       }
       return out;
     } catch (err) {
-      console.debug(`[web-crawl] sitemap read failed for ${url}: ${describe(err)}`);
+      console.debug(`[web-crawl] sitemap read failed for ${url}: ${describeError(err)}`);
       return [];
     }
   }
@@ -248,7 +248,7 @@ export class WebCrawler {
         try {
           res = await this.fetcher(url);
         } catch (err) {
-          console.debug(`[web-crawl] bfs fetch failed for ${url}: ${describe(err)}`);
+          console.debug(`[web-crawl] bfs fetch failed for ${url}: ${describeError(err)}`);
           continue;
         }
         if (res.status >= 400 || !res.contentType.includes('html')) continue;
@@ -344,7 +344,7 @@ export function extractLinks(html: string, baseUrl: string): string[] {
     try {
       out.push(new URL(raw, baseUrl).toString());
     } catch (err) {
-      console.debug(`[web-crawl] malformed link "${raw}" in ${baseUrl}: ${describe(err)}`);
+      console.debug(`[web-crawl] malformed link "${raw}" in ${baseUrl}: ${describeError(err)}`);
     }
   }
   return out;
@@ -370,7 +370,7 @@ export function normalizeStartUrl(input: string): URL | null {
     if (u.pathname === '') u.pathname = '/';
     return u;
   } catch (err) {
-    console.debug(`[web-crawl] could not parse start url "${input}": ${describe(err)}`);
+    console.debug(`[web-crawl] could not parse start url "${input}": ${describeError(err)}`);
     return null;
   }
 }
@@ -388,7 +388,7 @@ export function normalizeCandidateUrl(raw: string, origin: string): string | nul
     return u.toString();
   } catch (err) {
     console.debug(
-      `[web-crawl] could not normalize candidate "${raw}" against ${origin}: ${describe(err)}`,
+      `[web-crawl] could not normalize candidate "${raw}" against ${origin}: ${describeError(err)}`,
     );
     return null;
   }
@@ -400,7 +400,7 @@ function sameOrigin(url: string, origin: string): boolean {
     const b = new URL(origin);
     return stripWww(a.host) === stripWww(b.host) && a.protocol === b.protocol;
   } catch (err) {
-    console.debug(`[web-crawl] sameOrigin parse failed for "${url}" vs "${origin}": ${describe(err)}`);
+    console.debug(`[web-crawl] sameOrigin parse failed for "${url}" vs "${origin}": ${describeError(err)}`);
     return false;
   }
 }
@@ -413,7 +413,7 @@ function pathOf(url: string): string | null {
   try {
     return new URL(url).pathname || '/';
   } catch (err) {
-    console.debug(`[web-crawl] pathOf parse failed for "${url}": ${describe(err)}`);
+    console.debug(`[web-crawl] pathOf parse failed for "${url}": ${describeError(err)}`);
     return null;
   }
 }
@@ -422,7 +422,7 @@ function safeHost(url: string): string | null {
   try {
     return new URL(url).host;
   } catch (err) {
-    console.debug(`[web-crawl] safeHost parse failed for "${url}": ${describe(err)}`);
+    console.debug(`[web-crawl] safeHost parse failed for "${url}": ${describeError(err)}`);
     return null;
   }
 }
@@ -457,7 +457,7 @@ function guessTitleFromUrl(url: string): string {
         .replace(/\b\w/g, (c) => c.toUpperCase()) || 'Home'
     );
   } catch (err) {
-    console.debug(`[web-crawl] guessTitleFromUrl failed for "${url}": ${describe(err)}`);
+    console.debug(`[web-crawl] guessTitleFromUrl failed for "${url}": ${describeError(err)}`);
     return 'Page';
   }
 }
@@ -496,9 +496,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function describe(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 const defaultFetcher: HtmlFetcher = async (url) => {
   const controller = new AbortController();
@@ -567,7 +564,7 @@ const defaultExtractor: Extractor = async (html, url) => {
     return { title: (result?.title ?? '').toString().trim(), markdown: md };
   } catch (err) {
     console.warn(
-      `[web-crawl] defuddle extraction failed for "${url}", falling back: ${describe(err)}`,
+      `[web-crawl] defuddle extraction failed for "${url}", falling back: ${describeError(err)}`,
     );
     return extractBasic(html);
   }
@@ -604,7 +601,7 @@ async function loadDefuddle(): Promise<DefuddleFn | null> {
     return defuddleCache;
   } catch (err) {
     console.warn(
-      `[web-crawl] defuddle module load failed, using basic extractor: ${describe(err)}`,
+      `[web-crawl] defuddle module load failed, using basic extractor: ${describeError(err)}`,
     );
     defuddleCache = null;
     return null;

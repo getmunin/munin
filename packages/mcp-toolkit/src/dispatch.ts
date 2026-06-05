@@ -8,6 +8,17 @@ import type { McpToolRegistry } from './registry.ts';
 import { redactSensitive } from './sensitive.ts';
 import type { RegisteredSkill, SkillRegistry } from './skill-registry.ts';
 
+export interface CaptureExceptionContext {
+  tool?: string;
+  actor?: { type?: string | null; id?: string | null; orgId?: string | null } | null;
+  args?: Record<string, unknown> | null;
+}
+
+export type CaptureExceptionFn = (
+  error: unknown,
+  context?: CaptureExceptionContext,
+) => void;
+
 export interface DispatchContext {
   registry: McpToolRegistry;
   audience: Audience;
@@ -15,6 +26,7 @@ export interface DispatchContext {
   audit: AuditLogger;
   rateLimit?: (toolName: string) => Promise<void> | void;
   skills?: SkillRegistry;
+  captureException?: CaptureExceptionFn;
 }
 
 export interface ToolListing {
@@ -72,30 +84,54 @@ export async function callTool(
     return errorResult(`Unknown tool: ${name}`);
   }
 
+  const redactedRawArgs = safeRedact(tool.meta.input, args ?? {});
+
   if (!tool.meta.audiences.includes(ctx.audience)) {
-    await ctx.audit.record({ tool: tool.meta.name, result: 'denied', error: 'audience_mismatch' });
+    await ctx.audit.record({
+      tool: tool.meta.name,
+      args: redactedRawArgs,
+      result: 'denied',
+      error: 'audience_mismatch',
+    });
     return errorResult(`Tool ${tool.meta.name} is not available for this caller`);
   }
 
   for (const scope of tool.meta.scopes) {
     if (!ctx.actor.hasScope(scope)) {
-      await ctx.audit.record({ tool: tool.meta.name, result: 'denied', error: `missing_scope:${scope}` });
+      await ctx.audit.record({
+        tool: tool.meta.name,
+        args: redactedRawArgs,
+        result: 'denied',
+        error: `missing_scope:${scope}`,
+      });
       return errorResult(`Missing required scope: ${scope}`);
     }
   }
 
   const parseResult = tool.meta.input.safeParse(args ?? {});
   if (!parseResult.success) {
-    await ctx.audit.record({ tool: tool.meta.name, result: 'error', error: 'invalid_input' });
+    await ctx.audit.record({
+      tool: tool.meta.name,
+      args: redactedRawArgs,
+      result: 'error',
+      error: `invalid_input: ${parseResult.error.message}`,
+    });
     return errorResult(`Invalid input: ${parseResult.error.message}`);
   }
+
+  const redactedArgs = safeRedact(tool.meta.input, parseResult.data);
 
   if (ctx.rateLimit) {
     try {
       await ctx.rateLimit(tool.meta.name);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await ctx.audit.record({ tool: tool.meta.name, result: 'denied', error: 'rate_limited' });
+      await ctx.audit.record({
+        tool: tool.meta.name,
+        args: redactedArgs,
+        result: 'denied',
+        error: 'rate_limited',
+      });
       return errorResult(message);
     }
   }
@@ -118,15 +154,21 @@ export async function callTool(
           : JSON.stringify(thrown);
     await ctx.audit.record({
       tool: tool.meta.name,
+      args: redactedArgs,
       result: 'error',
       error: message,
       durationMs: Date.now() - startedAt,
+    });
+    safeReportException(ctx.captureException, thrown, {
+      tool: tool.meta.name,
+      actor: { type: ctx.actor.type, id: ctx.actor.id, orgId: ctx.actor.orgId },
+      args: redactedArgs,
     });
     return errorResult(message);
   }
   await ctx.audit.record({
     tool: tool.meta.name,
-    args: redactSensitive(tool.meta.input, parseResult.data) as Record<string, unknown>,
+    args: redactedArgs,
     result: 'ok',
     durationMs: Date.now() - startedAt,
   });
@@ -172,4 +214,31 @@ function errorResult(message: string): ToolCallResult {
     isError: true,
     content: [{ type: 'text' as const, text: message }],
   };
+}
+
+function safeRedact(
+  schema: Parameters<typeof redactSensitive>[0],
+  value: unknown,
+): Record<string, unknown> | undefined {
+  try {
+    const out = redactSensitive(schema, value);
+    return out && typeof out === 'object' && !Array.isArray(out)
+      ? (out as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function safeReportException(
+  capture: CaptureExceptionFn | undefined,
+  error: unknown,
+  context: CaptureExceptionContext,
+): void {
+  if (!capture) return;
+  try {
+    capture(error, context);
+  } catch (reportErr) {
+    console.error('[mcp-toolkit] error reporter failed:', reportErr);
+  }
 }

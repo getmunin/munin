@@ -125,6 +125,13 @@ export {
   type Bucket,
 } from './common/rate-limit/rate-limit.service.ts';
 export { QuotasModule } from './common/quotas/quotas.module.ts';
+export { ErrorReporterModule } from './common/error-reporter/error-reporter.module.ts';
+export {
+  ERROR_REPORTER,
+  ErrorReporter,
+  NoopErrorReporter,
+  type ErrorReporterContext,
+} from './common/error-reporter/error-reporter.ts';
 export {
   QUOTAS_SERVICE,
   QuotasService,

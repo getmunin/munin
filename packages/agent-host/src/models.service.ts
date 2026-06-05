@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { safeFetch } from '@getmunin/core';
+import { describeError, safeFetch } from '@getmunin/core';
 import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 import { authHeaders } from './provider-auth.ts';
@@ -59,7 +59,7 @@ export class AgentModelsService {
         headers: authHeaders(baseUrl, apiKey),
       });
     } catch (err) {
-      this.logger.warn(`fetch ${url} failed: ${describe(err)}`);
+      this.logger.warn(`fetch ${url} failed: ${describeError(err)}`);
       return { supported: false, models: [], fetchedAt: new Date().toISOString() };
     }
     if (!res.ok) {
@@ -70,7 +70,7 @@ export class AgentModelsService {
     try {
       body = await res.json();
     } catch (err) {
-      this.logger.warn(`${url} returned non-JSON: ${describe(err)}`);
+      this.logger.warn(`${url} returned non-JSON: ${describeError(err)}`);
       return { supported: false, models: [], fetchedAt: new Date().toISOString() };
     }
     const models = parseOpenAiCompatModels(body);
@@ -132,6 +132,3 @@ function parsePerMillion(raw: unknown): number | null {
   return n * 1_000_000;
 }
 
-function describe(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}

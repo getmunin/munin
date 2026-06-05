@@ -40,16 +40,23 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const method = (init.method ?? 'GET').toUpperCase();
+export interface ApiOptions extends RequestInit {
+  /** Don't send the BetterAuth session cookie. For `@PublicController` endpoints
+   *  that would otherwise trip the credentials-mode CORS preflight check. */
+  anonymous?: boolean;
+}
+
+export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
+  const { anonymous, ...rest } = init;
+  const method = (rest.method ?? 'GET').toUpperCase();
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
-      ...init,
-      credentials: 'include',
+      ...rest,
+      credentials: anonymous ? 'omit' : 'include',
       headers: {
         'Content-Type': 'application/json',
-        ...(init.headers ?? {}),
+        ...(rest.headers ?? {}),
       },
     });
   } catch (err) {

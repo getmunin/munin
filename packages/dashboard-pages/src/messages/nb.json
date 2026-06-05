@@ -702,28 +702,78 @@
       }
     },
     "oauthConsent": {
+      "eyebrow": "OAuth 2.1 · autoriseringsforespørsel",
       "title": "Gi <client></client> tilgang?",
-      "lede": "En ekstern applikasjon ber om tilgang til Munin-kontoen din. Gå gjennom forespurte tillatelser før du bestemmer deg.",
-      "applicationLabel": "Applikasjon",
-      "scopesLabel": "Forespurte tillatelser",
-      "noScopes": "(ingen tillatelser forespurt)",
+      "lede": "<client></client> vil koble seg til Munin og handle gjennom MCP-verktøyene på dine vegne. Se hva applikasjonen kan nå før du bestemmer deg.",
+      "registered": "Registrert {date}",
+      "trustFirst": "Første gang du kobler <client></client> til denne kontoen. Ingenting er delt med den enda.",
+      "scopesLabel": "Forespurt tilgang",
+      "scopesCount": "{modules, plural, =0 {0 moduler} =1 {1 modul} other {# moduler}} · {scopes, plural, =0 {0 omfang} =1 {1 omfang} other {# omfang}}",
       "noModuleScopes": "Bare innlogging — ingen produkttillatelser forespurt.",
-      "standardDisclosure": "Identitet ved innlogging (openid, profile, email) og fornyelse av økt (offline_access) gis også.",
       "modules": {
         "kb": "Kunnskapsbase",
         "conv": "Samtaler",
         "crm": "Kontakter",
         "cms": "Innhold",
-        "outreach": "Utgående"
+        "outreach": "Utgående",
+        "analytics": "Analyse"
+      },
+      "moduleDescriptions": {
+        "kb": {
+          "readWrite": "Les og rediger artikler, områder og søk.",
+          "read": "Les artikler, områder og søk."
+        },
+        "conv": {
+          "readWrite": "Les tråder og send meldinger på dine vegne.",
+          "read": "Les samtaletråder og meldinger."
+        },
+        "crm": {
+          "readWrite": "Les og endre kontakter, avtaler og segmenter.",
+          "read": "Les kontakter, avtaler og segmenter."
+        },
+        "cms": {
+          "readWrite": "Opprett, rediger og publiser CMS-innhold og planlegging.",
+          "read": "Les CMS-samlinger, oppføringer og ressurser."
+        },
+        "outreach": {
+          "readWrite": "Lag utkast til kampanjer og send til samtykkende kontakter. Samtykkesjekker er fortsatt aktive.",
+          "read": "Les utgående kampanjer og forslag."
+        },
+        "analytics": {
+          "readWrite": "Les analyse og administrer sporingsnøkler.",
+          "read": "Les analyse for innhold og søk."
+        }
       },
       "actions": {
         "read": "Lese",
         "write": "Skrive"
       },
+      "reassurance": {
+        "lead": "Avgrenset, ikke total tilgang.",
+        "body": "<client></client> opptrer som <user></user> — den arver din rolle og kan ikke gjøre mer enn deg. Den kan ikke styre teamet, fakturering eller API-nøkler, og kan heller ikke slette organisasjonen. Tilgangen varer i 90 dager og fornyes automatisk så lenge den brukes. Du kan trekke tilbake tilgangen når som helst fra <settings>Innstillinger → Tilkoblede apper</settings>."
+      },
       "authorize": "Gi tilgang",
       "authorizing": "Gir tilgang …",
       "deny": "Avslå",
       "denying": "Avslår …",
+      "actingAs": "Godkjenner som <user></user>",
+      "switchAccount": "Ikke deg? Bytt konto",
+      "granted": {
+        "eyebrow": "Tilgang gitt",
+        "title": "Tilgang <em>gitt</em>.",
+        "sub": "<client></client> kan nå handle i <strong>Munin</strong> innenfor de omfangene du godkjente. Sender deg tilbake til applikasjonen.",
+        "panelTitle": "<client></client> er tilkoblet.",
+        "panelBody": "En autorisasjonskode ble utstedt og byttes inn i et token. <client></client> har nå tilgangene du godkjente for <strong>Munin</strong>, gyldig i 90 dager og fornyet stille.",
+        "redirecting": "Returnerer til {host} …"
+      },
+      "denied": {
+        "eyebrow": "Tilgang avslått",
+        "title": "Tilgang <em>avslått</em>.",
+        "sub": "Ingen token ble utstedt. <client></client> får ikke tilgang til noe i <strong>Munin</strong>. Sender deg tilbake til applikasjonen.",
+        "panelTitle": "Ingenting ble delt.",
+        "panelBody": "Du avslo forespørselen, så ingen token ble utstedt. Du kan lukke dette vinduet eller starte på nytt fra <client></client>.",
+        "redirecting": "Returnerer til {host} …"
+      },
       "missingParams": "Mangler OAuth-forespørsel. Gå tilbake til applikasjonen som startet autoriseringen.",
       "errors": {
         "generic": "Noe gikk galt. Prøv igjen."

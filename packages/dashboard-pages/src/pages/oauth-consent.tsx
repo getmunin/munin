@@ -162,6 +162,13 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
               busy={busy}
               error={error}
               onSubmit={(accept) => void submit(accept)}
+              onSwitchAccount={() => {
+                void (async () => {
+                  const next = encodeURIComponent(window.location.href);
+                  await authClient.signOut();
+                  window.location.assign(`/login?next=${next}`);
+                })();
+              }}
             />
           ) : (
             <ResultPane
@@ -251,6 +258,7 @@ interface RequestPaneProps {
   busy: 'allow' | 'deny' | null;
   error: string | null;
   onSubmit: (accept: boolean) => void;
+  onSwitchAccount: () => void;
 }
 
 function RequestPane({
@@ -263,6 +271,7 @@ function RequestPane({
   busy,
   error,
   onSubmit,
+  onSwitchAccount,
 }: RequestPaneProps) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
@@ -304,6 +313,7 @@ function RequestPane({
         busy={busy}
         onAuthorize={() => onSubmit(true)}
         onDeny={() => onSubmit(false)}
+        onSwitchAccount={onSwitchAccount}
       />
     </>
   );
@@ -322,7 +332,11 @@ function IdentityCard({ clientInfo, clientId, displayName }: IdentityCardProps) 
   const firstChar = (clientInfo?.name?.trim() ?? clientId).slice(0, 1).toUpperCase();
   const registeredLabel = formatRegistered(clientInfo?.created_at);
   return (
-    <div className="flex items-start gap-4 border-b border-rule-soft px-7 py-5">
+    <div
+      className={`flex gap-4 border-b border-rule-soft px-7 py-5 ${
+        registeredLabel ? 'items-start' : 'items-center'
+      }`}
+    >
       <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-ink bg-ink font-serif text-[28px] leading-none text-paper">
         {clientInfo?.icon_url ? (
           <img
@@ -365,8 +379,8 @@ function formatRegistered(iso: string | undefined): string | null {
 function TrustTimeline({ clientName }: { clientName: string }) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
-    <div className="flex items-start gap-3 border-b border-rule-soft bg-paper px-7 py-3 text-[13px] leading-snug text-ink-soft dark:bg-card">
-      <span className="mt-0.5 text-ink-mute">
+    <div className="flex items-center gap-3 border-b border-rule-soft bg-paper px-7 py-3 text-[13px] leading-snug text-ink-soft dark:bg-card">
+      <span className="text-ink-mute">
         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="9" />
           <path d="M12 8v4l3 2" />
@@ -445,9 +459,10 @@ interface ActionsFooterProps {
   busy: 'allow' | 'deny' | null;
   onAuthorize: () => void;
   onDeny: () => void;
+  onSwitchAccount: () => void;
 }
 
-function ActionsFooter({ userName, busy, onAuthorize, onDeny }: ActionsFooterProps) {
+function ActionsFooter({ userName, busy, onAuthorize, onDeny, onSwitchAccount }: ActionsFooterProps) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
     <div className="flex flex-wrap items-center gap-3 border-t border-rule-soft px-7 py-5">
@@ -477,9 +492,14 @@ function ActionsFooter({ userName, busy, onAuthorize, onDeny }: ActionsFooterPro
           user: () => <span>{userName || '…'}</span>,
         })}
         <br />
-        <a href="/login" className="text-cobalt no-underline hover:underline">
+        <button
+          type="button"
+          onClick={onSwitchAccount}
+          disabled={busy !== null}
+          className="text-cobalt no-underline hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+        >
           {t('switchAccount')}
-        </a>
+        </button>
       </div>
     </div>
   );

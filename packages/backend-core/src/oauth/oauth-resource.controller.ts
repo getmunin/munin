@@ -2,12 +2,15 @@ import { Get, Header } from '@nestjs/common';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import {
   authorizationServerUrl,
+  mcpResourceOrigin,
   mcpResourceUrl,
   SUPPORTED_SCOPES,
 } from './oauth.constants.ts';
 
 interface ProtectedResourceMetadata {
   resource: string;
+  resource_name: string;
+  resource_logo_uri: string;
   authorization_servers: string[];
   scopes_supported: readonly string[];
   bearer_methods_supported: readonly string[];
@@ -23,6 +26,8 @@ export class OAuthResourceController {
   metadata(): ProtectedResourceMetadata {
     return {
       resource: mcpResourceUrl(),
+      resource_name: 'Munin',
+      resource_logo_uri: `${mcpResourceOrigin()}/icon.png`,
       authorization_servers: [authorizationServerUrl()],
       scopes_supported: SUPPORTED_SCOPES,
       bearer_methods_supported: ['header'],

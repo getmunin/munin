@@ -19,6 +19,8 @@ describe('OAuthResourceController', () => {
     const meta = new OAuthResourceController().metadata();
     expect(meta).toEqual({
       resource: 'https://api.example.test/mcp',
+      resource_name: 'Munin',
+      resource_logo_uri: 'https://api.example.test/icon.png',
       authorization_servers: ['https://api.example.test'],
       scopes_supported: SUPPORTED_SCOPES,
       bearer_methods_supported: ['header'],

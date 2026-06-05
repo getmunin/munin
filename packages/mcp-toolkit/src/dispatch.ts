@@ -60,17 +60,20 @@ export interface ResourceContent {
 }
 
 export function listTools(ctx: DispatchContext): ToolListing[] {
-  return ctx.registry.list(ctx.audience).map((t) => ({
-    name: t.meta.name,
-    description: t.meta.description,
-    inputSchema: t.inputJsonSchema as Record<string, unknown>,
-    annotations: {
-      title: t.meta.title ?? t.meta.name,
-      readOnlyHint: t.meta.readOnlyHint ?? false,
-      destructiveHint: t.meta.destructiveHint ?? false,
-    },
-    ...(t.meta._meta ? { _meta: t.meta._meta } : {}),
-  }));
+  return ctx.registry
+    .list(ctx.audience)
+    .filter((t) => t.meta.scopes.every((s) => ctx.actor.hasScope(s)))
+    .map((t) => ({
+      name: t.meta.name,
+      description: t.meta.description,
+      inputSchema: t.inputJsonSchema as Record<string, unknown>,
+      annotations: {
+        title: t.meta.title ?? t.meta.name,
+        readOnlyHint: t.meta.readOnlyHint ?? false,
+        destructiveHint: t.meta.destructiveHint ?? false,
+      },
+      ...(t.meta._meta ? { _meta: t.meta._meta } : {}),
+    }));
 }
 
 export async function callTool(

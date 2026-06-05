@@ -153,7 +153,7 @@ export class OutreachAdminTools {
 
   @McpTool({
     name: 'outreach_propose_initial',
-    title: 'Outreach: Propose an initial draft',
+    title: 'Outreach: Propose initial',
     description:
       'File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) while a pending row exists throws — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.',
     audiences: ['admin'],
@@ -168,7 +168,7 @@ export class OutreachAdminTools {
 
   @McpTool({
     name: 'outreach_propose_reply',
-    title: 'Outreach: Propose an reply draft',
+    title: 'Outreach: Propose reply',
     description:
       "File a drafted reply to an inbound message on an outreach-originated conversation, for human approval. The conversation must have an `outreachCampaignId` set (it's an outreach conversation) and a CRM contact resolvable by email. Idempotent: re-proposing while a pending reply exists for the same conversation throws — the operator should approve or dismiss the existing one first. Reply approvals send via `conv_send_message` on the existing conversation; no unsubscribe footer is appended (replies thread inside the existing email chain that already carries the unsubscribe link).",
     audiences: ['admin'],

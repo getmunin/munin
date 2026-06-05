@@ -415,7 +415,7 @@ export class CmsAdminTools {
 
   @McpTool({
     name: 'cms_upload_asset_from_base64',
-    title: 'CMS: Upload small asset inline (base64)',
+    title: 'CMS: Upload asset from base64',
     description:
       'Upload a small asset inline as base64 (≤100 KB decoded). The right choice when you have generated the asset in this conversation (image-gen output, screenshot, plot) and need it in the CMS without leaving the chat: compress to WebP or JPEG well under 100 KB first, then pass the bytes here. SVG is rejected. For larger assets reachable over HTTPS use `cms_upload_asset_from_url`; for larger arbitrary files use `cms_request_asset_upload` from a client that can issue HTTP PUT.',
     audiences: ['admin'],

@@ -260,27 +260,10 @@ export const agents = pgTable(
 );
 
 // ───────────────────────────── OAuth (MCP spec) ──────────────────────
-// Dynamically-registered OAuth clients (per the MCP OAuth 2.1 flow).
-export const oauthClients = pgTable(
-  'oauth_clients',
-  {
-    id: id('oac'),
-    orgId: text('org_id').references(() => orgs.id, { onDelete: 'cascade' }),
-    clientId: text('client_id').notNull().unique(),
-    clientSecretHash: text('client_secret_hash'),
-    name: text('name').notNull(),
-    redirectUris: jsonb('redirect_uris').$type<string[]>().notNull().default([]),
-    grantTypes: jsonb('grant_types').$type<string[]>().notNull().default([]),
-    scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
-    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
-    createdAt,
-    updatedAt,
-  },
-  (t) => ({
-    orgIdx: index('oauth_clients_org_idx').on(t.orgId),
-  }),
-);
-
+// BetterAuth's `@better-auth/oauth-provider` plugin owns the OAuth client
+// model. The plugin runs unmodified and writes into the table below; we
+// mirror its expected fields verbatim. Renaming any column requires a
+// corresponding `schema:` mapping in the plugin config.
 export const oauthClient = pgTable(
   'oauth_client',
   {
@@ -403,7 +386,6 @@ export const tokens = pgTable(
     audiences: jsonb('audiences').$type<('admin' | 'self_service')[]>().notNull().default([]),
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     agentId: text('agent_id').references(() => agents.id, { onDelete: 'cascade' }),
-    oauthClientId: text('oauth_client_id').references(() => oauthClients.id, { onDelete: 'cascade' }),
     endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'cascade' }),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
@@ -1811,7 +1793,6 @@ export const allTables = {
   orgInvitations,
   endUsers,
   agents,
-  oauthClients,
   oauthClient,
   oauthAccessToken,
   oauthRefreshToken,

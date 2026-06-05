@@ -37,6 +37,10 @@ export function resourceMetadataUrl(): string {
   return `${authorizationServerUrl()}/.well-known/oauth-protected-resource`;
 }
 
+export function mcpResourceOrigin(): string {
+  return parsePublicUrl().origin;
+}
+
 export function mcpExternalHost(): string {
   return parsePublicUrl().hostname;
 }

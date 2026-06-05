@@ -221,17 +221,19 @@ const skipReason = TEST_URL
     });
 
     await withClient(limitedKey, async (c) => {
-      // Tool is still listed — audience filtering is independent of scopes.
+      // listTools intersects both audience and scope: kb_search is listed
+      // (caller has kb:read) but kb_create_document is hidden (no kb:write).
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
       expect(names).toContain('kb_search');
-      expect(names).toContain('kb_create_document');
+      expect(names).not.toContain('kb_create_document');
 
       // kb_search works (kb:read).
       const search = await c.callTool({ name: 'kb_search', arguments: { query: 'anything' } });
       expect(JSON.stringify(search)).not.toMatch(/Missing required scope/);
 
-      // kb_create_document is denied with a scope error message.
+      // Defense in depth: even when invoked by name, kb_create_document is
+      // denied at dispatch with a scope error.
       const denied = await c.callTool({
         name: 'kb_create_document',
         arguments: {

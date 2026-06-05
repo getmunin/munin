@@ -678,7 +678,7 @@ export class CmsService {
     };
   }
 
-  async uploadAssetBytes(input: {
+  async uploadAssetFromBase64(input: {
     name: string;
     mime: string;
     base64Body: string;
@@ -692,21 +692,6 @@ export class CmsService {
       body,
       altText: input.altText,
       metadata: input.metadata,
-    });
-  }
-
-  async uploadAssetFromFile(input: {
-    file: { download_url: string; file_id: string; mime_type?: string; file_name?: string };
-    name?: string;
-    altText?: string;
-    metadata?: Record<string, unknown>;
-  }): Promise<AssetDto> {
-    return this.uploadAssetFromUrl({
-      sourceUrl: input.file.download_url,
-      name: input.name ?? input.file.file_name,
-      mime: input.file.mime_type,
-      altText: input.altText,
-      metadata: { ...(input.metadata ?? {}), openaiFileId: input.file.file_id },
     });
   }
 
@@ -1220,7 +1205,7 @@ function isSvgMime(mime: string): boolean {
   return normalized === 'image/svg+xml' || normalized === 'image/svg';
 }
 
-const UPLOAD_BYTES_MAX = 2 * 1024 * 1024;
+const UPLOAD_BYTES_MAX = 100 * 1024;
 
 function decodeAssetBody(base64Body: string): Buffer {
   let body: Buffer;
@@ -1234,7 +1219,7 @@ function decodeAssetBody(base64Body: string): Buffer {
   }
   if (body.length > UPLOAD_BYTES_MAX) {
     throw new CmsInvalidError(
-      'base64Body decoded size exceeds 2MB; use cms_request_asset_upload + cms_complete_asset_upload for larger files',
+      'base64Body decoded size exceeds 100KB; compress further (WebP/JPEG, smaller dimensions) or use cms_upload_asset_from_url with a public HTTPS URL',
     );
   }
   if (body.toString('base64').replace(/=+$/, '') !== base64Body.replace(/=+$/, '')) {

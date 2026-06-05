@@ -711,10 +711,10 @@ class StubStorage implements AssetStorage {
       );
     });
 
-    it('uploadAssetBytes writes bytes directly and persists an uploaded row', async () => {
+    it('uploadAssetFromBase64 writes bytes directly and persists an uploaded row', async () => {
       const body = Buffer.from('hello-world-binary');
       const asset = await run(() =>
-        svc.uploadAssetBytes({
+        svc.uploadAssetFromBase64({
           name: 'pic.png',
           mime: 'image/png',
           base64Body: body.toString('base64'),
@@ -728,31 +728,31 @@ class StubStorage implements AssetStorage {
       expect(write!.mime).toBe('image/png');
     });
 
-    it('uploadAssetBytes rejects empty body', async () => {
+    it('uploadAssetFromBase64 rejects empty body', async () => {
       await expect(
         run(() =>
-          svc.uploadAssetBytes({ name: 'pic.png', mime: 'image/png', base64Body: '' }),
+          svc.uploadAssetFromBase64({ name: 'pic.png', mime: 'image/png', base64Body: '' }),
         ),
       ).rejects.toThrow();
     });
 
-    it('uploadAssetBytes rejects >2MB decoded body', async () => {
-      const huge = Buffer.alloc(2 * 1024 * 1024 + 1, 1);
+    it('uploadAssetFromBase64 rejects >100KB decoded body', async () => {
+      const huge = Buffer.alloc(100 * 1024 + 1, 1);
       await expect(
         run(() =>
-          svc.uploadAssetBytes({
+          svc.uploadAssetFromBase64({
             name: 'big.bin',
             mime: 'application/octet-stream',
             base64Body: huge.toString('base64'),
           }),
         ),
-      ).rejects.toThrow(/exceeds 2MB/);
+      ).rejects.toThrow(/exceeds 100KB/);
     });
 
-    it('uploadAssetBytes rejects malformed base64', async () => {
+    it('uploadAssetFromBase64 rejects malformed base64', async () => {
       await expect(
         run(() =>
-          svc.uploadAssetBytes({
+          svc.uploadAssetFromBase64({
             name: 'pic.png',
             mime: 'image/png',
             base64Body: 'not!base64@@@',
@@ -761,16 +761,16 @@ class StubStorage implements AssetStorage {
       ).rejects.toThrow(/invalid characters/);
     });
 
-    it('uploadAssetBytes rejects SVG by extension and by mime', async () => {
+    it('uploadAssetFromBase64 rejects SVG by extension and by mime', async () => {
       const body = Buffer.from('<svg/>').toString('base64');
       await expect(
         run(() =>
-          svc.uploadAssetBytes({ name: 'logo.svg', mime: 'application/octet-stream', base64Body: body }),
+          svc.uploadAssetFromBase64({ name: 'logo.svg', mime: 'application/octet-stream', base64Body: body }),
         ),
       ).rejects.toThrow(/svg uploads are not allowed/);
       await expect(
         run(() =>
-          svc.uploadAssetBytes({ name: 'logo.png', mime: 'image/svg+xml', base64Body: body }),
+          svc.uploadAssetFromBase64({ name: 'logo.png', mime: 'image/svg+xml', base64Body: body }),
         ),
       ).rejects.toThrow(/svg uploads are not allowed/);
     });

@@ -15,6 +15,8 @@ export const SUPPORTED_SCOPES = [
   'cms:write',
   'outreach:read',
   'outreach:write',
+  'analytics:read',
+  'analytics:write',
 ] as const;
 
 export type SupportedScope = (typeof SUPPORTED_SCOPES)[number];

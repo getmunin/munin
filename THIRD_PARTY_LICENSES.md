@@ -23435,7 +23435,7 @@ SOFTWARE.
 
 ---
 
-## hono@4.12.18
+## hono@4.12.23
 
 > Web framework built on Web Standards
 - Homepage: https://hono.dev

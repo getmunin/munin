@@ -1,5 +1,55 @@
 # @getmunin/backend-core
 
+## 4.40.0
+
+### Minor Changes
+
+- f8e82f2: OAuth consent page redesigned end-to-end. Three concrete changes:
+  1. **Backend — enriched client lookup.** `GET /v1/oauth/clients/:id` now returns `{ client_id, name, uri, icon_url, redirect_uri_host, created_at }`. `name` falls back to a host-derived label when the client's DCR didn't include `client_name` (well-known hosts like `claude.ai`/`chatgpt.com`/`cursor.sh` get a branded label; anything else falls back to the bare host). `redirect_uri_host` is the host portion of the first registered redirect URI — the full URI stays off the wire.
+  2. **Backend — favicon proxy.** New `GET /v1/oauth/clients/:id/icon` route. Server-side fetches `oauth_client.icon` if present, otherwise `https://<redirect_uri_host>/favicon.ico` using `safeFetch` (SSRF-guarded). Validates MIME (`image/*` only), caps response size, falls back to a generic SVG on any failure. Served from our origin with a 24h browser cache — keeps the user's IP off third-party hosts pre-authorization.
+  3. **Frontend — SSR refactor + new layout.** The page is now an async server component (`apps/web/.../consent/page.tsx`) that fetches the enriched client info before render. The fixed CORS bug along the way: cookies are no longer sent on the lookup (closes the `Access-Control-Allow-Credentials` failure path that was leaving the page stuck on the raw `client_id`). New three-state machine (`new` / `granted` / `denied`) with intermediate result panes — instead of redirecting immediately on Authorize/Deny, the page shows a brief "Access granted/denied · Returning to claude.ai…" panel with spinner, then redirects. Layout matches the editorial design: serif headline that shifts copy per state, identity card with app icon, trust-timeline strip, grouped per-module permissions with `Read`/`Write` pills, reassurance block, and an actions footer.
+
+  Also adds an `anonymous: true` opt-out on the `api()` helper for callers of `@PublicController` endpoints that shouldn't send the BetterAuth session cookie.
+
+  i18n strings in `en.json` and `nb.json` updated to match the new copy; the keys are different from before (`title`, `lede`, `scopesLabel`, etc. reshaped — see the keys under `dashboard.oauthConsent`).
+
+- 67c91c3: Add `resource_name` and `resource_logo_uri` to the OAuth Protected Resource Metadata at `/.well-known/oauth-protected-resource`. Lets MCP clients (Claude.ai connector cards, etc.) display "Munin" plus an icon instead of a generic globe when the resource endpoint serves JSON-only responses.
+- 014b431: Add `analytics:read` and `analytics:write` to `SUPPORTED_SCOPES`. The analytics MCP tools (`analytics_create_tracker`, `analytics_list_trackers`, `analytics_top_subjects`, etc.) have been declaring those scopes in their `@McpTool` decorators since the module landed, but the OAuth supported-scopes registry never picked them up. That meant OAuth tokens could never carry the analytics scopes, so every external call (e.g. from a ChatGPT connector) hit _"Missing required scope: analytics:read"_ at the dispatch guard — even though the tools showed up in `tools/list`. Internal `buildAdminAgentActor` callers were unaffected because they use the `*` wildcard.
+
+  `SELF_SERVICE_SCOPES` (delegated end-user tokens) is intentionally not changed — analytics is admin surface, in the same bucket as `cms:write` / `outreach:write` / etc. that end-user tokens never see.
+
+### Patch Changes
+
+- 547a97b: Drop the legacy `oauth_clients` (plural) table and its dormant FK column `tokens.oauth_client_id`.
+
+  `oauth_clients` predates the BetterAuth OAuth provider plugin we adopted in migration 0017/0018. Since then the real OAuth client model has lived in `oauth_client` (singular) — that's the table the consent page reads from, the table DCR writes into, and the table FK'd by `oauth_access_token` / `oauth_refresh_token` / `oauth_consent`. The legacy `oauth_clients` was kept around because `tokens.oauth_client_id` had an FK pointing at it, but nothing has ever written either side: BetterAuth uses its own table, and `tokens.oauth_client_id` has only ever held NULL.
+
+  Both `oauth_clients` and `tokens.oauth_client_id` were verified empty in dev and prod before the drop. The new migration `0037_drop_legacy_oauth_clients.sql` drops the FK, the column, the index, and the table; `src/sql/rls.sql` loses the matching RLS block; `schema.ts` loses the `oauthClients` export and the `oauthClientId` field on `tokens`.
+
+  No application-level changes — nothing referenced the dropped column or table.
+
+- e166c78: Align three MCP tool titles with their function names, so the display label tracks the operation the tool actually performs:
+  - `cms_upload_asset_from_base64`: _"Upload small asset inline (base64)"_ → _"Upload asset from base64"_. Matches the `from_url` / `from_base64` taxonomy and stops the title from making a separate size claim from what the description already documents.
+  - `outreach_propose_initial`: _"Propose an initial draft"_ → _"Propose initial"_. Drops the wording the function name doesn't carry.
+  - `outreach_propose_reply`: _"Propose an reply draft"_ → _"Propose reply"_. Same cleanup; also fixes the _"an reply"_ grammar slip.
+
+  No tool name / arguments / behavior changes.
+
+- 8e4dee8: `tools/list` now intersects the caller's scopes with each tool's required `scopes`, in addition to the existing audience filter. Previously the list returned every audience-matched tool regardless of whether the caller actually held the scopes needed to invoke it — so a connector advertising `analytics:read` would happily list `analytics_*` tools to an OAuth caller whose token didn't carry that scope, and the model would only discover the mismatch by wasting a turn on a `"Missing required scope: ..."` error.
+
+  After this change, `listTools` (and therefore the MCP `tools/list` response) only returns tools where every scope in `tool.meta.scopes` is held by the actor — including the existing `*` wildcard short-circuit, so internal `buildAdminAgentActor` callers are unaffected. Tools with `scopes: []` (like the feedback module) remain visible to everyone in the audience.
+
+  `callTool` is unchanged — defense-in-depth scope check at dispatch time still fires if a caller invokes a hidden tool by name.
+
+- Updated dependencies [547a97b]
+- Updated dependencies [8e4dee8]
+  - @getmunin/db@4.40.0
+  - @getmunin/mcp-toolkit@4.40.0
+  - @getmunin/core@4.40.0
+  - @getmunin/agent-runtime@4.40.0
+  - @getmunin/types@4.40.0
+  - @getmunin/emails@4.40.0
+
 ## 4.39.0
 
 ### Minor Changes

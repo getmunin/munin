@@ -8,7 +8,14 @@ import {
 import type { AuditLogger, ActorIdentity, Audience } from '@getmunin/core';
 import type { McpToolRegistry } from './registry.ts';
 import type { SkillRegistry } from './skill-registry.ts';
-import { callTool, listResources, listTools, readResource, type DispatchContext } from './dispatch.ts';
+import {
+  callTool,
+  listResources,
+  listTools,
+  readResource,
+  type CaptureExceptionFn,
+  type DispatchContext,
+} from './dispatch.ts';
 
 export interface CreateMcpServerOptions {
   registry: McpToolRegistry;
@@ -19,6 +26,7 @@ export interface CreateMcpServerOptions {
   serverInfo?: { name: string; version: string };
   skills?: SkillRegistry;
   instructions?: string;
+  captureException?: CaptureExceptionFn;
 }
 
 export function createMcpServer(opts: CreateMcpServerOptions): Server {
@@ -30,6 +38,7 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
     audit: opts.audit,
     rateLimit: opts.rateLimit,
     skills: opts.skills,
+    captureException: opts.captureException,
   };
 
   const server = new Server(info, {

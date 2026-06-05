@@ -15,6 +15,7 @@ import { CmsModule } from './modules/cms/cms.module.ts';
 import { RateLimitModule } from './common/rate-limit/rate-limit.module.ts';
 import { PublicThrottleModule } from './common/rate-limit/public-throttle.module.ts';
 import { QuotasModule } from './common/quotas/quotas.module.ts';
+import { ErrorReporterModule } from './common/error-reporter/error-reporter.module.ts';
 import { MailModule } from './common/mail/mail.module.ts';
 import { WebhookModule } from './common/webhooks/webhook.module.ts';
 import { StorageModule } from './common/storage/storage.module.ts';
@@ -30,6 +31,7 @@ export const BACKEND_FEATURE_MODULES = [
   RateLimitModule,
   PublicThrottleModule,
   QuotasModule,
+  ErrorReporterModule,
   McpModule,
   ControlModule,
   KbModule,

@@ -182,6 +182,39 @@ describe('openInProcessMcpClient', () => {
     );
   });
 
+  it('listTools hides tools whose required scopes the actor lacks', async () => {
+    const scopedActor = new ActorIdentity(
+      'admin_agent',
+      'agent:scoped',
+      'org_test',
+      ['kb:read'],
+      ['admin'],
+    );
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: scopedActor,
+      audience: 'admin',
+      audit: fakeAudit,
+    });
+    const tools = await client.listTools();
+    const names = tools.map((t) => t.name);
+    expect(names).toContain('echo');
+    expect(names).toContain('boom');
+    expect(names).not.toContain('kb_write');
+  });
+
+  it('listTools shows all audience-matched tools when actor has wildcard scope', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+    });
+    const tools = await client.listTools();
+    const names = tools.map((t) => t.name);
+    expect(names).toContain('kb_write');
+  });
+
   it('audits args (redacted) and forwards thrown handler errors to captureException', async () => {
     fakeAudit.record.mockClear();
     const captureException = vi.fn<CaptureExceptionFn>();

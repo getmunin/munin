@@ -88,17 +88,6 @@ CREATE POLICY tenant_isolation ON assistants
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
--- ───────────────────────── oauth_clients ───────────────────────────────────
--- oauth_clients can be either org-scoped (after consent links them) or
--- nullable-org (during pre-consent registration). Allow null org reads
--- only with bypass; otherwise require match.
-ALTER TABLE oauth_clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE oauth_clients FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON oauth_clients;
-CREATE POLICY tenant_isolation ON oauth_clients
-  USING (app_bypass_rls() OR (org_id IS NOT NULL AND org_id = app_org_id()))
-  WITH CHECK (app_bypass_rls() OR (org_id IS NOT NULL AND org_id = app_org_id()));
-
 -- ───────────────────────── tokens ──────────────────────────────────────────
 -- Tokens carry both org_id and (sometimes) end_user_id. End-user agents can
 -- only see their own token row.

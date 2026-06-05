@@ -4,6 +4,7 @@ import { ActorIdentity, RequestContextStore, type RequestContext } from '@getmun
 import { McpToolRegistry } from './registry.ts';
 import { SkillRegistry } from './skill-registry.ts';
 import { openInProcessMcpClient } from './in-process-client.ts';
+import type { CaptureExceptionContext, CaptureExceptionFn } from './dispatch.ts';
 
 const fakeAudit = { record: vi.fn(() => Promise.resolve()) };
 
@@ -51,6 +52,18 @@ function buildRegistry(): McpToolRegistry {
       input: z.object({}),
     },
     () => 'wrote',
+  );
+  r.register(
+    {
+      name: 'boom',
+      description: 'throws',
+      audiences: ['admin'],
+      scopes: [],
+      input: z.object({ note: z.string() }),
+    },
+    () => {
+      throw new Error('handler exploded');
+    },
   );
   return r;
 }
@@ -167,6 +180,65 @@ describe('openInProcessMcpClient', () => {
     expect(fakeAudit.record).toHaveBeenCalledWith(
       expect.objectContaining({ result: 'denied', error: 'missing_scope:kb:write' }),
     );
+  });
+
+  it('audits args (redacted) and forwards thrown handler errors to captureException', async () => {
+    fakeAudit.record.mockClear();
+    const captureException = vi.fn<CaptureExceptionFn>();
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      captureException,
+    });
+    const out = await runInCtx(adminActor(), () => client.callTool('boom', { note: 'hi' }));
+    expect(out.isError).toBe(true);
+    expect(out.content[0]?.text).toBe('handler exploded');
+    expect(fakeAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool: 'boom',
+        result: 'error',
+        error: 'handler exploded',
+        args: { note: 'hi' },
+      }),
+    );
+    expect(captureException).toHaveBeenCalledTimes(1);
+    const call = captureException.mock.calls[0];
+    expect(call).toBeDefined();
+    const thrown = call![0] as Error;
+    const ctx = call![1] as CaptureExceptionContext;
+    expect(thrown.message).toBe('handler exploded');
+    expect(ctx).toMatchObject({
+      tool: 'boom',
+      actor: { type: 'admin_agent', orgId: 'org_test' },
+      args: { note: 'hi' },
+    });
+  });
+
+  it('audits args on invalid_input and does not call captureException', async () => {
+    fakeAudit.record.mockClear();
+    const captureException = vi.fn<CaptureExceptionFn>();
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      captureException,
+    });
+    const out = await runInCtx(adminActor(), () =>
+      client.callTool('echo', { msg: 42 }),
+    );
+    expect(out.isError).toBe(true);
+    expect(out.content[0]?.text).toMatch(/Invalid input/);
+    expect(fakeAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool: 'echo',
+        result: 'error',
+        args: { msg: 42 },
+      }),
+    );
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it('readResource returns audience-filtered skill content', () => {

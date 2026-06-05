@@ -82,6 +82,8 @@ export {
   type SafeFetchOptions,
 } from './net/safe-fetch.ts';
 
+export { describeError } from './errors.ts';
+
 export {
   parseEnvBool,
   parseEnvCron,

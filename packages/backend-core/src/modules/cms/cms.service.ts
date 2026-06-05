@@ -9,6 +9,7 @@ import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
 import {
   contentHash,
+  describeError,
   getCurrentContext,
   safeFetch,
   SsrfBlockedError,
@@ -724,7 +725,7 @@ export class CmsService {
       throw new CmsInvalidError(
         err instanceof SsrfBlockedError
           ? `sourceUrl blocked: ${err.message}`
-          : `fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+          : `fetch failed: ${describeError(err)}`,
       );
     });
     if (!res.ok) throw new CmsInvalidError(`fetch failed with status ${res.status}`);

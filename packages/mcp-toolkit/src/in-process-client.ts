@@ -6,6 +6,7 @@ import {
   listResources as dispatchListResources,
   listTools as dispatchListTools,
   readResource as dispatchReadResource,
+  type CaptureExceptionFn,
   type DispatchContext,
   type ResourceContent,
   type ResourceListing,
@@ -20,6 +21,7 @@ export interface OpenInProcessMcpClientOptions {
   audit: AuditLogger;
   rateLimit?: (toolName: string) => Promise<void> | void;
   skills?: SkillRegistry;
+  captureException?: CaptureExceptionFn;
 }
 
 export interface InProcessMcpClient {
@@ -37,6 +39,7 @@ export function openInProcessMcpClient(opts: OpenInProcessMcpClientOptions): InP
     audit: opts.audit,
     rateLimit: opts.rateLimit,
     skills: opts.skills,
+    captureException: opts.captureException,
   };
   return {
     listTools: () => Promise.resolve(dispatchListTools(ctx)),

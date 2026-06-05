@@ -21,6 +21,10 @@ import { McpSkillRegistryService } from './mcp.skill-registry.service.ts';
 import { McpBurstGuard } from './mcp-burst.guard.ts';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service.ts';
 import { QUOTAS_SERVICE, type QuotasService } from '../common/quotas/quotas.service.ts';
+import {
+  ERROR_REPORTER,
+  type ErrorReporter,
+} from '../common/error-reporter/error-reporter.ts';
 import { deriveMcpAudience } from './mcp.audience.ts';
 
 /**
@@ -45,6 +49,7 @@ export class McpController {
     @Inject(McpSkillRegistryService) private readonly skills: McpSkillRegistryService,
     @Inject(RateLimitService) private readonly rateLimit: RateLimitService,
     @Inject(QUOTAS_SERVICE) private readonly quotas: QuotasService,
+    @Inject(ERROR_REPORTER) private readonly errorReporter: ErrorReporter,
   ) {}
 
   @Post()
@@ -79,6 +84,7 @@ export class McpController {
       },
       skills: this.skills,
       instructions: this.skills.instructions(),
+      captureException: (error, context) => this.errorReporter.captureException(error, context),
     });
 
     const transport = new StreamableHTTPServerTransport({

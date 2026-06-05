@@ -108,4 +108,14 @@ export const AGENT_HOST_MULTI_TENANT_DDL = sql`
 
   CREATE INDEX IF NOT EXISTS agent_config_provisioned_idx
     ON agent_config(id) WHERE provider_api_key_ct IS NOT NULL;
+
+  -- Tenant isolation. \`id\` IS the org id on this table (PK references orgs(id)),
+  -- so the policy can match the GUC directly. Multi-tenant only — the OSS
+  -- singleton variant is one row and doesn't set app.org_id.
+  ALTER TABLE agent_config ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE agent_config FORCE ROW LEVEL SECURITY;
+  DROP POLICY IF EXISTS tenant_isolation ON agent_config;
+  CREATE POLICY tenant_isolation ON agent_config
+    USING (app_bypass_rls() OR id = app_org_id())
+    WITH CHECK (app_bypass_rls() OR id = app_org_id());
 `;

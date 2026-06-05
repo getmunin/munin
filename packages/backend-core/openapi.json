@@ -4114,6 +4114,30 @@
         "security": []
       }
     },
+    "/v1/oauth/clients/{clientId}/icon": {
+      "get": {
+        "operationId": "OAuthClientInfoController_icon",
+        "parameters": [
+          {
+            "name": "clientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OAuthClientInfo"
+        ],
+        "security": []
+      }
+    },
     "/v1/system/alerts": {
       "get": {
         "operationId": "SystemAlertsController_list",

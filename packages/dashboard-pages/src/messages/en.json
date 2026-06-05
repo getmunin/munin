@@ -702,28 +702,78 @@
       }
     },
     "oauthConsent": {
+      "eyebrow": "OAuth 2.1 · authorization request",
       "title": "Authorize <client></client>?",
-      "lede": "An external application is asking for access to your Munin account. Review the requested permissions before deciding.",
-      "applicationLabel": "Application",
-      "scopesLabel": "Requested permissions",
-      "noScopes": "(no permissions requested)",
+      "lede": "<client></client> wants to connect to Munin and act through the MCP toolset on your behalf. Review what it can reach before you decide.",
+      "registered": "Registered {date}",
+      "trustFirst": "First time you're connecting <client></client> to this account. Nothing has been shared with it yet.",
+      "scopesLabel": "Requested access",
+      "scopesCount": "{modules, plural, =0 {0 modules} =1 {1 module} other {# modules}} · {scopes, plural, =0 {0 scopes} =1 {1 scope} other {# scopes}}",
       "noModuleScopes": "Sign-in only — no product permissions requested.",
-      "standardDisclosure": "Sign-in identity (openid, profile, email) and session refresh (offline_access) are also granted.",
       "modules": {
         "kb": "Knowledge Base",
         "conv": "Conversations",
         "crm": "Contacts",
         "cms": "Content",
-        "outreach": "Outreach"
+        "outreach": "Outreach",
+        "analytics": "Analytics"
+      },
+      "moduleDescriptions": {
+        "kb": {
+          "readWrite": "Read and edit your articles, spaces, and search.",
+          "read": "Read your articles, spaces, and search."
+        },
+        "conv": {
+          "readWrite": "Read threads and send messages on your behalf.",
+          "read": "Read conversation threads and messages."
+        },
+        "crm": {
+          "readWrite": "Read and modify contact records, deals, and segments.",
+          "read": "Read contact records, deals, and segments."
+        },
+        "cms": {
+          "readWrite": "Create, edit, and publish CMS content and schedules.",
+          "read": "Read CMS collections, entries, and assets."
+        },
+        "outreach": {
+          "readWrite": "Draft campaigns and send to consented contacts. Consent checks stay enforced.",
+          "read": "Read outreach campaigns and proposals."
+        },
+        "analytics": {
+          "readWrite": "Read analytics and manage tracker keys.",
+          "read": "Read analytics for content and search engagement."
+        }
       },
       "actions": {
         "read": "Read",
         "write": "Write"
       },
-      "authorize": "Authorize",
+      "reassurance": {
+        "lead": "Scoped, not god mode.",
+        "body": "<client></client> acts as <user></user> — it inherits your role and can't exceed it. It can't manage the team, billing, or API keys, or delete the org. Access lasts 90 days, auto-refreshed while in use, and you can revoke it anytime from <settings>Settings → Connected Apps</settings>."
+      },
+      "authorize": "Authorize access",
       "authorizing": "Authorizing…",
       "deny": "Deny",
       "denying": "Denying…",
+      "actingAs": "Authorizing as <user></user>",
+      "switchAccount": "Not you? Switch account",
+      "granted": {
+        "eyebrow": "Authorization granted",
+        "title": "Access <em>granted</em>.",
+        "sub": "<client></client> can now act in <strong>Munin</strong> within the scopes you approved. Sending you back to the app.",
+        "panelTitle": "<client></client> is connected.",
+        "panelBody": "An authorization code was issued and is being exchanged for a token. <client></client> now holds the scopes you approved for <strong>Munin</strong>, valid for 90 days and refreshed silently.",
+        "redirecting": "Returning to {host}…"
+      },
+      "denied": {
+        "eyebrow": "Authorization denied",
+        "title": "Access <em>denied</em>.",
+        "sub": "No token was issued. <client></client> can't reach anything in <strong>Munin</strong>. Returning you to the app.",
+        "panelTitle": "Nothing was shared.",
+        "panelBody": "You denied the request, so no token was issued. You can close this window or start over from <client></client>.",
+        "redirecting": "Returning to {host}…"
+      },
       "missingParams": "Missing OAuth request. Return to the application that started the authorization flow.",
       "errors": {
         "generic": "Something went wrong. Please try again."

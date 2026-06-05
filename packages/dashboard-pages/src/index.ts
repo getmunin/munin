@@ -93,7 +93,11 @@ export { safeRedirect, resumeOauthAuthorizeUrl } from './auth/post-signin-redire
 export { AcceptInvitePage } from './pages/accept-invite';
 export { AccountPage, type AccountPageProps } from './pages/account';
 export { AiSettingsPage } from './pages/ai-settings';
-export { OAuthConsentPage } from './pages/oauth-consent';
+export {
+  OAuthConsentPage,
+  type OAuthClientInfo,
+  type OAuthConsentPageProps,
+} from './pages/oauth-consent';
 export { AgentSetupWizard } from './pages/agent-setup-wizard';
 export { AgentsPage } from './pages/agents';
 export { ApiKeysPage } from './pages/api-keys';

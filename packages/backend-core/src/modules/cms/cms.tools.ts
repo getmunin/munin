@@ -109,14 +109,10 @@ const RequestUploadInput = z.object({
 const CompleteUploadInput = z.object({ id: z.string() });
 const DeleteAssetInput = z.object({ id: z.string() });
 
-const UploadAssetFromFileInput = z.object({
-  file: z.object({
-    download_url: z.string().url(),
-    file_id: z.string().min(1),
-    mime_type: z.string().min(1).max(120).optional(),
-    file_name: z.string().min(1).max(255).optional(),
-  }),
-  name: z.string().min(1).max(255).optional(),
+const UploadAssetFromBase64Input = z.object({
+  name: z.string().min(1).max(255),
+  mime: z.string().min(1).max(120),
+  base64Body: z.string().min(1),
   altText: z.string().max(500).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
@@ -406,7 +402,7 @@ export class CmsAdminTools {
     name: 'cms_request_asset_upload',
     title: 'CMS: Request asset upload URL',
     description:
-      'Mint a presigned upload for a new asset. The asset row is created in `uploaded:false` state. Look at `uploadMethod`: if `"PUT"`, send the file body as the raw PUT body to `uploadUrl`. If `"POST"`, send multipart/form-data to `uploadUrl` including every key/value in `uploadFields` followed by a `file` part (the binary body); the embedded policy enforces an exact `Content-Length` match. Then call `cms_complete_asset_upload` to verify and mark the row live. SVG uploads are rejected — SVG can carry inline scripts and is not safe to serve as an asset.',
+      'Mint a presigned upload for a new asset. Only usable from clients that can issue raw HTTP PUT/POST themselves. If your runtime has no client-side PUT primitive, this tool is not a fit — use `cms_upload_asset_from_base64` (small inline base64) or `cms_upload_asset_from_url` (public HTTPS URL) instead. Flow: the asset row is created in `uploaded:false` state. Look at `uploadMethod`: if `"PUT"`, send the file body as the raw PUT body to `uploadUrl`. If `"POST"`, send multipart/form-data to `uploadUrl` including every key/value in `uploadFields` followed by a `file` part; the embedded policy enforces an exact `Content-Length` match. Then call `cms_complete_asset_upload` to verify and mark the row live. SVG uploads are rejected — SVG can carry inline scripts and is not safe to serve as an asset.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: RequestUploadInput,
@@ -418,19 +414,18 @@ export class CmsAdminTools {
   }
 
   @McpTool({
-    name: 'cms_upload_asset_from_file',
-    title: 'CMS: Upload asset from a ChatGPT file',
+    name: 'cms_upload_asset_from_base64',
+    title: 'CMS: Upload small asset inline (base64)',
     description:
-      "Upload a file that's already in the ChatGPT conversation (e.g. a user-uploaded image or an image-gen output) as a CMS asset. ChatGPT mints a short-lived signed URL for the file and the server fetches it. Use this when your runtime can't PUT to a presigned URL — typical for ChatGPT workspace agents. Accepts image/*, video/*, audio/*, and application/pdf up to 50 MB. SVG is rejected.",
+      'Upload a small asset inline as base64 (≤100 KB decoded). The right choice when you have generated the asset in this conversation (image-gen output, screenshot, plot) and need it in the CMS without leaving the chat: compress to WebP or JPEG well under 100 KB first, then pass the bytes here. SVG is rejected. For larger assets reachable over HTTPS use `cms_upload_asset_from_url`; for larger arbitrary files use `cms_request_asset_upload` from a client that can issue HTTP PUT.',
     audiences: ['admin'],
     scopes: ['cms:write'],
-    input: UploadAssetFromFileInput,
+    input: UploadAssetFromBase64Input,
     readOnlyHint: false,
     destructiveHint: false,
-    _meta: { 'openai/fileParams': ['file'] },
   })
-  uploadAssetFromFile(args: z.infer<typeof UploadAssetFromFileInput>) {
-    return this.cms.uploadAssetFromFile(args);
+  uploadAssetFromBase64(args: z.infer<typeof UploadAssetFromBase64Input>) {
+    return this.cms.uploadAssetFromBase64(args);
   }
 
   @McpTool({

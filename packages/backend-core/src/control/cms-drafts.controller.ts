@@ -107,7 +107,7 @@ export class CmsDraftsController {
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return translate(async () => {
       await this.cms.getEntry(id);
-      return this.cms.uploadAssetBytes(parsed.data);
+      return this.cms.uploadAssetFromBase64(parsed.data);
     });
   }
 

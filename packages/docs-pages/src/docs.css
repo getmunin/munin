@@ -977,18 +977,24 @@
   margin: 0 0 18px;
   padding-left: 22px;
 }
+.docs .markdown ul {
+  list-style-type: disc;
+}
+.docs .markdown ol {
+  list-style-type: decimal;
+}
 .docs .markdown li {
   margin-bottom: 6px;
 }
 .docs .markdown code {
   font-family: var(--munin-mono);
   font-size: 0.92em;
-  background: var(--docs-page);
+  background: var(--docs-card);
   padding: 1px 5px;
   border: 1px solid var(--docs-rule);
 }
 .docs .markdown pre {
-  background: var(--docs-page);
+  background: var(--docs-card);
   border: 1px solid var(--docs-rule);
   padding: 14px 16px;
   overflow-x: auto;

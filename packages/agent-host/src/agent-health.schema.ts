@@ -39,4 +39,14 @@ export const AGENT_HEALTH_MULTI_TENANT_DDL = sql`
 
   ALTER TABLE agent_health DROP COLUMN IF EXISTS last_provider_error_code;
   ALTER TABLE agent_health DROP COLUMN IF EXISTS last_provider_error_message;
+
+  -- Tenant isolation. \`id\` IS the org id (PK references orgs(id)), so the
+  -- policy matches the GUC directly. Multi-tenant only — the OSS singleton
+  -- variant doesn't set app.org_id.
+  ALTER TABLE agent_health ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE agent_health FORCE ROW LEVEL SECURITY;
+  DROP POLICY IF EXISTS tenant_isolation ON agent_health;
+  CREATE POLICY tenant_isolation ON agent_health
+    USING (app_bypass_rls() OR id = app_org_id())
+    WITH CHECK (app_bypass_rls() OR id = app_org_id());
 `;

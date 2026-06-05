@@ -1,5 +1,16 @@
 # @getmunin/docs-pages
 
+## 4.39.0
+
+### Patch Changes
+
+- dcd8a6b: Restore list bullets inside `.docs .markdown` (Tailwind preflight in `apps/web` was zeroing out `list-style` on every `<ul>`/`<ol>`, leaving skill articles' list items as a mysteriously indented block with no marker). Now `disc` for unordered and `decimal` for ordered.
+
+  Also moves inline `<code>` and `<pre>` backgrounds from `--docs-page` (the bone/beige page background) to `--docs-card` (paper white), so code reads distinctly against the article body in both light and dark mode.
+
+- Updated dependencies [1b757bc]
+  - @getmunin/backend-core@4.39.0
+
 ## 4.38.0
 
 ### Patch Changes

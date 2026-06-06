@@ -609,15 +609,16 @@ async function loadDefuddle(): Promise<DefuddleFn | null> {
 }
 
 function extractBasic(html: string): { title: string; markdown: string } | null {
-  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+  const titleMatch = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(html);
   const title = titleMatch ? decodeEntities(titleMatch[1]!).replace(/\s+/g, ' ').trim() : '';
-  const stripped = html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
-    .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
-    .replace(/<header[\s\S]*?<\/header>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ');
+  const blockTag = /<(script|style|nav|footer|header)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+  let stripped = html;
+  for (;;) {
+    const next = stripped.replace(blockTag, ' ');
+    if (next === stripped) break;
+    stripped = next;
+  }
+  stripped = stripped.replace(/<[^>]+>/g, ' ');
   const text = decodeEntities(stripped).replace(/\s+/g, ' ').trim();
   if (text.length < MIN_BODY_CHARS) return null;
   return { title, markdown: text };

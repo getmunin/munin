@@ -185,7 +185,14 @@ function writeCookie(channelId: string, value: string, maxAgeS: number): void {
 function randomId(): string {
   const c = (globalThis as { crypto?: Crypto }).crypto;
   if (c?.randomUUID) return c.randomUUID();
-  const a = Math.random().toString(36).slice(2);
-  const b = Math.random().toString(36).slice(2);
-  return `${Date.now().toString(36)}-${a}${b}`.slice(0, 64);
+  if (c?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    c.getRandomValues(bytes);
+    let out = '';
+    for (let i = 0; i < bytes.length; i += 1) {
+      out += bytes[i]!.toString(16).padStart(2, '0');
+    }
+    return out;
+  }
+  throw new Error('[munin-widget] crypto API unavailable');
 }

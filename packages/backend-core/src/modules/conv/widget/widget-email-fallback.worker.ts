@@ -490,9 +490,14 @@ function composeFrom(name: string | undefined, address: string): string {
 }
 
 function stripHtml(input: string): string {
-  return input
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
+  const blockTag = /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
+  let stripped = input;
+  for (;;) {
+    const next = stripped.replace(blockTag, '');
+    if (next === stripped) break;
+    stripped = next;
+  }
+  return stripped
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();

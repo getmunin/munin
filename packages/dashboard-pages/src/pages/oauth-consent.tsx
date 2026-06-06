@@ -337,12 +337,12 @@ function IdentityCard({ clientInfo, clientId, displayName }: IdentityCardProps) 
         registeredLabel ? 'items-start' : 'items-center'
       }`}
     >
-      <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-ink bg-ink font-serif text-[28px] leading-none text-paper">
+      <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-ink bg-white font-serif text-[28px] leading-none text-ink">
         {clientInfo?.icon_url ? (
           <img
             src={clientInfo.icon_url}
             alt=""
-            className="h-full w-full object-cover"
+            className="h-9 w-9 object-contain"
             onError={(e) => {
               (e.currentTarget).style.display = 'none';
             }}
@@ -358,7 +358,7 @@ function IdentityCard({ clientInfo, clientId, displayName }: IdentityCardProps) 
           </span>
         </div>
         {registeredLabel && (
-          <div className="mt-1.5 font-mono text-[11px] tracking-[0.02em] text-ink-mute">
+          <div className="font-mono text-[11px] tracking-[0.02em] text-ink-mute">
             {t('registered', { date: registeredLabel })}
           </div>
         )}
@@ -443,7 +443,7 @@ function ReassuranceBlock({ displayName, userName }: { displayName: string; user
         client: () => <b className="font-semibold text-ink">{displayName}</b>,
         user: () => <b className="font-semibold text-ink">{userName || '…'}</b>,
         settings: (chunks) => (
-          <a className="text-cobalt no-underline hover:underline" href="/dashboard/settings/connected-apps">
+          <a className="text-cobalt no-underline hover:underline" href="/dashboard/settings/agents">
             {chunks}
           </a>
         ),

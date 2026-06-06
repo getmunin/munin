@@ -13,7 +13,7 @@ Use this when you want to answer questions like:
 - Where is traffic coming from (referrer, UTM)?
 - What's the difference between the 100 readers who bounce and the 10 who scroll all the way?
 
-For tracking content served by Munin's CMS delivery API, you don't need this — every entry response already ships a `_tracking` block (see "Related"). Use this skill when the page is *not* served by Munin (your marketing site, a partner's docs, a static landing page).
+For tracking individual CMS entries you fetch from Munin's delivery API and render in your own host, see `skill://analytics/track-cms-views` instead — every entry response ships a pre-signed `_tracking` block, no key minting needed, events are keyed by stable entry id. Use *this* skill for traffic-level analytics on the host (homepage, landing pages, anything that isn't a CMS entry) — URL-keyed events from the tracker bundle.
 
 ## 1. Mint a tracker key
 
@@ -156,6 +156,6 @@ The pixel path takes `s` (subjectId, required), `t` (subjectType, defaults to `'
 
 ## Related
 
-- `skill://cms/publish-entry` — when content is served by Munin's CMS delivery API, the response already ships a `_tracking` block. No script tag needed.
+- `skill://analytics/track-cms-views` — sibling flow for content served by Munin's CMS. Per-entry token-signed pixel + beacon, no key to mint.
 - `skill://cms/review-stale-entries` — periodic curator pass that consults view data to decide whether stale published entries should be refreshed or archived.
 - `skill://conv/setup-chat-widget` — sibling drop-in script (chat widget); identical key-rotation ergonomics.

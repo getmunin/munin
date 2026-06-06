@@ -12,6 +12,7 @@ import { schema, type Db } from '@getmunin/db';
 import { describeError, safeFetch, SsrfBlockedError } from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
+import { authorizationServerUrl } from './oauth.constants.ts';
 
 interface OAuthClientInfo {
   client_id: string;
@@ -68,7 +69,7 @@ export class OAuthClientInfoController {
       client_id: row.clientId,
       name,
       uri: row.uri ?? null,
-      icon_url: `/v1/oauth/clients/${encodeURIComponent(row.clientId)}/icon`,
+      icon_url: `${authorizationServerUrl()}/v1/oauth/clients/${encodeURIComponent(row.clientId)}/icon`,
       redirect_uri_host: redirectHost,
       created_at: row.createdAt.toISOString(),
     };

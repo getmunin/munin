@@ -1,5 +1,19 @@
 # @getmunin/backend-core
 
+## 4.40.1
+
+### Patch Changes
+
+- 706d8c9: CodeQL cleanup: drop the `Math.random` session-id fallback in the chat widget (modern browsers always have `crypto.randomUUID`/`getRandomValues`), tighten the HTML-stripping regexes used by the web crawler and widget email fallback so nested/whitespaced `</script>` tags don't slip through, and rejection-sample in `makeId` to remove the modulo bias on the cryptographic random source.
+- 09c75ea: `GET /v1/oauth/clients/:id` now returns `icon_url` as an absolute URL (e.g. `https://api.example.com/v1/oauth/clients/<id>/icon`) instead of a same-origin relative path. The consent page renders the icon via an `<img>` tag on the _web_ origin, so when the API and web are on different origins (any deployment where backend ≠ web, including the standard cloud `api.getmunin.com` / `app.getmunin.com` split), the browser was requesting the icon from the wrong origin and falling back to the placeholder square. The base URL is taken from `authorizationServerUrl()` — the same env (`NEXT_PUBLIC_AUTH_URL` / `NEXT_PUBLIC_MCP_URL`) that drives every other public OAuth URL — so single-process OSS deployments where backend and web share an origin still render correctly.
+- Updated dependencies [706d8c9]
+  - @getmunin/agent-runtime@4.40.1
+  - @getmunin/db@4.40.1
+  - @getmunin/core@4.40.1
+  - @getmunin/mcp-toolkit@4.40.1
+  - @getmunin/types@4.40.1
+  - @getmunin/emails@4.40.1
+
 ## 4.40.0
 
 ### Minor Changes

@@ -750,7 +750,7 @@
       },
       "reassurance": {
         "lead": "Avgrenset, ikke total tilgang.",
-        "body": "<client></client> opptrer som <user></user> — den arver din rolle og kan ikke gjøre mer enn deg. Den kan ikke styre teamet, fakturering eller API-nøkler, og kan heller ikke slette organisasjonen. Tilgangen varer i 90 dager og fornyes automatisk så lenge den brukes. Du kan trekke tilbake tilgangen når som helst fra <settings>Innstillinger → Tilkoblede apper</settings>."
+        "body": "<client></client> opptrer som <user></user> — den arver din rolle og kan ikke gjøre mer enn deg. Den kan ikke styre teamet, fakturering eller API-nøkler, og kan heller ikke slette organisasjonen. Tilgangen varer i 90 dager og fornyes automatisk så lenge den brukes. Du kan trekke tilbake tilgangen når som helst fra <settings>Innstillinger → Agenter</settings>."
       },
       "authorize": "Gi tilgang",
       "authorizing": "Gir tilgang …",

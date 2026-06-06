@@ -750,7 +750,7 @@
       },
       "reassurance": {
         "lead": "Scoped, not god mode.",
-        "body": "<client></client> acts as <user></user> — it inherits your role and can't exceed it. It can't manage the team, billing, or API keys, or delete the org. Access lasts 90 days, auto-refreshed while in use, and you can revoke it anytime from <settings>Settings → Connected Apps</settings>."
+        "body": "<client></client> acts as <user></user> — it inherits your role and can't exceed it. It can't manage the team, billing, or API keys, or delete the org. Access lasts 90 days, auto-refreshed while in use, and you can revoke it anytime from <settings>Settings → Agents</settings>."
       },
       "authorize": "Authorize access",
       "authorizing": "Authorizing…",

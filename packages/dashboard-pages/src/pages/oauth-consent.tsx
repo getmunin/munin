@@ -111,7 +111,7 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
   if (!clientId || !oauthQuery) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bone px-6 dark:bg-background">
-        <div className="max-w-md border border-ink bg-paper p-6 text-sm text-destructive dark:bg-card">
+        <div className="max-w-md border-[0.5px] border-ink bg-paper p-6 text-sm text-destructive dark:border-rule-on-dark dark:bg-card">
           {t('missingParams')}
         </div>
       </div>
@@ -150,7 +150,7 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
           clientName={displayName}
         />
 
-        <section className="mt-8 border border-ink bg-paper dark:bg-card">
+        <section className="mt-8 border-[0.5px] border-ink bg-paper dark:border-rule-on-dark dark:bg-card">
           {flow === 'new' ? (
             <RequestPane
               clientInfo={clientInfo}
@@ -199,10 +199,10 @@ function EditorialHeader({ flow, clientName }: EditorialHeaderProps) {
           <span className="text-cobalt">✓</span>
           <span>{t('granted.eyebrow')}</span>
         </div>
-        <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em]">
+        <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
           {t.rich('granted.title', { em: (chunks) => <em className="not-italic text-cobalt italic">{chunks}</em> })}
         </h1>
-        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft">
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
           {t.rich('granted.sub', {
             client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
             strong: (chunks) => <strong className="font-medium text-ink">{chunks}</strong>,
@@ -217,10 +217,10 @@ function EditorialHeader({ flow, clientName }: EditorialHeaderProps) {
         <div className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
           {t('denied.eyebrow')}
         </div>
-        <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em]">
+        <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
           {t.rich('denied.title', { em: (chunks) => <em className="not-italic text-ink italic">{chunks}</em> })}
         </h1>
-        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft">
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
           {t.rich('denied.sub', {
             client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
             strong: (chunks) => <strong className="font-medium text-ink">{chunks}</strong>,
@@ -234,7 +234,7 @@ function EditorialHeader({ flow, clientName }: EditorialHeaderProps) {
       <div className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
         {t('eyebrow')}
       </div>
-      <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em]">
+      <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
         {t.rich('title', { client: () => <em className="not-italic text-cobalt italic">{clientName}</em> })}
       </h1>
       <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft">
@@ -292,7 +292,7 @@ function RequestPane({
         {groupedScopes.length === 0 ? (
           <p className="pb-4 text-sm text-ink-soft">{t('noModuleScopes')}</p>
         ) : (
-          <ul className="border-t border-rule-soft">
+          <ul className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
             {groupedScopes.map((g) => (
               <PermissionRow key={g.module} group={g} />
             ))}
@@ -333,11 +333,11 @@ function IdentityCard({ clientInfo, clientId, displayName }: IdentityCardProps) 
   const registeredLabel = formatRegistered(clientInfo?.created_at);
   return (
     <div
-      className={`flex gap-4 border-b border-rule-soft px-7 py-5 ${
+      className={`flex gap-4 border-b-[0.5px] border-rule-soft px-7 py-5 dark:border-rule-on-dark ${
         registeredLabel ? 'items-start' : 'items-center'
       }`}
     >
-      <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-ink bg-white font-serif text-[28px] leading-none text-ink">
+      <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl border-[0.5px] border-ink bg-white font-serif text-[28px] leading-none text-ink dark:border-rule-on-dark">
         {clientInfo?.icon_url ? (
           <img
             src={clientInfo.icon_url}
@@ -353,7 +353,7 @@ function IdentityCard({ clientInfo, clientId, displayName }: IdentityCardProps) 
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-serif text-[26px] leading-tight tracking-[-0.01em]">
+          <span className="min-w-0 font-serif text-[26px] leading-tight tracking-[-0.01em] [overflow-wrap:anywhere]">
             {displayName}
           </span>
         </div>
@@ -379,14 +379,14 @@ function formatRegistered(iso: string | undefined): string | null {
 function TrustTimeline({ clientName }: { clientName: string }) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
-    <div className="flex items-center gap-3 border-b border-rule-soft bg-paper px-7 py-3 text-[13px] leading-snug text-ink-soft dark:bg-card">
+    <div className="flex items-center gap-3 border-b-[0.5px] border-rule-soft bg-paper px-7 py-3 text-[13px] leading-snug text-ink-soft dark:border-rule-on-dark dark:bg-card">
       <span className="text-ink-mute">
         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="9" />
           <path d="M12 8v4l3 2" />
         </svg>
       </span>
-      <span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">
         {t.rich('trustFirst', {
           client: () => <strong className="font-semibold text-ink">{clientName}</strong>,
         })}
@@ -403,7 +403,7 @@ function PermissionRow({ group }: { group: ModuleScopes }) {
     ? `moduleDescriptions.${group.module}.readWrite`
     : `moduleDescriptions.${group.module}.read`;
   return (
-    <li className="grid grid-cols-[1fr_auto] items-center gap-x-4 border-t border-rule-soft py-3.5 first:border-t-0">
+    <li className="grid grid-cols-[1fr_auto] items-center gap-x-4 border-t-[0.5px] border-rule-soft py-3.5 first:border-t-0 dark:border-rule-on-dark">
       <div className="min-w-0">
         <div className="text-[15px] font-semibold text-ink">{t(`modules.${group.module}`)}</div>
         <div className="mt-1 text-[13px] leading-snug text-ink-soft">
@@ -425,7 +425,7 @@ function ScopePill({ kind, label }: { kind: 'read' | 'write'; label: string }) {
       : 'border-rule-soft text-ink-soft';
   return (
     <span
-      className={`whitespace-nowrap rounded-full border px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.1em] ${cls}`}
+      className={`whitespace-nowrap rounded-full border-[0.5px] px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.1em] ${cls}`}
     >
       {label}
     </span>
@@ -437,7 +437,7 @@ function ScopePill({ kind, label }: { kind: 'read' | 'write'; label: string }) {
 function ReassuranceBlock({ displayName, userName }: { displayName: string; userName: string }) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
-    <div className="mx-7 my-3 border border-rule-soft bg-paper-deep px-4 py-3.5 text-[12.5px] leading-relaxed text-ink-soft">
+    <div className="mx-7 my-3 border-[0.5px] border-rule-soft bg-paper-deep px-4 py-3.5 text-[12.5px] leading-relaxed text-ink-soft [overflow-wrap:anywhere] [word-break:break-word] dark:border-rule-on-dark dark:bg-secondary">
       <b className="font-semibold text-ink">{t('reassurance.lead')}</b>{' '}
       {t.rich('reassurance.body', {
         client: () => <b className="font-semibold text-ink">{displayName}</b>,
@@ -465,12 +465,12 @@ interface ActionsFooterProps {
 function ActionsFooter({ userName, busy, onAuthorize, onDeny, onSwitchAccount }: ActionsFooterProps) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
-    <div className="flex flex-wrap items-center gap-3 border-t border-rule-soft px-7 py-5">
+    <div className="flex flex-wrap items-center gap-3 border-t-[0.5px] border-rule-soft px-7 py-5 dark:border-rule-on-dark">
       <button
         type="button"
         onClick={onAuthorize}
         disabled={busy !== null}
-        className="inline-flex h-11 items-center justify-center gap-2 border border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-11 items-center justify-center gap-2 border-[0.5px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt disabled:cursor-not-allowed disabled:opacity-60"
       >
         {busy === 'allow' ? t('authorizing') : t('authorize')}
         {busy !== 'allow' && (
@@ -483,7 +483,7 @@ function ActionsFooter({ userName, busy, onAuthorize, onDeny, onSwitchAccount }:
         type="button"
         onClick={onDeny}
         disabled={busy !== null}
-        className="inline-flex h-11 items-center justify-center border border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-11 items-center justify-center border-[0.5px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
       >
         {busy === 'deny' ? t('denying') : t('deny')}
       </button>
@@ -521,7 +521,7 @@ function ResultPane({
   return (
     <div className="flex flex-col gap-4 px-7 py-8">
       <div
-        className={`inline-flex h-11 w-11 items-center justify-center rounded-full border ${
+        className={`inline-flex h-11 w-11 items-center justify-center rounded-full border-[0.5px] ${
           isGranted
             ? 'border-cobalt/40 bg-cobalt/10 text-cobalt-deep'
             : 'border-rule-soft bg-paper-deep text-ink-soft'
@@ -537,12 +537,12 @@ function ResultPane({
           </svg>
         )}
       </div>
-      <div className="font-serif text-[24px] tracking-[-0.01em]">
+      <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">
         {isGranted
           ? t.rich('granted.panelTitle', { client: () => <em className="not-italic italic">{displayName}</em> })
           : t('denied.panelTitle')}
       </div>
-      <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft">
+      <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
         {isGranted
           ? t.rich('granted.panelBody', {
               client: () => <em className="not-italic font-medium text-ink italic">{displayName}</em>,

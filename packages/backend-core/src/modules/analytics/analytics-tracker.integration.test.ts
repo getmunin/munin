@@ -149,6 +149,33 @@ const skipReason = TEST_URL
     // config degrades gracefully (rather than crashing the ingest path).
     expect(beaconRow[0]?.country).toBeNull();
 
+    // The deployed tracker bundle sends JSON `null` (not `undefined`) for
+    // fields it doesn't have — most commonly `referrer` on a direct
+    // navigation and `visitorId` when localStorage is blocked. An
+    // overly-strict `.optional()` (without `.nullable()`) would silently
+    // drop these via safeParse failure, so a real chunk of traffic would
+    // never land. Cover that here.
+    const beforeNullPayload = await countTrackerEvents(db, orgId);
+    const nullPayload = await fetch(`${baseUrl}/v1/a/t`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({
+        key: minted.trackerKey,
+        subjectType: 'page',
+        subjectId: 'direct-nav',
+        path: '/direct-nav',
+        referrer: null,
+        visitorId: null,
+        locale: null,
+        dwellMs: null,
+        readDepth: null,
+        utm: null,
+        metadata: null,
+      }),
+    });
+    expect(nullPayload.status).toBe(204);
+    await waitFor(async () => (await countTrackerEvents(db, orgId)) > beforeNullPayload);
+
     // Exercise the read-side tools too. They use raw `db.execute(sql\`…\`)`
     // which returns aggregate timestamp columns as strings, not Date — a
     // previous version of these tools crashed with

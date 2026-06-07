@@ -1,5 +1,23 @@
 # @getmunin/backend-core
 
+## 4.40.4
+
+### Patch Changes
+
+- 335d67f: Fix `analytics_subject_engagement` and `analytics_zero_result_searches` crashing with `r.last_view_at.toISOString is not a function` (and the analogous `last_seen_at` error) when the query returns any row.
+
+  Both tools use raw SQL via `ctx.db.execute(sql\`…\`)` to compute aggregate timestamps (`MAX(created_at)`). That path bypasses Drizzle's column type-mapping, so postgres-js returns the value as an ISO string rather than a `Date`. The tools then called `.toISOString()`on the string and threw.`analytics_subject_engagement`was unusable on real data;`analytics_zero_result_searches` was latent (only happened when at least one zero-result search had been recorded).
+
+  Fix is two-line per tool: coerce with `new Date(...)` before serialising. The widened TS type (`Date | string`) reflects what the driver actually returns. Integration test covers the read-side path now so this doesn't regress.
+
+- ed2161a: Add `skill://analytics/track-cms-views` — a dedicated playbook for the `_tracking` block that every CMS delivery response already ships. Explains how the pre-signed pixel/beacon tokens work, when to use the pixel vs. beacon embed, how to query `analytics_top_subjects` / `analytics_subject_engagement` with `subjectType='cms_entry'`, what to do (and not do) about pepper rotation, and how the flow differs from the website tracker. Also fixes the dead "Related" link in `skill://analytics/track-website-traffic` that previously pointed at `skill://cms/publish-entry` and reframes the website-vs-CMS distinction for headless deployments.
+  - @getmunin/core@4.40.4
+  - @getmunin/db@4.40.4
+  - @getmunin/types@4.40.4
+  - @getmunin/mcp-toolkit@4.40.4
+  - @getmunin/agent-runtime@4.40.4
+  - @getmunin/emails@4.40.4
+
 ## 4.40.3
 
 ### Patch Changes

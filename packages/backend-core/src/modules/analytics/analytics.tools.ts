@@ -292,6 +292,195 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
+    name: 'analytics_traffic_by_source',
+    title: 'Analytics: Traffic by UTM source',
+    description:
+      'Views and unique visitors grouped by `utm_source` (with `utm_medium` / `utm_campaign` breakdown). Use this to compare campaign attribution: which channels actually drive engaged traffic vs. just clicks. Rows where `utm_source` is NULL (no campaign params on the URL) roll into a single "direct/organic" bucket.',
+    audiences: ['admin'],
+    scopes: ['analytics:read'],
+    input: z.object({
+      subjectType: z.string().max(32).optional(),
+      sinceDays: z.number().int().min(1).max(365).default(30),
+      limit: z.number().int().min(1).max(200).default(50),
+      source: z.enum(['pixel', 'beacon', 'tracker']).optional(),
+    }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  async trafficBySource(args: {
+    subjectType?: string;
+    sinceDays: number;
+    limit: number;
+    source?: 'pixel' | 'beacon' | 'tracker';
+  }): Promise<
+    Array<{
+      utmSource: string | null;
+      utmMedium: string | null;
+      utmCampaign: string | null;
+      views: number;
+      visitors: number;
+    }>
+  > {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const conditions = [
+      sql`org_id = ${actor.orgId}`,
+      sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
+    ];
+    if (args.subjectType) conditions.push(sql`subject_type = ${args.subjectType}`);
+    if (args.source) conditions.push(sql`source = ${args.source}`);
+    const where = sql.join(conditions, sql` AND `);
+    const rows = await ctx.db.execute<{
+      utm_source: string | null;
+      utm_medium: string | null;
+      utm_campaign: string | null;
+      views: number;
+      visitors: number;
+    }>(sql`
+      SELECT utm_source, utm_medium, utm_campaign,
+             COUNT(*)::int AS views,
+             COUNT(DISTINCT visitor_id)::int AS visitors
+      FROM analytics_view_events
+      WHERE ${where}
+      GROUP BY utm_source, utm_medium, utm_campaign
+      ORDER BY views DESC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      utmSource: r.utm_source,
+      utmMedium: r.utm_medium,
+      utmCampaign: r.utm_campaign,
+      views: r.views,
+      visitors: r.visitors,
+    }));
+  }
+
+  @McpTool({
+    name: 'analytics_referrer_hosts',
+    title: 'Analytics: Top referrer hosts',
+    description:
+      'External traffic sources grouped by the host portion of `referrer`. Use this to see which sites are linking to you (HN, Reddit, partner blogs). Same-origin referrers are excluded server-side via the `excludeHost` argument (typically your own production host); pass it to keep internal navigations from drowning out external referrals. Rows with NULL referrer (direct navigation, bookmarks, link-with-`rel=noreferrer`) roll into a single "direct" bucket.',
+    audiences: ['admin'],
+    scopes: ['analytics:read'],
+    input: z.object({
+      subjectType: z.string().max(32).optional(),
+      excludeHost: z.string().max(255).optional(),
+      sinceDays: z.number().int().min(1).max(365).default(30),
+      limit: z.number().int().min(1).max(200).default(50),
+      source: z.enum(['pixel', 'beacon', 'tracker']).optional(),
+    }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  async referrerHosts(args: {
+    subjectType?: string;
+    excludeHost?: string;
+    sinceDays: number;
+    limit: number;
+    source?: 'pixel' | 'beacon' | 'tracker';
+  }): Promise<Array<{ host: string | null; views: number; visitors: number }>> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const conditions = [
+      sql`org_id = ${actor.orgId}`,
+      sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
+    ];
+    if (args.subjectType) conditions.push(sql`subject_type = ${args.subjectType}`);
+    if (args.source) conditions.push(sql`source = ${args.source}`);
+    const where = sql.join(conditions, sql` AND `);
+    // Extract host from `scheme://host[:port]/...`. Captures everything
+    // between `://` and the next `/`, `?`, `#`, or end-of-string. NULL
+    // referrers (direct navigation) stay NULL and form the "direct" bucket.
+    const hostExpr = sql`NULLIF(substring(referrer FROM '^[a-zA-Z]+://([^/?#]+)'), '')`;
+    const exclude = args.excludeHost
+      ? sql`AND (${hostExpr} IS NULL OR ${hostExpr} <> ${args.excludeHost})`
+      : sql``;
+    const rows = await ctx.db.execute<{
+      host: string | null;
+      views: number;
+      visitors: number;
+    }>(sql`
+      SELECT ${hostExpr} AS host,
+             COUNT(*)::int AS views,
+             COUNT(DISTINCT visitor_id)::int AS visitors
+      FROM analytics_view_events
+      WHERE ${where} ${exclude}
+      GROUP BY host
+      ORDER BY views DESC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      host: r.host,
+      views: r.views,
+      visitors: r.visitors,
+    }));
+  }
+
+  @McpTool({
+    name: 'analytics_views_over_time',
+    title: 'Analytics: Daily view time-series',
+    description:
+      'Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches.',
+    audiences: ['admin'],
+    scopes: ['analytics:read'],
+    input: z.object({
+      subjectType: z.string().max(32).optional(),
+      subjectId: z.string().optional(),
+      sinceDays: z.number().int().min(1).max(365).default(30),
+      source: z.enum(['pixel', 'beacon', 'tracker']).optional(),
+    }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  async viewsOverTime(args: {
+    subjectType?: string;
+    subjectId?: string;
+    sinceDays: number;
+    source?: 'pixel' | 'beacon' | 'tracker';
+  }): Promise<Array<{ day: string; views: number; visitors: number }>> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const eventConditions = [
+      sql`org_id = ${actor.orgId}`,
+      sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
+    ];
+    if (args.subjectType) eventConditions.push(sql`subject_type = ${args.subjectType}`);
+    if (args.subjectId) eventConditions.push(sql`subject_id = ${args.subjectId}`);
+    if (args.source) eventConditions.push(sql`source = ${args.source}`);
+    const eventWhere = sql.join(eventConditions, sql` AND `);
+    const rows = await ctx.db.execute<{
+      day: Date | string;
+      views: number;
+      visitors: number;
+    }>(sql`
+      WITH days AS (
+        SELECT generate_series(
+          date_trunc('day', NOW()) - ((${args.sinceDays} - 1) || ' days')::interval,
+          date_trunc('day', NOW()),
+          '1 day'::interval
+        )::date AS day
+      ),
+      counts AS (
+        SELECT date_trunc('day', created_at)::date AS day,
+               COUNT(*)::int AS views,
+               COUNT(DISTINCT visitor_id)::int AS visitors
+        FROM analytics_view_events
+        WHERE ${eventWhere}
+        GROUP BY 1
+      )
+      SELECT d.day, COALESCE(c.views, 0)::int AS views, COALESCE(c.visitors, 0)::int AS visitors
+      FROM days d
+      LEFT JOIN counts c ON c.day = d.day
+      ORDER BY d.day ASC
+    `);
+    return rows.map((r) => ({
+      day: typeof r.day === 'string' ? r.day : r.day.toISOString().slice(0, 10),
+      views: r.views,
+      visitors: r.visitors,
+    }));
+  }
+
+  @McpTool({
     name: 'analytics_subject_engagement',
     title: 'Analytics: Engagement for one subject',
     description:

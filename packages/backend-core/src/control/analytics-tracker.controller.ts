@@ -34,24 +34,29 @@ const PixelQuerySchema = z.object({
   v: z.string().min(1).max(64).optional(),
 });
 
+const NullableString = (max: number) => z.string().max(max).nullable().optional();
+const NullableInt = (min: number, max: number) =>
+  z.number().int().min(min).max(max).nullable().optional();
+
 const BeaconBodySchema = z.object({
   key: z.string(),
-  subjectType: z.string().min(1).max(32).optional(),
+  subjectType: z.string().min(1).max(32).nullable().optional(),
   subjectId: z.string().min(1).max(512),
-  path: z.string().max(512).optional(),
-  referrer: z.string().max(512).optional(),
-  visitorId: z.string().max(64).optional(),
-  locale: z.string().max(16).optional(),
-  dwellMs: z.number().int().min(0).optional(),
-  readDepth: z.number().int().min(0).max(100).optional(),
+  path: NullableString(512),
+  referrer: NullableString(512),
+  visitorId: NullableString(64),
+  locale: NullableString(16),
+  dwellMs: z.number().int().min(0).nullable().optional(),
+  readDepth: NullableInt(0, 100),
   utm: z
     .object({
-      source: z.string().max(128).optional(),
-      medium: z.string().max(128).optional(),
-      campaign: z.string().max(128).optional(),
+      source: NullableString(128),
+      medium: NullableString(128),
+      campaign: NullableString(128),
     })
+    .nullable()
     .optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 interface ResolvedTracker {

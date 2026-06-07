@@ -1518,6 +1518,11 @@ export const analyticsViewEvents = pgTable(
     dwellMs: integer('dwell_ms'),
     readDepth: integer('read_depth'),
     source: varchar('source', { length: 8 }).notNull(),
+    // ISO 3166-1 alpha-2 country code, derived server-side from the client
+    // IP via a local MaxMind-format GeoIP DB. Always nullable: ingest works
+    // without a configured DB (column stays NULL), and bot/private/unknown
+    // IPs also resolve to NULL.
+    country: varchar('country', { length: 2 }),
     metadata: jsonb('metadata').$type<Record<string, unknown>>(),
     createdAt,
   },

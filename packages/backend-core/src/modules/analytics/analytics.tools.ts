@@ -272,7 +272,10 @@ export class AnalyticsAdminTools {
       visitors: number;
       avg_dwell_ms: number | null;
       avg_read_depth: number | null;
-      last_view_at: Date | null;
+      // postgres-js returns aggregate timestamp columns as ISO strings when
+      // reached via raw `db.execute(sql\`…\`)`. Coerce via `new Date(...)`
+      // below — it accepts both strings and Date objects.
+      last_view_at: Date | string | null;
     }>(sql`
       SELECT COUNT(*)::int AS views,
              COUNT(DISTINCT visitor_id)::int AS visitors,
@@ -291,7 +294,7 @@ export class AnalyticsAdminTools {
       visitors: r.visitors,
       avgDwellMs: r.avg_dwell_ms !== null ? Math.round(Number(r.avg_dwell_ms)) : null,
       avgReadDepth: r.avg_read_depth !== null ? Math.round(Number(r.avg_read_depth)) : null,
-      lastViewAt: r.last_view_at ? r.last_view_at.toISOString() : null,
+      lastViewAt: r.last_view_at ? new Date(r.last_view_at).toISOString() : null,
     };
   }
 
@@ -327,7 +330,9 @@ export class AnalyticsAdminTools {
     const rows = await ctx.db.execute<{
       query: string;
       occurrences: number;
-      last_seen_at: Date;
+      // See `analytics_subject_engagement` — raw `db.execute` returns
+      // aggregate timestamp columns as ISO strings; coerce below.
+      last_seen_at: Date | string;
     }>(sql`
       SELECT query,
              COUNT(*)::int AS occurrences,
@@ -341,7 +346,7 @@ export class AnalyticsAdminTools {
     return rows.map((r) => ({
       query: r.query,
       occurrences: r.occurrences,
-      lastSeenAt: r.last_seen_at.toISOString(),
+      lastSeenAt: new Date(r.last_seen_at).toISOString(),
     }));
   }
 

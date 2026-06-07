@@ -1,5 +1,7 @@
 # @getmunin/analytics-tracker
 
+## 4.40.4
+
 ## 4.40.3
 
 ### Patch Changes

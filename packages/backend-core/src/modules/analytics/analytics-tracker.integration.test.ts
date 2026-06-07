@@ -145,6 +145,29 @@ const skipReason = TEST_URL
     expect(beaconRow[0]?.subjectType).toBe('page');
     expect(beaconRow[0]?.metadata).toMatchObject({ variant: 'b' });
 
+    // Exercise the read-side tools too. They use raw `db.execute(sql\`…\`)`
+    // which returns aggregate timestamp columns as strings, not Date — a
+    // previous version of these tools crashed with
+    // `r.last_view_at.toISOString is not a function` on real data.
+    const engagement = await withClient(adminKey, async (c) =>
+      parseToolResult<{
+        views: number;
+        visitors: number;
+        avgDwellMs: number | null;
+        avgReadDepth: number | null;
+        lastViewAt: string | null;
+      }>(
+        await c.callTool({
+          name: 'analytics_subject_engagement',
+          arguments: { subjectType: 'page', subjectId: 'pricing', sinceDays: 1 },
+        }),
+      ),
+    );
+    expect(engagement.views).toBeGreaterThan(0);
+    expect(engagement.avgDwellMs).toBe(8000);
+    expect(engagement.avgReadDepth).toBe(60);
+    expect(engagement.lastViewAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
     const badKey = 'mn_track_invalid_xxx';
     const beforeBad = await countTrackerEvents(db, orgId);
     const bad = await fetch(`${baseUrl}/v1/a/t/${badKey}.gif?s=pricing`);

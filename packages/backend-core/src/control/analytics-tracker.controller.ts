@@ -33,12 +33,6 @@ const PixelQuerySchema = z.object({
   v: z.string().min(1).max(64).optional(),
 });
 
-// All optional fields are `.nullable()` because the deployed tracker
-// bundle sends JSON `null` (not `undefined`) for fields it doesn't have
-// — most commonly `referrer` on direct navigations and `visitorId` when
-// localStorage is unavailable (private windows, embedded WebViews). A
-// pure `.optional()` schema rejects `null`, which silently drops the
-// whole payload via `safeParse → !success → return` in the controller.
 const NullableString = (max: number) => z.string().max(max).nullable().optional();
 const NullableInt = (min: number, max: number) =>
   z.number().int().min(min).max(max).nullable().optional();

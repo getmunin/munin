@@ -149,12 +149,6 @@ const skipReason = TEST_URL
     // config degrades gracefully (rather than crashing the ingest path).
     expect(beaconRow[0]?.country).toBeNull();
 
-    // The deployed tracker bundle sends JSON `null` (not `undefined`) for
-    // fields it doesn't have — most commonly `referrer` on a direct
-    // navigation and `visitorId` when localStorage is blocked. An
-    // overly-strict `.optional()` (without `.nullable()`) would silently
-    // drop these via safeParse failure, so a real chunk of traffic would
-    // never land. Cover that here.
     const beforeNullPayload = await countTrackerEvents(db, orgId);
     const nullPayload = await fetch(`${baseUrl}/v1/a/t`, {
       method: 'POST',

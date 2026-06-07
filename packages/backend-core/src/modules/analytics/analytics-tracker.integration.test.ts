@@ -94,11 +94,6 @@ const skipReason = TEST_URL
     });
     expect(minted.trackerKey).toMatch(/^mn_track_[A-Za-z0-9_-]+$/);
 
-    // The `/tracker.js` route is wired by bootstrap-app.ts (mirroring
-    // `/widget.js`) and reads `public/tracker/manifest.json`. In tests
-    // we don't run the prebuild copy, so it 503s — that's exercised by
-    // the bootstrap-app middleware unit tests instead.
-
     const beforePixel = await countTrackerEvents(db, orgId);
     const pixel = await fetch(
       `${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=pricing&t=page&v=visitor-1`,
@@ -114,8 +109,6 @@ const skipReason = TEST_URL
     expect(await countTrackerEvents(db, orgId)).toBe(beforePixel + 1);
 
     const beforeBeacon = await countTrackerEvents(db, orgId);
-    // Match the deployed tracker bundle: it uses `text/plain` so
-    // navigator.sendBeacon doesn't trigger a CORS preflight.
     const beacon = await fetch(`${baseUrl}/v1/a/t`, {
       method: 'POST',
       headers: { 'content-type': 'text/plain;charset=UTF-8' },
@@ -144,9 +137,6 @@ const skipReason = TEST_URL
     expect(beaconRow[0]?.utmSource).toBe('reddit');
     expect(beaconRow[0]?.subjectType).toBe('page');
     expect(beaconRow[0]?.metadata).toMatchObject({ variant: 'b' });
-    // No MUNIN_GEOIP_DB_PATH in the test env → GeoIpService no-ops and the
-    // column stays NULL. This proves the column exists and that missing
-    // config degrades gracefully (rather than crashing the ingest path).
     expect(beaconRow[0]?.country).toBeNull();
 
     const beforeNullPayload = await countTrackerEvents(db, orgId);
@@ -170,10 +160,6 @@ const skipReason = TEST_URL
     expect(nullPayload.status).toBe(204);
     await waitFor(async () => (await countTrackerEvents(db, orgId)) > beforeNullPayload);
 
-    // Exercise the read-side tools too. They use raw `db.execute(sql\`…\`)`
-    // which returns aggregate timestamp columns as strings, not Date — a
-    // previous version of these tools crashed with
-    // `r.last_view_at.toISOString is not a function` on real data.
     const engagement = await withClient(adminKey, async (c) =>
       parseToolResult<{
         views: number;

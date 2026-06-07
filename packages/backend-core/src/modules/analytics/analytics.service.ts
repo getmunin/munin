@@ -17,6 +17,7 @@ export interface RecordViewInput {
   userAgentClass?: string | null;
   dwellMs?: number | null;
   readDepth?: number | null;
+  country?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -52,6 +53,7 @@ export class AnalyticsService {
         userAgentClass: truncate(input.userAgentClass, 16),
         dwellMs: clampInt(input.dwellMs, 0, 24 * 60 * 60 * 1000),
         readDepth: clampInt(input.readDepth, 0, 100),
+        country: normalizeCountry(input.country),
         metadata: input.metadata ?? null,
       });
     } catch (err) {
@@ -92,4 +94,10 @@ function clampInt(
   if (value === null || value === undefined) return null;
   if (!Number.isFinite(value)) return null;
   return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
+function normalizeCountry(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(trimmed) ? trimmed : null;
 }

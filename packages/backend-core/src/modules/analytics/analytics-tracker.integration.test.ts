@@ -144,6 +144,10 @@ const skipReason = TEST_URL
     expect(beaconRow[0]?.utmSource).toBe('reddit');
     expect(beaconRow[0]?.subjectType).toBe('page');
     expect(beaconRow[0]?.metadata).toMatchObject({ variant: 'b' });
+    // No MUNIN_GEOIP_DB_PATH in the test env → GeoIpService no-ops and the
+    // column stays NULL. This proves the column exists and that missing
+    // config degrades gracefully (rather than crashing the ingest path).
+    expect(beaconRow[0]?.country).toBeNull();
 
     // Exercise the read-side tools too. They use raw `db.execute(sql\`…\`)`
     // which returns aggregate timestamp columns as strings, not Date — a

@@ -54,6 +54,7 @@ That's it. The script auto-fires a page view on `DOMContentLoaded` and writes a 
 - `locale=<html lang>`
 - `source='tracker'`
 - `dwell_ms` (best-effort, fired on `pagehide`)
+- `country` — ISO 3166-1 alpha-2 derived server-side from the client IP via a local MaxMind-format GeoIP DB. Only populated when `MUNIN_GEOIP_DB_PATH` points at a valid `.mmdb` file (e.g. `GeoLite2-Country.mmdb` or DB-IP-Lite); otherwise stays NULL. The IP is consumed only at lookup time and is never persisted.
 
 `Cache-Control: public, max-age=3600` on `tracker.js` so the CDN serves the bundle without hitting your backend per request.
 
@@ -85,7 +86,7 @@ The first argument is `subjectId`. The second is an attribute bag:
 
 ## 4. Query the data
 
-Three admin-only MCP tools cover the questions you'll ask first:
+Four admin-only MCP tools cover the questions you'll ask first:
 
 ```jsonc
 // Which pages get the most traffic?
@@ -110,6 +111,14 @@ Returns `{ views, visitors, avgDwellMs, avgReadDepth, lastViewAt }` — combine 
 ```
 
 Returns `[{ query, occurrences, lastSeenAt }]`. The single best signal for "what should we write next" — readers asked and Munin had nothing to show them.
+
+```jsonc
+// Where are visitors coming from? (requires MUNIN_GEOIP_DB_PATH set; otherwise everything rolls into `country: null`)
+{ "name": "analytics_top_countries",
+  "arguments": { "subjectType": "page", "source": "tracker", "sinceDays": 30, "limit": 50 } }
+```
+
+Returns `[{ country, views, visitors }]`. A row with `country: null` is the unknown bucket — bot IPs filtered upstream don't reach here; this is private/unmappable IPs (loopback, link-local, ranges absent from the mmdb).
 
 For anything more bespoke (UTM-source breakdowns, custom funnels, time-series), the events sit in `analytics_view_events` and `analytics_search_events`; query them directly from a DB client. The MCP tools cover the common questions; the table covers the long tail.
 
@@ -146,6 +155,7 @@ The pixel path takes `s` (subjectId, required), `t` (subjectType, defaults to `'
 | Audit which keys exist | `analytics_list_trackers({})`. Returns id, name, prefix, last-used, revoked-at. |
 | Disable a single page from tracking | Remove the script tag from that page. The script is per-page-load opt-in. |
 | Delete a visitor's data | `DELETE FROM analytics_view_events WHERE visitor_id = $1`. No PII is stored beyond the random uuid — but if a regulator-grade deletion is needed, this is the path. |
+| Enable country resolution | Set `MUNIN_GEOIP_DB_PATH=/abs/path/to/GeoLite2-Country.mmdb` (or any MaxMind-format country DB) on the backend before starting. The reader memory-maps the file once at boot; no network calls per request. Disable by unsetting and restarting — the column simply stays NULL for new rows. |
 
 ## What NOT to do
 

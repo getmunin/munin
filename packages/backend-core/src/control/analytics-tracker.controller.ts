@@ -7,9 +7,10 @@ import {
   Param,
   Post,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { and, eq, isNull } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
@@ -17,6 +18,7 @@ import { hashSecret, isWellFormedKey, keyPrefix, looksLikeBot } from '@getmunin/
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
+import { GeoIpService } from '../modules/analytics/geoip.service.ts';
 
 const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
@@ -63,6 +65,7 @@ export class AnalyticsTrackerController {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
+    @Inject(GeoIpService) private readonly geoip: GeoIpService,
   ) {}
 
   @Get('t/:key.gif')
@@ -72,6 +75,7 @@ export class AnalyticsTrackerController {
     @Headers('referer') referer: string | undefined,
     @Headers('origin') origin: string | undefined,
     @Query() rawQuery: unknown,
+    @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     sendPixel(res);
@@ -91,6 +95,7 @@ export class AnalyticsTrackerController {
       referrer: referer ?? null,
       visitorId: visitorId ?? null,
       userAgentClass: 'browser',
+      country: this.geoip.lookupCountry(req.ip),
     });
   }
 
@@ -101,6 +106,7 @@ export class AnalyticsTrackerController {
     @Headers('user-agent') userAgent: string | undefined,
     @Headers('referer') referer: string | undefined,
     @Headers('origin') origin: string | undefined,
+    @Req() req: Request,
   ): Promise<void> {
     if (looksLikeBot(userAgent)) return;
     const parsed = BeaconBodySchema.safeParse(rawBody);
@@ -125,6 +131,7 @@ export class AnalyticsTrackerController {
       utmMedium: body.utm?.medium ?? null,
       utmCampaign: body.utm?.campaign ?? null,
       userAgentClass: 'tracker',
+      country: this.geoip.lookupCountry(req.ip),
       metadata: body.metadata ?? null,
     });
   }

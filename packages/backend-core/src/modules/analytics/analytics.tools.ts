@@ -240,6 +240,58 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
+    name: 'analytics_top_countries',
+    title: 'Analytics: Visitors by country',
+    description:
+      'Visitor and view counts grouped by ISO 3166-1 alpha-2 country code over a recent window. Requires the backend to have `MUNIN_GEOIP_DB_PATH` configured; rows recorded without a GeoIP DB carry `country = NULL` and roll up into an "unknown" bucket. Filter by `subjectType` (e.g. `page`, `cms_entry`) or `source` to scope.',
+    audiences: ['admin'],
+    scopes: ['analytics:read'],
+    input: z.object({
+      subjectType: z.string().max(32).optional(),
+      sinceDays: z.number().int().min(1).max(365).default(30),
+      limit: z.number().int().min(1).max(200).default(50),
+      source: z.enum(['pixel', 'beacon', 'tracker']).optional(),
+    }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  async topCountries(args: {
+    subjectType?: string;
+    sinceDays: number;
+    limit: number;
+    source?: 'pixel' | 'beacon' | 'tracker';
+  }): Promise<Array<{ country: string | null; views: number; visitors: number }>> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const conditions = [
+      sql`org_id = ${actor.orgId}`,
+      sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
+    ];
+    if (args.subjectType) conditions.push(sql`subject_type = ${args.subjectType}`);
+    if (args.source) conditions.push(sql`source = ${args.source}`);
+    const where = sql.join(conditions, sql` AND `);
+    const rows = await ctx.db.execute<{
+      country: string | null;
+      views: number;
+      visitors: number;
+    }>(sql`
+      SELECT country,
+             COUNT(*)::int AS views,
+             COUNT(DISTINCT visitor_id)::int AS visitors
+      FROM analytics_view_events
+      WHERE ${where}
+      GROUP BY country
+      ORDER BY views DESC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      country: r.country,
+      views: r.views,
+      visitors: r.visitors,
+    }));
+  }
+
+  @McpTool({
     name: 'analytics_subject_engagement',
     title: 'Analytics: Engagement for one subject',
     description:

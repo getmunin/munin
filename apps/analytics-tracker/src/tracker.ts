@@ -91,14 +91,20 @@ const VISITOR_KEY = 'mn.vid';
   function send(payload: BeaconPayload): void {
     try {
       const body = JSON.stringify(payload);
+      // text/plain is in the CORS "safelisted" Content-Type set, so neither
+      // sendBeacon (which always sends cookies) nor fetch trigger a preflight.
+      // application/json would force a preflight that fails because the
+      // beacon endpoint is a public-CORS path and does not return
+      // Access-Control-Allow-Credentials. The server JSON-parses text/plain
+      // bodies on the beacon route — see bootstrap-app.ts body-parser config.
       if (navigator.sendBeacon) {
-        const blob = new Blob([body], { type: 'application/json' });
+        const blob = new Blob([body], { type: 'text/plain;charset=UTF-8' });
         navigator.sendBeacon(beaconUrl, blob);
         return;
       }
       void fetch(beaconUrl, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
         body,
         keepalive: true,
         mode: 'no-cors',

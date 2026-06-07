@@ -98,7 +98,12 @@ export async function createApp(
     rawBody: true,
     ...nestOpts,
   });
-  app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
+  // The `text/plain` opt-in lets the analytics-tracker bundle send its JSON
+  // payload via `navigator.sendBeacon` (which always sends cookies) without
+  // triggering a CORS preflight that would fail on public-CORS paths.
+  // Other endpoints still send `application/json`; this just widens what the
+  // JSON parser accepts.
+  app.useBodyParser('json', { limit: JSON_BODY_LIMIT, type: ['application/json', 'text/plain'] });
   app.useBodyParser('urlencoded', { extended: true, limit: JSON_BODY_LIMIT });
   const trustProxy = readTrustProxySetting();
   if (trustProxy !== null) {

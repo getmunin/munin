@@ -22,6 +22,254 @@
     }
   },
   {
+    "name": "analytics_create_tracker",
+    "title": "Analytics: Create tracker key",
+    "description": "Create a tracker and mint a public `mn_track_*` API key bound to it. The key is safe to embed in `<script>` tags or mobile clients — it can only write page-view events scoped to your org, never read them. `allowedOrigins` is an optional list of full origins (`https://example.com`) the tracker will accept; when empty, any origin is accepted (set `MUNIN_TRACKER_REQUIRE_ALLOWLIST=1` to fail-closed instead). Returns the plaintext key once; store it where it needs to be embedded.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "allowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_list_trackers",
+    "title": "Analytics: List tracker keys",
+    "description": "List analytics trackers for the current org with their key prefix, allowed origins, and revocation state. Plaintext keys are never returned; rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "includeRevoked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_update_tracker",
+    "title": "Analytics: Update tracker config",
+    "description": "Update a tracker's display name and/or `allowedOrigins`. The bound API key is unchanged — rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:write"
+    ],
+    "danger": "writes",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "trackerId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "allowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "required": [
+        "trackerId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_top_subjects",
+    "title": "Analytics: Top subjects by view count",
+    "description": "List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "subjectType": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "sinceDays": {
+          "default": 30,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "limit": {
+          "default": 20,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "pixel",
+            "beacon",
+            "tracker"
+          ]
+        }
+      },
+      "required": [
+        "sinceDays",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_subject_engagement",
+    "title": "Analytics: Engagement for one subject",
+    "description": "View counts, unique visitors, and average dwell/read-depth for one subject (e.g. one CMS entry) over a recent window. Use this when judging whether a stale entry should be refreshed or archived.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "subjectType": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "subjectId": {
+          "type": "string"
+        },
+        "sinceDays": {
+          "default": 90,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        }
+      },
+      "required": [
+        "subjectType",
+        "subjectId",
+        "sinceDays"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_zero_result_searches",
+    "title": "Analytics: Zero-result search queries",
+    "description": "List recent public search queries that returned zero results. The single best input for \"what should we write about next\" — readers are asking but Munin has no answer.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "subjectType": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "sinceDays": {
+          "default": 30,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "limit": {
+          "default": 50,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "sinceDays",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_revoke_tracker",
+    "title": "Analytics: Revoke tracker key",
+    "description": "Revoke the API key bound to a tracker. After this, the key is rejected by the ingest endpoints — any pages still embedding it will silently fail to record views. The tracker row stays for audit.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "trackerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "trackerId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "cms_list_collections",
     "title": "CMS: List collections",
     "description": "List CMS collections (content types) defined for your org.",
@@ -729,7 +977,7 @@
   {
     "name": "cms_request_asset_upload",
     "title": "CMS: Request asset upload URL",
-    "description": "Mint a presigned upload for a new asset. The asset row is created in `uploaded:false` state. Look at `uploadMethod`: if `\"PUT\"`, send the file body as the raw PUT body to `uploadUrl`. If `\"POST\"`, send multipart/form-data to `uploadUrl` including every key/value in `uploadFields` followed by a `file` part (the binary body); the embedded policy enforces an exact `Content-Length` match. Then call `cms_complete_asset_upload` to verify and mark the row live. SVG uploads are rejected — SVG can carry inline scripts and is not safe to serve as an asset.",
+    "description": "Mint a presigned upload for a new asset. Only usable from clients that can issue raw HTTP PUT/POST themselves. If your runtime has no client-side PUT primitive, this tool is not a fit — use `cms_upload_asset_from_base64` (small inline base64) or `cms_upload_asset_from_url` (public HTTPS URL) instead. Flow: the asset row is created in `uploaded:false` state. Look at `uploadMethod`: if `\"PUT\"`, send the file body as the raw PUT body to `uploadUrl`. If `\"POST\"`, send multipart/form-data to `uploadUrl` including every key/value in `uploadFields` followed by a `file` part; the embedded policy enforces an exact `Content-Length` match. Then call `cms_complete_asset_upload` to verify and mark the row live. SVG uploads are rejected — SVG can carry inline scripts and is not safe to serve as an asset.",
     "audiences": [
       "admin"
     ],
@@ -778,9 +1026,9 @@
     }
   },
   {
-    "name": "cms_upload_asset_from_file",
-    "title": "CMS: Upload asset from a ChatGPT file",
-    "description": "Upload a file that's already in the ChatGPT conversation (e.g. a user-uploaded image or an image-gen output) as a CMS asset. ChatGPT mints a short-lived signed URL for the file and the server fetches it. Use this when your runtime can't PUT to a presigned URL — typical for ChatGPT workspace agents. Accepts image/*, video/*, audio/*, and application/pdf up to 50 MB. SVG is rejected.",
+    "name": "cms_upload_asset_from_base64",
+    "title": "CMS: Upload asset from base64",
+    "description": "Upload a small asset inline as base64 (≤100 KB decoded). The right choice when you have generated the asset in this conversation (image-gen output, screenshot, plot) and need it in the CMS without leaving the chat: compress to WebP or JPEG well under 100 KB first, then pass the bytes here. SVG is rejected. For larger assets reachable over HTTPS use `cms_upload_asset_from_url`; for larger arbitrary files use `cms_request_asset_upload` from a client that can issue HTTP PUT.",
     "audiences": [
       "admin"
     ],
@@ -793,38 +1041,19 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "file": {
-          "type": "object",
-          "properties": {
-            "download_url": {
-              "type": "string",
-              "format": "uri"
-            },
-            "file_id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "mime_type": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 120
-            },
-            "file_name": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 255
-            }
-          },
-          "required": [
-            "download_url",
-            "file_id"
-          ],
-          "additionalProperties": false
-        },
         "name": {
           "type": "string",
           "minLength": 1,
           "maxLength": 255
+        },
+        "mime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "base64Body": {
+          "type": "string",
+          "minLength": 1
         },
         "altText": {
           "type": "string",
@@ -839,7 +1068,9 @@
         }
       },
       "required": [
-        "file"
+        "name",
+        "mime",
+        "base64Body"
       ],
       "additionalProperties": false
     }
@@ -4546,7 +4777,7 @@
   },
   {
     "name": "outreach_propose_initial",
-    "title": "Outreach: Propose an initial draft",
+    "title": "Outreach: Propose initial",
     "description": "File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) while a pending row exists throws — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.",
     "audiences": [
       "admin"
@@ -4604,7 +4835,7 @@
   },
   {
     "name": "outreach_propose_reply",
-    "title": "Outreach: Propose an reply draft",
+    "title": "Outreach: Propose reply",
     "description": "File a drafted reply to an inbound message on an outreach-originated conversation, for human approval. The conversation must have an `outreachCampaignId` set (it's an outreach conversation) and a CRM contact resolvable by email. Idempotent: re-proposing while a pending reply exists for the same conversation throws — the operator should approve or dismiss the existing one first. Reply approvals send via `conv_send_message` on the existing conversation; no unsubscribe footer is appended (replies thread inside the existing email chain that already carries the unsubscribe link).",
     "audiences": [
       "admin"

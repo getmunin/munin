@@ -114,9 +114,11 @@ const skipReason = TEST_URL
     expect(await countTrackerEvents(db, orgId)).toBe(beforePixel + 1);
 
     const beforeBeacon = await countTrackerEvents(db, orgId);
+    // Match the deployed tracker bundle: it uses `text/plain` so
+    // navigator.sendBeacon doesn't trigger a CORS preflight.
     const beacon = await fetch(`${baseUrl}/v1/a/t`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
       body: JSON.stringify({
         key: minted.trackerKey,
         subjectType: 'page',

@@ -85,8 +85,6 @@ export class AnalyticsTrackerController {
     if (looksLikeBot(userAgent)) return;
     const parsed = PixelQuerySchema.safeParse(rawQuery);
     if (!parsed.success) {
-      // Pixel always returns 200 (1x1 GIF) regardless of validity — log
-      // so a misconfigured embed doesn't disappear into the void.
       this.logger.warn(`pixel.validation_failed: ${parsed.error.message}`);
       return;
     }
@@ -119,10 +117,6 @@ export class AnalyticsTrackerController {
     if (looksLikeBot(userAgent)) return;
     const parsed = BeaconBodySchema.safeParse(rawBody);
     if (!parsed.success) {
-      // The route always returns 204 (per @HttpCode), so without this log
-      // a schema mismatch between the deployed bundle and the server is
-      // invisible — the client sees "success", no row lands. If you see
-      // this in logs, either fix the schema or the bundle.
       this.logger.warn(`beacon.validation_failed: ${parsed.error.message}`);
       return;
     }

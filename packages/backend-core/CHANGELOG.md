@@ -1,5 +1,29 @@
 # @getmunin/backend-core
 
+## 4.41.1
+
+### Patch Changes
+
+- 360b7d4: Fix tracker beacons being silently dropped when the payload contains JSON `null` for optional fields.
+
+  The `BeaconBodySchema` in `analytics-tracker.controller.ts` declared every optional field as `z.string().optional()` (or the numeric equivalent), which Zod treats as `string | undefined` — JSON `null` fails validation. The controller then `return`s on `safeParse → !success` without logging, so the event is silently dropped.
+
+  The deployed `@getmunin/analytics-tracker` bundle sends `null` (not `undefined`) for at least:
+  - `referrer` — on direct navigation (`document.referrer === ''` → bundle normalizes to `null`)
+  - `visitorId` — when `localStorage` throws or returns `null` (private windows, embedded WebViews, locked-down enterprise browsers)
+
+  So real traffic from refreshes, bookmarks, direct URL bar entries, and a chunk of mobile/private-mode visits has been disappearing since the schema was tightened in #362.
+
+  Fix: make every optional field `.nullable().optional()`. The downstream `recordView` already accepts `null | undefined` interchangeably (uses `??`), so no service-side changes needed. Integration test now sends an all-null payload and asserts the row lands.
+
+- e9ec27d: `AnalyticsTrackerController` now logs a `warn` line when a pixel query or beacon body fails Zod validation. Previously both ingest paths silently returned (pixel → 200 GIF, beacon → 204) on validation failure, which hid schema-vs-bundle mismatches: clients saw "success" while no row landed. The fix in #406 was discovered exactly this way — having backend logs surface these from the start would have caught it weeks earlier. Log messages are `pixel.validation_failed: <reason>` and `beacon.validation_failed: <reason>`.
+  - @getmunin/core@4.41.1
+  - @getmunin/db@4.41.1
+  - @getmunin/types@4.41.1
+  - @getmunin/mcp-toolkit@4.41.1
+  - @getmunin/agent-runtime@4.41.1
+  - @getmunin/emails@4.41.1
+
 ## 4.41.0
 
 ### Minor Changes

@@ -13,13 +13,20 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { and, eq, isNull } from 'drizzle-orm';
-import { schema, type Db } from '@getmunin/db';
-import { hashSecret, isWellFormedKey, keyPrefix, looksLikeBot } from '@getmunin/core';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { schema, type Db, type Tx } from '@getmunin/db';
+import {
+  hashSecret,
+  isWellFormedKey,
+  keyPrefix,
+  looksLikeBot,
+  verifyHmac,
+} from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
 import { GeoIpService } from '../modules/analytics/geoip.service.ts';
+import { linkVisitorToEndUser } from '../modules/analytics/visitor-identity.ts';
 
 const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
@@ -64,7 +71,16 @@ interface ResolvedTracker {
   orgId: string;
   apiKeyId: string;
   allowedOrigins: string[];
+  identityVerificationSecret: string | null;
+  requireVerifiedIdentity: boolean;
 }
+
+const IdentifyBodySchema = z.object({
+  key: z.string(),
+  visitorId: z.string().min(1).max(64),
+  externalId: z.string().min(1).max(256),
+  userHash: z.string().min(1).max(256),
+});
 
 @PublicController('v1/a', { throttle: true })
 export class AnalyticsTrackerController {
@@ -107,6 +123,7 @@ export class AnalyticsTrackerController {
       visitorId: visitorId ?? null,
       userAgentClass: 'browser',
       country: this.geoip.lookupCountry(req.ip),
+      requireVerifiedIdentity: tracker.requireVerifiedIdentity,
     });
   }
 
@@ -147,45 +164,123 @@ export class AnalyticsTrackerController {
       userAgentClass: 'tracker',
       country: this.geoip.lookupCountry(req.ip),
       metadata: body.metadata ?? null,
+      requireVerifiedIdentity: tracker.requireVerifiedIdentity,
     });
+  }
+
+  @Post('identify')
+  @HttpCode(204)
+  async identify(
+    @Body() rawBody: unknown,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<void> {
+    const parsed = IdentifyBodySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      this.logger.warn(`identify.validation_failed: ${parsed.error.message}`);
+      return;
+    }
+    const body = parsed.data;
+    const tracker = await this.resolveTrackerKey(body.key);
+    if (!tracker) return;
+    if (!originIsAllowed(tracker.allowedOrigins, origin)) return;
+
+    const secret = tracker.identityVerificationSecret;
+    if (!secret) {
+      this.logger.warn(
+        `identify.rejected: tracker ${tracker.trackerId} has no identity_verification_secret`,
+      );
+      return;
+    }
+    const ok = verifyHmac(body.externalId, secret, body.userHash.toLowerCase());
+    if (!ok) {
+      this.logger.warn(`identify.rejected: hmac_mismatch tracker=${tracker.trackerId}`);
+      return;
+    }
+
+    try {
+      await this.db.transaction(async (tx: Tx) => {
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+        const existing = await tx
+          .select({ id: schema.endUsers.id })
+          .from(schema.endUsers)
+          .where(
+            and(
+              eq(schema.endUsers.orgId, tracker.orgId),
+              eq(schema.endUsers.externalId, body.externalId),
+            ),
+          )
+          .limit(1);
+        let endUserId: string;
+        if (existing[0]) {
+          endUserId = existing[0].id;
+        } else {
+          const [created] = await tx
+            .insert(schema.endUsers)
+            .values({
+              orgId: tracker.orgId,
+              externalId: body.externalId,
+            })
+            .returning({ id: schema.endUsers.id });
+          endUserId = created!.id;
+        }
+        await linkVisitorToEndUser(tx, tracker.orgId, body.visitorId, endUserId);
+      });
+    } catch (err) {
+      this.logger.warn(`identify.persist_failed: ${(err as Error).message}`);
+    }
   }
 
   private async resolveTrackerKey(rawKey: string): Promise<ResolvedTracker | null> {
     if (!rawKey || !isWellFormedKey(rawKey) || !rawKey.startsWith('mn_track_')) return null;
     try {
-      const rows = await this.db
+      const hash = hashSecret(rawKey);
+      await this.db
+        .select({ id: schema.apiKeys.id })
+        .from(schema.apiKeys)
+        .where(eq(schema.apiKeys.keyHash, hash))
+        .limit(1);
+      const keyRows = await this.db
         .select({
           apiKeyId: schema.apiKeys.id,
           orgId: schema.apiKeys.orgId,
-          trackerId: schema.analyticsTrackers.id,
-          allowedOrigins: schema.analyticsTrackers.allowedOrigins,
+          trackerId: schema.apiKeys.trackerId,
         })
         .from(schema.apiKeys)
-        .innerJoin(
-          schema.analyticsTrackers,
-          eq(schema.apiKeys.trackerId, schema.analyticsTrackers.id),
-        )
         .where(
           and(
             eq(schema.apiKeys.keyPrefix, keyPrefix(rawKey)),
-            eq(schema.apiKeys.keyHash, hashSecret(rawKey)),
+            eq(schema.apiKeys.keyHash, hash),
             eq(schema.apiKeys.type, 'track'),
             isNull(schema.apiKeys.revokedAt),
           ),
         )
         .limit(1);
-      const row = rows[0];
-      if (!row || !row.orgId) return null;
+      const keyRow = keyRows[0];
+      if (!keyRow || !keyRow.orgId || !keyRow.trackerId) return null;
+      const trackerRows = await this.db
+        .select({
+          id: schema.analyticsTrackers.id,
+          allowedOrigins: schema.analyticsTrackers.allowedOrigins,
+          identityVerificationSecret: schema.analyticsTrackers.identityVerificationSecret,
+          requireVerifiedIdentity: schema.analyticsTrackers.requireVerifiedIdentity,
+        })
+        .from(schema.analyticsTrackers)
+        .where(eq(schema.analyticsTrackers.id, keyRow.trackerId))
+        .limit(1);
+      const trackerRow = trackerRows[0];
+      if (!trackerRow) return null;
       void this.db
         .update(schema.apiKeys)
         .set({ lastUsedAt: new Date() })
-        .where(eq(schema.apiKeys.id, row.apiKeyId))
+        .where(eq(schema.apiKeys.id, keyRow.apiKeyId))
         .then(undefined, () => undefined);
       return {
-        trackerId: row.trackerId,
-        orgId: row.orgId,
-        apiKeyId: row.apiKeyId,
-        allowedOrigins: row.allowedOrigins,
+        trackerId: trackerRow.id,
+        orgId: keyRow.orgId,
+        apiKeyId: keyRow.apiKeyId,
+        allowedOrigins: trackerRow.allowedOrigins,
+        identityVerificationSecret: trackerRow.identityVerificationSecret,
+        requireVerifiedIdentity: trackerRow.requireVerifiedIdentity,
       };
     } catch {
       return null;

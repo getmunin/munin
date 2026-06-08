@@ -41,17 +41,18 @@ function bootstrap(): void {
 function start(config: WidgetConfig): void {
   let sessionId = getSessionId(config.channelId);
   const visitorId = getVisitorId(config.channelId);
-  const identity =
+  let identity: { externalId: string; userHash: string } | undefined =
     config.externalId && config.userHash
       ? { externalId: config.externalId, userHash: config.userHash }
       : undefined;
+  const getIdentity = (): { externalId: string; userHash: string } | undefined => identity;
   const api = createApiClient({
     host: config.host,
     widgetKey: config.widgetKey,
     channelId: config.channelId,
     sessionId,
     visitorId,
-    identity,
+    getIdentity,
     visitor: config.visitor,
     locale: pickLocale(config.locale).locale,
   });
@@ -60,8 +61,38 @@ function start(config: WidgetConfig): void {
     widgetKey: config.widgetKey,
     channelId: config.channelId,
     sessionId,
-    identity,
+    getIdentity,
   });
+
+  async function identifyVisitor(externalId: string, userHash: string): Promise<void> {
+    if (!externalId || !userHash) {
+      console.warn('[munin-widget] identify requires externalId and userHash');
+      return;
+    }
+    try {
+      await api.identify(externalId, userHash);
+      identity = { externalId, userHash };
+      realtime.reconnect();
+    } catch (err) {
+      console.warn('[munin-widget] identify failed:', err);
+    }
+  }
+
+  const w = window as Window & {
+    mn?: { identify?: (externalId: string, userHash: string) => void | Promise<void> };
+  };
+  const mn = (w.mn ??= {});
+  const previousIdentify = mn.identify;
+  mn.identify = async (externalId: string, userHash: string): Promise<void> => {
+    if (previousIdentify) {
+      try {
+        await previousIdentify(externalId, userHash);
+      } catch (err) {
+        console.warn('[munin-widget] forward identify:', err);
+      }
+    }
+    await identifyVisitor(externalId, userHash);
+  };
 
   let lastSeenAt: Date | undefined;
   let backfillInFlight = false;

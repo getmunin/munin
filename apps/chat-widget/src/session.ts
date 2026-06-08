@@ -2,6 +2,7 @@ const STORAGE_PREFIX = 'munin-widget-session:';
 const COOKIE_PREFIX = 'munin-widget-session-';
 const VISITOR_STORAGE_PREFIX = 'munin-widget-visitor:';
 const VISITOR_COOKIE_PREFIX = 'munin-widget-visitor-';
+const SHARED_VISITOR_KEY = 'mn.vid';
 const RECENT_CAP = 20;
 const COOKIE_MAX_AGE_S = 60 * 60 * 24 * 365;
 
@@ -54,14 +55,18 @@ export function getVisitorId(channelId: string): string {
   if (cached) return cached;
   const stored =
     readStorage(VISITOR_STORAGE_PREFIX + channelId) ??
-    readCookie(VISITOR_COOKIE_PREFIX + channelId);
+    readCookie(VISITOR_COOKIE_PREFIX + channelId) ??
+    readStorage(SHARED_VISITOR_KEY);
   if (stored && stored.length > 0) {
     visitorMemory.set(channelId, stored);
+    writeStorage(VISITOR_STORAGE_PREFIX + channelId, stored);
+    writeStorage(SHARED_VISITOR_KEY, stored);
     return stored;
   }
   const fresh = randomId();
   visitorMemory.set(channelId, fresh);
   writeStorage(VISITOR_STORAGE_PREFIX + channelId, fresh);
+  writeStorage(SHARED_VISITOR_KEY, fresh);
   writeVisitorCookie(channelId, fresh, COOKIE_MAX_AGE_S);
   return fresh;
 }

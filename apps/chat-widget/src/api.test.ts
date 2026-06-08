@@ -68,7 +68,7 @@ describe('api: postMessage', () => {
       widgetKey: 'mn_widget_abc',
       channelId: 'cnv_chan',
       sessionId: 'sess_1',
-      identity: { externalId: 'user_42', userHash: 'a'.repeat(64) },
+      getIdentity: () => ({ externalId: 'user_42', userHash: 'a'.repeat(64) }),
       fetchImpl,
     });
     await client.postMessage('hi');
@@ -200,7 +200,7 @@ describe('api: backfillSince', () => {
       widgetKey: 'mn_widget_abc',
       channelId: 'cnv_chan',
       sessionId: 'sess_1',
-      identity: { externalId: 'user_42', userHash: 'b'.repeat(64) },
+      getIdentity: () => ({ externalId: 'user_42', userHash: 'b'.repeat(64) }),
       fetchImpl,
     });
     await client.backfillSince(undefined);

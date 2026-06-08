@@ -48,6 +48,9 @@
             "type": "string",
             "format": "uri"
           }
+        },
+        "requireVerifiedIdentity": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -109,6 +112,35 @@
             "type": "string",
             "format": "uri"
           }
+        },
+        "requireVerifiedIdentity": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "trackerId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_rotate_tracker_identity_secret",
+    "title": "Analytics: Rotate tracker identity verification secret",
+    "description": "Mint a fresh HMAC secret for verifying visitor-identity claims sent to `/v1/a/identify`. Returns the plaintext secret once; store it server-side and use it to compute `userHash = HMAC_SHA256(externalId, secret)` before calling `window.mn.identify(externalId, userHash)` from the browser. The previous secret is replaced immediately — any in-flight identify calls signed with it will fail.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "trackerId": {
+          "type": "string"
         }
       },
       "required": [
@@ -120,7 +152,7 @@
   {
     "name": "analytics_top_subjects",
     "title": "Analytics: Top subjects by view count",
-    "description": "List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`).",
+    "description": "List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`). Pass `endUserId` or `contactId` to restrict the ranking to one identified visitor — useful for \"what has this lead been reading?\".",
     "audiences": [
       "admin"
     ],
@@ -156,6 +188,12 @@
             "beacon",
             "tracker"
           ]
+        },
+        "endUserId": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
         }
       },
       "required": [
@@ -349,6 +387,12 @@
             "beacon",
             "tracker"
           ]
+        },
+        "endUserId": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
         }
       },
       "required": [
@@ -385,12 +429,60 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 365
+        },
+        "endUserId": {
+          "type": "string"
+        },
+        "contactId": {
+          "type": "string"
         }
       },
       "required": [
         "subjectType",
         "subjectId",
         "sinceDays"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_contact_journey",
+    "title": "Analytics: Journey of subjects viewed by a contact",
+    "description": "Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`; events recorded before linkage stay anonymous and are not returned here.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contactId": {
+          "type": "string"
+        },
+        "endUserId": {
+          "type": "string"
+        },
+        "sinceDays": {
+          "default": 30,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "limit": {
+          "default": 100,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        }
+      },
+      "required": [
+        "sinceDays",
+        "limit"
       ],
       "additionalProperties": false
     }

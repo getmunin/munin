@@ -15,6 +15,7 @@ import { CmsDeliveryController } from './cms-delivery.controller.ts';
 import { CmsDraftsController } from './cms-drafts.controller.ts';
 import { AnalyticsViewsController } from './analytics-views.controller.ts';
 import { AnalyticsTrackerController } from './analytics-tracker.controller.ts';
+import { AnalyticsTrackersController } from './analytics-trackers.controller.ts';
 import { AnalyticsModule } from '../modules/analytics/analytics.module.ts';
 import { CmsModule } from '../modules/cms/cms.module.ts';
 import { ConvModule } from '../modules/conv/conv.module.ts';
@@ -85,6 +86,7 @@ import { AuthProvidersController } from './auth-providers.controller.ts';
     CmsDraftsController,
     AnalyticsViewsController,
     AnalyticsTrackerController,
+    AnalyticsTrackersController,
     InvitationsController,
     AcceptInvitationController,
     MembersController,

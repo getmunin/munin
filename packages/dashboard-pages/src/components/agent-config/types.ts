@@ -29,7 +29,7 @@ export interface UpsertBody {
 }
 
 export const PROVIDER_PRESETS = [
-  { id: 'openrouter', name: 'OpenRouter', url: 'https://openrouter.ai/v1' },
+  { id: 'openrouter', name: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
   { id: 'anthropic', name: 'Anthropic', url: 'https://api.anthropic.com/v1' },
   { id: 'openai', name: 'OpenAI', url: 'https://api.openai.com/v1' },
   { id: 'custom', name: 'Custom', url: '' },

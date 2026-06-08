@@ -73,7 +73,6 @@ class StubStorage implements AssetStorage {
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
     appDb = createDb(appUrl);
 
-    const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
       .values({ name: 'CMS Service Test Org' })
@@ -874,7 +873,6 @@ class StubStorage implements AssetStorage {
         }),
       );
       // Create a second org and an actor scoped to it.
-      const ts = Date.now();
       const [otherOrg] = await db
         .insert(schema.orgs)
         .values({ name: 'Other Org' })

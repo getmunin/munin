@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { ALERT_SOURCES, AlertsService } from './system-alerts.service.ts';
 
-const EmptyInput = z.object({});
 const IdInput = z.object({ id: z.string() });
 
 const ListInput = z.object({

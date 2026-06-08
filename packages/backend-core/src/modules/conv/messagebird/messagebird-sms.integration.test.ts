@@ -45,7 +45,6 @@ const skipReason = TEST_URL
     db = createDb(TEST_URL!, { serviceRole: true });
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
 
-    const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
       .values({ name: 'MessageBird IT Org' })
@@ -163,7 +162,6 @@ const skipReason = TEST_URL
   });
 
   it('rejects a tampered JWT', async () => {
-    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       id: 'mb_inbound_bad',
       originator: '14155551313',

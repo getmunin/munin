@@ -44,7 +44,6 @@ const skipReason = TEST_URL
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
     appDb = createDb(appUrl);
 
-    const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
       .values({ name: 'Outreach Test Org' })

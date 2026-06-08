@@ -560,7 +560,6 @@ const skipReason = TEST_URL
   describe('RLS', () => {
     it('cross-org isolation: another org cannot see this org\'s channels', async () => {
       const mine = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'mine' }));
-      const ts = Date.now();
       const [otherOrg] = await db
         .insert(schema.orgs)
         .values({ name: 'Other' })

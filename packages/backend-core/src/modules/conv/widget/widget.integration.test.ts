@@ -50,7 +50,6 @@ const skipReason = TEST_URL
     db = createDb(TEST_URL!, { serviceRole: true });
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
 
-    const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
       .values({ name: 'Widget IT Org' })
@@ -518,7 +517,6 @@ const skipReason = TEST_URL
   it('rejects identity rotation across tenants', async () => {
     // Mint a fresh org with its own admin key, channel, and secret.
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-    const ts = Date.now();
     const [otherOrg] = await db
       .insert(schema.orgs)
       .values({ name: 'Widget IT Org B' })

@@ -273,6 +273,147 @@ const skipReason = TEST_URL
     await waitFor(async () => (await countTrackerEvents(db, orgId)) > beforeOpen);
   }, 30_000);
 
+  it('traffic_by_source / referrer_hosts / views_over_time roll up seeded events', async () => {
+    const [seedOrg] = await db
+      .insert(schema.orgs)
+      .values({ name: 'Analytics Rollup Org' })
+      .returning();
+    const seedOrgId = seedOrg!.id;
+    const rollupKey = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId: seedOrgId,
+      type: 'admin',
+      name: 'analytics-rollup-admin',
+      keyHash: hashSecret(rollupKey),
+      keyPrefix: keyPrefix(rollupKey),
+      scopes: ['*'],
+    });
+
+    const now = new Date();
+    const daysAgo = (n: number): Date =>
+      new Date(now.getTime() - n * 24 * 60 * 60 * 1000);
+    await db.insert(schema.analyticsViewEvents).values([
+      {
+        orgId: seedOrgId,
+        subjectType: 'page',
+        subjectId: '/pricing',
+        path: '/pricing',
+        referrer: 'https://news.ycombinator.com/item?id=1',
+        visitorId: 'visitor-r1',
+        utmSource: 'hn',
+        utmMedium: 'social',
+        utmCampaign: 'launch',
+        source: 'tracker',
+        createdAt: daysAgo(0),
+      },
+      {
+        orgId: seedOrgId,
+        subjectType: 'page',
+        subjectId: '/pricing',
+        path: '/pricing',
+        referrer: 'https://news.ycombinator.com/item?id=2',
+        visitorId: 'visitor-r2',
+        utmSource: 'hn',
+        utmMedium: 'social',
+        utmCampaign: 'launch',
+        source: 'tracker',
+        createdAt: daysAgo(0),
+      },
+      {
+        orgId: seedOrgId,
+        subjectType: 'page',
+        subjectId: '/about',
+        path: '/about',
+        referrer: 'https://www.reddit.com/r/programming',
+        visitorId: 'visitor-r3',
+        utmSource: 'reddit',
+        utmMedium: 'social',
+        utmCampaign: 'launch',
+        source: 'tracker',
+        createdAt: daysAgo(1),
+      },
+      {
+        orgId: seedOrgId,
+        subjectType: 'page',
+        subjectId: '/about',
+        path: '/about',
+        referrer: null,
+        visitorId: 'visitor-r4',
+        utmSource: null,
+        utmMedium: null,
+        utmCampaign: null,
+        source: 'tracker',
+        createdAt: daysAgo(2),
+      },
+      {
+        orgId: seedOrgId,
+        subjectType: 'page',
+        subjectId: '/about',
+        path: '/about',
+        referrer: 'https://getmunin.com/blog/x',
+        visitorId: 'visitor-r5',
+        source: 'tracker',
+        createdAt: daysAgo(3),
+      },
+    ]);
+
+    try {
+      const bySource = await withClient(rollupKey, async (c) =>
+        parseToolResult<
+          Array<{
+            utmSource: string | null;
+            utmMedium: string | null;
+            utmCampaign: string | null;
+            views: number;
+            visitors: number;
+          }>
+        >(
+          await c.callTool({
+            name: 'analytics_traffic_by_source',
+            arguments: { sinceDays: 7 },
+          }),
+        ),
+      );
+      const hn = bySource.find((r) => r.utmSource === 'hn');
+      const reddit = bySource.find((r) => r.utmSource === 'reddit');
+      const direct = bySource.find((r) => r.utmSource === null);
+      expect(hn?.views).toBe(2);
+      expect(hn?.visitors).toBe(2);
+      expect(reddit?.views).toBe(1);
+      expect(direct?.views).toBe(2);
+
+      const hosts = await withClient(rollupKey, async (c) =>
+        parseToolResult<Array<{ host: string | null; views: number; visitors: number }>>(
+          await c.callTool({
+            name: 'analytics_referrer_hosts',
+            arguments: { excludeHost: 'getmunin.com', sinceDays: 7, limit: 10 },
+          }),
+        ),
+      );
+      const hosts2 = Object.fromEntries(hosts.map((r) => [r.host ?? 'null', r]));
+      expect(hosts2['news.ycombinator.com']?.views).toBe(2);
+      expect(hosts2['www.reddit.com']?.views).toBe(1);
+      expect(hosts2['null']?.views).toBe(1);
+      expect(hosts2['getmunin.com']).toBeUndefined();
+
+      const series = await withClient(rollupKey, async (c) =>
+        parseToolResult<Array<{ day: string; views: number; visitors: number }>>(
+          await c.callTool({
+            name: 'analytics_views_over_time',
+            arguments: { sinceDays: 5 },
+          }),
+        ),
+      );
+      expect(series).toHaveLength(5);
+      expect(series.every((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.day))).toBe(true);
+      const totalViews = series.reduce((s, r) => s + r.views, 0);
+      expect(totalViews).toBe(5);
+      expect(series[series.length - 1]?.views).toBe(2);
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${seedOrgId}`);
+    }
+  }, 30_000);
+
   it('MUNIN_TRACKER_REQUIRE_ALLOWLIST=1 fail-closes empty allowlists', async () => {
     const minted = await withClient(adminKey, async (c) => {
       return parseToolResult<{ id: string; trackerKey: string }>(

@@ -70,18 +70,27 @@ const VISITOR_KEY = 'mn.vid';
   const spa = script.getAttribute('data-spa') === 'true';
   const beaconUrl = apiBase + '/v1/a/t';
 
-  let visitorId: string | null = null;
+  function freshVisitorId(): string {
+    return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : 'v-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  let visitorId: string;
   try {
-    visitorId = localStorage.getItem(VISITOR_KEY);
-    if (!visitorId) {
-      visitorId =
-        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : 'v-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const stored = localStorage.getItem(VISITOR_KEY);
+    if (stored) {
+      visitorId = stored;
+    } else {
+      visitorId = freshVisitorId();
       localStorage.setItem(VISITOR_KEY, visitorId);
     }
   } catch {
-    visitorId = null;
+    // localStorage threw (private window, embedded WebView, locked-down
+    // enterprise browser, storage quota). Fall back to a page-scoped id so
+    // pageviews within the same page lifetime still dedup to one visitor.
+    // Lost on reload — that's the inherent cost of no persistent storage.
+    visitorId = freshVisitorId();
   }
 
   const initialReferrer = doc.referrer || null;

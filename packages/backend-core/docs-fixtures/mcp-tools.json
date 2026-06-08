@@ -166,6 +166,198 @@
     }
   },
   {
+    "name": "analytics_top_countries",
+    "title": "Analytics: Visitors by country",
+    "description": "Visitor and view counts grouped by ISO 3166-1 alpha-2 country code over a recent window. Requires the backend to have `MUNIN_GEOIP_DB_PATH` configured; rows recorded without a GeoIP DB carry `country = NULL` and roll up into an \"unknown\" bucket. Filter by `subjectType` (e.g. `page`, `cms_entry`) or `source` to scope.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "subjectType": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "sinceDays": {
+          "default": 30,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "limit": {
+          "default": 50,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "pixel",
+            "beacon",
+            "tracker"
+          ]
+        }
+      },
+      "required": [
+        "sinceDays",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_traffic_by_source",
+    "title": "Analytics: Traffic by UTM source",
+    "description": "Views and unique visitors grouped by `utm_source` (with `utm_medium` / `utm_campaign` breakdown). Use this to compare campaign attribution: which channels actually drive engaged traffic vs. just clicks. Rows where `utm_source` is NULL (no campaign params on the URL) roll into a single \"direct/organic\" bucket.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "subjectType": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "sinceDays": {
+          "default": 30,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "limit": {
+          "default": 50,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "pixel",
+            "beacon",
+            "tracker"
+          ]
+        }
+      },
+      "required": [
+        "sinceDays",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_referrer_hosts",
+    "title": "Analytics: Top referrer hosts",
+    "description": "External traffic sources grouped by the host portion of `referrer`. Use this to see which sites are linking to you (HN, Reddit, partner blogs). Same-origin referrers are excluded server-side via the `excludeHost` argument (typically your own production host); pass it to keep internal navigations from drowning out external referrals. Rows with NULL referrer (direct navigation, bookmarks, link-with-`rel=noreferrer`) roll into a single \"direct\" bucket.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "subjectType": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "excludeHost": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "sinceDays": {
+          "default": 30,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "limit": {
+          "default": 50,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "pixel",
+            "beacon",
+            "tracker"
+          ]
+        }
+      },
+      "required": [
+        "sinceDays",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_views_over_time",
+    "title": "Analytics: Daily view time-series",
+    "description": "Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "subjectType": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "subjectId": {
+          "type": "string"
+        },
+        "sinceDays": {
+          "default": 30,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "pixel",
+            "beacon",
+            "tracker"
+          ]
+        }
+      },
+      "required": [
+        "sinceDays"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "analytics_subject_engagement",
     "title": "Analytics: Engagement for one subject",
     "description": "View counts, unique visitors, and average dwell/read-depth for one subject (e.g. one CMS entry) over a recent window. Use this when judging whether a stale entry should be refreshed or archived.",

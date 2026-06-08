@@ -66,23 +66,66 @@ That's it. The script auto-fires a page view on `DOMContentLoaded` and writes a 
 
 ## 3. Custom events from JavaScript
 
-For SPA route changes or arbitrary "this thing happened on the page" events, the script exposes a global:
+`mn.track(subjectId, attrs?)` records anything beyond an auto-fired page view — funnel steps, CTA clicks, modal opens, SPA route changes. Same row schema as a page view (`analytics_view_events`); each call inherits `visitorId`, the script tag's key, and the initial referrer, so attribution stays consistent without you passing it every time.
 
-```javascript
-window.mn.track('checkout-step-2', {
-  dwellMs: 12_000,
-  readDepth: 80,
-  metadata: { variant: 'b' },
-});
-```
-
-The first argument is `subjectId`. The second is an attribute bag:
-- `subjectType` — defaults to the `data-subject-type` on the script tag.
-- `path`, `referrer` — defaults to the current location and the initial referrer.
+The first argument is `subjectId`, the second an optional attribute bag:
+- `subjectType` — defaults to `data-subject-type` on the script tag (typically `'page'`). Override per call if a single tracker handles multiple surfaces (e.g. `'funnel'`, `'cta'`, `'docs'`).
+- `path`, `referrer` — default to the current location and the initial document referrer; pass to override.
 - `dwellMs`, `readDepth`, `metadata` — pass through unchanged.
 - `utm` — falls back to URL `?utm_*` params if not provided.
 
-`mn.trackPageView()` is also exposed for the rare case where you want to re-fire the page view manually.
+### Patterns
+
+**Funnel step** — instrument a multi-step flow so you can compute conversion in `analytics_subject_engagement` or a custom query:
+
+```javascript
+document.querySelector('#signup-cta').addEventListener('click', () => {
+  window.mn.track('signup-cta-click', { subjectType: 'funnel' });
+});
+
+window.mn.track('checkout-step-2-reached', {
+  subjectType: 'funnel',
+  metadata: { cartValue: 49 },
+});
+
+window.mn.track('checkout-complete', {
+  subjectType: 'funnel',
+  metadata: { orderId: 'ord_abc', amount: 49 },
+});
+```
+
+Then query: `analytics_top_subjects({ subjectType: 'funnel', sinceDays: 7 })` gives drop-off counts across steps.
+
+**SPA route change with dwell** — if you're not using `data-spa="true"` (or want manual control), fire `mn.track` on route transitions with the previous-route dwell:
+
+```javascript
+let routeEnter = Date.now();
+let lastRoute = location.pathname;
+router.afterEach((to) => {
+  window.mn.track(lastRoute, {
+    dwellMs: Date.now() - routeEnter,
+    referrer: null,
+  });
+  routeEnter = Date.now();
+  lastRoute = to.path;
+  window.mn.track(to.path);
+});
+```
+
+**Scroll milestones** — measure read depth on long-form content:
+
+```javascript
+['25', '50', '75', '100'].forEach((pct) => {
+  observeScrollPercent(Number(pct), () => {
+    window.mn.track(location.pathname, {
+      readDepth: Number(pct),
+      subjectType: 'page',
+    });
+  });
+});
+```
+
+`mn.trackPageView()` is also exposed for the rare case where you want to re-fire the auto page view manually (e.g. after a soft route reload).
 
 ## 4. Query the data
 
@@ -120,7 +163,31 @@ Returns `[{ query, occurrences, lastSeenAt }]`. The single best signal for "what
 
 Returns `[{ country, views, visitors }]`. A row with `country: null` is the unknown bucket — bot IPs filtered upstream don't reach here; this is private/unmappable IPs (loopback, link-local, ranges absent from the mmdb).
 
-For anything more bespoke (UTM-source breakdowns, custom funnels, time-series), the events sit in `analytics_view_events` and `analytics_search_events`; query them directly from a DB client. The MCP tools cover the common questions; the table covers the long tail.
+```jsonc
+// Which campaigns/channels drive traffic?
+{ "name": "analytics_traffic_by_source",
+  "arguments": { "subjectType": "page", "sinceDays": 30, "limit": 50 } }
+```
+
+Returns `[{ utmSource, utmMedium, utmCampaign, views, visitors }]`. The row with all three NULL is the "direct/organic" bucket — visits with no UTM params. Compare named-campaign rows against the direct bucket to gauge campaign lift.
+
+```jsonc
+// Which external sites send us traffic?
+{ "name": "analytics_referrer_hosts",
+  "arguments": { "excludeHost": "getmunin.com", "sinceDays": 30, "limit": 50 } }
+```
+
+Returns `[{ host, views, visitors }]`. Pass `excludeHost` set to your production host to filter out internal navigations; the `host: null` row is direct/bookmark traffic and `rel=noreferrer` clicks.
+
+```jsonc
+// Daily traffic trend — spot weekly patterns, campaign spikes, content launch lift.
+{ "name": "analytics_views_over_time",
+  "arguments": { "subjectType": "page", "sinceDays": 30 } }
+```
+
+Returns `[{ day: '2026-05-09', views, visitors }, …]` zero-filled per UTC day, oldest first. Pin to a single page by passing `subjectId`.
+
+For anything more bespoke (custom funnels, multi-dimension cohorts), the events sit in `analytics_view_events` and `analytics_search_events`; query them directly from a DB client. The MCP tools cover the common questions; the table covers the long tail.
 
 ## 5. Server-side / SDK ingestion
 

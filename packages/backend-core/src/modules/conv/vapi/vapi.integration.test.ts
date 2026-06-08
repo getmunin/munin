@@ -46,7 +46,6 @@ const skipReason = TEST_URL
     db = createDb(TEST_URL!, { serviceRole: true });
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
 
-    const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
       .values({ name: 'Vapi IT Org' })

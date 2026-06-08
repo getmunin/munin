@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { schema, makeId } from '@getmunin/db';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 

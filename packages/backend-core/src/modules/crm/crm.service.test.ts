@@ -840,7 +840,6 @@ const skipReason = TEST_URL
   describe('RLS', () => {
     it('cross-org isolation: another org cannot see this org\'s contacts', async () => {
       const mine = await run(() => svc.createContact({ name: 'MineOnly', email: 'm@x' }));
-      const ts = Date.now();
       const [otherOrg] = await db
         .insert(schema.orgs)
         .values({ name: 'Other' })

@@ -21,8 +21,6 @@ import {
   VOICE_SYSTEM_PROMPT_SLUG,
   WebhookDispatcher,
   createPromptCache,
-  type KbDocLocation,
-  type KbDocReader,
   type PromptCache,
 } from '@getmunin/core';
 import { DB } from '../../../common/db/db.module.ts';

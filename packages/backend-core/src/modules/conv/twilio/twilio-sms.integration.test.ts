@@ -46,7 +46,6 @@ const skipReason = TEST_URL
     db = createDb(TEST_URL!, { serviceRole: true });
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
 
-    const ts = Date.now();
     const [org] = await db
       .insert(schema.orgs)
       .values({ name: 'Twilio IT Org' })
@@ -150,7 +149,6 @@ const skipReason = TEST_URL
   });
 
   it('rejects an invalid signature', async () => {
-    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       AccountSid: ACCOUNT_SID,
       MessageSid: 'SM_inbound_bad',

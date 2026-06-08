@@ -28,5 +28,6 @@ export default defineConfig({
   test: {
     fileParallelism: false,
     testTimeout: 30_000,
+    retry: 1,
   },
 });

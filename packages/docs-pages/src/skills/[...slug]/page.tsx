@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import { Link } from '../../i18n-navigation';
 import ReactMarkdown from 'react-markdown';
-import { findSkill, groupByModule, skills } from '../../_lib/skills';
+import remarkGfm from 'remark-gfm';
+import { findSkill, groupByModule, renderSkillContent, skills } from '../../_lib/skills';
 import { SkillsSidebar } from '../../_components/skills-sidebar';
 
 export function generateStaticParams() {
@@ -26,7 +27,9 @@ export default async function SkillDetail({ params }: { params: Promise<{ slug: 
             <span className="title-pin">{skill.title}</span>
           </div>
           <div className="markdown">
-            <ReactMarkdown>{skill.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {renderSkillContent(skill.content)}
+            </ReactMarkdown>
           </div>
         </div>
       </main>

@@ -7,7 +7,11 @@ import { api, ApiError } from '../../api';
 import { authClient } from '../../auth-client';
 import { Link, useRouter } from '../../i18n-navigation';
 import { useTranslateError } from '../../i18n/translate-error';
-import { absoluteCallbackUrl, safeRedirect, resumeOauthAuthorizeUrl } from '../../auth/post-signin-redirect';
+import {
+  absoluteCallbackUrl,
+  safeRedirect,
+  hasOauthAuthorizeParams,
+} from '../../auth/post-signin-redirect';
 import {
   AuthShell,
   AuthHeading,
@@ -88,9 +92,8 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
         return;
       }
       await refetch();
-      const oauthResume = resumeOauthAuthorizeUrl(params);
-      if (oauthResume) {
-        window.location.assign(oauthResume);
+      if (hasOauthAuthorizeParams(params)) {
+        router.push(`/setup?${params.toString()}`);
         return;
       }
       router.push(redirectTo);
@@ -100,9 +103,11 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
     }
   }
 
-  const signInHref = redirectRaw
-    ? `/login?redirect=${encodeURIComponent(redirectRaw)}`
-    : '/login';
+  const signInHref = hasOauthAuthorizeParams(params)
+    ? `/login?${params.toString()}`
+    : redirectRaw
+      ? `/login?redirect=${encodeURIComponent(redirectRaw)}`
+      : '/login';
 
   return (
     <AuthShell

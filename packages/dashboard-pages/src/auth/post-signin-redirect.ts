@@ -16,3 +16,12 @@ export function resumeOauthAuthorizeUrl(params: URLSearchParams): string | null 
   if (!/^https?:\/\//.test(apiBase)) return null;
   return `${apiBase}/auth/oauth2/authorize?${params.toString()}`;
 }
+
+export function hasOauthAuthorizeParams(params: URLSearchParams): boolean {
+  return params.get('response_type') === 'code' && !!params.get('client_id');
+}
+
+export function oauthParamString(params: URLSearchParams): string {
+  if (!hasOauthAuthorizeParams(params)) return '';
+  return params.toString();
+}

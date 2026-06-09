@@ -1033,8 +1033,7 @@
       },
       "cta": {
         "goToDashboard": "Gå til dashbord",
-        "customizeChatbot": "Tilpass chatbot",
-        "tweakSettings": "Endre innstillinger"
+        "continue": "Fortsett"
       }
     },
     "saved": "Lagret.",

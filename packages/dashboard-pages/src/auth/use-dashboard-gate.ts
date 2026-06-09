@@ -29,7 +29,8 @@ export function useDashboardGate(): { ready: boolean; role: OrgRole | null } {
     if (exempt) return;
     if (roleLoading || configLoading || membershipLoading) return;
     if (setupIncomplete && isOwnerOrAdmin(role)) {
-      router.push('/setup');
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      router.push(search ? `/setup${search}` : '/setup');
     }
   }, [
     isPending,

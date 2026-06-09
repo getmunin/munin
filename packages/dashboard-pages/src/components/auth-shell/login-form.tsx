@@ -6,7 +6,12 @@ import { useTranslations } from 'next-intl';
 import { authClient } from '../../auth-client';
 import { Link, useRouter } from '../../i18n-navigation';
 import { useTranslateError } from '../../i18n/translate-error';
-import { absoluteCallbackUrl, safeRedirect, resumeOauthAuthorizeUrl } from '../../auth/post-signin-redirect';
+import {
+  absoluteCallbackUrl,
+  safeRedirect,
+  resumeOauthAuthorizeUrl,
+  hasOauthAuthorizeParams,
+} from '../../auth/post-signin-redirect';
 import {
   AuthShell,
   AuthHeading,
@@ -42,9 +47,11 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
   const params = useSearchParams();
   const redirectRaw = params.get('redirect');
   const redirectTo = safeRedirect(redirectRaw);
-  const signupHref = redirectRaw
-    ? `/signup?redirect=${encodeURIComponent(redirectRaw)}`
-    : '/signup';
+  const signupHref = hasOauthAuthorizeParams(params)
+    ? `/signup?${params.toString()}`
+    : redirectRaw
+      ? `/signup?redirect=${encodeURIComponent(redirectRaw)}`
+      : '/signup';
   const { refetch } = authClient.useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

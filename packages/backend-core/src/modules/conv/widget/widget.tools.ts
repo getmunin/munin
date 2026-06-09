@@ -60,7 +60,7 @@ export class WidgetAdminTools {
     name: 'conv_widget_create_channel',
     title: 'Conv: Create chat-widget channel',
     description:
-      'Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent.',
+      'Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the widget + tracker + CMS wiring end-to-end.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateInput,

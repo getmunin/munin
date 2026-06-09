@@ -27,7 +27,9 @@ export class McpSkillRegistryService extends SkillRegistry implements OnModuleIn
 }
 
 function buildInstructions(adminSkills: ReadonlyArray<{ uri: string; name: string }>): string {
-  const featured = adminSkills.slice(0, 6);
+  const playbooks = adminSkills.filter((s) => s.uri.startsWith('skill://playbooks/'));
+  const rest = adminSkills.filter((s) => !s.uri.startsWith('skill://playbooks/'));
+  const featured = [...playbooks, ...rest].slice(0, 8);
   const lines = [
     'Munin: agent-native business apps. You have ~80 tools across these modules:',
     '  • Knowledge Base (kb_*)        — articles, search, versions',

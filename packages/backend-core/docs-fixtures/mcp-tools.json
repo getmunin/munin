@@ -24,7 +24,7 @@
   {
     "name": "analytics_create_tracker",
     "title": "Analytics: Create tracker key",
-    "description": "Create a tracker and mint a public `mn_track_*` API key bound to it. The key is safe to embed in `<script>` tags or mobile clients — it can only write page-view events scoped to your org, never read them. `allowedOrigins` is an optional list of full origins (`https://example.com`) the tracker will accept; when empty, any origin is accepted (set `MUNIN_TRACKER_REQUIRE_ALLOWLIST=1` to fail-closed instead). Returns the plaintext key once; store it where it needs to be embedded.",
+    "description": "Create a tracker and mint a public `mn_track_*` API key bound to it. The key is safe to embed in `<script>` tags or mobile clients — it can only write page-view events scoped to your org, never read them. `allowedOrigins` is an optional list of full origins (`https://example.com`) the tracker will accept; when empty, any origin is accepted (set `MUNIN_TRACKER_REQUIRE_ALLOWLIST=1` to fail-closed instead). Returns the plaintext key once; store it where it needs to be embedded. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the tracker + widget + CMS wiring end-to-end.",
     "audiences": [
       "admin"
     ],
@@ -556,7 +556,7 @@
   {
     "name": "cms_list_collections",
     "title": "CMS: List collections",
-    "description": "List CMS collections (content types) defined for your org.",
+    "description": "List CMS collections (content types) defined for your org. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor and need to render CMS content? Read `skill://playbooks/frontend-integration` — the delivery API is anonymous and intentionally has no CORS, so the fetch must run server-side.",
     "audiences": [
       "admin"
     ],
@@ -2761,7 +2761,7 @@
   {
     "name": "conv_widget_create_channel",
     "title": "Conv: Create chat-widget channel",
-    "description": "Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent.",
+    "description": "Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the widget + tracker + CMS wiring end-to-end.",
     "audiences": [
       "admin"
     ],

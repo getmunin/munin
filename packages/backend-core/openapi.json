@@ -1556,6 +1556,37 @@
         ]
       }
     },
+    "/v1/analytics/trackers/{id}/rotate-key": {
+      "post": {
+        "operationId": "AnalyticsTrackersController_rotateKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTrackers"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/analytics/trackers/{id}/revoke": {
       "post": {
         "operationId": "AnalyticsTrackersController_revoke",

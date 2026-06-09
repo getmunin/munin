@@ -59,6 +59,12 @@ interface RotatedIdentity {
   identityVerificationSecret: string;
 }
 
+interface RotatedKey {
+  trackerId: string;
+  name: string;
+  trackerKey: string;
+}
+
 const KEY_DISPLAY_TIMEOUT_MS = 1500;
 
 function toSaveErrorDetail(
@@ -90,6 +96,7 @@ export function TrackersPage() {
   const [trackers, setTrackers] = useState<TrackerSummary[] | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
+  const [rotatedKey, setRotatedKey] = useState<RotatedKey | null>(null);
   const [embedFor, setEmbedFor] = useState<TrackerSummary | null>(null);
 
   const load = useCallback(async () => {
@@ -103,6 +110,31 @@ export function TrackersPage() {
   useEffect(() => {
     void tryLoad();
   }, [tryLoad]);
+
+  async function rotateKey(tracker: TrackerSummary) {
+    const ok = await confirm({
+      title: t('rotateKeyConfirmTitle'),
+      message: t('rotateKeyConfirm', { name: tracker.name }),
+      confirmLabel: t('rotateKey'),
+      cancelLabel: tCommon('cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const result = await api<{ trackerKey: string }>(
+        `/v1/analytics/trackers/${tracker.id}/rotate-key`,
+        { method: 'POST' },
+      );
+      setRotatedKey({
+        trackerId: tracker.id,
+        name: tracker.name,
+        trackerKey: result.trackerKey,
+      });
+      await tryLoad();
+    } catch (err) {
+      notify.error(translate(err) || t('errors.rotateKey'));
+    }
+  }
 
   async function rotateIdentity(tracker: TrackerSummary) {
     const ok = await confirm({
@@ -178,6 +210,10 @@ export function TrackersPage() {
         />
       )}
 
+      {rotatedKey && (
+        <RotatedKeyDialog rotated={rotatedKey} onClose={() => setRotatedKey(null)} />
+      )}
+
       {embedFor && (
         <EmbedSnippetDialog tracker={embedFor} onClose={() => setEmbedFor(null)} />
       )}
@@ -208,6 +244,9 @@ export function TrackersPage() {
                 key={tr.id}
                 tracker={tr}
                 onShowEmbed={() => setEmbedFor(tr)}
+                onRotateKey={() => {
+                  void rotateKey(tr);
+                }}
                 onRotateIdentity={() => {
                   void rotateIdentity(tr);
                 }}
@@ -226,11 +265,13 @@ export function TrackersPage() {
 function TrackerRow({
   tracker,
   onShowEmbed,
+  onRotateKey,
   onRotateIdentity,
   onRevoke,
 }: {
   tracker: TrackerSummary;
   onShowEmbed: () => void;
+  onRotateKey: () => void;
   onRotateIdentity: () => void;
   onRevoke: () => void;
 }) {
@@ -264,13 +305,16 @@ function TrackerRow({
                 <Button
                   variant="outline"
                   size="icon-sm"
-                  aria-label={t('rotateIdentity')}
+                  aria-label={t('rotateKey')}
                 />
               }
             >
               <MoreHorizontal className="size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onRotateKey}>
+                {t('rotateKey')}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={onRotateIdentity}>
                 {t('rotateIdentity')}
               </DropdownMenuItem>
@@ -496,6 +540,37 @@ function RotatedIdentityDialog({
             value={rotated.identityVerificationSecret}
             hint={t('identitySecretHint')}
           />
+        </div>
+        <DialogFooter className={dialogFooterClass}>
+          <Button variant="accent" className={dialogButtonClass} onClick={onClose}>
+            {tCommon('gotIt')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RotatedKeyDialog({
+  rotated,
+  onClose,
+}: {
+  rotated: RotatedKey;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.trackers');
+  const tCommon = useTranslations('common');
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('rotatedKeyTitle')}</DialogTitle>
+          <DialogDescription>
+            {t('rotatedKeyDescription', { name: rotated.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-2">
+          <CopyableSecret label={t('keyLabelTracker')} value={rotated.trackerKey} />
         </div>
         <DialogFooter className={dialogFooterClass}>
           <Button variant="accent" className={dialogButtonClass} onClick={onClose}>

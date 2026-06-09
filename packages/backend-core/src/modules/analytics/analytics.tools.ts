@@ -32,6 +32,10 @@ const RotateIdentitySecretInput = z.object({
   trackerId: z.string(),
 });
 
+const RotateTrackerKeyInput = z.object({
+  trackerId: z.string(),
+});
+
 const ContactJourneyInput = z.object({
   contactId: z.string().optional(),
   endUserId: z.string().optional(),
@@ -59,6 +63,12 @@ interface CreateTrackerResult extends TrackerSummary {
 interface RotateIdentitySecretResult {
   trackerId: string;
   identityVerificationSecret: string;
+}
+
+interface RotateTrackerKeyResult {
+  trackerId: string;
+  trackerKey: string;
+  keyPrefix: string;
 }
 
 @Injectable()
@@ -258,6 +268,64 @@ export class AnalyticsAdminTools {
       .returning({ id: schema.analyticsTrackers.id });
     if (!updated) throw new NotFoundException(`tracker ${args.trackerId} not found`);
     return { trackerId: updated.id, identityVerificationSecret };
+  }
+
+  @McpTool({
+    name: 'analytics_rotate_tracker_key',
+    title: 'Analytics: Rotate tracker key',
+    description:
+      'Revoke any active `mn_track_*` keys bound to this tracker and mint a fresh one. Returns the new plaintext key once; update any page that embeds the old key. Pages still embedding the old key will silently stop recording views once revocation lands.',
+    audiences: ['admin'],
+    scopes: ['analytics:write'],
+    input: RotateTrackerKeyInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  async rotateTrackerKey(
+    args: z.infer<typeof RotateTrackerKeyInput>,
+  ): Promise<RotateTrackerKeyResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const tracker = await ctx.db
+      .select({ id: schema.analyticsTrackers.id, name: schema.analyticsTrackers.name })
+      .from(schema.analyticsTrackers)
+      .where(
+        and(
+          eq(schema.analyticsTrackers.id, args.trackerId),
+          eq(schema.analyticsTrackers.orgId, actor.orgId),
+        ),
+      )
+      .limit(1);
+    if (!tracker[0]) throw new NotFoundException(`tracker ${args.trackerId} not found`);
+
+    await ctx.db
+      .update(schema.apiKeys)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(
+          eq(schema.apiKeys.trackerId, args.trackerId),
+          eq(schema.apiKeys.orgId, actor.orgId),
+          eq(schema.apiKeys.type, 'track'),
+          isNull(schema.apiKeys.revokedAt),
+        ),
+      );
+
+    const rawKey = buildApiKey('track');
+    const [key] = await ctx.db
+      .insert(schema.apiKeys)
+      .values({
+        orgId: actor.orgId,
+        type: 'track',
+        name: tracker[0].name,
+        keyHash: hashSecret(rawKey),
+        keyPrefix: keyPrefix(rawKey),
+        scopes: ['analytics:track:write'],
+        audiences: ['public'],
+        trackerId: args.trackerId,
+        createdByUserId: actor.userId ?? null,
+      })
+      .returning();
+    return { trackerId: args.trackerId, trackerKey: rawKey, keyPrefix: key!.keyPrefix };
   }
 
   @McpTool({

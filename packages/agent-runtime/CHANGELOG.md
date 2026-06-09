@@ -1,5 +1,11 @@
 # @getmunin/agent-runtime
 
+## 4.44.0
+
+### Patch Changes
+
+- @getmunin/core@4.44.0
+
 ## 4.43.2
 
 ### Patch Changes

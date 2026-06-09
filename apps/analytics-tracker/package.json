@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/analytics-tracker",
-  "version": "4.43.2",
+  "version": "4.44.0",
   "license": "MIT",
   "description": "Drop-in browser analytics tracker for self-hosted Munin. Built as a single content-hashed IIFE bundle and served by the Munin backend.",
   "publishConfig": {

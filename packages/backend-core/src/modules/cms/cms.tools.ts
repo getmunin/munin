@@ -166,7 +166,8 @@ export class CmsAdminTools {
   @McpTool({
     name: 'cms_list_collections',
     title: 'CMS: List collections',
-    description: 'List CMS collections (content types) defined for your org.',
+    description:
+      'List CMS collections (content types) defined for your org. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor and need to render CMS content? Read `skill://playbooks/frontend-integration` — the delivery API is anonymous and intentionally has no CORS, so the fetch must run server-side.',
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: EmptyInput,

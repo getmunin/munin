@@ -1,10 +1,23 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { buildApiKey, getCurrentContext, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
 import { WidgetChannelConfig } from './widget.types.ts';
+
+function requireWidgetAllowlist(): boolean {
+  const raw = process.env.MUNIN_WIDGET_REQUIRE_ALLOWLIST?.trim().toLowerCase();
+  return raw === '1' || raw === 'true';
+}
+
+function assertAllowlistPopulated(originAllowlist: readonly string[]): void {
+  if (originAllowlist.length === 0 && requireWidgetAllowlist()) {
+    throw new BadRequestException(
+      'origin_allowlist_required: this deployment requires at least one entry in `originAllowlist` (full origin like `https://app.example.com`). Add the production and any preview origins before saving.',
+    );
+  }
+}
 
 const CreateInput = z.object({
   name: z.string().min(1).max(120),
@@ -60,7 +73,7 @@ export class WidgetAdminTools {
     name: 'conv_widget_create_channel',
     title: 'Conv: Create chat-widget channel',
     description:
-      'Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent.',
+      'Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the widget + tracker + CMS wiring end-to-end.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateInput,
@@ -70,6 +83,8 @@ export class WidgetAdminTools {
   async createChannel(args: z.infer<typeof CreateInput>): Promise<CreateResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+
+    assertAllowlistPopulated(args.originAllowlist);
 
     const identityVerificationSecret = randomToken(32);
     const config = WidgetChannelConfig.parse({
@@ -142,6 +157,10 @@ export class WidgetAdminTools {
     const existing = rows[0];
     if (!existing) throw new NotFoundException(`channel ${args.channelId} not found`);
     const prev = WidgetChannelConfig.parse(existing.config);
+
+    if (args.originAllowlist !== undefined) {
+      assertAllowlistPopulated(args.originAllowlist);
+    }
 
     const next = WidgetChannelConfig.parse({
       provider: 'widget',

@@ -1,5 +1,39 @@
 # @getmunin/backend-core
 
+## 4.44.0
+
+### Minor Changes
+
+- 10ae30e: Refuse to mint or update widget channels and analytics trackers with an empty origin allowlist when the corresponding `MUNIN_*_REQUIRE_ALLOWLIST` env is on.
+
+  Previously the env flag was only consulted at request time deep in `enforceOriginAllowlist`, so an admin (or agent) could mint a key with an empty allowlist, see the dashboard render it as "any origin", and only discover at the first browser request that every origin gets a 403. The dashboard's "any origin" pill was particularly misleading on backends with the flag on — it meant "blocks everything" but read as "permissive".
+
+  `conv_widget_create_channel`, `conv_widget_update_channel`, `analytics_create_tracker`, and `analytics_update_tracker` now reject empty `originAllowlist` / `allowedOrigins` with `BadRequestException('origin_allowlist_required: …')` when the env flag is on. Update tools only check when the caller is actively changing the list (passing `undefined` to leave it as-is still works, so existing channels aren't retroactively broken — they're just blocked at the request edge as before until someone explicitly fixes them).
+
+- 10ae30e: Pin playbooks to the top of the MCP "Frequently relevant" skills list, and point scaffolding tools at the frontend-integration playbook.
+
+  Coding-agent platforms (Lovable, Bolt, v0, Replit, Cursor) routinely scaffold a frontend against Munin without reading `skill://playbooks/frontend-integration`, then re-discover the same gotchas (CMS CORS, embed paths, host probing). The skill exists and is registered, but two things hid it: (1) the MCP server-instructions `Frequently relevant` block picked the first 6 admin skills alphabetically by URI, which is all `analytics/*` and `cms/*` — playbooks sit at position 28+; (2) agents that skip `resources/list` and read only tool descriptions never see a pointer.
+  - `mcp.skill-registry.service.ts` now pins all `skill://playbooks/*` first, then fills the remainder alphabetically, and bumps the cap from 6 to 8 so non-playbook skills still appear.
+  - `conv_widget_create_channel`, `analytics_create_tracker`, and `cms_list_collections` descriptions now reference `skill://playbooks/frontend-integration` so agents that skip resource discovery still get nudged.
+
+- 70d50ed: Add tracker key rotation for analytics trackers.
+
+  Settings → Channels has long exposed a "Rotate key" action that revokes the active `mn_widget_*` key and mints a fresh one. Settings → Analytics trackers had no equivalent — only the identity-verification secret could be rotated, leaving operators stuck with `analytics_revoke_tracker` + `analytics_create_tracker` (which loses the tracker's name and config) if a `mn_track_*` key leaked.
+
+  Adds the missing symmetric action:
+  - New `analytics_rotate_tracker_key` MCP tool that revokes the tracker's active `mn_track_*` keys and mints a fresh one.
+  - New `POST /v1/analytics/trackers/:id/rotate-key` endpoint.
+  - Dashboard now shows "Rotate tracker key" above "Rotate identity secret" on each tracker row, with a one-time copy dialog matching the channels flow.
+
+### Patch Changes
+
+- @getmunin/core@4.44.0
+- @getmunin/db@4.44.0
+- @getmunin/types@4.44.0
+- @getmunin/mcp-toolkit@4.44.0
+- @getmunin/agent-runtime@4.44.0
+- @getmunin/emails@4.44.0
+
 ## 4.43.2
 
 ### Patch Changes

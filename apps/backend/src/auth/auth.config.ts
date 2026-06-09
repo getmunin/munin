@@ -55,7 +55,8 @@ export function createMuninAuth({
       : undefined,
     sendVerificationEmail: mailer
       ? async ({ user, url }) => {
-          const tpl = await renderVerifyEmail({ url });
+          const finalUrl = ensureAbsoluteCallbackUrl(url, webBaseUrl);
+          const tpl = await renderVerifyEmail({ url: finalUrl });
           await mailer.send({ to: user.email, subject: tpl.subject, text: tpl.text, html: tpl.html });
         }
       : undefined,
@@ -146,6 +147,20 @@ async function ensureSingletonOrgMembershipFor(
       .insert(schema.orgMembers)
       .values({ orgId: orgRow!.id, userId: user.id, role, isDefault: true });
   });
+}
+
+export function ensureAbsoluteCallbackUrl(verificationUrl: string, webBaseUrl?: string): string {
+  if (!webBaseUrl) return verificationUrl;
+  try {
+    const url = new URL(verificationUrl);
+    const callback = url.searchParams.get('callbackURL');
+    if (!callback) return verificationUrl;
+    if (/^https?:\/\//i.test(callback)) return verificationUrl;
+    url.searchParams.set('callbackURL', new URL(callback, webBaseUrl).toString());
+    return url.toString();
+  } catch {
+    return verificationUrl;
+  }
 }
 
 export function readAllowedEmailDomainsFromEnv(): string[] {

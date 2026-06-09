@@ -686,6 +686,11 @@
       "keyLabelIdentitySecret": "Identity verification secret",
       "identitySecretHint": "Keep this on your server. Use it to compute data-user-hash for verified visitors. Never expose it in the browser.",
       "anyOrigin": "any origin",
+      "rotateKey": "Rotate tracker key",
+      "rotateKeyConfirmTitle": "Rotate tracker key?",
+      "rotateKeyConfirm": "Rotate the tracker key for {name}. The old mn_track_* key will be revoked; pages still embedding it will silently stop recording views.",
+      "rotatedKeyTitle": "Tracker key rotated — copy it now",
+      "rotatedKeyDescription": "New tracker key for {name}. Update every page that embeds the old key.",
       "rotateIdentity": "Rotate identity secret",
       "rotateIdentityConfirmTitle": "Rotate identity secret?",
       "rotateIdentityConfirm": "Rotate the identity secret for {name}. Previously-issued user hashes will stop verifying immediately.",
@@ -713,6 +718,7 @@
         "load": "Could not load trackers.",
         "create": "Could not create tracker.",
         "rotate": "Could not rotate identity secret.",
+        "rotateKey": "Could not rotate tracker key.",
         "revoke": "Could not revoke tracker."
       }
     },

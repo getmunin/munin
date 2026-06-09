@@ -686,6 +686,11 @@
       "keyLabelIdentitySecret": "Identitetshemmelighet",
       "identitySecretHint": "Hold denne på server-siden. Bruk den til å beregne data-user-hash for verifiserte besøkende. Aldri eksponer i nettleseren.",
       "anyOrigin": "alle opphav",
+      "rotateKey": "Roter sporenøkkel",
+      "rotateKeyConfirmTitle": "Roter sporenøkkel?",
+      "rotateKeyConfirm": "Roter sporenøkkelen for {name}. Den gamle mn_track_*-nøkkelen blir tilbakekalt; sider som fortsatt bruker den slutter å registrere visninger uten varsel.",
+      "rotatedKeyTitle": "Sporenøkkel rotert — kopier den nå",
+      "rotatedKeyDescription": "Ny sporenøkkel for {name}. Oppdater alle sider som bruker den gamle nøkkelen.",
       "rotateIdentity": "Roter identitetshemmelighet",
       "rotateIdentityConfirmTitle": "Roter identitetshemmelighet?",
       "rotateIdentityConfirm": "Roter identitetshemmeligheten for {name}. Tidligere utstedte hasher slutter å verifisere umiddelbart.",
@@ -713,6 +718,7 @@
         "load": "Kunne ikke laste sporere.",
         "create": "Kunne ikke opprette sporer.",
         "rotate": "Kunne ikke rotere identitetshemmelighet.",
+        "rotateKey": "Kunne ikke rotere sporenøkkel.",
         "revoke": "Kunne ikke tilbakekalle sporer."
       }
     },

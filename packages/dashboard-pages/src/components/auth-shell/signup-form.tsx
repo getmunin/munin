@@ -81,7 +81,12 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
     setSubmitting(true);
     setError(null);
     try {
-      const result = await authClient.signUp.email({ email, password, name });
+      const result = await authClient.signUp.email({
+        email,
+        password,
+        name,
+        callbackURL: absoluteCallbackUrl('/verify-email'),
+      });
       if (result.error) {
         setError(translateError(result.error) || t('failed'));
         setSubmitting(false);

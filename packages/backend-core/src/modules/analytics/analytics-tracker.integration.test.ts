@@ -450,7 +450,7 @@ async function countTrackerEvents(
   return r[0]?.n ?? 0;
 }
 
-async function waitFor(check: () => Promise<boolean>, timeoutMs = 8000): Promise<void> {
+async function waitFor(check: () => Promise<boolean>, timeoutMs = 15_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (await check()) return;

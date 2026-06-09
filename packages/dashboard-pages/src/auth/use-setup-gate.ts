@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useRouter } from '../i18n-navigation';
 import { authClient } from '../auth-client';
 import { useActiveMembership } from './use-active-role';
@@ -10,7 +9,6 @@ import { hasOauthAuthorizeParams } from './post-signin-redirect';
 
 export function useSetupGate(): { ready: boolean } {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { data: session, isPending } = authClient.useSession();
   const { configured, loading: configLoading } = useAgentConfigStatus();
   const { membership, loading: membershipLoading } = useActiveMembership();
@@ -27,13 +25,14 @@ export function useSetupGate(): { ready: boolean } {
     }
     if (configLoading || membershipLoading) return;
     if (setupComplete) {
-      if (searchParams && hasOauthAuthorizeParams(searchParams)) {
-        router.push(`/dashboard/oauth/consent?${searchParams.toString()}`);
+      const params = new URLSearchParams(window.location.search);
+      if (hasOauthAuthorizeParams(params)) {
+        router.push(`/dashboard/oauth/consent?${params.toString()}`);
       } else {
         router.push('/dashboard');
       }
     }
-  }, [isPending, session, configLoading, membershipLoading, setupComplete, router, searchParams]);
+  }, [isPending, session, configLoading, membershipLoading, setupComplete, router]);
 
   const ready =
     !isPending &&

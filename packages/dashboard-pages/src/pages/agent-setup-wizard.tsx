@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Link } from '../i18n-navigation';
 import { useTranslations } from 'next-intl';
 import { Button, Card, CardContent, Hero } from '@getmunin/ui';
@@ -10,6 +11,7 @@ import { OrgNameCard } from '../components/agent-config/org-name-card';
 import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
 import { WebsiteImportCard } from '../components/agent-config/website-import-card';
+import { hasOauthAuthorizeParams } from '../auth/post-signin-redirect';
 import type { AgentConfigDto } from '../components/agent-config/types';
 import { api } from '../api';
 
@@ -150,6 +152,12 @@ interface ReadyCardProps {
 function ReadyCard({ config, importJobId, onBack }: ReadyCardProps) {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
+  const searchParams = useSearchParams();
+  const oauthContinueHref = useMemo(() => {
+    if (!searchParams) return null;
+    if (!hasOauthAuthorizeParams(searchParams)) return null;
+    return `/dashboard/oauth/consent?${searchParams.toString()}`;
+  }, [searchParams]);
 
   const lines: string[] = [
     t('wizard.checklist.provider', { url: shortHost(config.providerBaseUrl) }),
@@ -176,21 +184,15 @@ function ReadyCard({ config, importJobId, onBack }: ReadyCardProps) {
         </ul>
         {importJobId && <WebsiteImportStatus jobId={importJobId} />}
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          <Button render={<Link href="/dashboard" />}>
-            {t('wizard.cta.goToDashboard')}
-          </Button>
-          <Button
-            variant="outline"
-            render={<Link href="/dashboard/settings/ai" />}
-          >
-            {t('wizard.cta.customizeChatbot')}
-          </Button>
-          <Button
-            variant="outline"
-            render={<Link href="/dashboard/settings/ai" />}
-          >
-            {t('wizard.cta.tweakSettings')}
-          </Button>
+          {oauthContinueHref ? (
+            <Button render={<Link href={oauthContinueHref} />}>
+              {t('wizard.cta.continue')}
+            </Button>
+          ) : (
+            <Button render={<Link href="/dashboard" />}>
+              {t('wizard.cta.goToDashboard')}
+            </Button>
+          )}
           <Button variant="ghost" onClick={onBack}>
             {tCommon('back')}
           </Button>

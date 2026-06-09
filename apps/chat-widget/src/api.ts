@@ -26,7 +26,7 @@ export interface ApiClientDeps {
   channelId: string;
   sessionId: string;
   visitorId?: string;
-  identity?: ApiIdentity;
+  getIdentity?: () => ApiIdentity | undefined;
   visitor?: WidgetVisitor;
   locale?: string;
   fetchImpl?: typeof fetch;
@@ -114,6 +114,7 @@ export interface ApiClient {
   startConversation(): Promise<{ conversationId: string; displayId: number; contactId: string }>;
   voiceStart(conversationId: string): Promise<VoiceStartResult>;
   voiceEvent(input: VoiceEventInput): Promise<void>;
+  identify(externalId: string, userHash: string): Promise<{ endUserId: string; contactId: string | null }>;
   setSessionId(sessionId: string): void;
 }
 
@@ -140,9 +141,10 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       messages: [{ role: 'end_user', body: text }],
     };
     if (deps.visitorId) payload.visitorId = deps.visitorId;
-    if (deps.identity) {
-      payload.verifiedExternalId = deps.identity.externalId;
-      payload.userHash = deps.identity.userHash;
+    const identity = deps.getIdentity?.();
+    if (identity) {
+      payload.verifiedExternalId = identity.externalId;
+      payload.userHash = identity.userHash;
     }
     if (deps.visitor) payload.visitor = deps.visitor;
     return payload;
@@ -168,9 +170,10 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       url.searchParams.set('channelId', deps.channelId);
       url.searchParams.set('sessionId', sessionId);
       if (since) url.searchParams.set('since', since.toISOString());
-      if (deps.identity) {
-        url.searchParams.set('verifiedExternalId', deps.identity.externalId);
-        url.searchParams.set('userHash', deps.identity.userHash);
+      const identity = deps.getIdentity?.();
+      if (identity) {
+        url.searchParams.set('verifiedExternalId', identity.externalId);
+        url.searchParams.set('userHash', identity.userHash);
       }
       const res = await fetchImpl(url.toString(), {
         method: 'GET',
@@ -186,9 +189,10 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       if (sessionIds.length > 0) {
         url.searchParams.set('sessionIds', sessionIds.join(','));
       }
-      if (deps.identity) {
-        url.searchParams.set('verifiedExternalId', deps.identity.externalId);
-        url.searchParams.set('userHash', deps.identity.userHash);
+      const identity = deps.getIdentity?.();
+      if (identity) {
+        url.searchParams.set('verifiedExternalId', identity.externalId);
+        url.searchParams.set('userHash', identity.userHash);
       }
       const res = await fetchImpl(url.toString(), {
         method: 'GET',
@@ -205,9 +209,10 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
         sessionId,
       };
       if (deps.visitorId) payload.visitorId = deps.visitorId;
-      if (deps.identity) {
-        payload.verifiedExternalId = deps.identity.externalId;
-        payload.userHash = deps.identity.userHash;
+      const identity = deps.getIdentity?.();
+      if (identity) {
+        payload.verifiedExternalId = identity.externalId;
+        payload.userHash = identity.userHash;
       }
       if (deps.visitor) payload.visitor = deps.visitor;
       if (deps.locale) payload.locale = deps.locale;
@@ -227,9 +232,10 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
         email,
       };
       if (deps.visitorId) payload.visitorId = deps.visitorId;
-      if (deps.identity) {
-        payload.verifiedExternalId = deps.identity.externalId;
-        payload.userHash = deps.identity.userHash;
+      const identity = deps.getIdentity?.();
+      if (identity) {
+        payload.verifiedExternalId = identity.externalId;
+        payload.userHash = identity.userHash;
       }
       const res = await fetchImpl(visitorUrl, {
         method: 'PATCH',
@@ -245,9 +251,10 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
         conversationId,
         sessionId,
       };
-      if (deps.identity) {
-        payload.verifiedExternalId = deps.identity.externalId;
-        payload.userHash = deps.identity.userHash;
+      const identity = deps.getIdentity?.();
+      if (identity) {
+        payload.verifiedExternalId = identity.externalId;
+        payload.userHash = identity.userHash;
       }
       const res = await fetchImpl(`${base}/voice/start`, {
         method: 'POST',
@@ -258,6 +265,23 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       return (await res.json()) as VoiceStartResult;
     },
 
+    async identify(externalId, userHash) {
+      const payload: Record<string, unknown> = {
+        channelId: deps.channelId,
+        sessionId,
+        verifiedExternalId: externalId,
+        userHash,
+      };
+      if (deps.visitorId) payload.visitorId = deps.visitorId;
+      const res = await fetchImpl(`${base}/identify`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
+      return (await res.json()) as { endUserId: string; contactId: string | null };
+    },
+
     async voiceEvent({ conversationId, kind, durationSeconds }) {
       const payload: Record<string, unknown> = {
         channelId: deps.channelId,
@@ -265,9 +289,10 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
         sessionId,
         kind,
       };
-      if (deps.identity) {
-        payload.verifiedExternalId = deps.identity.externalId;
-        payload.userHash = deps.identity.userHash;
+      const identity = deps.getIdentity?.();
+      if (identity) {
+        payload.verifiedExternalId = identity.externalId;
+        payload.userHash = identity.userHash;
       }
       if (typeof durationSeconds === 'number') payload.durationSeconds = durationSeconds;
       const res = await fetchImpl(`${base}/voice/event`, {

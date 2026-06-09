@@ -44,7 +44,7 @@ export interface RealtimeClientDeps {
   widgetKey: string;
   channelId: string;
   sessionId: string;
-  identity?: ApiIdentity;
+  getIdentity?: () => ApiIdentity | undefined;
   /** Override the WebSocket constructor for tests. */
   webSocketCtor?: WebSocketConstructor;
   /** Override the schedule API for tests. */
@@ -72,6 +72,7 @@ export interface WebSocketLike {
 export interface RealtimeClient {
   connect(): void;
   close(): void;
+  reconnect(): void;
   state(): ConnectionState;
   sendTyping(isTyping: boolean): void;
   sendRead(messageIds: string[]): void;
@@ -142,10 +143,11 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
 
   function buildUrl(): string {
     const base = httpToWs(deps.host) + '/v1/realtime';
-    if (!deps.identity) return base;
+    const identity = deps.getIdentity?.();
+    if (!identity) return base;
     const u = new URL(base);
-    u.searchParams.set('externalId', deps.identity.externalId);
-    u.searchParams.set('userHash', deps.identity.userHash);
+    u.searchParams.set('externalId', identity.externalId);
+    u.searchParams.set('userHash', identity.userHash);
     return u.toString();
   }
 
@@ -255,6 +257,23 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
         }
       }
       setState('closed');
+    },
+    reconnect() {
+      closedByCaller = false;
+      attempt = 0;
+      if (reconnectTimer) {
+        clearTimeoutFn(reconnectTimer);
+        reconnectTimer = null;
+      }
+      if (ws && ws.readyState !== WS.CLOSED) {
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+        ws = null;
+      }
+      doConnect();
     },
     state() {
       return currentState;

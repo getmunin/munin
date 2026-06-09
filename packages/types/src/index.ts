@@ -30,6 +30,12 @@ export {
   VapiCallInitiateBody,
   type VapiCallInitiateBodyT,
 } from './channels.ts';
+export {
+  CreateTrackerBody,
+  type CreateTrackerBodyT,
+  UpdateTrackerBody,
+  type UpdateTrackerBodyT,
+} from './trackers.ts';
 export { sensitive, isSensitiveSchema } from './sensitive.ts';
 export {
   KNOWN_SKILL_URIS,

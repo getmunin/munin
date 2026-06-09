@@ -115,7 +115,7 @@ describe('realtime: connection lifecycle', () => {
       widgetKey: 'mn_widget_abc',
       channelId: 'cnv_chan',
       sessionId: 'sess_1',
-      identity: { externalId: 'user_42', userHash: 'a'.repeat(64) },
+      getIdentity: () => ({ externalId: 'user_42', userHash: 'a'.repeat(64) }),
       webSocketCtor: MockWS,
     });
     client.connect();

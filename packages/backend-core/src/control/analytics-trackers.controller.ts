@@ -63,6 +63,14 @@ export class AnalyticsTrackersController {
     return this.tools.rotateIdentitySecret({ trackerId: id });
   }
 
+  @Post(':id/rotate-key')
+  @HttpCode(200)
+  async rotateKey(
+    @Param('id') id: string,
+  ): Promise<Awaited<ReturnType<AnalyticsAdminTools['rotateTrackerKey']>>> {
+    return this.tools.rotateTrackerKey({ trackerId: id });
+  }
+
   @Post(':id/revoke')
   @HttpCode(200)
   async revoke(

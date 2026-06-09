@@ -150,6 +150,32 @@
     }
   },
   {
+    "name": "analytics_rotate_tracker_key",
+    "title": "Analytics: Rotate tracker key",
+    "description": "Revoke any active `mn_track_*` keys bound to this tracker and mint a fresh one. Returns the new plaintext key once; update any page that embeds the old key. Pages still embedding the old key will silently stop recording views once revocation lands.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "trackerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "trackerId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "analytics_top_subjects",
     "title": "Analytics: Top subjects by view count",
     "description": "List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`). Pass `endUserId` or `contactId` to restrict the ranking to one identified visitor — useful for \"what has this lead been reading?\".",

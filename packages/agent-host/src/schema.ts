@@ -97,6 +97,10 @@ export const AGENT_HOST_MULTI_TENANT_DDL = sql`
 
   ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS smart_model text;
 
+  UPDATE agent_config
+    SET provider_base_url = 'https://openrouter.ai/api/v1'
+    WHERE provider_base_url = 'https://openrouter.ai/v1';
+
   DROP INDEX IF EXISTS agent_config_enabled_idx;
 
   ALTER TABLE agent_config DROP COLUMN IF EXISTS enabled;

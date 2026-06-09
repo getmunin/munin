@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
@@ -10,6 +10,19 @@ import {
   keyPrefix,
   randomToken,
 } from '@getmunin/core';
+
+function requireTrackerAllowlist(): boolean {
+  const raw = process.env.MUNIN_TRACKER_REQUIRE_ALLOWLIST?.trim().toLowerCase();
+  return raw === '1' || raw === 'true';
+}
+
+function assertTrackerAllowlistPopulated(allowedOrigins: readonly string[]): void {
+  if (allowedOrigins.length === 0 && requireTrackerAllowlist()) {
+    throw new BadRequestException(
+      'allowed_origins_required: this deployment requires at least one entry in `allowedOrigins` (full origin like `https://app.example.com`). Add the production and any preview origins before saving.',
+    );
+  }
+}
 
 const CreateTrackerInput = z.object({
   name: z.string().min(1).max(120),
@@ -77,6 +90,7 @@ export class AnalyticsAdminTools {
   async createTracker(args: z.infer<typeof CreateTrackerInput>): Promise<CreateTrackerResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    assertTrackerAllowlistPopulated(args.allowedOrigins ?? []);
     const identityVerificationSecret = randomToken(32);
     const [tracker] = await ctx.db
       .insert(schema.analyticsTrackers)
@@ -191,7 +205,10 @@ export class AnalyticsAdminTools {
       updatedAt: new Date(),
     };
     if (args.name !== undefined) patch.name = args.name;
-    if (args.allowedOrigins !== undefined) patch.allowedOrigins = args.allowedOrigins;
+    if (args.allowedOrigins !== undefined) {
+      assertTrackerAllowlistPopulated(args.allowedOrigins);
+      patch.allowedOrigins = args.allowedOrigins;
+    }
     if (args.requireVerifiedIdentity !== undefined)
       patch.requireVerifiedIdentity = args.requireVerifiedIdentity;
     const [updated] = await ctx.db

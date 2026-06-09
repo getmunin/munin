@@ -31,3 +31,8 @@ export function groupByModule(): Array<{ module: string; skills: Skill[] }> {
 export function wordCount(content: string): number {
   return content.split(/\s+/).filter(Boolean).length;
 }
+
+export function renderSkillContent(content: string): string {
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  return content.replaceAll('{{API_URL}}', apiUrl);
+}

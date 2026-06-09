@@ -9,7 +9,7 @@ import type {
 } from './config.repository.ts';
 
 const DEFAULT_FAST_MODEL = 'anthropic/claude-haiku-4.5';
-const DEFAULT_PROVIDER_BASE_URL = 'https://openrouter.ai/v1';
+const DEFAULT_PROVIDER_BASE_URL = 'https://openrouter.ai/api/v1';
 
 @Injectable()
 export class PerOrgConfigRepository implements AgentConfigRepository {

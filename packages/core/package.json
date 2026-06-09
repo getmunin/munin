@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/core",
-  "version": "4.43.2",
+  "version": "4.44.0",
   "license": "MIT",
   "description": "Munin core: actor identity, request context, mailer, storage, crypto helpers.",
   "publishConfig": {

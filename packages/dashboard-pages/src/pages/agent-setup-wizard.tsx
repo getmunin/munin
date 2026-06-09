@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Link } from '../i18n-navigation';
 import { useTranslations } from 'next-intl';
@@ -136,7 +136,9 @@ export function AgentSetupWizard() {
         )}
 
         {step === 5 && (
-          <ReadyCard config={config} importJobId={importJobId} onBack={() => setStep(4)} />
+          <Suspense fallback={null}>
+            <ReadyCard config={config} importJobId={importJobId} onBack={() => setStep(4)} />
+          </Suspense>
         )}
       </div>
     </main>

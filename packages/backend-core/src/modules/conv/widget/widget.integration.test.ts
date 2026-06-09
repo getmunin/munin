@@ -668,6 +668,171 @@ const skipReason = TEST_URL
     expect(res.status).toBe(403);
   });
 
+  it('claimAnonymousIdentity: migrates anon session to verified end-user', async () => {
+    const sessionId = 'vis_claim_session';
+    const visitorId = 'vis_claim_visitor';
+    const externalId = 'user_claim_42';
+
+    const anon = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      visitorId,
+      messages: [{ role: 'end_user', body: 'anonymous hello' }],
+    });
+    expect(anon.status).toBe(201);
+    const anonBody = anon.json as { contactId: string; conversationId: string };
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const anonContact = (
+      await db
+        .select()
+        .from(schema.convContacts)
+        .where(eq(schema.convContacts.id, anonBody.contactId))
+    )[0]!;
+    const anonExternalIdBefore = (anonContact.metadata as { externalId?: string } | null)
+      ?.externalId;
+    expect(anonExternalIdBefore == null || anonExternalIdBefore.startsWith('anon:')).toBe(true);
+    const anonEndUserId = anonContact.endUserId!;
+
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    const identifyRes = await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      visitorId,
+      verifiedExternalId: externalId,
+      userHash,
+    });
+    expect(identifyRes.status).toBe(201);
+    const identifyBody = identifyRes.json as { endUserId: string; contactId: string | null };
+    expect(identifyBody.endUserId).toBeTruthy();
+    expect(identifyBody.contactId).toBe(anonBody.contactId);
+    expect(identifyBody.endUserId).not.toBe(anonEndUserId);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const migratedContact = (
+      await db
+        .select()
+        .from(schema.convContacts)
+        .where(eq(schema.convContacts.id, anonBody.contactId))
+    )[0]!;
+    expect((migratedContact.metadata as { externalId?: string }).externalId).toBe(externalId);
+    expect(migratedContact.endUserId).toBe(identifyBody.endUserId);
+
+    const migratedConv = (
+      await db
+        .select({ endUserId: schema.convConversations.endUserId })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, anonBody.conversationId))
+    )[0]!;
+    expect(migratedConv.endUserId).toBe(identifyBody.endUserId);
+
+    const verifiedEndUser = (
+      await db
+        .select()
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, identifyBody.endUserId))
+    )[0]!;
+    expect(verifiedEndUser.externalId).toBe(externalId);
+
+    const oldEndUser = await db
+      .select()
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, anonEndUserId));
+    expect(oldEndUser).toHaveLength(0);
+
+    const bridge = await db
+      .select({ endUserId: schema.analyticsVisitorIdentities.endUserId })
+      .from(schema.analyticsVisitorIdentities)
+      .where(
+        and(
+          eq(schema.analyticsVisitorIdentities.orgId, orgId),
+          eq(schema.analyticsVisitorIdentities.visitorId, visitorId),
+        ),
+      );
+    expect(bridge[0]?.endUserId).toBe(identifyBody.endUserId);
+
+    const followup = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      visitorId,
+      verifiedExternalId: externalId,
+      userHash,
+      messages: [{ role: 'end_user', body: 'after identify' }],
+    });
+    expect(followup.status).toBe(201);
+    expect((followup.json as { contactId: string }).contactId).toBe(anonBody.contactId);
+  });
+
+  it('identify is idempotent: re-claiming the same session returns the same refs', async () => {
+    const sessionId = 'vis_claim_idem';
+    const externalId = 'user_idem_99';
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'anon' }],
+    });
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    const first = await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: externalId,
+      userHash,
+    });
+    const second = await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: externalId,
+      userHash,
+    });
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    const a = first.json as { endUserId: string; contactId: string | null };
+    const b = second.json as { endUserId: string; contactId: string | null };
+    expect(a.endUserId).toBe(b.endUserId);
+    expect(a.contactId).toBe(b.contactId);
+  });
+
+  it('identify rejects a tampered userHash with 403', async () => {
+    const sessionId = 'vis_claim_tampered';
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'anon' }],
+    });
+    const res = await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: 'user_tampered',
+      userHash: '0'.repeat(64),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('identify rejects re-claiming with a different externalId', async () => {
+    const sessionId = 'vis_claim_swap';
+    const firstExt = 'user_swap_a';
+    const secondExt = 'user_swap_b';
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'anon' }],
+    });
+    const ok = await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: firstExt,
+      userHash: signHmac(firstExt, identityVerificationSecret),
+    });
+    expect(ok.status).toBe(201);
+    const swap = await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: secondExt,
+      userHash: signHmac(secondExt, identityVerificationSecret),
+    });
+    expect(swap.status).toBe(403);
+  });
+
   it('rejects partial identity attributes (one without the other)', async () => {
     const onlyExt = await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,

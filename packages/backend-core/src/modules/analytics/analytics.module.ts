@@ -5,6 +5,6 @@ import { GeoIpService } from './geoip.service.ts';
 
 @Module({
   providers: [AnalyticsService, AnalyticsAdminTools, GeoIpService],
-  exports: [AnalyticsService, GeoIpService],
+  exports: [AnalyticsService, AnalyticsAdminTools, GeoIpService],
 })
 export class AnalyticsModule {}

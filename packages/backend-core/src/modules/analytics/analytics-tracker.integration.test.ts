@@ -4,7 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
+import { buildApiKey, hashSecret, keyPrefix, signHmac } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { createApp } from '../../bootstrap-app.ts';
@@ -412,6 +412,183 @@ const skipReason = TEST_URL
     } finally {
       await db.delete(schema.orgs).where(sql`id = ${seedOrgId}`);
     }
+  }, 30_000);
+
+  it('identify links visitor to an end-user; subsequent beacons stamp end_user_id; tampered hash rejected', async () => {
+    const minted = await withClient(adminKey, async (c) => {
+      return parseToolResult<{
+        id: string;
+        trackerKey: string;
+        identityVerificationSecret: string;
+      }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'identify tracker' },
+        }),
+      );
+    });
+    expect(minted.identityVerificationSecret).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+
+    const visitorId = 'visitor-identify-1';
+    const externalId = 'customer:42';
+    const userHash = signHmac(externalId, minted.identityVerificationSecret);
+
+    const identifyRes = await fetch(`${baseUrl}/v1/a/identify`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({
+        key: minted.trackerKey,
+        visitorId,
+        externalId,
+        userHash,
+      }),
+    });
+    expect(identifyRes.status).toBe(204);
+
+    await waitFor(async () => {
+      const rows = await db
+        .select({ id: schema.endUsers.id })
+        .from(schema.endUsers)
+        .where(sql`org_id = ${orgId} AND external_id = ${externalId}`)
+        .limit(1);
+      return rows.length > 0;
+    });
+    const endUserRows = await db
+      .select({ id: schema.endUsers.id })
+      .from(schema.endUsers)
+      .where(sql`org_id = ${orgId} AND external_id = ${externalId}`)
+      .limit(1);
+    const endUserId = endUserRows[0]!.id;
+    const bridgeRows = await db
+      .select({ endUserId: schema.analyticsVisitorIdentities.endUserId })
+      .from(schema.analyticsVisitorIdentities)
+      .where(sql`org_id = ${orgId} AND visitor_id = ${visitorId}`)
+      .limit(1);
+    expect(bridgeRows[0]?.endUserId).toBe(endUserId);
+
+    const before = await countTrackerEvents(db, orgId);
+    const beacon = await fetch(`${baseUrl}/v1/a/t`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({
+        key: minted.trackerKey,
+        subjectType: 'page',
+        subjectId: 'docs/getting-started',
+        path: '/docs',
+        visitorId,
+      }),
+    });
+    expect(beacon.status).toBe(204);
+    await waitFor(async () => (await countTrackerEvents(db, orgId)) > before);
+    const eventRow = await db
+      .select()
+      .from(schema.analyticsViewEvents)
+      .where(
+        sql`org_id = ${orgId} AND source = 'tracker' AND visitor_id = ${visitorId} AND subject_id = 'docs/getting-started'`,
+      )
+      .limit(1);
+    expect(eventRow[0]?.endUserId).toBe(endUserId);
+
+    const tampered = await fetch(`${baseUrl}/v1/a/identify`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({
+        key: minted.trackerKey,
+        visitorId: 'visitor-tampered',
+        externalId: 'customer:99',
+        userHash: '0'.repeat(64),
+      }),
+    });
+    expect(tampered.status).toBe(204);
+    await new Promise((r) => setTimeout(r, 100));
+    const tamperedBridge = await db
+      .select()
+      .from(schema.analyticsVisitorIdentities)
+      .where(sql`org_id = ${orgId} AND visitor_id = 'visitor-tampered'`)
+      .limit(1);
+    expect(tamperedBridge.length).toBe(0);
+
+    const journey = await withClient(adminKey, async (c) =>
+      parseToolResult<
+        Array<{
+          kind: 'view' | 'search';
+          subjectType: string | null;
+          subjectId: string | null;
+        }>
+      >(
+        await c.callTool({
+          name: 'analytics_contact_journey',
+          arguments: { endUserId, sinceDays: 7 },
+        }),
+      ),
+    );
+    expect(journey.some((e) => e.kind === 'view' && e.subjectId === 'docs/getting-started')).toBe(
+      true,
+    );
+  }, 30_000);
+
+  it('requireVerifiedIdentity drops unidentified beacons; verified beacons persist', async () => {
+    const minted = await withClient(adminKey, async (c) => {
+      return parseToolResult<{
+        id: string;
+        trackerKey: string;
+        identityVerificationSecret: string;
+      }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'require-verified tracker', requireVerifiedIdentity: true },
+        }),
+      );
+    });
+
+    const anonBefore = await countTrackerEvents(db, orgId);
+    const anonRes = await fetch(`${baseUrl}/v1/a/t`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({
+        key: minted.trackerKey,
+        subjectType: 'page',
+        subjectId: 'gated/page',
+        visitorId: 'visitor-anon-gated',
+      }),
+    });
+    expect(anonRes.status).toBe(204);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await countTrackerEvents(db, orgId)).toBe(anonBefore);
+
+    const visitorId = 'visitor-verified-gated';
+    const externalId = 'user_gated_1';
+    const userHash = signHmac(externalId, minted.identityVerificationSecret);
+    const identifyRes = await fetch(`${baseUrl}/v1/a/identify`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ key: minted.trackerKey, visitorId, externalId, userHash }),
+    });
+    expect(identifyRes.status).toBe(204);
+    await waitFor(async () => {
+      const rows = await db
+        .select({ id: schema.analyticsVisitorIdentities.id })
+        .from(schema.analyticsVisitorIdentities)
+        .where(
+          sql`org_id = ${orgId} AND visitor_id = ${visitorId}`,
+        )
+        .limit(1);
+      return rows.length > 0;
+    });
+
+    const verifiedBefore = await countTrackerEvents(db, orgId);
+    const verifiedRes = await fetch(`${baseUrl}/v1/a/t`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({
+        key: minted.trackerKey,
+        subjectType: 'page',
+        subjectId: 'gated/verified',
+        visitorId,
+      }),
+    });
+    expect(verifiedRes.status).toBe(204);
+    await waitFor(async () => (await countTrackerEvents(db, orgId)) > verifiedBefore);
   }, 30_000);
 
   it('MUNIN_TRACKER_REQUIRE_ALLOWLIST=1 fail-closes empty allowlists', async () => {

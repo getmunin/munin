@@ -8,6 +8,7 @@ import {
 import { schema, type Tx } from '@getmunin/db';
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { WebhookDispatcher, getCurrentContext, verifyHmac } from '@getmunin/core';
+import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
 import { WidgetChannelConfig } from './widget.types.ts';
 import type {
   WidgetConversationEnvelope,
@@ -393,6 +394,9 @@ export class WidgetIngestService {
       verifiedExternalId: input.verifiedExternalId,
       userHash: input.userHash,
     });
+    if (identity.mode === 'verified') {
+      await this.claimAnonymousIdentityInTx(tx, orgId, input.sessionId, input.visitorId, identity);
+    }
 
     const ingestShape: WidgetIngestInputT = {
       channelId: input.channelId,
@@ -570,6 +574,9 @@ export class WidgetIngestService {
       verifiedExternalId: input.verifiedExternalId,
       userHash: input.userHash,
     });
+    if (identity.mode === 'verified') {
+      await this.claimAnonymousIdentityInTx(tx, orgId, input.sessionId, input.visitorId, identity);
+    }
     const endUser = await this.findOrCreateEndUser(tx, orgId, input, identity);
     const contact = await this.findOrCreateContact(tx, orgId, input, identity, endUser.id);
 
@@ -704,6 +711,7 @@ export class WidgetIngestService {
       .from(schema.endUsers)
       .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
       .limit(1);
+    let endUser: typeof schema.endUsers.$inferSelect;
     if (existing[0]) {
       const currentLocale = (existing[0].metadata as { locale?: string } | null)?.locale ?? null;
       if (input.locale && currentLocale !== input.locale) {
@@ -714,30 +722,37 @@ export class WidgetIngestService {
           })
           .where(eq(schema.endUsers.id, existing[0].id))
           .returning();
-        return updated!;
+        endUser = updated!;
+      } else {
+        endUser = existing[0];
       }
-      return existing[0];
+    } else {
+      const baseMetadata: Record<string, unknown> =
+        identity.mode === 'verified'
+          ? {}
+          : {
+              anonymous: true,
+              sessionId: input.sessionId,
+              ...(input.visitorId ? { visitorId: input.visitorId } : {}),
+            };
+      if (input.locale) baseMetadata.locale = input.locale;
+      const [created] = await tx
+        .insert(schema.endUsers)
+        .values({
+          orgId,
+          externalId,
+          email: input.visitor?.email?.trim().toLowerCase() ?? null,
+          name: input.visitor?.name ?? null,
+          metadata: baseMetadata,
+        })
+        .returning();
+      endUser = created!;
     }
-    const baseMetadata: Record<string, unknown> =
-      identity.mode === 'verified'
-        ? {}
-        : {
-            anonymous: true,
-            sessionId: input.sessionId,
-            ...(input.visitorId ? { visitorId: input.visitorId } : {}),
-          };
-    if (input.locale) baseMetadata.locale = input.locale;
-    const [created] = await tx
-      .insert(schema.endUsers)
-      .values({
-        orgId,
-        externalId,
-        email: input.visitor?.email?.trim().toLowerCase() ?? null,
-        name: input.visitor?.name ?? null,
-        metadata: baseMetadata,
-      })
-      .returning();
-    return created!;
+
+    if (input.visitorId) {
+      await linkVisitorToEndUser(tx, orgId, input.visitorId, endUser.id);
+    }
+    return endUser;
   }
 
   private async findOrCreateContact(
@@ -896,6 +911,137 @@ export class WidgetIngestService {
       payload: { conversationId: created!.id, displayId: created!.displayId, channelId },
     });
     return created!;
+  }
+
+  async identify(
+    orgId: string,
+    input: {
+      channelId: string;
+      sessionId: string;
+      visitorId?: string;
+      verifiedExternalId: string;
+      userHash: string;
+    },
+    requestContext: { origin?: string } = {},
+  ): Promise<{ endUserId: string; contactId: string | null }> {
+    const ctx = getCurrentContext();
+    await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const tx = ctx.db as Tx;
+
+    const channel = await this.loadChannel(tx, orgId, input.channelId);
+    const channelConfig = WidgetChannelConfig.parse(channel.config);
+    enforceOriginAllowlist(channelConfig, requestContext.origin);
+    const identity = verifyIdentity(channelConfig, {
+      verifiedExternalId: input.verifiedExternalId,
+      userHash: input.userHash,
+    });
+    if (identity.mode !== 'verified') {
+      throw new ForbiddenException('identity_required');
+    }
+
+    const result = await this.claimAnonymousIdentityInTx(
+      tx,
+      orgId,
+      input.sessionId,
+      input.visitorId,
+      identity,
+    );
+    return result;
+  }
+
+  private async claimAnonymousIdentityInTx(
+    tx: Tx,
+    orgId: string,
+    sessionId: string,
+    visitorId: string | undefined,
+    identity: { mode: 'verified'; externalId: string },
+  ): Promise<{ endUserId: string; contactId: string | null }> {
+    const verifiedEndUserId = await this.findOrCreateVerifiedEndUser(tx, orgId, identity.externalId);
+
+    if (visitorId) {
+      await linkVisitorToEndUser(tx, orgId, visitorId, verifiedEndUserId);
+    }
+
+    const sessionContacts = await tx
+      .select({
+        id: schema.convContacts.id,
+        endUserId: schema.convContacts.endUserId,
+        metadata: schema.convContacts.metadata,
+      })
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          sql`${schema.convContacts.metadata}->>'sessionId' = ${sessionId}`,
+        ),
+      )
+      .limit(1);
+
+    const sessionContact = sessionContacts[0];
+    if (!sessionContact) {
+      return { endUserId: verifiedEndUserId, contactId: null };
+    }
+
+    const existingExternalId = (sessionContact.metadata as { externalId?: string } | null)
+      ?.externalId;
+    const isAnonymous = !existingExternalId || existingExternalId.startsWith('anon:');
+    if (!isAnonymous && existingExternalId === identity.externalId) {
+      return { endUserId: verifiedEndUserId, contactId: sessionContact.id };
+    }
+    if (!isAnonymous) {
+      throw new ForbiddenException('session_already_claimed');
+    }
+
+    await tx
+      .update(schema.convContacts)
+      .set({
+        endUserId: verifiedEndUserId,
+        metadata: sql`COALESCE(${schema.convContacts.metadata}, '{}'::jsonb) || ${JSON.stringify({ externalId: identity.externalId })}::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.convContacts.id, sessionContact.id));
+
+    await tx
+      .update(schema.convConversations)
+      .set({ endUserId: verifiedEndUserId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          eq(schema.convConversations.contactId, sessionContact.id),
+        ),
+      );
+
+    if (sessionContact.endUserId && sessionContact.endUserId !== verifiedEndUserId) {
+      await tx
+        .delete(schema.endUsers)
+        .where(
+          and(
+            eq(schema.endUsers.orgId, orgId),
+            eq(schema.endUsers.id, sessionContact.endUserId),
+            sql`${schema.endUsers.externalId} LIKE 'anon:%'`,
+          ),
+        );
+    }
+
+    return { endUserId: verifiedEndUserId, contactId: sessionContact.id };
+  }
+
+  private async findOrCreateVerifiedEndUser(
+    tx: Tx,
+    orgId: string,
+    externalId: string,
+  ): Promise<string> {
+    const existing = await tx
+      .select({ id: schema.endUsers.id })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
+      .limit(1);
+    if (existing[0]) return existing[0].id;
+    const [created] = await tx
+      .insert(schema.endUsers)
+      .values({ orgId, externalId })
+      .returning({ id: schema.endUsers.id });
+    return created!.id;
   }
 }
 

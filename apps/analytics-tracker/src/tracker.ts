@@ -38,6 +38,14 @@ interface BeaconPayload {
 interface MuninGlobal {
   track: (subjectId: string, attrs?: TrackAttrs) => void;
   trackPageView: () => void;
+  identify: (externalId: string, userHash: string) => void;
+}
+
+interface IdentifyPayload {
+  key: string;
+  visitorId: string;
+  externalId: string;
+  userHash: string;
 }
 
 const VISITOR_KEY = 'mn.vid';
@@ -69,6 +77,7 @@ const VISITOR_KEY = 'mn.vid';
   const subjectType = script.getAttribute('data-subject-type') || 'page';
   const spa = script.getAttribute('data-spa') === 'true';
   const beaconUrl = apiBase + '/v1/a/t';
+  const identifyUrl = apiBase + '/v1/a/identify';
 
   function freshVisitorId(): string {
     return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -158,6 +167,44 @@ const VISITOR_KEY = 'mn.vid';
     trackView(location.pathname);
   }
 
+  function identify(externalId: string, userHash: string): void {
+    if (!externalId || !userHash) {
+      console.warn('[munin-tracker] identify requires externalId and userHash');
+      return;
+    }
+    const payload: IdentifyPayload = {
+      key: key!,
+      visitorId,
+      externalId,
+      userHash,
+    };
+    try {
+      const body = JSON.stringify(payload);
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: 'text/plain;charset=UTF-8' });
+        navigator.sendBeacon(identifyUrl, blob);
+        return;
+      }
+      void fetch(identifyUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body,
+        keepalive: true,
+        mode: 'no-cors',
+      }).catch((err) => {
+        console.warn('[munin-tracker] identify fetch failed:', err);
+      });
+    } catch (err) {
+      console.warn('[munin-tracker] failed to send identify:', err);
+    }
+  }
+
+  const initialExternalId = script.getAttribute('data-external-id');
+  const initialUserHash = script.getAttribute('data-user-hash');
+  if (initialExternalId && initialUserHash) {
+    identify(initialExternalId, initialUserHash);
+  }
+
   if (doc.readyState === 'loading') {
     doc.addEventListener('DOMContentLoaded', trackPageView, { once: true });
   } else {
@@ -190,10 +237,21 @@ const VISITOR_KEY = 'mn.vid';
     trackView(lastPath, { dwellMs: dwell, referrer: null });
   });
 
-  const w = window as Window & { mn?: MuninGlobal };
-  const mn: MuninGlobal = w.mn ?? (w.mn = {} as MuninGlobal);
+  const w = window as Window & { mn?: Partial<MuninGlobal> };
+  const mn = (w.mn ??= {});
   mn.track = trackView;
   mn.trackPageView = trackPageView;
+  const previousIdentify = mn.identify;
+  mn.identify = (externalId: string, userHash: string): void => {
+    identify(externalId, userHash);
+    if (previousIdentify) {
+      try {
+        previousIdentify(externalId, userHash);
+      } catch (err) {
+        console.warn('[munin-tracker] forward identify:', err);
+      }
+    }
+  };
 })();
 
 export {};

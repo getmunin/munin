@@ -1437,6 +1437,156 @@
         "security": []
       }
     },
+    "/v1/a/identify": {
+      "post": {
+        "operationId": "AnalyticsTrackerController_identify",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTracker"
+        ],
+        "security": []
+      }
+    },
+    "/v1/analytics/trackers": {
+      "get": {
+        "operationId": "AnalyticsTrackersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTrackers"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "AnalyticsTrackersController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTrackers"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/analytics/trackers/{id}": {
+      "patch": {
+        "operationId": "AnalyticsTrackersController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTrackers"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/analytics/trackers/{id}/rotate-identity-secret": {
+      "post": {
+        "operationId": "AnalyticsTrackersController_rotateIdentitySecret",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTrackers"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/analytics/trackers/{id}/revoke": {
+      "post": {
+        "operationId": "AnalyticsTrackersController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTrackers"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/orgs/me/invitations": {
       "post": {
         "operationId": "InvitationsController_create",
@@ -3976,6 +4126,28 @@
         "parameters": [],
         "responses": {
           "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Widget"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/widget/identify": {
+      "post": {
+        "operationId": "WidgetController_identify",
+        "parameters": [],
+        "responses": {
+          "201": {
             "description": ""
           }
         },

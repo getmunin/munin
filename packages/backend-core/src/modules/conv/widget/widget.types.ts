@@ -201,6 +201,21 @@ export const WidgetSetVisitorInput = z.object({
 
 export type WidgetSetVisitorInputT = z.infer<typeof WidgetSetVisitorInput>;
 
+export const WidgetIdentifyInput = z.object({
+  channelId: z.string().min(1),
+  sessionId: z.string().min(1).max(200),
+  visitorId: z.string().min(1).max(200).optional(),
+  verifiedExternalId: z.string().min(1).max(200),
+  userHash: z.string().regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest'),
+});
+
+export type WidgetIdentifyInputT = z.infer<typeof WidgetIdentifyInput>;
+
+export interface WidgetIdentifyResult {
+  endUserId: string;
+  contactId: string | null;
+}
+
 export interface WidgetSetVisitorResult {
   contactId: string;
   email: string | null;

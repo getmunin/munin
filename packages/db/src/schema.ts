@@ -1490,6 +1490,11 @@ export const analyticsTrackers = pgTable(
       .references(() => orgs.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     allowedOrigins: jsonb('allowed_origins').$type<string[]>().notNull().default([]),
+    // HMAC secret used by `/v1/a/identify` to verify caller-supplied
+    // `userHash` claims. NULL means anonymous-only identify is allowed
+    // (and only honored when `requireVerifiedIdentity` is false).
+    identityVerificationSecret: text('identity_verification_secret'),
+    requireVerifiedIdentity: boolean('require_verified_identity').notNull().default(false),
     createdAt,
     updatedAt,
   },
@@ -1514,6 +1519,10 @@ export const analyticsViewEvents = pgTable(
     utmMedium: varchar('utm_medium', { length: 128 }),
     utmCampaign: varchar('utm_campaign', { length: 128 }),
     visitorId: varchar('visitor_id', { length: 64 }),
+    // Resolved at ingest from `analytics_visitor_identities` when the
+    // visitor has been linked to a known end-user (via widget identify or
+    // tracker identify). Always nullable — most rows are anonymous.
+    endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
     userAgentClass: varchar('user_agent_class', { length: 16 }),
     dwellMs: integer('dwell_ms'),
     readDepth: integer('read_depth'),
@@ -1539,6 +1548,11 @@ export const analyticsViewEvents = pgTable(
       t.subjectType,
       t.createdAt,
     ),
+    endUserIdx: index('analytics_view_events_end_user_idx').on(
+      t.orgId,
+      t.endUserId,
+      t.createdAt,
+    ),
   }),
 );
 
@@ -1554,6 +1568,7 @@ export const analyticsSearchEvents = pgTable(
     locale: varchar('locale', { length: 16 }),
     resultCount: integer('result_count').notNull(),
     visitorId: varchar('visitor_id', { length: 64 }),
+    endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
     createdAt,
   },
   (t) => ({
@@ -1564,6 +1579,37 @@ export const analyticsSearchEvents = pgTable(
       t.createdAt,
     ),
     orgIdx: index('analytics_search_events_org_idx').on(t.orgId, t.createdAt),
+    endUserIdx: index('analytics_search_events_end_user_idx').on(
+      t.orgId,
+      t.endUserId,
+      t.createdAt,
+    ),
+  }),
+);
+
+// Bridge table: maps an opaque analytics `visitor_id` (localStorage cookie
+// minted by `apps/analytics-tracker`) to an `end_users` row once a visitor
+// has been linked to a known identity. Written by the widget ingest path
+// (when a chat session resolves an end-user with a visitorId) and by the
+// `/v1/a/identify` endpoint. Read on every analytics ingest to stamp
+// `end_user_id` on new event rows.
+export const analyticsVisitorIdentities = pgTable(
+  'analytics_visitor_identities',
+  {
+    id: id('avi'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    visitorId: varchar('visitor_id', { length: 64 }).notNull(),
+    endUserId: text('end_user_id')
+      .notNull()
+      .references(() => endUsers.id, { onDelete: 'cascade' }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    visitorUq: uniqueIndex('analytics_visitor_identities_visitor_uq').on(t.orgId, t.visitorId),
+    endUserIdx: index('analytics_visitor_identities_end_user_idx').on(t.orgId, t.endUserId),
   }),
 );
 
@@ -1845,6 +1891,7 @@ export const allTables = {
   analyticsTrackers,
   analyticsViewEvents,
   analyticsSearchEvents,
+  analyticsVisitorIdentities,
   curatorJobs,
   systemConfig,
   feedbackOutbox,

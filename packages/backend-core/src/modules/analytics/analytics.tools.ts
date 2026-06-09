@@ -3,21 +3,40 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { buildApiKey, getCurrentContext, hashSecret, keyPrefix } from '@getmunin/core';
+import {
+  buildApiKey,
+  getCurrentContext,
+  hashSecret,
+  keyPrefix,
+  randomToken,
+} from '@getmunin/core';
 
 const CreateTrackerInput = z.object({
   name: z.string().min(1).max(120),
   allowedOrigins: z.array(z.string().url()).optional(),
+  requireVerifiedIdentity: z.boolean().optional(),
 });
 
 const UpdateTrackerInput = z.object({
   trackerId: z.string(),
   name: z.string().min(1).max(120).optional(),
   allowedOrigins: z.array(z.string().url()).optional(),
+  requireVerifiedIdentity: z.boolean().optional(),
 });
 
 const RevokeTrackerInput = z.object({
   trackerId: z.string(),
+});
+
+const RotateIdentitySecretInput = z.object({
+  trackerId: z.string(),
+});
+
+const ContactJourneyInput = z.object({
+  contactId: z.string().optional(),
+  endUserId: z.string().optional(),
+  sinceDays: z.number().int().min(1).max(365).default(30),
+  limit: z.number().int().min(1).max(500).default(100),
 });
 
 interface TrackerSummary {
@@ -28,10 +47,18 @@ interface TrackerSummary {
   createdAt: string;
   lastUsedAt: string | null;
   revokedAt: string | null;
+  requireVerifiedIdentity: boolean;
+  hasIdentityVerificationSecret: boolean;
 }
 
 interface CreateTrackerResult extends TrackerSummary {
   trackerKey: string;
+  identityVerificationSecret: string;
+}
+
+interface RotateIdentitySecretResult {
+  trackerId: string;
+  identityVerificationSecret: string;
 }
 
 @Injectable()
@@ -50,12 +77,15 @@ export class AnalyticsAdminTools {
   async createTracker(args: z.infer<typeof CreateTrackerInput>): Promise<CreateTrackerResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    const identityVerificationSecret = randomToken(32);
     const [tracker] = await ctx.db
       .insert(schema.analyticsTrackers)
       .values({
         orgId: actor.orgId,
         name: args.name,
         allowedOrigins: args.allowedOrigins ?? [],
+        identityVerificationSecret,
+        requireVerifiedIdentity: args.requireVerifiedIdentity ?? false,
       })
       .returning();
     const rawKey = buildApiKey('track');
@@ -81,7 +111,10 @@ export class AnalyticsAdminTools {
       createdAt: tracker!.createdAt.toISOString(),
       lastUsedAt: null,
       revokedAt: null,
+      requireVerifiedIdentity: tracker!.requireVerifiedIdentity,
+      hasIdentityVerificationSecret: true,
       trackerKey: rawKey,
+      identityVerificationSecret,
     };
   }
 
@@ -105,6 +138,8 @@ export class AnalyticsAdminTools {
         name: schema.analyticsTrackers.name,
         allowedOrigins: schema.analyticsTrackers.allowedOrigins,
         createdAt: schema.analyticsTrackers.createdAt,
+        requireVerifiedIdentity: schema.analyticsTrackers.requireVerifiedIdentity,
+        identityVerificationSecret: schema.analyticsTrackers.identityVerificationSecret,
         keyPrefix: schema.apiKeys.keyPrefix,
         lastUsedAt: schema.apiKeys.lastUsedAt,
         revokedAt: schema.apiKeys.revokedAt,
@@ -128,6 +163,8 @@ export class AnalyticsAdminTools {
         createdAt: r.createdAt.toISOString(),
         lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
         revokedAt: r.revokedAt?.toISOString() ?? null,
+        requireVerifiedIdentity: r.requireVerifiedIdentity,
+        hasIdentityVerificationSecret: r.identityVerificationSecret !== null,
       }));
   }
 
@@ -145,11 +182,18 @@ export class AnalyticsAdminTools {
   async updateTracker(args: z.infer<typeof UpdateTrackerInput>): Promise<TrackerSummary> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const patch: { name?: string; allowedOrigins?: string[]; updatedAt: Date } = {
+    const patch: {
+      name?: string;
+      allowedOrigins?: string[];
+      requireVerifiedIdentity?: boolean;
+      updatedAt: Date;
+    } = {
       updatedAt: new Date(),
     };
     if (args.name !== undefined) patch.name = args.name;
     if (args.allowedOrigins !== undefined) patch.allowedOrigins = args.allowedOrigins;
+    if (args.requireVerifiedIdentity !== undefined)
+      patch.requireVerifiedIdentity = args.requireVerifiedIdentity;
     const [updated] = await ctx.db
       .update(schema.analyticsTrackers)
       .set(patch)
@@ -180,14 +224,47 @@ export class AnalyticsAdminTools {
       createdAt: updated.createdAt.toISOString(),
       lastUsedAt: key?.lastUsedAt?.toISOString() ?? null,
       revokedAt: key?.revokedAt?.toISOString() ?? null,
+      requireVerifiedIdentity: updated.requireVerifiedIdentity,
+      hasIdentityVerificationSecret: updated.identityVerificationSecret !== null,
     };
+  }
+
+  @McpTool({
+    name: 'analytics_rotate_tracker_identity_secret',
+    title: 'Analytics: Rotate tracker identity verification secret',
+    description:
+      "Mint a fresh HMAC secret for verifying visitor-identity claims sent to `/v1/a/identify`. Returns the plaintext secret once; store it server-side and use it to compute `userHash = HMAC_SHA256(externalId, secret)` before calling `window.mn.identify(externalId, userHash)` from the browser. The previous secret is replaced immediately — any in-flight identify calls signed with it will fail.",
+    audiences: ['admin'],
+    scopes: ['analytics:write'],
+    input: RotateIdentitySecretInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  async rotateIdentitySecret(
+    args: z.infer<typeof RotateIdentitySecretInput>,
+  ): Promise<RotateIdentitySecretResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const identityVerificationSecret = randomToken(32);
+    const [updated] = await ctx.db
+      .update(schema.analyticsTrackers)
+      .set({ identityVerificationSecret, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.analyticsTrackers.id, args.trackerId),
+          eq(schema.analyticsTrackers.orgId, actor.orgId),
+        ),
+      )
+      .returning({ id: schema.analyticsTrackers.id });
+    if (!updated) throw new NotFoundException(`tracker ${args.trackerId} not found`);
+    return { trackerId: updated.id, identityVerificationSecret };
   }
 
   @McpTool({
     name: 'analytics_top_subjects',
     title: 'Analytics: Top subjects by view count',
     description:
-      'List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`).',
+      'List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`). Pass `endUserId` or `contactId` to restrict the ranking to one identified visitor — useful for "what has this lead been reading?".',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: z.object({
@@ -195,6 +272,8 @@ export class AnalyticsAdminTools {
       sinceDays: z.number().int().min(1).max(365).default(30),
       limit: z.number().int().min(1).max(200).default(20),
       source: z.enum(['pixel', 'beacon', 'tracker']).optional(),
+      endUserId: z.string().optional(),
+      contactId: z.string().optional(),
     }),
     readOnlyHint: true,
     destructiveHint: false,
@@ -204,6 +283,8 @@ export class AnalyticsAdminTools {
     sinceDays: number;
     limit: number;
     source?: 'pixel' | 'beacon' | 'tracker';
+    endUserId?: string;
+    contactId?: string;
   }): Promise<
     Array<{ subjectType: string; subjectId: string; views: number; visitors: number }>
   > {
@@ -215,6 +296,11 @@ export class AnalyticsAdminTools {
     ];
     if (args.subjectType) conditions.push(sql`subject_type = ${args.subjectType}`);
     if (args.source) conditions.push(sql`source = ${args.source}`);
+    const endUserId = await this.resolveEndUserId(args);
+    if (args.endUserId || args.contactId) {
+      if (!endUserId) return [];
+      conditions.push(sql`end_user_id = ${endUserId}`);
+    }
     const where = sql.join(conditions, sql` AND `);
     const rows = await ctx.db.execute<{
       subject_type: string;
@@ -428,6 +514,8 @@ export class AnalyticsAdminTools {
       subjectId: z.string().optional(),
       sinceDays: z.number().int().min(1).max(365).default(30),
       source: z.enum(['pixel', 'beacon', 'tracker']).optional(),
+      endUserId: z.string().optional(),
+      contactId: z.string().optional(),
     }),
     readOnlyHint: true,
     destructiveHint: false,
@@ -437,6 +525,8 @@ export class AnalyticsAdminTools {
     subjectId?: string;
     sinceDays: number;
     source?: 'pixel' | 'beacon' | 'tracker';
+    endUserId?: string;
+    contactId?: string;
   }): Promise<Array<{ day: string; views: number; visitors: number }>> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -447,6 +537,16 @@ export class AnalyticsAdminTools {
     if (args.subjectType) eventConditions.push(sql`subject_type = ${args.subjectType}`);
     if (args.subjectId) eventConditions.push(sql`subject_id = ${args.subjectId}`);
     if (args.source) eventConditions.push(sql`source = ${args.source}`);
+    const endUserId = await this.resolveEndUserId(args);
+    if (args.endUserId || args.contactId) {
+      if (!endUserId) {
+        return Array.from({ length: args.sinceDays }, (_, i) => {
+          const d = new Date(Date.now() - (args.sinceDays - 1 - i) * 86400000);
+          return { day: d.toISOString().slice(0, 10), views: 0, visitors: 0 };
+        });
+      }
+      eventConditions.push(sql`end_user_id = ${endUserId}`);
+    }
     const eventWhere = sql.join(eventConditions, sql` AND `);
     const rows = await ctx.db.execute<{
       day: Date | string;
@@ -491,6 +591,8 @@ export class AnalyticsAdminTools {
       subjectType: z.string().max(32),
       subjectId: z.string(),
       sinceDays: z.number().int().min(1).max(365).default(90),
+      endUserId: z.string().optional(),
+      contactId: z.string().optional(),
     }),
     readOnlyHint: true,
     destructiveHint: false,
@@ -499,6 +601,8 @@ export class AnalyticsAdminTools {
     subjectType: string;
     subjectId: string;
     sinceDays: number;
+    endUserId?: string;
+    contactId?: string;
   }): Promise<{
     views: number;
     visitors: number;
@@ -508,6 +612,26 @@ export class AnalyticsAdminTools {
   }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    const conditions = [
+      sql`org_id = ${actor.orgId}`,
+      sql`subject_type = ${args.subjectType}`,
+      sql`subject_id = ${args.subjectId}`,
+      sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
+    ];
+    const endUserId = await this.resolveEndUserId(args);
+    if (args.endUserId || args.contactId) {
+      if (!endUserId) {
+        return {
+          views: 0,
+          visitors: 0,
+          avgDwellMs: null,
+          avgReadDepth: null,
+          lastViewAt: null,
+        };
+      }
+      conditions.push(sql`end_user_id = ${endUserId}`);
+    }
+    const where = sql.join(conditions, sql` AND `);
     const rows = await ctx.db.execute<{
       views: number;
       visitors: number;
@@ -524,10 +648,7 @@ export class AnalyticsAdminTools {
              AVG(read_depth) FILTER (WHERE read_depth IS NOT NULL) AS avg_read_depth,
              MAX(created_at) AS last_view_at
       FROM analytics_view_events
-      WHERE org_id = ${actor.orgId}
-        AND subject_type = ${args.subjectType}
-        AND subject_id = ${args.subjectId}
-        AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
+      WHERE ${where}
     `);
     const r = rows[0]!;
     return {
@@ -537,6 +658,99 @@ export class AnalyticsAdminTools {
       avgReadDepth: r.avg_read_depth !== null ? Math.round(Number(r.avg_read_depth)) : null,
       lastViewAt: r.last_view_at ? new Date(r.last_view_at).toISOString() : null,
     };
+  }
+
+  @McpTool({
+    name: 'analytics_contact_journey',
+    title: 'Analytics: Journey of subjects viewed by a contact',
+    description:
+      'Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`; events recorded before linkage stay anonymous and are not returned here.',
+    audiences: ['admin'],
+    scopes: ['analytics:read'],
+    input: ContactJourneyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  async contactJourney(args: z.infer<typeof ContactJourneyInput>): Promise<
+    Array<{
+      kind: 'view' | 'search';
+      at: string;
+      subjectType: string | null;
+      subjectId: string | null;
+      path: string | null;
+      query: string | null;
+      resultCount: number | null;
+    }>
+  > {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const endUserId = await this.resolveEndUserId(args);
+    if (!endUserId) return [];
+    const rows = await ctx.db.execute<{
+      kind: 'view' | 'search';
+      at: Date | string;
+      subject_type: string | null;
+      subject_id: string | null;
+      path: string | null;
+      query: string | null;
+      result_count: number | null;
+    }>(sql`
+      SELECT 'view'::text AS kind,
+             created_at AS at,
+             subject_type,
+             subject_id,
+             path,
+             NULL::text AS query,
+             NULL::int AS result_count
+      FROM analytics_view_events
+      WHERE org_id = ${actor.orgId}
+        AND end_user_id = ${endUserId}
+        AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
+      UNION ALL
+      SELECT 'search'::text AS kind,
+             created_at AS at,
+             subject_type,
+             NULL::text AS subject_id,
+             NULL::text AS path,
+             query,
+             result_count
+      FROM analytics_search_events
+      WHERE org_id = ${actor.orgId}
+        AND end_user_id = ${endUserId}
+        AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
+      ORDER BY at ASC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      kind: r.kind,
+      at: new Date(r.at).toISOString(),
+      subjectType: r.subject_type,
+      subjectId: r.subject_id,
+      path: r.path,
+      query: r.query,
+      resultCount: r.result_count,
+    }));
+  }
+
+  private async resolveEndUserId(args: {
+    endUserId?: string;
+    contactId?: string;
+  }): Promise<string | null> {
+    if (args.endUserId) return args.endUserId;
+    if (!args.contactId) return null;
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select({ endUserId: schema.crmContacts.endUserId })
+      .from(schema.crmContacts)
+      .where(
+        and(
+          eq(schema.crmContacts.id, args.contactId),
+          eq(schema.crmContacts.orgId, actor.orgId),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.endUserId ?? null;
   }
 
   @McpTool({

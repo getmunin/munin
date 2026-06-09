@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
+import { and, eq } from 'drizzle-orm';
 import { DB } from '../../common/db/db.module.ts';
 
 export interface RecordViewInput {
@@ -19,6 +20,7 @@ export interface RecordViewInput {
   readDepth?: number | null;
   country?: string | null;
   metadata?: Record<string, unknown> | null;
+  requireVerifiedIdentity?: boolean;
 }
 
 export interface RecordSearchInput {
@@ -28,6 +30,7 @@ export interface RecordSearchInput {
   resultCount: number;
   locale?: string | null;
   visitorId?: string | null;
+  requireVerifiedIdentity?: boolean;
 }
 
 @Injectable()
@@ -38,6 +41,9 @@ export class AnalyticsService {
 
   async recordView(input: RecordViewInput): Promise<void> {
     try {
+      const visitorId = truncate(input.visitorId, 64);
+      const endUserId = await this.resolveEndUserId(input.orgId, visitorId);
+      if (input.requireVerifiedIdentity && !endUserId) return;
       await this.db.insert(schema.analyticsViewEvents).values({
         orgId: input.orgId,
         subjectType: input.subjectType.slice(0, 32),
@@ -49,7 +55,8 @@ export class AnalyticsService {
         utmSource: truncate(input.utmSource, 128),
         utmMedium: truncate(input.utmMedium, 128),
         utmCampaign: truncate(input.utmCampaign, 128),
-        visitorId: truncate(input.visitorId, 64),
+        visitorId,
+        endUserId,
         userAgentClass: truncate(input.userAgentClass, 16),
         dwellMs: clampInt(input.dwellMs, 0, 24 * 60 * 60 * 1000),
         readDepth: clampInt(input.readDepth, 0, 100),
@@ -65,16 +72,42 @@ export class AnalyticsService {
     try {
       const q = input.query.trim();
       if (!q) return;
+      const visitorId = truncate(input.visitorId, 64);
+      const endUserId = await this.resolveEndUserId(input.orgId, visitorId);
+      if (input.requireVerifiedIdentity && !endUserId) return;
       await this.db.insert(schema.analyticsSearchEvents).values({
         orgId: input.orgId,
         subjectType: input.subjectType.slice(0, 32),
         query: q.slice(0, 256),
         locale: truncate(input.locale, 16),
         resultCount: Math.max(0, Math.floor(input.resultCount)),
-        visitorId: truncate(input.visitorId, 64),
+        visitorId,
+        endUserId,
       });
     } catch (err) {
       this.logger.warn(`analytics.search.record_failed: ${(err as Error).message}`);
+    }
+  }
+
+  private async resolveEndUserId(
+    orgId: string,
+    visitorId: string | null,
+  ): Promise<string | null> {
+    if (!visitorId) return null;
+    try {
+      const rows = await this.db
+        .select({ endUserId: schema.analyticsVisitorIdentities.endUserId })
+        .from(schema.analyticsVisitorIdentities)
+        .where(
+          and(
+            eq(schema.analyticsVisitorIdentities.orgId, orgId),
+            eq(schema.analyticsVisitorIdentities.visitorId, visitorId),
+          ),
+        )
+        .limit(1);
+      return rows[0]?.endUserId ?? null;
+    } catch {
+      return null;
     }
   }
 }

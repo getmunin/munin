@@ -1,6 +1,8 @@
 import { OAuthConsentPage, type OAuthClientInfo } from '@getmunin/dashboard-pages';
+import { redirectIfSetupIncomplete } from '@getmunin/dashboard-pages/server';
 
 interface PageProps {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
@@ -21,9 +23,10 @@ async function fetchClientInfo(clientId: string): Promise<OAuthClientInfo | null
   }
 }
 
-export default async function Page({ searchParams }: PageProps) {
-  const params = await searchParams;
-  const raw = params.client_id;
+export default async function Page({ params, searchParams }: PageProps) {
+  const [{ locale }, sp] = await Promise.all([params, searchParams]);
+  await redirectIfSetupIncomplete({ locale, searchParams: sp });
+  const raw = sp.client_id;
   const clientId = Array.isArray(raw) ? raw[0] ?? '' : raw ?? '';
   const clientInfo = await fetchClientInfo(clientId);
   return <OAuthConsentPage clientInfo={clientInfo} />;

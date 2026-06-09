@@ -5,6 +5,34 @@ import { safeRedirect } from './post-signin-redirect';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+type OrgRole = 'owner' | 'admin' | 'member';
+
+interface MembershipDto {
+  orgId: string;
+  name: string;
+  slug: string;
+  role: string;
+  isDefault: boolean;
+}
+
+interface AgentConfigStatusDto {
+  providerApiKeySet: boolean;
+}
+
+async function fetchWithCookies<T>(path: string, cookieHeader: string): Promise<T | null> {
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      headers: { cookie: cookieHeader },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch (err) {
+    console.warn('[server-session] fetch failed', path, err);
+    return null;
+  }
+}
+
 export interface ServerSession {
   user: { id: string; email?: string | null } & Record<string, unknown>;
   session: { id: string } & Record<string, unknown>;
@@ -37,4 +65,48 @@ export async function redirectIfAuthenticated(opts: {
   if (!session) return;
   const raw = Array.isArray(opts.redirectParam) ? opts.redirectParam[0] : opts.redirectParam;
   redirect({ href: safeRedirect(raw ?? null), locale: opts.locale });
+}
+
+export async function redirectIfSetupIncomplete(opts: {
+  locale: string;
+  searchParams: Record<string, string | string[] | undefined>;
+}): Promise<void> {
+  const cookieStore = await cookies();
+  const cookieHeader = cookieStore.toString();
+  if (!cookieHeader) return;
+
+  const [config, memberships] = await Promise.all([
+    fetchWithCookies<AgentConfigStatusDto>('/v1/agent-config', cookieHeader),
+    fetchWithCookies<MembershipDto[]>('/v1/me/memberships', cookieHeader),
+  ]);
+  if (!config || !memberships) return;
+
+  const active = memberships.find((m) => m.isDefault) ?? memberships[0] ?? null;
+  if (!active) return;
+  const role = isOrgRole(active.role) ? active.role : null;
+  if (role !== 'owner' && role !== 'admin') return;
+
+  const orgNamed = active.name.trim().length > 0;
+  const setupIncomplete = !config.providerApiKeySet || !orgNamed;
+  if (!setupIncomplete) return;
+
+  const query = serializeSearchParams(opts.searchParams);
+  redirect({ href: query ? `/setup?${query}` : '/setup', locale: opts.locale });
+}
+
+function serializeSearchParams(sp: Record<string, string | string[] | undefined>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    } else {
+      params.append(key, value);
+    }
+  }
+  return params.toString();
+}
+
+function isOrgRole(value: string): value is OrgRole {
+  return value === 'owner' || value === 'admin' || value === 'member';
 }

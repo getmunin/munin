@@ -274,7 +274,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: CreateContactInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createContact(args: z.infer<typeof CreateContactInput>) {
     return this.crm.createContact(args);
@@ -289,7 +289,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: UpdateContactInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   updateContact(args: z.infer<typeof UpdateContactInput>) {
     return this.crm.updateContact(args);
@@ -304,7 +304,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: BulkCreateInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   bulkCreateContacts(args: z.infer<typeof BulkCreateInput>) {
     return this.crm.bulkCreateContacts(args.contacts);
@@ -349,7 +349,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: CreateCompanyInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createCompany(args: z.infer<typeof CreateCompanyInput>) {
     return this.crm.createCompany(args);
@@ -380,7 +380,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: CreatePipelineInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createPipeline(args: z.infer<typeof CreatePipelineInput>) {
     return this.crm.createPipeline(args);
@@ -409,7 +409,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: CreateDealInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createDeal(args: z.infer<typeof CreateDealInput>) {
     return this.crm.createDeal(args);
@@ -424,7 +424,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: ChangeStageInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   changeStage(args: z.infer<typeof ChangeStageInput>) {
     return this.crm.changeStage(args);
@@ -441,7 +441,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: LogActivityInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   logActivity(args: z.infer<typeof LogActivityInput>) {
     return this.crm.logActivity(args);
@@ -472,7 +472,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: SetAiSummaryInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   setAiSummary(args: z.infer<typeof SetAiSummaryInput>) {
     return this.crm.setAiSummary(args);
@@ -489,7 +489,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: ProposeMergeInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   proposeMergeCandidate(args: z.infer<typeof ProposeMergeInput>) {
     return this.crm.proposeMerge(args);
@@ -534,7 +534,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: DismissMergeProposalInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   dismissMergeProposal(args: z.infer<typeof DismissMergeProposalInput>) {
     return this.crm.dismissMergeProposal(args);
@@ -580,7 +580,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: CreateSegmentInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createSegment(args: z.infer<typeof CreateSegmentInput>) {
     return this.crm.createSegment(args);
@@ -594,7 +594,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: UpdateSegmentInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   updateSegment(args: z.infer<typeof UpdateSegmentInput>) {
     return this.crm.updateSegment(args);
@@ -640,7 +640,7 @@ export class CrmAdminTools {
     scopes: ['crm:write'],
     input: SetContactConsentInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   setContactConsent(args: z.infer<typeof SetContactConsentInput>) {
     return this.crm.setContactConsent(args);

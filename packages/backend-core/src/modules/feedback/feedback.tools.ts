@@ -45,6 +45,8 @@ export class FeedbackTools {
     audiences: ['admin'],
     scopes: [],
     input: CreateInput,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   create(args: z.infer<typeof CreateInput>) {
     return this.service.create(args);
@@ -84,6 +86,8 @@ export class FeedbackTools {
     audiences: ['admin'],
     scopes: [],
     input: IdInput,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   async approve(args: z.infer<typeof IdInput>) {
     await this.service.approve(args.id);
@@ -126,6 +130,8 @@ export class FeedbackTools {
     audiences: ['admin'],
     scopes: [],
     input: VoteInput,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   async vote(args: z.infer<typeof VoteInput>) {
     return this.service.vote({ feedbackId: args.id, comment: args.comment });

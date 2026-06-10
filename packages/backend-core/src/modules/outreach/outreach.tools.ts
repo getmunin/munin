@@ -116,7 +116,7 @@ export class OutreachAdminTools {
     scopes: ['outreach:write'],
     input: CreateCampaignInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createCampaign(args: z.infer<typeof CreateCampaignInput>) {
     return this.outreach.createCampaign(args);
@@ -130,7 +130,7 @@ export class OutreachAdminTools {
     scopes: ['outreach:write'],
     input: UpdateCampaignInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   updateCampaign(args: z.infer<typeof UpdateCampaignInput>) {
     return this.outreach.updateCampaign(args);
@@ -160,7 +160,7 @@ export class OutreachAdminTools {
     scopes: ['outreach:write'],
     input: ProposeInitialInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   proposeInitial(args: z.infer<typeof ProposeInitialInput>) {
     return this.outreach.proposeInitial(args);
@@ -175,7 +175,7 @@ export class OutreachAdminTools {
     scopes: ['outreach:write'],
     input: ProposeReplyInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   proposeReply(args: z.infer<typeof ProposeReplyInput>) {
     return this.outreach.proposeReply(args);

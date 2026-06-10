@@ -53,6 +53,8 @@ export class SystemAlertsTools {
     audiences: ['admin'],
     scopes: [],
     input: IdInput,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   acknowledge(args: z.infer<typeof IdInput>) {
     return this.service.acknowledgeAlert(args.id);
@@ -66,6 +68,8 @@ export class SystemAlertsTools {
     audiences: ['admin'],
     scopes: [],
     input: ResolveInput,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   resolve(args: z.infer<typeof ResolveInput>) {
     return this.service.resolveAlert({ source: args.source, subjectId: args.subjectId ?? null });

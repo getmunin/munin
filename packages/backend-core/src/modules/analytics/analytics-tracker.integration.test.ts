@@ -195,9 +195,10 @@ const skipReason = TEST_URL
         }),
       );
     });
-    const before = await countTrackerEvents(db, orgId);
-    await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`);
-    await waitFor(async () => (await countTrackerEvents(db, orgId)) > before);
+    const subject = `revoke-${minted.id}`;
+    const before = await countTrackerEvents(db, orgId, subject);
+    await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=${subject}`);
+    await waitFor(async () => (await countTrackerEvents(db, orgId, subject)) > before);
 
     await withClient(adminKey, async (c) => {
       const res = parseToolResult<{ revoked: boolean }>(
@@ -209,10 +210,10 @@ const skipReason = TEST_URL
       expect(res.revoked).toBe(true);
     });
 
-    const afterRevoke = await countTrackerEvents(db, orgId);
-    await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`);
-    await new Promise((r) => setTimeout(r, 200));
-    expect(await countTrackerEvents(db, orgId)).toBe(afterRevoke);
+    const afterRevoke = await countTrackerEvents(db, orgId, subject);
+    await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=${subject}`);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(await countTrackerEvents(db, orgId, subject)).toBe(afterRevoke);
   }, 30_000);
 
   it('origin allowlist gates pixel + beacon', async () => {
@@ -229,31 +230,32 @@ const skipReason = TEST_URL
     });
     expect(minted.allowedOrigins).toEqual(['https://customer.example']);
 
-    const allowedBefore = await countTrackerEvents(db, orgId);
-    const allowed = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`, {
+    const subject = `allowlist-${minted.id}`;
+    const allowedBefore = await countTrackerEvents(db, orgId, subject);
+    const allowed = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=${subject}`, {
       headers: { origin: 'https://customer.example' },
     });
     expect(allowed.status).toBe(200);
-    await waitFor(async () => (await countTrackerEvents(db, orgId)) > allowedBefore);
+    await waitFor(async () => (await countTrackerEvents(db, orgId, subject)) > allowedBefore);
 
-    const beforeDenied = await countTrackerEvents(db, orgId);
-    const denied = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`, {
+    const beforeDenied = await countTrackerEvents(db, orgId, subject);
+    const denied = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=${subject}`, {
       headers: { origin: 'https://attacker.example' },
     });
     expect(denied.status).toBe(200);
 
-    const missing = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`);
+    const missing = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=${subject}`);
     expect(missing.status).toBe(200);
 
     const beaconDenied = await fetch(`${baseUrl}/v1/a/t`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'https://attacker.example' },
-      body: JSON.stringify({ key: minted.trackerKey, subjectId: 'home' }),
+      body: JSON.stringify({ key: minted.trackerKey, subjectId: subject }),
     });
     expect(beaconDenied.status).toBe(204);
 
-    await new Promise((r) => setTimeout(r, 200));
-    expect(await countTrackerEvents(db, orgId)).toBe(beforeDenied);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(await countTrackerEvents(db, orgId, subject)).toBe(beforeDenied);
 
     await withClient(adminKey, async (c) => {
       const updated = parseToolResult<{ allowedOrigins: string[] }>(
@@ -265,12 +267,12 @@ const skipReason = TEST_URL
       expect(updated.allowedOrigins).toEqual([]);
     });
 
-    const beforeOpen = await countTrackerEvents(db, orgId);
-    const openAccess = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=home`, {
+    const beforeOpen = await countTrackerEvents(db, orgId, subject);
+    const openAccess = await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=${subject}`, {
       headers: { origin: 'https://anything.example' },
     });
     expect(openAccess.status).toBe(200);
-    await waitFor(async () => (await countTrackerEvents(db, orgId)) > beforeOpen);
+    await waitFor(async () => (await countTrackerEvents(db, orgId, subject)) > beforeOpen);
   }, 30_000);
 
   it('traffic_by_source / referrer_hosts / views_over_time roll up seeded events', async () => {
@@ -619,11 +621,15 @@ const skipReason = TEST_URL
 async function countTrackerEvents(
   db: ReturnType<typeof createDb>,
   orgId: string,
+  subjectId?: string,
 ): Promise<number> {
+  const where = subjectId
+    ? sql`org_id = ${orgId} AND source = 'tracker' AND subject_id = ${subjectId}`
+    : sql`org_id = ${orgId} AND source = 'tracker'`;
   const r = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.analyticsViewEvents)
-    .where(sql`org_id = ${orgId} AND source = 'tracker'`);
+    .where(where);
   return r[0]?.n ?? 0;
 }
 

@@ -37,7 +37,8 @@
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
     "openapi:generate": "node --import @swc-node/register/esm-register ./scripts/generate-openapi.ts",
-    "docs:generate": "pnpm openapi:generate && node --import @swc-node/register/esm-register ./scripts/generate-docs-fixtures.ts"
+    "docs:generate": "pnpm openapi:generate && node --import @swc-node/register/esm-register ./scripts/generate-docs-fixtures.ts",
+    "mcp:sweep": "node --import @swc-node/register/esm-register ./scripts/mcp-sweep.ts"
   },
   "dependencies": {
     "@better-auth/oauth-provider": "^1.6.10",

@@ -72,7 +72,7 @@ export class MessageBirdSmsAdminTools {
     scopes: ['conv:write'],
     input: ConfigureInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async configure(args: z.infer<typeof ConfigureInput>): Promise<MessageBirdSmsChannelDto> {
     if (args.channelId) {
@@ -129,7 +129,7 @@ export class MessageBirdSmsAdminTools {
     scopes: ['conv:write'],
     input: SendTestInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async sendTest(
     args: z.infer<typeof SendTestInput>,

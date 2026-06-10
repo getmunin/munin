@@ -23,7 +23,7 @@ export class VoiceCallbackTools {
     scopes: ['conv:write'],
     input: CallbackInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   requestPhoneCall(args: z.infer<typeof CallbackInput>): Promise<VoiceCallbackResult> {
     return this.svc.placeCallbackForConversation(args);
@@ -38,7 +38,7 @@ export class VoiceCallbackTools {
     scopes: ['conv:write'],
     input: CallbackInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   callContact(args: z.infer<typeof CallbackInput>): Promise<VoiceCallbackResult> {
     return this.svc.placeCallbackForConversation(args);

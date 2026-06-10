@@ -48,7 +48,7 @@ export class CrmSelfServiceTools {
     scopes: ['crm:write'],
     input: UpdateMyContactInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async updateMyContact(args: z.infer<typeof UpdateMyContactInput>) {
     const own = await this.crm.getMyContact();
@@ -64,7 +64,7 @@ export class CrmSelfServiceTools {
     scopes: ['crm:write'],
     input: LogActivitySelfInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async logActivitySelf(args: z.infer<typeof LogActivitySelfInput>) {
     const ctx = getCurrentContext();

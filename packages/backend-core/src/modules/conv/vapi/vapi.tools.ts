@@ -82,7 +82,7 @@ export class VapiAdminTools {
     scopes: ['conv:write'],
     input: ConfigureInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async configure(args: z.infer<typeof ConfigureInput>): Promise<VapiChannelDto> {
     if (args.channelId) {
@@ -145,7 +145,7 @@ export class VapiAdminTools {
     scopes: ['conv:write'],
     input: CallInitiateInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async callInitiate(
     args: z.infer<typeof CallInitiateInput>,

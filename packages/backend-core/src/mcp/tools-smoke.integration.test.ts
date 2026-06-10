@@ -86,12 +86,25 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
       expect(tools.length).toBeGreaterThan(0);
       for (const t of tools) {
         expect(t.name, `tool with empty name in registry`).toMatch(/^[a-z][a-z0-9_]+$/);
+        expect(t.name.length, `${t.name}: name exceeds 64 chars (Anthropic directory limit)`).toBeLessThanOrEqual(64);
         expect(t.description?.length ?? 0, `${t.name}: description empty`).toBeGreaterThan(0);
         const schema = t.inputSchema as { type?: string; properties?: Record<string, unknown> };
         expect(schema.type, `${t.name}: inputSchema.type must be 'object'`).toBe('object');
         expect(typeof t.annotations.title).toBe('string');
         expect(typeof t.annotations.readOnlyHint).toBe('boolean');
         expect(typeof t.annotations.destructiveHint).toBe('boolean');
+      }
+    });
+
+    it('every tool is exactly one of readOnly or destructive (Anthropic directory rule)', async () => {
+      const tools = await admin.listTools();
+      for (const t of tools) {
+        const ro = t.annotations.readOnlyHint;
+        const de = t.annotations.destructiveHint;
+        expect(
+          ro !== de,
+          `${t.name}: must set exactly one of readOnlyHint/destructiveHint to true (got readOnlyHint=${ro}, destructiveHint=${de})`,
+        ).toBe(true);
       }
     });
 

@@ -95,7 +95,7 @@ export class AnalyticsAdminTools {
     scopes: ['analytics:write'],
     input: CreateTrackerInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async createTracker(args: z.infer<typeof CreateTrackerInput>): Promise<CreateTrackerResult> {
     const ctx = getCurrentContext();
@@ -201,7 +201,7 @@ export class AnalyticsAdminTools {
     scopes: ['analytics:write'],
     input: UpdateTrackerInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async updateTracker(args: z.infer<typeof UpdateTrackerInput>): Promise<TrackerSummary> {
     const ctx = getCurrentContext();

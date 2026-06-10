@@ -49,7 +49,7 @@ export class EmailAdminTools {
     scopes: ['conv:write'],
     input: SetupInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async setupChannel(args: z.infer<typeof SetupInput>) {
     if (args.channelId) {
@@ -101,7 +101,7 @@ export class EmailAdminTools {
     scopes: ['conv:write'],
     input: SendTestInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async sendTest(args: z.infer<typeof SendTestInput>): Promise<{ delivered: true }> {
     const ctx = getCurrentContext();

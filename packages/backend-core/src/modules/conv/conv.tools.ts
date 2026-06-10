@@ -114,7 +114,7 @@ export class ConvAdminTools {
     scopes: ['conv:write'],
     input: SendMessageInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   sendMessage(args: z.infer<typeof SendMessageInput>) {
     const ctx = getCurrentContext();
@@ -135,7 +135,7 @@ export class ConvAdminTools {
     scopes: ['conv:write'],
     input: AssignInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   assign(args: z.infer<typeof AssignInput>) {
     return this.conv.assignConversation(args);
@@ -150,7 +150,7 @@ export class ConvAdminTools {
     scopes: ['conv:write'],
     input: ChangeStatusInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   changeStatus(args: z.infer<typeof ChangeStatusInput>) {
     return this.conv.changeStatus(args);
@@ -165,7 +165,7 @@ export class ConvAdminTools {
     scopes: ['conv:write'],
     input: RequestHandoverInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   requestHandover(args: z.infer<typeof RequestHandoverInput>) {
     return this.conv.requestHandover(args);
@@ -209,7 +209,7 @@ export class ConvAdminTools {
     scopes: ['conv:write'],
     input: CreateChannelInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createChannel(args: z.infer<typeof CreateChannelInput>) {
     return this.conv.createChannel(args);
@@ -237,7 +237,7 @@ export class ConvAdminTools {
     scopes: ['conv:write'],
     input: CreateTopicInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createTopic(args: z.infer<typeof CreateTopicInput>) {
     return this.conv.createTopic(args);
@@ -252,7 +252,7 @@ export class ConvAdminTools {
     scopes: ['conv:write'],
     input: SetTopicInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   setTopic(args: z.infer<typeof SetTopicInput>) {
     return this.conv.setTopic(args);
@@ -267,7 +267,7 @@ export class ConvAdminTools {
     scopes: ['conv:write'],
     input: StripMessageSignatureInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   stripMessageSignature(args: z.infer<typeof StripMessageSignatureInput>) {
     return this.conv.stripMessageSignature(args);

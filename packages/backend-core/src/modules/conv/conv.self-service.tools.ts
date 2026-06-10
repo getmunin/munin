@@ -22,7 +22,7 @@ export class ConvSelfServiceTools {
     scopes: ['conv:write'],
     input: RequestMyHandoverInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   requestMyHandover(args: z.infer<typeof RequestMyHandoverInput>) {
     return this.conv.requestHandover({ ...args, postSystemNote: false });

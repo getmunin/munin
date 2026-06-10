@@ -115,7 +115,7 @@ export class KbAdminTools {
     scopes: ['kb:write'],
     input: CreateSpaceInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createSpace(args: z.infer<typeof CreateSpaceInput>) {
     return this.kb.createSpace(args);
@@ -190,7 +190,7 @@ export class KbAdminTools {
     scopes: ['kb:write'],
     input: CreateDocumentInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createDocument(args: z.infer<typeof CreateDocumentInput>) {
     return this.kb.createDocument(args);
@@ -205,7 +205,7 @@ export class KbAdminTools {
     scopes: ['kb:write'],
     input: UpdateDocumentInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   updateDocument(args: z.infer<typeof UpdateDocumentInput>) {
     return this.kb.updateDocument(args);
@@ -249,7 +249,7 @@ export class KbAdminTools {
     scopes: ['kb:write'],
     input: ProposeCurationCandidateInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   proposeCurationCandidate(args: z.infer<typeof ProposeCurationCandidateInput>) {
     return this.kb.proposeCurationCandidate(args);

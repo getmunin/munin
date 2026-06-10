@@ -67,7 +67,7 @@ export class WebhookAdminTools {
     scopes: [],
     input: CreateInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   create(args: z.infer<typeof CreateInput>) {
     return this.webhooks.create(args);
@@ -82,7 +82,7 @@ export class WebhookAdminTools {
     scopes: [],
     input: UpdateInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   update(args: z.infer<typeof UpdateInput>) {
     return this.webhooks.update(args.id, args.patch);

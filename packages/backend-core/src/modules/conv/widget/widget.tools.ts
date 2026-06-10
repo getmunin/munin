@@ -78,7 +78,7 @@ export class WidgetAdminTools {
     scopes: ['conv:write'],
     input: CreateInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async createChannel(args: z.infer<typeof CreateInput>): Promise<CreateResult> {
     const ctx = getCurrentContext();
@@ -138,7 +138,7 @@ export class WidgetAdminTools {
     scopes: ['conv:write'],
     input: UpdateInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   async updateChannel(args: z.infer<typeof UpdateInput>): Promise<ChannelDto> {
     const ctx = getCurrentContext();

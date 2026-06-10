@@ -201,7 +201,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: CreateCollectionInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createCollection(args: z.infer<typeof CreateCollectionInput>) {
     return this.cms.createCollection(args);
@@ -216,7 +216,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: UpdateCollectionInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   updateCollection(args: z.infer<typeof UpdateCollectionInput>) {
     return this.cms.updateCollection(args.idOrSlug, args.patch);
@@ -276,7 +276,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: CreateEntryInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createEntry(args: z.infer<typeof CreateEntryInput>) {
     return this.cms.createEntry(args);
@@ -291,7 +291,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: UpdateEntryInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   updateEntry(args: z.infer<typeof UpdateEntryInput>) {
     return this.cms.updateEntry(args);
@@ -305,7 +305,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: PublishInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   publishEntry(args: z.infer<typeof PublishInput>) {
     return this.cms.publishEntry(args);
@@ -319,7 +319,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: PublishInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   unpublishEntry(args: z.infer<typeof PublishInput>) {
     return this.cms.unpublishEntry(args);
@@ -334,7 +334,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: ScheduleInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   scheduleEntry(args: z.infer<typeof ScheduleInput>) {
     return this.cms.scheduleEntry(args);
@@ -408,7 +408,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: RequestUploadInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   requestUpload(args: z.infer<typeof RequestUploadInput>) {
     return this.cms.requestAssetUpload(args);
@@ -423,7 +423,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: UploadAssetFromBase64Input,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   uploadAssetFromBase64(args: z.infer<typeof UploadAssetFromBase64Input>) {
     return this.cms.uploadAssetFromBase64(args);
@@ -438,7 +438,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: UploadAssetFromUrlInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   uploadAssetFromUrl(args: z.infer<typeof UploadAssetFromUrlInput>) {
     return this.cms.uploadAssetFromUrl(args);
@@ -452,7 +452,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: CompleteUploadInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   completeUpload(args: z.infer<typeof CompleteUploadInput>) {
     return this.cms.completeAssetUpload(args);
@@ -496,7 +496,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: CreateLocaleInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   createLocale(args: z.infer<typeof CreateLocaleInput>) {
     return this.cms.createLocale(args);
@@ -510,7 +510,7 @@ export class CmsAdminTools {
     scopes: ['cms:write'],
     input: SetDefaultLocaleInput,
     readOnlyHint: false,
-    destructiveHint: false,
+    destructiveHint: true,
   })
   setDefaultLocale(args: z.infer<typeof SetDefaultLocaleInput>) {
     return this.cms.setDefaultLocale(args);

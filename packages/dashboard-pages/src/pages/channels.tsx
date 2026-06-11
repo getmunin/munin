@@ -1055,7 +1055,7 @@ function zodIssuesToFieldErrors(
 }
 
 function widgetAllowlistRequired(): boolean {
-  const raw = process.env.NEXT_PUBLIC_MUNIN_WIDGET_REQUIRE_ALLOWLIST?.trim().toLowerCase();
+  const raw = process.env.NEXT_PUBLIC_WIDGET_REQUIRE_ALLOWLIST?.trim().toLowerCase();
   return raw === '1' || raw === 'true';
 }
 

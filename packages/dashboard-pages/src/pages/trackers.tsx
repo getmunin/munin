@@ -78,6 +78,7 @@ function toSaveErrorDetail(
       method: err.method,
       status: `${err.status} · ${err.statusText}`,
       requestId: err.requestId,
+      message: err.status >= 400 && err.status < 500 ? err.message : undefined,
     };
   }
   return {

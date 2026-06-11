@@ -16,6 +16,7 @@ import type { Db } from '@getmunin/db';
 import { DB } from '../db/db.module.ts';
 import { Reflector } from '@nestjs/core';
 import { mcpResourceUrl, resourceMetadataUrl } from '../../oauth/oauth.constants.ts';
+import { sessionCookieNames } from '../../auth/auth-cookies.ts';
 
 /**
  * Decorator used on routes that should be reachable without auth
@@ -168,15 +169,14 @@ function maybeSetMcpResourceMetadataHeader(
   );
 }
 
-const SESSION_COOKIE_NAMES = ['better-auth.session_token', '__Secure-better-auth.session_token'];
-
 function readSessionCookie(cookieHeader: string | undefined): string | null {
   if (!cookieHeader) return null;
+  const names = sessionCookieNames();
   for (const part of cookieHeader.split(';')) {
     const eq = part.indexOf('=');
     if (eq < 0) continue;
     const name = part.slice(0, eq).trim();
-    if (!SESSION_COOKIE_NAMES.includes(name)) continue;
+    if (!names.includes(name)) continue;
     const raw = decodeURIComponent(part.slice(eq + 1).trim());
     // BetterAuth signs session tokens as `<token>.<signature>`. Both halves
     // are stored in the cookie; we only need the token portion to look up

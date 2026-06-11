@@ -7,6 +7,7 @@ import {
   SUPPORTED_SCOPES as MUNIN_SUPPORTED_SCOPES,
   mcpResourceUrl,
 } from '../oauth/oauth.constants.ts';
+import { authCookiePrefix } from './auth-cookies.ts';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
 
@@ -57,6 +58,9 @@ export interface MuninAuthCoreOptions {
   };
 
   crossSubDomainCookies?: { domain: string };
+
+  /** Defaults to MUNIN_AUTH_COOKIE_PREFIX, falling back to better-auth's default. */
+  cookiePrefix?: string;
 
   rateLimit?: BetterAuthOptions['rateLimit'];
 
@@ -137,6 +141,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
     trustedOrigins: origins,
     advanced: {
       useSecureCookies: dashboardUrl.startsWith('https://'),
+      cookiePrefix: opts.cookiePrefix ?? authCookiePrefix(),
       ...(opts.crossSubDomainCookies
         ? {
             crossSubDomainCookies: {

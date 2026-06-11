@@ -889,6 +889,10 @@ function CreateWidgetDialog({
       .split(/[\s,]+/)
       .map((s) => s.trim())
       .filter(Boolean);
+    if (widgetAllowlistRequired() && allowlist.length === 0) {
+      setOriginsError(t('originsRequired'));
+      return;
+    }
     const parsed = CreateWidgetBody.safeParse({
       name: name.trim(),
       originAllowlist: allowlist,
@@ -1050,6 +1054,11 @@ function zodIssuesToFieldErrors(
   return errors;
 }
 
+function widgetAllowlistRequired(): boolean {
+  const raw = process.env.NEXT_PUBLIC_WIDGET_REQUIRE_ALLOWLIST?.trim().toLowerCase();
+  return raw === '1' || raw === 'true';
+}
+
 function toSaveErrorDetail(
   err: unknown,
   _message: string,
@@ -1061,6 +1070,7 @@ function toSaveErrorDetail(
       method: err.method,
       status: `${err.status} · ${err.statusText}`,
       requestId: err.requestId,
+      message: err.status >= 400 && err.status < 500 ? err.message : undefined,
     };
   }
   return {

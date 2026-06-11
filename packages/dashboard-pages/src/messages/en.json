@@ -440,6 +440,7 @@
       "originsLabel": "Origin allowlist",
       "originsHint": "Comma- or whitespace-separated origins (full URLs with scheme + host) that may load the widget. Leave empty to allow any origin.",
       "originsInvalid": "Not a valid URL: {invalid}. Each origin must include the scheme + host, e.g. https://example.com.",
+      "originsRequired": "At least one origin is required. Add the production origin (and any preview origins) before saving — e.g. https://example.com.",
       "createWidget": "Create widget channel",
       "createdTitle": "Channel created — copy these secrets now",
       "createdDescription": "Two values for {name}. We store both server-side; the widget key is shown only once on creation, the identity secret only on creation and rotation.",

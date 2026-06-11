@@ -16,6 +16,7 @@ export interface SaveErrorDetail {
   method: string;
   status: string;
   requestId: string | null;
+  message?: string;
 }
 
 export interface SaveErrorStageProps {
@@ -47,7 +48,9 @@ export function SaveErrorStage({
       </DialogHeader>
 
       <div className="border-[0.5px] border-cobalt/40 dark:border-cobalt-soft/40 bg-paper-deep dark:bg-secondary p-5 space-y-4">
-        <p className="text-sm leading-relaxed text-ink dark:text-foreground">{t('body')}</p>
+        <p className="text-sm leading-relaxed text-ink dark:text-foreground">
+          {detail.message ?? t('body')}
+        </p>
         <hr className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark" aria-hidden />
         <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-2 font-mono text-[12px]">
           {detail.requestId && (

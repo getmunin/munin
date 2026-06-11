@@ -440,6 +440,7 @@
       "originsLabel": "Liste over godkjente opprinnelser",
       "originsHint": "Komma- eller mellomroms-separert liste over opprinnelser (full URL med scheme + host) som kan laste widgeten. Tom for å tillate alle opprinnelser.",
       "originsInvalid": "Ikke en gyldig URL: {invalid}. Hver opprinnelse må inkludere scheme + vert, f.eks. https://example.com.",
+      "originsRequired": "Minst én opprinnelse er påkrevd. Legg til produksjons-opprinnelsen (og eventuelle preview-opprinnelser) før du lagrer — f.eks. https://example.com.",
       "createWidget": "Opprett widget-kanal",
       "createdTitle": "Kanal opprettet — kopier disse hemmelighetene nå",
       "createdDescription": "To verdier for {name}. Begge lagres server-side; widget-nøkkelen vises kun én gang ved opprettelse, identitets-hemmeligheten kun ved opprettelse og rotasjon.",

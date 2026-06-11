@@ -16,6 +16,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AllowAnonymous } from '../common/auth/auth.guard.ts';
+import { sessionCookieNames } from '../auth/auth-cookies.ts';
 import { z } from 'zod';
 import { CredentialResolver } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
@@ -90,15 +91,14 @@ export class AcceptInvitationController {
   }
 }
 
-const SESSION_COOKIE_NAMES = ['better-auth.session_token', '__Secure-better-auth.session_token'];
-
 function readSessionCookie(cookieHeader: string | undefined): string | null {
   if (!cookieHeader) return null;
+  const names = sessionCookieNames();
   for (const part of cookieHeader.split(';')) {
     const eq = part.indexOf('=');
     if (eq < 0) continue;
     const name = part.slice(0, eq).trim();
-    if (!SESSION_COOKIE_NAMES.includes(name)) continue;
+    if (!names.includes(name)) continue;
     const raw = decodeURIComponent(part.slice(eq + 1).trim());
     const dot = raw.indexOf('.');
     return dot >= 0 ? raw.slice(0, dot) : raw;

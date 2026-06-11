@@ -52,6 +52,7 @@ export {
   type SignupBeforeUser,
   type DeleteUserConfig,
 } from './auth/auth-factory.ts';
+export { authCookiePrefix, sessionCookieNames } from './auth/auth-cookies.ts';
 
 export {
   AuthGuard,

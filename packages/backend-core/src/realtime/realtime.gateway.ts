@@ -28,6 +28,7 @@ import {
   ADDITIONAL_CREDENTIAL_RESOLVERS,
   type AdditionalCredentialResolver,
 } from '../common/auth/auth.guard.ts';
+import { sessionCookieNames } from '../auth/auth-cookies.ts';
 import { DbListenerService, type EventRow } from './db-listener.service.ts';
 import { RealtimeEventBus, type AgentTypingBusEvent } from './realtime-event-bus.ts';
 import {
@@ -781,11 +782,6 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 }
 
-const SESSION_COOKIE_NAMES = [
-  'better-auth.session_token',
-  '__Secure-better-auth.session_token',
-];
-
 function readHeader(req: IncomingMessage, name: string): string | undefined {
   const headers = req.headers as Record<string, string | string[] | undefined>;
   const raw = headers[name];
@@ -815,11 +811,12 @@ export function readBearerSubprotocol(value: string | undefined): string | null 
 
 function readSessionCookie(cookieHeader: string | undefined): string | null {
   if (!cookieHeader) return null;
+  const names = sessionCookieNames();
   for (const part of cookieHeader.split(';')) {
     const eq = part.indexOf('=');
     if (eq < 0) continue;
     const name = part.slice(0, eq).trim();
-    if (!SESSION_COOKIE_NAMES.includes(name)) continue;
+    if (!names.includes(name)) continue;
     const raw = decodeURIComponent(part.slice(eq + 1).trim());
     const dot = raw.indexOf('.');
     return dot >= 0 ? raw.slice(0, dot) : raw;

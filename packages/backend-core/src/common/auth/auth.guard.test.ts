@@ -70,6 +70,45 @@ describe('AuthGuard cookie fallback', () => {
   });
 });
 
+describe('AuthGuard cookie prefix (MUNIN_AUTH_COOKIE_PREFIX)', () => {
+  let originalPrefix: string | undefined;
+
+  beforeEach(() => {
+    originalPrefix = process.env.MUNIN_AUTH_COOKIE_PREFIX;
+    process.env.MUNIN_AUTH_COOKIE_PREFIX = 'munin-dev';
+  });
+  afterEach(() => {
+    if (originalPrefix === undefined) delete process.env.MUNIN_AUTH_COOKIE_PREFIX;
+    else process.env.MUNIN_AUTH_COOKIE_PREFIX = originalPrefix;
+  });
+
+  it('accepts the prefixed session cookie', async () => {
+    const resolveSessionToken = vi.fn().mockResolvedValue({ actor: { type: 'user' } });
+    const guard = makeGuard({ resolveSessionToken });
+    const ctx = makeContext({
+      headers: { cookie: '__Secure-munin-dev.session_token=raw.signature' },
+      url: '/v1/kb/spaces',
+      path: '/v1/kb/spaces',
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(resolveSessionToken).toHaveBeenCalledWith('raw');
+  });
+
+  it('ignores a default-named cookie from another environment', async () => {
+    const resolveSessionToken = vi.fn().mockResolvedValue({ actor: { type: 'user' } });
+    const guard = makeGuard({ resolveSessionToken });
+    const ctx = makeContext({
+      headers: {
+        cookie: `${SESSION_COOKIE}; __Secure-munin-dev.session_token=devraw.signature`,
+      },
+      url: '/v1/kb/spaces',
+      path: '/v1/kb/spaces',
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(resolveSessionToken).toHaveBeenCalledWith('devraw');
+  });
+});
+
 describe('AuthGuard audience binding', () => {
   let originalMcp: string | undefined;
 

@@ -20849,7 +20849,7 @@ SOFTWARE.
 
 ---
 
-## esbuild@0.25.12
+## esbuild@0.28.1
 
 > An extremely fast JavaScript and CSS bundler and minifier.
 - Homepage: https://github.com/evanw/esbuild#readme

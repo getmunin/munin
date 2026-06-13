@@ -1,6 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
-import { McpTool } from '@getmunin/mcp-toolkit';
 import { sensitive } from '@getmunin/types';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
@@ -12,9 +11,7 @@ import {
   type VapiChannelDto,
 } from './vapi.service.ts';
 
-const E164 = /^\+[1-9]\d{4,18}$/;
-
-const ConfigureInput = z.object({
+export const ConfigureInput = z.object({
   channelId: z
     .string()
     .optional()
@@ -58,14 +55,6 @@ const ConfigureInput = z.object({
     .describe('Vapi public key — safe to expose to the browser. Required if you want the chat widget to start in-browser voice sessions; not needed for phone-only setups. Find it in the Vapi dashboard under your assistant.'),
 });
 
-const TestInput = z.object({ channelId: z.string() });
-
-const CallInitiateInput = z.object({
-  channelId: z.string(),
-  to: z.string().regex(E164, 'must be E.164').max(32),
-  customerName: z.string().min(1).max(120).optional(),
-});
-
 @Injectable()
 export class VapiAdminTools {
   constructor(
@@ -73,17 +62,6 @@ export class VapiAdminTools {
     @Inject(VapiClientService) private readonly client: VapiClientService,
   ) {}
 
-  @McpTool({
-    name: 'conv_vapi_configure',
-    title: 'Conv: Configure Vapi voice channel',
-    description:
-      'Create or update a Vapi voice channel. Pass `channelId` to update; omit to create. The plaintext `apiKey` and `webhookSecret` are encrypted before storage and returned redacted. The assistant + phone number must already exist in Vapi — paste their IDs here.',
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: ConfigureInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
   async configure(args: z.infer<typeof ConfigureInput>): Promise<VapiChannelDto> {
     if (args.channelId) {
       return this.svc.updateChannel({
@@ -114,19 +92,8 @@ export class VapiAdminTools {
     });
   }
 
-  @McpTool({
-    name: 'conv_vapi_test_channel',
-    title: 'Conv: Test Vapi voice channel credentials',
-    description:
-      "Verify a Vapi channel's stored API key and assistant by fetching the assistant from Vapi. Returns `{ ok: true, assistant }` on success.",
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: TestInput,
-    readOnlyHint: true,
-    destructiveHint: false,
-  })
   async testChannel(
-    args: z.infer<typeof TestInput>,
+    args: { channelId: string },
   ): Promise<
     { ok: true; assistant: { id: string; name: string | null } } | { ok: false; error: string }
   > {
@@ -136,19 +103,8 @@ export class VapiAdminTools {
     return this.client.fetchAssistant({ apiKey, assistantId: config.assistantId });
   }
 
-  @McpTool({
-    name: 'conv_voice_call_initiate',
-    title: 'Conv: Place an outbound voice call',
-    description:
-      'Initiate an outbound voice call through this channel. The Vapi assistant will run the conversation. Returns the Vapi call id and status.',
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: CallInitiateInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
   async callInitiate(
-    args: z.infer<typeof CallInitiateInput>,
+    args: { channelId: string; to: string; customerName?: string },
   ): Promise<{ initiated: true; callId: string; status: string }> {
     const channel = await this.loadChannel(args.channelId);
     const config = jsonbToStored(channel.config);

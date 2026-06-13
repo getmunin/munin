@@ -2372,473 +2372,6 @@
     }
   },
   {
-    "name": "conv_messagebird_sms_configure",
-    "title": "Conv: Configure MessageBird SMS channel",
-    "description": "Create or update a MessageBird SMS channel. Pass `channelId` to update; omit to create. The plaintext `accessKey` and `signingKey` are encrypted before storage and returned redacted. On update, omit either secret to keep the existing one.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "description": "Pass an existing channel id to update; omit to create a new channel.",
-          "type": "string"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "accessKey": {
-          "description": "MessageBird live or test Access Key (used to authorize outbound SMS). Required on create. On update, omit to keep the existing value.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "signingKey": {
-          "description": "MessageBird signing key (used to verify the JWT on incoming webhooks). Required on create. On update, omit to keep the existing value.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "originator": {
-          "description": "Sender ID — either an E.164 number registered with your MessageBird account or an alphanumeric ≤ 11 chars. Required on create.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 32
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_messagebird_sms_test_channel",
-    "title": "Conv: Test MessageBird SMS channel credentials",
-    "description": "Verify a MessageBird channel's stored Access Key by fetching the account balance. Returns `{ ok: true, balance }` on success.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "channelId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_messagebird_sms_send_test",
-    "title": "Conv: Send a real test SMS via MessageBird",
-    "description": "Send a real SMS through this channel's MessageBird account. Useful for end-to-end deliverability checks.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "type": "string"
-        },
-        "to": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 32,
-          "description": "E.164 destination number."
-        },
-        "body": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 1600
-        }
-      },
-      "required": [
-        "channelId",
-        "to"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_twilio_sms_configure",
-    "title": "Conv: Configure Twilio SMS channel",
-    "description": "Create or update a Twilio SMS channel. Pass `channelId` to update an existing channel; omit to create one. The plaintext `authToken` is encrypted before storage and is returned redacted. On update, omit `authToken` to keep the existing one. Either `fromNumber` (E.164) or `messagingServiceSid` is required.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "description": "Pass an existing channel id to update; omit to create a new channel.",
-          "type": "string"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "accountSid": {
-          "description": "Twilio Account SID — starts with \"AC\". Required on create.",
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 64
-        },
-        "authToken": {
-          "description": "Twilio Auth Token (plaintext). Required on create. On update, omit to keep the existing token, or pass a new value to rotate.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "fromNumber": {
-          "description": "E.164-formatted Twilio number to send from. Either this or messagingServiceSid is required.",
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 32
-        },
-        "messagingServiceSid": {
-          "description": "Twilio Messaging Service SID (starts with \"MG\"). Alternative to fromNumber.",
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 64
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_twilio_sms_test_channel",
-    "title": "Conv: Test Twilio SMS channel credentials",
-    "description": "Verify a Twilio SMS channel's stored Account SID + Auth Token by fetching the account record from Twilio. Returns `{ ok: true, friendlyName, status }` on success.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "channelId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_twilio_sms_send_test",
-    "title": "Conv: Send a real test SMS",
-    "description": "Send a real SMS through this channel's Twilio account. The recipient must be a number Twilio is permitted to reach (verified caller ID on trial accounts). Useful for end-to-end deliverability checks.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "type": "string"
-        },
-        "to": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 32,
-          "description": "E.164 destination number."
-        },
-        "body": {
-          "default": "Munin test message — outbound SMS is working.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 1600
-        }
-      },
-      "required": [
-        "channelId",
-        "to"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_vapi_configure",
-    "title": "Conv: Configure Vapi voice channel",
-    "description": "Create or update a Vapi voice channel. Pass `channelId` to update; omit to create. The plaintext `apiKey` and `webhookSecret` are encrypted before storage and returned redacted. The assistant + phone number must already exist in Vapi — paste their IDs here.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "description": "Pass an existing channel id to update; omit to create a new channel.",
-          "type": "string"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "apiKey": {
-          "description": "Vapi API key. Required on create. On update, omit to keep the existing value.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "webhookSecret": {
-          "description": "Shared secret used to authenticate inbound webhooks from Vapi. In the Vapi dashboard go to the assistant's Advanced → Webhook Server → HTTP Headers and add header `X-Webhook-Secret` with this value. Required on create.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "assistantId": {
-          "description": "Vapi assistant ID. Create the assistant in the Vapi dashboard or via their API, then paste its ID here.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
-        },
-        "phoneNumberId": {
-          "description": "Vapi phone number ID. Only required if you want to place or receive PSTN phone calls — leave blank for WebRTC/browser-only voice. Either import a Twilio number into Vapi or buy one from Vapi, then paste the ID here.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
-        },
-        "publicKey": {
-          "description": "Vapi public key — safe to expose to the browser. Required if you want the chat widget to start in-browser voice sessions; not needed for phone-only setups. Find it in the Vapi dashboard under your assistant.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_vapi_test_channel",
-    "title": "Conv: Test Vapi voice channel credentials",
-    "description": "Verify a Vapi channel's stored API key and assistant by fetching the assistant from Vapi. Returns `{ ok: true, assistant }` on success.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "channelId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_voice_call_initiate",
-    "title": "Conv: Place an outbound voice call",
-    "description": "Initiate an outbound voice call through this channel. The Vapi assistant will run the conversation. Returns the Vapi call id and status.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "type": "string"
-        },
-        "to": {
-          "type": "string",
-          "maxLength": 32,
-          "pattern": "^\\+[1-9]\\d{4,18}$"
-        },
-        "customerName": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        }
-      },
-      "required": [
-        "channelId",
-        "to"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_threll_configure",
-    "title": "Conv: Configure Threll voice channel",
-    "description": "Create or update a Threll voice channel. Pass `channelId` to update; omit to create. The plaintext `apiKey` and `webhookSecret` are encrypted before storage and returned redacted. The worker must already exist in Threll — paste its account and worker IDs here.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "description": "Pass an existing channel id to update; omit to create a new channel.",
-          "type": "string"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "apiKey": {
-          "description": "Threll API key (Settings → Developer). Sent as the `x-api-key` header. Required on create.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "webhookSecret": {
-          "description": "Shared HMAC signing secret. Use the same value here and as the `signingSecret` of the Threll webhook subscription that points at this channel’s webhook URL. Munin verifies the `X-Threll-Signature` HMAC with it and reuses it to sign tool-call deliveries. Required on create.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256
-        },
-        "accountId": {
-          "description": "Threll account ID (shown alongside your API key). Required on create.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
-        },
-        "workerId": {
-          "description": "Threll worker ID that handles calls on this channel. Required on create.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_threll_test_channel",
-    "title": "Conv: Test Threll voice channel credentials",
-    "description": "Verify a Threll channel's stored API key and worker by fetching the worker from Threll. Returns `{ ok: true, worker }` on success.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "channelId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_threll_call_initiate",
-    "title": "Conv: Place an outbound Threll voice call",
-    "description": "Initiate an outbound voice call through this Threll channel. The worker runs the conversation. Returns the Threll call id and status.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "type": "string"
-        },
-        "to": {
-          "type": "string",
-          "maxLength": 32,
-          "pattern": "^\\+[1-9]\\d{4,18}$"
-        },
-        "customerName": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        }
-      },
-      "required": [
-        "channelId",
-        "to"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
     "name": "conv_request_phone_call_for_my_conversation",
     "title": "Conv: Place a phone call to the user in this conversation",
     "description": "Place an outbound phone call to the contact in this conversation. Use this only when the user has asked to be called — e.g. \"can you call me?\". The call goes to the phone number already on file for this conversation's contact; you cannot specify an arbitrary number. The org must have an active Vapi voice channel configured. After requesting the call, tell the user briefly that a call is on the way and stop replying — the rest of the conversation happens on the phone.",
@@ -2872,7 +2405,7 @@
   {
     "name": "conv_voice_call_contact",
     "title": "Conv: Place a voice call to this conversation's contact",
-    "description": "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active Vapi voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_voice_call_initiate` instead.",
+    "description": "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_voice_call` instead.",
     "audiences": [
       "admin"
     ],
@@ -3039,6 +2572,173 @@
       },
       "required": [
         "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_list_channel_vendors",
+    "title": "Conv: List configurable channel vendors",
+    "description": "List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_channel_configure.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_channel_configure",
+    "title": "Conv: Configure a voice/SMS channel",
+    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + a vendor-specific `config` object (see conv_list_channel_vendors). Pass `channelId` to update; omit to create. Plaintext secrets in `config` are encrypted before storage and returned redacted.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "vendor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "Channel vendor, e.g. \"vapi\", \"threll\", \"twilio\", \"messagebird\". Call conv_list_channel_vendors for the full list and each vendor’s config fields."
+        },
+        "channelId": {
+          "description": "Pass an existing channel id to update; omit to create a new channel.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Channel display name. Required on create.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "config": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "Vendor-specific configuration object. The exact fields (and which are secret) come from conv_list_channel_vendors. Plaintext secrets are encrypted before storage and returned redacted."
+        }
+      },
+      "required": [
+        "vendor",
+        "config"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_channel_test",
+    "title": "Conv: Test a channel’s stored credentials",
+    "description": "Verify a channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_voice_call",
+    "title": "Conv: Place an outbound voice call",
+    "description": "Place an outbound voice call through a voice channel (any vendor). The channel’s configured assistant/worker runs the conversation.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^\\+[1-9]\\d{4,18}$"
+        },
+        "customerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "channelId",
+        "to"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_channel_send_test",
+    "title": "Conv: Send a real test message",
+    "description": "Send a real test message (e.g. SMS) through a channel that supports it, addressed to `to`. Useful for end-to-end deliverability checks.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1600
+        }
+      },
+      "required": [
+        "channelId",
+        "to"
       ],
       "additionalProperties": false
     }

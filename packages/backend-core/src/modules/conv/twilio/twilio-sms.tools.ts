@@ -1,6 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
-import { McpTool } from '@getmunin/mcp-toolkit';
 import { sensitive } from '@getmunin/types';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
@@ -13,7 +12,7 @@ import {
   type TwilioSmsChannelDto,
 } from './twilio-sms.service.ts';
 
-const ConfigureInput = z.object({
+export const ConfigureInput = z.object({
   channelId: z
     .string()
     .optional()
@@ -49,19 +48,6 @@ const ConfigureInput = z.object({
     .describe('Twilio Messaging Service SID (starts with "MG"). Alternative to fromNumber.'),
 });
 
-const TestInput = z.object({ channelId: z.string() });
-
-const SendTestInput = z.object({
-  channelId: z.string(),
-  to: z.string().min(2).max(32).describe('E.164 destination number.'),
-  body: z
-    .string()
-    .min(1)
-    .max(1600)
-    .default('Munin test message — outbound SMS is working.')
-    .optional(),
-});
-
 @Injectable()
 export class TwilioSmsAdminTools {
   constructor(
@@ -70,17 +56,6 @@ export class TwilioSmsAdminTools {
     @Inject(DB) private readonly db: Db,
   ) {}
 
-  @McpTool({
-    name: 'conv_twilio_sms_configure',
-    title: 'Conv: Configure Twilio SMS channel',
-    description:
-      'Create or update a Twilio SMS channel. Pass `channelId` to update an existing channel; omit to create one. The plaintext `authToken` is encrypted before storage and is returned redacted. On update, omit `authToken` to keep the existing one. Either `fromNumber` (E.164) or `messagingServiceSid` is required.',
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: ConfigureInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
   async configure(args: z.infer<typeof ConfigureInput>): Promise<TwilioSmsChannelDto> {
     if (args.channelId) {
       return this.svc.updateChannel({
@@ -111,19 +86,8 @@ export class TwilioSmsAdminTools {
     });
   }
 
-  @McpTool({
-    name: 'conv_twilio_sms_test_channel',
-    title: 'Conv: Test Twilio SMS channel credentials',
-    description:
-      "Verify a Twilio SMS channel's stored Account SID + Auth Token by fetching the account record from Twilio. Returns `{ ok: true, friendlyName, status }` on success.",
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: TestInput,
-    readOnlyHint: true,
-    destructiveHint: false,
-  })
   async testChannel(
-    args: z.infer<typeof TestInput>,
+    args: { channelId: string },
   ): Promise<
     | { ok: true; friendlyName: string; status: string }
     | { ok: false; error: string }
@@ -134,19 +98,8 @@ export class TwilioSmsAdminTools {
     return this.client.verifyCredentials({ accountSid: config.accountSid, authToken });
   }
 
-  @McpTool({
-    name: 'conv_twilio_sms_send_test',
-    title: 'Conv: Send a real test SMS',
-    description:
-      "Send a real SMS through this channel's Twilio account. The recipient must be a number Twilio is permitted to reach (verified caller ID on trial accounts). Useful for end-to-end deliverability checks.",
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: SendTestInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
   async sendTest(
-    args: z.infer<typeof SendTestInput>,
+    args: { channelId: string; to: string; body?: string },
   ): Promise<{ delivered: true; sid: string; status: string }> {
     const channel = await this.loadChannel(args.channelId);
     const config = jsonbToStored(channel.config);

@@ -228,9 +228,9 @@ const skipReason = TEST_URL
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
       expect(names).toContain('conv_request_phone_call_for_my_conversation');
-      expect(names).not.toContain('conv_voice_call_initiate');
+      expect(names).not.toContain('conv_voice_call');
       expect(names).not.toContain('conv_voice_call_contact');
-      expect(names).not.toContain('conv_vapi_configure');
+      expect(names).not.toContain('conv_channel_configure');
     });
   });
 
@@ -238,7 +238,7 @@ const skipReason = TEST_URL
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
-      expect(names).toContain('conv_voice_call_initiate');
+      expect(names).toContain('conv_voice_call');
       expect(names).toContain('conv_voice_call_contact');
     });
   });

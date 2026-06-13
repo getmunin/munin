@@ -1,6 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
-import { McpTool } from '@getmunin/mcp-toolkit';
 import { sensitive } from '@getmunin/types';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
@@ -8,9 +7,7 @@ import { getCurrentContext } from '@getmunin/core';
 import { ThrellClientService } from './threll-client.service.ts';
 import { ThrellService, jsonbToStored, type ThrellChannelDto } from './threll.service.ts';
 
-const E164 = /^\+[1-9]\d{4,18}$/;
-
-const ConfigureInput = z.object({
+export const ConfigureInput = z.object({
   channelId: z
     .string()
     .optional()
@@ -50,14 +47,6 @@ const ConfigureInput = z.object({
     .describe('Threll worker ID that handles calls on this channel. Required on create.'),
 });
 
-const TestInput = z.object({ channelId: z.string() });
-
-const CallInitiateInput = z.object({
-  channelId: z.string(),
-  to: z.string().regex(E164, 'must be E.164').max(32),
-  customerName: z.string().min(1).max(120).optional(),
-});
-
 @Injectable()
 export class ThrellAdminTools {
   constructor(
@@ -65,17 +54,6 @@ export class ThrellAdminTools {
     @Inject(ThrellClientService) private readonly client: ThrellClientService,
   ) {}
 
-  @McpTool({
-    name: 'conv_threll_configure',
-    title: 'Conv: Configure Threll voice channel',
-    description:
-      'Create or update a Threll voice channel. Pass `channelId` to update; omit to create. The plaintext `apiKey` and `webhookSecret` are encrypted before storage and returned redacted. The worker must already exist in Threll — paste its account and worker IDs here.',
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: ConfigureInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
   async configure(args: z.infer<typeof ConfigureInput>): Promise<ThrellChannelDto> {
     if (args.channelId) {
       return this.svc.updateChannel({
@@ -105,19 +83,8 @@ export class ThrellAdminTools {
     });
   }
 
-  @McpTool({
-    name: 'conv_threll_test_channel',
-    title: 'Conv: Test Threll voice channel credentials',
-    description:
-      "Verify a Threll channel's stored API key and worker by fetching the worker from Threll. Returns `{ ok: true, worker }` on success.",
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: TestInput,
-    readOnlyHint: true,
-    destructiveHint: false,
-  })
   async testChannel(
-    args: z.infer<typeof TestInput>,
+    args: { channelId: string },
   ): Promise<
     { ok: true; worker: { id: string; name: string | null } } | { ok: false; error: string }
   > {
@@ -131,19 +98,8 @@ export class ThrellAdminTools {
     });
   }
 
-  @McpTool({
-    name: 'conv_threll_call_initiate',
-    title: 'Conv: Place an outbound Threll voice call',
-    description:
-      'Initiate an outbound voice call through this Threll channel. The worker runs the conversation. Returns the Threll call id and status.',
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: CallInitiateInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
   async callInitiate(
-    args: z.infer<typeof CallInitiateInput>,
+    args: { channelId: string; to: string; customerName?: string },
   ): Promise<{ initiated: true; callId: string; status: string }> {
     const channel = await this.loadChannel(args.channelId);
     const config = jsonbToStored(channel.config);

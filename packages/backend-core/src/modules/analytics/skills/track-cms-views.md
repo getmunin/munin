@@ -106,7 +106,7 @@ The same admin-only MCP tools used for the website tracker work here — just fi
 ```jsonc
 // Which CMS entries got the most reads in the last week?
 {
-  "name": "analytics_top_subjects",
+  "name": "analytics_list_top_subjects",
   "arguments": {
     "subjectType": "cms_entry",
     "source": "pixel",
@@ -121,7 +121,7 @@ Returns `[{ subjectType, subjectId, views, visitors }]` — `subjectId` is the e
 ```jsonc
 // How is one entry performing?
 {
-  "name": "analytics_subject_engagement",
+  "name": "analytics_get_subject_engagement",
   "arguments": {
     "subjectType": "cms_entry",
     "subjectId": "<entryId>",

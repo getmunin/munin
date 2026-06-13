@@ -176,7 +176,7 @@
     }
   },
   {
-    "name": "analytics_top_subjects",
+    "name": "analytics_list_top_subjects",
     "title": "Analytics: Top subjects by view count",
     "description": "List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`). Pass `endUserId` or `contactId` to restrict the ranking to one identified visitor — useful for \"what has this lead been reading?\".",
     "audiences": [
@@ -230,7 +230,7 @@
     }
   },
   {
-    "name": "analytics_top_countries",
+    "name": "analytics_list_top_countries",
     "title": "Analytics: Visitors by country",
     "description": "Visitor and view counts grouped by ISO 3166-1 alpha-2 country code over a recent window. Requires the backend to have `MUNIN_GEOIP_DB_PATH` configured; rows recorded without a GeoIP DB carry `country = NULL` and roll up into an \"unknown\" bucket. Filter by `subjectType` (e.g. `page`, `cms_entry`) or `source` to scope.",
     "audiences": [
@@ -278,7 +278,7 @@
     }
   },
   {
-    "name": "analytics_traffic_by_source",
+    "name": "analytics_get_traffic_by_source",
     "title": "Analytics: Traffic by UTM source",
     "description": "Views and unique visitors grouped by `utm_source` (with `utm_medium` / `utm_campaign` breakdown). Use this to compare campaign attribution: which channels actually drive engaged traffic vs. just clicks. Rows where `utm_source` is NULL (no campaign params on the URL) roll into a single \"direct/organic\" bucket.",
     "audiences": [
@@ -326,7 +326,7 @@
     }
   },
   {
-    "name": "analytics_referrer_hosts",
+    "name": "analytics_list_referrer_hosts",
     "title": "Analytics: Top referrer hosts",
     "description": "External traffic sources grouped by the host portion of `referrer`. Use this to see which sites are linking to you (HN, Reddit, partner blogs). Same-origin referrers are excluded server-side via the `excludeHost` argument (typically your own production host); pass it to keep internal navigations from drowning out external referrals. Rows with NULL referrer (direct navigation, bookmarks, link-with-`rel=noreferrer`) roll into a single \"direct\" bucket.",
     "audiences": [
@@ -378,7 +378,7 @@
     }
   },
   {
-    "name": "analytics_views_over_time",
+    "name": "analytics_get_views_over_time",
     "title": "Analytics: Daily view time-series",
     "description": "Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches.",
     "audiences": [
@@ -428,7 +428,7 @@
     }
   },
   {
-    "name": "analytics_subject_engagement",
+    "name": "analytics_get_subject_engagement",
     "title": "Analytics: Engagement for one subject",
     "description": "View counts, unique visitors, and average dwell/read-depth for one subject (e.g. one CMS entry) over a recent window. Use this when judging whether a stale entry should be refreshed or archived.",
     "audiences": [
@@ -472,7 +472,7 @@
     }
   },
   {
-    "name": "analytics_contact_journey",
+    "name": "analytics_get_contact_journey",
     "title": "Analytics: Journey of subjects viewed by a contact",
     "description": "Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`; events recorded before linkage stay anonymous and are not returned here.",
     "audiences": [
@@ -514,7 +514,7 @@
     }
   },
   {
-    "name": "analytics_zero_result_searches",
+    "name": "analytics_list_zero_result_searches",
     "title": "Analytics: Zero-result search queries",
     "description": "List recent public search queries that returned zero results. The single best input for \"what should we write about next\" — readers are asking but Munin has no answer.",
     "audiences": [
@@ -2095,7 +2095,7 @@
     }
   },
   {
-    "name": "conv_request_handover_in_my_conversation",
+    "name": "conv_request_human",
     "title": "Conv: Request a human teammate to take over",
     "description": "Flag the current conversation as needing human attention. Use this when you can't answer the end-user's question on your own — pricing exceptions, account-specific issues you can't verify, anything sensitive. Pass the exact `conversationId` you were given in the system context. Sets a \"needs human attention\" flag on the conversation (pinning it to the top of the team's dashboard) and posts an internal note recording your `reason`. Also pass `suggestedReply` — your best guess at what a human teammate could send to resolve the issue. The team sees this as a starting draft they can edit, approve, or rewrite. After calling this, do not keep generating replies on your own — let the user know a teammate will follow up, then stop. The flag clears once a teammate replies. The end-user does not see the system note or the suggested reply — only the team does.",
     "audiences": [
@@ -2129,7 +2129,7 @@
     }
   },
   {
-    "name": "conv_email_setup_channel",
+    "name": "conv_setup_email_channel",
     "title": "Conv: Set up email channel",
     "description": "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host.",
     "audiences": [
@@ -2314,7 +2314,7 @@
     }
   },
   {
-    "name": "conv_email_test_channel",
+    "name": "conv_test_email_channel",
     "title": "Conv: Test email channel credentials",
     "description": "Test an email channel's stored credentials. Attempts an SMTP connect (and an IMAP connect if inbound is configured) without sending or fetching anything. Returns `{ smtp: \"ok\" | error, imap: \"ok\" | error | \"not configured\" }`.",
     "audiences": [
@@ -2340,7 +2340,7 @@
     }
   },
   {
-    "name": "conv_email_send_test",
+    "name": "conv_send_email_test",
     "title": "Conv: Send test email",
     "description": "Send a real test email through this channel's configured outbound transport (SMTP or Mailer). The message is addressed `to` the recipient you pass in. Useful for confirming credentials and deliverability end-to-end.",
     "audiences": [
@@ -2372,7 +2372,7 @@
     }
   },
   {
-    "name": "conv_request_phone_call_for_my_conversation",
+    "name": "conv_request_callback",
     "title": "Conv: Place a phone call to the user in this conversation",
     "description": "Place an outbound phone call to the contact in this conversation. Use this only when the user has asked to be called — e.g. \"can you call me?\". The call goes to the phone number already on file for this conversation's contact; you cannot specify an arbitrary number. The org must have an active Vapi voice channel configured. After requesting the call, tell the user briefly that a call is on the way and stop replying — the rest of the conversation happens on the phone.",
     "audiences": [
@@ -2403,9 +2403,9 @@
     }
   },
   {
-    "name": "conv_voice_call_contact",
+    "name": "conv_call_contact",
     "title": "Conv: Place a voice call to this conversation's contact",
-    "description": "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_voice_call` instead.",
+    "description": "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_call_channel` instead.",
     "audiences": [
       "admin"
     ],
@@ -2579,7 +2579,7 @@
   {
     "name": "conv_list_channel_vendors",
     "title": "Conv: List configurable channel vendors",
-    "description": "List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_channel_configure.",
+    "description": "List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_channel.",
     "audiences": [
       "admin"
     ],
@@ -2596,7 +2596,7 @@
     }
   },
   {
-    "name": "conv_channel_configure",
+    "name": "conv_configure_channel",
     "title": "Conv: Configure a voice/SMS channel",
     "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + a vendor-specific `config` object (see conv_list_channel_vendors). Pass `channelId` to update; omit to create. Plaintext secrets in `config` are encrypted before storage and returned redacted.",
     "audiences": [
@@ -2644,7 +2644,7 @@
     }
   },
   {
-    "name": "conv_channel_test",
+    "name": "conv_test_channel",
     "title": "Conv: Test a channel’s stored credentials",
     "description": "Verify a channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific.",
     "audiences": [
@@ -2670,7 +2670,7 @@
     }
   },
   {
-    "name": "conv_voice_call",
+    "name": "conv_call_channel",
     "title": "Conv: Place an outbound voice call",
     "description": "Place an outbound voice call through a voice channel (any vendor). The channel’s configured assistant/worker runs the conversation.",
     "audiences": [
@@ -2707,7 +2707,7 @@
     }
   },
   {
-    "name": "conv_channel_send_test",
+    "name": "conv_send_channel_test",
     "title": "Conv: Send a real test message",
     "description": "Send a real test message (e.g. SMS) through a channel that supports it, addressed to `to`. Useful for end-to-end deliverability checks.",
     "audiences": [
@@ -3532,7 +3532,7 @@
     }
   },
   {
-    "name": "crm_propose_merge_candidate",
+    "name": "crm_propose_merge",
     "title": "CRM: Propose a merge candidate",
     "description": "File a structured proposal that two contacts are the same person. Pass `confidence` (\"high\" | \"medium\"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.",
     "audiences": [
@@ -4065,7 +4065,7 @@
     }
   },
   {
-    "name": "crm_log_activity_self",
+    "name": "crm_log_my_activity",
     "title": "CRM: Log activity as end-user",
     "description": "Record an activity attributed to the calling end-user agent (e.g. a voice agent logging \"spoke with customer for 4m, follow-up needed\"). Auto-scoped to the end-user's own CRM contact when one exists.",
     "audiences": [

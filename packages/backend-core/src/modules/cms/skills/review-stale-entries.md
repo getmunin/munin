@@ -60,7 +60,7 @@ For each entry older than the collection's threshold (per Step 1's per-collectio
 ```
 
 ```jsonc
-{ "name": "analytics_subject_engagement",
+{ "name": "analytics_get_subject_engagement",
   "arguments": { "subjectType": "cms_entry", "subjectId": "cme_...", "sinceDays": 90 } }
 ```
 
@@ -74,7 +74,7 @@ Then judge — combine the structural signal (inbound refs) with the behavioral 
 - **Orphaned** — no inbound references, no recent views, and `updatedAt` very old. Recommend `delete` (`cms_delete_entry`).
 - **Time-bound** — title or body references a date/event that has passed (campaign, version-specific docs). Recommend `archive` or `delete` with high confidence regardless of view count (residual traffic to expired content is usually a sign of stale external links, not value).
 
-A useful complement: `analytics_zero_result_searches({sinceDays: 90})` surfaces the queries readers asked that returned nothing. If a stale entry is the closest match to a frequent zero-result query, that's a strong "refresh + retitle" signal — readers want this content, they just can't find it.
+A useful complement: `analytics_list_zero_result_searches({sinceDays: 90})` surfaces the queries readers asked that returned nothing. If a stale entry is the closest match to a frequent zero-result query, that's a strong "refresh + retitle" signal — readers want this content, they just can't find it.
 
 ## Step 4 — orphaned assets
 

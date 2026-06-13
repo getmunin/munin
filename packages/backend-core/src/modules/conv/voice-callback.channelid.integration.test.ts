@@ -15,7 +15,7 @@ const skipReason = TEST_URL
   ? null
   : 'Set TEST_DATABASE_URL to a Postgres URL to run voice-callback channelId tests.';
 
-(skipReason ? describe.skip : describe)('conv_voice_call_contact — optional channelId routing', () => {
+(skipReason ? describe.skip : describe)('conv_call_contact — optional channelId routing', () => {
   let app: INestApplication;
   let baseUrl: string;
   let db: ReturnType<typeof createDb>;
@@ -145,7 +145,7 @@ const skipReason = TEST_URL
   it('no voice channels → throws no_active_voice_channel', async () => {
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_voice_call_contact',
+        name: 'conv_call_contact',
         arguments: { conversationId },
       });
       expect(res.isError).toBe(true);
@@ -157,7 +157,7 @@ const skipReason = TEST_URL
     channelAId = await insertVoiceChannel('vapi-only');
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_voice_call_contact',
+        name: 'conv_call_contact',
         arguments: { conversationId },
       });
       const text = firstText(res as never);
@@ -169,7 +169,7 @@ const skipReason = TEST_URL
     channelBId = await insertVoiceChannel('vapi-second');
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_voice_call_contact',
+        name: 'conv_call_contact',
         arguments: { conversationId },
       });
       expect(res.isError).toBe(true);
@@ -180,7 +180,7 @@ const skipReason = TEST_URL
   it('two voice channels with explicit channelId → routes to the named channel', async () => {
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_voice_call_contact',
+        name: 'conv_call_contact',
         arguments: { conversationId, channelId: channelBId },
       });
       const text = firstText(res as never);
@@ -202,7 +202,7 @@ const skipReason = TEST_URL
       .returning();
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_voice_call_contact',
+        name: 'conv_call_contact',
         arguments: { conversationId, channelId: emailCh!.id },
       });
       expect(res.isError).toBe(true);
@@ -217,7 +217,7 @@ const skipReason = TEST_URL
       .where(eq(schema.convChannels.id, channelAId));
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_voice_call_contact',
+        name: 'conv_call_contact',
         arguments: { conversationId, channelId: channelAId },
       });
       expect(res.isError).toBe(true);

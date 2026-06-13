@@ -169,7 +169,7 @@ const skipReason = TEST_URL
         lastViewAt: string | null;
       }>(
         await c.callTool({
-          name: 'analytics_subject_engagement',
+          name: 'analytics_get_subject_engagement',
           arguments: { subjectType: 'page', subjectId: 'pricing', sinceDays: 1 },
         }),
       ),
@@ -371,7 +371,7 @@ const skipReason = TEST_URL
           }>
         >(
           await c.callTool({
-            name: 'analytics_traffic_by_source',
+            name: 'analytics_get_traffic_by_source',
             arguments: { sinceDays: 7 },
           }),
         ),
@@ -387,7 +387,7 @@ const skipReason = TEST_URL
       const hosts = await withClient(rollupKey, async (c) =>
         parseToolResult<Array<{ host: string | null; views: number; visitors: number }>>(
           await c.callTool({
-            name: 'analytics_referrer_hosts',
+            name: 'analytics_list_referrer_hosts',
             arguments: { excludeHost: 'getmunin.com', sinceDays: 7, limit: 10 },
           }),
         ),
@@ -401,7 +401,7 @@ const skipReason = TEST_URL
       const series = await withClient(rollupKey, async (c) =>
         parseToolResult<Array<{ day: string; views: number; visitors: number }>>(
           await c.callTool({
-            name: 'analytics_views_over_time',
+            name: 'analytics_get_views_over_time',
             arguments: { sinceDays: 5 },
           }),
         ),
@@ -519,7 +519,7 @@ const skipReason = TEST_URL
         }>
       >(
         await c.callTool({
-          name: 'analytics_contact_journey',
+          name: 'analytics_get_contact_journey',
           arguments: { endUserId, sinceDays: 7 },
         }),
       ),

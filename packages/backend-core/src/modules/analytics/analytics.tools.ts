@@ -346,7 +346,7 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
-    name: 'analytics_top_subjects',
+    name: 'analytics_list_top_subjects',
     title: 'Analytics: Top subjects by view count',
     description:
       'List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`). Pass `endUserId` or `contactId` to restrict the ranking to one identified visitor — useful for "what has this lead been reading?".',
@@ -411,7 +411,7 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
-    name: 'analytics_top_countries',
+    name: 'analytics_list_top_countries',
     title: 'Analytics: Visitors by country',
     description:
       'Visitor and view counts grouped by ISO 3166-1 alpha-2 country code over a recent window. Requires the backend to have `MUNIN_GEOIP_DB_PATH` configured; rows recorded without a GeoIP DB carry `country = NULL` and roll up into an "unknown" bucket. Filter by `subjectType` (e.g. `page`, `cms_entry`) or `source` to scope.',
@@ -463,7 +463,7 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
-    name: 'analytics_traffic_by_source',
+    name: 'analytics_get_traffic_by_source',
     title: 'Analytics: Traffic by UTM source',
     description:
       'Views and unique visitors grouped by `utm_source` (with `utm_medium` / `utm_campaign` breakdown). Use this to compare campaign attribution: which channels actually drive engaged traffic vs. just clicks. Rows where `utm_source` is NULL (no campaign params on the URL) roll into a single "direct/organic" bucket.',
@@ -527,7 +527,7 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
-    name: 'analytics_referrer_hosts',
+    name: 'analytics_list_referrer_hosts',
     title: 'Analytics: Top referrer hosts',
     description:
       'External traffic sources grouped by the host portion of `referrer`. Use this to see which sites are linking to you (HN, Reddit, partner blogs). Same-origin referrers are excluded server-side via the `excludeHost` argument (typically your own production host); pass it to keep internal navigations from drowning out external referrals. Rows with NULL referrer (direct navigation, bookmarks, link-with-`rel=noreferrer`) roll into a single "direct" bucket.',
@@ -588,7 +588,7 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
-    name: 'analytics_views_over_time',
+    name: 'analytics_get_views_over_time',
     title: 'Analytics: Daily view time-series',
     description:
       'Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches.',
@@ -666,7 +666,7 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
-    name: 'analytics_subject_engagement',
+    name: 'analytics_get_subject_engagement',
     title: 'Analytics: Engagement for one subject',
     description:
       'View counts, unique visitors, and average dwell/read-depth for one subject (e.g. one CMS entry) over a recent window. Use this when judging whether a stale entry should be refreshed or archived.',
@@ -746,7 +746,7 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
-    name: 'analytics_contact_journey',
+    name: 'analytics_get_contact_journey',
     title: 'Analytics: Journey of subjects viewed by a contact',
     description:
       'Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`; events recorded before linkage stay anonymous and are not returned here.',
@@ -839,7 +839,7 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
-    name: 'analytics_zero_result_searches',
+    name: 'analytics_list_zero_result_searches',
     title: 'Analytics: Zero-result search queries',
     description:
       'List recent public search queries that returned zero results. The single best input for "what should we write about next" — readers are asking but Munin has no answer.',
@@ -870,7 +870,7 @@ export class AnalyticsAdminTools {
     const rows = await ctx.db.execute<{
       query: string;
       occurrences: number;
-      // See `analytics_subject_engagement` — raw `db.execute` returns
+      // See `analytics_get_subject_engagement` — raw `db.execute` returns
       // aggregate timestamp columns as ISO strings; coerce below.
       last_seen_at: Date | string;
     }>(sql`

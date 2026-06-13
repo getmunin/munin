@@ -11,8 +11,8 @@ Use this when a customer wants Munin to send and receive email under one of thei
 
 1. Decide outbound: their own SMTP server, or send through Munin's configured Mailer (Resend).
 2. Decide inbound: poll IMAP, or rely on the customer forwarding to a `MUNIN_EMAIL_REPLY_DOMAIN` address.
-3. Call `conv_email_setup_channel` with the full config.
-4. Call `conv_email_test_channel` to verify creds without sending mail.
+3. Call `conv_setup_email_channel` with the full config.
+4. Call `conv_test_email_channel` to verify creds without sending mail.
 5. Confirm the channel appears in `conv_list_channels` with `active: true`.
 
 ## Step 1 — gather the config
@@ -25,11 +25,11 @@ Required from the operator:
   - `mailer` — no extra config; uses the Munin instance's configured Mailer. Best for self-host without an SMTP relay.
 - **Inbound (optional)**: IMAP host, port, secure, username, password, mailbox name (defaults to `INBOX`).
 
-Passwords are stored encrypted via pgcrypto. If you re-call `conv_email_setup_channel` later with empty password fields, the prior encrypted password is preserved — useful when the operator only wants to update non-secret fields.
+Passwords are stored encrypted via pgcrypto. If you re-call `conv_setup_email_channel` later with empty password fields, the prior encrypted password is preserved — useful when the operator only wants to update non-secret fields.
 
 ## Step 2 — create the channel
 
-Call `conv_email_setup_channel` (admin):
+Call `conv_setup_email_channel` (admin):
 
 ```jsonc
 {
@@ -67,7 +67,7 @@ To **update** an existing channel, pass `channelId` and only the fields you want
 
 ## Step 3 — verify
 
-Call `conv_email_test_channel` with `{ channelId }`. It performs:
+Call `conv_test_email_channel` with `{ channelId }`. It performs:
 
 - An SMTP `verify()` (no mail sent).
 - An IMAP `connect()` then `logout()` (no fetch).
@@ -87,6 +87,6 @@ Call `conv_list_channels`. Look for the new row with `type: 'email'`, `active: t
 
 ## Troubleshooting
 
-- **No outbound delivery** — check `conv_message_deliveries` rows for the channel. `status='dead'` means 5 attempts failed; the `error` column has the SMTP response. `conv_email_test_channel` is the fastest way to check creds.
+- **No outbound delivery** — check `conv_message_deliveries` rows for the channel. `status='dead'` means 5 attempts failed; the `error` column has the SMTP response. `conv_test_email_channel` is the fastest way to check creds.
 - **Inbound stuck** — `conv_inbound_state.cursor.lastUid` shows the high-water mark; `last_polled_at` shows the most recent tick; `last_error` carries any IMAP error.
 - **Email lands in spam at the recipient** — confirm SPF / DKIM / DMARC for the `fromAddress` domain. Munin doesn't manage DNS.

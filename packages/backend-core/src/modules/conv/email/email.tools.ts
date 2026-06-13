@@ -41,7 +41,7 @@ export class EmailAdminTools {
   ) {}
 
   @McpTool({
-    name: 'conv_email_setup_channel',
+    name: 'conv_setup_email_channel',
     title: 'Conv: Set up email channel',
     description:
       "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host.",
@@ -63,7 +63,7 @@ export class EmailAdminTools {
   }
 
   @McpTool({
-    name: 'conv_email_test_channel',
+    name: 'conv_test_email_channel',
     title: 'Conv: Test email channel credentials',
     description:
       'Test an email channel\'s stored credentials. Attempts an SMTP connect (and an IMAP connect if inbound is configured) without sending or fetching anything. Returns `{ smtp: "ok" | error, imap: "ok" | error | "not configured" }`.',
@@ -93,7 +93,7 @@ export class EmailAdminTools {
   }
 
   @McpTool({
-    name: 'conv_email_send_test',
+    name: 'conv_send_email_test',
     title: 'Conv: Send test email',
     description:
       "Send a real test email through this channel's configured outbound transport (SMTP or Mailer). The message is addressed `to` the recipient you pass in. Useful for confirming credentials and deliverability end-to-end.",

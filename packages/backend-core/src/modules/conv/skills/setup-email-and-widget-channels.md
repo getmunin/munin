@@ -15,7 +15,7 @@ A common onboarding shape for a new customer: they want both an email channel fo
 ## TL;DR
 
 1. `conv_list_channels` — see whether any channel exists for this org.
-2. Email channel: `conv_email_setup_channel` → `conv_email_test_channel` to verify.
+2. Email channel: `conv_setup_email_channel` → `conv_test_email_channel` to verify.
 3. Widget channel: `conv_widget_create_channel` → store the `widgetKey` server-side.
 4. `conv_list_channels` again to confirm both are `active: true`.
 5. (Optional) `conv_create_topic` per topic so the inbox has Billing / Support / Bug topics ready.
@@ -39,7 +39,7 @@ Then:
 
 ```jsonc
 {
-  "name": "conv_email_setup_channel",
+  "name": "conv_setup_email_channel",
   "arguments": {
     "name": "Acme Support",
     "config": {
@@ -56,7 +56,7 @@ The response includes the channel id. Passwords come back as `••••` — 
 Verify:
 
 ```jsonc
-{ "name": "conv_email_test_channel", "arguments": { "channelId": "<emailChannelId>" } }
+{ "name": "conv_test_email_channel", "arguments": { "channelId": "<emailChannelId>" } }
 ```
 
 Returns `{ smtp: 'ok'|'error: …', imap: 'ok'|'error: …'|'not configured' }`. **Don't proceed if SMTP fails** — outbound mail will silently dead-letter. IMAP failures are softer (you can fall back to forwarding).
@@ -104,7 +104,7 @@ Topics are conversation labels that route inbound messages to the right humans. 
 
 - **Don't try to assign channels to a team at create time.** Channels are org-scoped; routing happens per-conversation via `conv_assign_conversation`. There's no "channel owner" field.
 - **Don't paste the widget key into the customer's repo or a Slack message.** Treat it like a password — it's shown once because the server only stores its hash.
-- **Don't skip `conv_email_test_channel`.** A bad SMTP password silently fails on the first delivery attempt and looks like a customer-side problem when really it's a config error.
+- **Don't skip `conv_test_email_channel`.** A bad SMTP password silently fails on the first delivery attempt and looks like a customer-side problem when really it's a config error.
 - **Don't enable the widget without an `originAllowlist`.** An empty list means anyone can POST to the widget endpoint with the key — fine for staging, embarrassing in production.
 
 ## Related

@@ -209,7 +209,7 @@ See `skill://cms/publish-entry` and `skill://cms/migrate-content` for the full a
 Before reporting the integration complete, in a real browser on the preview origin:
 
 1. **Widget** — the bubble renders, opens, and accepts a message. Confirm receipt from the admin side with `conv_list_conversations({ limit: 5 })` — the test message should appear within ~2s.
-2. **Tracker** — load two pages, then `analytics_top_subjects({ subjectType: "page", sinceDays: 1, limit: 10 })`. Both `subjectId`s should be there (visits propagate within a few seconds).
+2. **Tracker** — load two pages, then `analytics_list_top_subjects({ subjectType: "page", sinceDays: 1, limit: 10 })`. Both `subjectId`s should be there (visits propagate within a few seconds).
 3. **CMS** — the rendered list/detail pages show entries fetched live (not a stale build-time snapshot). Publish one new entry via MCP; within the cache TTL it should appear after a refresh.
 
 If any of the three fails, the most likely cause is in this table:
@@ -218,7 +218,7 @@ If any of the three fails, the most likely cause is in this table:
 |---|---|
 | `[munin-widget] data-munin-host: data-munin-host is required` (or `data-widget-key`, `data-channel-id`) | Missing or mis-named attribute on the `<script>` tag. They are all required; names are exact. |
 | Widget loads but messages return 403 | `originAllowlist` doesn't include the *exact* origin shown in DevTools → Network → request headers → `Origin`. Update with `conv_widget_update_channel`. |
-| Tracker loads, `mn` global exists, but no events appear in `analytics_top_subjects` | `allowedOrigins` mismatch — same fix as widget, via `analytics_update_tracker`. Or: SPA without `data-spa="true"` and you're only checking subpages. |
+| Tracker loads, `mn` global exists, but no events appear in `analytics_list_top_subjects` | `allowedOrigins` mismatch — same fix as widget, via `analytics_update_tracker`. Or: SPA without `data-spa="true"` and you're only checking subpages. |
 | `Access to fetch ... has been blocked by CORS policy` on `/v1/cms/...` | You're calling the CMS delivery API from the browser. Move the fetch server-side per step 3. |
 | 404 on `{{API_URL}}/embed/widget.js` or `{{API_URL}}/embed/tracker.js` | Old path. Both bundles are served from the root: `/widget.js` and `/tracker.js`. |
 | 404 on `/v1/cms/{orgId}/{slug}` | The collection slug or org id is wrong. `cms_list_collections` returns the canonical slugs. |

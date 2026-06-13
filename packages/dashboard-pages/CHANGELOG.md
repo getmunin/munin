@@ -1,5 +1,13 @@
 # @getmunin/dashboard-pages
 
+## 4.46.0
+
+### Patch Changes
+
+- 32c883e: Log previously swallowed errors in widget realtime, dashboard, and voice session paths. Empty `catch {}` blocks now emit `console.warn` for socket lifecycle/fetch failures and `console.debug` for listener-loop exceptions so issues surface during debugging instead of disappearing.
+  - @getmunin/types@4.46.0
+  - @getmunin/ui@4.46.0
+
 ## 4.45.1
 
 ### Patch Changes

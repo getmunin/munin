@@ -1,5 +1,30 @@
 # @getmunin/backend-core
 
+## 4.46.0
+
+### Minor Changes
+
+- bfb850e: Replace per-vendor voice/SMS channel admin MCP tools with a generic, registry-driven surface that scales as vendors are added.
+  - New `ChannelAdminProvider` contract: each configurable voice/SMS vendor registers one provider (config schema + capabilities + configure/test/call/sendTest), dispatched by `ChannelAdminService`.
+  - Generic MCP tools replace the per-vendor ones: `conv_list_channel_vendors` (discovery — lists each vendor's config fields), `conv_channel_configure`, `conv_channel_test`, `conv_voice_call`, `conv_channel_send_test`. Removed `conv_{vapi,threll}_configure/test_channel/call_initiate` and `conv_{twilio,messagebird}_sms_configure/test_channel/send_test` (and `conv_voice_call_initiate`).
+  - Generic `/v1/conversations/channels` control-plane endpoints (`GET /vendors`, `POST /`, `POST /:id/{test,call,send-test}`); the existing per-vendor endpoints are retained for the dashboard.
+  - Adding a voice/SMS vendor now means registering one provider — no new tools, endpoints, or types. Email and the chat widget keep their bespoke tools.
+
+- 1892d75: Add a Threll voice channel (`type: voice`, `vendor: threll`), mirroring the Vapi integration.
+  - `conv_threll_configure` / `conv_threll_test_channel` / `conv_threll_call_initiate` MCP tools and `/v1/conversations/channels/threll*` control-plane endpoints.
+  - Webhook adapter handling Threll's `call.worker_request` (returns dynamic instructions + self-service tools + correlation metadata), `call.tool_call` (dispatches MCP tools, returns the result), `call.transcript`, `call.status_update`, and `call.ended`. Inbound deliveries are authenticated via the `X-Threll-Signature` HMAC-SHA256.
+  - Conversations are correlated by Threll `callId` (`metadata.threllCallId`), with a matching unique index.
+  - In-browser widget voice now works for Threll via Threll's web-call endpoint. The widget-voice bundle gains a generic `WebRtcVoiceSession` (vendor-agnostic peer connection / media / state) driven by a pluggable `SignalingChannel`, with a `threll` signaling adapter — so any SDK-less vendor can be added by registering one adapter. `WidgetVoiceService` is now vendor-aware (Vapi SDK descriptor vs. Threll WebRTC descriptor).
+
+### Patch Changes
+
+- @getmunin/core@4.46.0
+- @getmunin/db@4.46.0
+- @getmunin/types@4.46.0
+- @getmunin/mcp-toolkit@4.46.0
+- @getmunin/agent-runtime@4.46.0
+- @getmunin/emails@4.46.0
+
 ## 4.45.1
 
 ### Patch Changes

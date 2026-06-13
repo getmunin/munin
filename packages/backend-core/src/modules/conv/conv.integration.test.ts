@@ -143,7 +143,7 @@ const skipReason = TEST_URL
     await withClient(endUserToken, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
-      expect(names).toContain('conv_request_handover_in_my_conversation');
+      expect(names).toContain('conv_request_human');
       expect(names).not.toContain('conv_start_conversation');
       expect(names).not.toContain('conv_list_my_conversations');
       expect(names).not.toContain('conv_get_my_conversation');
@@ -398,7 +398,7 @@ const skipReason = TEST_URL
     expect(publicAgentMessages[0]!.body).toMatch(/teammate will follow up/);
   }, 30_000);
 
-  it('end-user agent can flag its own conversation via conv_request_handover_in_my_conversation (self-service)', async () => {
+  it('end-user agent can flag its own conversation via conv_request_human (self-service)', async () => {
     const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'I need to talk to a human about my contract.',
     });
@@ -406,10 +406,10 @@ const skipReason = TEST_URL
 
     await withClient(endUserToken, async (c) => {
       const { tools } = await c.listTools();
-      expect(tools.map((t) => t.name)).toContain('conv_request_handover_in_my_conversation');
+      expect(tools.map((t) => t.name)).toContain('conv_request_human');
       const result = parseToolResult<{ needsHumanAttention: boolean }>(
         await c.callTool({
-          name: 'conv_request_handover_in_my_conversation',
+          name: 'conv_request_human',
           arguments: { conversationId: conv.id, reason: 'contract terms need review' },
         }),
       );

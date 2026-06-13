@@ -24,7 +24,7 @@ export interface HandlerConfig {
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
-const HANDOVER_TOOL_NAME = 'conv_request_handover_in_my_conversation';
+const HANDOVER_TOOL_NAME = 'conv_request_human';
 
 export interface OpenedMcp extends McpToolHandle {
   close(): Promise<void>;

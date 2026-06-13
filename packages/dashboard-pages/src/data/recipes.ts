@@ -43,7 +43,7 @@ export const RECIPES: Recipe[] = [
     tools: [
       'crm_list_contacts',
       'crm_search_contacts',
-      'crm_propose_merge_candidate',
+      'crm_propose_merge',
       'crm_list_merge_proposals',
     ],
   },

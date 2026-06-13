@@ -142,7 +142,7 @@ class StubImapFetcher implements ImapFetcher {
     //    the transaction commits.
     const rawResult = await withClient(adminKey, async (c) =>
       c.callTool({
-        name: 'conv_email_setup_channel',
+        name: 'conv_setup_email_channel',
         arguments: {
           name: 'Acme Support',
           config: {
@@ -162,7 +162,7 @@ class StubImapFetcher implements ImapFetcher {
       }),
     );
     if ((rawResult as { isError?: boolean }).isError) {
-      throw new Error(`conv_email_setup_channel failed: ${JSON.stringify(rawResult)}`);
+      throw new Error(`conv_setup_email_channel failed: ${JSON.stringify(rawResult)}`);
     }
     const channel = parseToolResult<{ id: string; config: { addressing: { fromAddress: string } } }>(rawResult);
     expect(channel.config.addressing.fromAddress).toBe('support@acme.test');
@@ -181,7 +181,7 @@ class StubImapFetcher implements ImapFetcher {
       .where(
         and(
           eq(schema.auditLog.orgId, orgId),
-          eq(schema.auditLog.tool, 'conv_email_setup_channel'),
+          eq(schema.auditLog.tool, 'conv_setup_email_channel'),
         ),
       );
     expect(setupAudit).toHaveLength(1);

@@ -217,7 +217,7 @@ const skipReason = TEST_URL
       const names = tools.map((t) => t.name);
       expect(names).toContain('crm_get_my_contact');
       expect(names).toContain('crm_update_my_contact');
-      expect(names).toContain('crm_log_activity_self');
+      expect(names).toContain('crm_log_my_activity');
       expect(names).not.toContain('crm_create_contact');
       expect(names).not.toContain('crm_change_stage');
       expect(names).not.toContain('crm_list_companies');
@@ -237,7 +237,7 @@ const skipReason = TEST_URL
 
       const logged = parseToolResult<{ id: string; actorType: string }>(
         await c.callTool({
-          name: 'crm_log_activity_self',
+          name: 'crm_log_my_activity',
           arguments: {
             type: 'call',
             subject: 'Voice agent recap',

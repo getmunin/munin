@@ -76,7 +76,7 @@ The first argument is `subjectId`, the second an optional attribute bag:
 
 ### Patterns
 
-**Funnel step** — instrument a multi-step flow so you can compute conversion in `analytics_subject_engagement` or a custom query:
+**Funnel step** — instrument a multi-step flow so you can compute conversion in `analytics_get_subject_engagement` or a custom query:
 
 ```javascript
 document.querySelector('#signup-cta').addEventListener('click', () => {
@@ -94,7 +94,7 @@ window.mn.track('checkout-complete', {
 });
 ```
 
-Then query: `analytics_top_subjects({ subjectType: 'funnel', sinceDays: 7 })` gives drop-off counts across steps.
+Then query: `analytics_list_top_subjects({ subjectType: 'funnel', sinceDays: 7 })` gives drop-off counts across steps.
 
 **SPA route change with dwell** — if you're not using `data-spa="true"` (or want manual control), fire `mn.track` on route transitions with the previous-route dwell:
 
@@ -133,7 +133,7 @@ Four admin-only MCP tools cover the questions you'll ask first:
 
 ```jsonc
 // Which pages get the most traffic?
-{ "name": "analytics_top_subjects",
+{ "name": "analytics_list_top_subjects",
   "arguments": { "subjectType": "page", "source": "tracker", "sinceDays": 7, "limit": 50 } }
 ```
 
@@ -141,7 +141,7 @@ Returns `[{ subjectType, subjectId, views, visitors }]` ordered by view count.
 
 ```jsonc
 // How is one specific page performing?
-{ "name": "analytics_subject_engagement",
+{ "name": "analytics_get_subject_engagement",
   "arguments": { "subjectType": "page", "subjectId": "/pricing", "sinceDays": 30 } }
 ```
 
@@ -149,7 +149,7 @@ Returns `{ views, visitors, avgDwellMs, avgReadDepth, lastViewAt }` — combine 
 
 ```jsonc
 // What were people searching for that we don't have content for?
-{ "name": "analytics_zero_result_searches",
+{ "name": "analytics_list_zero_result_searches",
   "arguments": { "sinceDays": 30, "limit": 50 } }
 ```
 
@@ -157,7 +157,7 @@ Returns `[{ query, occurrences, lastSeenAt }]`. The single best signal for "what
 
 ```jsonc
 // Where are visitors coming from? (requires MUNIN_GEOIP_DB_PATH set; otherwise everything rolls into `country: null`)
-{ "name": "analytics_top_countries",
+{ "name": "analytics_list_top_countries",
   "arguments": { "subjectType": "page", "source": "tracker", "sinceDays": 30, "limit": 50 } }
 ```
 
@@ -165,7 +165,7 @@ Returns `[{ country, views, visitors }]`. A row with `country: null` is the unkn
 
 ```jsonc
 // Which campaigns/channels drive traffic?
-{ "name": "analytics_traffic_by_source",
+{ "name": "analytics_get_traffic_by_source",
   "arguments": { "subjectType": "page", "sinceDays": 30, "limit": 50 } }
 ```
 
@@ -173,7 +173,7 @@ Returns `[{ utmSource, utmMedium, utmCampaign, views, visitors }]`. The row with
 
 ```jsonc
 // Which external sites send us traffic?
-{ "name": "analytics_referrer_hosts",
+{ "name": "analytics_list_referrer_hosts",
   "arguments": { "excludeHost": "getmunin.com", "sinceDays": 30, "limit": 50 } }
 ```
 
@@ -181,7 +181,7 @@ Returns `[{ host, views, visitors }]`. Pass `excludeHost` set to your production
 
 ```jsonc
 // Daily traffic trend — spot weekly patterns, campaign spikes, content launch lift.
-{ "name": "analytics_views_over_time",
+{ "name": "analytics_get_views_over_time",
   "arguments": { "subjectType": "page", "sinceDays": 30 } }
 ```
 

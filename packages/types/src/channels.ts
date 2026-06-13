@@ -175,3 +175,31 @@ export const VapiCallInitiateBody = z.object({
 });
 
 export type VapiCallInitiateBodyT = z.infer<typeof VapiCallInitiateBody>;
+
+export const ConfigureThrellBody = z
+  .object({
+    channelId: z.string().optional(),
+    name: z.string().min(1).max(120).optional(),
+    apiKey: sensitive(z.string().min(1).max(256).optional()),
+    webhookSecret: sensitive(z.string().min(1).max(256).optional()),
+    accountId: z.string().min(1).max(128).optional(),
+    workerId: z.string().min(1).max(128).optional(),
+  })
+  .refine(
+    (v) =>
+      v.channelId !== undefined ||
+      (v.name && v.apiKey && v.webhookSecret && v.accountId && v.workerId),
+    {
+      message:
+        'name, apiKey, webhookSecret, accountId, and workerId are required when creating',
+    },
+  );
+
+export type ConfigureThrellBodyT = z.infer<typeof ConfigureThrellBody>;
+
+export const ThrellCallInitiateBody = z.object({
+  to: z.string().regex(E164, 'must be E.164').max(32),
+  customerName: z.string().min(1).max(120).optional(),
+});
+
+export type ThrellCallInitiateBodyT = z.infer<typeof ThrellCallInitiateBody>;

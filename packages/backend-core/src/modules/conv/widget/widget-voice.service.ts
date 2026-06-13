@@ -7,7 +7,7 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
   AGENT_RUNTIME_PROMPT_SPACE_SLUG,
@@ -28,6 +28,9 @@ import { DbListenerService, type EventRow } from '../../../realtime/db-listener.
 import { jsonbToStored } from '../vapi/vapi.service.ts';
 import { VapiClientService } from '../vapi/vapi-client.service.ts';
 import { VapiToolBridge } from '../vapi/vapi-tool-bridge.ts';
+import { jsonbToStored as threllJsonbToStored } from '../threll/threll.service.ts';
+import { ThrellClientService } from '../threll/threll-client.service.ts';
+import { ThrellToolBridge } from '../threll/threll-tool-bridge.ts';
 import {
   OrgScopedKbDocReader,
   buildInlineAssistantConfig,
@@ -68,6 +71,8 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     @Inject(DB) private readonly db: Db,
     @Inject(VapiClientService) private readonly vapi: VapiClientService,
     @Inject(VapiToolBridge) private readonly toolBridge: VapiToolBridge,
+    @Inject(ThrellClientService) private readonly threll: ThrellClientService,
+    @Inject(ThrellToolBridge) private readonly threllToolBridge: ThrellToolBridge,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(DbListenerService) private readonly dbListener: DbListenerService,
   ) {}
@@ -160,7 +165,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       const voiceBaseConditions = [
         eq(schema.convChannels.orgId, orgId),
         eq(schema.convChannels.type, 'voice'),
-        eq(schema.convChannels.vendor, 'vapi'),
+        inArray(schema.convChannels.vendor, ['vapi', 'threll']),
         eq(schema.convChannels.active, true),
         isNull(schema.convChannels.archivedAt),
       ];
@@ -192,21 +197,6 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
         }
         channel = candidates[0]!;
       }
-      const storedConfig = jsonbToStored(channel.config);
-      if (!storedConfig.publicKey) {
-        return { available: false, reason: 'voice_channel_missing_public_key' };
-      }
-
-      const apiKey = await this.vapi.loadSecret(storedConfig.encryptedApiKey);
-      const fetched = await this.vapi.fetchAssistantConfig({
-        apiKey,
-        assistantId: storedConfig.assistantId,
-      });
-      if (!fetched.ok) {
-        this.logger.warn(`vapi fetchAssistant failed: ${fetched.error}`);
-        return { available: false, reason: `vapi_fetch_assistant_failed:${fetched.error}` };
-      }
-
       const historyRows = await tx
         .select({
           authorType: schema.convMessages.authorType,
@@ -235,6 +225,73 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       const openerInstruction = prompts.get(
         hadAgentTurn ? VOICE_OPENER_CONTINUATION_SLUG : VOICE_OPENER_COLD_SLUG,
       );
+
+      if (channel.vendor === 'threll') {
+        const threllConfig = threllJsonbToStored(channel.config);
+        const apiKey = await this.threll.loadSecret(threllConfig.encryptedApiKey);
+        const webhookSecret = await this.threll.loadSecret(threllConfig.encryptedWebhookSecret);
+        const deliveryUrl = buildVoiceWebhookUrl(channel.id);
+        const externalTools = deliveryUrl
+          ? this.threllToolBridge.buildToolList({ deliveryUrl, signingSecret: webhookSecret })
+          : [];
+        const instructions = openerInstruction
+          ? `${systemPrompt}\n\n${openerInstruction}`
+          : systemPrompt;
+        const historyText = trimmedHistory
+          .map((m) => `${m.role === 'assistant' ? 'Agent' : 'Caller'}: ${m.content}`)
+          .join('\n');
+        const created = await this.threll.createWebCall({
+          apiKey,
+          accountId: threllConfig.accountId,
+          workerId: threllConfig.workerId,
+          instructions,
+          context: historyText || undefined,
+          externalTools,
+          allowedOrigins: widgetConfig.originAllowlist,
+        });
+        if (!created.ok) {
+          this.logger.warn(`threll createWebCall failed: ${created.error}`);
+          return { available: false, reason: `threll_web_call_failed:${created.error}` };
+        }
+        await tx
+          .update(schema.convConversations)
+          .set({
+            metadata: { ...conv.metadata, threllCallId: created.webCall.callId },
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.convConversations.id, conv.id));
+        this.logger.log(
+          `voice/start convId=${conv.id} vendor=threll callId=${created.webCall.callId} tools=${externalTools.length}`,
+        );
+        return {
+          available: true,
+          descriptor: {
+            vendor: 'threll',
+            transport: 'webrtc',
+            signalingProtocol: 'threll',
+            signalingUrl: created.webCall.signalingUrl,
+            token: created.webCall.token,
+            sessionId: created.webCall.sessionId,
+            iceServers: created.webCall.iceServers,
+            metadata: { conversationId: conv.id, endUserId: conv.endUserId },
+          },
+        };
+      }
+
+      const storedConfig = jsonbToStored(channel.config);
+      if (!storedConfig.publicKey) {
+        return { available: false, reason: 'voice_channel_missing_public_key' };
+      }
+      const apiKey = await this.vapi.loadSecret(storedConfig.encryptedApiKey);
+      const fetched = await this.vapi.fetchAssistantConfig({
+        apiKey,
+        assistantId: storedConfig.assistantId,
+      });
+      if (!fetched.ok) {
+        this.logger.warn(`vapi fetchAssistant failed: ${fetched.error}`);
+        return { available: false, reason: `vapi_fetch_assistant_failed:${fetched.error}` };
+      }
+
       const seededMessages: ChatMessageSeed[] = [
         { role: 'system', content: systemPrompt },
         ...trimmedHistory,
@@ -247,11 +304,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
         tools: this.toolBridge.buildToolList(),
       });
       this.logger.log(
-        `voice/start convId=${conv.id} seededMessages=${seededMessages.length} inlineKeys=${Object.keys(inlineAssistant).join(',')} modelKeys=${
-          inlineAssistant.model && typeof inlineAssistant.model === 'object'
-            ? Object.keys(inlineAssistant.model).join(',')
-            : 'none'
-        }`,
+        `voice/start convId=${conv.id} vendor=vapi seededMessages=${seededMessages.length}`,
       );
 
       return {
@@ -470,5 +523,11 @@ function mapAuthorToRole(authorType: string): 'user' | 'assistant' | null {
   if (authorType === 'end_user') return 'user';
   if (authorType === 'agent') return 'assistant';
   return null;
+}
+
+function buildVoiceWebhookUrl(channelId: string): string | undefined {
+  const base = process.env.NEXT_PUBLIC_MCP_URL?.replace(/\/$/, '');
+  if (!base) return undefined;
+  return `${base}/v1/conversations/channels/${channelId}/webhook`;
 }
 

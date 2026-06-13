@@ -23,6 +23,7 @@ import { EmailAdminTools } from '../modules/conv/email/email.tools.ts';
 import { TwilioSmsAdminTools } from '../modules/conv/twilio/twilio-sms.tools.ts';
 import { MessageBirdSmsAdminTools } from '../modules/conv/messagebird/messagebird-sms.tools.ts';
 import { VapiAdminTools } from '../modules/conv/vapi/vapi.tools.ts';
+import { ThrellAdminTools } from '../modules/conv/threll/threll.tools.ts';
 import {
   CreateWidgetBody,
   UpdateWidgetBody,
@@ -34,6 +35,8 @@ import {
   SendMessageBirdSmsTestBody,
   ConfigureVapiBody,
   VapiCallInitiateBody,
+  ConfigureThrellBody,
+  ThrellCallInitiateBody,
 } from '@getmunin/types';
 
 interface ChannelListResponse {
@@ -52,6 +55,7 @@ export class ConvChannelsController {
     private readonly twilioSmsTools: TwilioSmsAdminTools,
     private readonly messageBirdSmsTools: MessageBirdSmsAdminTools,
     private readonly vapiTools: VapiAdminTools,
+    private readonly threllTools: ThrellAdminTools,
   ) {}
 
   @Get()
@@ -217,6 +221,39 @@ export class ConvChannelsController {
     const parsed = VapiCallInitiateBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.vapiTools.callInitiate({
+      channelId: id,
+      to: parsed.data.to,
+      customerName: parsed.data.customerName,
+    });
+  }
+
+  @Post('threll')
+  @HttpCode(200)
+  async configureThrell(
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<ThrellAdminTools['configure']>>> {
+    const parsed = ConfigureThrellBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.threllTools.configure(parsed.data);
+  }
+
+  @Post('threll/:id/test')
+  @HttpCode(200)
+  async testThrell(
+    @Param('id') id: string,
+  ): Promise<Awaited<ReturnType<ThrellAdminTools['testChannel']>>> {
+    return this.threllTools.testChannel({ channelId: id });
+  }
+
+  @Post('threll/:id/call')
+  @HttpCode(200)
+  async threllCall(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<ThrellAdminTools['callInitiate']>>> {
+    const parsed = ThrellCallInitiateBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.threllTools.callInitiate({
       channelId: id,
       to: parsed.data.to,
       customerName: parsed.data.customerName,

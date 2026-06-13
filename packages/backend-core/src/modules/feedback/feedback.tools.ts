@@ -41,7 +41,7 @@ export class FeedbackTools {
     name: 'feedback_create',
     title: 'Feedback: Create',
     description:
-      'Submit feedback about Munin. Stays local until an org admin approves it; rejection deletes the item. Set includeOrgName / includeUserName to attach attribution; both default false.',
+      'Submit feedback about Munin. Stays local until an org admin approves it; dismissal deletes the item. Set includeOrgName / includeUserName to attach attribution; both default false.',
     audiences: ['admin'],
     scopes: [],
     input: CreateInput,
@@ -95,16 +95,16 @@ export class FeedbackTools {
   }
 
   @McpTool({
-    name: 'feedback_reject',
-    title: 'Feedback: Reject',
-    description: 'Reject (delete) a pending feedback item. Nothing is sent to Munin.',
+    name: 'feedback_dismiss',
+    title: 'Feedback: Dismiss',
+    description: 'Dismiss (delete) a pending feedback item. Nothing is sent to Munin.',
     audiences: ['admin'],
     scopes: [],
     input: IdInput,
     destructiveHint: true,
   })
-  async reject(args: z.infer<typeof IdInput>) {
-    await this.service.reject(args.id);
+  async dismiss(args: z.infer<typeof IdInput>) {
+    await this.service.dismiss(args.id);
     return { ok: true };
   }
 

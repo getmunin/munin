@@ -11,6 +11,16 @@ import { EmailService } from './email/email.service.ts';
 import { EmailAdminTools } from './email/email.tools.ts';
 import { EmailAdapter } from './email/email-adapter.ts';
 import { CHANNEL_ADAPTERS } from './channels/adapter.ts';
+import {
+  CHANNEL_ADMIN_PROVIDERS,
+  type ChannelAdminProvider,
+} from './channels/channel-admin.ts';
+import { ChannelAdminService } from './channels/channel-admin.service.ts';
+import { ChannelAdminTools } from './channels/channel-admin.tools.ts';
+import { VapiAdminProvider } from './vapi/vapi-admin.provider.ts';
+import { ThrellAdminProvider } from './threll/threll-admin.provider.ts';
+import { TwilioSmsAdminProvider } from './twilio/twilio-sms-admin.provider.ts';
+import { MessageBirdSmsAdminProvider } from './messagebird/messagebird-sms-admin.provider.ts';
 import { ChannelIngestService } from './channels/channel-ingest.service.ts';
 import { ChannelWebhookController } from './channels/channel-webhook.controller.ts';
 import { InboundPollWorker } from './channels/inbound-poll.worker.ts';
@@ -102,6 +112,27 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
         WidgetAdapter,
       ],
     },
+    VapiAdminProvider,
+    ThrellAdminProvider,
+    TwilioSmsAdminProvider,
+    MessageBirdSmsAdminProvider,
+    ChannelAdminService,
+    ChannelAdminTools,
+    {
+      provide: CHANNEL_ADMIN_PROVIDERS,
+      useFactory: (
+        vapi: VapiAdminProvider,
+        threll: ThrellAdminProvider,
+        twilioSms: TwilioSmsAdminProvider,
+        messageBirdSms: MessageBirdSmsAdminProvider,
+      ): ChannelAdminProvider[] => [vapi, threll, twilioSms, messageBirdSms],
+      inject: [
+        VapiAdminProvider,
+        ThrellAdminProvider,
+        TwilioSmsAdminProvider,
+        MessageBirdSmsAdminProvider,
+      ],
+    },
   ],
   exports: [
     ConvService,
@@ -125,6 +156,8 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ThrellService,
     ThrellAdapter,
     ThrellAdminTools,
+    ChannelAdminService,
+    ChannelAdminTools,
     VoiceCallbackService,
     VoiceCallbackTools,
     WidgetAdapter,

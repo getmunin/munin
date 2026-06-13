@@ -24,6 +24,7 @@ import { TwilioSmsAdminTools } from '../modules/conv/twilio/twilio-sms.tools.ts'
 import { MessageBirdSmsAdminTools } from '../modules/conv/messagebird/messagebird-sms.tools.ts';
 import { VapiAdminTools } from '../modules/conv/vapi/vapi.tools.ts';
 import { ThrellAdminTools } from '../modules/conv/threll/threll.tools.ts';
+import { ChannelAdminService } from '../modules/conv/channels/channel-admin.service.ts';
 import {
   CreateWidgetBody,
   UpdateWidgetBody,
@@ -37,6 +38,9 @@ import {
   VapiCallInitiateBody,
   ConfigureThrellBody,
   ThrellCallInitiateBody,
+  ConfigureChannelBody,
+  ChannelVoiceCallBody,
+  ChannelSendTestBody,
 } from '@getmunin/types';
 
 interface ChannelListResponse {
@@ -56,7 +60,43 @@ export class ConvChannelsController {
     private readonly messageBirdSmsTools: MessageBirdSmsAdminTools,
     private readonly vapiTools: VapiAdminTools,
     private readonly threllTools: ThrellAdminTools,
+    private readonly channelAdmin: ChannelAdminService,
   ) {}
+
+  @Get('vendors')
+  listVendors(): ReturnType<ChannelAdminService['listVendors']> {
+    return this.channelAdmin.listVendors();
+  }
+
+  @Post()
+  @HttpCode(200)
+  async configureChannel(@Body() body: unknown): Promise<Awaited<ReturnType<ChannelAdminService['configure']>>> {
+    const parsed = ConfigureChannelBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.channelAdmin.configure(parsed.data);
+  }
+
+  @Post(':id/test')
+  @HttpCode(200)
+  async testChannel(@Param('id') id: string): Promise<unknown> {
+    return this.channelAdmin.test(id);
+  }
+
+  @Post(':id/call')
+  @HttpCode(200)
+  async callChannel(@Param('id') id: string, @Body() body: unknown): Promise<unknown> {
+    const parsed = ChannelVoiceCallBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.channelAdmin.call({ channelId: id, to: parsed.data.to, customerName: parsed.data.customerName });
+  }
+
+  @Post(':id/send-test')
+  @HttpCode(200)
+  async sendTestChannel(@Param('id') id: string, @Body() body: unknown): Promise<unknown> {
+    const parsed = ChannelSendTestBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.channelAdmin.sendTest({ channelId: id, to: parsed.data.to, body: parsed.data.body });
+  }
 
   @Get()
   async list(): Promise<ChannelListResponse> {

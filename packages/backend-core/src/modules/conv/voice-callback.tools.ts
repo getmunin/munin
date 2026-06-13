@@ -33,7 +33,7 @@ export class VoiceCallbackTools {
     name: 'conv_voice_call_contact',
     title: "Conv: Place a voice call to this conversation's contact",
     description:
-      "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active Vapi voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_voice_call_initiate` instead.",
+      "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_voice_call` instead.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CallbackInput,

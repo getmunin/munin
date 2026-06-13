@@ -90,8 +90,8 @@ export class WebRtcVoiceSession implements VoiceSession {
   end(): Promise<void> {
     try {
       this.channel.close();
-    } catch {
-      // ignore channel close errors
+    } catch (err) {
+      console.warn('[munin-voice] channel close failed:', err);
     }
     if (this.localStream) {
       for (const track of this.localStream.getTracks()) track.stop();
@@ -181,8 +181,8 @@ export class WebRtcVoiceSession implements VoiceSession {
     for (const listener of this.listeners) {
       try {
         listener(event);
-      } catch {
-        // listener errors are swallowed to keep the session loop running
+      } catch (err) {
+        console.debug('[munin-voice] session listener threw:', err);
       }
     }
   }

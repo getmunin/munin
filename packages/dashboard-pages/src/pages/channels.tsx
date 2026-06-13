@@ -33,6 +33,8 @@ import {
   SendMessageBirdSmsTestBody,
   ConfigureVapiBody,
   VapiCallInitiateBody,
+  ConfigureThrellBody,
+  ThrellCallInitiateBody,
 } from '@getmunin/types';
 import { dialogButtonClass, dialogFooterClass, dialogHintClass, dialogLabelClass } from '../lib/dialog-style';
 import {
@@ -54,7 +56,7 @@ import {
   SectionHead,
   cn,
 } from '@getmunin/ui';
-import { MessageBirdLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
+import { MessageBirdLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
 
 interface ChannelDto {
   id: string;
@@ -123,6 +125,17 @@ interface VapiChannelDto extends ChannelDto {
   };
 }
 
+interface ThrellChannelDto extends ChannelDto {
+  type: 'voice';
+  vendor: 'threll';
+  config: {
+    apiKey?: string;
+    webhookSecret?: string;
+    accountId?: string;
+    workerId?: string;
+  };
+}
+
 interface CreatedWidget {
   id: string;
   name: string;
@@ -170,6 +183,8 @@ export function ChannelsPage() {
   const [addVoiceOpen, setAddVoiceOpen] = useState(false);
   const [editVapi, setEditVapi] = useState<VapiChannelDto | null>(null);
   const [placeVapiCallFor, setPlaceVapiCallFor] = useState<VapiChannelDto | null>(null);
+  const [editThrell, setEditThrell] = useState<ThrellChannelDto | null>(null);
+  const [placeThrellCallFor, setPlaceThrellCallFor] = useState<ThrellChannelDto | null>(null);
   const [rotated, setRotated] = useState<CreatedWidget | null>(null);
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
@@ -421,6 +436,26 @@ export function ChannelsPage() {
         />
       )}
 
+      {editThrell && (
+        <ThrellChannelDialog
+          open
+          editChannel={editThrell}
+          onOpenChange={(next) => {
+            if (!next) setEditThrell(null);
+          }}
+          onSaved={() => {
+            void tryLoad();
+          }}
+        />
+      )}
+
+      {placeThrellCallFor && (
+        <PlaceThrellCallDialog
+          channel={placeThrellCallFor}
+          onClose={() => setPlaceThrellCallFor(null)}
+        />
+      )}
+
       <section className="space-y-4">
         <SectionHead
           title={
@@ -488,6 +523,8 @@ export function ChannelsPage() {
                     setEditMessageBirdSms(c as MessageBirdSmsChannelDto);
                   } else if (c.type === 'voice' && c.vendor === 'vapi') {
                     setEditVapi(c as VapiChannelDto);
+                  } else if (c.type === 'voice' && c.vendor === 'threll') {
+                    setEditThrell(c as ThrellChannelDto);
                   } else if (c.type === 'email') {
                     setEditEmail(c as EmailChannelDto);
                   }
@@ -499,6 +536,8 @@ export function ChannelsPage() {
                     setSendMessageBirdTestFor(c as MessageBirdSmsChannelDto);
                   } else if (c.type === 'voice' && c.vendor === 'vapi') {
                     setPlaceVapiCallFor(c as VapiChannelDto);
+                  } else if (c.type === 'voice' && c.vendor === 'threll') {
+                    setPlaceThrellCallFor(c as ThrellChannelDto);
                   } else if (c.type === 'email') {
                     setSendTestFor(c as EmailChannelDto);
                   }
@@ -540,6 +579,7 @@ function ChannelRow({
   const isTwilioSms = channel.type === 'sms' && channel.vendor === 'twilio';
   const isMessageBirdSms = channel.type === 'sms' && channel.vendor === 'messagebird';
   const isVapiVoice = channel.type === 'voice' && channel.vendor === 'vapi';
+  const isThrellVoice = channel.type === 'voice' && channel.vendor === 'threll';
   const widgetConfig = isChat
     ? (channel.config as { originAllowlist?: string[] } | null)
     : null;
@@ -549,6 +589,7 @@ function ChannelRow({
     ? (channel.config as MessageBirdSmsChannelDto['config'])
     : null;
   const vapiConfig = isVapiVoice ? (channel.config as VapiChannelDto['config']) : null;
+  const threllConfig = isThrellVoice ? (channel.config as ThrellChannelDto['config']) : null;
   const origins = widgetConfig?.originAllowlist ?? [];
 
   const badgeKind = channel.type;
@@ -560,9 +601,11 @@ function ChannelRow({
         ? t('typeMessageBirdSms')
         : isVapiVoice
           ? t('typeVapi')
-          : channel.type === 'email'
-            ? t('typeEmail')
-            : channel.type;
+          : isThrellVoice
+            ? t('typeThrell')
+            : channel.type === 'email'
+              ? t('typeEmail')
+              : channel.type;
 
   const isDeactivated = !channel.active;
 
@@ -618,6 +661,16 @@ function ChannelRow({
                   <OriginChip text={t('vapi.phoneChip', { id: shortenId(vapiConfig.phoneNumberId) })} />
                 )}
               </>
+            ) : isThrellVoice ? (
+              <>
+                <VendorLogo vendor="threll" className="size-4" />
+                {threllConfig?.accountId && (
+                  <OriginChip text={t('threll.accountChip', { id: shortenId(threllConfig.accountId) })} />
+                )}
+                {threllConfig?.workerId && (
+                  <OriginChip text={t('threll.workerChip', { id: shortenId(threllConfig.workerId) })} />
+                )}
+              </>
             ) : (
               <>
                 {emailConfig?.addressing?.fromAddress && (
@@ -643,7 +696,7 @@ function ChannelRow({
                 <Code className="size-3.5" />
                 {t('showEmbed')}
               </Button>
-            ) : channel.type === 'email' || isTwilioSms || isMessageBirdSms || isVapiVoice ? (
+            ) : channel.type === 'email' || isTwilioSms || isMessageBirdSms || isVapiVoice || isThrellVoice ? (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 {tCommon('edit')}
               </Button>
@@ -700,6 +753,14 @@ function ChannelRow({
                   <>
                     <DropdownMenuItem onClick={onSendTest}>
                       {t('vapi.placeCall')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {isThrellVoice && (
+                  <>
+                    <DropdownMenuItem onClick={onSendTest}>
+                      {t('threll.placeCall')}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
@@ -776,7 +837,7 @@ function TypeBadge({ kind, label }: { kind: 'chat' | 'email' | 'voice' | 'sms'; 
   );
 }
 
-type ChannelVendor = 'twilio' | 'messagebird' | 'vapi';
+type ChannelVendor = 'twilio' | 'messagebird' | 'vapi' | 'threll';
 
 function VendorLogo({
   vendor,
@@ -786,7 +847,13 @@ function VendorLogo({
   className?: string;
 }) {
   const Logo =
-    vendor === 'twilio' ? TwilioLogo : vendor === 'messagebird' ? MessageBirdLogo : VapiLogo;
+    vendor === 'twilio'
+      ? TwilioLogo
+      : vendor === 'messagebird'
+        ? MessageBirdLogo
+        : vendor === 'threll'
+          ? ThrellLogo
+          : VapiLogo;
   const colorClass =
     vendor === 'twilio'
       ? ''
@@ -2733,7 +2800,7 @@ function AddSmsDialog({
   );
 }
 
-type VoiceVendor = 'vapi';
+type VoiceVendor = 'vapi' | 'threll';
 
 function AddVoiceDialog({
   open,
@@ -2754,10 +2821,13 @@ function AddVoiceDialog({
   const [assistantId, setAssistantId] = useState('');
   const [phoneNumberId, setPhoneNumberId] = useState('');
   const [publicKey, setPublicKey] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [workerId, setWorkerId] = useState('');
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [createdChannelId, setCreatedChannelId] = useState<string | null>(null);
+  const [createdVendor, setCreatedVendor] = useState<VoiceVendor>('vapi');
 
   useEffect(() => {
     if (!open) return;
@@ -2768,10 +2838,13 @@ function AddVoiceDialog({
     setAssistantId('');
     setPhoneNumberId('');
     setPublicKey('');
+    setAccountId('');
+    setWorkerId('');
     setSubmitError(null);
     setFieldErrors({});
     setSaving(false);
     setCreatedChannelId(null);
+    setCreatedVendor('vapi');
   }, [open]);
 
   async function submitVapi(): Promise<void> {
@@ -2798,6 +2871,7 @@ function AddVoiceDialog({
         body: JSON.stringify(parsed.data),
       });
       setWebhookSecret(generatedSecret);
+      setCreatedVendor('vapi');
       setCreatedChannelId(created.id);
       onSaved();
     } catch (err) {
@@ -2812,9 +2886,48 @@ function AddVoiceDialog({
     }
   }
 
+  async function submitThrell(): Promise<void> {
+    const generatedSecret = generateWebhookSecret();
+    const payload: Record<string, unknown> = {
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(apiKey ? { apiKey } : {}),
+      webhookSecret: generatedSecret,
+      ...(accountId.trim() ? { accountId: accountId.trim() } : {}),
+      ...(workerId.trim() ? { workerId: workerId.trim() } : {}),
+    };
+    const parsed = ConfigureThrellBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      const created = await api<{ id: string }>('/v1/conversations/channels/threll', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      setWebhookSecret(generatedSecret);
+      setCreatedVendor('threll');
+      setCreatedChannelId(created.id);
+      onSaved();
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.createThrell'), {
+          endpoint: '/v1/conversations/channels/threll',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function submit(): void {
     setFieldErrors({});
     if (vendor === 'vapi') void submitVapi();
+    else if (vendor === 'threll') void submitThrell();
   }
 
   return (
@@ -2828,11 +2941,19 @@ function AddVoiceDialog({
             retrying={saving}
           />
         ) : createdChannelId ? (
-          <VapiConnectionStage
-            channelId={createdChannelId}
-            webhookSecret={webhookSecret}
-            onDone={() => onOpenChange(false)}
-          />
+          createdVendor === 'threll' ? (
+            <ThrellConnectionStage
+              channelId={createdChannelId}
+              webhookSecret={webhookSecret}
+              onDone={() => onOpenChange(false)}
+            />
+          ) : (
+            <VapiConnectionStage
+              channelId={createdChannelId}
+              webhookSecret={webhookSecret}
+              onDone={() => onOpenChange(false)}
+            />
+          )
         ) : (
           <>
             <DialogHeader>
@@ -2847,63 +2968,115 @@ function AddVoiceDialog({
               }}
             >
               <VendorPicker
-                options={[{ id: 'vapi', label: t('typeVapi') }]}
+                options={[
+                  { id: 'vapi', label: t('typeVapi') },
+                  { id: 'threll', label: t('typeThrell') },
+                ]}
                 value={vendor}
                 onChange={(next) => setVendor(next)}
               />
-              <FormField label={t('nameLabel')} hint={t('vapi.nameHint')}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. main-vapi"
-                  maxLength={120}
-                  required
-                />
-              </FormField>
-              <FormField label={t('vapi.apiKeyLabel')} hint={t('vapi.apiKeyHintCreate')}>
-                <Input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  autoComplete="off"
-                  required
-                />
-              </FormField>
-              <FormField
-                label={t('vapi.publicKeyLabel')}
-                hint={t('vapi.publicKeyHintCreate')}
-                error={fieldErrors.publicKey}
-              >
-                <Input
-                  value={publicKey}
-                  onChange={(e) => setPublicKey(e.target.value)}
-                  maxLength={256}
-                  autoComplete="off"
-                />
-              </FormField>
-              <FormField
-                label={t('vapi.assistantIdLabel')}
-                hint={t('vapi.assistantIdHint')}
-                error={fieldErrors.assistantId}
-              >
-                <Input
-                  value={assistantId}
-                  onChange={(e) => setAssistantId(e.target.value)}
-                  maxLength={128}
-                  required
-                />
-              </FormField>
-              <FormField
-                label={t('vapi.phoneNumberIdLabel')}
-                hint={t('vapi.phoneNumberIdHint')}
-                error={fieldErrors.phoneNumberId}
-              >
-                <Input
-                  value={phoneNumberId}
-                  onChange={(e) => setPhoneNumberId(e.target.value)}
-                  maxLength={128}
-                />
-              </FormField>
+              {vendor === 'vapi' ? (
+                <>
+                  <FormField label={t('nameLabel')} hint={t('vapi.nameHint')}>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. main-vapi"
+                      maxLength={120}
+                      required
+                    />
+                  </FormField>
+                  <FormField label={t('vapi.apiKeyLabel')} hint={t('vapi.apiKeyHintCreate')}>
+                    <Input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('vapi.publicKeyLabel')}
+                    hint={t('vapi.publicKeyHintCreate')}
+                    error={fieldErrors.publicKey}
+                  >
+                    <Input
+                      value={publicKey}
+                      onChange={(e) => setPublicKey(e.target.value)}
+                      maxLength={256}
+                      autoComplete="off"
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('vapi.assistantIdLabel')}
+                    hint={t('vapi.assistantIdHint')}
+                    error={fieldErrors.assistantId}
+                  >
+                    <Input
+                      value={assistantId}
+                      onChange={(e) => setAssistantId(e.target.value)}
+                      maxLength={128}
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('vapi.phoneNumberIdLabel')}
+                    hint={t('vapi.phoneNumberIdHint')}
+                    error={fieldErrors.phoneNumberId}
+                  >
+                    <Input
+                      value={phoneNumberId}
+                      onChange={(e) => setPhoneNumberId(e.target.value)}
+                      maxLength={128}
+                    />
+                  </FormField>
+                </>
+              ) : (
+                <>
+                  <FormField label={t('nameLabel')} hint={t('threll.nameHint')}>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. main-threll"
+                      maxLength={120}
+                      required
+                    />
+                  </FormField>
+                  <FormField label={t('threll.apiKeyLabel')} hint={t('threll.apiKeyHintCreate')}>
+                    <Input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('threll.accountIdLabel')}
+                    hint={t('threll.accountIdHint')}
+                    error={fieldErrors.accountId}
+                  >
+                    <Input
+                      value={accountId}
+                      onChange={(e) => setAccountId(e.target.value)}
+                      maxLength={128}
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('threll.workerIdLabel')}
+                    hint={t('threll.workerIdHint')}
+                    error={fieldErrors.workerId}
+                  >
+                    <Input
+                      value={workerId}
+                      onChange={(e) => setWorkerId(e.target.value)}
+                      maxLength={128}
+                      required
+                    />
+                  </FormField>
+                </>
+              )}
               <DialogFooter className={dialogFooterClass}>
                 <Button
                   type="button"
@@ -3266,6 +3439,328 @@ function PlaceVapiCallDialog({
               {placing
                 ? t('vapi.placeCallDialog.placing')
                 : t('vapi.placeCallDialog.submit')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ThrellConnectionStage({
+  channelId,
+  webhookSecret,
+  onDone,
+}: {
+  channelId: string;
+  webhookSecret: string;
+  onDone: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{t('threll.connectionStage.title')}</DialogTitle>
+        <DialogDescription>{t('threll.connectionStage.description')}</DialogDescription>
+      </DialogHeader>
+      <div className="mt-2 flex flex-col gap-4">
+        <CopyableSecret
+          label={t('threll.connectionStage.serverUrlLabel')}
+          value={vapiWebhookUrl(channelId)}
+          hint={t('threll.connectionStage.serverUrlHint')}
+        />
+        <CopyableSecret
+          label={t('threll.connectionStage.webhookSecretLabel')}
+          value={webhookSecret}
+          hint={t('threll.connectionStage.webhookSecretHint')}
+        />
+      </div>
+      <DialogFooter className={dialogFooterClass}>
+        <Button variant="accent" className={dialogButtonClass} onClick={onDone}>
+          {tCommon('done')}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function ThrellChannelDialog({
+  open,
+  onOpenChange,
+  onSaved,
+  editChannel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+  editChannel: ThrellChannelDto;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [name, setName] = useState(editChannel.name);
+  const [apiKey, setApiKey] = useState('');
+  const [webhookSecret, setWebhookSecret] = useState('');
+  const [accountId, setAccountId] = useState(editChannel.config?.accountId ?? '');
+  const [workerId, setWorkerId] = useState(editChannel.config?.workerId ?? '');
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    setName(editChannel.name);
+    setApiKey('');
+    setWebhookSecret('');
+    setAccountId(editChannel.config?.accountId ?? '');
+    setWorkerId(editChannel.config?.workerId ?? '');
+    setSubmitError(null);
+    setFieldErrors({});
+    setSaving(false);
+  }, [open, editChannel]);
+
+  async function submit() {
+    const payload: Record<string, unknown> = {
+      channelId: editChannel.id,
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(apiKey ? { apiKey } : {}),
+      ...(webhookSecret ? { webhookSecret } : {}),
+      ...(accountId.trim() ? { accountId: accountId.trim() } : {}),
+      ...(workerId.trim() ? { workerId: workerId.trim() } : {}),
+    };
+    const parsed = ConfigureThrellBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/v1/conversations/channels/threll', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.updateThrell'), {
+          endpoint: '/v1/conversations/channels/threll',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        {submitError ? (
+          <SaveErrorStage
+            detail={submitError}
+            onBack={() => setSubmitError(null)}
+            onRetry={() => void submit()}
+            retrying={saving}
+          />
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('threll.editTitle')}</DialogTitle>
+              <DialogDescription>{t('threll.editDescription')}</DialogDescription>
+            </DialogHeader>
+            <form
+              className="mt-4 flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submit();
+              }}
+            >
+              <FormField label={t('nameLabel')} hint={t('threll.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. main-threll"
+                  maxLength={120}
+                />
+              </FormField>
+              <FormField label={t('threll.apiKeyLabel')} hint={t('threll.apiKeyHintEdit')}>
+                <Input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField label={t('threll.webhookSecretLabel')} hint={t('threll.webhookSecretHintEdit')}>
+                <WebhookSecretField
+                  value={webhookSecret}
+                  onChange={setWebhookSecret}
+                  generateLabel={t('threll.webhookSecretGenerate')}
+                  regenerateLabel={t('threll.webhookSecretRegenerate')}
+                  emptyHint={t('threll.webhookSecretKeepHint')}
+                />
+              </FormField>
+              <FormField
+                label={t('threll.accountIdLabel')}
+                hint={t('threll.accountIdHint')}
+                error={fieldErrors.accountId}
+              >
+                <Input
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  maxLength={128}
+                />
+              </FormField>
+              <FormField
+                label={t('threll.workerIdLabel')}
+                hint={t('threll.workerIdHint')}
+                error={fieldErrors.workerId}
+              >
+                <Input
+                  value={workerId}
+                  onChange={(e) => setWorkerId(e.target.value)}
+                  maxLength={128}
+                />
+              </FormField>
+              <DialogFooter className={dialogFooterClass}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={dialogButtonClass}
+                  onClick={() => onOpenChange(false)}
+                  disabled={saving}
+                >
+                  {tCommon('cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="accent"
+                  className={dialogButtonClass}
+                  disabled={saving}
+                  pending={saving}
+                >
+                  {saving ? tCommon('saving') : tCommon('saveChanges')}
+                  <span aria-hidden className="ml-1 font-mono">↵</span>
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PlaceThrellCallDialog({
+  channel,
+  onClose,
+}: {
+  channel: ThrellChannelDto;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [to, setTo] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [placing, setPlacing] = useState(false);
+
+  async function submit() {
+    const trimmed = to.trim();
+    if (!trimmed) return;
+    const payload: Record<string, unknown> = { to: trimmed };
+    if (customerName.trim()) payload.customerName = customerName.trim();
+    const parsed = ThrellCallInitiateBody.safeParse(payload);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      return;
+    }
+    setPlacing(true);
+    setError(null);
+    try {
+      await api(`/v1/conversations/channels/threll/${channel.id}/call`, {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      notify.success(t('threll.placeCallDialog.success', { to: trimmed }));
+      onClose();
+    } catch (err) {
+      setError(translate(err) || t('errors.placeThrellCall'));
+    } finally {
+      setPlacing(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('threll.placeCallDialog.title')}</DialogTitle>
+          <DialogDescription>
+            {t('threll.placeCallDialog.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField
+            label={t('threll.placeCallDialog.toLabel')}
+            hint={t('threll.placeCallDialog.toHint')}
+            error={error ?? undefined}
+          >
+            <Input
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                if (error) setError(null);
+              }}
+              required
+              autoFocus
+              placeholder="+15551234567"
+              aria-invalid={error ? true : undefined}
+            />
+          </FormField>
+          <FormField
+            label={t('threll.placeCallDialog.customerNameLabel')}
+            hint={t('threll.placeCallDialog.customerNameHint')}
+          >
+            <Input
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              maxLength={120}
+            />
+          </FormField>
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={placing}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={placing || !to.trim()}
+              pending={placing}
+            >
+              {placing
+                ? t('threll.placeCallDialog.placing')
+                : t('threll.placeCallDialog.submit')}
               <span aria-hidden className="ml-1 font-mono">↵</span>
             </Button>
           </DialogFooter>

@@ -29,6 +29,10 @@ export {
   type ConfigureVapiBodyT,
   VapiCallInitiateBody,
   type VapiCallInitiateBodyT,
+  ConfigureThrellBody,
+  type ConfigureThrellBodyT,
+  ThrellCallInitiateBody,
+  type ThrellCallInitiateBodyT,
 } from './channels.ts';
 export {
   CreateTrackerBody,

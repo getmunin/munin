@@ -31,7 +31,7 @@
     "scopes": [
       "analytics:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -92,7 +92,7 @@
     "scopes": [
       "analytics:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -634,7 +634,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -755,7 +755,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -974,7 +974,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1024,7 +1024,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1071,7 +1071,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1103,7 +1103,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1135,7 +1135,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1294,7 +1294,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1345,7 +1345,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1395,7 +1395,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1443,7 +1443,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1514,7 +1514,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1551,7 +1551,7 @@
     "scopes": [
       "cms:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1717,7 +1717,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1755,7 +1755,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1792,7 +1792,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1833,7 +1833,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1923,7 +1923,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1993,7 +1993,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2031,7 +2031,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2068,7 +2068,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2104,7 +2104,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2138,7 +2138,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2349,7 +2349,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2381,7 +2381,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2454,7 +2454,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2492,7 +2492,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2571,7 +2571,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2610,7 +2610,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2695,7 +2695,123 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^\\+[1-9]\\d{4,18}$"
+        },
+        "customerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "channelId",
+        "to"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_threll_configure",
+    "title": "Conv: Configure Threll voice channel",
+    "description": "Create or update a Threll voice channel. Pass `channelId` to update; omit to create. The plaintext `apiKey` and `webhookSecret` are encrypted before storage and returned redacted. The worker must already exist in Threll — paste its account and worker IDs here.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "description": "Pass an existing channel id to update; omit to create a new channel.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "apiKey": {
+          "description": "Threll API key (Settings → Developer). Sent as the `x-api-key` header. Required on create.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "webhookSecret": {
+          "description": "Shared HMAC signing secret. Use the same value here and as the `signingSecret` of the Threll webhook subscription that points at this channel’s webhook URL. Munin verifies the `X-Threll-Signature` HMAC with it and reuses it to sign tool-call deliveries. Required on create.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "accountId": {
+          "description": "Threll account ID (shown alongside your API key). Required on create.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "workerId": {
+          "description": "Threll worker ID that handles calls on this channel. Required on create.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_threll_test_channel",
+    "title": "Conv: Test Threll voice channel credentials",
+    "description": "Verify a Threll channel's stored API key and worker by fetching the worker from Threll. Returns `{ ok: true, worker }` on success.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_threll_call_initiate",
+    "title": "Conv: Place an outbound Threll voice call",
+    "description": "Initiate an outbound voice call through this Threll channel. The worker runs the conversation. Returns the Threll call id and status.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2732,7 +2848,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2763,7 +2879,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2794,7 +2910,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2838,7 +2954,7 @@
     "scopes": [
       "conv:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3022,7 +3138,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3086,7 +3202,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3188,7 +3304,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3323,7 +3439,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3390,7 +3506,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3483,7 +3599,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3539,7 +3655,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3569,7 +3685,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3670,7 +3786,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3725,7 +3841,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3849,7 +3965,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3928,7 +4044,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4000,7 +4116,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4151,7 +4267,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4225,7 +4341,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4258,7 +4374,7 @@
     "scopes": [
       "crm:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4325,7 +4441,7 @@
     "scopes": [
       "kb:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4492,7 +4608,7 @@
     "scopes": [
       "kb:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4554,7 +4670,7 @@
     "scopes": [
       "kb:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4673,7 +4789,7 @@
     "scopes": [
       "kb:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4854,7 +4970,7 @@
     "scopes": [
       "outreach:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4944,7 +5060,7 @@
     "scopes": [
       "outreach:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5095,7 +5211,7 @@
     "scopes": [
       "outreach:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5153,7 +5269,7 @@
     "scopes": [
       "outreach:write"
     ],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5209,7 +5325,7 @@
       "admin"
     ],
     "scopes": [],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5246,7 +5362,7 @@
       "admin"
     ],
     "scopes": [],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5445,7 +5561,7 @@
       "admin"
     ],
     "scopes": [],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5469,7 +5585,7 @@
       "admin"
     ],
     "scopes": [],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5511,7 +5627,7 @@
       "admin"
     ],
     "scopes": [],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5600,7 +5716,7 @@
       "admin"
     ],
     "scopes": [],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5704,7 +5820,7 @@
       "admin"
     ],
     "scopes": [],
-    "danger": "writes",
+    "danger": "destructive",
     "readOnly": false,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

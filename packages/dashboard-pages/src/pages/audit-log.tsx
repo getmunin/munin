@@ -56,7 +56,7 @@ export function AuditLogPage() {
       if (filterValues.correlationId) params.set('correlationId', filterValues.correlationId);
       if (filterValues.client) params.set('client', filterValues.client);
       if (!reset && beforeCursor) params.set('before', beforeCursor);
-      const page = await api<AuditPage>(`/v1/admin/audit-logs?${params.toString()}`);
+      const page = await api<AuditPage>(`/v1/audit-logs?${params.toString()}`);
       if (reset) {
         setItems(page.items);
       } else {

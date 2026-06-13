@@ -49,7 +49,7 @@ export function WebsiteImportCard({ onEnqueued, onSkip, onBack }: WebsiteImportC
     setSubmitting(true);
     setError(null);
     try {
-      const res = await api<EnqueueResponse>('/v1/curation/jobs', {
+      const res = await api<EnqueueResponse>('/v1/curator/jobs', {
         method: 'POST',
         body: JSON.stringify({
           jobUri: JOB_URI,

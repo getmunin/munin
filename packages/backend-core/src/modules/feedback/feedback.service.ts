@@ -82,7 +82,7 @@ export class FeedbackService {
     return toDto(row);
   }
 
-  async reject(id: string): Promise<void> {
+  async dismiss(id: string): Promise<void> {
     const ctx = getCurrentContext();
     const result = await ctx.db
       .delete(schema.feedbackOutbox)

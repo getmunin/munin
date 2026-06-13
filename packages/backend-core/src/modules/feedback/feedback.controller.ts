@@ -61,12 +61,12 @@ export class FeedbackController {
     }
   }
 
-  @Post(':id/reject')
+  @Post(':id/dismiss')
   @UseGuards(ControlPlaneGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async reject(@Param('id') id: string): Promise<void> {
+  async dismiss(@Param('id') id: string): Promise<void> {
     try {
-      await this.service.reject(id);
+      await this.service.dismiss(id);
     } catch (err) {
       if (err instanceof FeedbackNotFoundError) throw new NotFoundException(err.message);
       throw err;

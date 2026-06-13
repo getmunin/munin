@@ -60,7 +60,7 @@ interface ClaimResponse {
   items: CuratorJobDto[];
 }
 
-@Controller('v1/curation/jobs')
+@Controller('v1/curator/jobs')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class CuratorJobsController {
@@ -106,9 +106,9 @@ export class CuratorJobsController {
     return { items };
   }
 
-  @Post(':id/ack')
+  @Post(':id/acknowledge')
   @HttpCode(200)
-  async ack(@Param('id') id: string, @Body() body: unknown): Promise<CuratorJobDto> {
+  async acknowledge(@Param('id') id: string, @Body() body: unknown): Promise<CuratorJobDto> {
     const parsed = AckBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.service.ack({ id, ...parsed.data });

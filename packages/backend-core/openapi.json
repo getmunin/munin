@@ -613,7 +613,7 @@
         ]
       }
     },
-    "/v1/admin/audit-logs": {
+    "/v1/audit-logs": {
       "get": {
         "operationId": "AuditLogController_list",
         "parameters": [
@@ -708,7 +708,7 @@
     },
     "/v1/usage/summary": {
       "get": {
-        "operationId": "UsageStatsController_summary",
+        "operationId": "UsageController_summary",
         "parameters": [],
         "responses": {
           "200": {
@@ -716,7 +716,7 @@
           }
         },
         "tags": [
-          "UsageStats"
+          "Usage"
         ],
         "security": [
           {
@@ -730,7 +730,7 @@
     },
     "/v1/usage/by-agent": {
       "get": {
-        "operationId": "UsageStatsController_byAgent",
+        "operationId": "UsageController_byAgent",
         "parameters": [
           {
             "name": "days",
@@ -747,7 +747,7 @@
           }
         },
         "tags": [
-          "UsageStats"
+          "Usage"
         ],
         "security": [
           {
@@ -1175,7 +1175,7 @@
         "security": []
       }
     },
-    "/v1/cms-drafts/{id}": {
+    "/v1/cms/drafts/{id}": {
       "get": {
         "operationId": "CmsDraftsController_get",
         "parameters": [
@@ -1235,7 +1235,7 @@
         ]
       }
     },
-    "/v1/cms-drafts/{id}/approve": {
+    "/v1/cms/drafts/{id}/approve": {
       "post": {
         "operationId": "CmsDraftsController_approve",
         "parameters": [
@@ -1266,7 +1266,7 @@
         ]
       }
     },
-    "/v1/cms-drafts/{id}/schedule": {
+    "/v1/cms/drafts/{id}/schedule": {
       "post": {
         "operationId": "CmsDraftsController_schedule",
         "parameters": [
@@ -1297,7 +1297,7 @@
         ]
       }
     },
-    "/v1/cms-drafts/{id}/assets": {
+    "/v1/cms/drafts/{id}/assets": {
       "post": {
         "operationId": "CmsDraftsController_uploadAsset",
         "parameters": [
@@ -1328,7 +1328,7 @@
         ]
       }
     },
-    "/v1/cms-drafts/{id}/dismiss": {
+    "/v1/cms/drafts/{id}/dismiss": {
       "post": {
         "operationId": "CmsDraftsController_dismiss",
         "parameters": [
@@ -3931,7 +3931,7 @@
         ]
       }
     },
-    "/v1/curation/jobs": {
+    "/v1/curator/jobs": {
       "get": {
         "operationId": "CuratorJobsController_list",
         "parameters": [
@@ -3990,7 +3990,7 @@
         ]
       }
     },
-    "/v1/curation/jobs/{id}": {
+    "/v1/curator/jobs/{id}": {
       "get": {
         "operationId": "CuratorJobsController_get",
         "parameters": [
@@ -4021,7 +4021,7 @@
         ]
       }
     },
-    "/v1/curation/jobs/claim": {
+    "/v1/curator/jobs/claim": {
       "post": {
         "operationId": "CuratorJobsController_claim",
         "parameters": [],
@@ -4043,9 +4043,9 @@
         ]
       }
     },
-    "/v1/curation/jobs/{id}/ack": {
+    "/v1/curator/jobs/{id}/acknowledge": {
       "post": {
-        "operationId": "CuratorJobsController_ack",
+        "operationId": "CuratorJobsController_acknowledge",
         "parameters": [
           {
             "name": "id",
@@ -4074,7 +4074,7 @@
         ]
       }
     },
-    "/v1/curation/jobs/{id}/fail": {
+    "/v1/curator/jobs/{id}/fail": {
       "post": {
         "operationId": "CuratorJobsController_fail",
         "parameters": [
@@ -4722,9 +4722,9 @@
         ]
       }
     },
-    "/v1/feedback/{id}/reject": {
+    "/v1/feedback/{id}/dismiss": {
       "post": {
-        "operationId": "FeedbackController_reject",
+        "operationId": "FeedbackController_dismiss",
         "parameters": [
           {
             "name": "id",

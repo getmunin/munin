@@ -8,7 +8,6 @@ import { SkillsController } from './skills.controller.ts';
 import { AssistantsController } from './assistants.controller.ts';
 import { AuditLogController } from './audit-log.controller.ts';
 import { UsageController } from './usage.controller.ts';
-import { UsageStatsController } from './usage-stats.controller.ts';
 import { ExportController } from './export.controller.ts';
 import { WebhooksController } from './webhooks.controller.ts';
 import { CmsDeliveryController } from './cms-delivery.controller.ts';
@@ -79,7 +78,6 @@ import { AuthProvidersController } from './auth-providers.controller.ts';
     AssistantsController,
     AuditLogController,
     UsageController,
-    UsageStatsController,
     ExportController,
     WebhooksController,
     CmsDeliveryController,

@@ -258,7 +258,7 @@ interface OrgFixture {
         headers: authHeaders(widgetKey),
       });
       expect(channels.status).toBe(403);
-      const enq = await fetch(`${baseUrl}/v1/curation/jobs`, {
+      const enq = await fetch(`${baseUrl}/v1/curator/jobs`, {
         method: 'POST',
         headers: authHeaders(widgetKey),
         body: JSON.stringify({ jobUri: 'skill://kb/review-content', userPrompt: 'try' }),
@@ -276,7 +276,7 @@ interface OrgFixture {
         keyPrefix: keyPrefix(scopedKey),
         scopes: ['kb:read'],
       });
-      const enq = await fetch(`${baseUrl}/v1/curation/jobs`, {
+      const enq = await fetch(`${baseUrl}/v1/curator/jobs`, {
         method: 'POST',
         headers: authHeaders(scopedKey),
         body: JSON.stringify({ jobUri: 'skill://kb/review-content', userPrompt: 'try' }),
@@ -517,16 +517,16 @@ interface OrgFixture {
 
   // ─── audit-log ───────────────────────────────────────────────────────
 
-  describe('GET /v1/admin/audit-logs', () => {
+  describe('GET /v1/audit-logs', () => {
     it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/v1/admin/audit-logs`);
+      const res = await fetch(`${baseUrl}/v1/audit-logs`);
       expect(res.status).toBe(401);
     });
 
     it('returns paginated audit entries for the calling org', async () => {
       // Generate at least one audit entry by hitting an audited endpoint.
       await fetch(`${baseUrl}/v1/orgs/me`, { headers: authHeaders(orgA.adminKey) });
-      const res = await fetch(`${baseUrl}/v1/admin/audit-logs?limit=10`, {
+      const res = await fetch(`${baseUrl}/v1/audit-logs?limit=10`, {
         headers: authHeaders(orgA.adminKey),
       });
       expect(res.status).toBe(200);
@@ -738,7 +738,7 @@ interface OrgFixture {
 
     const READ_ENDPOINTS = [
       ['/v1/api-keys', 'GET'],
-      ['/v1/admin/audit-logs', 'GET'],
+      ['/v1/audit-logs', 'GET'],
       ['/v1/usage', 'GET'],
       ['/v1/export', 'GET'],
       ['/v1/end-users', 'GET'],

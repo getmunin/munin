@@ -5,7 +5,7 @@ import { FeedbackController } from './feedback.controller.ts';
 
 const GUARDS_METADATA = '__guards__';
 
-function guardsOn(method: 'approve' | 'reject' | 'create'): unknown[] {
+function guardsOn(method: 'approve' | 'dismiss' | 'create'): unknown[] {
   const fn = FeedbackController.prototype[method] as (...args: unknown[]) => unknown;
   return (Reflect.getMetadata(GUARDS_METADATA, fn) as unknown[] | undefined) ?? [];
 }
@@ -15,8 +15,8 @@ describe('FeedbackController guard wiring', () => {
     expect(guardsOn('approve')).toContain(ControlPlaneGuard);
   });
 
-  it('reject has ControlPlaneGuard at the method level', () => {
-    expect(guardsOn('reject')).toContain(ControlPlaneGuard);
+  it('dismiss has ControlPlaneGuard at the method level', () => {
+    expect(guardsOn('dismiss')).toContain(ControlPlaneGuard);
   });
 
   it('create does NOT carry ControlPlaneGuard (broadly authenticated)', () => {

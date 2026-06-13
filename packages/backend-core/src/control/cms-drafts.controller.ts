@@ -46,7 +46,7 @@ const AssetUploadBody = z.object({
   altText: z.string().max(500).optional(),
 });
 
-@Controller('v1/cms-drafts')
+@Controller('v1/cms/drafts')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class CmsDraftsController {

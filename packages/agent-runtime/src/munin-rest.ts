@@ -269,26 +269,26 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     async enqueueCuratorJob(
       input: EnqueueCuratorJobInput,
     ): Promise<{ job: CuratorJob; alreadyPending: boolean }> {
-      return call<{ job: CuratorJob; alreadyPending: boolean }>(`/v1/curation/jobs`, {
+      return call<{ job: CuratorJob; alreadyPending: boolean }>(`/v1/curator/jobs`, {
         method: 'POST',
         body: JSON.stringify(input),
       });
     },
     async claimCuratorJobs(input: ClaimCuratorJobsInput): Promise<CuratorJob[]> {
-      const result = await call<{ items: CuratorJob[] }>(`/v1/curation/jobs/claim`, {
+      const result = await call<{ items: CuratorJob[] }>(`/v1/curator/jobs/claim`, {
         method: 'POST',
         body: JSON.stringify(input),
       });
       return result.items;
     },
     async ackCuratorJob(id: string, input: AckCuratorJobInput = {}): Promise<CuratorJob> {
-      return call<CuratorJob>(`/v1/curation/jobs/${encodeURIComponent(id)}/ack`, {
+      return call<CuratorJob>(`/v1/curator/jobs/${encodeURIComponent(id)}/acknowledge`, {
         method: 'POST',
         body: JSON.stringify(input),
       });
     },
     async failCuratorJob(id: string, input: FailCuratorJobInput): Promise<CuratorJob> {
-      return call<CuratorJob>(`/v1/curation/jobs/${encodeURIComponent(id)}/fail`, {
+      return call<CuratorJob>(`/v1/curator/jobs/${encodeURIComponent(id)}/fail`, {
         method: 'POST',
         body: JSON.stringify(input),
       });

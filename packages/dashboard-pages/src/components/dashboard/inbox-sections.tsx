@@ -357,7 +357,7 @@ export function useInboxData(): InboxController {
   useEffect(() => {
     if (!queueDrawer || queueDrawer.kind !== 'cms') return;
     if (cmsDetails[queueDrawer.id] !== undefined) return;
-    void api<CmsDraftDetailDto>(`/v1/cms-drafts/${queueDrawer.id}`)
+    void api<CmsDraftDetailDto>(`/v1/cms/drafts/${queueDrawer.id}`)
       .then((doc) => setCmsDetails((prev) => ({ ...prev, [queueDrawer.id]: doc })))
       .catch(() => {});
   }, [queueDrawer, cmsDetails]);
@@ -520,7 +520,7 @@ export function useInboxData(): InboxController {
         } else if (item.kind === 'feedback') {
           await api(`/v1/feedback/${item.id}/approve`, { method: 'POST' });
         } else if (item.kind === 'cms') {
-          await api(`/v1/cms-drafts/${item.id}/approve`, { method: 'POST', body: '{}' });
+          await api(`/v1/cms/drafts/${item.id}/approve`, { method: 'POST', body: '{}' });
         } else {
           await api(`/v1/outreach/proposals/${item.id}/approve`, { method: 'POST' });
         }
@@ -569,7 +569,7 @@ export function useInboxData(): InboxController {
       }
       setPending(true);
       try {
-        const updated = await api<CmsDraftDetailDto>(`/v1/cms-drafts/${item.id}`, {
+        const updated = await api<CmsDraftDetailDto>(`/v1/cms/drafts/${item.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ data }),
         });
@@ -596,7 +596,7 @@ export function useInboxData(): InboxController {
       try {
         const base64Body = await readFileAsBase64(file);
         const asset = await api<{ id: string; publicUrl: string; altText: string | null }>(
-          `/v1/cms-drafts/${item.id}/assets`,
+          `/v1/cms/drafts/${item.id}/assets`,
           {
             method: 'POST',
             body: JSON.stringify({
@@ -629,9 +629,9 @@ export function useInboxData(): InboxController {
             body: JSON.stringify({}),
           });
         } else if (item.kind === 'feedback') {
-          await api(`/v1/feedback/${item.id}/reject`, { method: 'POST' });
+          await api(`/v1/feedback/${item.id}/dismiss`, { method: 'POST' });
         } else if (item.kind === 'cms') {
-          await api(`/v1/cms-drafts/${item.id}/dismiss`, { method: 'POST', body: '{}' });
+          await api(`/v1/cms/drafts/${item.id}/dismiss`, { method: 'POST', body: '{}' });
         } else {
           await api(`/v1/outreach/proposals/${item.id}/dismiss`, {
             method: 'POST',
@@ -654,7 +654,7 @@ export function useInboxData(): InboxController {
       if (item.kind !== 'cms') return;
       setPending(true);
       try {
-        await api(`/v1/cms-drafts/${item.id}/schedule`, {
+        await api(`/v1/cms/drafts/${item.id}/schedule`, {
           method: 'POST',
           body: JSON.stringify({ scheduledAt }),
         });

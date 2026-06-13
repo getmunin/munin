@@ -24,6 +24,11 @@ import { VapiAdapter } from './vapi/vapi-adapter.ts';
 import { VapiAdminTools } from './vapi/vapi.tools.ts';
 import { VapiService } from './vapi/vapi.service.ts';
 import { VapiToolBridge } from './vapi/vapi-tool-bridge.ts';
+import { ThrellClientService } from './threll/threll-client.service.ts';
+import { ThrellAdapter } from './threll/threll-adapter.ts';
+import { ThrellAdminTools } from './threll/threll.tools.ts';
+import { ThrellService } from './threll/threll.service.ts';
+import { ThrellToolBridge } from './threll/threll-tool-bridge.ts';
 import { VoiceCallbackService } from './voice-callback.service.ts';
 import { VoiceCallbackTools } from './voice-callback.tools.ts';
 import { TwilioClientService } from './twilio/twilio-client.service.ts';
@@ -65,6 +70,11 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     VapiAdapter,
     VapiAdminTools,
     VapiToolBridge,
+    ThrellClientService,
+    ThrellService,
+    ThrellAdapter,
+    ThrellAdminTools,
+    ThrellToolBridge,
     VoiceCallbackService,
     VoiceCallbackTools,
     WidgetAdapter,
@@ -80,9 +90,17 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
         twilioSms: TwilioSmsAdapter,
         messageBirdSms: MessageBirdSmsAdapter,
         vapi: VapiAdapter,
+        threll: ThrellAdapter,
         widget: WidgetAdapter,
-      ) => [email, twilioSms, messageBirdSms, vapi, widget],
-      inject: [EmailAdapter, TwilioSmsAdapter, MessageBirdSmsAdapter, VapiAdapter, WidgetAdapter],
+      ) => [email, twilioSms, messageBirdSms, vapi, threll, widget],
+      inject: [
+        EmailAdapter,
+        TwilioSmsAdapter,
+        MessageBirdSmsAdapter,
+        VapiAdapter,
+        ThrellAdapter,
+        WidgetAdapter,
+      ],
     },
   ],
   exports: [
@@ -103,6 +121,10 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     VapiService,
     VapiAdapter,
     VapiAdminTools,
+    ThrellClientService,
+    ThrellService,
+    ThrellAdapter,
+    ThrellAdminTools,
     VoiceCallbackService,
     VoiceCallbackTools,
     WidgetAdapter,

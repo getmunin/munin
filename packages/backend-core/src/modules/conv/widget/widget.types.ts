@@ -103,6 +103,16 @@ export type WidgetVoiceStartResult =
             metadata: { conversationId: string; endUserId: string };
             assistant?: Record<string, unknown>;
             assistantOverrides?: Record<string, unknown>;
+          }
+        | {
+            vendor: string;
+            transport: 'webrtc';
+            signalingProtocol: string;
+            signalingUrl: string;
+            token: string;
+            sessionId: string;
+            iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }>;
+            metadata: { conversationId: string; endUserId: string };
           };
     };
 

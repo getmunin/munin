@@ -33,6 +33,12 @@ export {
   type ConfigureThrellBodyT,
   ThrellCallInitiateBody,
   type ThrellCallInitiateBodyT,
+  ConfigureChannelBody,
+  type ConfigureChannelBodyT,
+  ChannelVoiceCallBody,
+  type ChannelVoiceCallBodyT,
+  ChannelSendTestBody,
+  type ChannelSendTestBodyT,
 } from './channels.ts';
 export {
   CreateTrackerBody,

@@ -203,3 +203,26 @@ export const ThrellCallInitiateBody = z.object({
 });
 
 export type ThrellCallInitiateBodyT = z.infer<typeof ThrellCallInitiateBody>;
+
+export const ConfigureChannelBody = z.object({
+  vendor: z.string().min(1).max(40),
+  channelId: z.string().optional(),
+  name: z.string().min(1).max(120).optional(),
+  config: z.record(z.string(), z.unknown()),
+});
+
+export type ConfigureChannelBodyT = z.infer<typeof ConfigureChannelBody>;
+
+export const ChannelVoiceCallBody = z.object({
+  to: z.string().regex(E164, 'must be E.164').max(32),
+  customerName: z.string().min(1).max(120).optional(),
+});
+
+export type ChannelVoiceCallBodyT = z.infer<typeof ChannelVoiceCallBody>;
+
+export const ChannelSendTestBody = z.object({
+  to: z.string().min(2).max(64),
+  body: z.string().min(1).max(1600).optional(),
+});
+
+export type ChannelSendTestBodyT = z.infer<typeof ChannelSendTestBody>;

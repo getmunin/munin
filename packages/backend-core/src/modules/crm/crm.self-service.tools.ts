@@ -56,7 +56,7 @@ export class CrmSelfServiceTools {
   }
 
   @McpTool({
-    name: 'crm_log_activity_self',
+    name: 'crm_log_my_activity',
     title: 'CRM: Log activity as end-user',
     description:
       'Record an activity attributed to the calling end-user agent (e.g. a voice agent logging "spoke with customer for 4m, follow-up needed"). Auto-scoped to the end-user\'s own CRM contact when one exists.',

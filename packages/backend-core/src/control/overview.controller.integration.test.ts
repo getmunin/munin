@@ -207,7 +207,7 @@ const skipReason = TEST_URL
       const aId = (JSON.parse(a.content[0]!.text) as { id: string }).id;
       const bId = (JSON.parse(b.content[0]!.text) as { id: string }).id;
       await c.callTool({
-        name: 'crm_propose_merge_candidate',
+        name: 'crm_propose_merge',
         arguments: {
           contactAId: aId,
           contactBId: bId,
@@ -227,7 +227,7 @@ const skipReason = TEST_URL
       const cId = (JSON.parse(c2.content[0]!.text) as { id: string }).id;
       const dId = (JSON.parse(d2.content[0]!.text) as { id: string }).id;
       const dismissed = (await c.callTool({
-        name: 'crm_propose_merge_candidate',
+        name: 'crm_propose_merge',
         arguments: {
           contactAId: cId,
           contactBId: dId,

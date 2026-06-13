@@ -51,7 +51,7 @@ export class ChannelAdminTools {
     name: 'conv_list_channel_vendors',
     title: 'Conv: List configurable channel vendors',
     description:
-      'List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_channel_configure.',
+      'List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_channel.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: ListVendorsInput,
@@ -63,7 +63,7 @@ export class ChannelAdminTools {
   }
 
   @McpTool({
-    name: 'conv_channel_configure',
+    name: 'conv_configure_channel',
     title: 'Conv: Configure a voice/SMS channel',
     description:
       'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + a vendor-specific `config` object (see conv_list_channel_vendors). Pass `channelId` to update; omit to create. Plaintext secrets in `config` are encrypted before storage and returned redacted.',
@@ -83,7 +83,7 @@ export class ChannelAdminTools {
   }
 
   @McpTool({
-    name: 'conv_channel_test',
+    name: 'conv_test_channel',
     title: 'Conv: Test a channel’s stored credentials',
     description:
       'Verify a channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific.',
@@ -98,7 +98,7 @@ export class ChannelAdminTools {
   }
 
   @McpTool({
-    name: 'conv_voice_call',
+    name: 'conv_call_channel',
     title: 'Conv: Place an outbound voice call',
     description:
       'Place an outbound voice call through a voice channel (any vendor). The channel’s configured assistant/worker runs the conversation.',
@@ -117,7 +117,7 @@ export class ChannelAdminTools {
   }
 
   @McpTool({
-    name: 'conv_channel_send_test',
+    name: 'conv_send_channel_test',
     title: 'Conv: Send a real test message',
     description:
       'Send a real test message (e.g. SMS) through a channel that supports it, addressed to `to`. Useful for end-to-end deliverability checks.',

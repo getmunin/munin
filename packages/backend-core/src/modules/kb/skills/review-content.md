@@ -5,7 +5,7 @@ audiences: [admin]
 ---
 
 # Review and curate content
-The self-service AI agent flags a conversation with `conv_request_handover_in_my_conversation` whenever it can't answer from the KB. A human (or another admin agent) then takes over and replies. That reply is the durable answer, but today it stays trapped in one conversation — the next end-user with the same question hits the same dead-end. Your job in a curation pass is to turn those (question, human-reply) pairs into KB documents so the agent can answer them next time.
+The self-service AI agent flags a conversation with `conv_request_human` whenever it can't answer from the KB. A human (or another admin agent) then takes over and replies. That reply is the durable answer, but today it stays trapped in one conversation — the next end-user with the same question hits the same dead-end. Your job in a curation pass is to turn those (question, human-reply) pairs into KB documents so the agent can answer them next time.
 
 This skill walks through one pass. It supports two modes:
 

@@ -10,7 +10,7 @@ Page-view events from the tracker are anonymous by default — they carry an opa
 
 - new `analytics_view_events` / `analytics_search_events` rows for the same visitor are stamped with `end_user_id` at ingest
 - the chat widget and the CRM share the same `end_users` identity, so a visitor → conversation → CRM contact chain becomes one query
-- `analytics_contact_journey` returns the chronological page-view + search timeline for a contact
+- `analytics_get_contact_journey` returns the chronological page-view + search timeline for a contact
 
 This skill walks through wiring it up.
 
@@ -63,13 +63,13 @@ Every subsequent tracker beacon for the same `visitorId` lands with `end_user_id
 ## 4. Read the journey
 
 ```jsonc
-// analytics_contact_journey
+// analytics_get_contact_journey
 { "contactId": "ctc_…", "sinceDays": 30, "limit": 100 }
 ```
 
 Returns the visitor's page-view and search timeline, chronologically. Or pass `endUserId` directly if you already have it (e.g. resolved through the widget). Events recorded before the visitor was linked stay anonymous and are not returned — there's no retroactive backfill.
 
-You can also pass `endUserId` / `contactId` to `analytics_views_over_time`, `analytics_subject_engagement`, and `analytics_top_subjects` to scope those aggregates to one identified visitor.
+You can also pass `endUserId` / `contactId` to `analytics_get_views_over_time`, `analytics_get_subject_engagement`, and `analytics_list_top_subjects` to scope those aggregates to one identified visitor.
 
 ## How widget chats fit in
 

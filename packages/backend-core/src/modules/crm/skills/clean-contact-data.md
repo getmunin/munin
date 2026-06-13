@@ -1,13 +1,13 @@
 ---
 title: CRM: Clean up contact data
-description: Periodic curator pass — find duplicate / inconsistent contacts, file high-confidence pairs as structured merge proposals via crm_propose_merge_candidate. Designed to be run on a cadence by an admin agent (weekly is a good default). The operator reviews via crm_list_merge_proposals and resolves with crm_apply_merge_proposal / crm_dismiss_merge_proposal.
+description: Periodic curator pass — find duplicate / inconsistent contacts, file high-confidence pairs as structured merge proposals via crm_propose_merge. Designed to be run on a cadence by an admin agent (weekly is a good default). The operator reviews via crm_list_merge_proposals and resolves with crm_apply_merge_proposal / crm_dismiss_merge_proposal.
 audiences: [admin]
 ---
 
 # Clean up contact data
 CRM data drifts. Imports re-add contacts under a slightly different email. Humans type the same person's name three different ways. Two reps log activity against the same prospect under separate rows because neither searched first. Left alone, this turns the CRM into a haystack — searches return three half-rows where there should be one complete one, segments under-count, and the next bulk import re-creates duplicates because the dedup key drifted.
 
-This skill walks an admin agent through one periodic hygiene pass: pull contacts, find suspect pairs, judge each pair, and file high-confidence pairs as **structured merge proposals** via `crm_propose_merge_candidate`. A human (or trusted admin agent) then reviews each pending proposal and resolves it with `crm_apply_merge_proposal` (atomic patch + archive) or `crm_dismiss_merge_proposal` (records the rejection so the next curator pass skips the pair).
+This skill walks an admin agent through one periodic hygiene pass: pull contacts, find suspect pairs, judge each pair, and file high-confidence pairs as **structured merge proposals** via `crm_propose_merge`. A human (or trusted admin agent) then reviews each pending proposal and resolves it with `crm_apply_merge_proposal` (atomic patch + archive) or `crm_dismiss_merge_proposal` (records the rejection so the next curator pass skips the pair).
 
 Run periodically. Don't run inline per CRM mutation — batching is cheaper and the suspect-pair signal is much stronger when you can see the whole population at once. A weekly cadence is a good default; wire it up via your scheduler of choice.
 
@@ -18,7 +18,7 @@ Run periodically. Don't run inline per CRM mutation — batching is cheaper and 
 3. **Find suspect pairs** in your buffer: same lowercased email, same E.164 phone, very-similar name, or same name + company.
 4. **Judge each pair.** Skip clearly-not-the-same (different companies, shared inbox like `info@acme.com`, ambiguous role/title combinations). Keep clearly-same (same email + phone, same email + similar name, same phone + same company).
 5. **Pick the keeper** for each kept pair (heuristics below) and build a `recommendedPatch` of fields to copy from the duplicate onto the keeper.
-6. **File each pair** with `crm_propose_merge_candidate`. Idempotent on the pair while pending — re-running next week without the operator acting just upserts the pending row with refreshed evidence.
+6. **File each pair** with `crm_propose_merge`. Idempotent on the pair while pending — re-running next week without the operator acting just upserts the pending row with refreshed evidence.
 7. **Stop.** The operator's review flow takes over — they call `crm_apply_merge_proposal` or `crm_dismiss_merge_proposal` at their cadence.
 
 ## Step 1 — fetch dismissed pairs
@@ -76,7 +76,7 @@ Construct `recommendedPatch`: the set of fields to copy from the duplicate onto 
 
 ```jsonc
 {
-  "name": "crm_propose_merge_candidate",
+  "name": "crm_propose_merge",
   "arguments": {
     "contactAId": "cct_aaaaaa",
     "contactBId": "cct_bbbbbb",

@@ -227,10 +227,10 @@ const skipReason = TEST_URL
     await withClient(aliceToken, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
-      expect(names).toContain('conv_request_phone_call_for_my_conversation');
-      expect(names).not.toContain('conv_voice_call');
-      expect(names).not.toContain('conv_voice_call_contact');
-      expect(names).not.toContain('conv_channel_configure');
+      expect(names).toContain('conv_request_callback');
+      expect(names).not.toContain('conv_call_channel');
+      expect(names).not.toContain('conv_call_contact');
+      expect(names).not.toContain('conv_configure_channel');
     });
   });
 
@@ -238,8 +238,8 @@ const skipReason = TEST_URL
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
-      expect(names).toContain('conv_voice_call');
-      expect(names).toContain('conv_voice_call_contact');
+      expect(names).toContain('conv_call_channel');
+      expect(names).toContain('conv_call_contact');
     });
   });
 
@@ -248,7 +248,7 @@ const skipReason = TEST_URL
     const result = await withClient(aliceToken, async (c) => {
       return parseResult<{ initiated: boolean; callId: string; channelId: string; to: string }>(
         await c.callTool({
-          name: 'conv_request_phone_call_for_my_conversation',
+          name: 'conv_request_callback',
           arguments: { conversationId: aliceConvId },
         }),
       );
@@ -266,7 +266,7 @@ const skipReason = TEST_URL
     const { calls } = stubVapiPlaceCall();
     const result = (await withClient(bobToken, async (c) => {
       return await c.callTool({
-        name: 'conv_request_phone_call_for_my_conversation',
+        name: 'conv_request_callback',
         arguments: { conversationId: aliceConvId },
       });
     })) as { isError?: boolean; content?: Array<{ text?: string }> };
@@ -285,7 +285,7 @@ const skipReason = TEST_URL
       const { calls } = stubVapiPlaceCall();
       const result = (await withClient(aliceToken, async (c) => {
         return await c.callTool({
-          name: 'conv_request_phone_call_for_my_conversation',
+          name: 'conv_request_callback',
           arguments: { conversationId: aliceConvId },
         });
       })) as { isError?: boolean; content?: Array<{ text?: string }> };
@@ -310,7 +310,7 @@ const skipReason = TEST_URL
       const { calls } = stubVapiPlaceCall();
       const result = (await withClient(bobToken, async (c) => {
         return await c.callTool({
-          name: 'conv_request_phone_call_for_my_conversation',
+          name: 'conv_request_callback',
           arguments: { conversationId: bobConvId },
         });
       })) as { isError?: boolean; content?: Array<{ text?: string }> };
@@ -325,12 +325,12 @@ const skipReason = TEST_URL
     }
   });
 
-  it('admin can place a callback for any conversation in the org via conv_voice_call_contact', async () => {
+  it('admin can place a callback for any conversation in the org via conv_call_contact', async () => {
     const { calls } = stubVapiPlaceCall({ id: 'call_admin_002', status: 'ringing' });
     const result = await withClient(adminKey, async (c) => {
       return parseResult<{ initiated: boolean; callId: string }>(
         await c.callTool({
-          name: 'conv_voice_call_contact',
+          name: 'conv_call_contact',
           arguments: { conversationId: bobConvId },
         }),
       );

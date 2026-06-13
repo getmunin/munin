@@ -139,8 +139,8 @@ export class VapiVoiceSession implements VoiceSession {
     for (const listener of this.listeners) {
       try {
         listener(event);
-      } catch {
-        // Listener errors are swallowed to keep the session loop running.
+      } catch (err) {
+        console.debug('[munin-voice] vapi listener threw:', err);
       }
     }
   }

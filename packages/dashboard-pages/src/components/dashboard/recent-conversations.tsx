@@ -48,8 +48,8 @@ export function RecentConversationsSection({
           `/v1/conversations?limit=${FETCH_LIMIT}`,
         );
         setItems(page.items);
-      } catch {
-        // hide silently on fetch errors
+      } catch (err) {
+        console.warn('[dashboard] recent conversations fetch failed:', err);
       }
     })();
   }, []);

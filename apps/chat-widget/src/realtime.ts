@@ -135,8 +135,8 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     for (const l of stateListeners) {
       try {
         l(next);
-      } catch {
-        // listener errors must never break the client
+      } catch (err) {
+        console.debug('[munin-widget] state listener threw:', err);
       }
     }
   }
@@ -193,8 +193,8 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
             sessionId,
           }),
         );
-      } catch {
-        // socket might have transitioned; let close handler reconnect
+      } catch (err) {
+        console.warn('[munin-widget] subscribe send failed:', err);
       }
     });
     socket.addEventListener('message', (event) => {
@@ -209,16 +209,16 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
         for (const l of eventListeners) {
           try {
             l(msg as IncomingEvent);
-          } catch {
-            // continue
+          } catch (err) {
+            console.debug('[munin-widget] event listener threw:', err);
           }
         }
       } else if (msg.type === 'typing') {
         for (const l of typingListeners) {
           try {
             l(msg as IncomingTyping);
-          } catch {
-            // continue
+          } catch (err) {
+            console.debug('[munin-widget] typing listener threw:', err);
           }
         }
       }
@@ -252,8 +252,8 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
       if (ws && ws.readyState !== WS.CLOSED) {
         try {
           ws.close();
-        } catch {
-          // ignore
+        } catch (err) {
+          console.warn('[munin-widget] socket close failed:', err);
         }
       }
       setState('closed');
@@ -268,8 +268,8 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
       if (ws && ws.readyState !== WS.CLOSED) {
         try {
           ws.close();
-        } catch {
-          // ignore
+        } catch (err) {
+          console.warn('[munin-widget] socket close failed during reconnect:', err);
         }
         ws = null;
       }
@@ -299,8 +299,8 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
             isTyping,
           }),
         );
-      } catch {
-        // socket might be mid-close; ignore
+      } catch (err) {
+        console.warn('[munin-widget] typing send failed:', err);
       }
     },
     sendRead(messageIds) {

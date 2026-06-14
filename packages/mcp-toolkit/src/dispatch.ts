@@ -7,6 +7,7 @@ import {
 import type { McpToolRegistry } from './registry.ts';
 import { redactSensitive } from './sensitive.ts';
 import type { RegisteredSkill, SkillRegistry } from './skill-registry.ts';
+import { SKILLS_LIST_TOOL, SKILLS_READ_TOOL, SKILL_TOOLS } from './skill-tools.ts';
 
 export interface CaptureExceptionContext {
   tool?: string;
@@ -59,8 +60,21 @@ export interface ResourceContent {
   text: string;
 }
 
+function skillToolListings(): ToolListing[] {
+  return SKILL_TOOLS.map((t) => ({
+    name: t.name,
+    description: t.description,
+    inputSchema: t.inputSchema,
+    annotations: {
+      title: t.title,
+      readOnlyHint: t.readOnlyHint,
+      destructiveHint: t.destructiveHint,
+    },
+  }));
+}
+
 export function listTools(ctx: DispatchContext): ToolListing[] {
-  return ctx.registry
+  const tools = ctx.registry
     .list(ctx.audience)
     .filter((t) => t.meta.scopes.every((s) => ctx.actor.hasScope(s)))
     .map((t) => ({
@@ -74,6 +88,10 @@ export function listTools(ctx: DispatchContext): ToolListing[] {
       },
       ...(t.meta._meta ? { _meta: t.meta._meta } : {}),
     }));
+  if (listResources(ctx).length > 0) {
+    tools.push(...skillToolListings());
+  }
+  return tools;
 }
 
 export async function callTool(
@@ -81,6 +99,10 @@ export async function callTool(
   name: string,
   args: Record<string, unknown> | undefined,
 ): Promise<ToolCallResult> {
+  if (name === SKILLS_LIST_TOOL || name === SKILLS_READ_TOOL) {
+    return callSkillTool(ctx, name, args);
+  }
+
   const tool = ctx.registry.get(name);
   if (!tool) {
     await ctx.audit.record({ tool: name, result: 'denied', error: 'unknown_tool' });
@@ -183,6 +205,55 @@ export async function callTool(
       },
     ],
   };
+}
+
+async function callSkillTool(
+  ctx: DispatchContext,
+  name: string,
+  args: Record<string, unknown> | undefined,
+): Promise<ToolCallResult> {
+  if (!ctx.skills) {
+    await ctx.audit.record({ tool: name, result: 'denied', error: 'unknown_tool' });
+    return errorResult(`Unknown tool: ${name}`);
+  }
+
+  if (name === SKILLS_LIST_TOOL) {
+    const payload = listResources(ctx).map((r) => ({
+      uri: r.uri,
+      name: r.name,
+      description: r.description,
+    }));
+    await ctx.audit.record({ tool: name, result: 'ok' });
+    return { content: [{ type: 'text' as const, text: JSON.stringify(payload) }] };
+  }
+
+  const uri = typeof args?.uri === 'string' ? args.uri : undefined;
+  if (!uri) {
+    await ctx.audit.record({
+      tool: name,
+      args: { uri: args?.uri ?? null },
+      result: 'error',
+      error: 'invalid_input: "uri" is required',
+    });
+    return errorResult('Invalid input: "uri" (string) is required');
+  }
+
+  const skill = ctx.skills.get(uri);
+  if (!skill || !skill.uri.startsWith('skill://')) {
+    await ctx.audit.record({ tool: name, args: { uri }, result: 'denied', error: 'unknown_skill' });
+    return errorResult(`Unknown skill: ${uri}`);
+  }
+  if (!skill.audiences.includes(ctx.audience)) {
+    await ctx.audit.record({
+      tool: name,
+      args: { uri },
+      result: 'denied',
+      error: 'audience_mismatch',
+    });
+    return errorResult(`Skill ${uri} is not available for this caller`);
+  }
+  await ctx.audit.record({ tool: name, args: { uri }, result: 'ok' });
+  return { content: [{ type: 'text' as const, text: skill.content }] };
 }
 
 export function listResources(ctx: DispatchContext): ResourceListing[] {

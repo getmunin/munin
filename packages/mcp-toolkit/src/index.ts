@@ -15,5 +15,12 @@ export {
   type ToolCallResult,
   type ToolListing,
 } from './dispatch.ts';
+export {
+  SKILLS_LIST_TOOL,
+  SKILLS_READ_TOOL,
+  SKILL_TOOLS,
+  getSkillToolDescriptor,
+  type SkillToolDescriptor,
+} from './skill-tools.ts';
 export { redactSensitive } from './sensitive.ts';
 export { sensitive, isSensitiveSchema } from '@getmunin/types';

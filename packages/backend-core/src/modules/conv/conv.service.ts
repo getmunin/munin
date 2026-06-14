@@ -3,6 +3,7 @@ import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
+import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
@@ -288,6 +289,22 @@ export class ConvService {
     return toConversationSummary(updated);
   }
 
+  async setSubject(input: {
+    conversationId: string;
+    subject: string | null;
+  }): Promise<ConversationSummary> {
+    const ctx = getCurrentContext();
+    const [updated] = await ctx.db
+      .update(schema.convConversations)
+      .set({ subject: input.subject, updatedAt: new Date() })
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .returning();
+    if (!updated) {
+      throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
+    }
+    return toConversationSummary(updated);
+  }
+
   // ─── Conversations ──────────────────────────────────────────────────────
 
   async listConversationsByIds(
@@ -546,6 +563,12 @@ export class ConvService {
       input.authorType !== 'system'
     ) {
       await this.enqueueEmailOutbound(firstMsg!.id, conv.id, conv.channelId);
+    }
+
+    if (input.authorType === 'end_user' && !input.topicId) {
+      await this.curatorJobs.enqueue(
+        buildSetTopicAndTitleJob({ conversationId: conv.id, channelType }),
+      );
     }
 
     return this.getConversation(conv.id);

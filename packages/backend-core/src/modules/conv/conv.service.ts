@@ -1,9 +1,10 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
+import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
@@ -123,6 +124,8 @@ export interface ConversationDetail extends ConversationSummary {
 
 @Injectable()
 export class ConvService {
+  private readonly logger = new Logger(ConvService.name);
+
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(ConversationClaimsService) private readonly claims: ConversationClaimsService,
@@ -566,12 +569,24 @@ export class ConvService {
     }
 
     if (input.authorType === 'end_user' && !input.topicId) {
-      await this.curatorJobs.enqueue(
-        buildSetTopicAndTitleJob({ conversationId: conv.id, channelType }),
-      );
+      await this.enqueueTopicAndTitleJob(conv.id, channelType);
     }
 
     return this.getConversation(conv.id);
+  }
+
+  private async enqueueTopicAndTitleJob(conversationId: string, channelType: string): Promise<void> {
+    const ctx = getCurrentContext();
+    try {
+      await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      await this.curatorJobs.enqueue(buildSetTopicAndTitleJob({ conversationId, channelType }));
+    } catch (err) {
+      this.logger.warn(
+        `failed to enqueue set-topic-and-title for ${conversationId}: ${(err as Error).message}`,
+      );
+    } finally {
+      await applyTenancyGUCs(ctx.db, ctx.actor);
+    }
   }
 
   async sendMessage(input: {

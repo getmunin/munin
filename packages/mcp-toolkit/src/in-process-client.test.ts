@@ -274,6 +274,116 @@ describe('openInProcessMcpClient', () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  function skillsRegistry(): SkillRegistry {
+    const skills = new SkillRegistry();
+    skills.register({
+      uri: 'skill://playbooks/frontend-integration',
+      name: 'Frontend integration',
+      description: 'Wire a frontend to a Munin tenant',
+      audiences: ['admin'],
+      mimeType: 'text/markdown',
+      content: '# Frontend integration\nbody',
+      public: true,
+    });
+    skills.register({
+      uri: 'skill://kb/self-help',
+      name: 'Self help',
+      description: 'End-user guide',
+      audiences: ['self_service'],
+      mimeType: 'text/markdown',
+      content: '# self',
+      public: true,
+    });
+    return skills;
+  }
+
+  it('exposes skills_list and skills_read tools when skills are present', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      skills: skillsRegistry(),
+    });
+    const names = (await client.listTools()).map((t) => t.name);
+    expect(names).toContain('skills_list');
+    expect(names).toContain('skills_read');
+  });
+
+  it('does not expose skill tools when no skills are visible to the audience', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+    });
+    const names = (await client.listTools()).map((t) => t.name);
+    expect(names).not.toContain('skills_list');
+    expect(names).not.toContain('skills_read');
+  });
+
+  it('skills_list returns audience-filtered skill URIs', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      skills: skillsRegistry(),
+    });
+    const out = await runInCtx(adminActor(), () => client.callTool('skills_list', {}));
+    expect(out.isError).toBeUndefined();
+    const listed = JSON.parse(out.content[0]!.text) as Array<{ uri: string }>;
+    const uris = listed.map((s) => s.uri);
+    expect(uris).toContain('skill://playbooks/frontend-integration');
+    expect(uris).not.toContain('skill://kb/self-help');
+  });
+
+  it('skills_read returns the skill markdown by URI', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      skills: skillsRegistry(),
+    });
+    const out = await runInCtx(adminActor(), () =>
+      client.callTool('skills_read', { uri: 'skill://playbooks/frontend-integration' }),
+    );
+    expect(out.isError).toBeUndefined();
+    expect(out.content[0]!.text).toContain('# Frontend integration');
+  });
+
+  it('skills_read denies a skill outside the caller audience', async () => {
+    fakeAudit.record.mockClear();
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      skills: skillsRegistry(),
+    });
+    const out = await runInCtx(adminActor(), () =>
+      client.callTool('skills_read', { uri: 'skill://kb/self-help' }),
+    );
+    expect(out.isError).toBe(true);
+    expect(fakeAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: 'skills_read', result: 'denied', error: 'audience_mismatch' }),
+    );
+  });
+
+  it('skills_read errors on a missing uri argument', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      skills: skillsRegistry(),
+    });
+    const out = await runInCtx(adminActor(), () => client.callTool('skills_read', {}));
+    expect(out.isError).toBe(true);
+    expect(out.content[0]!.text).toMatch(/uri/);
+  });
+
   it('readResource returns audience-filtered skill content', () => {
     const skills = new SkillRegistry();
     skills.register({

@@ -577,6 +577,7 @@ export class ConvService {
 
   private async enqueueTopicAndTitleJob(conversationId: string, channelType: string): Promise<void> {
     const ctx = getCurrentContext();
+    if (!ctx.actor) return;
     try {
       await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
       await this.curatorJobs.enqueue(buildSetTopicAndTitleJob({ conversationId, channelType }));

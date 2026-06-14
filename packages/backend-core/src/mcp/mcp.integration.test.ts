@@ -192,6 +192,33 @@ const skipReason = TEST_URL
     });
   });
 
+  it('exposes skills via the skills_list / skills_read tools for resource-blind clients', async () => {
+    await withClient(adminKey, async (c) => {
+      const { tools } = await c.listTools();
+      const names = tools.map((t) => t.name);
+      expect(names).toContain('skills_list');
+      expect(names).toContain('skills_read');
+
+      const listed = await c.callTool({ name: 'skills_list', arguments: {} });
+      const listText =
+        Array.isArray(listed.content) && listed.content[0] && 'text' in listed.content[0]
+          ? (listed.content[0] as { text: string }).text
+          : '';
+      const uris = (JSON.parse(listText) as Array<{ uri: string }>).map((s) => s.uri);
+      expect(uris).toContain('skill://playbooks/frontend-integration');
+
+      const read = await c.callTool({
+        name: 'skills_read',
+        arguments: { uri: 'skill://playbooks/frontend-integration' },
+      });
+      const readText =
+        Array.isArray(read.content) && read.content[0] && 'text' in read.content[0]
+          ? (read.content[0] as { text: string }).text
+          : '';
+      expect(readText).toContain('Frontend integration');
+    });
+  });
+
   it('end-user agent does not see admin-only skills', async () => {
     await withClient(endUserToken, async (c) => {
       const { resources } = await c.listResources();

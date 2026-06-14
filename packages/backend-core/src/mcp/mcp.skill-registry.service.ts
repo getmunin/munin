@@ -41,6 +41,8 @@ function buildInstructions(adminSkills: ReadonlyArray<{ uri: string; name: strin
     '',
     'Multi-step workflows have detailed skills. Call `resources/list` to discover',
     'them (URIs use the `skill://` scheme), then `resources/read` to fetch one.',
+    'If your client does not expose MCP resources, use the `skills_list` and',
+    '`skills_read` tools instead — same content, same URIs.',
     'Cross-module workflows live under `skill://playbooks/*`.',
   ];
   if (featured.length > 0) {

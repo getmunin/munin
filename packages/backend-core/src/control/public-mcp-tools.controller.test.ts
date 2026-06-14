@@ -83,12 +83,37 @@ describe('PublicMcpToolsController', () => {
     if (app) await app.close();
   });
 
-  it('GET /v1/public/mcp-tools lists every registered tool', async () => {
+  it('GET /v1/public/mcp-tools lists every registered tool plus the skill tools', async () => {
     const res = await fetch(`${baseUrl}/v1/public/mcp-tools`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as Array<{ name: string }>;
     const names = body.map((t) => t.name).sort();
-    expect(names).toEqual(['conv_reply', 'crm_delete_person', 'kb_search']);
+    expect(names).toEqual([
+      'conv_reply',
+      'crm_delete_person',
+      'kb_search',
+      'skills_list',
+      'skills_read',
+    ]);
+  });
+
+  it('exposes the synthetic skill tools with read-only metadata and a schema', async () => {
+    const list = (await (await fetch(`${baseUrl}/v1/public/mcp-tools`)).json()) as Array<
+      Record<string, unknown>
+    >;
+    const read = list.find((t) => t.name === 'skills_read')!;
+    expect(read).toMatchObject({
+      name: 'skills_read',
+      audiences: ['admin', 'self_service'],
+      scopes: [],
+      readOnly: true,
+      danger: null,
+    });
+
+    const detail = (await (
+      await fetch(`${baseUrl}/v1/public/mcp-tools/skills_read`)
+    ).json()) as Record<string, unknown>;
+    expect((detail.inputSchema as { properties?: object }).properties).toHaveProperty('uri');
   });
 
   it('list response carries audiences, scopes, and danger derived from hints', async () => {

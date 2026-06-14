@@ -111,7 +111,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
     it('every tool name follows the <module>_<verb> convention or is a known utility', async () => {
       const tools = await admin.listTools();
       const KNOWN_PREFIXES = Object.values(EXPECTED_BY_MODULE);
-      const UTILITY_TOOLS = new Set(['ping']);
+      const UTILITY_TOOLS = new Set(['ping', 'skills_list', 'skills_read']);
       for (const t of tools) {
         if (UTILITY_TOOLS.has(t.name)) continue;
         const matchesAny = KNOWN_PREFIXES.some((re) => re.test(t.name));

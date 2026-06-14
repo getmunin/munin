@@ -9,6 +9,8 @@ import { schema, type Tx } from '@getmunin/db';
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { WebhookDispatcher, getCurrentContext, verifyHmac } from '@getmunin/core';
 import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
+import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
+import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import { WidgetChannelConfig } from './widget.types.ts';
 import type {
   WidgetConversationEnvelope,
@@ -34,7 +36,10 @@ export type IdentityResolution =
 
 @Injectable()
 export class WidgetIngestService {
-  constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
+  constructor(
+    @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
+    @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
+  ) {}
 
   async ingest(
     orgId: string,
@@ -589,6 +594,18 @@ export class WidgetIngestService {
       input,
     );
 
+    const priorEndUser = await tx
+      .select({ id: schema.convMessages.id })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conv.id),
+          eq(schema.convMessages.authorType, 'end_user'),
+        ),
+      )
+      .limit(1);
+    const hadEndUserBefore = !!priorEndUser[0];
+
     let inserted = 0;
     let skipped = 0;
     const events: Array<{ messageId: string; authorType: string }> = [];
@@ -678,6 +695,12 @@ export class WidgetIngestService {
           internal: false,
         },
       });
+    }
+
+    if (!hadEndUserBefore && inserted > 0) {
+      await this.curatorJobs.enqueue(
+        buildSetTopicAndTitleJob({ conversationId: conv.id, channelType: 'chat' }),
+      );
     }
 
     return {

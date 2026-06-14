@@ -9,6 +9,8 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { DB } from '../../../common/db/db.module.ts';
+import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
+import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import type { ChannelRow, InboundBatch } from './adapter.ts';
 
 @Injectable()
@@ -18,6 +20,7 @@ export class ChannelIngestService {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
+    @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
   ) {}
 
   async ingest(channel: ChannelRow, batch: InboundBatch): Promise<{ ingested: number }> {
@@ -115,6 +118,9 @@ export class ChannelIngestService {
             internal: false,
           },
         });
+        await this.curatorJobs.enqueue(
+          buildSetTopicAndTitleJob({ conversationId: conversation!.id, channelType: channel.type }),
+        );
         return true;
       });
     });

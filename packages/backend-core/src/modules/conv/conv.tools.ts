@@ -64,6 +64,11 @@ const SetTopicInput = z.object({
   topicId: z.string().nullable(),
 });
 
+const SetSubjectInput = z.object({
+  conversationId: z.string(),
+  subject: z.string().min(1).max(200).nullable(),
+});
+
 const StripMessageSignatureInput = z.object({
   messageId: z.string(),
   body: z.string().min(1).max(50_000),
@@ -256,6 +261,21 @@ export class ConvAdminTools {
   })
   setTopic(args: z.infer<typeof SetTopicInput>) {
     return this.conv.setTopic(args);
+  }
+
+  @McpTool({
+    name: 'conv_set_subject',
+    title: 'Conv: Set or clear a conversation subject',
+    description:
+      "Set a conversation's subject — the short human-readable title shown in the inbox and the chat widget — or pass `subject: null` to clear it. Used by the set-topic-and-title curator skill to title conversations that arrive without a subject (chat, SMS, voice). Email conversations already carry the email Subject line; don't overwrite it.",
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: SetSubjectInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  setSubject(args: z.infer<typeof SetSubjectInput>) {
+    return this.conv.setSubject(args);
   }
 
   @McpTool({

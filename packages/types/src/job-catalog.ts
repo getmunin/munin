@@ -15,6 +15,7 @@ export const KNOWN_SKILL_URIS: ReadonlySet<string> = new Set([
   'skill://outreach/draft-initial-email',
   'skill://outreach/draft-reply-email',
   'skill://conv/strip-email-signature',
+  'skill://conv/set-topic-and-title',
 ]);
 
 export const WEB_SCRAPE_SITE_TASK_URI = 'task://web/scrape-website';
@@ -23,6 +24,7 @@ export const KNOWN_TASK_URIS: ReadonlySet<string> = new Set([WEB_SCRAPE_SITE_TAS
 
 const TIER_BY_URI: ReadonlyMap<string, ModelTier> = new Map([
   ['skill://conv/strip-email-signature', 'fast'],
+  ['skill://conv/set-topic-and-title', 'fast'],
 ]);
 
 export function tierFor(uri: string): ModelTier {
@@ -37,6 +39,7 @@ const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
   ['skill://outreach/draft-reply-email', ['conv_', 'kb_', 'crm_', 'outreach_']],
   ['skill://cms/review-stale-entries', ['cms_']],
   ['skill://conv/strip-email-signature', ['conv_strip_message_signature']],
+  ['skill://conv/set-topic-and-title', ['conv_']],
 ]);
 
 export function toolPrefixesFor(uri: string): readonly string[] | undefined {

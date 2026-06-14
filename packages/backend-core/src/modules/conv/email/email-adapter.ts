@@ -19,6 +19,7 @@ import { createTransport, type Transporter } from 'nodemailer';
 import { DB } from '../../../common/db/db.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
+import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import {
   EmailService,
   jsonbToStored,
@@ -399,6 +400,12 @@ export class EmailAdapter implements ChannelAdapter {
             },
             dedupeKey: `strip-sig:msg:${msg!.id}`,
           });
+        }
+
+        if (!resolution) {
+          await this.curatorJobs.enqueue(
+            buildSetTopicAndTitleJob({ conversationId, channelType: 'email' }),
+          );
         }
       });
     });

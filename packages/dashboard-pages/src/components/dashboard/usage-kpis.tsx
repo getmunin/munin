@@ -101,7 +101,7 @@ function Kpi({ label, value, previous, spark, format, lowerIsBetter, tone = 'acc
             : 'font-mono text-[10px] text-ink-mute'
         }
       >
-        {delta?.label ?? ' '}
+        {delta?.label ?? ' '}
       </div>
       <Spark className="mt-2" values={spark} tone={tone} />
     </div>

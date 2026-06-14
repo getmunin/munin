@@ -14,10 +14,13 @@ export function Spark({ values, className, tone = 'accent' }: SparkProps) {
   const min = Math.min(...values);
   const w = 200;
   const h = 22;
+  const pad = 2;
+  const range = max - min;
   const points = values
     .map((v, i) => {
       const x = (i / (values.length - 1)) * w;
-      const y = h - ((v - min) / Math.max(1, max - min)) * h;
+      const t = range === 0 ? 0 : (v - min) / range;
+      const y = h - pad - t * (h - 2 * pad);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(' ');

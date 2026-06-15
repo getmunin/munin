@@ -247,7 +247,9 @@ export interface InboxController {
   kbBodies: Record<string, string>;
   cmsDetails: Record<string, CmsDraftDetailDto>;
   detailErrors: Record<string, string>;
+  queueDetailErrors: Record<string, string>;
   reloadDetail: (id: string) => Promise<void>;
+  reloadQueueDetail: (id: string) => void;
   actionError: ConvActionError;
   clearActionError: () => void;
   connectionStatus: RealtimeStatus;
@@ -279,6 +281,7 @@ export function useInboxData(): InboxController {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
+  const [queueDetailErrors, setQueueDetailErrors] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<ConvActionError>(null);
 
   const loadInbox = useCallback(async () => {
@@ -344,23 +347,45 @@ export function useInboxData(): InboxController {
     void loadDetail(convDrawer.id);
   }, [convDrawer, loadDetail]);
 
+  const loadKbBody = useCallback(async (id: string) => {
+    try {
+      const doc = await api<KbCandidateDto & { body: string }>(
+        `/v1/kb/curation/candidates/${id}`,
+      );
+      setKbBodies((prev) => ({ ...prev, [id]: doc.body }));
+      setQueueDetailErrors((prev) => clearKey(prev, id));
+    } catch (err) {
+      setQueueDetailErrors((prev) => ({ ...prev, [id]: messageOf(err) }));
+    }
+  }, []);
+
+  const loadCmsDetail = useCallback(async (id: string) => {
+    try {
+      const doc = await api<CmsDraftDetailDto>(`/v1/cms/drafts/${id}`);
+      setCmsDetails((prev) => ({ ...prev, [id]: doc }));
+      setQueueDetailErrors((prev) => clearKey(prev, id));
+    } catch (err) {
+      setQueueDetailErrors((prev) => ({ ...prev, [id]: messageOf(err) }));
+    }
+  }, []);
+
+  const reloadQueueDetail = useCallback((id: string) => {
+    setQueueDetailErrors((prev) => clearKey(prev, id));
+  }, []);
+
   useEffect(() => {
     if (!queueDrawer || queueDrawer.kind !== 'kb') return;
     if (kbBodies[queueDrawer.id] !== undefined) return;
-    void api<KbCandidateDto & { body: string }>(
-      `/v1/kb/curation/candidates/${queueDrawer.id}`,
-    )
-      .then((doc) => setKbBodies((prev) => ({ ...prev, [queueDrawer.id]: doc.body })))
-      .catch(() => {});
-  }, [queueDrawer, kbBodies]);
+    if (queueDetailErrors[queueDrawer.id]) return;
+    void loadKbBody(queueDrawer.id);
+  }, [queueDrawer, kbBodies, queueDetailErrors, loadKbBody]);
 
   useEffect(() => {
     if (!queueDrawer || queueDrawer.kind !== 'cms') return;
     if (cmsDetails[queueDrawer.id] !== undefined) return;
-    void api<CmsDraftDetailDto>(`/v1/cms/drafts/${queueDrawer.id}`)
-      .then((doc) => setCmsDetails((prev) => ({ ...prev, [queueDrawer.id]: doc })))
-      .catch(() => {});
-  }, [queueDrawer, cmsDetails]);
+    if (queueDetailErrors[queueDrawer.id]) return;
+    void loadCmsDetail(queueDrawer.id);
+  }, [queueDrawer, cmsDetails, queueDetailErrors, loadCmsDetail]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];
@@ -690,7 +715,9 @@ export function useInboxData(): InboxController {
     kbBodies,
     cmsDetails,
     detailErrors,
+    queueDetailErrors,
     reloadDetail,
+    reloadQueueDetail,
     actionError,
     clearActionError,
     connectionStatus,
@@ -808,7 +835,9 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     kbBodies,
     cmsDetails,
     detailErrors,
+    queueDetailErrors,
     reloadDetail,
+    reloadQueueDetail,
     actionError,
     clearActionError,
     send,
@@ -890,6 +919,8 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
               cmsDetail={
                 queueDrawer.kind === 'cms' ? cmsDetails[queueDrawer.id] : undefined
               }
+              detailError={queueDetailErrors[queueDrawer.id]}
+              onRetryDetail={() => reloadQueueDetail(queueDrawer.id)}
               pending={pending}
               onApprove={() => void approveQueue(queueDrawer)}
               onDismiss={() => void dismissQueue(queueDrawer)}
@@ -1606,4 +1637,11 @@ function truncate(s: string, n: number): string {
 function messageOf(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : 'Unknown error';
+}
+
+function clearKey<T>(obj: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in obj)) return obj;
+  const next = { ...obj };
+  delete next[key];
+  return next;
 }

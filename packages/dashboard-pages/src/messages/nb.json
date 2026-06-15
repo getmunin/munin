@@ -331,6 +331,7 @@
         "seenAt": "Sett {time}",
         "loadFailedEyebrow": "Kunne ikke laste",
         "loadFailedTitle": "Denne samtalen lot seg ikke laste.",
+        "detailLoadFailed": "Innholdet lot seg ikke laste.",
         "actionFailed": {
           "send": "Kunne ikke sende svaret ditt",
           "takeOver": "Kunne ikke overta",

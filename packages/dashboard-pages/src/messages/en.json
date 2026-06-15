@@ -331,6 +331,7 @@
         "seenAt": "Seen {time}",
         "loadFailedEyebrow": "Couldn't load",
         "loadFailedTitle": "This conversation didn't load.",
+        "detailLoadFailed": "This didn't load.",
         "actionFailed": {
           "send": "Couldn't send your reply",
           "takeOver": "Couldn't take over",

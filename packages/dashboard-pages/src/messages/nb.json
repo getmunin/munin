@@ -191,7 +191,7 @@
       "disconnectedTag": "Frakoblet",
       "disconnectedMessage": "Tilkoblingen er borte. Kobler til igjen…",
       "agentOfflineTag": "Agent-tjeneren er nede",
-      "agentOfflineMessage": "Agent-tjeneren når ikke AI-leverandøren — <em>{reason}</em>. Utkast og automatiske svar er satt på pause til legitimasjonen er gjenopprettet.",
+      "agentOfflineMessage": "Agent-tjeneren når ikke AI-leverandøren — <em>{reason}</em>. Utkast og automatiske svar er satt på pause til påloggingsinformasjonen er gjenopprettet.",
       "openAiSettings": "Åpne AI-innstillinger →",
       "providerErrorAuth": "API-nøkkel mangler eller er ugyldig",
       "providerErrorRegional": "leverandørens region er ikke aktivert — sjekk leverandørkontoen eller bytt leverandør",
@@ -490,7 +490,7 @@
       "sendTestEmail": "Send test-e-post",
       "sendTest": {
         "title": "Send en test-e-post",
-        "description": "Send en ekte melding gjennom {name} sin utgående transport for å bekrefte legitimasjon og leveranse.",
+        "description": "Send en ekte melding gjennom {name} sin utgående transport for å bekrefte påloggingsinformasjon og leveranse.",
         "toLabel": "Mottaker",
         "toHint": "Forhåndsutfylt med e-postadressen din — endre den for å sende testen et annet sted.",
         "submit": "Send test",
@@ -537,12 +537,12 @@
       },
       "addSmsDialog": {
         "title": "Legg til en SMS-kanal",
-        "description": "Velg en leverandør og konfigurer legitimasjon. SMS kommer inn via samme generiske webhook uansett leverandør — Munin verifiserer hver leverandørs signatur før innlesing.",
+        "description": "Velg en leverandør og konfigurer påloggingsinformasjon. SMS kommer inn via samme generiske webhook uansett leverandør — Munin verifiserer hver leverandørs signatur før innlesing.",
         "create": "Opprett SMS-kanal"
       },
       "addVoiceDialog": {
         "title": "Legg til en stemmekanal",
-        "description": "Velg en stemme-AI-leverandør og koble til legitimasjon. Leverandøren kjører hele samtalen (STT, LLM, TTS); Munin mottar transkripsjoner og samtaledata via samme webhook.",
+        "description": "Velg en stemme-AI-leverandør og koble til påloggingsinformasjon. Leverandøren kjører hele samtalen (STT, LLM, TTS); Munin mottar transkripsjoner og samtaledata via samme webhook.",
         "create": "Opprett stemmekanal"
       },
       "twilioSms": {
@@ -564,7 +564,7 @@
         "accountSidChip": "account · {sid}",
         "sendTestDialog": {
           "title": "Send en test-SMS",
-          "description": "Send en ekte SMS gjennom {name} for å bekrefte legitimasjon og leveranse.",
+          "description": "Send en ekte SMS gjennom {name} for å bekrefte påloggingsinformasjon og leveranse.",
           "toLabel": "Mottaker",
           "toHint": "E.164-format (f.eks. +4712345678). På en Twilio prøvekonto kan kun verifiserte numre motta.",
           "bodyLabel": "Melding (valgfritt)",
@@ -590,7 +590,7 @@
         "sendTest": "Send test-SMS",
         "sendTestDialog": {
           "title": "Send en test-SMS",
-          "description": "Send en ekte SMS gjennom {name} via MessageBird for å bekrefte legitimasjon og leveranse.",
+          "description": "Send en ekte SMS gjennom {name} via MessageBird for å bekrefte påloggingsinformasjon og leveranse.",
           "toLabel": "Mottaker",
           "toHint": "E.164-format (f.eks. +4712345678).",
           "bodyLabel": "Melding (valgfritt)",
@@ -702,7 +702,7 @@
         "placeThrellCall": "Kunne ikke starte stemmeanrop.",
         "rotate": "Kunne ikke rotere nøkkel.",
         "rotateIdentity": "Kunne ikke rotere identitetshemmelighet.",
-        "test": "Kunne ikke teste e-postlegitimasjon.",
+        "test": "Kunne ikke teste påloggingsinformasjon for e-post.",
         "sendTest": "Kunne ikke sende test-e-post.",
         "sendTestSms": "Kunne ikke sende test-SMS.",
         "delete": "Kunne ikke slette kanalen.",
@@ -723,8 +723,8 @@
       "nameHint": "Til intern referanse. Små bokstaver, ingen mellomrom.",
       "namePlaceholder": "f.eks. getmunin-landing",
       "originsLabel": "Tillatte opphav",
-      "originsHint": "Komma- eller mellomromseparerte opphav (fulle URL-er med skjema + vert). Tomt felt godtar alle opphav.",
-      "originsInvalid": "Ikke en gyldig URL: {invalid}. Hvert opphav må inneholde skjema + vert, f.eks. https://eksempel.no.",
+      "originsHint": "Komma- eller mellomromseparerte opphav (fulle URL-er med scheme + vert). Tomt felt godtar alle opphav.",
+      "originsInvalid": "Ikke en gyldig URL: {invalid}. Hvert opphav må inneholde scheme + vert, f.eks. https://eksempel.no.",
       "createSubmit": "Opprett sporer",
       "createdTitle": "Sporer opprettet — kopier disse hemmelighetene nå",
       "createdDescription": "To verdier for {name}. Sporenøkkelen vises kun ved opprettelse, identitetshemmeligheten kun ved opprettelse og rotasjon.",
@@ -1028,7 +1028,7 @@
     "auditLog": {
       "eyebrow": "Overvåking · Hendelseslogg",
       "title": "Munins <em>krønike</em>.",
-      "subtitle": "Vedheft-bare spor av hver administrative handling. Du kan ikke endre eller slette oppføringer; eksporter dem med arbeidsområde-eksporten.",
+      "subtitle": "Et kun-tillegg-spor over hver administrative handling. Du kan ikke endre eller slette oppføringer; eksporter dem med arbeidsområde-eksporten.",
       "trailTitleCount": "Spor · {count}",
       "trailTitle": "Spor",
       "appendOnly": "kun tillegg",
@@ -1204,7 +1204,7 @@
       },
       "models": {
         "title": "Modeller",
-        "blurb": "Modell-leverandør og legitimasjon. Brukes av alle jobbene under."
+        "blurb": "Modell-leverandør og påloggingsinformasjon. Brukes av alle jobbene under."
       },
       "conversational": {
         "title": "Samtale",
@@ -1273,7 +1273,7 @@
     "INVITATION_REVOKED": "Denne invitasjonen er tilbakekalt.",
     "INVITATION_EMAIL_MISMATCH": "Denne invitasjonen er for en annen e-postadresse.",
     "UNAUTHORIZED": "Du må logge inn for å gjøre det.",
-    "INVALID_CREDENTIAL": "Ugyldig eller utløpt legitimasjon.",
+    "INVALID_CREDENTIAL": "Ugyldig eller utløpt påloggingsinformasjon.",
     "FORBIDDEN": "Du har ikke tilgang til å gjøre det.",
     "NOT_FOUND": "Ikke funnet.",
     "BAD_REQUEST": "Ugyldig forespørsel.",

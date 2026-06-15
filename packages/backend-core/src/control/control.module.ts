@@ -80,8 +80,11 @@ import { AuthProvidersController } from './auth-providers.controller.ts';
     UsageController,
     ExportController,
     WebhooksController,
-    CmsDeliveryController,
+    // CmsDraftsController must precede CmsDeliveryController: its static
+    // `v1/cms/drafts/:id` route otherwise loses (first-match-wins) to the
+    // public `v1/cms/:orgId/:collectionSlug` wildcard, 404ing draft reads.
     CmsDraftsController,
+    CmsDeliveryController,
     AnalyticsViewsController,
     AnalyticsTrackerController,
     AnalyticsTrackersController,

@@ -212,6 +212,42 @@ const skipReason = TEST_URL
     expect(fetched.status).toBe(404);
   }, 30_000);
 
+  it('admin drafts route is not shadowed by the public delivery wildcard', async () => {
+    // `GET /v1/cms/drafts/:id` and the public `GET /v1/cms/:orgId/:collectionSlug`
+    // are both 4-segment routes; `/v1/cms/drafts/<id>` matches both. If the public
+    // controller is registered first it wins (first-match-wins) and 404s with
+    // `cms_not_found: org drafts`, never reaching the auth-guarded drafts route.
+    let draftId = '';
+    await withClient(adminKey, async (c) => {
+      const created = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'pages',
+            slug: 'draft-for-review',
+            data: { title: 'Pending review', slug: 'draft-for-review', body: 'Body.' },
+            status: 'draft',
+          },
+        }),
+      );
+      draftId = created.id;
+    });
+
+    // Unauthenticated: must reach the guarded drafts controller (401), NOT the
+    // anonymous public wildcard (which would 404 on org "drafts").
+    const anon = await fetch(`${baseUrl}/v1/cms/drafts/${draftId}`);
+    expect(anon.status).toBe(401);
+
+    // Authenticated admin: the draft is served for review.
+    const authed = await fetch(`${baseUrl}/v1/cms/drafts/${draftId}`, {
+      headers: { Authorization: `Bearer ${adminKey}` },
+    });
+    expect(authed.status).toBe(200);
+    const body = (await authed.json()) as { id: string; status: string };
+    expect(body.id).toBe(draftId);
+    expect(body.status).toBe('draft');
+  }, 30_000);
+
   it('schedule worker promotes due scheduled entries', async () => {
     let entryId = '';
     let entryVersion = 0;

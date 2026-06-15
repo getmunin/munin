@@ -384,6 +384,60 @@ describe('openInProcessMcpClient', () => {
     expect(out.content[0]!.text).toMatch(/uri/);
   });
 
+  function templatedSkills(): SkillRegistry {
+    const skills = new SkillRegistry();
+    skills.register({
+      uri: 'skill://playbooks/frontend-integration',
+      name: 'Frontend integration',
+      description: 'Wire a frontend to a Munin tenant',
+      audiences: ['admin'],
+      mimeType: 'text/markdown',
+      content: 'src={{API_URL}}/widget.js for {{ORG_ID}}',
+      public: true,
+    });
+    return skills;
+  }
+
+  it('skills_read substitutes API_URL and ORG_ID into the skill body', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor('org_abc'),
+      audience: 'admin',
+      audit: fakeAudit,
+      skills: templatedSkills(),
+      apiBaseUrl: 'https://api.getmunin.com',
+    });
+    const out = await runInCtx(adminActor('org_abc'), () =>
+      client.callTool('skills_read', { uri: 'skill://playbooks/frontend-integration' }),
+    );
+    expect(out.content[0]!.text).toBe('src=https://api.getmunin.com/widget.js for org_abc');
+  });
+
+  it('readResource substitutes API_URL and ORG_ID into the skill body', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor('org_abc'),
+      audience: 'admin',
+      audit: fakeAudit,
+      skills: templatedSkills(),
+      apiBaseUrl: 'https://api.getmunin.com',
+    });
+    const out = await client.readResource('skill://playbooks/frontend-integration');
+    expect(out.text).toBe('src=https://api.getmunin.com/widget.js for org_abc');
+  });
+
+  it('leaves placeholders intact when no apiBaseUrl is provided', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor('org_abc'),
+      audience: 'admin',
+      audit: fakeAudit,
+      skills: templatedSkills(),
+    });
+    const out = await client.readResource('skill://playbooks/frontend-integration');
+    expect(out.text).toBe('src={{API_URL}}/widget.js for org_abc');
+  });
+
   it('readResource returns audience-filtered skill content', () => {
     const skills = new SkillRegistry();
     skills.register({

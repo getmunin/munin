@@ -27,6 +27,7 @@ export interface DispatchContext {
   audit: AuditLogger;
   rateLimit?: (toolName: string) => Promise<void> | void;
   skills?: SkillRegistry;
+  apiBaseUrl?: string;
   captureException?: CaptureExceptionFn;
 }
 
@@ -253,7 +254,14 @@ async function callSkillTool(
     return errorResult(`Skill ${uri} is not available for this caller`);
   }
   await ctx.audit.record({ tool: name, args: { uri }, result: 'ok' });
-  return { content: [{ type: 'text' as const, text: skill.content }] };
+  return { content: [{ type: 'text' as const, text: renderSkill(ctx, skill) }] };
+}
+
+function renderSkill(ctx: DispatchContext, skill: RegisteredSkill): string {
+  let out = skill.content;
+  if (ctx.apiBaseUrl) out = out.split('{{API_URL}}').join(ctx.apiBaseUrl);
+  if (ctx.actor.orgId) out = out.split('{{ORG_ID}}').join(ctx.actor.orgId);
+  return out;
 }
 
 export function listResources(ctx: DispatchContext): ResourceListing[] {
@@ -279,7 +287,7 @@ export function readResource(ctx: DispatchContext, uri: string): ResourceContent
   return {
     uri: skill.uri,
     mimeType: skill.mimeType,
-    text: skill.content,
+    text: renderSkill(ctx, skill),
   };
 }
 

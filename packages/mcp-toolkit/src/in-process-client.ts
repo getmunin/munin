@@ -21,6 +21,7 @@ export interface OpenInProcessMcpClientOptions {
   audit: AuditLogger;
   rateLimit?: (toolName: string) => Promise<void> | void;
   skills?: SkillRegistry;
+  apiBaseUrl?: string;
   captureException?: CaptureExceptionFn;
 }
 
@@ -39,6 +40,7 @@ export function openInProcessMcpClient(opts: OpenInProcessMcpClientOptions): InP
     audit: opts.audit,
     rateLimit: opts.rateLimit,
     skills: opts.skills,
+    apiBaseUrl: opts.apiBaseUrl,
     captureException: opts.captureException,
   };
   return {

@@ -26,6 +26,7 @@ import {
   type ErrorReporter,
 } from '../common/error-reporter/error-reporter.ts';
 import { deriveMcpAudience } from './mcp.audience.ts';
+import { mcpResourceOrigin } from '../oauth/oauth.constants.ts';
 
 /**
  * Streamable HTTP entry point for the MCP server.
@@ -83,6 +84,7 @@ export class McpController {
         await this.quotas.recordCall('mcp_tool', toolName);
       },
       skills: this.skills,
+      apiBaseUrl: mcpResourceOrigin(),
       instructions: this.skills.instructions(),
       captureException: (error, context) => this.errorReporter.captureException(error, context),
     });

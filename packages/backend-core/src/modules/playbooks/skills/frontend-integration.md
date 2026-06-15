@@ -10,7 +10,7 @@ You're a coding agent setting up a frontend that talks to an existing Munin tena
 
 - **Chat widget** — drop-in `<script>` from `{{API_URL}}/widget.js`. Adds the bubble UI.
 - **Analytics tracker** — drop-in `<script>` from `{{API_URL}}/tracker.js`. Records page views.
-- **CMS delivery** — anonymous `GET {{API_URL}}/v1/cms/{orgId}/{collectionSlug}` JSON for live content.
+- **CMS delivery** — anonymous `GET {{API_URL}}/v1/cms/{{ORG_ID}}/{collectionSlug}` JSON for live content.
 
 Each has a sibling skill with the canonical details:
 - `skill://conv/setup-chat-widget`
@@ -19,20 +19,17 @@ Each has a sibling skill with the canonical details:
 
 This playbook exists because coding-agent platforms (Lovable, Bolt, Replit, v0, Claude Code, Cursor, …) hit the same handful of misconfigurations every time. Read this once before scaffolding so you don't burn three turns guessing.
 
-## Before you start — establish `API_URL` and preview origin(s)
+## Before you start — `API_URL`, org id, and preview origin(s)
 
-You can mint widget keys and tracker keys yourself via MCP, but two values must come from outside the MCP server:
+You can mint widget keys and tracker keys yourself via MCP. `API_URL` and your org id are already known — only the preview origin must come from the operator.
 
 ### 1. `API_URL` — the Munin API origin
 
-The same origin serves `/widget.js`, `/tracker.js`, `/v1/cms/*`, and `/mcp`. Cloud is `https://api.getmunin.com`; OSS dev is typically `http://localhost:3001`; self-host is whatever the operator deployed to. **There is no default — never guess the host.**
+The same origin serves `/widget.js`, `/tracker.js`, `/v1/cms/*`, and `/mcp`. **The MCP server has already told you this value** — it's stated in the server instructions you received on connect, and every `{{API_URL}}` in this playbook has been substituted with it. Use it as-is; do not ask the operator and do not guess (the cloud default `https://api.getmunin.com` is only correct for cloud tenants — self-host and OSS dev differ).
 
-Resolution order:
+If for some reason the value is still the literal `{{API_URL}}` (an old client that doesn't substitute), fall back to the operator's env (`MUNIN_API_URL`, `NEXT_PUBLIC_API_URL`, `VITE_API_URL`, `API_URL`) and only ask as a last resort.
 
-1. **Check the operator's env first.** Look for one of these, in order of specificity: `MUNIN_API_URL`, `NEXT_PUBLIC_API_URL`, `VITE_API_URL`, `API_URL`. If set, use it and skip the ask.
-2. **Otherwise, ask the operator** for the URL of their Munin tenant.
-
-Once resolved, **write it into the frontend's env file** under the name the framework reads at build time, not hardcoded into source. Conventions by framework:
+**Write it into the frontend's env file** under the name the framework reads at build time, not hardcoded into source. Conventions by framework:
 
 | Framework | Env var name | Read in code as |
 |---|---|---|
@@ -161,12 +158,12 @@ This is where every coding agent gets stuck. The CMS delivery API is public, ano
 
 ### The endpoint
 
-- List entries: `GET {{API_URL}}/v1/cms/{orgId}/{collectionSlug}?locale=en&limit=20`
-- Single entry by slug: `GET {{API_URL}}/v1/cms/{orgId}/{collectionSlug}/{entrySlug}?locale=en`
+- List entries: `GET {{API_URL}}/v1/cms/{{ORG_ID}}/{collectionSlug}?locale=en&limit=20`
+- Single entry by slug: `GET {{API_URL}}/v1/cms/{{ORG_ID}}/{collectionSlug}/{entrySlug}?locale=en`
 
 Returns plain JSON: `{ data: [...] }` for the list, `{ data: {...} }` for one entry. No auth header.
 
-The `orgId` is the same `org_…` value the operator's Munin login shows; ask for it if you don't already have it (it's not derivable from the API URL alone). Store it in env too — `MUNIN_ORG_ID` / `NEXT_PUBLIC_MUNIN_ORG_ID` / `VITE_MUNIN_ORG_ID` per the framework convention above.
+`{{ORG_ID}}` above is your tenant's `org_…` id, already substituted from your authenticated session — no need to ask for it. Store it in env too — `MUNIN_ORG_ID` / `NEXT_PUBLIC_MUNIN_ORG_ID` / `VITE_MUNIN_ORG_ID` per the framework convention above.
 
 ### Option A — server-side fetch (recommended)
 
@@ -225,7 +222,7 @@ If any of the three fails, the most likely cause is in this table:
 
 ## What NOT to do
 
-- **Don't guess `API_URL` or hardcode it in source.** The cloud host is `https://api.getmunin.com`; self-host and OSS dev use whatever the operator deployed to. Read from env (`NEXT_PUBLIC_API_URL` / `VITE_API_URL` / etc.); ask the operator if unset.
+- **Don't guess `API_URL` or hardcode it in source.** It's been substituted into this playbook and stated in the server instructions — use that value and write it into the frontend's env (`NEXT_PUBLIC_API_URL` / `VITE_API_URL` / etc.). The cloud host is `https://api.getmunin.com`, but self-host and OSS dev differ, so don't assume.
 - **Don't put the widget key or tracker key in a `.env` as a server-only secret.** Both are designed to be visible in browser source. The origin allowlist is what protects them.
 - **Don't ship to production with an empty `originAllowlist` / `allowedOrigins`.** With `MUNIN_WIDGET_REQUIRE_ALLOWLIST` / `MUNIN_TRACKER_REQUIRE_ALLOWLIST` unset (OSS-dev default), empty means open-to-any-origin. Production deployments should both set the env var to `1` *and* configure the actual origins.
 - **Don't skip the smoke test.** All three integrations have silent-failure modes (widget renders but ingest 403s; tracker loads but `allowedOrigins` blocks events; CMS fetch returns build-time data). Verify each in a real browser before reporting done.

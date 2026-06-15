@@ -25,6 +25,7 @@ export interface CreateMcpServerOptions {
   rateLimit?: (toolName: string) => Promise<void> | void;
   serverInfo?: { name: string; version: string };
   skills?: SkillRegistry;
+  apiBaseUrl?: string;
   instructions?: string;
   captureException?: CaptureExceptionFn;
 }
@@ -38,6 +39,7 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
     audit: opts.audit,
     rateLimit: opts.rateLimit,
     skills: opts.skills,
+    apiBaseUrl: opts.apiBaseUrl,
     captureException: opts.captureException,
   };
 

@@ -11,6 +11,8 @@ export function QueueDrawer({
   item,
   kbBody,
   cmsDetail,
+  detailError,
+  onRetryDetail,
   pending,
   onApprove,
   onDismiss,
@@ -23,6 +25,8 @@ export function QueueDrawer({
   item: QueueItem;
   kbBody?: string;
   cmsDetail?: CmsDraftDetailDto;
+  detailError?: string;
+  onRetryDetail: () => void;
   pending: boolean;
   onApprove: () => void;
   onDismiss: () => void;
@@ -38,6 +42,8 @@ export function QueueDrawer({
         <KbQueueDrawer
           item={item}
           body={kbBody}
+          loadError={detailError}
+          onRetry={onRetryDetail}
           pending={pending}
           onApprove={onApprove}
           onDismiss={onDismiss}
@@ -81,6 +87,8 @@ export function QueueDrawer({
         <CmsQueueDrawer
           item={item}
           detail={cmsDetail}
+          loadError={detailError}
+          onRetry={onRetryDetail}
           pending={pending}
           onApprove={onApprove}
           onDismiss={onDismiss}

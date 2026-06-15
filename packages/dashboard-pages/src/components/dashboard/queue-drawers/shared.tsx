@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { Button, Pill, cn } from '@getmunin/ui';
 import type { Components } from 'react-markdown';
 
@@ -53,6 +54,45 @@ export function useCmdEnter(handler: () => void) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [handler]);
+}
+
+export function DrawerLoadingState({ label }: { label: string }) {
+  return (
+    <div
+      className="flex flex-1 items-center justify-center"
+      role="status"
+      aria-busy="true"
+    >
+      <Loader2
+        className="size-6 animate-spin text-ink-mute dark:text-foreground/60"
+        aria-hidden
+      />
+      <span className="sr-only">{label}</span>
+    </div>
+  );
+}
+
+export function DrawerErrorState({
+  message,
+  retryLabel,
+  onRetry,
+}: {
+  message: string;
+  retryLabel: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center"
+      role="alert"
+    >
+      <AlertCircle className="size-6 text-destructive" aria-hidden />
+      <p className="text-sm text-ink-mute">{message}</p>
+      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+        {retryLabel}
+      </Button>
+    </div>
+  );
 }
 
 export function DrawerHeader({

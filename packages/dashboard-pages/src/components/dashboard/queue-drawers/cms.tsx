@@ -20,7 +20,14 @@ import {
   DropdownMenuTrigger,
 } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
-import { DrawerFooter, DrawerHeader, MD_COMPONENTS, useCmdEnter } from './shared';
+import {
+  DrawerErrorState,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerLoadingState,
+  MD_COMPONENTS,
+  useCmdEnter,
+} from './shared';
 import {
   humanizeFieldName,
   readAssetField,
@@ -35,6 +42,8 @@ type EditableData = Record<string, unknown>;
 export function CmsQueueDrawer({
   item,
   detail,
+  loadError,
+  onRetry,
   pending,
   onApprove,
   onDismiss,
@@ -45,6 +54,8 @@ export function CmsQueueDrawer({
 }: {
   item: { id: string; title: string; createdAt: string; raw: CmsDraftSummaryDto };
   detail: CmsDraftDetailDto | undefined;
+  loadError: string | undefined;
+  onRetry: () => void;
   pending: boolean;
   onApprove: () => void;
   onDismiss: () => void;
@@ -59,6 +70,7 @@ export function CmsQueueDrawer({
 
   const fields = detail?.fields ?? EMPTY_FIELDS;
   const initialData: EditableData = detail?.data ?? EMPTY_DATA;
+  const blocked = pending || !detail;
 
   const [editing, setEditing] = useState(false);
   const [editedData, setEditedData] = useState<EditableData>(initialData);
@@ -136,9 +148,11 @@ export function CmsQueueDrawer({
   };
 
   useCmdEnter(() => {
-    if (pending) return;
-    if (editing) void saveEdit();
-    else onApprove();
+    if (editing) {
+      if (!pending) void saveEdit();
+      return;
+    }
+    if (!blocked) onApprove();
   });
 
   useEffect(() => {
@@ -167,9 +181,9 @@ export function CmsQueueDrawer({
         closeLabel={t('close')}
       />
 
-      <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-        {detail ? (
-          fields.map((field) => (
+      {detail ? (
+        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+          {fields.map((field) => (
             <FieldSection
               key={field.name}
               field={field}
@@ -181,13 +195,17 @@ export function CmsQueueDrawer({
               onChange={(v) => setField(field.name, v)}
               onUploadAsset={onUploadAsset}
             />
-          ))
-        ) : (
-          <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed text-ink-mute italic dark:bg-card dark:border-rule-on-dark">
-            {t('loading')}
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : loadError ? (
+        <DrawerErrorState
+          message={t('detailLoadFailed')}
+          retryLabel={t('retry')}
+          onRetry={onRetry}
+        />
+      ) : (
+        <DrawerLoadingState label={t('loading')} />
+      )}
 
       {editing ? (
         <DrawerFooter
@@ -261,10 +279,10 @@ export function CmsQueueDrawer({
           </Dialog>
           <div className="flex items-center justify-between gap-2 px-6 py-3">
             <div className="flex items-center gap-2">
-              <Button variant="accent" size="sm" onClick={onApprove} disabled={pending}>
+              <Button variant="accent" size="sm" onClick={onApprove} disabled={blocked}>
                 {t('cmsApprove')}
               </Button>
-              <Button variant="outline" size="sm" onClick={onDismiss} disabled={pending}>
+              <Button variant="outline" size="sm" onClick={onDismiss} disabled={blocked}>
                 {t('cmsDismiss')}
               </Button>
               <DropdownMenu>
@@ -274,7 +292,7 @@ export function CmsQueueDrawer({
                       variant="outline"
                       size="icon-sm"
                       aria-label={t('cmsMoreMenu')}
-                      disabled={pending}
+                      disabled={blocked}
                     />
                   }
                 >
@@ -282,12 +300,12 @@ export function CmsQueueDrawer({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   <DropdownMenuItem
-                    disabled={pending || !detail}
+                    disabled={blocked}
                     onClick={() => setEditing(true)}
                   >
                     {t('edit')}
                   </DropdownMenuItem>
-                  <DropdownMenuItem disabled={pending} onClick={openScheduler}>
+                  <DropdownMenuItem disabled={blocked} onClick={openScheduler}>
                     {t('cmsSchedule')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>

@@ -1,5 +1,29 @@
 # @getmunin/backend-core
 
+## 4.49.0
+
+### Minor Changes
+
+- 2b8fd7d: Auto-feed the tenant's API base URL (and org id) to MCP agents so coding-agent platforms (Lovable, Bolt, v0, …) stop asking for it. The resolved API origin is now stated in the MCP server instructions, and `{{API_URL}}` / `{{ORG_ID}}` placeholders in skill bodies are substituted at `skills_read` / `resources/read` time from the authenticated session. The frontend-integration playbook now tells agents to use the provided value instead of asking the operator.
+
+### Patch Changes
+
+- 38f4775: Fix CMS draft review 404: the admin `GET /v1/cms/drafts/:id` route was shadowed by the public delivery wildcard `GET /v1/cms/:orgId/:collectionSlug`. Both are 4-segment routes that match `/v1/cms/drafts/<id>`, and the public controller was registered first (first-match-wins), so draft reads resolved to `resolveOrg("drafts")` and 404'd before reaching the auth-guarded handler. `CmsDraftsController` is now registered before `CmsDeliveryController`.
+- f13f5c5: Flush MCP responses only after the request's tenant transaction commits.
+
+  `TenancyInterceptor` wraps each authenticated request in a transaction, but the MCP controller's `transport.handleRequest` writes the JSON-RPC response to the socket from inside that transaction — so the response (and any returned data, e.g. a freshly minted tracker key) reached the client before the write committed. A client that immediately used the result against another endpoint could read-after-write through a separate DB connection and miss the not-yet-committed row.
+
+  The MCP POST handler now buffers its (stateless, JSON) response and flushes it via a new `RequestContext.afterCommit` hook that `TenancyInterceptor` runs once the transaction has committed. GET (SSE streaming) is unaffected. This removes a read-after-write race that surfaced as a flaky analytics tracker integration test.
+
+- Updated dependencies [2b8fd7d]
+- Updated dependencies [f13f5c5]
+  - @getmunin/mcp-toolkit@4.49.0
+  - @getmunin/core@4.49.0
+  - @getmunin/agent-runtime@4.49.0
+  - @getmunin/db@4.49.0
+  - @getmunin/types@4.49.0
+  - @getmunin/emails@4.49.0
+
 ## 4.48.0
 
 ### Minor Changes

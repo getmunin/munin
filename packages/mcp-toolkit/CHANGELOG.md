@@ -1,5 +1,17 @@
 # @getmunin/mcp-toolkit
 
+## 4.49.0
+
+### Minor Changes
+
+- 2b8fd7d: Auto-feed the tenant's API base URL (and org id) to MCP agents so coding-agent platforms (Lovable, Bolt, v0, …) stop asking for it. The resolved API origin is now stated in the MCP server instructions, and `{{API_URL}}` / `{{ORG_ID}}` placeholders in skill bodies are substituted at `skills_read` / `resources/read` time from the authenticated session. The frontend-integration playbook now tells agents to use the provided value instead of asking the operator.
+
+### Patch Changes
+
+- Updated dependencies [f13f5c5]
+  - @getmunin/core@4.49.0
+  - @getmunin/types@4.49.0
+
 ## 4.48.0
 
 ### Minor Changes

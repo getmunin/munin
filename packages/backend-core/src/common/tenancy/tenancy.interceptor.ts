@@ -76,10 +76,15 @@ export class TenancyInterceptor implements NestInterceptor {
     correlationId: string,
     next: CallHandler,
   ): Promise<unknown> {
-    return this.db.transaction(async (tx) => {
+    const afterCommit: NonNullable<RequestContext['afterCommit']> = [];
+    const result = await this.db.transaction(async (tx) => {
       await applyTenancyGUCs(tx, actor);
-      const ctx: RequestContext = { db: tx, actor, correlationId };
+      const ctx: RequestContext = { db: tx, actor, correlationId, afterCommit };
       return RequestContextStore.run(ctx, () => awaitNextHandler(next));
     });
+    for (const cb of afterCommit) {
+      await cb();
+    }
+    return result;
   }
 }

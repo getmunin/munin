@@ -54,20 +54,20 @@ export class McpController {
 
   @Post()
   async post(@Req() req: Request, @Res() res: Response) {
-    return this.handle(req, res);
+    return this.handle(req, res, true);
   }
 
   @Get()
   async get(@Req() req: Request, @Res() res: Response) {
-    return this.handle(req, res);
+    return this.handle(req, res, false);
   }
 
   @Delete()
   async del(@Req() req: Request, @Res() res: Response) {
-    return this.handle(req, res);
+    return this.handle(req, res, false);
   }
 
-  private async handle(req: Request, res: Response) {
+  private async handle(req: Request, res: Response, deferUntilCommit: boolean) {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
 
@@ -93,6 +93,104 @@ export class McpController {
     });
 
     await server.connect(transport);
-    await transport.handleRequest(req, res, req.body as unknown);
+
+    if (!deferUntilCommit) {
+      await transport.handleRequest(req, res, req.body as unknown);
+      return;
+    }
+
+    const captured = captureResponse(res);
+    try {
+      await transport.handleRequest(req, res, req.body as unknown);
+    } finally {
+      captured.restore();
+    }
+    if (ctx.afterCommit) {
+      ctx.afterCommit.push(() => captured.flush());
+    } else {
+      captured.flush();
+    }
   }
+}
+
+interface CapturedResponse {
+  restore(): void;
+  flush(): void;
+}
+
+function captureResponse(res: Response): CapturedResponse {
+  const original = {
+    writeHead: res.writeHead.bind(res),
+    setHeader: res.setHeader.bind(res),
+    write: res.write.bind(res),
+    end: res.end.bind(res),
+  };
+  let statusCode = res.statusCode || 200;
+  const headers = new Map<string, number | string | readonly string[]>();
+  const chunks: Buffer[] = [];
+  let endCallback: (() => void) | undefined;
+
+  const toBuffer = (chunk: unknown, encoding?: unknown): Buffer | null => {
+    if (chunk == null || typeof chunk === 'function') return null;
+    if (Buffer.isBuffer(chunk)) return chunk;
+    if (typeof chunk === 'string') {
+      return Buffer.from(chunk, typeof encoding === 'string' ? (encoding as BufferEncoding) : 'utf8');
+    }
+    return Buffer.from(chunk as Uint8Array);
+  };
+  const mergeHeaders = (arg: unknown) => {
+    if (!arg || typeof arg !== 'object') return;
+    for (const [k, v] of Object.entries(arg as Record<string, number | string | readonly string[]>)) {
+      headers.set(k, v);
+    }
+  };
+
+  res.writeHead = function (this: Response, code: number, ...rest: unknown[]): Response {
+    statusCode = code;
+    for (const arg of rest) mergeHeaders(arg);
+    return this;
+  } as Response['writeHead'];
+
+  res.setHeader = function (this: Response, name: string, value: number | string | readonly string[]): Response {
+    headers.set(name, value);
+    return this;
+  } as Response['setHeader'];
+
+  res.write = function (this: Response, chunk: unknown, encoding?: unknown, cb?: unknown): boolean {
+    const buf = toBuffer(chunk, encoding);
+    if (buf) chunks.push(buf);
+    const callback = typeof encoding === 'function' ? encoding : cb;
+    if (typeof callback === 'function') (callback as () => void)();
+    return true;
+  } as Response['write'];
+
+  res.end = function (this: Response, chunk?: unknown, encoding?: unknown, cb?: unknown): Response {
+    const buf = toBuffer(chunk, encoding);
+    if (buf) chunks.push(buf);
+    const callback =
+      typeof chunk === 'function'
+        ? chunk
+        : typeof encoding === 'function'
+        ? encoding
+        : typeof cb === 'function'
+        ? cb
+        : undefined;
+    if (typeof callback === 'function') endCallback = callback as () => void;
+    return this;
+  } as Response['end'];
+
+  return {
+    restore() {
+      res.writeHead = original.writeHead;
+      res.setHeader = original.setHeader;
+      res.write = original.write;
+      res.end = original.end;
+    },
+    flush() {
+      if (res.headersSent || res.writableEnded) return;
+      for (const [name, value] of headers) res.setHeader(name, value);
+      res.writeHead(statusCode);
+      res.end(Buffer.concat(chunks), endCallback);
+    },
+  };
 }

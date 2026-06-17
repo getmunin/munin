@@ -486,7 +486,7 @@
       "typeTwilioSms": "Twilio",
       "typeMessageBirdSms": "MessageBird",
       "typeVapi": "Vapi",
-      "typeThrell": "Threll",
+      "typeThrell": "Threll.ai",
       "anyOrigin": "any origin",
       "moreActions": "More actions",
       "deleteChannel": "Delete channel",

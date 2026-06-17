@@ -875,9 +875,8 @@ function VendorPicker<V extends ChannelVendor>({
   value: V;
   onChange: (next: V) => void;
 }) {
-  const cols = options.length >= 4 ? 'sm:grid-cols-4' : options.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2';
   return (
-    <div className={cn('grid grid-cols-2 gap-2', cols)}>
+    <div className="flex border-[0.5px] border-ink dark:border-foreground">
       {options.map((opt) => {
         const selected = value === opt.id;
         return (
@@ -887,10 +886,10 @@ function VendorPicker<V extends ChannelVendor>({
             onClick={() => onChange(opt.id)}
             aria-pressed={selected}
             className={cn(
-              'flex items-center justify-center gap-2 rounded-input border-[0.5px] px-3 py-2 text-sm transition-colors',
+              'flex flex-1 items-center justify-center gap-2 border-r-[0.5px] border-rule-soft px-3 py-2 text-sm transition-colors last:border-r-0',
               selected
-                ? 'border-cobalt bg-cobalt/5 text-ink dark:text-foreground'
-                : 'border-rule-soft text-muted-foreground hover:text-ink dark:hover:text-foreground',
+                ? 'bg-cobalt/5 text-ink dark:text-foreground'
+                : 'text-muted-foreground hover:text-ink dark:hover:text-foreground',
             )}
           >
             <VendorLogo vendor={opt.id} className="size-4" />
@@ -2814,7 +2813,7 @@ function AddVoiceDialog({
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
-  const [vendor, setVendor] = useState<VoiceVendor>('vapi');
+  const [vendor, setVendor] = useState<VoiceVendor>('threll');
   const [name, setName] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [webhookSecret, setWebhookSecret] = useState('');
@@ -2831,7 +2830,7 @@ function AddVoiceDialog({
 
   useEffect(() => {
     if (!open) return;
-    setVendor('vapi');
+    setVendor('threll');
     setName('');
     setApiKey('');
     setWebhookSecret('');
@@ -2969,8 +2968,8 @@ function AddVoiceDialog({
             >
               <VendorPicker
                 options={[
-                  { id: 'vapi', label: t('typeVapi') },
                   { id: 'threll', label: t('typeThrell') },
+                  { id: 'vapi', label: t('typeVapi') },
                 ]}
                 value={vendor}
                 onChange={(next) => setVendor(next)}

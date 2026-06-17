@@ -1,5 +1,13 @@
 # @getmunin/core
 
+## 4.50.0
+
+### Patch Changes
+
+- Updated dependencies [3f034de]
+  - @getmunin/types@4.50.0
+  - @getmunin/db@4.50.0
+
 ## 4.49.0
 
 ### Patch Changes

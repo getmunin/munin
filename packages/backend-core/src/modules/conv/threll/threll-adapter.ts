@@ -34,6 +34,7 @@ import {
 import {
   THRELL_SIGNATURE_HEADER,
   ThrellClientService,
+  buildWebhookUrl,
   verifyThrellSignature,
 } from './threll-client.service.ts';
 import { jsonbToStored } from './threll.service.ts';
@@ -537,12 +538,6 @@ function mapRole(role: string | undefined): 'user' | 'assistant' | null {
 
 function jsonResponse(body: unknown): WebhookResponse {
   return { status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(body) };
-}
-
-function buildWebhookUrl(channelId: string): string | undefined {
-  const base = process.env.NEXT_PUBLIC_MCP_URL?.replace(/\/$/, '');
-  if (!base) return undefined;
-  return `${base}/v1/conversations/channels/${channelId}/webhook`;
 }
 
 function formatCallerContext(

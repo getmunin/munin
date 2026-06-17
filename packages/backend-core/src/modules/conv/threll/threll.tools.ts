@@ -23,16 +23,6 @@ export const ConfigureInput = z.object({
         'Threll API key (Settings → Developer). Sent as the `x-api-key` header. Required on create.',
       ),
   ),
-  webhookSecret: sensitive(
-    z
-      .string()
-      .min(1)
-      .max(256)
-      .optional()
-      .describe(
-        'Shared HMAC signing secret. Use the same value here and as the `signingSecret` of the Threll webhook subscription that points at this channel’s webhook URL. Munin verifies the `X-Threll-Signature` HMAC with it and reuses it to sign tool-call deliveries. Required on create.',
-      ),
-  ),
   accountId: z
     .string()
     .min(1)
@@ -61,7 +51,6 @@ export class ThrellAdminTools {
         name: args.name,
         config: {
           apiKey: args.apiKey,
-          webhookSecret: args.webhookSecret,
           accountId: args.accountId,
           workerId: args.workerId,
         },
@@ -69,14 +58,12 @@ export class ThrellAdminTools {
     }
     if (!args.name) throw new BadRequestException('name is required when creating a channel');
     if (!args.apiKey) throw new BadRequestException('apiKey is required when creating');
-    if (!args.webhookSecret) throw new BadRequestException('webhookSecret is required when creating');
     if (!args.accountId) throw new BadRequestException('accountId is required when creating');
     if (!args.workerId) throw new BadRequestException('workerId is required when creating');
     return this.svc.createChannel({
       name: args.name,
       config: {
         apiKey: args.apiKey,
-        webhookSecret: args.webhookSecret,
         accountId: args.accountId,
         workerId: args.workerId,
       },

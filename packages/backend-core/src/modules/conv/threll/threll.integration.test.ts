@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi, type MockInstance } from 'vitest';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { createHmac, randomUUID } from 'node:crypto';
@@ -8,6 +8,7 @@ import { sql, eq, and } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
 import { createApp } from '../../../bootstrap-app.ts';
 import { ThrellService } from './threll.service.ts';
+import { ThrellClientService } from './threll-client.service.ts';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -19,6 +20,8 @@ const skipReason = TEST_URL
   let app: INestApplication;
   let baseUrl: string;
   let db: ReturnType<typeof createDb>;
+  let client: ThrellClientService;
+  let createSubSpy: MockInstance;
   let orgId: string;
   let channelId: string;
   const API_KEY = 'threll-api-key-it';
@@ -38,6 +41,7 @@ const skipReason = TEST_URL
     process.env.MUNIN_STORAGE_LOCAL_BASE_URL = 'http://127.0.0.1:0/static/assets';
     process.env.MUNIN_WEBHOOK_WORKER_DISABLED = '1';
     process.env.MUNIN_CMS_SCHEDULE_WORKER_DISABLED = '1';
+    process.env.MUNIN_API_URL = 'https://munin.example';
 
     await runMigrations(TEST_URL!);
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
@@ -56,6 +60,12 @@ const skipReason = TEST_URL
     if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
     baseUrl = `http://127.0.0.1:${address.port}`;
 
+    client = app.get(ThrellClientService);
+    createSubSpy = vi.spyOn(client, 'createWebhookSubscription').mockResolvedValue({
+      ok: true,
+      signingSecret: WEBHOOK_SECRET,
+    });
+
     const svc = app.get(ThrellService);
     const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
     const channel = await runAsActor(actor, () =>
@@ -63,7 +73,6 @@ const skipReason = TEST_URL
         name: 'Threll main',
         config: {
           apiKey: API_KEY,
-          webhookSecret: WEBHOOK_SECRET,
           accountId: ACCOUNT_ID,
           workerId: WORKER_ID,
         },
@@ -108,6 +117,43 @@ const skipReason = TEST_URL
       body: payload,
     });
   }
+
+  it('auto-provisions the Threll webhook subscription and stores the returned secret', async () => {
+    expect(createSubSpy).toHaveBeenCalledWith({
+      apiKey: API_KEY,
+      accountId: ACCOUNT_ID,
+      url: `https://munin.example/v1/conversations/channels/${channelId}/webhook`,
+    });
+    const rows = await db
+      .select({ config: schema.convChannels.config })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channelId))
+      .limit(1);
+    const ct = (rows[0]!.config as Record<string, string>).encryptedWebhookSecret!;
+    const stored = await client.loadSecret(ct);
+    expect(stored).toBe(WEBHOOK_SECRET);
+  });
+
+  it('does not persist a channel when webhook provisioning fails', async () => {
+    createSubSpy.mockResolvedValueOnce({ ok: false, error: 'threll_unauthorized' });
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    await expect(
+      runAsActor(actor, () =>
+        svc.createChannel({
+          name: 'Threll failed',
+          config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
+        }),
+      ),
+    ).rejects.toThrow('threll_unauthorized');
+    const rows = await db
+      .select({ id: schema.convChannels.id })
+      .from(schema.convChannels)
+      .where(
+        and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.name, 'Threll failed')),
+      );
+    expect(rows.length).toBe(0);
+  });
 
   it('rejects webhook with an invalid signature', async () => {
     const res = await postEvent(

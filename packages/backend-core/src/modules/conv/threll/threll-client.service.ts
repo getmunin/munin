@@ -109,6 +109,38 @@ export class ThrellClientService {
     }
   }
 
+  async createWebhookSubscription(opts: {
+    apiKey: string;
+    accountId: string;
+    url: string;
+  }): Promise<{ ok: true; signingSecret: string } | { ok: false; error: string }> {
+    try {
+      const res = await fetch(
+        `${THRELL_API_BASE}/accounts/${encodeURIComponent(opts.accountId)}/webhook-subscriptions`,
+        {
+          method: 'POST',
+          headers: { 'x-api-key': opts.apiKey, 'content-type': 'application/json' },
+          body: JSON.stringify({ eventType: '*', url: opts.url, required: true }),
+          signal: AbortSignal.timeout(10000),
+        },
+      );
+      if (res.status === 401 || res.status === 403) return { ok: false, error: 'threll_unauthorized' };
+      if (res.status === 404) return { ok: false, error: 'threll_account_not_found' };
+      const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        const message =
+          (typeof json.message === 'string' && json.message) ||
+          `threll_webhook_subscription_failed_${res.status}`;
+        return { ok: false, error: `threll_${res.status}: ${message}` };
+      }
+      const signingSecret = readSigningSecret(json);
+      if (!signingSecret) return { ok: false, error: 'threll_missing_signing_secret' };
+      return { ok: true, signingSecret };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   async placeCall(req: PlaceCallRequest): Promise<PlaceCallResponse> {
     const body: Record<string, unknown> = {
       workerId: req.workerId,
@@ -176,6 +208,28 @@ export class ThrellClientService {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
+}
+
+function readSigningSecret(json: Record<string, unknown>): string | undefined {
+  const nested = (json.subscription ?? json.webhookSubscription) as
+    | Record<string, unknown>
+    | undefined;
+  const candidates = [
+    json.signingSecret,
+    json.signing_secret,
+    nested?.signingSecret,
+    nested?.signing_secret,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.length > 0) return c;
+  }
+  return undefined;
+}
+
+export function buildWebhookUrl(channelId: string): string | undefined {
+  const base = process.env.NEXT_PUBLIC_MCP_URL?.replace(/\/$/, '');
+  if (!base) return undefined;
+  return `${base}/v1/conversations/channels/${channelId}/webhook`;
 }
 
 export const THRELL_SIGNATURE_HEADER = 'x-threll-signature';

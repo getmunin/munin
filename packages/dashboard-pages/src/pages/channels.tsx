@@ -2887,11 +2887,9 @@ function AddVoiceDialog({
   }
 
   async function submitThrell(): Promise<void> {
-    const generatedSecret = generateWebhookSecret();
     const payload: Record<string, unknown> = {
       ...(name.trim() ? { name: name.trim() } : {}),
       ...(apiKey ? { apiKey } : {}),
-      webhookSecret: generatedSecret,
       ...(accountId.trim() ? { accountId: accountId.trim() } : {}),
       ...(workerId.trim() ? { workerId: workerId.trim() } : {}),
     };
@@ -2908,7 +2906,6 @@ function AddVoiceDialog({
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
-      setWebhookSecret(generatedSecret);
       setCreatedVendor('threll');
       setCreatedChannelId(created.id);
       onSaved();
@@ -2944,7 +2941,6 @@ function AddVoiceDialog({
           createdVendor === 'threll' ? (
             <ThrellConnectionStage
               channelId={createdChannelId}
-              webhookSecret={webhookSecret}
               onDone={() => onOpenChange(false)}
             />
           ) : (
@@ -3450,11 +3446,9 @@ function PlaceVapiCallDialog({
 
 function ThrellConnectionStage({
   channelId,
-  webhookSecret,
   onDone,
 }: {
   channelId: string;
-  webhookSecret: string;
   onDone: () => void;
 }) {
   const t = useTranslations('dashboard.channels');
@@ -3470,11 +3464,6 @@ function ThrellConnectionStage({
           label={t('threll.connectionStage.serverUrlLabel')}
           value={vapiWebhookUrl(channelId)}
           hint={t('threll.connectionStage.serverUrlHint')}
-        />
-        <CopyableSecret
-          label={t('threll.connectionStage.webhookSecretLabel')}
-          value={webhookSecret}
-          hint={t('threll.connectionStage.webhookSecretHint')}
         />
       </div>
       <DialogFooter className={dialogFooterClass}>
@@ -3502,7 +3491,6 @@ function ThrellChannelDialog({
   const translate = useTranslateError();
   const [name, setName] = useState(editChannel.name);
   const [apiKey, setApiKey] = useState('');
-  const [webhookSecret, setWebhookSecret] = useState('');
   const [accountId, setAccountId] = useState(editChannel.config?.accountId ?? '');
   const [workerId, setWorkerId] = useState(editChannel.config?.workerId ?? '');
   const [saving, setSaving] = useState(false);
@@ -3513,7 +3501,6 @@ function ThrellChannelDialog({
     if (!open) return;
     setName(editChannel.name);
     setApiKey('');
-    setWebhookSecret('');
     setAccountId(editChannel.config?.accountId ?? '');
     setWorkerId(editChannel.config?.workerId ?? '');
     setSubmitError(null);
@@ -3526,7 +3513,6 @@ function ThrellChannelDialog({
       channelId: editChannel.id,
       ...(name.trim() ? { name: name.trim() } : {}),
       ...(apiKey ? { apiKey } : {}),
-      ...(webhookSecret ? { webhookSecret } : {}),
       ...(accountId.trim() ? { accountId: accountId.trim() } : {}),
       ...(workerId.trim() ? { workerId: workerId.trim() } : {}),
     };
@@ -3595,15 +3581,6 @@ function ThrellChannelDialog({
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="••••"
                   autoComplete="off"
-                />
-              </FormField>
-              <FormField label={t('threll.webhookSecretLabel')} hint={t('threll.webhookSecretHintEdit')}>
-                <WebhookSecretField
-                  value={webhookSecret}
-                  onChange={setWebhookSecret}
-                  generateLabel={t('threll.webhookSecretGenerate')}
-                  regenerateLabel={t('threll.webhookSecretRegenerate')}
-                  emptyHint={t('threll.webhookSecretKeepHint')}
                 />
               </FormField>
               <FormField

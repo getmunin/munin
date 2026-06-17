@@ -181,17 +181,14 @@ export const ConfigureThrellBody = z
     channelId: z.string().optional(),
     name: z.string().min(1).max(120).optional(),
     apiKey: sensitive(z.string().min(1).max(256).optional()),
-    webhookSecret: sensitive(z.string().min(1).max(256).optional()),
     accountId: z.string().min(1).max(128).optional(),
     workerId: z.string().min(1).max(128).optional(),
   })
   .refine(
     (v) =>
-      v.channelId !== undefined ||
-      (v.name && v.apiKey && v.webhookSecret && v.accountId && v.workerId),
+      v.channelId !== undefined || (v.name && v.apiKey && v.accountId && v.workerId),
     {
-      message:
-        'name, apiKey, webhookSecret, accountId, and workerId are required when creating',
+      message: 'name, apiKey, accountId, and workerId are required when creating',
     },
   );
 

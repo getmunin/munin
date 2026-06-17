@@ -7,9 +7,10 @@ import {
 } from '@nestjs/common';
 import { sql, and, eq } from 'drizzle-orm';
 import { encryptSecretSql, getCurrentContext } from '@getmunin/core';
-import { schema, type Db } from '@getmunin/db';
+import { schema, makeId, type Db } from '@getmunin/db';
 import { z } from 'zod';
 import { DB } from '../../../common/db/db.module.ts';
+import { ThrellClientService, buildWebhookUrl } from './threll-client.service.ts';
 
 const REDACTED = '••••';
 
@@ -24,7 +25,6 @@ export type StoredThrellConfig = z.infer<typeof StoredThrellConfigSchema>;
 
 export const ThrellConfigInputSchema = z.object({
   apiKey: z.string().min(1).max(256),
-  webhookSecret: z.string().min(1).max(256),
   accountId: z.string().min(1).max(128),
   workerId: z.string().min(1).max(128),
 });
@@ -49,7 +49,10 @@ export interface ThrellChannelDto {
 
 @Injectable()
 export class ThrellService {
-  constructor(@Inject(DB) private readonly _db: Db) {}
+  constructor(
+    @Inject(DB) private readonly _db: Db,
+    @Inject(ThrellClientService) private readonly client: ThrellClientService,
+  ) {}
 
   async createChannel(input: {
     name: string;
@@ -57,10 +60,20 @@ export class ThrellService {
   }): Promise<ThrellChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const stored = await this.toStored(input.config);
+    const channelId = makeId('cch');
+    const webhookUrl = buildWebhookUrl(channelId);
+    if (!webhookUrl) throw new BadRequestException('threll_webhook_url_unavailable');
+    const sub = await this.client.createWebhookSubscription({
+      apiKey: input.config.apiKey,
+      accountId: input.config.accountId,
+      url: webhookUrl,
+    });
+    if (!sub.ok) throw new BadRequestException(sub.error);
+    const stored = await this.toStored(input.config, sub.signingSecret);
     const [row] = await ctx.db
       .insert(schema.convChannels)
       .values({
+        id: channelId,
         orgId: actor.orgId,
         type: 'voice',
         vendor: 'threll',
@@ -99,9 +112,7 @@ export class ThrellService {
       encryptedApiKey: input.config?.apiKey
         ? await encryptString(input.config.apiKey)
         : prev.encryptedApiKey,
-      encryptedWebhookSecret: input.config?.webhookSecret
-        ? await encryptString(input.config.webhookSecret)
-        : prev.encryptedWebhookSecret,
+      encryptedWebhookSecret: prev.encryptedWebhookSecret,
       accountId: input.config?.accountId ?? prev.accountId,
       workerId: input.config?.workerId ?? prev.workerId,
     };
@@ -118,10 +129,13 @@ export class ThrellService {
     return this.toDto(row.id, row.name, row.active, merged);
   }
 
-  private async toStored(input: ThrellConfigInput): Promise<StoredThrellConfig> {
+  private async toStored(
+    input: ThrellConfigInput,
+    signingSecret: string,
+  ): Promise<StoredThrellConfig> {
     return {
       encryptedApiKey: await encryptString(input.apiKey),
-      encryptedWebhookSecret: await encryptString(input.webhookSecret),
+      encryptedWebhookSecret: await encryptString(signingSecret),
       accountId: input.accountId,
       workerId: input.workerId,
     };

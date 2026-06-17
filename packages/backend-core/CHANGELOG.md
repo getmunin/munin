@@ -1,5 +1,27 @@
 # @getmunin/backend-core
 
+## 4.50.0
+
+### Minor Changes
+
+- 3dafe87: Add the `kb_import_website` MCP tool so admin agents can initiate a knowledge-base website scrape directly over `/mcp`. Previously the `task://web/scrape-website` job could only be enqueued via the `/v1/curator/jobs` control-plane endpoint (driven from the dashboard's website-import card). The new tool wraps that enqueue: it takes a homepage URL (bare domains accepted), validates it is publicly reachable, and returns the curator job id. Re-importing a URL with a scrape still pending returns the in-flight job instead of starting a second one. A companion `kb_import_website_status` tool lets the agent poll that job id for progress (pending / done / failed) and the imported-document summary.
+
+  The company-profile synthesis is now optional. The web-import handler reads a `synthesizeCompanyProfile` flag from the job's `sourceEventPayload` (defaulting to `true` when absent, so the dashboard onboarding flow is unchanged), and `kb_import_website` exposes it as a parameter. Set `synthesizeCompanyProfile: false` when importing third-party or topic pages so the import doesn't overwrite the company-profile document (slug `company-profile`) — which seeds the chat widget — with unrelated content.
+
+- 3f034de: Auto-provision the Threll webhook subscription when creating a Threll voice channel.
+
+  Munin now uses the Threll API key to register the webhook subscription with Threll (`POST /accounts/{accountId}/webhook-subscriptions`, `eventType: "*"`) and stores the signing secret Threll returns — the admin no longer generates a secret and pastes it into Threll. Provisioning happens atomically during channel create: the channel id is minted up front and the Threll call runs before the row is inserted, so if provisioning fails nothing is persisted and the dashboard shows a retry-only error. The webhook URL is built from the canonical server-side API base (`readApiBaseUrl()` / `MUNIN_API_URL`). The webhook signing secret is now Threll-owned and immutable, so the manual webhook-secret field is removed from the Threll create and edit dialogs. `ConfigureThrellBody` and the Threll MCP configure tool no longer accept `webhookSecret` on create. The Vapi flow is unchanged.
+
+### Patch Changes
+
+- Updated dependencies [3f034de]
+  - @getmunin/types@4.50.0
+  - @getmunin/core@4.50.0
+  - @getmunin/db@4.50.0
+  - @getmunin/mcp-toolkit@4.50.0
+  - @getmunin/agent-runtime@4.50.0
+  - @getmunin/emails@4.50.0
+
 ## 4.49.0
 
 ### Minor Changes

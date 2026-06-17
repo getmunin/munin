@@ -57,13 +57,11 @@ export class ThrellService {
   async createChannel(input: {
     name: string;
     config: ThrellConfigInput;
-    headers?: Record<string, string | string[] | undefined>;
   }): Promise<ThrellChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const channelId = makeId('cch');
-    const webhookUrl = buildWebhookUrl(channelId, input.headers);
-    if (!webhookUrl) throw new BadRequestException('threll_webhook_url_unavailable');
+    const webhookUrl = buildWebhookUrl(channelId);
     const sub = await this.client.createWebhookSubscription({
       apiKey: input.config.apiKey,
       accountId: input.config.accountId,

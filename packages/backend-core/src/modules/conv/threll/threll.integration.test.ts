@@ -41,7 +41,7 @@ const skipReason = TEST_URL
     process.env.MUNIN_STORAGE_LOCAL_BASE_URL = 'http://127.0.0.1:0/static/assets';
     process.env.MUNIN_WEBHOOK_WORKER_DISABLED = '1';
     process.env.MUNIN_CMS_SCHEDULE_WORKER_DISABLED = '1';
-    process.env.NEXT_PUBLIC_MCP_URL = 'https://munin.example';
+    process.env.MUNIN_API_URL = 'https://munin.example';
 
     await runMigrations(TEST_URL!);
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
@@ -153,23 +153,6 @@ const skipReason = TEST_URL
         and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.name, 'Threll failed')),
       );
     expect(rows.length).toBe(0);
-  });
-
-  it('derives the webhook URL from forwarded request headers', async () => {
-    const svc = app.get(ThrellService);
-    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
-    const created = await runAsActor(actor, () =>
-      svc.createChannel({
-        name: 'Threll fwd',
-        config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
-        headers: { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'api.getmunin.com' },
-      }),
-    );
-    expect(createSubSpy).toHaveBeenLastCalledWith({
-      apiKey: API_KEY,
-      accountId: ACCOUNT_ID,
-      url: `https://api.getmunin.com/v1/conversations/channels/${created.id}/webhook`,
-    });
   });
 
   it('rejects webhook with an invalid signature', async () => {

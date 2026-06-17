@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { decryptSecretSql, setEncryptionKeySql } from '@getmunin/core';
+import { decryptSecretSql, readApiBaseUrl, setEncryptionKeySql } from '@getmunin/core';
 import type { Db, Tx } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
 
@@ -226,23 +226,8 @@ function readSigningSecret(json: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
-export function buildWebhookUrl(
-  channelId: string,
-  headers?: Record<string, string | string[] | undefined>,
-): string | undefined {
-  const path = `/v1/conversations/channels/${channelId}/webhook`;
-  const headerOne = (key: string): string | undefined => {
-    const v = headers?.[key.toLowerCase()];
-    return Array.isArray(v) ? v[0] : v;
-  };
-  const host = headerOne('x-forwarded-host') ?? headerOne('host');
-  if (host) {
-    const proto = headerOne('x-forwarded-proto') ?? (/^(localhost|127\.)/.test(host) ? 'http' : 'https');
-    return `${proto}://${host}${path}`;
-  }
-  const base = process.env.NEXT_PUBLIC_MCP_URL?.replace(/\/$/, '');
-  if (!base) return undefined;
-  return `${base}${path}`;
+export function buildWebhookUrl(channelId: string): string {
+  return `${readApiBaseUrl()}/v1/conversations/channels/${channelId}/webhook`;
 }
 
 export const THRELL_SIGNATURE_HEADER = 'x-threll-signature';

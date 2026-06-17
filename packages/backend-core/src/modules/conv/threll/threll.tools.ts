@@ -44,7 +44,10 @@ export class ThrellAdminTools {
     @Inject(ThrellClientService) private readonly client: ThrellClientService,
   ) {}
 
-  async configure(args: z.infer<typeof ConfigureInput>): Promise<ThrellChannelDto> {
+  async configure(
+    args: z.infer<typeof ConfigureInput>,
+    headers?: Record<string, string | string[] | undefined>,
+  ): Promise<ThrellChannelDto> {
     if (args.channelId) {
       return this.svc.updateChannel({
         channelId: args.channelId,
@@ -67,6 +70,7 @@ export class ThrellAdminTools {
         accountId: args.accountId,
         workerId: args.workerId,
       },
+      headers,
     });
   }
 

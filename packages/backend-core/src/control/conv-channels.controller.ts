@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Param,
   Patch,
@@ -271,10 +272,11 @@ export class ConvChannelsController {
   @HttpCode(200)
   async configureThrell(
     @Body() body: unknown,
+    @Headers() headers: Record<string, string | string[] | undefined>,
   ): Promise<Awaited<ReturnType<ThrellAdminTools['configure']>>> {
     const parsed = ConfigureThrellBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.threllTools.configure(parsed.data);
+    return this.threllTools.configure(parsed.data, headers);
   }
 
   @Post('threll/:id/test')

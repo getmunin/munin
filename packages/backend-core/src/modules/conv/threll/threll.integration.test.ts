@@ -135,9 +135,7 @@ const skipReason = TEST_URL
   });
 
   it('does not persist a channel when webhook provisioning fails', async () => {
-    const spy = vi
-      .spyOn(client, 'createWebhookSubscription')
-      .mockResolvedValueOnce({ ok: false, error: 'threll_unauthorized' });
+    createSubSpy.mockResolvedValueOnce({ ok: false, error: 'threll_unauthorized' });
     const svc = app.get(ThrellService);
     const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
     await expect(
@@ -155,7 +153,23 @@ const skipReason = TEST_URL
         and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.name, 'Threll failed')),
       );
     expect(rows.length).toBe(0);
-    spy.mockRestore();
+  });
+
+  it('derives the webhook URL from forwarded request headers', async () => {
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const created = await runAsActor(actor, () =>
+      svc.createChannel({
+        name: 'Threll fwd',
+        config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
+        headers: { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'api.getmunin.com' },
+      }),
+    );
+    expect(createSubSpy).toHaveBeenLastCalledWith({
+      apiKey: API_KEY,
+      accountId: ACCOUNT_ID,
+      url: `https://api.getmunin.com/v1/conversations/channels/${created.id}/webhook`,
+    });
   });
 
   it('rejects webhook with an invalid signature', async () => {

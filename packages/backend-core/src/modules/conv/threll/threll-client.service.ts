@@ -226,10 +226,23 @@ function readSigningSecret(json: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
-export function buildWebhookUrl(channelId: string): string | undefined {
+export function buildWebhookUrl(
+  channelId: string,
+  headers?: Record<string, string | string[] | undefined>,
+): string | undefined {
+  const path = `/v1/conversations/channels/${channelId}/webhook`;
+  const headerOne = (key: string): string | undefined => {
+    const v = headers?.[key.toLowerCase()];
+    return Array.isArray(v) ? v[0] : v;
+  };
+  const host = headerOne('x-forwarded-host') ?? headerOne('host');
+  if (host) {
+    const proto = headerOne('x-forwarded-proto') ?? (/^(localhost|127\.)/.test(host) ? 'http' : 'https');
+    return `${proto}://${host}${path}`;
+  }
   const base = process.env.NEXT_PUBLIC_MCP_URL?.replace(/\/$/, '');
   if (!base) return undefined;
-  return `${base}/v1/conversations/channels/${channelId}/webhook`;
+  return `${base}${path}`;
 }
 
 export const THRELL_SIGNATURE_HEADER = 'x-threll-signature';

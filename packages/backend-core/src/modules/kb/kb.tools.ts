@@ -1,8 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
+import { WEB_SCRAPE_SITE_TASK_URI } from '@getmunin/types';
 import { KbService } from './kb.service.ts';
 import { KbSearchService } from './kb.search.ts';
+import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 
@@ -83,6 +85,11 @@ const PublishCurationCandidateInput = z.object({
   audiences: AudiencesSchema.optional(),
 });
 
+const ImportWebsiteInput = z.object({
+  url: z.string().min(1).max(2048),
+  synthesizeCompanyProfile: z.boolean().optional(),
+});
+
 const EmptyInput = z.object({});
 
 @Injectable()
@@ -90,6 +97,7 @@ export class KbAdminTools {
   constructor(
     @Inject(KbService) private readonly kb: KbService,
     @Inject(KbSearchService) private readonly searchService: KbSearchService,
+    @Inject(CuratorJobsService) private readonly curator: CuratorJobsService,
   ) {}
 
   @McpTool({
@@ -194,6 +202,29 @@ export class KbAdminTools {
   })
   createDocument(args: z.infer<typeof CreateDocumentInput>) {
     return this.kb.createDocument(args);
+  }
+
+  @McpTool({
+    name: 'kb_import_website',
+    title: 'KB: Import website',
+    description:
+      "Crawl a public website and populate the knowledge base from it: one KB document per page. Runs asynchronously on the curator queue — returns a job id you can track with the curator jobs control plane. Pass a homepage URL (a bare domain like `example.com` is accepted). The URL must be publicly reachable; localhost and private/internal addresses are rejected. Re-importing the same URL while a scrape is still pending returns the in-flight job instead of starting a second one.\n\nBy default the import also synthesizes a `company-profile` KB document (slug `company-profile`) that seeds the chat widget — appropriate when importing your own company's site. Set `synthesizeCompanyProfile: false` when importing third-party or topic pages that are NOT your company's website, so the import doesn't overwrite your company profile with unrelated content.",
+    audiences: ['admin'],
+    scopes: ['kb:write'],
+    input: ImportWebsiteInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  async importWebsite(args: z.infer<typeof ImportWebsiteInput>) {
+    const url = args.url.trim();
+    const { job, alreadyPending } = await this.curator.enqueue({
+      jobUri: WEB_SCRAPE_SITE_TASK_URI,
+      userPrompt: url,
+      sourceEventPayload: { synthesizeCompanyProfile: args.synthesizeCompanyProfile ?? true },
+      dedupeKey: `kb-import-website:${url}`,
+      maxAttempts: 3,
+    });
+    return { jobId: job.id, status: job.status, alreadyPending };
   }
 
   @McpTool({

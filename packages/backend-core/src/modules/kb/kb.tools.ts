@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { WEB_SCRAPE_SITE_TASK_URI } from '@getmunin/types';
@@ -88,6 +88,10 @@ const PublishCurationCandidateInput = z.object({
 const ImportWebsiteInput = z.object({
   url: z.string().min(1).max(2048),
   synthesizeCompanyProfile: z.boolean().optional(),
+});
+
+const ImportWebsiteStatusInput = z.object({
+  jobId: z.string().min(1),
 });
 
 const EmptyInput = z.object({});
@@ -225,6 +229,35 @@ export class KbAdminTools {
       maxAttempts: 3,
     });
     return { jobId: job.id, status: job.status, alreadyPending };
+  }
+
+  @McpTool({
+    name: 'kb_import_website_status',
+    title: 'KB: Website import status',
+    description:
+      'Check the progress of a website import started with `kb_import_website`, by the job id it returned. Status is one of `pending` (queued or running), `done` (finished — `summary` reports how many documents were imported), `failed_retryable`/`dead` (will retry / gave up), or `failed`. While `pending`, poll again after a short delay.',
+    audiences: ['admin'],
+    scopes: ['kb:read'],
+    input: ImportWebsiteStatusInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  async importWebsiteStatus(args: z.infer<typeof ImportWebsiteStatusInput>) {
+    const job = await this.curator.get(args.jobId);
+    if (job.jobUri !== WEB_SCRAPE_SITE_TASK_URI) {
+      throw new NotFoundException(`website import ${args.jobId} not found`);
+    }
+    return {
+      jobId: job.id,
+      url: job.userPrompt,
+      status: job.status,
+      done: job.status === 'done',
+      attempts: job.attempts,
+      maxAttempts: job.maxAttempts,
+      summary: job.lastReplyText,
+      error: job.lastError,
+      doneAt: job.doneAt,
+    };
   }
 
   @McpTool({

@@ -63,9 +63,12 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
     if (ok) created++;
   }
 
+  const payload = opts.job.sourceEventPayload as { synthesizeCompanyProfile?: boolean } | null;
+  const synthesizeCompanyProfile = payload?.synthesizeCompanyProfile !== false;
+
   let profileTokens = 0;
   let providerError: ProviderErrorClassification | null = null;
-  if (crawl.pages.length > 0) {
+  if (crawl.pages.length > 0 && synthesizeCompanyProfile) {
     const outcome = await generateCompanyProfile({
       provider: { baseUrl: opts.providerBaseUrl, apiKey: opts.providerApiKey },
       model: opts.model,

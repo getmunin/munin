@@ -4400,6 +4400,64 @@
     }
   },
   {
+    "name": "kb_import_website",
+    "title": "KB: Import website",
+    "description": "Crawl a public website and populate the knowledge base from it: one KB document per page. Runs asynchronously on the curator queue — returns a job id you can track with the curator jobs control plane. Pass a homepage URL (a bare domain like `example.com` is accepted). The URL must be publicly reachable; localhost and private/internal addresses are rejected. Re-importing the same URL while a scrape is still pending returns the in-flight job instead of starting a second one.\n\nBy default the import also synthesizes a `company-profile` KB document (slug `company-profile`) that seeds the chat widget — appropriate when importing your own company's site. Set `synthesizeCompanyProfile: false` when importing third-party or topic pages that are NOT your company's website, so the import doesn't overwrite your company profile with unrelated content.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "synthesizeCompanyProfile": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_import_website_status",
+    "title": "KB: Website import status",
+    "description": "Check the progress of a website import started with `kb_import_website`, by the job id it returned. Status is one of `pending` (queued or running), `done` (finished — `summary` reports how many documents were imported), `failed_retryable`/`dead` (will retry / gave up), or `failed`. While `pending`, poll again after a short delay.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "jobId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "kb_update_document",
     "title": "KB: Update document",
     "description": "Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed.",

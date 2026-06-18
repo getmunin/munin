@@ -10,10 +10,18 @@ Munin is an open-source customer platform built for the agentic era (Knowledge B
   </a>
 </p>
 
+## Why I built this
+
+Hi — Kjell here. Last year my company was paying HubSpot $500/month for three users who barely touched it. Every workflow worth having lived a tier above the one we were on.
+
+Then our AI agents started doing the prospecting and outreach themselves, and it hit me: what we still used HubSpot for had shrunk to basic CRUD. The agent does the work; HubSpot just stored the record. I wasn't going to keep paying $500/month for CRUD.
+
+So I built the thing I actually wanted. Over roughly a month, with Claude Code as my primary IDE, Munin went from nothing to what's in this repo. I've shipped production software for about twenty years — that experience is what shaped the architecture and let me catch the agent when it got things wrong. Claude Code took the labor of typing it out of the equation; a year ago I don't think this would have been feasible solo.
+
 ## What's in the box
 
 - **Knowledge Base** — markdown documents, hybrid search (BM25 + pgvector embeddings), per-document audience scoping.
-- **Conversations** — multi-channel threads (email, voice via Vapi, SMS via Twilio/MessageBird, chat widget) routed to end-users, assignable, agent-resolvable, with handover state and webhook fan-out.
+- **Conversations** — multi-channel threads (email, voice via Threll.ai or Vapi, SMS via Twilio or MessageBird, chat widget) routed to end-users, assignable, agent-resolvable, with handover state and webhook fan-out.
 - **CRM** — contacts, companies, deals, activities, pipelines, segments, plus a merge-proposal queue the `clean-contact-data` curator runs against.
 - **CMS** — agent-authored content collections with field schemas, localized entries, scheduled publishing, an asset library backed by S3-compatible storage, and a public delivery API that ships a `_tracking` block on every entry for built-in engagement signal.
 - **Outreach** — propose-only outbound emails: campaigns + segments + drafts queued for human approval; never auto-sends.
@@ -111,7 +119,7 @@ See `packages/backend-core/src/control/delegated-token.controller.ts` for the to
 - `packages/ui` — design-system primitives (shadcn-style).
 - `packages/{core, db, types, sdk, mcp-toolkit}` — non-Nest building blocks: actor identity + tenancy GUCs, Drizzle schema + migrations, shared types, Node client SDK, MCP `@McpTool` / `@SkillRegistry` decorators.
 - `packages/{agent-host, agent-runtime}` — durable per-org agent runner that picks curator jobs off the queue and executes them against the configured LLM provider.
-- `packages/widget-voice` — Vapi-backed voice glue for the chat widget.
+- `packages/widget-voice` — vendor-agnostic browser voice SDK for the chat widget (Threll.ai WebRTC + Vapi) behind a common `VoiceSession` interface.
 - All `@getmunin/*` packages are published to GitHub Packages.
 
 ## Stack

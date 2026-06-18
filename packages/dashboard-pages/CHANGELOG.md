@@ -1,5 +1,14 @@
 # @getmunin/dashboard-pages
 
+## 4.51.1
+
+### Patch Changes
+
+- 7744261: Render markdown in the dashboard conversation drawer. Message bubbles, internal notes, and the agent draft preview now render bold, italics, lists, links, code, and rules instead of showing raw markdown source — matching how the chat widget displays the same content.
+- 1ee9d7f: Split the 1.7k-line `inbox-sections.tsx` into focused modules (`inbox-types`, `inbox-helpers`, `inbox-data` hook, `inbox-message-bubble`, `inbox-activity-rail`, `inbox-conv-drawers`), with `inbox-sections` retained as the section/list components plus a re-export of the public API. Pure refactor — no behavior change.
+  - @getmunin/types@4.51.1
+  - @getmunin/ui@4.51.1
+
 ## 4.51.0
 
 ### Patch Changes

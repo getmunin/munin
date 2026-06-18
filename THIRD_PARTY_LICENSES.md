@@ -39,7 +39,7 @@ SOFTWARE.
 
 ---
 
-## @babel/code-frame@7.29.0
+## @babel/code-frame@7.29.0, 7.29.7
 
 > Generate errors that contain a code frame that point to source locations.
 - Homepage: https://babel.dev/docs/en/next/babel-code-frame
@@ -73,7 +73,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/compat-data@7.29.0
+## @babel/compat-data@7.29.7
 
 > The compat-data to determine required Babel plugins
 - Homepage: https://github.com/babel/babel#readme
@@ -107,7 +107,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/core@7.29.0
+## @babel/core@7.29.7
 
 > Babel compiler core.
 - Homepage: https://babel.dev/docs/en/next/babel-core
@@ -141,7 +141,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/generator@7.29.1
+## @babel/generator@7.29.1, 7.29.7
 
 > Turns an AST into code.
 - Homepage: https://babel.dev/docs/en/next/babel-generator
@@ -209,7 +209,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/helper-compilation-targets@7.28.6
+## @babel/helper-compilation-targets@7.29.7
 
 > Helper functions on Babel compilation targets
 - Homepage: https://github.com/babel/babel#readme
@@ -277,7 +277,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/helper-globals@7.28.0
+## @babel/helper-globals@7.28.0, 7.29.7
 
 > A collection of JavaScript globals for Babel internal usage
 - Homepage: https://github.com/babel/babel#readme
@@ -345,7 +345,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/helper-module-imports@7.28.6
+## @babel/helper-module-imports@7.28.6, 7.29.7
 
 > Babel helper functions for inserting module loads
 - Homepage: https://babel.dev/docs/en/next/babel-helper-module-imports
@@ -379,7 +379,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/helper-module-transforms@7.28.6
+## @babel/helper-module-transforms@7.28.6, 7.29.7
 
 > Babel helper functions for implementing ES6 module transformations
 - Homepage: https://babel.dev/docs/en/next/babel-helper-module-transforms
@@ -549,7 +549,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/helper-string-parser@7.27.1
+## @babel/helper-string-parser@7.27.1, 7.29.7
 
 > A utility package to parse strings
 - Homepage: https://babel.dev/docs/en/next/babel-helper-string-parser
@@ -583,7 +583,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/helper-validator-identifier@7.28.5
+## @babel/helper-validator-identifier@7.28.5, 7.29.7
 
 > Validate identifier/keywords name
 - Homepage: https://github.com/babel/babel#readme
@@ -617,7 +617,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/helper-validator-option@7.27.1
+## @babel/helper-validator-option@7.27.1, 7.29.7
 
 > Validate plugin/preset options
 - Homepage: https://github.com/babel/babel#readme
@@ -651,7 +651,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/helpers@7.29.2
+## @babel/helpers@7.29.7
 
 > Collection of helper functions used by Babel transforms.
 - Homepage: https://babel.dev/docs/en/next/babel-helpers
@@ -686,7 +686,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/parser@7.29.2
+## @babel/parser@7.29.2, 7.29.7
 
 > A JavaScript parser
 - Homepage: https://babel.dev/docs/en/next/babel-parser
@@ -921,7 +921,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/template@7.28.6
+## @babel/template@7.28.6, 7.29.7
 
 > Generate an AST from a string template.
 - Homepage: https://babel.dev/docs/en/next/babel-template
@@ -955,7 +955,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/traverse@7.29.0
+## @babel/traverse@7.29.0, 7.29.7
 
 > The Babel Traverse module maintains the overall tree state, and is responsible for replacing, removing, and adding nodes
 - Homepage: https://babel.dev/docs/en/next/babel-traverse
@@ -989,7 +989,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @babel/types@7.29.0
+## @babel/types@7.29.0, 7.29.7
 
 > Babel Types is a Lodash-esque utility library for AST nodes
 - Homepage: https://babel.dev/docs/en/next/babel-types
@@ -5658,7 +5658,7 @@ Apache License
 
 ---
 
-## @opentelemetry/core@2.6.1, 2.7.1
+## @opentelemetry/core@2.8.0
 
 > OpenTelemetry Core provides constants and utilities shared by all OpenTelemetry SDK packages.
 - Homepage: https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-core
@@ -22557,7 +22557,7 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## form-data@4.0.5
+## form-data@4.0.6
 
 > A library to create readable "multipart/form-data" streams. Can be used to submit forms and file uploads to other web applications.
 - Homepage: https://github.com/form-data/form-data#readme
@@ -23306,7 +23306,7 @@ SOFTWARE.
 
 ---
 
-## hasown@2.0.3
+## hasown@2.0.4
 
 > A robust, ES3 compatible, "has own property" predicate.
 - Homepage: https://github.com/inspect-js/hasOwn#readme
@@ -23435,7 +23435,7 @@ SOFTWARE.
 
 ---
 
-## hono@4.12.23
+## hono@4.12.26
 
 > Web framework built on Web Standards
 - Homepage: https://hono.dev
@@ -25148,7 +25148,7 @@ THE SOFTWARE.
 
 ---
 
-## js-yaml@4.1.1
+## js-yaml@4.2.0
 
 > YAML 1.2 parser and serializer
 - Homepage: https://github.com/nodeca/js-yaml#readme
@@ -27412,7 +27412,7 @@ THE SOFTWARE.
 
 ---
 
-## nodemailer@8.0.5, 8.0.7
+## nodemailer@8.0.5, 8.0.7, 8.0.9
 
 > Easy as cake e-mail sending from your Node.js applications
 - Homepage: https://nodemailer.com/
@@ -34970,7 +34970,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## vite@6.4.2
+## vite@6.4.3
 
 > Native-ESM powered web dev build tool
 - Homepage: https://vite.dev
@@ -36325,7 +36325,7 @@ Repository: lydell/js-tokens
 ## launch-editor, launch-editor-middleware
 License: MIT
 By: Evan You
-Repositories: git+https://github.com/yyx990803/launch-editor.git, git+https://github.com/yyx990803/launch-editor.git
+Repositories: git+https://github.com/vitejs/launch-editor.git, git+https://github.com/vitejs/launch-editor.git
 
 > The MIT License (MIT)
 > 
@@ -38613,7 +38613,7 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## ws@8.20.1
+## ws@8.21.0
 
 > Simple to use, blazing fast and thoroughly tested websocket client and server for Node.js
 - Homepage: https://github.com/websockets/ws

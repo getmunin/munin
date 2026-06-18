@@ -82,6 +82,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private readonly selfServiceSubscribersByOrg = new Map<string, Set<WebSocket>>();
   private readonly subscribersByChannel = new Map<string, Set<ConnectionEntry>>();
   private busTypingUnsubscribe: (() => void) | null = null;
+  private readonly instanceId = randomUUID();
 
   selfServiceSubscriberCount(orgId: string): number {
     return this.selfServiceSubscribersByOrg.get(orgId)?.size ?? 0;
@@ -133,7 +134,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     this.upgradeListener = listener;
     httpServer.on('upgrade', listener);
     this.busTypingUnsubscribe = this.bus.subscribeAgentTyping((event) => {
-      this.handleBusAgentTyping(event).catch((err: unknown) =>
+      this.handleBusTyping(event).catch((err: unknown) =>
         this.logger.warn(`bus typing dispatch failed: ${describeError(err)}`),
       );
     });
@@ -562,39 +563,17 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     });
   }
 
-  private async handleBusAgentTyping(event: AgentTypingBusEvent): Promise<void> {
-    const meta = await this.resolveConversationMeta(event.conversationId);
-    if (!meta || meta.sessionId === null) return;
-    const outboundChannel = `widget:${meta.channelId}:${meta.sessionId}`;
-    const subs = this.subscribersByChannel.get(outboundChannel);
-    if (!subs) return;
-    const payload = JSON.stringify({
-      type: 'typing',
-      channel: outboundChannel,
-      isTyping: event.isTyping,
-      authorType: 'operator',
-    });
-    for (const sub of subs) {
-      if (sub.orgId !== event.orgId) continue;
-      if (sub.widgetCtx?.verifiedExternalId) {
-        const cached = sub.conversationMetaCache.get(event.conversationId);
-        if (
-          !cached ||
-          !cached.meta ||
-          cached.meta.contactExternalId !== sub.widgetCtx.verifiedExternalId
-        ) {
-          void this.resolveConversationMeta(event.conversationId).then((resolved) => {
-            sub.conversationMetaCache.set(event.conversationId, { meta: resolved });
-          });
-          continue;
-        }
-      }
-      try {
-        sub.ws.send(payload);
-      } catch (err) {
-        this.logger.debug?.(`fanoutTyping send failed (socket likely mid-close): ${describeError(err)}`);
-      }
+  private async handleBusTyping(event: AgentTypingBusEvent): Promise<void> {
+    if (event.originInstanceId && event.originInstanceId === this.instanceId) return;
+    let outboundChannel: string;
+    if (event.authorType === 'visitor') {
+      outboundChannel = `conversation:${event.conversationId}`;
+    } else {
+      const meta = await this.resolveConversationMeta(event.conversationId);
+      if (!meta || meta.sessionId === null) return;
+      outboundChannel = `widget:${meta.channelId}:${meta.sessionId}`;
     }
+    this.deliverTyping(outboundChannel, event.conversationId, event.authorType, event.isTyping, event.orgId);
   }
 
   private fanoutTyping(
@@ -603,6 +582,21 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     conversationId: string,
     authorType: 'visitor' | 'operator',
     isTyping: boolean,
+  ): void {
+    this.deliverTyping(outboundChannel, conversationId, authorType, isTyping, fromEntry.orgId, fromEntry);
+    this.bus.publishConversationTyping(fromEntry.orgId, conversationId, isTyping, {
+      authorType,
+      originInstanceId: this.instanceId,
+    });
+  }
+
+  private deliverTyping(
+    outboundChannel: string,
+    conversationId: string,
+    authorType: 'visitor' | 'operator',
+    isTyping: boolean,
+    orgId: string,
+    excludeEntry?: ConnectionEntry,
   ): void {
     const subs = this.subscribersByChannel.get(outboundChannel);
     if (!subs) return;
@@ -613,8 +607,8 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       authorType,
     });
     for (const sub of subs) {
-      if (sub === fromEntry) continue;
-      if (sub.orgId !== fromEntry.orgId) continue;
+      if (excludeEntry && sub === excludeEntry) continue;
+      if (sub.orgId !== orgId) continue;
       if (sub.widgetCtx?.verifiedExternalId) {
         const cached = sub.conversationMetaCache.get(conversationId);
         if (
@@ -631,7 +625,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       try {
         sub.ws.send(payload);
       } catch (err) {
-        this.logger.debug?.(`bus typing send failed (socket likely mid-close): ${describeError(err)}`);
+        this.logger.debug?.(`typing send failed (socket likely mid-close): ${describeError(err)}`);
       }
     }
   }

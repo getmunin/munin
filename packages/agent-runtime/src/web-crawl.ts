@@ -252,7 +252,10 @@ export class WebCrawler {
           continue;
         }
         if (res.status >= 400 || !res.contentType.includes('html')) continue;
-        for (const link of extractLinks(res.body, res.finalUrl)) {
+        const links = extractLinks(res.body, res.finalUrl);
+        const redirect = extractRedirectTarget(res.body, res.finalUrl);
+        if (redirect) links.push(redirect);
+        for (const link of links) {
           const normalized = normalizeCandidateUrl(link, origin);
           if (!normalized) continue;
           if (visited.has(normalized)) continue;
@@ -348,6 +351,40 @@ export function extractLinks(html: string, baseUrl: string): string[] {
     }
   }
   return out;
+}
+
+export function extractRedirectTarget(html: string, baseUrl: string): string | null {
+  const meta = /<meta\b[^>]*http-equiv\s*=\s*["']?refresh["']?[^>]*>/i.exec(html);
+  if (meta) {
+    const content = /content\s*=\s*["']([^"']*)["']/i.exec(meta[0]);
+    const urlPart = content ? /url\s*=\s*(.+)$/i.exec(content[1]!.trim()) : null;
+    if (urlPart) {
+      const raw = urlPart[1]!.trim().replace(/^["']|["']$/g, '');
+      try {
+        return new URL(decodeEntities(raw), baseUrl).toString();
+      } catch (err) {
+        console.debug(`[web-crawl] bad meta-refresh url "${raw}" in ${baseUrl}: ${describeError(err)}`);
+      }
+    }
+  }
+  const canonical = /<link\b[^>]*rel\s*=\s*["']?canonical["']?[^>]*>/i.exec(html);
+  if (canonical) {
+    const href = /href\s*=\s*["']([^"']+)["']/i.exec(canonical[0]);
+    if (href) {
+      try {
+        return new URL(decodeEntities(href[1]!), baseUrl).toString();
+      } catch (err) {
+        console.debug(`[web-crawl] bad canonical href "${href[1]}" in ${baseUrl}: ${describeError(err)}`);
+      }
+    }
+  }
+  return null;
+}
+
+function extractFirstHeading(html: string): string {
+  const m = /<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/i.exec(html);
+  if (!m) return '';
+  return decodeEntities(m[1]!.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
 function decodeEntities(s: string): string {
@@ -528,6 +565,11 @@ const defaultFetcher: HtmlFetcher = async (url) => {
   }
 };
 
+export async function probeUrl(url: string): Promise<{ status: number; finalUrl: string }> {
+  const res = await defaultFetcher(url);
+  return { status: res.status, finalUrl: res.finalUrl };
+}
+
 async function readBodyCapped(res: { body: ReadableStream<Uint8Array> | null }, cap: number): Promise<string> {
   if (!res.body) return '';
   const reader = res.body.getReader();
@@ -561,7 +603,12 @@ const defaultExtractor: Extractor = async (html, url) => {
     const result = await withSilencedDefuddleLogs(() => fn(html, url, { markdown: true }));
     const md = (result?.content ?? '').toString().trim();
     if (!md) return null;
-    return { title: (result?.title ?? '').toString().trim(), markdown: md };
+    const defuddleTitle = (result?.title ?? '').toString().trim();
+    const heading = extractFirstHeading(html);
+    const titleTag = extractTitleTag(html);
+    const title =
+      !defuddleTitle || defuddleTitle === titleTag ? heading || defuddleTitle || titleTag : defuddleTitle;
+    return { title, markdown: md };
   } catch (err) {
     console.warn(
       `[web-crawl] defuddle extraction failed for "${url}", falling back: ${describeError(err)}`,
@@ -608,9 +655,13 @@ async function loadDefuddle(): Promise<DefuddleFn | null> {
   }
 }
 
-function extractBasic(html: string): { title: string; markdown: string } | null {
+function extractTitleTag(html: string): string {
   const titleMatch = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i.exec(html);
-  const title = titleMatch ? decodeEntities(titleMatch[1]!).replace(/\s+/g, ' ').trim() : '';
+  return titleMatch ? decodeEntities(titleMatch[1]!).replace(/\s+/g, ' ').trim() : '';
+}
+
+export function extractBasic(html: string): { title: string; markdown: string } | null {
+  const title = extractFirstHeading(html) || extractTitleTag(html);
   const blockTag = /<(script|style|nav|footer|header)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
   let stripped = html;
   for (;;) {

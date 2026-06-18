@@ -88,6 +88,7 @@ const PublishCurationCandidateInput = z.object({
 const ImportWebsiteInput = z.object({
   url: z.string().min(1).max(2048),
   synthesizeCompanyProfile: z.boolean().optional(),
+  reconcile: z.boolean().optional(),
 });
 
 const ImportWebsiteStatusInput = z.object({
@@ -212,7 +213,7 @@ export class KbAdminTools {
     name: 'kb_import_website',
     title: 'KB: Import website',
     description:
-      "Crawl a public website and populate the knowledge base from it: one KB document per page. Runs asynchronously on the curator queue — returns a job id you can track with the curator jobs control plane. Pass a homepage URL (a bare domain like `example.com` is accepted). The URL must be publicly reachable; localhost and private/internal addresses are rejected. Re-importing the same URL while a scrape is still pending returns the in-flight job instead of starting a second one.\n\nBy default the import also synthesizes a `company-profile` KB document (slug `company-profile`) that seeds the chat widget — appropriate when importing your own company's site. Set `synthesizeCompanyProfile: false` when importing third-party or topic pages that are NOT your company's website, so the import doesn't overwrite your company profile with unrelated content.",
+      "Crawl a public website and populate the knowledge base from it: one KB document per page. Runs asynchronously on the curator queue — returns a job id you can track with the curator jobs control plane. Pass a homepage URL (a bare domain like `example.com` is accepted). The URL must be publicly reachable; localhost and private/internal addresses are rejected. Re-importing the same URL while a scrape is still pending returns the in-flight job instead of starting a second one.\n\nBy default the import also synthesizes a `company-profile` KB document (slug `company-profile`) that seeds the chat widget — appropriate when importing your own company's site. Set `synthesizeCompanyProfile: false` when importing third-party or topic pages that are NOT your company's website, so the import doesn't overwrite your company profile with unrelated content.\n\nReconciliation is on by default: after a healthy crawl, previously imported pages that are no longer on the site (re-checked individually and confirmed to return 404/410) are deleted from the knowledge base, so a refresh prunes removed pages. Set `reconcile: false` to import additively without pruning.",
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: ImportWebsiteInput,
@@ -224,7 +225,10 @@ export class KbAdminTools {
     const { job, alreadyPending } = await this.curator.enqueue({
       jobUri: WEB_SCRAPE_SITE_TASK_URI,
       userPrompt: url,
-      sourceEventPayload: { synthesizeCompanyProfile: args.synthesizeCompanyProfile ?? true },
+      sourceEventPayload: {
+        synthesizeCompanyProfile: args.synthesizeCompanyProfile ?? true,
+        reconcile: args.reconcile ?? true,
+      },
       dedupeKey: `kb-import-website:${url}`,
       maxAttempts: 3,
     });

@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # 0 keeps security updates on while suppressing routine version-update PRs.
+    open-pull-requests-limit: 0
+    ignore:
+      # Pinned transitively at v3 by changesets (read-yaml-file uses the v3-only
+      # safeLoad API); the patched v4.2.0 can't be installed. Dev-scope DoS.
+      - dependency-name: "js-yaml"

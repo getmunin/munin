@@ -101,6 +101,10 @@ Once you've signed up (hosted) or run `docker compose up` (self-host), point you
 
 (For the hosted version, swap in `https://mcp.getmunin.com`.) The first call triggers an OAuth consent screen in your browser, then your agent has the full tool surface — Knowledge Base, Conversations, CRM, CMS, Outreach, Analytics.
 
+## Documentation
+
+Developer docs live at **[getmunin.com/docs](https://www.getmunin.com/en/docs/)** — guides, the REST API reference, the full MCP tool list, and the skill library.
+
 ## Two trust contexts, one MCP endpoint
 
 The same `/mcp` endpoint serves two distinct callers, audience-aware:

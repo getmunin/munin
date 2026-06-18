@@ -85,6 +85,7 @@ export interface CurationCandidateDto extends DocumentDto {
 export interface DocumentSummary {
   id: string;
   spaceId: string;
+  slug: string | null;
   title: string;
   audiences: Audience[];
   version: number;
@@ -171,6 +172,7 @@ export class KbService {
       .select({
         id: schema.kbDocuments.id,
         spaceId: schema.kbDocuments.spaceId,
+        slug: schema.kbDocuments.slug,
         title: schema.kbDocuments.title,
         audiences: schema.kbDocuments.audiences,
         version: schema.kbDocuments.version,
@@ -184,6 +186,7 @@ export class KbService {
     return rows.map((r) => ({
       id: r.id,
       spaceId: r.spaceId,
+      slug: r.slug,
       title: r.title,
       audiences: r.audiences,
       version: r.version,

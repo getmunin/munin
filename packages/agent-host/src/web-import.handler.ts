@@ -2,6 +2,7 @@ import {
   WebCrawler,
   classifyProviderError,
   openAiCompatibleProvider,
+  probeUrl,
   type CrawledPage,
   type CrawlResult,
   type CuratorJob,
@@ -15,6 +16,11 @@ const TARGET_SPACE_SLUG = 'website-import';
 const MAX_PAGES_TO_INSERT = 30;
 const PROFILE_CONTEXT_PAGES = 8;
 const PROFILE_MAX_TOKENS = 1200;
+const IMPORT_TAG = 'imported-from-website';
+const PROFILE_TAG = 'company-profile';
+const PROFILE_SLUG = 'company-profile';
+const SOURCE_URL_TAG_PREFIX = 'source-url:';
+const MIN_PAGES_FOR_PRUNE = 3;
 
 export interface WebImportHandlerOpts {
   job: CuratorJob;
@@ -63,8 +69,12 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
     if (ok) created++;
   }
 
-  const payload = opts.job.sourceEventPayload as { synthesizeCompanyProfile?: boolean } | null;
+  const payload = opts.job.sourceEventPayload as {
+    synthesizeCompanyProfile?: boolean;
+    reconcile?: boolean;
+  } | null;
   const synthesizeCompanyProfile = payload?.synthesizeCompanyProfile !== false;
+  const reconcile = payload?.reconcile !== false;
 
   let profileTokens = 0;
   let providerError: ProviderErrorClassification | null = null;
@@ -96,14 +106,158 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
     };
   }
 
-  const replyText = `Imported ${created} document(s) from ${crawl.siteUrl}; ${crawl.skipped.length} URL(s) skipped.`;
+  let pruned = 0;
+  if (reconcile) {
+    pruned = await reconcileSpace(mcp, spaceId, crawl, created, opts.logger);
+  }
+
+  const prunedText = pruned > 0 ? ` Pruned ${pruned} document(s) no longer on the site.` : '';
+  const replyText = `Imported ${created} document(s) from ${crawl.siteUrl}; ${crawl.skipped.length} URL(s) skipped.${prunedText}`;
   return {
     ok: true,
-    toolCalls: created,
+    toolCalls: created + pruned,
     totalTokens: profileTokens,
     finishReason: 'stop',
     replyText,
   };
+}
+
+export interface DocSummary {
+  id: string;
+  slug: string | null;
+  title: string;
+  version: number;
+  tags: string[];
+}
+
+export async function reconcileSpace(
+  mcp: McpToolHandle,
+  spaceId: string,
+  crawl: CrawlResult,
+  importedDocs: number,
+  logger: WebImportHandlerOpts['logger'],
+): Promise<number> {
+  if (crawl.pages.length < MIN_PAGES_FOR_PRUNE || importedDocs === 0) {
+    logger.warn(
+      `reconcile skipped for ${crawl.siteUrl}: crawl too small (${crawl.pages.length} page(s), ${importedDocs} imported) — refusing to prune`,
+    );
+    return 0;
+  }
+
+  const origin = originOf(crawl.siteUrl);
+  const liveSlugs = new Set<string>([PROFILE_SLUG]);
+  for (const page of crawl.pages) {
+    const slug = slugifyUrl(page.url);
+    if (slug) liveSlugs.add(slug);
+  }
+
+  const listed = await mcp
+    .callTool('kb_list_documents', { spaceId, tag: IMPORT_TAG, limit: 200 })
+    .catch((err: unknown) => toolError(err));
+  if (listed.isError) {
+    logger.warn(`reconcile: kb_list_documents failed: ${stringifyToolResult(listed)}`);
+    return 0;
+  }
+  const docs = parseDocumentSummaries(listed);
+  if (docs.length >= 200) {
+    logger.warn(`reconcile: hit 200-document list cap for space ${spaceId}; some docs were not checked`);
+  }
+
+  let pruned = 0;
+  for (const doc of docs) {
+    if (!doc.slug || liveSlugs.has(doc.slug)) continue;
+    if (doc.slug === PROFILE_SLUG || doc.tags.includes(PROFILE_TAG)) continue;
+
+    const candidates = candidateUrls(doc, origin);
+    if (candidates.length === 0) continue;
+
+    const verdict = await classifyDocLiveness(candidates);
+    if (verdict !== 'gone') {
+      if (verdict === 'unknown') {
+        logger.info(`reconcile: leaving "${doc.title}" (${doc.slug}) — could not confirm its source page is gone`);
+      }
+      continue;
+    }
+
+    const deleted = await mcp
+      .callTool('kb_delete_document', { id: doc.id, ifVersion: doc.version })
+      .catch((err: unknown) => toolError(err));
+    if (deleted.isError) {
+      logger.warn(`reconcile: kb_delete_document failed for ${doc.slug}: ${stringifyToolResult(deleted)}`);
+      continue;
+    }
+    pruned++;
+    logger.info(`reconcile: pruned "${doc.title}" (${doc.slug}) — source page is gone`);
+  }
+  return pruned;
+}
+
+export function candidateUrls(doc: DocSummary, origin: string | null): string[] {
+  const tagged = doc.tags.find((t) => t.startsWith(SOURCE_URL_TAG_PREFIX));
+  if (tagged) {
+    const url = tagged.slice(SOURCE_URL_TAG_PREFIX.length).trim();
+    return url ? [url] : [];
+  }
+  if (!origin || !doc.slug) return [];
+  if (doc.slug === 'home') return [`${origin}/`];
+  const flat = `${origin}/${doc.slug}`;
+  const slashed = `${origin}/${doc.slug.replace(/-/g, '/')}`;
+  return flat === slashed ? [flat] : [flat, slashed];
+}
+
+async function classifyDocLiveness(urls: string[]): Promise<'alive' | 'gone' | 'unknown'> {
+  let sawGone = false;
+  for (const url of urls) {
+    try {
+      const { status } = await probeUrl(url);
+      if (status === 404 || status === 410) {
+        sawGone = true;
+      } else {
+        return 'alive';
+      }
+    } catch {
+      // transient/network error — inconclusive for this candidate, fall through
+    }
+  }
+  return sawGone ? 'gone' : 'unknown';
+}
+
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+function parseDocumentSummaries(res: McpToolResult): DocSummary[] {
+  for (const item of res.content) {
+    if (item.type !== 'text') continue;
+    const text = (item as { text?: string }).text;
+    if (!text) continue;
+    const parsed = tryParseJson(text);
+    const arr = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === 'object' && Array.isArray((parsed as { documents?: unknown }).documents)
+        ? (parsed as { documents: unknown[] }).documents
+        : null;
+    if (!arr) continue;
+    const out: DocSummary[] = [];
+    for (const node of arr) {
+      if (!node || typeof node !== 'object') continue;
+      const obj = node as Record<string, unknown>;
+      if (typeof obj.id !== 'string' || typeof obj.version !== 'number') continue;
+      out.push({
+        id: obj.id,
+        slug: typeof obj.slug === 'string' ? obj.slug : null,
+        title: typeof obj.title === 'string' ? obj.title : '',
+        version: obj.version,
+        tags: Array.isArray(obj.tags) ? obj.tags.filter((t): t is string => typeof t === 'string') : [],
+      });
+    }
+    return out;
+  }
+  return [];
 }
 
 async function ensureSpace(mcp: McpToolHandle): Promise<string> {
@@ -188,7 +342,7 @@ async function upsertPageDocument(
       title: page.title,
       body: page.markdown,
       audiences: ['admin', 'self_service'],
-      tags: ['imported-from-website'],
+      tags: [IMPORT_TAG, `${SOURCE_URL_TAG_PREFIX}${page.url}`],
     },
     `page ${page.url}`,
     logger,
@@ -204,13 +358,13 @@ async function upsertProfileDocument(
   return upsertKbDocumentBySlug(
     mcp,
     TARGET_SPACE_SLUG,
-    'company-profile',
+    PROFILE_SLUG,
     {
       spaceId,
       title: 'Company profile',
       body,
       audiences: ['admin', 'self_service'],
-      tags: ['imported-from-website', 'company-profile'],
+      tags: [IMPORT_TAG, PROFILE_TAG],
     },
     'company profile',
     logger,

@@ -61,6 +61,7 @@ export {
 } from './skill-pass.ts';
 export {
   WebCrawler,
+  probeUrl,
   type CrawlOptions,
   type CrawlResult,
   type CrawledPage,

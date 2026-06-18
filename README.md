@@ -5,8 +5,8 @@
 Munin is an open-source customer platform built for the agentic era (Knowledge Base, Conversations, CRM, CMS, Outreach, Analytics) where the only interface is via AI agents. There is no traditional admin UI for the apps themselves — every action runs through MCP tools, callable from any MCP-compatible client.
 
 <p align="center">
-  <a href="https://vimeo.com/1202399440">
-    <img src=".github/assets/video-thumbnail.png" alt="Watch: what Munin is and how it works" width="640">
+  <a href="https://vimeo.com/1202399440?autoplay=0&utm_source=github&utm_medium=readme&utm_campaign=promo-video">
+    <img src=".github/assets/video-thumbnail.png" alt="Watch: what Munin is and how it works" width="100%">
   </a>
 </p>
 

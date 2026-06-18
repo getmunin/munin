@@ -26933,7 +26933,7 @@ SOFTWARE.
 
 ---
 
-## multer@2.1.1
+## multer@2.2.0
 
 > Middleware for handling `multipart/form-data`.
 - Homepage: https://github.com/expressjs/multer#readme
@@ -27412,7 +27412,7 @@ THE SOFTWARE.
 
 ---
 
-## nodemailer@8.0.5, 8.0.7, 8.0.9
+## nodemailer@8.0.9
 
 > Easy as cake e-mail sending from your Node.js applications
 - Homepage: https://nodemailer.com/

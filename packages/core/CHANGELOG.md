@@ -1,5 +1,13 @@
 # @getmunin/core
 
+## 4.50.1
+
+### Patch Changes
+
+- d612e6a: Patch security-vulnerable dependencies. Bump nodemailer to ^8.0.9 (CRLF header injection, OAuth2 TLS certificate validation) and ws to ^8.21.0 (memory-exhaustion DoS), and force patched transitive versions of hono, form-data, multer, @opentelemetry/core, and @babel/core via pnpm overrides.
+  - @getmunin/db@4.50.1
+  - @getmunin/types@4.50.1
+
 ## 4.50.0
 
 ### Patch Changes

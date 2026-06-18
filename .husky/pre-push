@@ -1,0 +1,16 @@
+branch="$(git rev-parse --abbrev-ref HEAD)"
+
+# Protected and tool-generated branches are exempt.
+case "$branch" in
+  main | HEAD | changeset-release/*) exit 0 ;;
+esac
+
+pattern='^(feat|fix|chore|docs|refactor|test|ci|perf|build|revert)/[a-z0-9._-]+$'
+if ! printf '%s' "$branch" | grep -Eq "$pattern"; then
+  echo "✖ Branch \"$branch\" does not follow the naming convention."
+  echo "  Expected: <type>/<kebab-summary>"
+  echo "  type ∈ feat|fix|chore|docs|refactor|test|ci|perf|build|revert"
+  echo "  e.g. feat/website-import-reconcile, chore/bump-getmunin-4.51.0"
+  echo "  Rename with: git branch -m <new-name>"
+  exit 1
+fi

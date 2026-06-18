@@ -27,7 +27,7 @@ We use [Conventional Commits](https://www.conventionalcommits.org/). Example: `f
 
 ## Pull requests
 
-- Branch from `main`
+- Branch from `main`, named `<type>/<kebab-summary>` (`type` = a Conventional Commit type like `feat|fix|chore|docs|refactor|test|ci`) — e.g. `feat/hybrid-search`. A `pre-push` hook enforces this.
 - One logical change per PR
 - Keep PRs under ~400 lines where possible
 - Include a `Test plan` section in the description

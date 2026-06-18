@@ -52,6 +52,7 @@ Each module typically has `<mod>.module.ts`, `<mod>.service.ts`, `<mod>.tools.ts
 ## Conventions
 
 - TypeScript strict everywhere. Path-style absolute imports inside packages.
+- Branch names: `<type>/<kebab-summary>`, where `type` is one of `feat|fix|chore|docs|refactor|test|ci|perf|build|revert` (same set as Conventional Commits) — e.g. `feat/website-import-reconcile`, `fix/redos-tag-strip`, `chore/bump-getmunin-4.51.0`. Branch from `main`. Tool-generated branches (`changeset-release/main`) are exempt. Enforced by the `.husky/pre-push` hook.
 - No comments unless they explain a non-obvious *why* (see global rules).
 - Zod schemas for all MCP tool inputs and external boundaries.
 - Tests live alongside source (`*.test.ts`, `*.integration.test.ts`). Integration tests gate on `TEST_DATABASE_URL`.

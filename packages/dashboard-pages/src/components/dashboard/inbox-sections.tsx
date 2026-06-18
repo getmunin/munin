@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, MessageSquare, Unplug, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import {
   Button,
   Pill,
@@ -28,7 +29,7 @@ import {
   type OutreachProposalDto,
   type QueueItem,
 } from './queue-drawers/types';
-import { DrawerFooter, DrawerHeader, useCmdEnter } from './queue-drawers/shared';
+import { DrawerFooter, DrawerHeader, MD_COMPONENTS, useCmdEnter } from './queue-drawers/shared';
 
 type Status = 'open' | 'snoozed' | 'closed' | 'spam';
 
@@ -1279,8 +1280,8 @@ function SimplifiedConvDrawer({
               autoFocus
             />
           ) : (
-            <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap dark:bg-card dark:border-rule-on-dark dark:text-foreground">
-              {draft?.body}
+            <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
+              <ReactMarkdown components={MD_COMPONENTS}>{draft?.body ?? ''}</ReactMarkdown>
             </div>
           )}
         </section>
@@ -1479,6 +1480,35 @@ function FullConvDrawer({
 }
 
 
+const MESSAGE_MD_COMPONENTS: Components = {
+  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  h1: ({ children }) => <p className="mb-2 font-semibold last:mb-0">{children}</p>,
+  h2: ({ children }) => <p className="mb-2 font-semibold last:mb-0">{children}</p>,
+  h3: ({ children }) => <p className="mb-2 font-semibold last:mb-0">{children}</p>,
+  hr: () => <hr className="my-2 border-current/20" />,
+  code: ({ children }) => (
+    <code className="rounded border border-current/20 px-1 font-mono text-[0.85em]">{children}</code>
+  ),
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+      {children}
+    </a>
+  ),
+};
+
+function MessageMarkdown({ body }: { body: string }) {
+  return (
+    <div className="break-words [overflow-wrap:anywhere]">
+      <ReactMarkdown components={MESSAGE_MD_COMPONENTS}>{body}</ReactMarkdown>
+    </div>
+  );
+}
+
 function MessageBubble({ message }: { message: MessageDto }) {
   const t = useTranslations('dashboard.overview.drawer');
   const isStaff = message.authorType === 'user';
@@ -1506,7 +1536,7 @@ function MessageBubble({ message }: { message: MessageDto }) {
         <div className="mb-0.5 flex items-center gap-1 font-mono text-[9px] uppercase tracking-eyebrow text-amber-700 dark:text-amber-200">
           <AlertCircle className="size-3" /> {t('internalLabel', { author: message.authorType })}
         </div>
-        <div className="whitespace-pre-wrap">{message.body}</div>
+        <MessageMarkdown body={message.body} />
       </div>
     );
   }
@@ -1534,7 +1564,7 @@ function MessageBubble({ message }: { message: MessageDto }) {
         >
           {bubbleLabel(message, t)}
         </div>
-        <div className="whitespace-pre-wrap">{message.body}</div>
+        <MessageMarkdown body={message.body} />
       </div>
       {isOutbound && message.seenAt && (
         <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">

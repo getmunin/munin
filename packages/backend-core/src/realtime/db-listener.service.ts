@@ -15,11 +15,24 @@ export interface EventRow {
 
 export type EventHandler = (row: EventRow) => void;
 
+export interface TypingNotification {
+  orgId: string;
+  conversationId: string;
+  isTyping: boolean;
+  authorType: 'visitor' | 'operator';
+  originInstanceId?: string;
+}
+
+export type TypingHandler = (notification: TypingNotification) => void;
+
+export const AGENT_TYPING_CHANNEL = 'agent_typing';
+
 @Injectable()
 export class DbListenerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DbListenerService.name);
   private client: ReturnType<typeof postgres> | null = null;
   private readonly handlers = new Set<EventHandler>();
+  private readonly typingHandlers = new Set<TypingHandler>();
 
   async onModuleInit(): Promise<void> {
     if (parseEnvDisableFlag('MUNIN_REALTIME_DISABLED')) {
@@ -36,7 +49,8 @@ export class DbListenerService implements OnModuleInit, OnModuleDestroy {
       connection: { options: '-c app.bypass_rls=on' },
     });
     await this.client.listen('munin_events', (raw) => this.dispatch(raw));
-    this.logger.log('listening on munin_events');
+    await this.client.listen(AGENT_TYPING_CHANNEL, (raw) => this.dispatchTyping(raw));
+    this.logger.log(`listening on munin_events and ${AGENT_TYPING_CHANNEL}`);
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -48,6 +62,11 @@ export class DbListenerService implements OnModuleInit, OnModuleDestroy {
   subscribe(handler: EventHandler): () => void {
     this.handlers.add(handler);
     return () => this.handlers.delete(handler);
+  }
+
+  subscribeTyping(handler: TypingHandler): () => void {
+    this.typingHandlers.add(handler);
+    return () => this.typingHandlers.delete(handler);
   }
 
   private dispatch(raw: string): void {
@@ -63,6 +82,40 @@ export class DbListenerService implements OnModuleInit, OnModuleDestroy {
         handler(row);
       } catch (err) {
         this.logger.warn(`handler error: ${describe(err)}`);
+      }
+    }
+  }
+
+  private dispatchTyping(raw: string): void {
+    let notification: TypingNotification;
+    try {
+      const parsed = JSON.parse(raw) as Partial<TypingNotification>;
+      if (
+        typeof parsed.orgId !== 'string' ||
+        typeof parsed.conversationId !== 'string' ||
+        typeof parsed.isTyping !== 'boolean' ||
+        (parsed.authorType !== 'visitor' && parsed.authorType !== 'operator')
+      ) {
+        this.logger.warn('malformed agent_typing payload: missing fields');
+        return;
+      }
+      notification = {
+        orgId: parsed.orgId,
+        conversationId: parsed.conversationId,
+        isTyping: parsed.isTyping,
+        authorType: parsed.authorType,
+        originInstanceId:
+          typeof parsed.originInstanceId === 'string' ? parsed.originInstanceId : undefined,
+      };
+    } catch (err) {
+      this.logger.warn(`malformed agent_typing payload: ${describe(err)}`);
+      return;
+    }
+    for (const handler of this.typingHandlers) {
+      try {
+        handler(notification);
+      } catch (err) {
+        this.logger.warn(`typing handler error: ${describe(err)}`);
       }
     }
   }

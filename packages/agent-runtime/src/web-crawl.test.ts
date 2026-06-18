@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   WebCrawler,
+  extractBasic,
   extractLinks,
+  extractRedirectTarget,
   extractSitemapLocs,
   normalizeCandidateUrl,
   normalizeStartUrl,
@@ -137,6 +139,42 @@ describe('extractLinks', () => {
   });
 });
 
+describe('extractRedirectTarget', () => {
+  it('reads a meta-refresh redirect', () => {
+    const html = `<head><meta http-equiv="refresh" content="0; url=/en/"><link rel="canonical" href="/en/"></head>`;
+    expect(extractRedirectTarget(html, 'https://example.com/')).toBe('https://example.com/en/');
+  });
+  it('falls back to canonical when no meta refresh', () => {
+    const html = `<head><link rel="canonical" href="https://example.com/en/home"></head>`;
+    expect(extractRedirectTarget(html, 'https://example.com/')).toBe('https://example.com/en/home');
+  });
+  it('returns null when neither is present', () => {
+    expect(extractRedirectTarget('<head></head>', 'https://example.com/')).toBeNull();
+  });
+});
+
+describe('extractBasic title', () => {
+  const body = 'The quick brown fox jumps over the lazy dog and recites HTTP poems. '.repeat(6);
+  it('prefers the first h1 over a generic title tag', () => {
+    const html = `<head><title>Munin — The platform</title></head><body><h1>Lead research recipe</h1><p>${body}</p></body>`;
+    expect(extractBasic(html)?.title).toBe('Lead research recipe');
+  });
+  it('falls back to the title tag when no h1', () => {
+    const html = `<head><title>Pricing</title></head><body><p>${body}</p></body>`;
+    expect(extractBasic(html)?.title).toBe('Pricing');
+  });
+  it('strips nested tags inside the h1', () => {
+    const html = `<body><h1><span>Lead</span> <b>research</b></h1><p>${body}</p></body>`;
+    expect(extractBasic(html)?.title).toBe('Lead research');
+  });
+  it('stays linear on adversarial unclosed-tag input', () => {
+    const html = `<body><h1>${'<'.repeat(50000)}</h1><p>${body}</p></body>`;
+    const start = Date.now();
+    extractBasic(html);
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
+});
+
 describe('rankUrls', () => {
   it('puts home, about, pricing first', () => {
     const out = rankUrls(
@@ -202,6 +240,34 @@ describe('WebCrawler.crawl', () => {
     const urls = result.pages.map((p) => p.url);
     expect(urls).toContain('https://example.com/about');
     expect(urls).toContain('https://example.com/pricing');
+  });
+
+  it('follows a client-side root redirect to discover the real site', async () => {
+    const routes: RouteMap = {
+      'https://example.com/robots.txt': { status: 404 },
+      'https://example.com/sitemap.xml': { status: 404 },
+      'https://example.com/sitemap_index.xml': { status: 404 },
+      'https://example.com/sitemap-pages.xml': { status: 404 },
+      'https://example.com/': {
+        body: `<html><head><meta http-equiv="refresh" content="0; url=/en/"><link rel="canonical" href="/en/"></head><body></body></html>`,
+      },
+      'https://example.com/en': {
+        body:
+          `<html><head><title>Home</title></head><body>` +
+          'The quick brown fox jumps over the lazy dog every weekday morning and recites a small poem about HTTP. '.repeat(
+            6,
+          ) +
+          `<a href="/en/about">about</a><a href="/en/pricing">pricing</a></body></html>`,
+      },
+      'https://example.com/en/about': { body: goodBody('About') },
+      'https://example.com/en/pricing': { body: goodBody('Pricing') },
+    };
+    const svc = new WebCrawler({ fetcher: makeFetcher(routes), extractor: passthroughExtractor });
+    const result = await svc.crawl({ url: 'https://example.com' });
+    const urls = result.pages.map((p) => p.url);
+    expect(urls).toContain('https://example.com/en');
+    expect(urls).toContain('https://example.com/en/about');
+    expect(urls).toContain('https://example.com/en/pricing');
   });
 
   it('honors maxPages cap', async () => {

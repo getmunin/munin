@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { EventEmitter } from 'node:events';
-import { DbListenerService, type EventRow } from './db-listener.service.ts';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { sql } from 'drizzle-orm';
+import type { Db } from '@getmunin/db';
+import { DB } from '../common/db/db.module.ts';
+import { AGENT_TYPING_CHANNEL, DbListenerService, type EventRow } from './db-listener.service.ts';
 
 export interface MessageReceivedBusEvent {
   conversationId: string;
@@ -62,20 +64,20 @@ export interface AgentTypingBusEvent {
   orgId: string;
   conversationId: string;
   isTyping: boolean;
+  authorType: 'visitor' | 'operator';
+  originInstanceId?: string;
 }
 
 export type AgentTypingHandler = (event: AgentTypingBusEvent) => void;
 
-const TYPING_CHANNEL = 'agent_typing';
-
 @Injectable()
 export class RealtimeEventBus {
   private readonly logger = new Logger(RealtimeEventBus.name);
-  private readonly typingEmitter = new EventEmitter();
 
-  constructor(private readonly listener: DbListenerService) {
-    this.typingEmitter.setMaxListeners(64);
-  }
+  constructor(
+    private readonly listener: DbListenerService,
+    @Inject(DB) private readonly db: Db,
+  ) {}
 
   subscribe(filter: RealtimeBusSubscriptionFilter, handlers: RealtimeBusHandlers): RealtimeBusSubscription {
     const dbUnsubscribe = this.listener.subscribe((event) => {
@@ -99,19 +101,30 @@ export class RealtimeEventBus {
     return { unsubscribe: dbUnsubscribe };
   }
 
-  publishConversationTyping(orgId: string, conversationId: string, isTyping: boolean): void {
-    this.typingEmitter.emit(TYPING_CHANNEL, {
+  publishConversationTyping(
+    orgId: string,
+    conversationId: string,
+    isTyping: boolean,
+    opts?: { authorType?: 'visitor' | 'operator'; originInstanceId?: string },
+  ): void {
+    const payload = JSON.stringify({
       orgId,
       conversationId,
       isTyping,
+      authorType: opts?.authorType ?? 'operator',
+      originInstanceId: opts?.originInstanceId,
     } satisfies AgentTypingBusEvent);
+    void this.db
+      .execute(sql`SELECT pg_notify(${AGENT_TYPING_CHANNEL}, ${payload})`)
+      .catch((err: unknown) => {
+        this.logger.warn(`publishConversationTyping failed: ${describe(err)}`);
+      });
   }
 
   subscribeAgentTyping(handler: AgentTypingHandler): () => void {
-    this.typingEmitter.on(TYPING_CHANNEL, handler);
-    return () => {
-      this.typingEmitter.off(TYPING_CHANNEL, handler);
-    };
+    return this.listener.subscribeTyping((notification) => {
+      handler(notification satisfies AgentTypingBusEvent);
+    });
   }
 }
 

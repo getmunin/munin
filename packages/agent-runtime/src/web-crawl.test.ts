@@ -163,6 +163,16 @@ describe('extractBasic title', () => {
     const html = `<head><title>Pricing</title></head><body><p>${body}</p></body>`;
     expect(extractBasic(html)?.title).toBe('Pricing');
   });
+  it('strips nested tags inside the h1', () => {
+    const html = `<body><h1><span>Lead</span> <b>research</b></h1><p>${body}</p></body>`;
+    expect(extractBasic(html)?.title).toBe('Lead research');
+  });
+  it('stays linear on adversarial unclosed-tag input', () => {
+    const html = `<body><h1>${'<'.repeat(50000)}</h1><p>${body}</p></body>`;
+    const start = Date.now();
+    extractBasic(html);
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
 });
 
 describe('rankUrls', () => {

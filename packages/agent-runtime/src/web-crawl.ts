@@ -384,7 +384,7 @@ export function extractRedirectTarget(html: string, baseUrl: string): string | n
 function extractFirstHeading(html: string): string {
   const m = /<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/i.exec(html);
   if (!m) return '';
-  return decodeEntities(m[1]!.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+  return decodeEntities(m[1]!.replace(/<[^<>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
 function decodeEntities(s: string): string {
@@ -669,7 +669,7 @@ export function extractBasic(html: string): { title: string; markdown: string } 
     if (next === stripped) break;
     stripped = next;
   }
-  stripped = stripped.replace(/<[^>]+>/g, ' ');
+  stripped = stripped.replace(/<[^<>]*>/g, ' ');
   const text = decodeEntities(stripped).replace(/\s+/g, ' ').trim();
   if (text.length < MIN_BODY_CHARS) return null;
   return { title, markdown: text };

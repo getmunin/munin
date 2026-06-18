@@ -1,5 +1,25 @@
 # @getmunin/backend-core
 
+## 4.51.0
+
+### Minor Changes
+
+- 7ea516e: Website import now reaches client-rendered sites, prunes deleted pages, and titles pages correctly.
+  - The crawler follows client-side root redirects (`<meta http-equiv="refresh">` / `<link rel="canonical">`), so importing a bare domain that bounces to a locale path (e.g. `/` → `/en/`) discovers the real page tree instead of stalling on an empty shell.
+  - Title extraction prefers the first `<h1>` over a shared static `<title>`, so SPA routes no longer collapse to one repeated title.
+  - `kb_import_website` reconciles by default: after a healthy crawl, previously imported pages that are individually re-checked and confirmed gone (HTTP 404/410) are deleted from the knowledge base. Pass `reconcile: false` to import additively. Each imported document records its origin as a `source-url:<url>` tag for precise revalidation.
+  - `kb_list_documents` now returns each document's `slug`.
+
+### Patch Changes
+
+- Updated dependencies [7ea516e]
+  - @getmunin/agent-runtime@4.51.0
+  - @getmunin/core@4.51.0
+  - @getmunin/db@4.51.0
+  - @getmunin/types@4.51.0
+  - @getmunin/mcp-toolkit@4.51.0
+  - @getmunin/emails@4.51.0
+
 ## 4.50.1
 
 ### Patch Changes

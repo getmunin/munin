@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi, type MockInstance } from 'vitest';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
@@ -27,6 +27,7 @@ const skipReason = TEST_URL
   let widgetChannelId: string;
   let voiceChannelId: string;
   let aliceConvId: string;
+  let fetchAssistantSpy: MockInstance;
 
   beforeAll(async () => {
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod-it-must-be-32-chars';
@@ -106,7 +107,8 @@ const skipReason = TEST_URL
     baseUrl = `http://127.0.0.1:${address.port}`;
 
     const vapiClient = app.get(VapiClientService);
-    vi.spyOn(vapiClient, 'fetchAssistantConfig').mockResolvedValue({
+    fetchAssistantSpy = vi.spyOn(vapiClient, 'fetchAssistantConfig');
+    fetchAssistantSpy.mockResolvedValue({
       ok: true,
       config: {
         id: 'asst_wv',
@@ -164,6 +166,66 @@ const skipReason = TEST_URL
     }
     return { status: res.status, json };
   }
+
+  async function callAvailable(
+    query: Record<string, string>,
+    token: string = widgetKey,
+  ): Promise<{ status: number; json: unknown }> {
+    const url = new URL(`${baseUrl}/v1/widget/voice/available`);
+    for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const text = await res.text();
+    let json: unknown = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = text;
+    }
+    return { status: res.status, json };
+  }
+
+  it('voice/available reports available without minting a Vapi assistant session', async () => {
+    const before = fetchAssistantSpy.mock.calls.length;
+    const { status, json } = await callAvailable({
+      channelId: widgetChannelId,
+      conversationId: aliceConvId,
+      sessionId: ALICE_SESSION_ID,
+    });
+    expect(status).toBe(200);
+    expect(json).toEqual({ available: true });
+    expect(fetchAssistantSpy.mock.calls.length).toBe(before);
+  });
+
+  it('voice/available rejects when body channelId does not match the bound widget key', async () => {
+    const { status, json } = await callAvailable({
+      channelId: 'cch_someone_elses',
+      conversationId: aliceConvId,
+      sessionId: ALICE_SESSION_ID,
+    });
+    expect(status).toBe(403);
+    expect(JSON.stringify(json)).toContain('widget_channel_mismatch');
+  });
+
+  it('voice/available returns available:false when voice channel has no publicKey', async () => {
+    await db
+      .update(schema.convChannels)
+      .set({ config: sql`config - 'publicKey'` })
+      .where(eq(schema.convChannels.id, voiceChannelId));
+    try {
+      const { status, json } = await callAvailable({
+        channelId: widgetChannelId,
+        conversationId: aliceConvId,
+        sessionId: ALICE_SESSION_ID,
+      });
+      expect(status).toBe(200);
+      expect(json).toEqual({ available: false, reason: 'voice_channel_missing_public_key' });
+    } finally {
+      await db
+        .update(schema.convChannels)
+        .set({ config: sql`config || '{"publicKey":"pk_widget_browser_safe_xyz"}'::jsonb` })
+        .where(eq(schema.convChannels.id, voiceChannelId));
+    }
+  });
 
   it('returns a Vapi descriptor for an alice conversation', async () => {
     const { status, json } = await call({

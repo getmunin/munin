@@ -100,6 +100,11 @@ export type VoiceStartResult =
       };
     };
 
+export interface VoiceAvailabilityResult {
+  available: boolean;
+  reason?: string;
+}
+
 export interface VoiceEventInput {
   conversationId: string;
   kind: 'started' | 'ended';
@@ -112,6 +117,7 @@ export interface ApiClient {
   listConversations(sessionIds: string[]): Promise<ConversationSummary[]>;
   setVisitorEmail(email: string): Promise<void>;
   startConversation(): Promise<{ conversationId: string; displayId: number; contactId: string }>;
+  voiceAvailable(conversationId: string): Promise<VoiceAvailabilityResult>;
   voiceStart(conversationId: string): Promise<VoiceStartResult>;
   voiceEvent(input: VoiceEventInput): Promise<void>;
   identify(externalId: string, userHash: string): Promise<{ endUserId: string; contactId: string | null }>;
@@ -243,6 +249,24 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
+    },
+
+    async voiceAvailable(conversationId) {
+      const url = new URL(`${base}/voice/available`);
+      url.searchParams.set('channelId', deps.channelId);
+      url.searchParams.set('conversationId', conversationId);
+      url.searchParams.set('sessionId', sessionId);
+      const identity = deps.getIdentity?.();
+      if (identity) {
+        url.searchParams.set('verifiedExternalId', identity.externalId);
+        url.searchParams.set('userHash', identity.userHash);
+      }
+      const res = await fetchImpl(url.toString(), {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${deps.widgetKey}` },
+      });
+      if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
+      return (await res.json()) as VoiceAvailabilityResult;
     },
 
     async voiceStart(conversationId) {

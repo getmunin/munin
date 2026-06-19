@@ -39,6 +39,8 @@ import {
 } from '../vapi/vapi-assistant.ts';
 import { WidgetChannelConfig } from './widget.types.ts';
 import type {
+  WidgetChannelConfigT,
+  WidgetVoiceAvailabilityResult,
   WidgetVoiceEventInputT,
   WidgetVoiceEventResult,
   WidgetVoiceStartInputT,
@@ -48,6 +50,21 @@ import { enforceOriginAllowlist, loadWidgetChannel, verifyIdentity } from './wid
 
 const HISTORY_TURN_LIMIT = 20;
 const PROMPT_CACHE_TTL_MS = 60_000;
+
+type VoiceConvRow = Pick<
+  typeof schema.convConversations.$inferSelect,
+  'id' | 'channelId' | 'endUserId' | 'contactId' | 'orgId' | 'metadata'
+>;
+
+type ResolvedVoiceContext =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      conv: VoiceConvRow;
+      channel: typeof schema.convChannels.$inferSelect;
+      widgetConfig: WidgetChannelConfigT;
+      endUserId: string;
+    };
 
 interface CachedPromptBundle {
   cache: PromptCache;
@@ -114,89 +131,12 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
 
-      const widgetChannel = await loadWidgetChannel(tx, orgId, input.channelId);
-      const widgetConfig = WidgetChannelConfig.parse(widgetChannel.config);
-      enforceOriginAllowlist(widgetConfig, requestContext.origin);
-      const identity = verifyIdentity(widgetConfig, {
-        verifiedExternalId: input.verifiedExternalId,
-        userHash: input.userHash,
-      });
+      const resolved = await this.resolveVoiceContext(tx, orgId, input, requestContext);
+      if (!resolved.available) {
+        return { available: false, reason: resolved.reason };
+      }
+      const { conv, channel, widgetConfig, endUserId } = resolved;
 
-      const convRows = await tx
-        .select({
-          id: schema.convConversations.id,
-          channelId: schema.convConversations.channelId,
-          endUserId: schema.convConversations.endUserId,
-          contactId: schema.convConversations.contactId,
-          orgId: schema.convConversations.orgId,
-          metadata: schema.convConversations.metadata,
-        })
-        .from(schema.convConversations)
-        .where(eq(schema.convConversations.id, input.conversationId))
-        .limit(1);
-      const conv = convRows[0];
-      if (!conv || conv.orgId !== orgId) {
-        throw new NotFoundException(`conversation ${input.conversationId} not found`);
-      }
-      if (conv.channelId !== input.channelId) {
-        throw new ForbiddenException('conversation_channel_mismatch');
-      }
-      const convSessionId = (conv.metadata as { sessionId?: unknown } | null)?.sessionId;
-      if (convSessionId !== input.sessionId) {
-        throw new ForbiddenException('conversation_session_mismatch');
-      }
-      if (identity.mode === 'verified' && conv.contactId) {
-        const [contactRow] = await tx
-          .select({ metadata: schema.convContacts.metadata })
-          .from(schema.convContacts)
-          .where(eq(schema.convContacts.id, conv.contactId))
-          .limit(1);
-        const contactExt = (contactRow?.metadata as { externalId?: unknown } | null)?.externalId;
-        if (contactExt !== identity.externalId) {
-          throw new ForbiddenException('conversation_identity_mismatch');
-        }
-      }
-      if (!conv.endUserId) {
-        return { available: false, reason: 'conversation_has_no_end_user' };
-      }
-
-      const voiceChannelId = widgetConfig.voiceChannelId;
-
-      const voiceBaseConditions = [
-        eq(schema.convChannels.orgId, orgId),
-        eq(schema.convChannels.type, 'voice'),
-        inArray(schema.convChannels.vendor, ['vapi', 'threll']),
-        eq(schema.convChannels.active, true),
-        isNull(schema.convChannels.archivedAt),
-      ];
-      let channel: typeof schema.convChannels.$inferSelect | undefined;
-      if (voiceChannelId) {
-        const explicit = await tx
-          .select()
-          .from(schema.convChannels)
-          .where(and(...voiceBaseConditions, eq(schema.convChannels.id, voiceChannelId)))
-          .limit(1);
-        channel = explicit[0];
-        if (!channel) {
-          return { available: false, reason: 'widget_voice_channel_id_not_found_or_inactive' };
-        }
-      } else {
-        const candidates = await tx
-          .select()
-          .from(schema.convChannels)
-          .where(and(...voiceBaseConditions))
-          .limit(2);
-        if (candidates.length === 0) {
-          return { available: false, reason: 'no_active_voice_channel' };
-        }
-        if (candidates.length > 1) {
-          return {
-            available: false,
-            reason: 'multiple_voice_channels_without_widget_routing',
-          };
-        }
-        channel = candidates[0]!;
-      }
       const historyRows = await tx
         .select({
           authorType: schema.convMessages.authorType,
@@ -273,7 +213,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
             token: created.webCall.token,
             sessionId: created.webCall.sessionId,
             iceServers: created.webCall.iceServers,
-            metadata: { conversationId: conv.id, endUserId: conv.endUserId },
+            metadata: { conversationId: conv.id, endUserId },
           },
         };
       }
@@ -315,12 +255,139 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
           assistantId: storedConfig.assistantId,
           metadata: {
             conversationId: conv.id,
-            endUserId: conv.endUserId,
+            endUserId,
           },
           assistant: inlineAssistant,
         },
       };
     });
+  }
+
+  async checkAvailability(
+    orgId: string,
+    boundChannelId: string,
+    input: WidgetVoiceStartInputT,
+    requestContext: { origin?: string } = {},
+  ): Promise<WidgetVoiceAvailabilityResult> {
+    if (input.channelId !== boundChannelId) {
+      throw new ForbiddenException('widget_channel_mismatch');
+    }
+
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+
+      const resolved = await this.resolveVoiceContext(tx, orgId, input, requestContext);
+      if (!resolved.available) {
+        return { available: false, reason: resolved.reason };
+      }
+
+      if (resolved.channel.vendor === 'threll') {
+        try {
+          const threllConfig = threllJsonbToStored(resolved.channel.config);
+          if (!threllConfig.accountId || !threllConfig.workerId) {
+            return { available: false, reason: 'threll_channel_misconfigured' };
+          }
+        } catch {
+          return { available: false, reason: 'threll_channel_misconfigured' };
+        }
+        return { available: true };
+      }
+
+      const storedConfig = jsonbToStored(resolved.channel.config);
+      if (!storedConfig.publicKey) {
+        return { available: false, reason: 'voice_channel_missing_public_key' };
+      }
+      return { available: true };
+    });
+  }
+
+  private async resolveVoiceContext(
+    tx: Tx,
+    orgId: string,
+    input: WidgetVoiceStartInputT,
+    requestContext: { origin?: string },
+  ): Promise<ResolvedVoiceContext> {
+    const widgetChannel = await loadWidgetChannel(tx, orgId, input.channelId);
+    const widgetConfig = WidgetChannelConfig.parse(widgetChannel.config);
+    enforceOriginAllowlist(widgetConfig, requestContext.origin);
+    const identity = verifyIdentity(widgetConfig, {
+      verifiedExternalId: input.verifiedExternalId,
+      userHash: input.userHash,
+    });
+
+    const convRows = await tx
+      .select({
+        id: schema.convConversations.id,
+        channelId: schema.convConversations.channelId,
+        endUserId: schema.convConversations.endUserId,
+        contactId: schema.convConversations.contactId,
+        orgId: schema.convConversations.orgId,
+        metadata: schema.convConversations.metadata,
+      })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .limit(1);
+    const conv = convRows[0];
+    if (!conv || conv.orgId !== orgId) {
+      throw new NotFoundException(`conversation ${input.conversationId} not found`);
+    }
+    if (conv.channelId !== input.channelId) {
+      throw new ForbiddenException('conversation_channel_mismatch');
+    }
+    const convSessionId = (conv.metadata as { sessionId?: unknown } | null)?.sessionId;
+    if (convSessionId !== input.sessionId) {
+      throw new ForbiddenException('conversation_session_mismatch');
+    }
+    if (identity.mode === 'verified' && conv.contactId) {
+      const [contactRow] = await tx
+        .select({ metadata: schema.convContacts.metadata })
+        .from(schema.convContacts)
+        .where(eq(schema.convContacts.id, conv.contactId))
+        .limit(1);
+      const contactExt = (contactRow?.metadata as { externalId?: unknown } | null)?.externalId;
+      if (contactExt !== identity.externalId) {
+        throw new ForbiddenException('conversation_identity_mismatch');
+      }
+    }
+    if (!conv.endUserId) {
+      return { available: false, reason: 'conversation_has_no_end_user' };
+    }
+
+    const voiceChannelId = widgetConfig.voiceChannelId;
+    const voiceBaseConditions = [
+      eq(schema.convChannels.orgId, orgId),
+      eq(schema.convChannels.type, 'voice'),
+      inArray(schema.convChannels.vendor, ['vapi', 'threll']),
+      eq(schema.convChannels.active, true),
+      isNull(schema.convChannels.archivedAt),
+    ];
+    let channel: typeof schema.convChannels.$inferSelect | undefined;
+    if (voiceChannelId) {
+      const explicit = await tx
+        .select()
+        .from(schema.convChannels)
+        .where(and(...voiceBaseConditions, eq(schema.convChannels.id, voiceChannelId)))
+        .limit(1);
+      channel = explicit[0];
+      if (!channel) {
+        return { available: false, reason: 'widget_voice_channel_id_not_found_or_inactive' };
+      }
+    } else {
+      const candidates = await tx
+        .select()
+        .from(schema.convChannels)
+        .where(and(...voiceBaseConditions))
+        .limit(2);
+      if (candidates.length === 0) {
+        return { available: false, reason: 'no_active_voice_channel' };
+      }
+      if (candidates.length > 1) {
+        return { available: false, reason: 'multiple_voice_channels_without_widget_routing' };
+      }
+      channel = candidates[0]!;
+    }
+
+    return { available: true, conv, channel, widgetConfig, endUserId: conv.endUserId };
   }
 
   async recordEvent(

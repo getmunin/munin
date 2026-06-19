@@ -1,5 +1,7 @@
 # @getmunin/types
 
+## 4.51.4
+
 ## 4.51.3
 
 ### Patch Changes

@@ -97,6 +97,55 @@ describe('ui: mount + lifecycle', () => {
   });
 });
 
+describe('ui: mobile full-screen body scroll lock', () => {
+  const origMatchMedia = window.matchMedia;
+  const origScrollTo = window.scrollTo;
+
+  function setViewport(matches: boolean): void {
+    window.matchMedia = vi.fn().mockReturnValue({ matches });
+  }
+
+  beforeEach(() => {
+    window.scrollTo = vi.fn();
+  });
+
+  afterEach(() => {
+    window.matchMedia = origMatchMedia;
+    window.scrollTo = origScrollTo;
+    document.body.removeAttribute('style');
+    document.documentElement.removeAttribute('style');
+  });
+
+  it('locks body scroll on open and restores it on close when the viewport is phone-sized', () => {
+    setViewport(true);
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    ($('.launcher')).click();
+    expect(document.body.style.position).toBe('fixed');
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    ($('[data-act="close"]')).click();
+    expect(document.body.getAttribute('style')).toBeNull();
+    expect(document.documentElement.getAttribute('style')).toBeNull();
+  });
+
+  it('does not touch body scroll on larger viewports', () => {
+    setViewport(false);
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    ($('.launcher')).click();
+    expect(document.body.getAttribute('style')).toBeNull();
+  });
+
+  it('restores body scroll when destroyed while open', () => {
+    setViewport(true);
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    ($('.launcher')).click();
+    expect(document.body.style.position).toBe('fixed');
+    controller.destroy();
+    controller = null;
+    expect(document.body.getAttribute('style')).toBeNull();
+  });
+});
+
 describe('ui: launcher unread badge', () => {
   beforeEach(() => {
     controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });

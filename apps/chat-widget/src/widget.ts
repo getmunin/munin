@@ -269,7 +269,7 @@ function start(config: WidgetConfig): void {
     if (voiceProbedFor === conversationId) return;
     voiceProbedFor = conversationId;
     try {
-      const res = await api.voiceStart(conversationId);
+      const res = await api.voiceAvailable(conversationId);
       ui.setVoiceAvailable(res.available);
     } catch (err) {
       if (err instanceof WidgetApiError) {

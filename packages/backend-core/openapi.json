@@ -4414,6 +4414,28 @@
         ]
       }
     },
+    "/v1/widget/voice/available": {
+      "get": {
+        "operationId": "WidgetController_voiceAvailable",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Widget"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/widget/voice/start": {
       "post": {
         "operationId": "WidgetController_startVoice",

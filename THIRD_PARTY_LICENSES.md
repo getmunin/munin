@@ -27412,7 +27412,7 @@ THE SOFTWARE.
 
 ---
 
-## nodemailer@8.0.9
+## nodemailer@9.0.1
 
 > Easy as cake e-mail sending from your Node.js applications
 - Homepage: https://nodemailer.com/

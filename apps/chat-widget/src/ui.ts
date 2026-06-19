@@ -260,8 +260,39 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     applyMuteUi();
   }
 
+  const fullscreenMql =
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(max-width: 600px)')
+      : null;
+  let scrollLock: { scrollY: number; body: string | null; html: string | null } | null = null;
+
+  function lockBodyScroll(): void {
+    if (scrollLock || !fullscreenMql?.matches || typeof document === 'undefined') return;
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    scrollLock = { scrollY, body: body.getAttribute('style'), html: html.getAttribute('style') };
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+  }
+
+  function unlockBodyScroll(): void {
+    if (!scrollLock || typeof document === 'undefined') return;
+    const { scrollY, body: bodyStyle, html: htmlStyle } = scrollLock;
+    scrollLock = null;
+    restoreStyle(document.body, bodyStyle);
+    restoreStyle(document.documentElement, htmlStyle);
+    window.scrollTo(0, scrollY);
+  }
+
   function open(): void {
     panel.el.hidden = false;
+    lockBodyScroll();
     requestAnimationFrame(() => panel.el.classList.add('open'));
     launcher.hidden = true;
     if (view === 'chat') {
@@ -272,6 +303,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
 
   function close(): void {
     panel.el.classList.remove('open');
+    unlockBodyScroll();
     launcher.hidden = false;
     setAgentTyping(false);
     setTimeout(() => {
@@ -482,6 +514,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     if (agentTypingTimer) clearTimeout(agentTypingTimer);
     if (typingIdleTimer) clearTimeout(typingIdleTimer);
     stopCallTimer();
+    unlockBodyScroll();
     readObserver?.disconnect();
     host.remove();
   }
@@ -533,6 +566,11 @@ function renderGreeting(raw: string): string {
   const m = /^(.*?[.?!])\s+(.+)$/.exec(trimmed);
   if (m) return `${escapeHtml(m[1]!)} <em>${escapeHtml(m[2]!)}</em>`;
   return escapeHtml(trimmed);
+}
+
+function restoreStyle(el: HTMLElement, prev: string | null): void {
+  if (prev === null) el.removeAttribute('style');
+  else el.setAttribute('style', prev);
 }
 
 function escapeHtml(s: string): string {

@@ -879,11 +879,26 @@ button {
 .composer textarea:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* ─── Responsive + reduced motion ────────────────────── */
-@media (max-width: 480px) {
-  .panel { width: calc(100vw - 32px); height: calc(100vh - 96px); }
+@media (max-width: 600px) {
   .root { bottom: 16px; }
   .root[data-position='bottom-right'] { right: 16px; }
   .root[data-position='bottom-left']  { left:  16px; }
+
+  .root[data-size] .panel {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    transform-origin: bottom center;
+  }
+  .panel-head { padding-top: calc(16px + env(safe-area-inset-top)); }
+  .composer { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .voice-call { padding-top: env(safe-area-inset-top); }
+  .voice-call-controls { padding-bottom: calc(26px + env(safe-area-inset-bottom)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

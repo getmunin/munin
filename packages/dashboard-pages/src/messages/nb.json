@@ -172,7 +172,7 @@
     "agents": "Agenter",
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
-    "trackers": "Analysesporing",
+    "trackers": "Sidevisninger",
     "endUsers": "Sluttbrukere",
     "usage": "Bruk",
     "auditLog": "Hendelseslogg",
@@ -703,7 +703,7 @@
       }
     },
     "trackers": {
-      "eyebrow": "Arbeidsområde · Analysesporing",
+      "eyebrow": "Arbeidsområde · Sidevisninger",
       "title": "Hva folk <em>faktisk</em> leser.",
       "subtitle": "Sidevisning-analytikk fra dine nettsteder og apper.",
       "trackersTitle": "Målepunkter",

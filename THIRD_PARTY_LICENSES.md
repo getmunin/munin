@@ -34545,7 +34545,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## undici@7.26.0
+## undici@7.28.0
 
 > An HTTP/1.1 client, written from scratch for Node.js
 - Homepage: https://undici.nodejs.org

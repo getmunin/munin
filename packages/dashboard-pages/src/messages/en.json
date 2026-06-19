@@ -22,6 +22,7 @@
     "edit": "Edit",
     "close": "Close",
     "back": "Back",
+    "continue": "Continue",
     "copy": "Copy",
     "copied": "Copied",
     "done": "Done",
@@ -622,8 +623,18 @@
           "webhookSecretLabel": "Webhook Secret",
           "webhookSecretHint": "Add as HTTP Header named `X-Webhook-Secret` with this value."
         },
-        "assistantIdLabel": "Assistant ID",
-        "assistantIdHint": "Paste the assistant id from the Vapi dashboard.",
+        "assistantIdLabel": "Assistant",
+        "assistantIdHint": "The Vapi assistant that handles calls on this channel.",
+        "assistantStage": {
+          "title": "Choose an assistant",
+          "description": "Select the Vapi assistant that will handle calls on this channel.",
+          "empty": "No assistants found in this Vapi account. Create one in Vapi, then try again."
+        },
+        "replaceWebhook": {
+          "title": "Replace assistant server URL?",
+          "message": "This Vapi assistant already has a server URL configured. Munin will overwrite it to receive call events. Continue?",
+          "confirm": "Replace"
+        },
         "phoneNumberIdLabel": "Phone Number ID (optional)",
         "phoneNumberIdHint": "Only needed for phone network calls. Paste a phone number id from Vapi.",
         "publicKeyLabel": "Public API Key (optional)",
@@ -651,18 +662,21 @@
         "apiKeyLabel": "API Key",
         "apiKeyHintCreate": "Threll API key (Settings → Developer). Munin uses it to register the webhook with Threll automatically.",
         "apiKeyHintEdit": "Leave blank to keep the existing key. Paste a new value to rotate.",
-        "connectionStage": {
-          "title": "Threll connected",
-          "description": "Munin registered the webhook subscription with Threll automatically — your voice channel is ready.",
-          "serverUrlLabel": "Webhook URL",
-          "serverUrlHint": "Threll delivers call events here. Munin registered this URL for you; no manual setup needed."
+        "workerLabel": "Threll",
+        "workerHint": "The threll that handles calls on this channel.",
+        "workerStage": {
+          "title": "Choose a threll",
+          "description": "Select the threll that will handle calls on this channel.",
+          "descriptionAccount": "Select the threll in {account} that will handle calls on this channel.",
+          "empty": "No thrells found in this account. Create one in Threll, then try again."
         },
-        "accountIdLabel": "Account ID",
-        "accountIdHint": "Threll account ID (shown alongside your API key).",
-        "workerIdLabel": "Worker ID",
-        "workerIdHint": "Threll worker ID that handles calls on this channel.",
         "accountChip": "acct · {id}",
         "workerChip": "worker · {id}",
+        "replaceWebhook": {
+          "title": "Replace existing webhook?",
+          "message": "This Threll account already has an account-wide webhook subscription. Munin will delete it and register its own. Continue?",
+          "confirm": "Replace"
+        },
         "placeCall": "Place a call",
         "placeCallDialog": {
           "title": "Place an outbound call",
@@ -679,6 +693,7 @@
       "errors": {
         "load": "Could not load channels.",
         "create": "Could not create channel.",
+        "required": "Required.",
         "createEmail": "Could not create email channel.",
         "updateEmail": "Could not update email channel.",
         "createTwilioSms": "Could not create Twilio SMS channel.",

@@ -34,6 +34,28 @@ export interface ConfigureChannelInput {
   config: unknown;
 }
 
+export interface ChannelOption {
+  value: string;
+  label: string;
+  hint?: string;
+}
+
+export interface ChannelOptionGroup {
+  key: string;
+  label: string;
+  options: ChannelOption[];
+}
+
+export interface ChannelOptionsDto {
+  groups: ChannelOptionGroup[];
+  context?: { label?: string };
+}
+
+export interface ListChannelOptionsInput {
+  channelId?: string;
+  config?: unknown;
+}
+
 export interface ChannelAdminProvider {
   readonly kind: ChannelAdminKind;
   readonly vendor: string;
@@ -47,6 +69,8 @@ export interface ChannelAdminProvider {
   test(channelId: string): Promise<unknown>;
   call?(input: { channelId: string; to: string; customerName?: string }): Promise<unknown>;
   sendTest?(input: { channelId: string; to: string; body?: string }): Promise<unknown>;
+  listOptions?(input: ListChannelOptionsInput): Promise<ChannelOptionsDto>;
+  onArchive?(channelId: string): Promise<void>;
 }
 
 export const CHANNEL_ADMIN_PROVIDERS = Symbol('CHANNEL_ADMIN_PROVIDERS');

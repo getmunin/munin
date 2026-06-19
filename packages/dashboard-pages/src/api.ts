@@ -20,6 +20,7 @@ export class ApiError extends Error {
   readonly method: string;
   readonly requestId: string | null;
   readonly fieldErrors: readonly ApiFieldError[];
+  readonly code: string | null;
 
   constructor(opts: {
     status: number;
@@ -29,6 +30,7 @@ export class ApiError extends Error {
     requestId: string | null;
     message: string;
     fieldErrors?: readonly ApiFieldError[];
+    code?: string | null;
   }) {
     super(opts.message);
     this.status = opts.status;
@@ -37,6 +39,7 @@ export class ApiError extends Error {
     this.method = opts.method;
     this.requestId = opts.requestId;
     this.fieldErrors = opts.fieldErrors ?? [];
+    this.code = opts.code ?? null;
   }
 }
 
@@ -83,14 +86,19 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
       requestId: res.headers.get('x-request-id'),
       message: parsed.message || `${res.status} ${res.statusText}`,
       fieldErrors: parsed.fieldErrors,
+      code: parsed.code,
     });
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
-function parseErrorBody(body: string): { message: string | null; fieldErrors: ApiFieldError[] } {
-  if (!body) return { message: null, fieldErrors: [] };
+function parseErrorBody(body: string): {
+  message: string | null;
+  fieldErrors: ApiFieldError[];
+  code: string | null;
+} {
+  if (!body) return { message: null, fieldErrors: [], code: null };
   try {
     const parsed: unknown = JSON.parse(body);
     if (parsed && typeof parsed === 'object') {
@@ -102,12 +110,13 @@ function parseErrorBody(body: string): { message: string | null; fieldErrors: Ap
           : typeof obj.error === 'string'
           ? obj.error
           : null;
-      return { message, fieldErrors };
+      const code = typeof obj.code === 'string' ? obj.code : null;
+      return { message, fieldErrors, code };
     }
   } catch (err) {
     console.warn('[munin/api] error body was not JSON, returning raw text', err);
   }
-  return { message: body, fieldErrors: [] };
+  return { message: body, fieldErrors: [], code: null };
 }
 
 function readFieldErrors(obj: Record<string, unknown>): ApiFieldError[] {

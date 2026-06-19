@@ -4,12 +4,16 @@ import { sensitive } from '@getmunin/types';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { VapiClientService } from './vapi-client.service.ts';
+import { VapiClientService, type VapiAssistantSummary } from './vapi-client.service.ts';
 import {
   VapiService,
   jsonbToStored,
   type VapiChannelDto,
 } from './vapi.service.ts';
+
+export interface VapiListAssistantsResult {
+  assistants: VapiAssistantSummary[];
+}
 
 export const ConfigureInput = z.object({
   channelId: z
@@ -53,6 +57,12 @@ export const ConfigureInput = z.object({
     .max(256)
     .optional()
     .describe('Vapi public key — safe to expose to the browser. Required if you want the chat widget to start in-browser voice sessions; not needed for phone-only setups. Find it in the Vapi dashboard under your assistant.'),
+  replaceWebhook: z
+    .boolean()
+    .optional()
+    .describe(
+      'Set true to overwrite a server URL already configured on the assistant. Without it, an existing non-Munin server returns a 409 webhook_conflict error.',
+    ),
 });
 
 @Injectable()
@@ -81,6 +91,7 @@ export class VapiAdminTools {
     if (!args.webhookSecret) throw new BadRequestException('webhookSecret is required when creating');
     if (!args.assistantId) throw new BadRequestException('assistantId is required when creating');
     return this.svc.createChannel({
+      replaceWebhook: args.replaceWebhook,
       name: args.name,
       config: {
         apiKey: args.apiKey,
@@ -90,6 +101,23 @@ export class VapiAdminTools {
         publicKey: args.publicKey,
       },
     });
+  }
+
+  async listAssistants(args: { apiKey: string }): Promise<VapiListAssistantsResult> {
+    const res = await this.client.listAssistants({ apiKey: args.apiKey });
+    if (!res.ok) throw new BadRequestException(res.error);
+    return { assistants: res.assistants };
+  }
+
+  async listAssistantsForChannel(args: { channelId: string }): Promise<VapiListAssistantsResult> {
+    const channel = await this.loadChannel(args.channelId);
+    const config = jsonbToStored(channel.config);
+    const apiKey = await this.client.loadSecret(config.encryptedApiKey);
+    return this.listAssistants({ apiKey });
+  }
+
+  async restoreWebhook(channelId: string): Promise<void> {
+    await this.svc.restoreAssistantServer(channelId);
   }
 
   async testChannel(

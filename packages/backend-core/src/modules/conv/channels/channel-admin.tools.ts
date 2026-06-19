@@ -43,6 +43,31 @@ const SendTestInput = z.object({
 
 const ListVendorsInput = z.object({});
 
+const ListOptionsInput = z
+  .object({
+    vendor: z
+      .string()
+      .min(1)
+      .max(40)
+      .optional()
+      .describe('Vendor to discover options for (with `config`). Omit when passing `channelId`.'),
+    channelId: z
+      .string()
+      .optional()
+      .describe('Discover options for an existing channel using its stored credentials.'),
+    config: sensitive(
+      z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          'Vendor credentials to discover with before the channel exists (e.g. Threll `apiKey`+`accountId`, Vapi `apiKey`). Required with `vendor`.',
+        ),
+    ),
+  })
+  .refine((v) => Boolean(v.channelId) || Boolean(v.vendor && v.config), {
+    message: 'pass channelId, or vendor + config',
+  });
+
 @Injectable()
 export class ChannelAdminTools {
   constructor(@Inject(ChannelAdminService) private readonly svc: ChannelAdminService) {}
@@ -60,6 +85,25 @@ export class ChannelAdminTools {
   })
   listVendors(_args: z.infer<typeof ListVendorsInput>) {
     return { vendors: this.svc.listVendors() };
+  }
+
+  @McpTool({
+    name: 'conv_list_channel_options',
+    title: 'Conv: List a channel vendor’s selectable options',
+    description:
+      'Discover the selectable options a vendor needs before you configure a channel — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_channel instead of guessing. Pass `vendor` + `config` (credentials) before the channel exists, or `channelId` for an existing channel. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.',
+    audiences: ['admin'],
+    scopes: ['conv:read'],
+    input: ListOptionsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listOptions(args: z.infer<typeof ListOptionsInput>) {
+    return this.svc.listOptions({
+      vendor: args.vendor,
+      channelId: args.channelId,
+      config: args.config,
+    });
   }
 
   @McpTool({

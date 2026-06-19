@@ -4,8 +4,17 @@ import { sensitive } from '@getmunin/types';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import { ThrellClientService } from './threll-client.service.ts';
+import {
+  ThrellClientService,
+  type ThrellAccountSummary,
+  type ThrellWorkerSummary,
+} from './threll-client.service.ts';
 import { ThrellService, jsonbToStored, type ThrellChannelDto } from './threll.service.ts';
+
+export interface ThrellListWorkersResult {
+  account: ThrellAccountSummary | null;
+  workers: ThrellWorkerSummary[];
+}
 
 export const ConfigureInput = z.object({
   channelId: z
@@ -28,13 +37,19 @@ export const ConfigureInput = z.object({
     .min(1)
     .max(128)
     .optional()
-    .describe('Threll account ID (shown alongside your API key). Required on create.'),
+    .describe('Threll account ID. Optional — derived from the API key (one account per key) when omitted.'),
   workerId: z
     .string()
     .min(1)
     .max(128)
     .optional()
     .describe('Threll worker ID that handles calls on this channel. Required on create.'),
+  replaceWebhook: z
+    .boolean()
+    .optional()
+    .describe(
+      'Set true to delete a conflicting account-wide webhook subscription and register Munin’s. Without it, a conflict returns a 409 webhook_conflict error.',
+    ),
 });
 
 @Injectable()
@@ -58,7 +73,6 @@ export class ThrellAdminTools {
     }
     if (!args.name) throw new BadRequestException('name is required when creating a channel');
     if (!args.apiKey) throw new BadRequestException('apiKey is required when creating');
-    if (!args.accountId) throw new BadRequestException('accountId is required when creating');
     if (!args.workerId) throw new BadRequestException('workerId is required when creating');
     return this.svc.createChannel({
       name: args.name,
@@ -67,7 +81,28 @@ export class ThrellAdminTools {
         accountId: args.accountId,
         workerId: args.workerId,
       },
+      replaceWebhook: args.replaceWebhook,
     });
+  }
+
+  async listWorkers(args: { apiKey: string; accountId?: string }): Promise<ThrellListWorkersResult> {
+    const account = args.accountId
+      ? await this.client.fetchAccount({ apiKey: args.apiKey, accountId: args.accountId })
+      : await this.client.fetchCurrentAccount({ apiKey: args.apiKey });
+    if (!account.ok) throw new BadRequestException(account.error);
+    const workers = await this.client.listWorkers({
+      apiKey: args.apiKey,
+      accountId: account.account.id,
+    });
+    if (!workers.ok) throw new BadRequestException(workers.error);
+    return { account: account.account, workers: workers.workers };
+  }
+
+  async listWorkersForChannel(args: { channelId: string }): Promise<ThrellListWorkersResult> {
+    const channel = await this.loadChannel(args.channelId);
+    const config = jsonbToStored(channel.config);
+    const apiKey = await this.client.loadSecret(config.encryptedApiKey);
+    return this.listWorkers({ apiKey, accountId: config.accountId });
   }
 
   async testChannel(

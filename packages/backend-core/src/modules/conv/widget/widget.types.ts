@@ -72,6 +72,24 @@ export const WidgetVoiceStartInput = z.object({
 
 export type WidgetVoiceStartInputT = z.infer<typeof WidgetVoiceStartInput>;
 
+export const WidgetVoiceAvailableQuery = z.object({
+  channelId: z.string().min(1),
+  conversationId: z.string().min(1),
+  sessionId: z.string().min(1).max(200),
+  verifiedExternalId: z.string().min(1).max(200).optional(),
+  userHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
+    .optional(),
+});
+
+export type WidgetVoiceAvailableQueryT = z.infer<typeof WidgetVoiceAvailableQuery>;
+
+export interface WidgetVoiceAvailabilityResult {
+  available: boolean;
+  reason?: string;
+}
+
 export const WidgetVoiceEventInput = z.object({
   channelId: z.string().min(1),
   conversationId: z.string().min(1),

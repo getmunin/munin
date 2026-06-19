@@ -31,6 +31,8 @@ export {
   type VapiCallInitiateBodyT,
   ConfigureThrellBody,
   type ConfigureThrellBodyT,
+  ChannelListOptionsBody,
+  type ChannelListOptionsBodyT,
   ThrellCallInitiateBody,
   type ThrellCallInitiateBodyT,
   ConfigureChannelBody,

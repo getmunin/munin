@@ -21,6 +21,7 @@ import { AuditInterceptor } from '../../../common/audit/audit.interceptor.ts';
 import {
   WidgetIdentifyInput,
   WidgetIngestInput,
+  WidgetVoiceAvailableQuery,
   WidgetVoiceEventInput,
   WidgetVoiceStartInput,
   WidgetListConversationsQuery,
@@ -36,24 +37,13 @@ import type {
   WidgetListMessagesResult,
   WidgetSetVisitorResult,
   WidgetStartConversationResult,
+  WidgetVoiceAvailabilityResult,
   WidgetVoiceEventResult,
   WidgetVoiceStartResult,
 } from './widget.types.ts';
 import { WidgetIngestService } from './widget-ingest.service.ts';
 import { WidgetVoiceService } from './widget-voice.service.ts';
 
-/**
- * Public ingest endpoint for chat-widget channels. Authenticated by a
- * channel-bound widget API key (`mn_widget_*`); the AuthGuard resolves the
- * key to an `actor` whose `id` is the api_keys row id, which carries the
- * `channel_id` binding. Body's `channelId` must match — defense-in-depth
- * against a key being used against an unrelated channel.
- *
- * The endpoint runs inside the standard tenancy transaction (org_id GUC
- * set), then briefly flips bypass_rls inside `WidgetIngestService.ingest`
- * to write across conv_contacts / conv_conversations / conv_messages for
- * the bound org.
- */
 @Controller('v1/widget')
 @UseGuards(AuthGuard, WidgetThrottlerGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
@@ -95,14 +85,6 @@ export class WidgetController {
     return this.ingestService.ingest(orgId, input, { origin });
   }
 
-  /**
-   * Backfill endpoint used by the widget on (re)connect to catch up on
-   * messages dropped while the WebSocket was offline. Same auth + channel-
-   * binding + origin checks as the POST. Capped at 100 messages per call;
-   * `hasMore: true` means the caller should re-fetch with `since=` set to
-   * the last seen `at`. Not for polling — the widget keeps a WS open and
-   * only calls this on connect / reconnect.
-   */
   @Get('messages')
   async list(
     @Query() rawQuery: Record<string, string>,
@@ -261,6 +243,34 @@ export class WidgetController {
 
     const orgId = key.orgId ?? actor.orgId;
     return this.ingestService.startConversation(orgId, input, { origin });
+  }
+
+  @Get('voice/available')
+  async voiceAvailable(
+    @Query() rawQuery: Record<string, string>,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetVoiceAvailabilityResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor) throw new ForbiddenException('widget_auth_required');
+
+    const keyRow = await ctx.db
+      .select({ channelId: schema.apiKeys.channelId, orgId: schema.apiKeys.orgId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, actor.id))
+      .limit(1);
+    const key = keyRow[0];
+    if (!key || !key.channelId) {
+      throw new ForbiddenException('widget_key_required');
+    }
+
+    const parsed = WidgetVoiceAvailableQuery.safeParse(rawQuery);
+    if (!parsed.success) {
+      throw new ForbiddenException(`invalid_widget_voice_available: ${parsed.error.message}`);
+    }
+
+    const orgId = key.orgId ?? actor.orgId;
+    return this.voiceService.checkAvailability(orgId, key.channelId, parsed.data, { origin });
   }
 
   @Post('voice/start')

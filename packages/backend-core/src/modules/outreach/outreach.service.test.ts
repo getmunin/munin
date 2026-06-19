@@ -504,7 +504,9 @@ const skipReason = TEST_URL
         'dGVzdC1lbmNyeXB0aW9uLWtleS1tdXN0LWJlLWxvbmctZW5vdWdoLWZvci1wZ2NyeXB0bw==';
       globalThis.fetch = realFetch;
 
-      const vapiSvc = new VapiService(db);
+      const vapiClient = new VapiClientService(db);
+      vapiClient.fetchAssistantConfig = () => Promise.resolve({ ok: false, error: 'stub' });
+      const vapiSvc = new VapiService(db, vapiClient);
       const voiceChannel = await runAsSystem(() =>
         vapiSvc.createChannel({
           name: 'Vapi voice',

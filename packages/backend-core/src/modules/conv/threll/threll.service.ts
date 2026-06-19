@@ -10,7 +10,11 @@ import { encryptSecretSql, getCurrentContext } from '@getmunin/core';
 import { schema, makeId, type Db } from '@getmunin/db';
 import { z } from 'zod';
 import { DB } from '../../../common/db/db.module.ts';
-import { ThrellClientService, buildWebhookUrl } from './threll-client.service.ts';
+import {
+  ThrellClientService,
+  buildWebhookUrl,
+  type ThrellWebhookSubscriptionSummary,
+} from './threll-client.service.ts';
 
 const REDACTED = '••••';
 
@@ -25,7 +29,7 @@ export type StoredThrellConfig = z.infer<typeof StoredThrellConfigSchema>;
 
 export const ThrellConfigInputSchema = z.object({
   apiKey: z.string().min(1).max(256),
-  accountId: z.string().min(1).max(128),
+  accountId: z.string().min(1).max(128).optional(),
   workerId: z.string().min(1).max(128),
 });
 
@@ -57,18 +61,20 @@ export class ThrellService {
   async createChannel(input: {
     name: string;
     config: ThrellConfigInput;
+    replaceWebhook?: boolean;
   }): Promise<ThrellChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const channelId = makeId('cch');
     const webhookUrl = buildWebhookUrl(channelId);
-    const sub = await this.client.createWebhookSubscription({
-      apiKey: input.config.apiKey,
-      accountId: input.config.accountId,
-      url: webhookUrl,
-    });
-    if (!sub.ok) throw new BadRequestException(sub.error);
-    const stored = await this.toStored(input.config, sub.signingSecret);
+    const accountId = input.config.accountId ?? (await this.resolveAccountId(input.config.apiKey));
+    const config = { ...input.config, accountId };
+    const signingSecret = await this.ensureWebhookSubscription(
+      { apiKey: config.apiKey, accountId },
+      webhookUrl,
+      input.replaceWebhook ?? false,
+    );
+    const stored = await this.toStored(config, signingSecret);
     const [row] = await ctx.db
       .insert(schema.convChannels)
       .values({
@@ -107,12 +113,14 @@ export class ThrellService {
       throw new BadRequestException(`channel ${input.channelId} is not a voice:threll channel`);
     }
     const prev = jsonbToStored(channel.config);
+    const newApiKey = input.config?.apiKey;
+    const accountId =
+      input.config?.accountId ??
+      (newApiKey ? await this.resolveAccountId(newApiKey) : prev.accountId);
     const merged: StoredThrellConfig = {
-      encryptedApiKey: input.config?.apiKey
-        ? await encryptString(input.config.apiKey)
-        : prev.encryptedApiKey,
+      encryptedApiKey: newApiKey ? await encryptString(newApiKey) : prev.encryptedApiKey,
       encryptedWebhookSecret: prev.encryptedWebhookSecret,
-      accountId: input.config?.accountId ?? prev.accountId,
+      accountId,
       workerId: input.config?.workerId ?? prev.workerId,
     };
     const [row] = await ctx.db
@@ -128,8 +136,49 @@ export class ThrellService {
     return this.toDto(row.id, row.name, row.active, merged);
   }
 
+  private async resolveAccountId(apiKey: string): Promise<string> {
+    const res = await this.client.fetchCurrentAccount({ apiKey });
+    if (!res.ok) throw new BadRequestException(res.error);
+    if (!res.account.id) throw new BadRequestException('threll_account_not_found');
+    return res.account.id;
+  }
+
+  private async ensureWebhookSubscription(
+    creds: { apiKey: string; accountId: string },
+    webhookUrl: string,
+    replaceWebhook: boolean,
+  ): Promise<string> {
+    const existing = await this.client.listWebhookSubscriptions(creds);
+    if (existing.ok) {
+      const reused = findReusableSigningSecret(existing.subscriptions, webhookUrl);
+      if (reused) return reused;
+      const conflicts = existing.subscriptions.filter(
+        (s) => s.eventType === '*' && s.enabled && s.url !== webhookUrl,
+      );
+      if (conflicts.length > 0) {
+        if (!replaceWebhook) {
+          throw new ConflictException({
+            code: 'webhook_conflict',
+            message:
+              'This Threll account already has an account-wide webhook subscription. Replace it to connect this channel.',
+          });
+        }
+        for (const conflict of conflicts) {
+          const del = await this.client.deleteWebhookSubscription({
+            ...creds,
+            subscriptionId: conflict.id,
+          });
+          if (!del.ok) throw new BadRequestException(del.error);
+        }
+      }
+    }
+    const sub = await this.client.createWebhookSubscription({ ...creds, url: webhookUrl });
+    if (!sub.ok) throw new BadRequestException(sub.error);
+    return sub.signingSecret;
+  }
+
   private async toStored(
-    input: ThrellConfigInput,
+    input: ThrellConfigInput & { accountId: string },
     signingSecret: string,
   ): Promise<StoredThrellConfig> {
     return {
@@ -160,6 +209,14 @@ export class ThrellService {
       },
     };
   }
+}
+
+export function findReusableSigningSecret(
+  subscriptions: ThrellWebhookSubscriptionSummary[],
+  webhookUrl: string,
+): string | null {
+  const match = subscriptions.find((s) => s.url === webhookUrl && s.signingSecret);
+  return match?.signingSecret ?? null;
 }
 
 export function storedToJsonb(stored: StoredThrellConfig): Record<string, unknown> {

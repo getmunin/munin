@@ -37,6 +37,7 @@ import {
   ConfigureVapiBody,
   VapiCallInitiateBody,
   ConfigureThrellBody,
+  ChannelListOptionsBody,
   ThrellCallInitiateBody,
   ConfigureChannelBody,
   ChannelVoiceCallBody,
@@ -277,6 +278,24 @@ export class ConvChannelsController {
     return this.threllTools.configure(parsed.data);
   }
 
+  @Post('options')
+  @HttpCode(200)
+  async listChannelOptions(
+    @Body() body: unknown,
+  ): Promise<Awaited<ReturnType<ChannelAdminService['listOptions']>>> {
+    const parsed = ChannelListOptionsBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.channelAdmin.listOptions({ vendor: parsed.data.vendor, config: parsed.data.config });
+  }
+
+  @Post(':id/options')
+  @HttpCode(200)
+  async listChannelOptionsForChannel(
+    @Param('id') id: string,
+  ): Promise<Awaited<ReturnType<ChannelAdminService['listOptions']>>> {
+    return this.channelAdmin.listOptions({ channelId: id });
+  }
+
   @Post('threll/:id/test')
   @HttpCode(200)
   async testThrell(
@@ -303,6 +322,7 @@ export class ConvChannelsController {
   @Delete(':id')
   @HttpCode(204)
   async archive(@Param('id') id: string): Promise<void> {
+    await this.channelAdmin.onArchive(id);
     await this.conv.archiveChannel(id);
   }
 

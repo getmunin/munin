@@ -21,6 +21,7 @@ import { EmptyCallout } from '../components/empty-callout';
 import { SaveErrorStage, type SaveErrorDetail } from '../components/save-error-stage';
 import { useConfirm } from '../components/confirm-dialog';
 import { FormField } from '../components/form-field';
+import { NativeSelect } from '../components/native-select';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
@@ -134,6 +135,31 @@ interface ThrellChannelDto extends ChannelDto {
     accountId?: string;
     workerId?: string;
   };
+}
+
+interface ChannelOptionItem {
+  value: string;
+  label: string;
+  hint?: string | null;
+}
+
+interface ChannelOptionGroup {
+  key: string;
+  label: string;
+  options: ChannelOptionItem[];
+}
+
+interface ChannelOptionsResponse {
+  groups: ChannelOptionGroup[];
+  context?: { label?: string };
+}
+
+function channelOptionsFor(res: ChannelOptionsResponse, key: string): ChannelOptionItem[] {
+  return res.groups.find((g) => g.key === key)?.options ?? [];
+}
+
+function optionLabel(option: ChannelOptionItem): string {
+  return option.hint ? `${option.label} (${option.hint})` : option.label;
 }
 
 interface CreatedWidget {
@@ -2813,6 +2839,7 @@ function AddVoiceDialog({
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
+  const confirm = useConfirm();
   const [vendor, setVendor] = useState<VoiceVendor>('threll');
   const [name, setName] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -2820,13 +2847,14 @@ function AddVoiceDialog({
   const [assistantId, setAssistantId] = useState('');
   const [phoneNumberId, setPhoneNumberId] = useState('');
   const [publicKey, setPublicKey] = useState('');
-  const [accountId, setAccountId] = useState('');
   const [workerId, setWorkerId] = useState('');
+  const [stage, setStage] = useState<'form' | 'options'>('form');
+  const [options, setOptions] = useState<ChannelOptionItem[]>([]);
+  const [optionsAccountLabel, setOptionsAccountLabel] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [createdChannelId, setCreatedChannelId] = useState<string | null>(null);
-  const [createdVendor, setCreatedVendor] = useState<VoiceVendor>('vapi');
 
   useEffect(() => {
     if (!open) return;
@@ -2837,16 +2865,50 @@ function AddVoiceDialog({
     setAssistantId('');
     setPhoneNumberId('');
     setPublicKey('');
-    setAccountId('');
     setWorkerId('');
+    setStage('form');
+    setOptions([]);
+    setOptionsAccountLabel(null);
     setSubmitError(null);
     setFieldErrors({});
     setSaving(false);
     setCreatedChannelId(null);
-    setCreatedVendor('vapi');
   }, [open]);
 
-  async function submitVapi(): Promise<void> {
+  async function fetchVapiAssistants(): Promise<void> {
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = t('errors.required');
+    if (!apiKey) errors.apiKey = t('errors.required');
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      const res = await api<ChannelOptionsResponse>('/v1/conversations/channels/options', {
+        method: 'POST',
+        body: JSON.stringify({ vendor: 'vapi', config: { apiKey } }),
+      });
+      const assistants = channelOptionsFor(res, 'assistants');
+      setOptions(assistants);
+      setOptionsAccountLabel(null);
+      setAssistantId(assistants[0]?.value ?? '');
+      setStage('options');
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.createVapi'), {
+          endpoint: '/v1/conversations/channels/options',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitVapi(replaceWebhook = false): Promise<void> {
     const generatedSecret = generateWebhookSecret();
     const payload: Record<string, unknown> = {
       ...(name.trim() ? { name: name.trim() } : {}),
@@ -2855,6 +2917,7 @@ function AddVoiceDialog({
       ...(assistantId.trim() ? { assistantId: assistantId.trim() } : {}),
       ...(phoneNumberId.trim() ? { phoneNumberId: phoneNumberId.trim() } : {}),
       ...(publicKey.trim() ? { publicKey: publicKey.trim() } : {}),
+      ...(replaceWebhook ? { replaceWebhook: true } : {}),
     };
     const parsed = ConfigureVapiBody.safeParse(payload);
     if (!parsed.success) {
@@ -2865,15 +2928,33 @@ function AddVoiceDialog({
     setSaving(true);
     setSubmitError(null);
     try {
-      const created = await api<{ id: string }>('/v1/conversations/channels/vapi', {
-        method: 'POST',
-        body: JSON.stringify(parsed.data),
-      });
-      setWebhookSecret(generatedSecret);
-      setCreatedVendor('vapi');
-      setCreatedChannelId(created.id);
+      const created = await api<{ id: string; webhookConfigured?: boolean }>(
+        '/v1/conversations/channels/vapi',
+        {
+          method: 'POST',
+          body: JSON.stringify(parsed.data),
+        },
+      );
       onSaved();
+      if (created.webhookConfigured) {
+        onOpenChange(false);
+      } else {
+        setWebhookSecret(generatedSecret);
+        setCreatedChannelId(created.id);
+      }
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'webhook_conflict') {
+        setSaving(false);
+        const ok = await confirm({
+          title: t('vapi.replaceWebhook.title'),
+          message: t('vapi.replaceWebhook.message'),
+          confirmLabel: t('vapi.replaceWebhook.confirm'),
+          cancelLabel: tCommon('cancel'),
+          destructive: true,
+        });
+        if (ok) await submitVapi(true);
+        return;
+      }
       setSubmitError(
         toSaveErrorDetail(err, translate(err) || t('errors.createVapi'), {
           endpoint: '/v1/conversations/channels/vapi',
@@ -2885,30 +2966,73 @@ function AddVoiceDialog({
     }
   }
 
-  async function submitThrell(): Promise<void> {
-    const payload: Record<string, unknown> = {
-      ...(name.trim() ? { name: name.trim() } : {}),
-      ...(apiKey ? { apiKey } : {}),
-      ...(accountId.trim() ? { accountId: accountId.trim() } : {}),
-      ...(workerId.trim() ? { workerId: workerId.trim() } : {}),
-    };
-    const parsed = ConfigureThrellBody.safeParse(payload);
-    if (!parsed.success) {
-      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+  async function fetchThrellWorkers(): Promise<void> {
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = t('errors.required');
+    if (!apiKey) errors.apiKey = t('errors.required');
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
     setFieldErrors({});
     setSaving(true);
     setSubmitError(null);
     try {
-      const created = await api<{ id: string }>('/v1/conversations/channels/threll', {
+      const res = await api<ChannelOptionsResponse>('/v1/conversations/channels/options', {
+        method: 'POST',
+        body: JSON.stringify({ vendor: 'threll', config: { apiKey } }),
+      });
+      const workers = channelOptionsFor(res, 'workers');
+      setOptions(workers);
+      setOptionsAccountLabel(res.context?.label ?? null);
+      setWorkerId(workers[0]?.value ?? '');
+      setStage('options');
+    } catch (err) {
+      setSubmitError(
+        toSaveErrorDetail(err, translate(err) || t('errors.createThrell'), {
+          endpoint: '/v1/conversations/channels/options',
+          method: 'POST',
+        }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createThrell(replaceWebhook = false): Promise<void> {
+    const payload = {
+      name: name.trim(),
+      apiKey,
+      workerId,
+      ...(replaceWebhook ? { replaceWebhook: true } : {}),
+    };
+    const parsed = ConfigureThrellBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api<{ id: string }>('/v1/conversations/channels/threll', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
-      setCreatedVendor('threll');
-      setCreatedChannelId(created.id);
       onSaved();
+      onOpenChange(false);
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'webhook_conflict') {
+        setSaving(false);
+        const ok = await confirm({
+          title: t('threll.replaceWebhook.title'),
+          message: t('threll.replaceWebhook.message'),
+          confirmLabel: t('threll.replaceWebhook.confirm'),
+          cancelLabel: tCommon('cancel'),
+          destructive: true,
+        });
+        if (ok) await createThrell(true);
+        return;
+      }
       setSubmitError(
         toSaveErrorDetail(err, translate(err) || t('errors.createThrell'), {
           endpoint: '/v1/conversations/channels/threll',
@@ -2922,8 +3046,13 @@ function AddVoiceDialog({
 
   function submit(): void {
     setFieldErrors({});
+    if (vendor === 'vapi') void fetchVapiAssistants();
+    else if (vendor === 'threll') void fetchThrellWorkers();
+  }
+
+  function createForVendor(): void {
     if (vendor === 'vapi') void submitVapi();
-    else if (vendor === 'threll') void submitThrell();
+    else void createThrell();
   }
 
   return (
@@ -2933,22 +3062,37 @@ function AddVoiceDialog({
           <SaveErrorStage
             detail={submitError}
             onBack={() => setSubmitError(null)}
-            onRetry={() => submit()}
+            onRetry={() => (stage === 'options' ? createForVendor() : submit())}
             retrying={saving}
           />
         ) : createdChannelId ? (
-          createdVendor === 'threll' ? (
-            <ThrellConnectionStage
-              channelId={createdChannelId}
-              onDone={() => onOpenChange(false)}
-            />
-          ) : (
-            <VapiConnectionStage
-              channelId={createdChannelId}
-              webhookSecret={webhookSecret}
-              onDone={() => onOpenChange(false)}
-            />
-          )
+          <VapiConnectionStage
+            channelId={createdChannelId}
+            webhookSecret={webhookSecret}
+            onDone={() => onOpenChange(false)}
+          />
+        ) : stage === 'options' ? (
+          <ChannelOptionStage
+            title={vendor === 'threll' ? t('threll.workerStage.title') : t('vapi.assistantStage.title')}
+            description={
+              vendor === 'threll'
+                ? optionsAccountLabel
+                  ? t('threll.workerStage.descriptionAccount', { account: optionsAccountLabel })
+                  : t('threll.workerStage.description')
+                : t('vapi.assistantStage.description')
+            }
+            fieldLabel={vendor === 'threll' ? t('threll.workerLabel') : t('vapi.assistantIdLabel')}
+            fieldHint={vendor === 'threll' ? t('threll.workerHint') : t('vapi.assistantIdHint')}
+            emptyMessage={
+              vendor === 'threll' ? t('threll.workerStage.empty') : t('vapi.assistantStage.empty')
+            }
+            options={options}
+            value={vendor === 'threll' ? workerId : assistantId}
+            onChange={vendor === 'threll' ? setWorkerId : setAssistantId}
+            saving={saving}
+            onBack={() => setStage('form')}
+            onCreate={createForVendor}
+          />
         ) : (
           <>
             <DialogHeader>
@@ -3003,18 +3147,6 @@ function AddVoiceDialog({
                     />
                   </FormField>
                   <FormField
-                    label={t('vapi.assistantIdLabel')}
-                    hint={t('vapi.assistantIdHint')}
-                    error={fieldErrors.assistantId}
-                  >
-                    <Input
-                      value={assistantId}
-                      onChange={(e) => setAssistantId(e.target.value)}
-                      maxLength={128}
-                      required
-                    />
-                  </FormField>
-                  <FormField
                     label={t('vapi.phoneNumberIdLabel')}
                     hint={t('vapi.phoneNumberIdHint')}
                     error={fieldErrors.phoneNumberId}
@@ -3046,30 +3178,6 @@ function AddVoiceDialog({
                       required
                     />
                   </FormField>
-                  <FormField
-                    label={t('threll.accountIdLabel')}
-                    hint={t('threll.accountIdHint')}
-                    error={fieldErrors.accountId}
-                  >
-                    <Input
-                      value={accountId}
-                      onChange={(e) => setAccountId(e.target.value)}
-                      maxLength={128}
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    label={t('threll.workerIdLabel')}
-                    hint={t('threll.workerIdHint')}
-                    error={fieldErrors.workerId}
-                  >
-                    <Input
-                      value={workerId}
-                      onChange={(e) => setWorkerId(e.target.value)}
-                      maxLength={128}
-                      required
-                    />
-                  </FormField>
                 </>
               )}
               <DialogFooter className={dialogFooterClass}>
@@ -3089,7 +3197,7 @@ function AddVoiceDialog({
                   disabled={saving}
                   pending={saving}
                 >
-                  {saving ? tCommon('creating') : t('addVoiceDialog.create')}
+                  {saving ? tCommon('creating') : tCommon('continue')}
                   <span aria-hidden className="ml-1 font-mono">↵</span>
                 </Button>
               </DialogFooter>
@@ -3164,6 +3272,7 @@ function VapiChannelDialog({
   const [assistantId, setAssistantId] = useState(editChannel.config?.assistantId ?? '');
   const [phoneNumberId, setPhoneNumberId] = useState(editChannel.config?.phoneNumberId ?? '');
   const [publicKey, setPublicKey] = useState(editChannel.config?.publicKey ?? '');
+  const [assistants, setAssistants] = useState<ChannelOptionItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -3176,9 +3285,23 @@ function VapiChannelDialog({
     setAssistantId(editChannel.config?.assistantId ?? '');
     setPhoneNumberId(editChannel.config?.phoneNumberId ?? '');
     setPublicKey(editChannel.config?.publicKey ?? '');
+    setAssistants([]);
     setSubmitError(null);
     setFieldErrors({});
     setSaving(false);
+    let cancelled = false;
+    void api<ChannelOptionsResponse>(`/v1/conversations/channels/${editChannel.id}/options`, {
+      method: 'POST',
+    })
+      .then((res) => {
+        if (!cancelled) setAssistants(channelOptionsFor(res, 'assistants'));
+      })
+      .catch(() => {
+        if (!cancelled) setAssistants([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, editChannel]);
 
   async function submit() {
@@ -3284,11 +3407,24 @@ function VapiChannelDialog({
                 hint={t('vapi.assistantIdHint')}
                 error={fieldErrors.assistantId}
               >
-                <Input
-                  value={assistantId}
-                  onChange={(e) => setAssistantId(e.target.value)}
-                  maxLength={128}
-                />
+                {assistants.length > 0 ? (
+                  <NativeSelect value={assistantId} onChange={(e) => setAssistantId(e.target.value)}>
+                    {!assistants.some((a) => a.value === assistantId) && assistantId ? (
+                      <option value={assistantId}>{assistantId}</option>
+                    ) : null}
+                    {assistants.map((a) => (
+                      <option key={a.value} value={a.value}>
+                        {optionLabel(a)}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                ) : (
+                  <Input
+                    value={assistantId}
+                    onChange={(e) => setAssistantId(e.target.value)}
+                    maxLength={128}
+                  />
+                )}
               </FormField>
               <FormField
                 label={t('vapi.phoneNumberIdLabel')}
@@ -3443,31 +3579,74 @@ function PlaceVapiCallDialog({
   );
 }
 
-function ThrellConnectionStage({
-  channelId,
-  onDone,
+function ChannelOptionStage({
+  title,
+  description,
+  fieldLabel,
+  fieldHint,
+  emptyMessage,
+  options,
+  value,
+  onChange,
+  saving,
+  onBack,
+  onCreate,
 }: {
-  channelId: string;
-  onDone: () => void;
+  title: string;
+  description: string;
+  fieldLabel: string;
+  fieldHint: string;
+  emptyMessage: string;
+  options: ChannelOptionItem[];
+  value: string;
+  onChange: (value: string) => void;
+  saving: boolean;
+  onBack: () => void;
+  onCreate: () => void;
 }) {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
+  const hasOptions = options.length > 0;
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{t('threll.connectionStage.title')}</DialogTitle>
-        <DialogDescription>{t('threll.connectionStage.description')}</DialogDescription>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
-      <div className="mt-2 flex flex-col gap-4">
-        <CopyableSecret
-          label={t('threll.connectionStage.serverUrlLabel')}
-          value={vapiWebhookUrl(channelId)}
-          hint={t('threll.connectionStage.serverUrlHint')}
-        />
+      <div className="mt-4 flex flex-col gap-4">
+        {hasOptions ? (
+          <FormField label={fieldLabel} hint={fieldHint}>
+            <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {optionLabel(option)}
+                </option>
+              ))}
+            </NativeSelect>
+          </FormField>
+        ) : (
+          <p className={dialogHintClass}>{emptyMessage}</p>
+        )}
       </div>
       <DialogFooter className={dialogFooterClass}>
-        <Button variant="accent" className={dialogButtonClass} onClick={onDone}>
-          {tCommon('done')}
+        <Button
+          type="button"
+          variant="outline"
+          className={dialogButtonClass}
+          onClick={onBack}
+          disabled={saving}
+        >
+          {tCommon('back')}
+        </Button>
+        <Button
+          type="button"
+          variant="accent"
+          className={dialogButtonClass}
+          onClick={onCreate}
+          disabled={saving || !hasOptions}
+          pending={saving}
+        >
+          {saving ? tCommon('creating') : t('addVoiceDialog.create')}
         </Button>
       </DialogFooter>
     </>
@@ -3490,8 +3669,8 @@ function ThrellChannelDialog({
   const translate = useTranslateError();
   const [name, setName] = useState(editChannel.name);
   const [apiKey, setApiKey] = useState('');
-  const [accountId, setAccountId] = useState(editChannel.config?.accountId ?? '');
   const [workerId, setWorkerId] = useState(editChannel.config?.workerId ?? '');
+  const [workers, setWorkers] = useState<ChannelOptionItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -3500,11 +3679,24 @@ function ThrellChannelDialog({
     if (!open) return;
     setName(editChannel.name);
     setApiKey('');
-    setAccountId(editChannel.config?.accountId ?? '');
     setWorkerId(editChannel.config?.workerId ?? '');
+    setWorkers([]);
     setSubmitError(null);
     setFieldErrors({});
     setSaving(false);
+    let cancelled = false;
+    void api<ChannelOptionsResponse>(`/v1/conversations/channels/${editChannel.id}/options`, {
+      method: 'POST',
+    })
+      .then((res) => {
+        if (!cancelled) setWorkers(channelOptionsFor(res, 'workers'));
+      })
+      .catch(() => {
+        if (!cancelled) setWorkers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, editChannel]);
 
   async function submit() {
@@ -3512,7 +3704,6 @@ function ThrellChannelDialog({
       channelId: editChannel.id,
       ...(name.trim() ? { name: name.trim() } : {}),
       ...(apiKey ? { apiKey } : {}),
-      ...(accountId.trim() ? { accountId: accountId.trim() } : {}),
       ...(workerId.trim() ? { workerId: workerId.trim() } : {}),
     };
     const parsed = ConfigureThrellBody.safeParse(payload);
@@ -3583,26 +3774,28 @@ function ThrellChannelDialog({
                 />
               </FormField>
               <FormField
-                label={t('threll.accountIdLabel')}
-                hint={t('threll.accountIdHint')}
-                error={fieldErrors.accountId}
-              >
-                <Input
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  maxLength={128}
-                />
-              </FormField>
-              <FormField
-                label={t('threll.workerIdLabel')}
-                hint={t('threll.workerIdHint')}
+                label={t('threll.workerLabel')}
+                hint={t('threll.workerHint')}
                 error={fieldErrors.workerId}
               >
-                <Input
-                  value={workerId}
-                  onChange={(e) => setWorkerId(e.target.value)}
-                  maxLength={128}
-                />
+                {workers.length > 0 ? (
+                  <NativeSelect value={workerId} onChange={(e) => setWorkerId(e.target.value)}>
+                    {!workers.some((w) => w.value === workerId) && workerId ? (
+                      <option value={workerId}>{workerId}</option>
+                    ) : null}
+                    {workers.map((worker) => (
+                      <option key={worker.value} value={worker.value}>
+                        {optionLabel(worker)}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                ) : (
+                  <Input
+                    value={workerId}
+                    onChange={(e) => setWorkerId(e.target.value)}
+                    maxLength={128}
+                  />
+                )}
               </FormField>
               <DialogFooter className={dialogFooterClass}>
                 <Button

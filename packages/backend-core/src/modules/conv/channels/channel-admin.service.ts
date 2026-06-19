@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
@@ -11,10 +12,12 @@ import {
   CHANNEL_ADMIN_PROVIDERS,
   type ChannelAdminDto,
   type ChannelAdminProvider,
+  type ChannelOptionsDto,
 } from './channel-admin.ts';
 
 @Injectable()
 export class ChannelAdminService {
+  private readonly logger = new Logger(ChannelAdminService.name);
   private readonly byVendor = new Map<string, ChannelAdminProvider>();
 
   constructor(@Inject(CHANNEL_ADMIN_PROVIDERS) providers: ChannelAdminProvider[]) {
@@ -58,6 +61,22 @@ export class ChannelAdminService {
     return this.providerForChannel(channelId).then((p) => p.test(channelId));
   }
 
+  async listOptions(input: {
+    vendor?: string;
+    channelId?: string;
+    config?: Record<string, unknown>;
+  }): Promise<ChannelOptionsDto> {
+    const provider = input.channelId
+      ? await this.providerForChannel(input.channelId)
+      : this.requireVendor(input.vendor ?? '');
+    if (!provider.listOptions) {
+      throw new BadRequestException(
+        `channel vendor '${provider.vendor}' does not support option discovery`,
+      );
+    }
+    return provider.listOptions({ channelId: input.channelId, config: input.config });
+  }
+
   async call(input: { channelId: string; to: string; customerName?: string }): Promise<unknown> {
     const provider = await this.providerForChannel(input.channelId);
     if (!provider.call) {
@@ -72,6 +91,27 @@ export class ChannelAdminService {
       throw new BadRequestException(`channel vendor '${provider.vendor}' does not support test sends`);
     }
     return provider.sendTest(input);
+  }
+
+  async onArchive(channelId: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select({ vendor: schema.convChannels.vendor })
+      .from(schema.convChannels)
+      .where(
+        and(eq(schema.convChannels.id, channelId), eq(schema.convChannels.orgId, actor.orgId)),
+      )
+      .limit(1);
+    const provider = rows[0] ? this.byVendor.get(rows[0].vendor) : undefined;
+    if (!provider?.onArchive) return;
+    await provider.onArchive(channelId).catch((err: unknown) => {
+      this.logger.warn(
+        `onArchive hook failed for channel ${channelId} (${provider.vendor}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    });
   }
 
   private requireVendor(vendor: string): ChannelAdminProvider {

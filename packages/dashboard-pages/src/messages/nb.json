@@ -22,6 +22,7 @@
     "edit": "Rediger",
     "close": "Lukk",
     "back": "Tilbake",
+    "continue": "Fortsett",
     "copy": "Kopier",
     "copied": "Kopiert",
     "done": "Ferdig",
@@ -622,8 +623,18 @@
           "webhookSecretLabel": "Webhook-hemmelighet",
           "webhookSecretHint": "Legg til som HTTP Header `X-Webhook-Secret` med denne verdien."
         },
-        "assistantIdLabel": "Assistent-ID",
-        "assistantIdHint": "Lim inn assistentens id fra Vapi-dashbordet.",
+        "assistantIdLabel": "Assistent",
+        "assistantIdHint": "Vapi-assistenten som håndterer anrop på denne kanalen.",
+        "assistantStage": {
+          "title": "Velg en assistent",
+          "description": "Velg Vapi-assistenten som skal håndtere anrop på denne kanalen.",
+          "empty": "Fant ingen assistenter i denne Vapi-kontoen. Opprett en i Vapi og prøv igjen."
+        },
+        "replaceWebhook": {
+          "title": "Erstatt assistentens server-URL?",
+          "message": "Denne Vapi-assistenten har allerede en server-URL konfigurert. Munin overskriver den for å motta samtalehendelser. Fortsette?",
+          "confirm": "Erstatt"
+        },
         "phoneNumberIdLabel": "Telefonnummer-ID (valgfritt)",
         "phoneNumberIdHint": "Bare nødvendig for samtaler over telenettet. Lim inn en telefonnummer-id fra Vapi.",
         "publicKeyLabel": "Public API-nøkkel (valgfritt)",
@@ -651,18 +662,21 @@
         "apiKeyLabel": "API-nøkkel",
         "apiKeyHintCreate": "Threll API-nøkkel (Innstillinger → Utvikler). Munin bruker den til å registrere webhooken i Threll automatisk.",
         "apiKeyHintEdit": "La feltet stå tomt for å beholde eksisterende. Lim inn ny verdi for å rotere.",
-        "connectionStage": {
-          "title": "Threll tilkoblet",
-          "description": "Munin registrerte webhook-abonnementet i Threll automatisk — stemmekanalen er klar.",
-          "serverUrlLabel": "Webhook-URL",
-          "serverUrlHint": "Threll leverer samtalehendelser hit. Munin registrerte denne URL-en for deg; ingen manuell oppsett nødvendig."
+        "workerLabel": "Threll",
+        "workerHint": "Threllen som håndterer anrop på denne kanalen.",
+        "workerStage": {
+          "title": "Velg en threll",
+          "description": "Velg threllen som skal håndtere anrop på denne kanalen.",
+          "descriptionAccount": "Velg threllen i {account} som skal håndtere anrop på denne kanalen.",
+          "empty": "Fant ingen threller i denne kontoen. Opprett en i Threll og prøv igjen."
         },
-        "accountIdLabel": "Konto-ID",
-        "accountIdHint": "Threll konto-ID (vises ved siden av API-nøkkelen din).",
-        "workerIdLabel": "Worker-ID",
-        "workerIdHint": "Threll worker-ID som håndterer anrop på denne kanalen.",
         "accountChip": "acct · {id}",
         "workerChip": "worker · {id}",
+        "replaceWebhook": {
+          "title": "Erstatt eksisterende webhook?",
+          "message": "Denne Threll-kontoen har allerede et kontoomfattende webhook-abonnement. Munin sletter det og registrerer sitt eget. Fortsette?",
+          "confirm": "Erstatt"
+        },
         "placeCall": "Start anrop",
         "placeCallDialog": {
           "title": "Start et utgående anrop",
@@ -679,6 +693,7 @@
       "errors": {
         "load": "Kunne ikke laste kanaler.",
         "create": "Kunne ikke opprette kanal.",
+        "required": "Påkrevd.",
         "createEmail": "Kunne ikke opprette e-postkanal.",
         "updateEmail": "Kunne ikke oppdatere e-postkanal.",
         "createTwilioSms": "Kunne ikke opprette Twilio SMS-kanal.",

@@ -156,6 +156,7 @@ export const ConfigureVapiBody = z
     assistantId: z.string().min(1).max(128).optional(),
     phoneNumberId: z.string().min(1).max(128).optional(),
     publicKey: z.string().min(1).max(256).optional(),
+    replaceWebhook: z.boolean().optional(),
   })
   .refine(
     (v) =>
@@ -183,16 +184,20 @@ export const ConfigureThrellBody = z
     apiKey: sensitive(z.string().min(1).max(256).optional()),
     accountId: z.string().min(1).max(128).optional(),
     workerId: z.string().min(1).max(128).optional(),
+    replaceWebhook: z.boolean().optional(),
   })
-  .refine(
-    (v) =>
-      v.channelId !== undefined || (v.name && v.apiKey && v.accountId && v.workerId),
-    {
-      message: 'name, apiKey, accountId, and workerId are required when creating',
-    },
-  );
+  .refine((v) => v.channelId !== undefined || (v.name && v.apiKey && v.workerId), {
+    message: 'name, apiKey, and workerId are required when creating',
+  });
 
 export type ConfigureThrellBodyT = z.infer<typeof ConfigureThrellBody>;
+
+export const ChannelListOptionsBody = z.object({
+  vendor: z.string().min(1).max(40),
+  config: sensitive(z.record(z.string(), z.unknown())),
+});
+
+export type ChannelListOptionsBodyT = z.infer<typeof ChannelListOptionsBody>;
 
 export const ThrellCallInitiateBody = z.object({
   to: z.string().regex(E164, 'must be E.164').max(32),

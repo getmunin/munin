@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import {
@@ -7,6 +7,7 @@ import {
 } from '@getmunin/core';
 import type { Db, Tx } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
+import { asRecord, toRows } from '../channels/json-shape.ts';
 
 const VAPI_API_BASE = 'https://api.vapi.ai';
 
@@ -63,25 +64,87 @@ export class VapiClientService {
     };
   }
 
+  private async request(opts: {
+    apiKey: string;
+    path: string;
+    method?: 'GET' | 'POST' | 'PATCH';
+    body?: Record<string, unknown>;
+    notFoundError?: string;
+  }): Promise<{ ok: true; json: unknown } | { ok: false; error: string }> {
+    try {
+      const res = await fetch(`${VAPI_API_BASE}${opts.path}`, {
+        method: opts.method ?? 'GET',
+        headers: {
+          authorization: `Bearer ${opts.apiKey}`,
+          ...(opts.body ? { 'content-type': 'application/json' } : {}),
+        },
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+        signal: AbortSignal.timeout(10000),
+      });
+      const status: HttpStatus = res.status;
+      if (status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN) {
+        return { ok: false, error: 'vapi_unauthorized' };
+      }
+      if (status === HttpStatus.NOT_FOUND && opts.notFoundError) {
+        return { ok: false, error: opts.notFoundError };
+      }
+      const json: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = asRecord(json).message;
+        const detail =
+          typeof message === 'string'
+            ? message
+            : Array.isArray(message)
+              ? message.filter((m): m is string => typeof m === 'string').join('; ')
+              : String(res.status);
+        return { ok: false, error: `vapi_${res.status}: ${detail}` };
+      }
+      return { ok: true, json };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   async fetchAssistantConfig(opts: {
     apiKey: string;
     assistantId: string;
   }): Promise<{ ok: true; config: Record<string, unknown> } | { ok: false; error: string }> {
-    try {
-      const res = await fetch(`${VAPI_API_BASE}/assistant/${encodeURIComponent(opts.assistantId)}`, {
-        headers: { authorization: `Bearer ${opts.apiKey}` },
-      });
-      if (res.status === 401) return { ok: false, error: 'vapi_unauthorized' };
-      if (res.status === 404) return { ok: false, error: 'vapi_assistant_not_found' };
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        return { ok: false, error: `vapi_${res.status}: ${text.slice(0, 200)}` };
-      }
-      const json = (await res.json()) as Record<string, unknown>;
-      return { ok: true, config: json };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
-    }
+    const r = await this.request({
+      apiKey: opts.apiKey,
+      path: `/assistant/${encodeURIComponent(opts.assistantId)}`,
+      notFoundError: 'vapi_assistant_not_found',
+    });
+    if (!r.ok) return r;
+    return { ok: true, config: asRecord(r.json) };
+  }
+
+  async listAssistants(opts: {
+    apiKey: string;
+  }): Promise<{ ok: true; assistants: VapiAssistantSummary[] } | { ok: false; error: string }> {
+    const r = await this.request({ apiKey: opts.apiKey, path: '/assistant' });
+    if (!r.ok) return r;
+    const assistants = toRows(r.json, 'results')
+      .map((row) => ({
+        id: typeof row.id === 'string' ? row.id : '',
+        name: typeof row.name === 'string' ? row.name : null,
+      }))
+      .filter((a) => a.id.length > 0);
+    return { ok: true, assistants };
+  }
+
+  async updateAssistantServer(opts: {
+    apiKey: string;
+    assistantId: string;
+    server: Record<string, unknown> | null;
+  }): Promise<{ ok: true } | { ok: false; error: string }> {
+    const r = await this.request({
+      apiKey: opts.apiKey,
+      path: `/assistant/${encodeURIComponent(opts.assistantId)}`,
+      method: 'PATCH',
+      body: { server: opts.server },
+      notFoundError: 'vapi_assistant_not_found',
+    });
+    return r.ok ? { ok: true } : r;
   }
 
   async placeCall(req: PlaceCallRequest): Promise<PlaceCallResponse> {
@@ -91,22 +154,9 @@ export class VapiClientService {
       customer: { number: req.toNumber, ...(req.customer ?? {}) },
     };
     if (req.assistantOverrides) body.assistantOverrides = req.assistantOverrides;
-    const res = await fetch(`${VAPI_API_BASE}/call`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${req.apiKey}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) {
-      const message =
-        (typeof json.message === 'string' && json.message) ||
-        (Array.isArray(json.message) && (json.message as string[]).join('; ')) ||
-        `vapi_place_call_failed_${res.status}`;
-      throw new Error(`vapi_${res.status}: ${message}`);
-    }
+    const r = await this.request({ apiKey: req.apiKey, path: '/call', method: 'POST', body });
+    if (!r.ok) throw new Error(r.error);
+    const json = asRecord(r.json);
     return {
       id: typeof json.id === 'string' ? json.id : '',
       status: typeof json.status === 'string' ? json.status : '',

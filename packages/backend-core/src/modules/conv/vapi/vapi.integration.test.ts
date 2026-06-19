@@ -1,6 +1,6 @@
 import 'reflect-metadata';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { INestApplication } from '@nestjs/common';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { ConflictException, type INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { createDb, runMigrations, schema } from '@getmunin/db';
@@ -8,6 +8,8 @@ import { sql, eq, and } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
 import { createApp } from '../../../bootstrap-app.ts';
 import { VapiService } from './vapi.service.ts';
+import { VapiClientService } from './vapi-client.service.ts';
+import { ChannelAdminService } from '../channels/channel-admin.service.ts';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -38,6 +40,7 @@ const skipReason = TEST_URL
     process.env.MUNIN_STORAGE_LOCAL_BASE_URL = 'http://127.0.0.1:0/static/assets';
     process.env.MUNIN_WEBHOOK_WORKER_DISABLED = '1';
     process.env.MUNIN_CMS_SCHEDULE_WORKER_DISABLED = '1';
+    process.env.MUNIN_API_URL = 'https://munin.example';
 
     await runMigrations(TEST_URL!);
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
@@ -58,6 +61,10 @@ const skipReason = TEST_URL
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
     baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const bootstrapClient = app.get(VapiClientService);
+    vi.spyOn(bootstrapClient, 'fetchAssistantConfig').mockResolvedValue({ ok: false, error: 'stub' });
+    vi.spyOn(bootstrapClient, 'updateAssistantServer').mockResolvedValue({ ok: true });
 
     const svc = app.get(VapiService);
     const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
@@ -107,6 +114,113 @@ const skipReason = TEST_URL
       body: payload,
     });
   }
+
+  it('discovers assistants via the generic listOptions path', async () => {
+    const client = app.get(VapiClientService);
+    vi.spyOn(client, 'listAssistants').mockResolvedValueOnce({
+      ok: true,
+      assistants: [
+        { id: 'asst_a', name: 'Support' },
+        { id: 'asst_b', name: null },
+      ],
+    });
+    const res = await app
+      .get(ChannelAdminService)
+      .listOptions({ vendor: 'vapi', config: { apiKey: API_KEY } });
+    const assistants = res.groups.find((g) => g.key === 'assistants')?.options ?? [];
+    expect(assistants).toEqual([
+      { value: 'asst_a', label: 'Support' },
+      { value: 'asst_b', label: 'asst_b' },
+    ]);
+  });
+
+  it('auto-configures the assistant server when the assistant has none', async () => {
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const client = app.get(VapiClientService);
+    vi.spyOn(client, 'fetchAssistantConfig').mockResolvedValueOnce({
+      ok: true,
+      config: { id: 'asst_auto', name: 'Auto' },
+    });
+    const updateSpy = vi.spyOn(client, 'updateAssistantServer').mockResolvedValue({ ok: true });
+    updateSpy.mockClear();
+    const dto = await runAsActor(actor, () =>
+      app.get(VapiService).createChannel({
+        name: 'vapi-auto',
+        config: { apiKey: 'k', webhookSecret: 'whsec_auto', assistantId: 'asst_auto' },
+      }),
+    );
+    expect(dto.webhookConfigured).toBe(true);
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    const server = updateSpy.mock.calls[0]![0].server as Record<string, unknown>;
+    expect(server.url).toBe(`https://munin.example/v1/conversations/channels/${dto.id}/webhook`);
+    expect((server.headers as Record<string, unknown>)['x-webhook-secret']).toBe('whsec_auto');
+  });
+
+  it('returns a 409 webhook_conflict when the assistant server points elsewhere', async () => {
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const client = app.get(VapiClientService);
+    vi.spyOn(client, 'fetchAssistantConfig').mockResolvedValueOnce({
+      ok: true,
+      config: { server: { url: 'https://customer.example/hook' } },
+    });
+    const updateSpy = vi.spyOn(client, 'updateAssistantServer').mockResolvedValue({ ok: true });
+    const before = updateSpy.mock.calls.length;
+    let caught: unknown;
+    try {
+      await runAsActor(actor, () =>
+        app.get(VapiService).createChannel({
+          name: 'vapi-elsewhere',
+          config: { apiKey: 'k', webhookSecret: 'whsec_x', assistantId: 'asst_elsewhere' },
+        }),
+      );
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ConflictException);
+    expect((caught as ConflictException).getResponse()).toMatchObject({ code: 'webhook_conflict' });
+    expect(updateSpy.mock.calls.length).toBe(before);
+  });
+
+  it('overwrites the assistant server when replaceWebhook is set', async () => {
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const client = app.get(VapiClientService);
+    vi.spyOn(client, 'fetchAssistantConfig').mockResolvedValueOnce({
+      ok: true,
+      config: { server: { url: 'https://customer.example/hook' } },
+    });
+    const updateSpy = vi.spyOn(client, 'updateAssistantServer').mockResolvedValue({ ok: true });
+    updateSpy.mockClear();
+    const dto = await runAsActor(actor, () =>
+      app.get(VapiService).createChannel({
+        name: 'vapi-replace',
+        config: { apiKey: 'k', webhookSecret: 'whsec_z', assistantId: 'asst_replace' },
+        replaceWebhook: true,
+      }),
+    );
+    expect(dto.webhookConfigured).toBe(true);
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    const server = updateSpy.mock.calls[0]![0].server as Record<string, unknown>;
+    expect(server.url).toBe(`https://munin.example/v1/conversations/channels/${dto.id}/webhook`);
+  });
+
+  it('restores the assistant server when the channel is archived', async () => {
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const client = app.get(VapiClientService);
+    vi.spyOn(client, 'fetchAssistantConfig').mockResolvedValueOnce({ ok: true, config: {} });
+    vi.spyOn(client, 'updateAssistantServer').mockResolvedValue({ ok: true });
+    const dto = await runAsActor(actor, () =>
+      app.get(VapiService).createChannel({
+        name: 'vapi-restore',
+        config: { apiKey: 'k', webhookSecret: 'whsec_r', assistantId: 'asst_restore' },
+      }),
+    );
+    expect(dto.webhookConfigured).toBe(true);
+    const restoreSpy = vi.spyOn(client, 'updateAssistantServer').mockResolvedValue({ ok: true });
+    restoreSpy.mockClear();
+    await runAsActor(actor, () => app.get(ChannelAdminService).onArchive(dto.id));
+    expect(restoreSpy).toHaveBeenCalledTimes(1);
+    expect(restoreSpy.mock.calls[0]![0].server).toBeNull();
+  });
 
   it('rejects webhook with wrong shared secret', async () => {
     const payload = JSON.stringify({ message: { type: 'transcript' } });

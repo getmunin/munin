@@ -1,13 +1,18 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { z } from 'zod';
 import { describeConfigFields } from '../channels/channel-admin.ts';
 import type {
   ChannelAdminDto,
   ChannelAdminProvider,
+  ChannelOptionsDto,
   ConfigureChannelInput,
+  ListChannelOptionsInput,
 } from '../channels/channel-admin.ts';
-import { ConfigureInput, VapiAdminTools } from './vapi.tools.ts';
+import { ConfigureInput, VapiAdminTools, type VapiListAssistantsResult } from './vapi.tools.ts';
 
 const ConfigSchema = ConfigureInput.omit({ channelId: true, name: true });
+
+const OptionsConfig = z.object({ apiKey: z.string().min(1).max(256) });
 
 @Injectable()
 export class VapiAdminProvider implements ChannelAdminProvider {
@@ -32,4 +37,31 @@ export class VapiAdminProvider implements ChannelAdminProvider {
   call(input: { channelId: string; to: string; customerName?: string }) {
     return this.tools.callInitiate(input);
   }
+
+  async listOptions(input: ListChannelOptionsInput): Promise<ChannelOptionsDto> {
+    if (input.channelId) {
+      return toChannelOptions(await this.tools.listAssistantsForChannel({ channelId: input.channelId }));
+    }
+    const parsed = OptionsConfig.safeParse(input.config);
+    if (!parsed.success) {
+      throw new BadRequestException(`invalid vapi discovery config: ${parsed.error.message}`);
+    }
+    return toChannelOptions(await this.tools.listAssistants(parsed.data));
+  }
+
+  onArchive(channelId: string): Promise<void> {
+    return this.tools.restoreWebhook(channelId);
+  }
+}
+
+function toChannelOptions(res: VapiListAssistantsResult): ChannelOptionsDto {
+  return {
+    groups: [
+      {
+        key: 'assistants',
+        label: 'Assistants',
+        options: res.assistants.map((a) => ({ value: a.id, label: a.name ?? a.id })),
+      },
+    ],
+  };
 }

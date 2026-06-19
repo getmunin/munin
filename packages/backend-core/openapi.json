@@ -2572,6 +2572,59 @@
         ]
       }
     },
+    "/v1/conversations/channels/options": {
+      "post": {
+        "operationId": "ConvChannelsController_listChannelOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/channels/{id}/options": {
+      "post": {
+        "operationId": "ConvChannelsController_listChannelOptionsForChannel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/channels/threll/{id}/test": {
       "post": {
         "operationId": "ConvChannelsController_testThrell",

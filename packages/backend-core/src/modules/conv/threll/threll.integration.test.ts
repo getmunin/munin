@@ -1,14 +1,15 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll, vi, type MockInstance } from 'vitest';
-import type { INestApplication } from '@nestjs/common';
+import { ConflictException, type INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { createHmac, randomUUID } from 'node:crypto';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
 import { createApp } from '../../../bootstrap-app.ts';
-import { ThrellService } from './threll.service.ts';
+import { ThrellService, findReusableSigningSecret } from './threll.service.ts';
 import { ThrellClientService } from './threll-client.service.ts';
+import { ChannelAdminService } from '../channels/channel-admin.service.ts';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -22,6 +23,7 @@ const skipReason = TEST_URL
   let db: ReturnType<typeof createDb>;
   let client: ThrellClientService;
   let createSubSpy: MockInstance;
+  let listSubsSpy: MockInstance;
   let orgId: string;
   let channelId: string;
   const API_KEY = 'threll-api-key-it';
@@ -65,6 +67,9 @@ const skipReason = TEST_URL
       ok: true,
       signingSecret: WEBHOOK_SECRET,
     });
+    listSubsSpy = vi
+      .spyOn(client, 'listWebhookSubscriptions')
+      .mockResolvedValue({ ok: true, subscriptions: [] });
 
     const svc = app.get(ThrellService);
     const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
@@ -132,6 +137,152 @@ const skipReason = TEST_URL
     const ct = (rows[0]!.config as Record<string, string>).encryptedWebhookSecret!;
     const stored = await client.loadSecret(ct);
     expect(stored).toBe(WEBHOOK_SECRET);
+  });
+
+  it('consults existing subscriptions and still creates when none match', async () => {
+    listSubsSpy.mockResolvedValueOnce({
+      ok: true,
+      subscriptions: [
+        { id: 'sub_other', url: 'https://elsewhere.example/hook', eventType: '*', signingSecret: 'nope' },
+      ],
+    });
+    const before = createSubSpy.mock.calls.length;
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    await runAsActor(actor, () =>
+      svc.createChannel({
+        name: 'Threll no-match',
+        config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
+      }),
+    );
+    expect(listSubsSpy).toHaveBeenCalled();
+    expect(createSubSpy.mock.calls.length).toBe(before + 1);
+  });
+
+  it('discovers workers via the generic listOptions path without persisting a channel', async () => {
+    vi.spyOn(client, 'listWorkers').mockResolvedValueOnce({
+      ok: true,
+      workers: [
+        { id: 'wrk_1', name: 'Front desk', inboundPhoneNumber: '+15551112222', outboundPhoneNumber: null },
+        { id: 'wrk_2', name: null, inboundPhoneNumber: null, outboundPhoneNumber: null },
+      ],
+    });
+    vi.spyOn(client, 'fetchAccount').mockResolvedValueOnce({
+      ok: true,
+      account: { id: ACCOUNT_ID, name: 'Acme Support' },
+    });
+    const before = await db
+      .select({ id: schema.convChannels.id })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.orgId, orgId));
+    const res = await app
+      .get(ChannelAdminService)
+      .listOptions({ vendor: 'threll', config: { apiKey: API_KEY, accountId: ACCOUNT_ID } });
+    expect(res.context?.label).toBe('Acme Support');
+    const workers = res.groups.find((g) => g.key === 'workers')?.options ?? [];
+    expect(workers[0]).toEqual({ value: 'wrk_1', label: 'Front desk', hint: '+15551112222' });
+    expect(workers.map((o) => o.value)).toEqual(['wrk_1', 'wrk_2']);
+    const after = await db
+      .select({ id: schema.convChannels.id })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.orgId, orgId));
+    expect(after.length).toBe(before.length);
+  });
+
+  it('returns a 409 webhook_conflict when an enabled account-wide subscription already exists', async () => {
+    listSubsSpy.mockResolvedValueOnce({
+      ok: true,
+      subscriptions: [
+        { id: 'sub_other', url: 'https://other.example/hook', eventType: '*', enabled: true, signingSecret: 'x' },
+      ],
+    });
+    const deleteSpy = vi.spyOn(client, 'deleteWebhookSubscription').mockResolvedValue({ ok: true });
+    const createBefore = createSubSpy.mock.calls.length;
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    let caught: unknown;
+    try {
+      await runAsActor(actor, () =>
+        svc.createChannel({
+          name: 'Threll conflict',
+          config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
+        }),
+      );
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(ConflictException);
+    expect((caught as ConflictException).getStatus()).toBe(409);
+    expect((caught as ConflictException).getResponse()).toMatchObject({ code: 'webhook_conflict' });
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(createSubSpy.mock.calls.length).toBe(createBefore);
+  });
+
+  it('deletes the conflicting subscription and creates the channel when replaceWebhook is set', async () => {
+    listSubsSpy.mockResolvedValueOnce({
+      ok: true,
+      subscriptions: [
+        { id: 'sub_stale', url: 'https://other.example/hook', eventType: '*', enabled: true, signingSecret: 'x' },
+      ],
+    });
+    const deleteSpy = vi
+      .spyOn(client, 'deleteWebhookSubscription')
+      .mockResolvedValue({ ok: true });
+    const createBefore = createSubSpy.mock.calls.length;
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const channel = await runAsActor(actor, () =>
+      svc.createChannel({
+        name: 'Threll replaced',
+        config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
+        replaceWebhook: true,
+      }),
+    );
+    expect(deleteSpy).toHaveBeenCalledWith({
+      apiKey: API_KEY,
+      accountId: ACCOUNT_ID,
+      subscriptionId: 'sub_stale',
+    });
+    expect(createSubSpy.mock.calls.length).toBe(createBefore + 1);
+    expect(channel.id).toBeTruthy();
+  });
+
+  it('discovers workers from the API key alone via /accounts/current', async () => {
+    const currentSpy = vi.spyOn(client, 'fetchCurrentAccount').mockResolvedValueOnce({
+      ok: true,
+      account: { id: 'acct_from_key', name: 'Key Account' },
+    });
+    const listSpy = vi
+      .spyOn(client, 'listWorkers')
+      .mockResolvedValueOnce({ ok: true, workers: [{ id: 'wrk_9', name: 'Sales' }] });
+    const res = await app
+      .get(ChannelAdminService)
+      .listOptions({ vendor: 'threll', config: { apiKey: API_KEY } });
+    expect(currentSpy).toHaveBeenCalledWith({ apiKey: API_KEY });
+    expect(listSpy).toHaveBeenCalledWith({ apiKey: API_KEY, accountId: 'acct_from_key' });
+    expect(res.context?.label).toBe('Key Account');
+    expect(res.groups.find((g) => g.key === 'workers')?.options).toEqual([
+      { value: 'wrk_9', label: 'Sales' },
+    ]);
+  });
+
+  it('creates a channel without an accountId by resolving it from the key', async () => {
+    vi.spyOn(client, 'fetchCurrentAccount').mockResolvedValueOnce({
+      ok: true,
+      account: { id: 'acct_resolved', name: 'Resolved' },
+    });
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const channel = await runAsActor(actor, () =>
+      svc.createChannel({ name: 'Threll keyonly', config: { apiKey: API_KEY, workerId: WORKER_ID } }),
+    );
+    expect(channel.config.accountId).toBe('acct_resolved');
+    const [row] = await db
+      .select({ config: schema.convChannels.config })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channel.id))
+      .limit(1);
+    expect(row!.config.accountId).toBe('acct_resolved');
   });
 
   it('does not persist a channel when webhook provisioning fails', async () => {
@@ -298,5 +449,36 @@ const skipReason = TEST_URL
     expect(threllCall.recordingAvailable).toBe(true);
     expect(threllCall.analysis).toBe('Resolved.');
     expect(threllCall.endedReason).toBe('completed');
+  });
+});
+
+describe('findReusableSigningSecret', () => {
+  const url = 'https://munin.example/v1/conversations/channels/cch_x/webhook';
+
+  it('returns the signing secret of a subscription with the exact url', () => {
+    expect(
+      findReusableSigningSecret(
+        [
+          { id: 'a', url: 'https://munin.example/other', eventType: '*', enabled: true, signingSecret: 'nope' },
+          { id: 'b', url, eventType: '*', enabled: true, signingSecret: 'whsec_reused' },
+        ],
+        url,
+      ),
+    ).toBe('whsec_reused');
+  });
+
+  it('returns null when no url matches', () => {
+    expect(
+      findReusableSigningSecret(
+        [{ id: 'a', url: 'https://munin.example/other', eventType: '*', enabled: true, signingSecret: 'x' }],
+        url,
+      ),
+    ).toBeNull();
+  });
+
+  it('returns null when the matching subscription has no signing secret', () => {
+    expect(
+      findReusableSigningSecret([{ id: 'a', url, eventType: '*', enabled: true, signingSecret: null }], url),
+    ).toBeNull();
   });
 });

@@ -125,6 +125,20 @@ jobs:
           PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
         run: node scripts/aggregate-release.mjs
 
+      - name: Publish to MCP Registry
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          MCP_PRIVATE_KEY: ${{ secrets.MCP_PRIVATE_KEY }}
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -e "process.stdout.write(JSON.parse(process.env.PUBLISHED_PACKAGES)[0].version)")
+          echo "Publishing com.getmunin/munin@$VERSION to the MCP registry"
+          jq --arg v "$VERSION" '.version = $v' server.json > server.json.tmp && mv server.json.tmp server.json
+          curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher login dns --domain getmunin.com --private-key "$MCP_PRIVATE_KEY"
+          ./mcp-publisher publish
+
   licenses:
     name: license policy
     runs-on: ubuntu-latest

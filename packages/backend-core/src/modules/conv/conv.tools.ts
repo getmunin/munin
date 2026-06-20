@@ -2,10 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { getCurrentContext } from '@getmunin/core';
-import { CHANNEL_TYPES, ConvService, STATUSES } from './conv.service.ts';
+import { AGENT_MODES, CHANNEL_TYPES, ConvService, STATUSES } from './conv.service.ts';
+import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
 const StatusSchema = z.enum(STATUSES);
+const AgentModeSchema = z.enum(AGENT_MODES);
 
 const ListConversationsInput = z.object({
   status: StatusSchema.optional(),
@@ -76,6 +78,42 @@ const StripMessageSignatureInput = z.object({
 });
 
 const EmptyInput = z.object({});
+
+const ConvImportInput = z.object({
+  records: z.object({
+    channels: z.array(
+      z.object({
+        id: z.string(),
+        type: ChannelTypeSchema,
+        vendor: z.string().min(1).max(32),
+        name: z.string().min(1).max(120),
+        active: z.boolean(),
+      }),
+    ),
+    conversations: z.array(
+      z.object({
+        id: z.string(),
+        channelId: z.string(),
+        subject: z.string().nullable(),
+        status: StatusSchema,
+        topicSlug: z.string().nullable(),
+        agentMode: AgentModeSchema,
+      }),
+    ),
+    messages: z.array(
+      z.object({
+        id: z.string(),
+        conversationId: z.string(),
+        authorType: z.enum(['user', 'agent', 'end_user', 'system']),
+        authorId: z.string(),
+        body: z.string(),
+        internal: z.boolean(),
+        inReplyToId: z.string().nullable(),
+      }),
+    ),
+  }),
+  idMap: IdMapSchema.optional(),
+});
 
 @Injectable()
 export class ConvAdminTools {
@@ -291,5 +329,35 @@ export class ConvAdminTools {
   })
   stripMessageSignature(args: z.infer<typeof StripMessageSignatureInput>) {
     return this.conv.stripMessageSignature(args);
+  }
+
+  @McpTool({
+    name: 'conv_export',
+    title: 'Conv: Export data',
+    description:
+      "Export this org's conversation channels, conversations, and messages as a portable JSON payload. Pair with `conv_import` on another Munin server to move conversations between self-hosted and cloud. Channel credentials are NOT included — they are encrypted with this server's key and must be re-entered on the target. Feed the returned `records` straight into `conv_import`.",
+    audiences: ['admin'],
+    scopes: ['conv:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  exportConv() {
+    return this.conv.exportConv();
+  }
+
+  @McpTool({
+    name: 'conv_import',
+    title: 'Conv: Import data',
+    description:
+      'Import conversation `records` produced by `conv_export` (typically from another Munin server). Channels are upserted by (type, vendor, name) and recreated without credentials — re-enter them on this server. Conversations and messages are append-only with no natural key: fresh ids are generated and parent FKs (channelId, conversationId) are resolved through the `idMap`. Returns counts, `warnings`, and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents. Re-running within a single migration is idempotent via the idMap, but messages are not deduplicated across separate runs.',
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: ConvImportInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  importConv(args: z.infer<typeof ConvImportInput>) {
+    return this.conv.importConv(args.records, args.idMap);
   }
 }

@@ -3,6 +3,8 @@ import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
+import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 
 export class CrmInvalidError extends Error {
   readonly code = 'crm_invalid';
@@ -158,6 +160,94 @@ export interface MergeProposalDto {
   decidedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CrmStageExport {
+  id: string;
+  name: string;
+  position: number;
+  winLoss: 'open' | 'won' | 'lost';
+}
+
+export interface CrmPipelineExport {
+  id: string;
+  name: string;
+  slug: string;
+  stages: CrmStageExport[];
+}
+
+export interface CrmSegmentExport {
+  id: string;
+  name: string;
+  description: string | null;
+  filterDefinition: SegmentFilter;
+}
+
+export interface CrmCompanyExport {
+  id: string;
+  name: string;
+  domain: string | null;
+  tags: string[];
+  customFields: Record<string, unknown>;
+}
+
+export interface CrmContactExport {
+  id: string;
+  companyId: string | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  title: string | null;
+  address: string | null;
+  tags: string[];
+  customFields: Record<string, unknown>;
+}
+
+export interface CrmDealExport {
+  id: string;
+  name: string;
+  pipelineId: string;
+  stageId: string;
+  amountCents: number | null;
+  currency: string | null;
+  primaryContactId: string | null;
+  companyId: string | null;
+  expectedCloseAt: string | null;
+}
+
+export interface CrmActivityExport {
+  id: string;
+  type: ActivityType;
+  subject: string | null;
+  body: string | null;
+  contactId: string | null;
+  companyId: string | null;
+  dealId: string | null;
+  dueAt: string | null;
+  completedAt: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface CrmRelationshipExport {
+  id: string;
+  fromType: RelationshipEntityType;
+  fromId: string;
+  toType: RelationshipEntityType;
+  toId: string;
+  role: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface CrmExportData {
+  pipelines: CrmPipelineExport[];
+  segments: CrmSegmentExport[];
+  companies: CrmCompanyExport[];
+  contacts: CrmContactExport[];
+  deals: CrmDealExport[];
+  activities: CrmActivityExport[];
+  relationships: CrmRelationshipExport[];
 }
 
 @Injectable()
@@ -1168,6 +1258,454 @@ export class CrmService {
     const dto = toMergeProposalDto(updated!, a, b);
     await this.emitMergeEvent('crm.merge_proposal.dismissed', dto);
     return dto;
+  }
+
+  // ─── Transfer (import / export) ──────────────────────────────────────────
+
+  async exportCrm(): Promise<CrmExportData> {
+    const ctx = getCurrentContext();
+    const [pipelines, stages, segments, companies, contacts, deals, activities, relationships] =
+      await Promise.all([
+        ctx.db.select().from(schema.crmPipelines).orderBy(asc(schema.crmPipelines.createdAt)),
+        ctx.db.select().from(schema.crmStages).orderBy(asc(schema.crmStages.position)),
+        ctx.db.select().from(schema.crmSegments).orderBy(asc(schema.crmSegments.createdAt)),
+        ctx.db.select().from(schema.crmCompanies).orderBy(asc(schema.crmCompanies.createdAt)),
+        ctx.db.select().from(schema.crmContacts).orderBy(asc(schema.crmContacts.createdAt)),
+        ctx.db.select().from(schema.crmDeals).orderBy(asc(schema.crmDeals.createdAt)),
+        ctx.db.select().from(schema.crmActivities).orderBy(asc(schema.crmActivities.createdAt)),
+        ctx.db.select().from(schema.crmRelationships).orderBy(asc(schema.crmRelationships.createdAt)),
+      ]);
+
+    const stagesByPipeline = new Map<string, CrmStageExport[]>();
+    for (const s of stages) {
+      const arr = stagesByPipeline.get(s.pipelineId) ?? [];
+      arr.push({
+        id: s.id,
+        name: s.name,
+        position: s.position,
+        winLoss: s.winLoss as 'open' | 'won' | 'lost',
+      });
+      stagesByPipeline.set(s.pipelineId, arr);
+    }
+
+    return {
+      pipelines: pipelines.map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        stages: stagesByPipeline.get(p.id) ?? [],
+      })),
+      segments: segments.map((s) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        filterDefinition: s.filterDefinition,
+      })),
+      companies: companies.map((c) => ({
+        id: c.id,
+        name: c.name,
+        domain: c.domain,
+        tags: c.tags,
+        customFields: c.customFields,
+      })),
+      contacts: contacts.map((c) => ({
+        id: c.id,
+        companyId: c.companyId,
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        title: c.title,
+        address: c.address,
+        tags: c.tags,
+        customFields: c.customFields,
+      })),
+      deals: deals.map((d) => ({
+        id: d.id,
+        name: d.name,
+        pipelineId: d.pipelineId,
+        stageId: d.stageId,
+        amountCents: d.amountCents,
+        currency: d.currency,
+        primaryContactId: d.primaryContactId,
+        companyId: d.companyId,
+        expectedCloseAt: d.expectedCloseAt?.toISOString() ?? null,
+      })),
+      activities: activities.map((a) => ({
+        id: a.id,
+        type: a.type as ActivityType,
+        subject: a.subject,
+        body: a.body,
+        contactId: a.contactId,
+        companyId: a.companyId,
+        dealId: a.dealId,
+        dueAt: a.dueAt?.toISOString() ?? null,
+        completedAt: a.completedAt?.toISOString() ?? null,
+        metadata: a.metadata,
+      })),
+      relationships: relationships.map((r) => ({
+        id: r.id,
+        fromType: r.fromType as RelationshipEntityType,
+        fromId: r.fromId,
+        toType: r.toType as RelationshipEntityType,
+        toId: r.toId,
+        role: r.role,
+        startedAt: r.startedAt?.toISOString() ?? null,
+        endedAt: r.endedAt?.toISOString() ?? null,
+        metadata: r.metadata,
+      })),
+    };
+  }
+
+  async importCrm(data: CrmExportData, priorIdMap: IdMap = {}): Promise<ImportResult> {
+    const result = newImportResult();
+    result.idMap = { ...priorIdMap };
+
+    for (const pipeline of data.pipelines) {
+      const existing = await this.findPipelineForImport(pipeline.slug);
+      if (existing) {
+        result.idMap[pipeline.id] = existing.id;
+        const existingStages = await this.loadStages(existing.id);
+        for (const stage of pipeline.stages) {
+          const matched = existingStages.find((s) => s.name === stage.name);
+          if (matched) result.idMap[stage.id] = matched.id;
+        }
+        result.skipped++;
+      } else {
+        const created = await this.createPipeline({
+          name: pipeline.name,
+          slug: pipeline.slug,
+          stages: pipeline.stages.map((s) => ({ name: s.name, winLoss: s.winLoss })),
+        });
+        result.idMap[pipeline.id] = created.id;
+        for (const stage of pipeline.stages) {
+          const matched = created.stages.find((s) => s.name === stage.name);
+          if (matched) result.idMap[stage.id] = matched.id;
+        }
+        result.created++;
+      }
+    }
+
+    for (const segment of data.segments) {
+      const existing = await this.findSegmentForImport(segment.name);
+      if (existing) {
+        result.idMap[segment.id] = existing.id;
+        result.skipped++;
+      } else {
+        const created = await this.createSegment({
+          name: segment.name,
+          description: segment.description ?? undefined,
+          filter: segment.filterDefinition,
+        });
+        result.idMap[segment.id] = created.id;
+        result.created++;
+      }
+    }
+
+    for (const company of data.companies) {
+      const existing = await this.findCompanyForImport(company.domain, company.name);
+      if (existing) {
+        result.idMap[company.id] = existing.id;
+        result.skipped++;
+      } else {
+        const created = await this.createCompany({
+          name: company.name,
+          domain: company.domain ?? undefined,
+          tags: company.tags,
+          customFields: company.customFields,
+        });
+        result.idMap[company.id] = created.id;
+        result.created++;
+      }
+    }
+
+    for (const contact of data.contacts) {
+      const existing = await this.findContactForImport(contact.email);
+      if (existing) {
+        result.idMap[contact.id] = existing.id;
+        result.skipped++;
+      } else {
+        const created = await this.createContact({
+          name: contact.name ?? undefined,
+          email: contact.email ?? undefined,
+          phone: contact.phone ?? undefined,
+          title: contact.title ?? undefined,
+          address: contact.address ?? undefined,
+          companyId: resolveId(result.idMap, contact.companyId),
+          tags: contact.tags,
+          customFields: contact.customFields,
+        });
+        result.idMap[contact.id] = created.id;
+        result.created++;
+      }
+    }
+
+    for (const deal of data.deals) {
+      const targetPipelineId = resolveId(result.idMap, deal.pipelineId);
+      if (!targetPipelineId) {
+        result.warnings.push(
+          `deal "${deal.name}" skipped: source pipeline ${deal.pipelineId} was not part of this import`,
+        );
+        result.skipped++;
+        continue;
+      }
+      if (result.idMap[deal.id]) {
+        result.skipped++;
+        continue;
+      }
+      const existingDeal = await this.findDealForImport(targetPipelineId, deal.name);
+      if (existingDeal) {
+        result.idMap[deal.id] = existingDeal.id;
+        result.skipped++;
+        continue;
+      }
+      const created = await this.createDeal({
+        name: deal.name,
+        pipelineId: targetPipelineId,
+        stageId: resolveId(result.idMap, deal.stageId),
+        amountCents: deal.amountCents ?? undefined,
+        currency: deal.currency ?? undefined,
+        primaryContactId: resolveId(result.idMap, deal.primaryContactId),
+        companyId: resolveId(result.idMap, deal.companyId),
+        expectedCloseAt: deal.expectedCloseAt ?? undefined,
+      });
+      result.idMap[deal.id] = created.id;
+      result.created++;
+    }
+
+    for (const activity of data.activities) {
+      if (result.idMap[activity.id]) {
+        result.skipped++;
+        continue;
+      }
+      const targetContactId = resolveId(result.idMap, activity.contactId);
+      const targetCompanyId = resolveId(result.idMap, activity.companyId);
+      const targetDealId = resolveId(result.idMap, activity.dealId);
+      const existingActivity = await this.findActivityForImport({
+        type: activity.type,
+        subject: activity.subject,
+        contactId: targetContactId,
+        companyId: targetCompanyId,
+        dealId: targetDealId,
+      });
+      if (existingActivity) {
+        result.idMap[activity.id] = existingActivity.id;
+        result.skipped++;
+        continue;
+      }
+      const created = await this.logActivity({
+        type: activity.type,
+        subject: activity.subject ?? undefined,
+        body: activity.body ?? undefined,
+        contactId: targetContactId,
+        companyId: targetCompanyId,
+        dealId: targetDealId,
+        dueAt: activity.dueAt ?? undefined,
+        completedAt: activity.completedAt ?? undefined,
+        metadata: activity.metadata,
+      });
+      result.idMap[activity.id] = created.id;
+      result.created++;
+    }
+
+    for (const rel of data.relationships) {
+      if (result.idMap[rel.id]) {
+        result.skipped++;
+        continue;
+      }
+      const fromId = resolveId(result.idMap, rel.fromId);
+      const toId = resolveId(result.idMap, rel.toId);
+      if (!fromId || !toId) {
+        result.warnings.push(
+          `relationship ${rel.id} skipped: endpoint ${!fromId ? rel.fromId : rel.toId} was not part of this import`,
+        );
+        result.skipped++;
+        continue;
+      }
+      const existingRel = await this.findRelationshipForImport({
+        fromType: rel.fromType,
+        fromId,
+        toType: rel.toType,
+        toId,
+        role: rel.role,
+      });
+      if (existingRel) {
+        result.idMap[rel.id] = existingRel.id;
+        result.skipped++;
+        continue;
+      }
+      const created = await this.createRelationshipForImport({
+        fromType: rel.fromType,
+        fromId,
+        toType: rel.toType,
+        toId,
+        role: rel.role,
+        startedAt: rel.startedAt,
+        endedAt: rel.endedAt,
+        metadata: rel.metadata,
+      });
+      result.idMap[rel.id] = created.id;
+      result.created++;
+    }
+
+    return result;
+  }
+
+  private async findPipelineForImport(slug: string): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.crmPipelines.id })
+      .from(schema.crmPipelines)
+      .where(eq(schema.crmPipelines.slug, slug))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async loadStages(pipelineId: string): Promise<{ id: string; name: string }[]> {
+    const ctx = getCurrentContext();
+    return ctx.db
+      .select({ id: schema.crmStages.id, name: schema.crmStages.name })
+      .from(schema.crmStages)
+      .where(eq(schema.crmStages.pipelineId, pipelineId));
+  }
+
+  private async findSegmentForImport(name: string): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.crmSegments.id })
+      .from(schema.crmSegments)
+      .where(eq(schema.crmSegments.name, name))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async findCompanyForImport(
+    domain: string | null,
+    name: string,
+  ): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const cond = domain
+      ? eq(schema.crmCompanies.domain, domain)
+      : and(eq(schema.crmCompanies.name, name), sql`${schema.crmCompanies.domain} IS NULL`);
+    const rows = await ctx.db
+      .select({ id: schema.crmCompanies.id })
+      .from(schema.crmCompanies)
+      .where(cond)
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async findContactForImport(email: string | null): Promise<{ id: string } | null> {
+    if (!email) return null;
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.crmContacts.id })
+      .from(schema.crmContacts)
+      .where(eq(schema.crmContacts.email, email))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async findDealForImport(
+    pipelineId: string,
+    name: string,
+  ): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.crmDeals.id })
+      .from(schema.crmDeals)
+      .where(and(eq(schema.crmDeals.pipelineId, pipelineId), eq(schema.crmDeals.name, name)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async findActivityForImport(input: {
+    type: ActivityType;
+    subject: string | null;
+    contactId: string | undefined;
+    companyId: string | undefined;
+    dealId: string | undefined;
+  }): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const filters: SQL[] = [eq(schema.crmActivities.type, input.type)];
+    filters.push(
+      input.subject === null
+        ? sql`${schema.crmActivities.subject} IS NULL`
+        : eq(schema.crmActivities.subject, input.subject),
+    );
+    filters.push(
+      input.contactId
+        ? eq(schema.crmActivities.contactId, input.contactId)
+        : sql`${schema.crmActivities.contactId} IS NULL`,
+    );
+    filters.push(
+      input.companyId
+        ? eq(schema.crmActivities.companyId, input.companyId)
+        : sql`${schema.crmActivities.companyId} IS NULL`,
+    );
+    filters.push(
+      input.dealId
+        ? eq(schema.crmActivities.dealId, input.dealId)
+        : sql`${schema.crmActivities.dealId} IS NULL`,
+    );
+    const rows = await ctx.db
+      .select({ id: schema.crmActivities.id })
+      .from(schema.crmActivities)
+      .where(and(...filters))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async findRelationshipForImport(input: {
+    fromType: RelationshipEntityType;
+    fromId: string;
+    toType: RelationshipEntityType;
+    toId: string;
+    role: string;
+  }): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.crmRelationships.id })
+      .from(schema.crmRelationships)
+      .where(
+        and(
+          eq(schema.crmRelationships.fromType, input.fromType),
+          eq(schema.crmRelationships.fromId, input.fromId),
+          eq(schema.crmRelationships.toType, input.toType),
+          eq(schema.crmRelationships.toId, input.toId),
+          eq(schema.crmRelationships.role, input.role),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async createRelationshipForImport(input: {
+    fromType: RelationshipEntityType;
+    fromId: string;
+    toType: RelationshipEntityType;
+    toId: string;
+    role: string;
+    startedAt: string | null;
+    endedAt: string | null;
+    metadata: Record<string, unknown>;
+  }): Promise<{ id: string }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const [row] = await ctx.db
+      .insert(schema.crmRelationships)
+      .values({
+        orgId: actor.orgId,
+        fromType: input.fromType,
+        fromId: input.fromId,
+        toType: input.toType,
+        toId: input.toId,
+        role: input.role,
+        startedAt: input.startedAt ? new Date(input.startedAt) : null,
+        endedAt: input.endedAt ? new Date(input.endedAt) : null,
+        metadata: input.metadata,
+      })
+      .returning({ id: schema.crmRelationships.id });
+    return row!;
   }
 
   private async emitMergeEvent(

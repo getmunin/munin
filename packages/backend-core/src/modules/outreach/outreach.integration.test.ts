@@ -139,14 +139,16 @@ const skipReason = TEST_URL
     return null;
   }
 
-  it('discovers all 7 outreach tools on tools/list', async () => {
+  it('discovers all 9 outreach tools on tools/list', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name).filter((n) => n.startsWith('outreach_')).sort();
       expect(names).toEqual(
         [
           'outreach_create_campaign',
+          'outreach_export',
           'outreach_get_campaign',
+          'outreach_import',
           'outreach_list_campaigns',
           'outreach_list_proposals',
           'outreach_propose_initial',

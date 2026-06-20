@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
@@ -10,6 +10,70 @@ import {
   keyPrefix,
   randomToken,
 } from '@getmunin/core';
+import { AnalyticsService } from './analytics.service.ts';
+import { CursorInputSchema, IdMapSchema } from '../../common/transfer/transfer.types.ts';
+
+const AnalyticsImportInput = z.object({
+  config: z
+    .object({
+      trackers: z.array(
+        z.object({
+          id: z.string(),
+          name: z.string().min(1).max(120),
+          allowedOrigins: z.array(z.string()).default([]),
+          requireVerifiedIdentity: z.boolean().default(false),
+          identityVerificationSecret: z.string().nullable().optional(),
+        }),
+      ),
+      visitorIdentities: z.array(
+        z.object({
+          id: z.string(),
+          visitorId: z.string().min(1).max(64),
+          endUserId: z.string(),
+        }),
+      ),
+    })
+    .optional(),
+  events: z
+    .object({
+      viewEvents: z.array(
+        z.object({
+          id: z.string(),
+          subjectType: z.string().max(32),
+          subjectId: z.string(),
+          source: z.string().max(8),
+          path: z.string().nullable().optional(),
+          locale: z.string().nullable().optional(),
+          referrer: z.string().nullable().optional(),
+          utmSource: z.string().nullable().optional(),
+          utmMedium: z.string().nullable().optional(),
+          utmCampaign: z.string().nullable().optional(),
+          visitorId: z.string().nullable().optional(),
+          endUserId: z.string().nullable().optional(),
+          userAgentClass: z.string().nullable().optional(),
+          dwellMs: z.number().int().nullable().optional(),
+          readDepth: z.number().int().nullable().optional(),
+          country: z.string().nullable().optional(),
+          metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+          createdAt: z.string(),
+        }),
+      ),
+      searchEvents: z.array(
+        z.object({
+          id: z.string(),
+          subjectType: z.string().max(32),
+          query: z.string(),
+          locale: z.string().nullable().optional(),
+          resultCount: z.number().int(),
+          visitorId: z.string().nullable().optional(),
+          endUserId: z.string().nullable().optional(),
+          createdAt: z.string(),
+        }),
+      ),
+    })
+    .optional(),
+  idMap: IdMapSchema.optional(),
+});
 
 function requireTrackerAllowlist(): boolean {
   const raw = process.env.MUNIN_TRACKER_REQUIRE_ALLOWLIST?.trim().toLowerCase();
@@ -86,6 +150,58 @@ interface RotateTrackerKeyResult {
 
 @Injectable()
 export class AnalyticsAdminTools {
+  constructor(
+    @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
+  ) {}
+
+  @McpTool({
+    name: 'analytics_export_config',
+    title: 'Analytics: Export trackers + visitor identities',
+    description:
+      'Export this org\'s analytics configuration — trackers and visitor-identity links — as a portable JSON payload. Low-volume, returned in one shot. Tracker identity-verification secrets are redacted (the ciphertext is useless on another server); the operator re-enters them after import. Pair with `analytics_export_events` (paginated) and feed both into `analytics_import` on another Munin server.',
+    audiences: ['admin'],
+    scopes: ['analytics:read'],
+    input: z.object({}),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  exportConfig() {
+    return this.analytics.exportAnalyticsConfig();
+  }
+
+  @McpTool({
+    name: 'analytics_export_events',
+    title: 'Analytics: Export view + search events (paginated)',
+    description:
+      'Export this org\'s analytics events (page-view and search events) as a portable JSON payload. High-volume, so this is keyset-paginated over (createdAt, id): call with no arguments for the first page, then pass the returned `nextCursor` back as `cursor` until it comes back `null`. `limit` defaults to 200 (max 500). Feed each page\'s `records` into `analytics_import`. Import trackers + visitor identities first via `analytics_export_config` so event foreign keys resolve.',
+    audiences: ['admin'],
+    scopes: ['analytics:read'],
+    input: CursorInputSchema,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  exportEvents(args: z.infer<typeof CursorInputSchema>) {
+    return this.analytics.exportAnalyticsEvents(args);
+  }
+
+  @McpTool({
+    name: 'analytics_import',
+    title: 'Analytics: Import data',
+    description:
+      'Import analytics `config` (trackers + visitor identities) and/or `events` (view + search events) produced by `analytics_export_config` / `analytics_export_events`, typically from another Munin server. Trackers are upserted by (org, name); visitor identities by (org, visitorId). Trackers import without their redacted identity-verification secret — rotate it afterwards. Visitor identities and events resolve their end-user / tracker foreign keys through `idMap`, so import end-users first and pass that `idMap` back in here. Events have no natural key: they are de-duplicated only within one run via `idMap` (re-running without the prior `idMap` inserts duplicates). Returns counts, warnings, and the merged `idMap` (source id → id on this server) — pass it forward to later imports.',
+    audiences: ['admin'],
+    scopes: ['analytics:write'],
+    input: AnalyticsImportInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  importAnalytics(args: z.infer<typeof AnalyticsImportInput>) {
+    return this.analytics.importAnalytics(
+      { config: args.config, events: args.events },
+      args.idMap,
+    );
+  }
+
   @McpTool({
     name: 'analytics_create_tracker',
     title: 'Analytics: Create tracker key',

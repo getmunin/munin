@@ -5,6 +5,7 @@ import { WEB_SCRAPE_SITE_TASK_URI } from '@getmunin/types';
 import { KbService } from './kb.service.ts';
 import { KbSearchService } from './kb.search.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
+import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 
@@ -96,6 +97,31 @@ const ImportWebsiteStatusInput = z.object({
 });
 
 const EmptyInput = z.object({});
+
+const KbImportInput = z.object({
+  records: z.object({
+    spaces: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(120),
+        slug: z.string().min(1).max(64),
+        description: z.string().nullable().optional(),
+      }),
+    ),
+    documents: z.array(
+      z.object({
+        id: z.string(),
+        spaceId: z.string(),
+        slug: z.string().nullable().optional(),
+        title: z.string().min(1).max(300),
+        body: z.string().min(1),
+        audiences: AudiencesSchema,
+        tags: TagsSchema,
+      }),
+    ),
+  }),
+  idMap: IdMapSchema.optional(),
+});
 
 @Injectable()
 export class KbAdminTools {
@@ -207,6 +233,40 @@ export class KbAdminTools {
   })
   createDocument(args: z.infer<typeof CreateDocumentInput>) {
     return this.kb.createDocument(args);
+  }
+
+  @McpTool({
+    name: 'kb_export',
+    title: 'KB: Export data',
+    description:
+      'Export this org\'s knowledge base (spaces and non-system documents) as a portable JSON payload. Pair with `kb_import` on another Munin server to move a knowledge base between self-hosted and cloud. Embeddings are not included — they are regenerated on import. Feed the returned `records` straight into `kb_import`.',
+    audiences: ['admin'],
+    scopes: ['kb:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  exportKb() {
+    return this.kb.exportKb();
+  }
+
+  @McpTool({
+    name: 'kb_import',
+    title: 'KB: Import data',
+    description:
+      'Import knowledge-base `records` produced by `kb_export` (typically from another Munin server). Spaces are upserted by slug and documents by (space, slug) — or (space, title) when a document has no slug — so re-running is idempotent. Embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.',
+    audiences: ['admin'],
+    scopes: ['kb:write'],
+    input: KbImportInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  importKb(args: z.infer<typeof KbImportInput>) {
+    const records = {
+      spaces: args.records.spaces.map((s) => ({ ...s, description: s.description ?? null })),
+      documents: args.records.documents.map((d) => ({ ...d, slug: d.slug ?? null })),
+    };
+    return this.kb.importKb(records, args.idMap);
   }
 
   @McpTool({

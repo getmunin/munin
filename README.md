@@ -30,6 +30,7 @@ Munin isn't the AI — it's what your AI uses. You bring the agent, write the pr
 - **Analytics** — polymorphic page-view + search-query ingestion. CMS delivery wires in for free; arbitrary pages drop in a `<script src="…/tracker.js" data-key="mn_track_…">` tag. Read tools (`analytics_list_top_subjects`, `analytics_get_subject_engagement`, `analytics_list_zero_result_searches`) feed the "what should we write next" loop into curator skills like `cms/review-stale-entries`.
 - **Curator** — durable background job queue running skills (KB curation, CRM hygiene, contact extraction, stale-content review, outreach drafts) on a schedule with retry + dead-letter.
 - **Playbooks + skills** — packaged markdown procedures (`skill://module/<verb-object>`) the agent reads via MCP resources to follow multi-step flows.
+- **Data portability** — symmetric `*_export` / `*_import` MCP tools (and `/v1/<module>/export|import` REST) per module, so an agent can move an org's data between a self-hosted server and the cloud in either direction. See `skill://playbooks/data-migration`.
 - **Cross-cutting** — audit log, webhooks, team invites, OAuth 2.1 dynamic-client registration, BetterAuth-backed sign-in.
 
 ## Two ways to run

@@ -177,7 +177,6 @@
     "endUsers": "Sluttbrukere",
     "usage": "Bruk",
     "auditLog": "Hendelseslogg",
-    "dataExport": "Dataeksport",
     "conversations": "Samtaler",
     "activity": "Aktivitet",
     "skills": "Ferdigheter",
@@ -1056,18 +1055,6 @@
       "tableCorrelation": "Korrelasjon",
       "errors": {
         "load": "Kunne ikke laste hendelseslogg."
-      }
-    },
-    "export": {
-      "eyebrow": "Arbeidsområde · Dataeksport",
-      "title": "Ta det <em>med deg</em>.",
-      "subtitle": "En komplett JSON-dump av organisasjonen din — kunnskapsbase, sluttbrukere og konfigurasjon. Bruk den til å migrere til en selvhostet Munin eller for å beholde en frakoblet kopi.",
-      "cardTitle": "Eksporter nå",
-      "cardDescription": "Inkluderer: organisasjon, sluttbrukere, agenter og KB-områder / dokumenter / versjoner. Ekskluderer: tokens, API-nøkler og hendelsesloggen (dette er driftsdata som ikke kan gjenopprettes fra en eksport).",
-      "download": "Last ned eksport",
-      "preparing": "Forbereder…",
-      "errors": {
-        "export": "Kunne ikke generere eksport."
       }
     },
     "orgSwitcher": {

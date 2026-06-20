@@ -4,6 +4,7 @@ import { McpTool } from '@getmunin/mcp-toolkit';
 import { CmsService, ENTRY_STATUSES } from './cms.service.ts';
 import { CmsSearchService } from './cms.search.ts';
 import { FIELD_TYPES, type FieldDef } from './cms.fields.ts';
+import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const FieldSchema: z.ZodType<FieldDef> = z.lazy(() =>
   z.object({
@@ -153,6 +154,54 @@ const SearchInput = z.object({
 });
 
 const EmptyInput = z.object({});
+
+const CmsImportInput = z.object({
+  records: z.object({
+    locales: z.array(
+      z.object({
+        id: z.string(),
+        code: z.string().min(2).max(16),
+        name: z.string().min(1).max(120),
+        isDefault: z.boolean(),
+      }),
+    ),
+    collections: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(120),
+        slug: z.string().min(1).max(64),
+        description: z.string().nullable().optional(),
+        fields: z.array(FieldSchema).max(100),
+        localized: z.boolean(),
+        settings: z.record(z.string(), z.unknown()),
+      }),
+    ),
+    entries: z.array(
+      z.object({
+        id: z.string(),
+        collectionId: z.string(),
+        slug: z.string().min(1).max(200),
+        locale: z.string().min(1).max(16),
+        status: z.enum(ENTRY_STATUSES),
+        data: z.record(z.string(), z.unknown()),
+        scheduledAt: z.string().nullable().optional(),
+      }),
+    ),
+    assets: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(255),
+        mime: z.string().min(1).max(120),
+        sizeBytes: z.number().int().nonnegative(),
+        storageKey: z.string(),
+        altText: z.string().nullable().optional(),
+        metadata: z.record(z.string(), z.unknown()),
+        base64Body: z.string().nullable().optional(),
+      }),
+    ),
+  }),
+  idMap: IdMapSchema.optional(),
+});
 
 @Injectable()
 export class CmsAdminTools {
@@ -548,5 +597,53 @@ export class CmsAdminTools {
   })
   searchEntries(args: z.infer<typeof SearchInput>) {
     return this.search.search(args);
+  }
+
+  // Transfer ────────────────────────────────────────────────────────────
+
+  @McpTool({
+    name: 'cms_export',
+    title: 'CMS: Export data',
+    description:
+      "Export this org's CMS (locales, collections, entries, and assets) as a portable JSON payload. Pair with `cms_import` on another Munin server to move content between self-hosted and cloud. Asset bytes are included base64-encoded (assets larger than 5MB are exported as metadata only). Entry embeddings are not included — they are regenerated on import. Feed the returned `records` straight into `cms_import`.",
+    audiences: ['admin'],
+    scopes: ['cms:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  exportCms() {
+    return this.cms.exportCms();
+  }
+
+  @McpTool({
+    name: 'cms_import',
+    title: 'CMS: Import data',
+    description:
+      'Import CMS `records` produced by `cms_export` (typically from another Munin server). Locales are upserted by code, collections by slug, entries by (collection, slug, locale), and assets by (name, size) — so re-running is idempotent. Asset bytes are re-uploaded to this server and entry references/asset ids are rewritten to local ids. Entry embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.',
+    audiences: ['admin'],
+    scopes: ['cms:write'],
+    input: CmsImportInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  importCms(args: z.infer<typeof CmsImportInput>) {
+    const records = {
+      locales: args.records.locales,
+      collections: args.records.collections.map((c) => ({
+        ...c,
+        description: c.description ?? null,
+      })),
+      entries: args.records.entries.map((e) => ({
+        ...e,
+        scheduledAt: e.scheduledAt ?? null,
+      })),
+      assets: args.records.assets.map((a) => ({
+        ...a,
+        altText: a.altText ?? null,
+        base64Body: a.base64Body ?? null,
+      })),
+    };
+    return this.cms.importCms(records, args.idMap);
   }
 }

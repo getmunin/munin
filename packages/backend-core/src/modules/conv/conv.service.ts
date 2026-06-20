@@ -8,6 +8,8 @@ import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
+import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 
 export class ConvInvalidError extends Error {
   readonly code = 'conv_invalid';
@@ -120,6 +122,39 @@ export interface ConversationDetail extends ConversationSummary {
    */
   assistantName: string | null;
   endUserLocale: string | null;
+}
+
+export interface ConvChannelExport {
+  id: string;
+  type: ChannelType;
+  vendor: string;
+  name: string;
+  active: boolean;
+}
+
+export interface ConvConversationExport {
+  id: string;
+  channelId: string;
+  subject: string | null;
+  status: ConversationStatus;
+  topicSlug: string | null;
+  agentMode: AgentMode;
+}
+
+export interface ConvMessageExport {
+  id: string;
+  conversationId: string;
+  authorType: 'user' | 'agent' | 'end_user' | 'system';
+  authorId: string;
+  body: string;
+  internal: boolean;
+  inReplyToId: string | null;
+}
+
+export interface ConvExportData {
+  channels: ConvChannelExport[];
+  conversations: ConvConversationExport[];
+  messages: ConvMessageExport[];
 }
 
 @Injectable()
@@ -1105,6 +1140,197 @@ export class ConvService {
       .limit(limit);
     const authorNames = await this.loadAuthorNames(rows);
     return rows.map((r) => toMessageDto(r, authorNames));
+  }
+
+  // ─── Transfer (import / export) ──────────────────────────────────────────
+
+  async exportConv(): Promise<ConvExportData> {
+    const ctx = getCurrentContext();
+    const [channels, conversations, messages] = await Promise.all([
+      ctx.db
+        .select()
+        .from(schema.convChannels)
+        .where(isNull(schema.convChannels.archivedAt))
+        .orderBy(asc(schema.convChannels.createdAt)),
+      ctx.db
+        .select({
+          conv: schema.convConversations,
+          topicSlug: schema.convTopics.slug,
+        })
+        .from(schema.convConversations)
+        .leftJoin(schema.convTopics, eq(schema.convTopics.id, schema.convConversations.topicId))
+        .orderBy(asc(schema.convConversations.createdAt)),
+      ctx.db
+        .select()
+        .from(schema.convMessages)
+        .orderBy(asc(schema.convMessages.createdAt)),
+    ]);
+    return {
+      channels: channels.map((c) => ({
+        id: c.id,
+        type: c.type as ChannelType,
+        vendor: c.vendor,
+        name: c.name,
+        active: c.active,
+      })),
+      conversations: conversations.map((r) => ({
+        id: r.conv.id,
+        channelId: r.conv.channelId,
+        subject: r.conv.subject,
+        status: r.conv.status as ConversationStatus,
+        topicSlug: r.topicSlug ?? null,
+        agentMode: r.conv.agentMode as AgentMode,
+      })),
+      messages: messages.map((m) => ({
+        id: m.id,
+        conversationId: m.conversationId,
+        authorType: m.authorType as ConvMessageExport['authorType'],
+        authorId: m.authorId,
+        body: m.body,
+        internal: m.internal,
+        inReplyToId: m.inReplyToId,
+      })),
+    };
+  }
+
+  async importConv(data: ConvExportData, priorIdMap: IdMap = {}): Promise<ImportResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const result = newImportResult();
+    result.idMap = { ...priorIdMap };
+
+    for (const channel of data.channels) {
+      const existing = await this.findChannelForImport(channel.type, channel.vendor, channel.name);
+      if (existing) {
+        result.idMap[channel.id] = existing.id;
+        result.skipped++;
+      } else {
+        const [row] = await ctx.db
+          .insert(schema.convChannels)
+          .values({
+            orgId: actor.orgId,
+            type: channel.type,
+            vendor: channel.vendor,
+            name: channel.name,
+            active: channel.active,
+            config: {},
+          })
+          .returning();
+        result.idMap[channel.id] = row!.id;
+        result.created++;
+        result.warnings.push(
+          `channel "${channel.name}" imported without credentials — re-enter them on this server`,
+        );
+      }
+    }
+
+    const topicIdBySlug = await this.loadTopicIdsBySlug();
+
+    for (const conv of data.conversations) {
+      const targetChannelId = resolveId(result.idMap, conv.channelId);
+      if (!targetChannelId) {
+        result.warnings.push(
+          `conversation ${conv.id} skipped: source channel ${conv.channelId} was not part of this import`,
+        );
+        result.skipped++;
+        continue;
+      }
+      if (result.idMap[conv.id]) {
+        result.skipped++;
+        continue;
+      }
+      const created = await this.insertConversationWithRetry({
+        orgId: actor.orgId,
+        channelId: targetChannelId,
+        contactId: null,
+        endUserId: null,
+        topicId: conv.topicSlug ? topicIdBySlug.get(conv.topicSlug) ?? null : null,
+        subject: conv.subject,
+        agentMode: conv.agentMode,
+      });
+      if (conv.status !== 'open') {
+        await ctx.db
+          .update(schema.convConversations)
+          .set({ status: conv.status, updatedAt: new Date() })
+          .where(eq(schema.convConversations.id, created.id));
+      }
+      result.idMap[conv.id] = created.id;
+      result.created++;
+    }
+
+    const lastMessageAtByConv = new Map<string, Date>();
+    for (const msg of data.messages) {
+      const targetConversationId = resolveId(result.idMap, msg.conversationId);
+      if (!targetConversationId) {
+        result.warnings.push(
+          `message ${msg.id} skipped: source conversation ${msg.conversationId} was not part of this import`,
+        );
+        result.skipped++;
+        continue;
+      }
+      if (result.idMap[msg.id]) {
+        result.skipped++;
+        continue;
+      }
+      const [row] = await ctx.db
+        .insert(schema.convMessages)
+        .values({
+          orgId: actor.orgId,
+          conversationId: targetConversationId,
+          authorType: msg.authorType,
+          authorId: msg.authorId,
+          body: msg.body,
+          internal: msg.internal,
+          inReplyToId: resolveId(result.idMap, msg.inReplyToId) ?? null,
+        })
+        .returning();
+      result.idMap[msg.id] = row!.id;
+      result.created++;
+      lastMessageAtByConv.set(targetConversationId, row!.createdAt);
+    }
+
+    for (const [conversationId, lastMessageAt] of lastMessageAtByConv) {
+      await ctx.db
+        .update(schema.convConversations)
+        .set({ lastMessageAt })
+        .where(eq(schema.convConversations.id, conversationId));
+    }
+
+    result.warnings.push(
+      'messages have no natural key — re-running this import creates duplicate messages for any conversation not already in the supplied idMap',
+    );
+    return result;
+  }
+
+  private async findChannelForImport(
+    type: ChannelType,
+    vendor: string,
+    name: string,
+  ): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.convChannels.id })
+      .from(schema.convChannels)
+      .where(
+        and(
+          eq(schema.convChannels.type, type),
+          eq(schema.convChannels.vendor, vendor),
+          eq(schema.convChannels.name, name),
+          isNull(schema.convChannels.archivedAt),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async loadTopicIdsBySlug(): Promise<Map<string, string>> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.convTopics.id, slug: schema.convTopics.slug })
+      .from(schema.convTopics);
+    const out = new Map<string, string>();
+    for (const r of rows) out.set(r.slug, r.id);
+    return out;
   }
 
   /**

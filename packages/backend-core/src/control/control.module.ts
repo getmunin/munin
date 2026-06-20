@@ -8,7 +8,6 @@ import { SkillsController } from './skills.controller.ts';
 import { AssistantsController } from './assistants.controller.ts';
 import { AuditLogController } from './audit-log.controller.ts';
 import { UsageController } from './usage.controller.ts';
-import { ExportController } from './export.controller.ts';
 import { WebhooksController } from './webhooks.controller.ts';
 import { CmsDeliveryController } from './cms-delivery.controller.ts';
 import { CmsDraftsController } from './cms-drafts.controller.ts';
@@ -24,6 +23,7 @@ import { CuratorModule } from '../modules/curator/curator.module.ts';
 import { CuratorJobsController } from './curator-jobs.controller.ts';
 import { ConvChannelsController } from './conv-channels.controller.ts';
 import { KbCandidatesController, KbSpacesController } from './kb-candidates.controller.ts';
+import { KbTransferController } from './kb-transfer.controller.ts';
 import { McpModule } from '../mcp/mcp.module.ts';
 import { RealtimeModule } from '../realtime/realtime.module.ts';
 import { CrmMergeProposalsController } from './crm-merge-proposals.controller.ts';
@@ -78,7 +78,6 @@ import { AuthProvidersController } from './auth-providers.controller.ts';
     AssistantsController,
     AuditLogController,
     UsageController,
-    ExportController,
     WebhooksController,
     // CmsDraftsController must precede CmsDeliveryController: its static
     // `v1/cms/drafts/:id` route otherwise loses (first-match-wins) to the
@@ -108,6 +107,7 @@ import { AuthProvidersController } from './auth-providers.controller.ts';
     CuratorJobsController,
     KbCandidatesController,
     KbSpacesController,
+    KbTransferController,
     AuthProvidersController,
   ],
   providers: [InvitationsService],

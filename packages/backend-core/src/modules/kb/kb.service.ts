@@ -1,6 +1,8 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
+import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import {
   chunkDocument,
   contentHash,
@@ -102,6 +104,28 @@ export interface VersionDto {
   audiences: Audience[];
   tags: string[];
   createdAt: string;
+}
+
+export interface KbSpaceExport {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+}
+
+export interface KbDocumentExport {
+  id: string;
+  spaceId: string;
+  slug: string | null;
+  title: string;
+  body: string;
+  audiences: Audience[];
+  tags: string[];
+}
+
+export interface KbExportData {
+  spaces: KbSpaceExport[];
+  documents: KbDocumentExport[];
 }
 
 @Injectable()
@@ -519,6 +543,125 @@ export class KbService {
       },
     });
     return toDocumentDto(updated!);
+  }
+
+  // ─── Transfer (import / export) ──────────────────────────────────────────
+
+  async exportKb(): Promise<KbExportData> {
+    const ctx = getCurrentContext();
+    const [spaces, documents] = await Promise.all([
+      ctx.db.select().from(schema.kbSpaces).orderBy(asc(schema.kbSpaces.createdAt)),
+      ctx.db
+        .select()
+        .from(schema.kbDocuments)
+        .where(eq(schema.kbDocuments.isSystem, false))
+        .orderBy(asc(schema.kbDocuments.createdAt)),
+    ]);
+    return {
+      spaces: spaces.map((s) => ({ id: s.id, name: s.name, slug: s.slug, description: s.description })),
+      documents: documents.map((d) => ({
+        id: d.id,
+        spaceId: d.spaceId,
+        slug: d.slug,
+        title: d.title,
+        body: d.body,
+        audiences: d.audiences,
+        tags: d.tags,
+      })),
+    };
+  }
+
+  async importKb(data: KbExportData, priorIdMap: IdMap = {}): Promise<ImportResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const result = newImportResult();
+    result.idMap = { ...priorIdMap };
+
+    for (const space of data.spaces) {
+      const existing = await ctx.db
+        .select({ id: schema.kbSpaces.id })
+        .from(schema.kbSpaces)
+        .where(and(eq(schema.kbSpaces.orgId, actor.orgId), eq(schema.kbSpaces.slug, space.slug)))
+        .limit(1);
+      if (existing[0]) {
+        result.idMap[space.id] = existing[0].id;
+        result.skipped++;
+      } else {
+        const created = await this.createSpace({
+          name: space.name,
+          slug: space.slug,
+          description: space.description ?? undefined,
+        });
+        result.idMap[space.id] = created.id;
+        result.created++;
+      }
+    }
+
+    for (const doc of data.documents) {
+      const targetSpaceId = resolveId(result.idMap, doc.spaceId);
+      if (!targetSpaceId) {
+        result.warnings.push(
+          `document "${doc.title}" skipped: source space ${doc.spaceId} was not part of this import`,
+        );
+        result.skipped++;
+        continue;
+      }
+      const existing = await this.findDocumentForImport(targetSpaceId, doc.slug, doc.title);
+      if (existing) {
+        result.idMap[doc.id] = existing.id;
+        if (existing.title !== doc.title || existing.body !== doc.body) {
+          await this.updateDocument({
+            id: existing.id,
+            ifVersion: existing.version,
+            title: doc.title,
+            body: doc.body,
+            audiences: doc.audiences,
+            tags: doc.tags,
+          });
+          result.updated++;
+        } else {
+          result.skipped++;
+        }
+      } else {
+        const createdDoc = await this.createDocument({
+          spaceId: targetSpaceId,
+          title: doc.title,
+          body: doc.body,
+          audiences: doc.audiences,
+          tags: doc.tags,
+          slug: doc.slug ?? undefined,
+        });
+        result.idMap[doc.id] = createdDoc.id;
+        result.created++;
+      }
+    }
+    return result;
+  }
+
+  private async findDocumentForImport(
+    spaceId: string,
+    slug: string | null,
+    title: string,
+  ): Promise<{ id: string; title: string; body: string; version: number } | null> {
+    const ctx = getCurrentContext();
+    const cond = slug
+      ? and(eq(schema.kbDocuments.spaceId, spaceId), eq(schema.kbDocuments.slug, slug))
+      : and(
+          eq(schema.kbDocuments.spaceId, spaceId),
+          eq(schema.kbDocuments.title, title),
+          isNull(schema.kbDocuments.slug),
+        );
+    const rows = await ctx.db
+      .select({
+        id: schema.kbDocuments.id,
+        title: schema.kbDocuments.title,
+        body: schema.kbDocuments.body,
+        version: schema.kbDocuments.version,
+      })
+      .from(schema.kbDocuments)
+      .where(cond)
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   // ─── Internals ──────────────────────────────────────────────────────────

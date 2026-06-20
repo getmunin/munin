@@ -759,28 +759,6 @@
         ]
       }
     },
-    "/v1/export": {
-      "get": {
-        "operationId": "ExportController_export",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Export"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
     "/v1/webhooks": {
       "get": {
         "operationId": "WebhooksController_list",
@@ -4313,6 +4291,50 @@
         },
         "tags": [
           "KbSpaces"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/kb/export": {
+      "get": {
+        "operationId": "KbTransferController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "KbTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/kb/import": {
+      "post": {
+        "operationId": "KbTransferController_import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "KbTransfer"
         ],
         "security": [
           {

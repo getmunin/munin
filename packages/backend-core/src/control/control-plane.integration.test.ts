@@ -551,28 +551,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── export ──────────────────────────────────────────────────────────
-
-  describe('GET /v1/export', () => {
-    it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/v1/export`);
-      expect(res.status).toBe(401);
-    });
-
-    it('returns the org\'s domain rows in JSON, scoped to the calling org', async () => {
-      const res = await fetch(`${baseUrl}/v1/export`, { headers: authHeaders(orgA.adminKey) });
-      expect(res.status).toBe(200);
-      expect(res.headers.get('content-disposition')).toContain('munin-export.json');
-      const body = (await res.json()) as {
-        org: { id: string };
-        endUsers: Array<{ id: string }>;
-      };
-      expect(body.org.id).toBe(orgA.id);
-      expect(body.endUsers.find((u) => u.id === orgA.endUserId)).toBeTruthy();
-      expect(body.endUsers.find((u) => u.id === orgB.endUserId)).toBeFalsy();
-    });
-  });
-
   // ─── invitations (admin-issue) ───────────────────────────────────────
 
   describe('/v1/orgs/me/invitations (admin)', () => {
@@ -740,7 +718,6 @@ interface OrgFixture {
       ['/v1/api-keys', 'GET'],
       ['/v1/audit-logs', 'GET'],
       ['/v1/usage', 'GET'],
-      ['/v1/export', 'GET'],
       ['/v1/end-users', 'GET'],
       ['/v1/tokens', 'GET'],
       ['/v1/orgs/me/members', 'GET'],

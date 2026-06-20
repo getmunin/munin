@@ -1484,11 +1484,6 @@ function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
 }
 
-/**
- * Rewrite asset and reference ids embedded in entry `data` to the ids they
- * received on the target server. Ids not present in the map (e.g. forward
- * references to an entry imported later in the same batch) are left as-is.
- */
 function remapEntryData(
   fields: FieldDef[],
   data: Record<string, unknown>,

@@ -18,7 +18,6 @@ const skipReason = TEST_URL
   ? null
   : 'Set TEST_DATABASE_URL to a Postgres URL to run CMS transfer integration tests.';
 
-// 1x1 transparent PNG.
 const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
@@ -214,7 +213,6 @@ const PNG_BASE64 =
       return { result, hits, collections, entries };
     });
 
-    // 1 locale + 1 collection + 1 asset + 2 entries.
     expect(firstImport.result.created).toBe(5);
     expect(firstImport.result.idMap[srcLocaleId]).toMatch(/^cml_/);
     expect(firstImport.result.idMap[srcCollectionId]).toMatch(/^cmc_/);
@@ -226,7 +224,6 @@ const PNG_BASE64 =
     expect(firstImport.collections.some((col) => col.slug === 'articles')).toBe(true);
     expect(firstImport.hits.length).toBeGreaterThanOrEqual(1);
 
-    // The hero asset id inside entry data was remapped to the new asset id.
     const newAssetId = firstImport.result.idMap[srcAssetId];
     const refundEntry = firstImport.entries.find((e) => e.slug === 'refund-policy');
     expect(refundEntry).toBeTruthy();

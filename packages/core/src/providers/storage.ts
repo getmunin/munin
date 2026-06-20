@@ -25,7 +25,6 @@ export interface AssetStorage {
 
   writeDirect?(key: string, body: Buffer, opts?: { mime?: string }): Promise<void>;
 
-  /** Read an object's raw bytes back, or null if it does not exist. */
   readBytes(key: string): Promise<Buffer | null>;
 
   statBytes(key: string): Promise<number | null>;

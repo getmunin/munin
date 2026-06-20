@@ -24,7 +24,8 @@ Run modules in this order and carry one growing `idMap` through all of them:
 2. **CRM** — `crm_export` → `crm_import` (pass the idMap from KB; harmless, keeps one map)
 3. **CMS** — `cms_export` → `cms_import` (assets included as base64 ≤ 5 MB; re-uploaded to the target's storage)
 4. **Conversations** — `conv_export` → `conv_import`
-5. **Analytics** — `analytics_export_config` → then page `analytics_export_events` → `analytics_import`
+5. **Outreach** — `outreach_export` → `outreach_import` (**must** run after CRM and Conv: campaigns reference a CRM segment + conv channel, proposals reference CRM contacts/conversations — all resolved via the carried idMap; campaigns import **disabled**)
+6. **Analytics** — `analytics_export_config` → then page `analytics_export_events` → `analytics_import`
 
 For each step:
 
@@ -52,6 +53,7 @@ loop:
 Secrets are **never** exported (they are encrypted with the source server's key). Imports recreate the owning row and emit a warning. Resolve each:
 
 - **Conversation channels** — imported with empty `config`. Re-enter credentials on the target (`skill://conv/setup-email-channel`, or the channel's setup tool) before the channel can send/receive.
+- **Outreach campaigns** — imported **disabled** (`enabled: false`). Re-enable each (`outreach_update_campaign`) once its channel credentials are back in place.
 - **Analytics trackers** — `identity_verification_secret` is blank. Mint/rotate a fresh one on the target (`analytics_rotate_tracker_identity_secret`) and update any embedding/site that signs identity calls.
 
 Always read `result.warnings` from every import and act on them.

@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { OutreachService, PROPOSAL_KINDS, PROPOSAL_STATUSES } from './outreach.service.ts';
+import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const CadenceRulesSchema = z.object({
   maxPerWeekPerContact: z.number().int().positive().max(7).optional(),
@@ -74,6 +75,38 @@ const ProposeReplyInput = z.object({
 
 const EmptyInput = z.object({});
 
+const OutreachImportInput = z.object({
+  records: z.object({
+    campaigns: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(120),
+        brief: z.string().min(1).max(5000),
+        segmentId: z.string(),
+        channelId: z.string(),
+        cadenceRules: CadenceRulesSchema.default({}),
+        ctaUrl: z.string().nullable().optional(),
+        unsubscribeRequired: z.boolean(),
+      }),
+    ),
+    proposals: z.array(
+      z.object({
+        id: z.string(),
+        campaignId: z.string(),
+        contactId: z.string(),
+        conversationId: z.string().nullable().optional(),
+        kind: z.enum(PROPOSAL_KINDS),
+        draftSubject: z.string().nullable().optional(),
+        draftBody: z.string().min(1),
+        evidence: z.record(z.string(), z.unknown()).default({}),
+        proposedSendAt: z.string().nullable().optional(),
+        status: z.enum(PROPOSAL_STATUSES),
+      }),
+    ),
+  }),
+  idMap: IdMapSchema.optional(),
+});
+
 @Injectable()
 export class OutreachAdminTools {
   constructor(@Inject(OutreachService) private readonly outreach: OutreachService) {}
@@ -120,6 +153,45 @@ export class OutreachAdminTools {
   })
   createCampaign(args: z.infer<typeof CreateCampaignInput>) {
     return this.outreach.createCampaign(args);
+  }
+
+  @McpTool({
+    name: 'outreach_export',
+    title: 'Outreach: Export data',
+    description:
+      "Export this org's outbound campaigns and their queued proposals as a portable JSON payload. Pair with `outreach_import` on another Munin server. Campaigns reference a CRM segment and a conversation channel, and proposals reference CRM contacts/conversations — so export and import CRM and Conversations first, and thread their `idMap` into `outreach_import`.",
+    audiences: ['admin'],
+    scopes: ['outreach:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  exportOutreach() {
+    return this.outreach.exportOutreach();
+  }
+
+  @McpTool({
+    name: 'outreach_import',
+    title: 'Outreach: Import data',
+    description:
+      'Import outreach `records` produced by `outreach_export`. Campaigns are upserted by name and proposals by (campaign, contact, kind), so re-running is idempotent. Segment, channel, contact and conversation foreign keys are resolved through the supplied `idMap` (pass the idMap returned by the CRM and Conversations imports). Campaigns are imported **disabled** — re-enable them after re-entering the channel credentials. Returns counts plus the merged `idMap`.',
+    audiences: ['admin'],
+    scopes: ['outreach:write'],
+    input: OutreachImportInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  importOutreach(args: z.infer<typeof OutreachImportInput>) {
+    const records = {
+      campaigns: args.records.campaigns.map((c) => ({ ...c, ctaUrl: c.ctaUrl ?? null })),
+      proposals: args.records.proposals.map((p) => ({
+        ...p,
+        conversationId: p.conversationId ?? null,
+        draftSubject: p.draftSubject ?? null,
+        proposedSendAt: p.proposedSendAt ?? null,
+      })),
+    };
+    return this.outreach.importOutreach(records, args.idMap);
   }
 
   @McpTool({

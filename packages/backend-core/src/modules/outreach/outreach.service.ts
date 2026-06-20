@@ -1,7 +1,9 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { makeId, schema, type Db } from '@getmunin/db';
 import { DB } from '../../common/db/db.module.ts';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import {
   ActorIdentity,
   getCurrentContext,
@@ -87,6 +89,35 @@ export interface ProposalDto {
   updatedAt: string;
   contact: ProposalContactSummary | null;
   campaign: ProposalCampaignSummary | null;
+}
+
+export interface OutreachCampaignExport {
+  id: string;
+  name: string;
+  brief: string;
+  segmentId: string;
+  channelId: string;
+  cadenceRules: CadenceRules;
+  ctaUrl: string | null;
+  unsubscribeRequired: boolean;
+}
+
+export interface OutreachProposalExport {
+  id: string;
+  campaignId: string;
+  contactId: string;
+  conversationId: string | null;
+  kind: ProposalKind;
+  draftSubject: string | null;
+  draftBody: string;
+  evidence: Record<string, unknown>;
+  proposedSendAt: string | null;
+  status: ProposalStatus;
+}
+
+export interface OutreachExportData {
+  campaigns: OutreachCampaignExport[];
+  proposals: OutreachProposalExport[];
 }
 
 @Injectable()
@@ -850,6 +881,152 @@ export class OutreachService {
     throw new OutreachInvalidError(
       `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email or voice:vapi channel`,
     );
+  }
+
+  // ─── Transfer (import / export) ───────────────────────────────────────────
+
+  async exportOutreach(): Promise<OutreachExportData> {
+    const ctx = getCurrentContext();
+    const [campaigns, proposals] = await Promise.all([
+      ctx.db.select().from(schema.outreachCampaigns).orderBy(asc(schema.outreachCampaigns.createdAt)),
+      ctx.db.select().from(schema.outreachProposals).orderBy(asc(schema.outreachProposals.createdAt)),
+    ]);
+    return {
+      campaigns: campaigns.map((c) => ({
+        id: c.id,
+        name: c.name,
+        brief: c.brief,
+        segmentId: c.segmentId,
+        channelId: c.channelId,
+        cadenceRules: c.cadenceRules,
+        ctaUrl: c.ctaUrl,
+        unsubscribeRequired: c.unsubscribeRequired,
+      })),
+      proposals: proposals.map((p) => ({
+        id: p.id,
+        campaignId: p.campaignId,
+        contactId: p.contactId,
+        conversationId: p.conversationId,
+        kind: p.kind as ProposalKind,
+        draftSubject: p.draftSubject,
+        draftBody: p.draftBody,
+        evidence: p.evidence,
+        proposedSendAt: p.proposedSendAt ? p.proposedSendAt.toISOString() : null,
+        status: p.status as ProposalStatus,
+      })),
+    };
+  }
+
+  async importOutreach(data: OutreachExportData, priorIdMap: IdMap = {}): Promise<ImportResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const result = newImportResult();
+    result.idMap = { ...priorIdMap };
+
+    for (const campaign of data.campaigns) {
+      const segmentId = resolveId(result.idMap, campaign.segmentId);
+      const channelId = resolveId(result.idMap, campaign.channelId);
+      if (!segmentId || !channelId) {
+        result.warnings.push(
+          `campaign "${campaign.name}" skipped: ${!segmentId ? 'segment' : 'channel'} was not part of this import — import CRM and Conversations first and pass their idMap`,
+        );
+        result.skipped++;
+        continue;
+      }
+      const existing = await this.findCampaignByName(actor.orgId, campaign.name);
+      if (existing) {
+        result.idMap[campaign.id] = existing.id;
+        result.skipped++;
+        continue;
+      }
+      const created = await this.createCampaign({
+        name: campaign.name,
+        brief: campaign.brief,
+        segmentId,
+        channelId,
+        cadenceRules: campaign.cadenceRules,
+        ctaUrl: campaign.ctaUrl,
+        enabled: false,
+        unsubscribeRequired: campaign.unsubscribeRequired,
+      });
+      result.idMap[campaign.id] = created.id;
+      result.created++;
+      result.warnings.push(
+        `campaign "${campaign.name}" imported disabled — re-enable it once the channel credentials are re-entered on this server`,
+      );
+    }
+
+    for (const proposal of data.proposals) {
+      const campaignId = resolveId(result.idMap, proposal.campaignId);
+      const contactId = resolveId(result.idMap, proposal.contactId);
+      if (!campaignId || !contactId) {
+        result.warnings.push(
+          `proposal ${proposal.id} skipped: its campaign or contact was not part of this import`,
+        );
+        result.skipped++;
+        continue;
+      }
+      const existing = await this.findProposalByKey(campaignId, contactId, proposal.kind);
+      if (existing) {
+        result.idMap[proposal.id] = existing.id;
+        result.skipped++;
+        continue;
+      }
+      const conversationId = resolveId(result.idMap, proposal.conversationId) ?? null;
+      const [row] = await ctx.db
+        .insert(schema.outreachProposals)
+        .values({
+          orgId: actor.orgId,
+          campaignId,
+          contactId,
+          conversationId,
+          kind: proposal.kind,
+          draftSubject: proposal.draftSubject,
+          draftBody: proposal.draftBody,
+          evidence: proposal.evidence,
+          proposedSendAt: proposal.proposedSendAt ? new Date(proposal.proposedSendAt) : null,
+          status: proposal.status,
+          proposedByActorType: actor.type,
+          proposedByActorId: actor.id,
+        })
+        .returning();
+      result.idMap[proposal.id] = row!.id;
+      result.created++;
+    }
+    return result;
+  }
+
+  private async findCampaignByName(
+    orgId: string,
+    name: string,
+  ): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.outreachCampaigns.id })
+      .from(schema.outreachCampaigns)
+      .where(and(eq(schema.outreachCampaigns.orgId, orgId), eq(schema.outreachCampaigns.name, name)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async findProposalByKey(
+    campaignId: string,
+    contactId: string,
+    kind: ProposalKind,
+  ): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.outreachProposals.id })
+      .from(schema.outreachProposals)
+      .where(
+        and(
+          eq(schema.outreachProposals.campaignId, campaignId),
+          eq(schema.outreachProposals.contactId, contactId),
+          eq(schema.outreachProposals.kind, kind),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
   }
 }
 

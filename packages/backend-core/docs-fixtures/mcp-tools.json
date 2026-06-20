@@ -6613,6 +6613,231 @@
     }
   },
   {
+    "name": "outreach_export",
+    "title": "Outreach: Export data",
+    "description": "Export this org's outbound campaigns and their queued proposals as a portable JSON payload. Pair with `outreach_import` on another Munin server. Campaigns reference a CRM segment and a conversation channel, and proposals reference CRM contacts/conversations — so export and import CRM and Conversations first, and thread their `idMap` into `outreach_import`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_import",
+    "title": "Outreach: Import data",
+    "description": "Import outreach `records` produced by `outreach_export`. Campaigns are upserted by name and proposals by (campaign, contact, kind), so re-running is idempotent. Segment, channel, contact and conversation foreign keys are resolved through the supplied `idMap` (pass the idMap returned by the CRM and Conversations imports). Campaigns are imported **disabled** — re-enable them after re-entering the channel credentials. Returns counts plus the merged `idMap`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "object",
+          "properties": {
+            "campaigns": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "brief": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "segmentId": {
+                    "type": "string"
+                  },
+                  "channelId": {
+                    "type": "string"
+                  },
+                  "cadenceRules": {
+                    "default": {},
+                    "type": "object",
+                    "properties": {
+                      "maxPerWeekPerContact": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 7
+                      },
+                      "quietHoursStart": {
+                        "type": "string",
+                        "pattern": "^[0-2]\\d:[0-5]\\d$"
+                      },
+                      "quietHoursEnd": {
+                        "type": "string",
+                        "pattern": "^[0-2]\\d:[0-5]\\d$"
+                      },
+                      "blackoutDates": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        }
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "ctaUrl": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "unsubscribeRequired": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "brief",
+                  "segmentId",
+                  "channelId",
+                  "cadenceRules",
+                  "unsubscribeRequired"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "proposals": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "campaignId": {
+                    "type": "string"
+                  },
+                  "contactId": {
+                    "type": "string"
+                  },
+                  "conversationId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "initial",
+                      "reply"
+                    ]
+                  },
+                  "draftSubject": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "draftBody": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "default": {},
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "proposedSendAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "approved",
+                      "sent",
+                      "failed",
+                      "dismissed"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "campaignId",
+                  "contactId",
+                  "kind",
+                  "draftBody",
+                  "evidence",
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "campaigns",
+            "proposals"
+          ],
+          "additionalProperties": false
+        },
+        "idMap": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "records"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "outreach_update_campaign",
     "title": "Outreach: Update campaign",
     "description": "Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled.",

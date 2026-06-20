@@ -28,6 +28,7 @@ import { CrmTransferController } from './crm-transfer.controller.ts';
 import { ConvTransferController } from './conv-transfer.controller.ts';
 import { CmsTransferController } from './cms-transfer.controller.ts';
 import { AnalyticsTransferController } from './analytics-transfer.controller.ts';
+import { OutreachTransferController } from './outreach-transfer.controller.ts';
 import { McpModule } from '../mcp/mcp.module.ts';
 import { RealtimeModule } from '../realtime/realtime.module.ts';
 import { CrmMergeProposalsController } from './crm-merge-proposals.controller.ts';
@@ -116,6 +117,7 @@ import { AuthProvidersController } from './auth-providers.controller.ts';
     ConvTransferController,
     CmsTransferController,
     AnalyticsTransferController,
+    OutreachTransferController,
     AuthProvidersController,
   ],
   providers: [InvitationsService],

@@ -4544,6 +4544,50 @@
         ]
       }
     },
+    "/v1/outreach/export": {
+      "get": {
+        "operationId": "OutreachTransferController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/outreach/import": {
+      "post": {
+        "operationId": "OutreachTransferController_import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/auth/providers": {
       "get": {
         "operationId": "AuthProvidersController_list",

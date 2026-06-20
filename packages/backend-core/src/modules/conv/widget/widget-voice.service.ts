@@ -188,6 +188,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
           context: historyText || undefined,
           externalTools,
           allowedOrigins: widgetConfig.originAllowlist,
+          metadata: { conversationId: conv.id, endUserId },
         });
         if (!created.ok) {
           this.logger.warn(`threll createWebCall failed: ${created.error}`);

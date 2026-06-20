@@ -358,6 +358,136 @@ const skipReason = TEST_URL
     expect(endUsers.length).toBe(1);
   });
 
+  it('worker_request for an in-browser (webrtc) call creates no conversation', async () => {
+    const callId = 'call_threll_webrtc';
+    const res = await postEvent({
+      type: 'call.worker_request',
+      data: { callId, direction: 'inbound', transport: 'webrtc', customer: {} },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.metadata).toBeUndefined();
+    expect(body.instructions).toBeUndefined();
+
+    const created = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      );
+    expect(created.length).toBe(0);
+  });
+
+  it('routes web-call transcripts to the pre-linked widget conversation by callId', async () => {
+    const [widgetChannel] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'chat',
+        vendor: 'munin',
+        name: 'Widget for threll test',
+        config: { provider: 'widget', originAllowlist: [], requireVerifiedIdentity: false },
+      })
+      .returning();
+    const [eu] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'eu-threll-widget', name: 'Web Caller' })
+      .returning();
+    const next = await db.execute<{ next: number } & Record<string, unknown>>(
+      sql`SELECT conv_next_display_id(${orgId}) AS next`,
+    );
+    const callId = 'call_threll_widget_web';
+    const [widgetConv] = await db
+      .insert(schema.convConversations)
+      .values({
+        orgId,
+        displayId: next[0]!.next,
+        channelId: widgetChannel!.id,
+        endUserId: eu!.id,
+        status: 'open',
+        metadata: { sessionId: 'sess_threll_widget', threllCallId: callId },
+      })
+      .returning();
+
+    const transcript = await postEvent({
+      type: 'call.transcript',
+      data: { callId, role: 'user', text: 'Hi from the browser', isFinal: true, turnIndex: 0 },
+    });
+    expect(transcript.status).toBe(204);
+
+    const msgs = await db
+      .select({ body: schema.convMessages.body, conversationId: schema.convMessages.conversationId })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, widgetConv!.id));
+    expect(msgs.map((m) => m.body)).toContain('Hi from the browser');
+
+    const onVoice = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          eq(schema.convConversations.channelId, channelId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      );
+    expect(onVoice.length).toBe(0);
+  });
+
+  it('routes web-call transcripts to the conversation named in event metadata', async () => {
+    const [widgetChannel] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'chat',
+        vendor: 'munin',
+        name: 'Widget meta test',
+        config: { provider: 'widget', originAllowlist: [], requireVerifiedIdentity: false },
+      })
+      .returning();
+    const [eu] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'eu-threll-meta', name: 'Web Caller 2' })
+      .returning();
+    const next = await db.execute<{ next: number } & Record<string, unknown>>(
+      sql`SELECT conv_next_display_id(${orgId}) AS next`,
+    );
+    const [widgetConv] = await db
+      .insert(schema.convConversations)
+      .values({
+        orgId,
+        displayId: next[0]!.next,
+        channelId: widgetChannel!.id,
+        endUserId: eu!.id,
+        status: 'open',
+        metadata: { sessionId: 'sess_threll_meta' },
+      })
+      .returning();
+
+    const callId = 'call_threll_meta';
+    const transcript = await postEvent({
+      type: 'call.transcript',
+      data: {
+        callId,
+        role: 'user',
+        text: 'Routed by metadata',
+        isFinal: true,
+        turnIndex: 0,
+        metadata: { conversationId: widgetConv!.id },
+      },
+    });
+    expect(transcript.status).toBe(204);
+
+    const msgs = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, widgetConv!.id));
+    expect(msgs.map((m) => m.body)).toContain('Routed by metadata');
+  });
+
   it('ingests user + agent transcript turns into one conversation by callId', async () => {
     const callId = 'call_threll_transcript';
     const r1 = await postEvent({

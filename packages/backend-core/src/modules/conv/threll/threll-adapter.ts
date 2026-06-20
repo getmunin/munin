@@ -52,6 +52,7 @@ interface ThrellEvent {
   data?: {
     callId?: string;
     direction?: 'inbound' | 'outbound';
+    transport?: string;
     customer?: ThrellCustomer;
     toolCallId?: string;
     name?: string;
@@ -135,6 +136,10 @@ export class ThrellAdapter implements ChannelAdapter {
     try {
       const callId = event.data?.callId;
       if (!callId) throw new Error('worker_request_missing_call_id');
+
+      if (event.data?.transport === 'webrtc') {
+        return emptyBody;
+      }
 
       const { conversationId, endUserId, crmContact } = await this.runAsSystem(
         channel,
@@ -237,18 +242,12 @@ export class ThrellAdapter implements ChannelAdapter {
       endUserId = rows[0]?.endUserId ?? null;
     }
     if (!endUserId && event.data?.callId) {
-      const rows = await this.db
-        .select({ endUserId: schema.convConversations.endUserId })
-        .from(schema.convConversations)
-        .where(
-          and(
-            eq(schema.convConversations.orgId, channel.orgId),
-            eq(schema.convConversations.channelId, channel.id),
-            sql`${schema.convConversations.metadata}->>'threllCallId' = ${event.data.callId}`,
-          ),
-        )
-        .limit(1);
-      endUserId = rows[0]?.endUserId ?? null;
+      const linked = await this.findConversationByThrellCallId(
+        this.db,
+        channel.orgId,
+        event.data.callId,
+      );
+      endUserId = linked?.endUserId ?? null;
     }
     if (!endUserId) {
       return jsonResponse({ result: { error: 'voice channel has no associated end-user — tools unavailable' } });
@@ -389,7 +388,27 @@ export class ThrellAdapter implements ChannelAdapter {
     }
     const callId = event.data?.callId;
     if (!callId) throw new Error('threll_event_missing_call_id_or_conversation_id');
+    const linked = await this.findConversationByThrellCallId(tx, channel.orgId, callId);
+    if (linked) return linked;
     return this.findOrCreateConversation(tx, channel, callId, event.data?.customer);
+  }
+
+  private async findConversationByThrellCallId(
+    tx: Db | Tx,
+    orgId: string,
+    callId: string,
+  ): Promise<typeof schema.convConversations.$inferSelect | null> {
+    const rows = await tx
+      .select()
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   private async findOrCreateConversation(

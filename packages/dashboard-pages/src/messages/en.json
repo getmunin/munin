@@ -177,7 +177,6 @@
     "endUsers": "End-users",
     "usage": "Usage",
     "auditLog": "Audit log",
-    "dataExport": "Data export",
     "conversations": "Conversations",
     "activity": "Activity",
     "skills": "Skills",
@@ -1056,18 +1055,6 @@
       "tableCorrelation": "Correlation",
       "errors": {
         "load": "Could not load audit log."
-      }
-    },
-    "export": {
-      "eyebrow": "Workspace · Data export",
-      "title": "Take it <em>with you</em>.",
-      "subtitle": "A complete JSON dump of your org — knowledge base, end-users, and configuration. Use it to migrate to a self-hosted Munin or keep an offline copy.",
-      "cardTitle": "Export now",
-      "cardDescription": "Includes: organization, end-users, agents, and KB spaces / documents / versions. Excludes: tokens, API keys, and the audit log (those are operational data you can't restore from an export).",
-      "download": "Download export",
-      "preparing": "Preparing…",
-      "errors": {
-        "export": "Could not generate export."
       }
     },
     "orgSwitcher": {

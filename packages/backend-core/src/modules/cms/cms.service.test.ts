@@ -45,16 +45,21 @@ class StubStorage implements AssetStorage {
   publicUrlFor(key: string): string {
     return `https://cdn.test/${key}`;
   }
+  readBytes(key: string): Promise<Buffer | null> {
+    return Promise.resolve(this.bytes.get(key) ?? null);
+  }
   statBytes(key: string): Promise<number | null> {
     return Promise.resolve(this.objects.get(key) ?? null);
   }
   setObject(key: string, sizeBytes: number): void {
     this.objects.set(key, sizeBytes);
   }
+  readonly bytes = new Map<string, Buffer>();
   readonly directWrites: { key: string; size: number; mime?: string }[] = [];
   writeDirect(key: string, body: Buffer, opts?: { mime?: string }): Promise<void> {
     this.directWrites.push({ key, size: body.length, mime: opts?.mime });
     this.objects.set(key, body.length);
+    this.bytes.set(key, body);
     return Promise.resolve();
   }
 }

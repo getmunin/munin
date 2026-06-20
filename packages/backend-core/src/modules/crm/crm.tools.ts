@@ -7,7 +7,9 @@ import {
   CrmService,
   MERGE_CONFIDENCES,
   MERGE_STATUSES,
+  RELATIONSHIP_TYPES,
 } from './crm.service.ts';
+import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 const ActivityType = z.enum(ACTIVITY_TYPES);
@@ -215,6 +217,100 @@ const SetContactConsentInput = z.object({
   source: z.string().min(1).max(120),
   evidence: z.record(z.string(), z.unknown()).optional(),
   givenAt: z.string().datetime().optional(),
+});
+
+const CustomFieldsSchema = z.record(z.string(), z.unknown());
+const RelationshipEntityTypeSchema = z.enum(RELATIONSHIP_TYPES);
+
+const CrmImportInput = z.object({
+  records: z.object({
+    pipelines: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(120),
+        slug: z.string().min(1).max(64),
+        stages: z.array(
+          z.object({
+            id: z.string(),
+            name: z.string().min(1).max(120),
+            position: z.number().int().nonnegative(),
+            winLoss: z.enum(['open', 'won', 'lost']),
+          }),
+        ),
+      }),
+    ),
+    segments: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(120),
+        description: z.string().nullable().optional(),
+        filterDefinition: SegmentFilterSchema,
+      }),
+    ),
+    companies: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(200),
+        domain: z.string().max(200).nullable().optional(),
+        tags: TagsSchema,
+        customFields: CustomFieldsSchema,
+      }),
+    ),
+    contacts: z.array(
+      z.object({
+        id: z.string(),
+        companyId: z.string().nullable().optional(),
+        name: z.string().max(200).nullable().optional(),
+        email: z.string().nullable().optional(),
+        phone: z.string().max(40).nullable().optional(),
+        title: z.string().max(120).nullable().optional(),
+        address: z.string().max(500).nullable().optional(),
+        tags: TagsSchema,
+        customFields: CustomFieldsSchema,
+      }),
+    ),
+    deals: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(200),
+        pipelineId: z.string(),
+        stageId: z.string(),
+        amountCents: z.number().int().nullable().optional(),
+        currency: z.string().max(8).nullable().optional(),
+        primaryContactId: z.string().nullable().optional(),
+        companyId: z.string().nullable().optional(),
+        expectedCloseAt: z.string().nullable().optional(),
+      }),
+    ),
+    activities: z.array(
+      z.object({
+        id: z.string(),
+        type: ActivityType,
+        subject: z.string().nullable().optional(),
+        body: z.string().nullable().optional(),
+        contactId: z.string().nullable().optional(),
+        companyId: z.string().nullable().optional(),
+        dealId: z.string().nullable().optional(),
+        dueAt: z.string().nullable().optional(),
+        completedAt: z.string().nullable().optional(),
+        metadata: CustomFieldsSchema,
+      }),
+    ),
+    relationships: z.array(
+      z.object({
+        id: z.string(),
+        fromType: RelationshipEntityTypeSchema,
+        fromId: z.string(),
+        toType: RelationshipEntityTypeSchema,
+        toId: z.string(),
+        role: z.string().min(1).max(64),
+        startedAt: z.string().nullable().optional(),
+        endedAt: z.string().nullable().optional(),
+        metadata: CustomFieldsSchema,
+      }),
+    ),
+  }),
+  idMap: IdMapSchema.optional(),
 });
 
 @Injectable()
@@ -645,4 +741,76 @@ export class CrmAdminTools {
   setContactConsent(args: z.infer<typeof SetContactConsentInput>) {
     return this.crm.setContactConsent(args);
   }
+
+  // Transfer ────────────────────────────────────────────────────────────
+
+  @McpTool({
+    name: 'crm_export',
+    title: 'CRM: Export data',
+    description:
+      "Export this org's CRM (pipelines and stages, segments, companies, contacts, deals, activities, and relationships) as a portable JSON payload. Pair with `crm_import` on another Munin server to move a CRM between self-hosted and cloud. Feed the returned `records` straight into `crm_import`.",
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  exportCrm() {
+    return this.crm.exportCrm();
+  }
+
+  @McpTool({
+    name: 'crm_import',
+    title: 'CRM: Import data',
+    description:
+      'Import CRM `records` produced by `crm_export` (typically from another Munin server). Records are imported in dependency order (pipelines → segments → companies → contacts → deals → activities → relationships). Pipelines are upserted by slug, segments by name, companies by domain (else name), and contacts by email — so re-running is idempotent. Deals, activities, and relationships get fresh ids each run with their parents resolved through the `idMap`. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.',
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: CrmImportInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  importCrm(args: z.infer<typeof CrmImportInput>) {
+    return this.crm.importCrm(toCrmExportData(args.records), args.idMap);
+  }
+}
+
+function toCrmExportData(records: z.infer<typeof CrmImportInput>['records']) {
+  return {
+    pipelines: records.pipelines,
+    segments: records.segments.map((s) => ({ ...s, description: s.description ?? null })),
+    companies: records.companies.map((c) => ({ ...c, domain: c.domain ?? null })),
+    contacts: records.contacts.map((c) => ({
+      ...c,
+      companyId: c.companyId ?? null,
+      name: c.name ?? null,
+      email: c.email ?? null,
+      phone: c.phone ?? null,
+      title: c.title ?? null,
+      address: c.address ?? null,
+    })),
+    deals: records.deals.map((d) => ({
+      ...d,
+      amountCents: d.amountCents ?? null,
+      currency: d.currency ?? null,
+      primaryContactId: d.primaryContactId ?? null,
+      companyId: d.companyId ?? null,
+      expectedCloseAt: d.expectedCloseAt ?? null,
+    })),
+    activities: records.activities.map((a) => ({
+      ...a,
+      subject: a.subject ?? null,
+      body: a.body ?? null,
+      contactId: a.contactId ?? null,
+      companyId: a.companyId ?? null,
+      dealId: a.dealId ?? null,
+      dueAt: a.dueAt ?? null,
+      completedAt: a.completedAt ?? null,
+    })),
+    relationships: records.relationships.map((r) => ({
+      ...r,
+      startedAt: r.startedAt ?? null,
+      endedAt: r.endedAt ?? null,
+    })),
+  };
 }

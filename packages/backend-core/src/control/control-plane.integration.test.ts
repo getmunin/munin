@@ -285,6 +285,109 @@ interface OrgFixture {
     });
   });
 
+  // ─── transfer import/export (control-plane guard) ────────────────────
+
+  describe('transfer endpoints enforce the control-plane guard', () => {
+    const EXPORT_GETS = [
+      '/v1/kb/export',
+      '/v1/crm/export',
+      '/v1/cms/transfer/export',
+      '/v1/conv/export',
+      '/v1/outreach/export',
+      '/v1/analytics/export/config',
+      '/v1/analytics/export/events',
+    ] as const;
+    const IMPORT_POSTS = [
+      '/v1/kb/import',
+      '/v1/crm/import',
+      '/v1/cms/transfer/import',
+      '/v1/conv/import',
+      '/v1/outreach/import',
+      '/v1/analytics/import',
+    ] as const;
+
+    let widgetKey: string;
+    let scopedAdminKey: string;
+
+    beforeAll(async () => {
+      widgetKey = buildApiKey('widget');
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId: orgA.id,
+          type: 'chat',
+          vendor: 'munin',
+          name: 'cp-transfer-widget-channel',
+        })
+        .returning();
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'widget',
+        name: 'cp-transfer-widget',
+        keyHash: hashSecret(widgetKey),
+        keyPrefix: keyPrefix(widgetKey),
+        scopes: ['conv:widget:write'],
+        channelId: channel!.id,
+      });
+
+      scopedAdminKey = buildApiKey('admin');
+      await db.insert(schema.apiKeys).values({
+        orgId: orgA.id,
+        type: 'admin',
+        name: 'cp-transfer-scoped-admin',
+        keyHash: hashSecret(scopedAdminKey),
+        keyPrefix: keyPrefix(scopedAdminKey),
+        scopes: ['kb:read', 'crm:read', 'cms:read', 'conv:read', 'outreach:read', 'analytics:read'],
+      });
+    });
+
+    for (const path of EXPORT_GETS) {
+      it(`GET ${path} is 401 unauthenticated`, async () => {
+        const res = await fetch(`${baseUrl}${path}`);
+        expect(res.status).toBe(401);
+      });
+
+      it(`GET ${path} rejects a widget key (403)`, async () => {
+        const res = await fetch(`${baseUrl}${path}`, { headers: authHeaders(widgetKey) });
+        expect(res.status).toBe(403);
+      });
+
+      it(`GET ${path} rejects a scoped admin key without "*" (403)`, async () => {
+        const res = await fetch(`${baseUrl}${path}`, { headers: authHeaders(scopedAdminKey) });
+        expect(res.status).toBe(403);
+      });
+    }
+
+    for (const path of IMPORT_POSTS) {
+      it(`POST ${path} is 401 unauthenticated`, async () => {
+        const res = await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          body: JSON.stringify({}),
+          headers: { 'Content-Type': 'application/json' },
+        });
+        expect(res.status).toBe(401);
+      });
+
+      it(`POST ${path} rejects a widget key (403)`, async () => {
+        const res = await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers: authHeaders(widgetKey),
+          body: JSON.stringify({}),
+        });
+        expect(res.status).toBe(403);
+      });
+
+      it(`POST ${path} rejects a scoped admin key without "*" (403)`, async () => {
+        const res = await fetch(`${baseUrl}${path}`, {
+          method: 'POST',
+          headers: authHeaders(scopedAdminKey),
+          body: JSON.stringify({}),
+        });
+        expect(res.status).toBe(403);
+      });
+    }
+  });
+
   // ─── tokens ──────────────────────────────────────────────────────────
 
   describe('GET /v1/tokens, DELETE /v1/tokens/:id', () => {
@@ -551,28 +654,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── export ──────────────────────────────────────────────────────────
-
-  describe('GET /v1/export', () => {
-    it('401 unauthenticated', async () => {
-      const res = await fetch(`${baseUrl}/v1/export`);
-      expect(res.status).toBe(401);
-    });
-
-    it('returns the org\'s domain rows in JSON, scoped to the calling org', async () => {
-      const res = await fetch(`${baseUrl}/v1/export`, { headers: authHeaders(orgA.adminKey) });
-      expect(res.status).toBe(200);
-      expect(res.headers.get('content-disposition')).toContain('munin-export.json');
-      const body = (await res.json()) as {
-        org: { id: string };
-        endUsers: Array<{ id: string }>;
-      };
-      expect(body.org.id).toBe(orgA.id);
-      expect(body.endUsers.find((u) => u.id === orgA.endUserId)).toBeTruthy();
-      expect(body.endUsers.find((u) => u.id === orgB.endUserId)).toBeFalsy();
-    });
-  });
-
   // ─── invitations (admin-issue) ───────────────────────────────────────
 
   describe('/v1/orgs/me/invitations (admin)', () => {
@@ -740,7 +821,6 @@ interface OrgFixture {
       ['/v1/api-keys', 'GET'],
       ['/v1/audit-logs', 'GET'],
       ['/v1/usage', 'GET'],
-      ['/v1/export', 'GET'],
       ['/v1/end-users', 'GET'],
       ['/v1/tokens', 'GET'],
       ['/v1/orgs/me/members', 'GET'],

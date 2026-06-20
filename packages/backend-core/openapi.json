@@ -759,28 +759,6 @@
         ]
       }
     },
-    "/v1/export": {
-      "get": {
-        "operationId": "ExportController_export",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Export"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
     "/v1/webhooks": {
       "get": {
         "operationId": "WebhooksController_list",
@@ -1140,6 +1118,50 @@
         },
         "tags": [
           "CmsDrafts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/cms/transfer/export": {
+      "get": {
+        "operationId": "CmsTransferController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CmsTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/cms/transfer/import": {
+      "post": {
+        "operationId": "CmsTransferController_import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CmsTransfer"
         ],
         "security": [
           {
@@ -4313,6 +4335,248 @@
         },
         "tags": [
           "KbSpaces"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/kb/export": {
+      "get": {
+        "operationId": "KbTransferController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "KbTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/kb/import": {
+      "post": {
+        "operationId": "KbTransferController_import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "KbTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/crm/export": {
+      "get": {
+        "operationId": "CrmTransferController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CrmTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/crm/import": {
+      "post": {
+        "operationId": "CrmTransferController_import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CrmTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conv/export": {
+      "get": {
+        "operationId": "ConvTransferController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conv/import": {
+      "post": {
+        "operationId": "ConvTransferController_import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/analytics/export/config": {
+      "get": {
+        "operationId": "AnalyticsTransferController_exportConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/analytics/export/events": {
+      "get": {
+        "operationId": "AnalyticsTransferController_exportEvents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/analytics/import": {
+      "post": {
+        "operationId": "AnalyticsTransferController_import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/outreach/export": {
+      "get": {
+        "operationId": "OutreachTransferController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/outreach/import": {
+      "post": {
+        "operationId": "OutreachTransferController_import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachTransfer"
         ],
         "security": [
           {

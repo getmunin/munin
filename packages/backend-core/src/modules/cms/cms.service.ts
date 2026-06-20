@@ -30,6 +30,8 @@ import {
 } from './cms.fields.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
+import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 
 export class CmsInvalidError extends Error {
   readonly code = 'cms_invalid';
@@ -133,6 +135,55 @@ export interface LocaleDto {
   isDefault: boolean;
   position: number;
 }
+
+// ─── Transfer shapes ─────────────────────────────────────────────────────
+
+export interface CmsLocaleExport {
+  id: string;
+  code: string;
+  name: string;
+  isDefault: boolean;
+}
+
+export interface CmsCollectionExport {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  fields: FieldDef[];
+  localized: boolean;
+  settings: Record<string, unknown>;
+}
+
+export interface CmsEntryExport {
+  id: string;
+  collectionId: string;
+  slug: string;
+  locale: string;
+  status: EntryStatus;
+  data: Record<string, unknown>;
+  scheduledAt: string | null;
+}
+
+export interface CmsAssetExport {
+  id: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  storageKey: string;
+  altText: string | null;
+  metadata: Record<string, unknown>;
+  base64Body: string | null;
+}
+
+export interface CmsExportData {
+  locales: CmsLocaleExport[];
+  collections: CmsCollectionExport[];
+  entries: CmsEntryExport[];
+  assets: CmsAssetExport[];
+}
+
+const EXPORT_ASSET_BYTES_MAX = 5 * 1024 * 1024;
 
 @Injectable()
 export class CmsService {
@@ -907,6 +958,290 @@ export class CmsService {
     return rows;
   }
 
+  // ─── Transfer (import / export) ──────────────────────────────────────
+
+  async exportCms(): Promise<CmsExportData> {
+    const ctx = getCurrentContext();
+    const [locales, collections, entries, assets] = await Promise.all([
+      ctx.db.select().from(schema.cmsLocales).orderBy(asc(schema.cmsLocales.createdAt)),
+      ctx.db.select().from(schema.cmsCollections).orderBy(asc(schema.cmsCollections.createdAt)),
+      ctx.db.select().from(schema.cmsEntries).orderBy(asc(schema.cmsEntries.createdAt)),
+      ctx.db.select().from(schema.cmsAssets).orderBy(asc(schema.cmsAssets.createdAt)),
+    ]);
+
+    const assetExports: CmsAssetExport[] = [];
+    for (const a of assets) {
+      let base64Body: string | null = null;
+      if (a.uploaded && a.sizeBytes <= EXPORT_ASSET_BYTES_MAX) {
+        const bytes = await this.storage.readBytes(a.storageKey).catch(() => null);
+        if (bytes) base64Body = bytes.toString('base64');
+      }
+      assetExports.push({
+        id: a.id,
+        name: a.name,
+        mime: a.mime,
+        sizeBytes: a.sizeBytes,
+        storageKey: a.storageKey,
+        altText: a.altText,
+        metadata: a.metadata,
+        base64Body,
+      });
+    }
+
+    return {
+      locales: locales.map((l) => ({
+        id: l.id,
+        code: l.code,
+        name: l.name,
+        isDefault: l.isDefault,
+      })),
+      collections: collections.map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        description: c.description,
+        fields: c.fields as FieldDef[],
+        localized: c.localized,
+        settings: c.settings,
+      })),
+      entries: entries.map((e) => ({
+        id: e.id,
+        collectionId: e.collectionId,
+        slug: e.slug,
+        locale: e.locale,
+        status: e.status as EntryStatus,
+        data: e.data,
+        scheduledAt: e.scheduledAt?.toISOString() ?? null,
+      })),
+      assets: assetExports,
+    };
+  }
+
+  async importCms(data: CmsExportData, priorIdMap: IdMap = {}): Promise<ImportResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const result = newImportResult();
+    result.idMap = { ...priorIdMap };
+
+    for (const locale of data.locales) {
+      const existing = await this.findLocaleForImport(actor.orgId, locale.code);
+      if (existing) {
+        result.idMap[locale.id] = existing.id;
+        result.skipped++;
+      } else {
+        const created = await this.createLocale({
+          code: locale.code,
+          name: locale.name,
+          isDefault: locale.isDefault,
+        });
+        result.idMap[locale.id] = created.id;
+        result.created++;
+      }
+    }
+
+    for (const collection of data.collections) {
+      const existing = await this.findCollectionForImport(actor.orgId, collection.slug);
+      if (existing) {
+        result.idMap[collection.id] = existing.id;
+        result.skipped++;
+      } else {
+        const created = await this.createCollection({
+          name: collection.name,
+          slug: collection.slug,
+          description: collection.description ?? undefined,
+          fields: collection.fields,
+          localized: collection.localized,
+          settings: collection.settings,
+        });
+        result.idMap[collection.id] = created.id;
+        result.created++;
+      }
+    }
+
+    for (const asset of data.assets) {
+      const existing = await this.findAssetForImport(actor.orgId, asset.name, asset.sizeBytes);
+      if (existing) {
+        result.idMap[asset.id] = existing.id;
+        result.skipped++;
+        continue;
+      }
+      if (!asset.base64Body) {
+        result.warnings.push(
+          `asset "${asset.name}" imported without bytes: source did not include a body (too large or unreadable on export)`,
+        );
+        const placeholder = await this.upsertAssetMetadataOnly(asset);
+        result.idMap[asset.id] = placeholder.id;
+        result.created++;
+        continue;
+      }
+      try {
+        const created = await this.persistAssetBytes({
+          name: asset.name,
+          mime: asset.mime,
+          body: Buffer.from(asset.base64Body, 'base64'),
+          altText: asset.altText ?? undefined,
+          metadata: asset.metadata,
+        });
+        result.idMap[asset.id] = created.id;
+        result.created++;
+      } catch (err) {
+        result.warnings.push(
+          `asset "${asset.name}" bytes could not be re-uploaded (${describeError(err)}); imported metadata only`,
+        );
+        const placeholder = await this.upsertAssetMetadataOnly(asset);
+        result.idMap[asset.id] = placeholder.id;
+        result.created++;
+      }
+    }
+
+    for (const entry of data.entries) {
+      const targetCollectionId = resolveId(result.idMap, entry.collectionId);
+      if (!targetCollectionId) {
+        result.warnings.push(
+          `entry "${entry.slug}" skipped: source collection ${entry.collectionId} was not part of this import`,
+        );
+        result.skipped++;
+        continue;
+      }
+      const collection = await this.getCollectionById(targetCollectionId);
+      const remappedData = remapEntryData(collection.fields, entry.data, result.idMap);
+
+      const existing = await this.findEntryForImport(
+        actor.orgId,
+        targetCollectionId,
+        entry.slug,
+        entry.locale,
+      );
+      if (existing) {
+        result.idMap[entry.id] = existing.id;
+        if (existing.contentHash !== contentHash(
+          `${entry.slug}|${entry.locale}|${existing.status}`,
+          JSON.stringify(remappedData),
+        )) {
+          await this.updateEntry({
+            id: existing.id,
+            ifVersion: existing.version,
+            data: remappedData,
+          });
+          result.updated++;
+        } else {
+          result.skipped++;
+        }
+      } else {
+        const created = await this.createEntry({
+          collection: targetCollectionId,
+          slug: entry.slug,
+          locale: entry.locale,
+          data: remappedData,
+          status: entry.status === 'published' ? 'published' : 'draft',
+        });
+        result.idMap[entry.id] = created.id;
+        result.created++;
+      }
+    }
+
+    return result;
+  }
+
+  private async findLocaleForImport(
+    orgId: string,
+    code: string,
+  ): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.cmsLocales.id })
+      .from(schema.cmsLocales)
+      .where(and(eq(schema.cmsLocales.orgId, orgId), eq(schema.cmsLocales.code, code)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async findCollectionForImport(
+    orgId: string,
+    slug: string,
+  ): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.cmsCollections.id })
+      .from(schema.cmsCollections)
+      .where(and(eq(schema.cmsCollections.orgId, orgId), eq(schema.cmsCollections.slug, slug)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async findEntryForImport(
+    orgId: string,
+    collectionId: string,
+    slug: string,
+    locale: string,
+  ): Promise<{ id: string; version: number; status: EntryStatus; contentHash: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({
+        id: schema.cmsEntries.id,
+        version: schema.cmsEntries.version,
+        status: schema.cmsEntries.status,
+        contentHash: schema.cmsEntries.contentHash,
+      })
+      .from(schema.cmsEntries)
+      .where(
+        and(
+          eq(schema.cmsEntries.orgId, orgId),
+          eq(schema.cmsEntries.collectionId, collectionId),
+          eq(schema.cmsEntries.slug, slug),
+          eq(schema.cmsEntries.locale, locale),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return { id: row.id, version: row.version, status: row.status as EntryStatus, contentHash: row.contentHash };
+  }
+
+  private async findAssetForImport(
+    orgId: string,
+    name: string,
+    sizeBytes: number,
+  ): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.cmsAssets.id })
+      .from(schema.cmsAssets)
+      .where(
+        and(
+          eq(schema.cmsAssets.orgId, orgId),
+          eq(schema.cmsAssets.name, name),
+          eq(schema.cmsAssets.sizeBytes, sizeBytes),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  private async upsertAssetMetadataOnly(asset: CmsAssetExport): Promise<AssetDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const key = `cms/${actor.orgId}/${randomKeySegment()}.${assetExtensionFromName(asset.name)}`;
+    const [row] = await ctx.db
+      .insert(schema.cmsAssets)
+      .values({
+        orgId: actor.orgId,
+        name: asset.name,
+        mime: asset.mime,
+        sizeBytes: asset.sizeBytes,
+        storageProvider: this.storage.provider,
+        storageKey: key,
+        publicUrl: this.storage.publicUrlFor(key),
+        altText: asset.altText ?? null,
+        metadata: asset.metadata,
+        uploaded: false,
+        createdByType: actor.type === 'user' ? 'user' : 'agent',
+        createdById: actor.id,
+      })
+      .returning();
+    return toAssetDto(row!);
+  }
+
   // ─── Internals ───────────────────────────────────────────────────────
 
   /** Used by the schedule worker to flip due entries to published. */
@@ -1147,6 +1482,32 @@ function toLocaleDto(row: typeof schema.cmsLocales.$inferSelect): LocaleDto {
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
+}
+
+function remapEntryData(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+  idMap: IdMap,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  const remap = (id: unknown): unknown =>
+    typeof id === 'string' && idMap[id] ? idMap[id] : id;
+  for (const field of fields) {
+    if (field.type !== 'asset' && field.type !== 'reference') {
+      const isIdArray =
+        field.type === 'array' &&
+        (field.options?.items?.type === 'asset' || field.options?.items?.type === 'reference');
+      if (!isIdArray) continue;
+    }
+    const value = out[field.name];
+    if (value === undefined || value === null) continue;
+    if ((field.type === 'asset' || field.type === 'reference') && typeof value === 'string') {
+      out[field.name] = remap(value);
+    } else if (field.type === 'array' && Array.isArray(value)) {
+      out[field.name] = value.map((v) => remap(v));
+    }
+  }
+  return out;
 }
 
 function clampLimit(value: number | undefined, fallback: number, max: number): number {

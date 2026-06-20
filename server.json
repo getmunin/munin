@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.getmunin/munin",
+  "description": "Open-source all-in-one MCP-first customer platform: KB, Conversations, CRM, CMS, Outreach, Analytics",
+  "websiteUrl": "https://getmunin.com",
+  "repository": {
+    "url": "https://github.com/getmunin/munin",
+    "source": "github"
+  },
+  "version": "4.51.4",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.getmunin.com/mcp"
+    }
+  ]
+}

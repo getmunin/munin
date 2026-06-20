@@ -1129,6 +1129,50 @@
         ]
       }
     },
+    "/v1/cms/transfer/export": {
+      "get": {
+        "operationId": "CmsTransferController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CmsTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/cms/transfer/import": {
+      "post": {
+        "operationId": "CmsTransferController_import",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CmsTransfer"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/cms/{orgId}/collections": {
       "get": {
         "operationId": "CmsDeliveryController_listCollections",
@@ -4423,50 +4467,6 @@
         },
         "tags": [
           "ConvTransfer"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/v1/cms/transfer/export": {
-      "get": {
-        "operationId": "CmsTransferController_export",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "CmsTransfer"
-        ],
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "session": []
-          }
-        ]
-      }
-    },
-    "/v1/cms/transfer/import": {
-      "post": {
-        "operationId": "CmsTransferController_import",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "CmsTransfer"
         ],
         "security": [
           {

@@ -10,7 +10,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -261,5 +261,79 @@ const PNG_BASE64 =
     expect(secondImport.entryCount).toBe(2);
     expect(secondImport.localeCount).toBe(1);
     expect(secondImport.assetCount).toBe(1);
+  });
+
+  it('does not persist SVG asset bytes on import (XSS-prone uploads blocked)', async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(document.cookie)"></svg>';
+    const records = {
+      locales: [],
+      collections: [],
+      entries: [],
+      assets: [
+        {
+          id: 'cma_src_svg',
+          name: 'logo.svg',
+          mime: 'image/svg+xml',
+          sizeBytes: svg.length,
+          storageKey: 'cms/source-org/logo.svg',
+          altText: null,
+          metadata: {},
+          base64Body: Buffer.from(svg).toString('base64'),
+        },
+      ],
+    };
+
+    const result = await withClient(adminKeyB, async (c) => {
+      const res = await c.callTool({ name: 'cms_import', arguments: { records } });
+      return firstJson(res as never) as ImportResult;
+    });
+
+    expect(
+      result.warnings.some((w) => w.includes('logo.svg') && w.includes('metadata only')),
+    ).toBe(true);
+
+    const newAssetId = result.idMap['cma_src_svg'];
+    expect(newAssetId).toMatch(/^cma_/);
+    const rows = await db
+      .select()
+      .from(schema.cmsAssets)
+      .where(eq(schema.cmsAssets.id, newAssetId!));
+    expect(rows[0]!.uploaded).toBe(false);
+  });
+
+  it('ignores a caller-supplied storageKey and generates a fresh org-scoped key', async () => {
+    const maliciousKey = `cms/${orgAId}/pwned-by-import.png`;
+    const records = {
+      locales: [],
+      collections: [],
+      entries: [],
+      assets: [
+        {
+          id: 'cma_src_key',
+          name: 'fresh-pixel.png',
+          mime: 'image/png',
+          sizeBytes: 70,
+          storageKey: maliciousKey,
+          altText: null,
+          metadata: {},
+          base64Body: PNG_BASE64,
+        },
+      ],
+    };
+
+    const result = await withClient(adminKeyB, async (c) => {
+      const res = await c.callTool({ name: 'cms_import', arguments: { records } });
+      return firstJson(res as never) as ImportResult;
+    });
+
+    const newAssetId = result.idMap['cma_src_key'];
+    expect(newAssetId).toMatch(/^cma_/);
+    const rows = await db
+      .select()
+      .from(schema.cmsAssets)
+      .where(eq(schema.cmsAssets.id, newAssetId!));
+    const stored = rows[0]!;
+    expect(stored.storageKey).not.toBe(maliciousKey);
+    expect(stored.storageKey.startsWith(`cms/${orgBId}/`)).toBe(true);
   });
 });

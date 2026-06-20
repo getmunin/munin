@@ -24,6 +24,10 @@ import { CuratorJobsController } from './curator-jobs.controller.ts';
 import { ConvChannelsController } from './conv-channels.controller.ts';
 import { KbCandidatesController, KbSpacesController } from './kb-candidates.controller.ts';
 import { KbTransferController } from './kb-transfer.controller.ts';
+import { CrmTransferController } from './crm-transfer.controller.ts';
+import { ConvTransferController } from './conv-transfer.controller.ts';
+import { CmsTransferController } from './cms-transfer.controller.ts';
+import { AnalyticsTransferController } from './analytics-transfer.controller.ts';
 import { McpModule } from '../mcp/mcp.module.ts';
 import { RealtimeModule } from '../realtime/realtime.module.ts';
 import { CrmMergeProposalsController } from './crm-merge-proposals.controller.ts';
@@ -108,6 +112,10 @@ import { AuthProvidersController } from './auth-providers.controller.ts';
     KbCandidatesController,
     KbSpacesController,
     KbTransferController,
+    CrmTransferController,
+    ConvTransferController,
+    CmsTransferController,
+    AnalyticsTransferController,
     AuthProvidersController,
   ],
   providers: [InvitationsService],

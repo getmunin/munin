@@ -22,6 +22,406 @@
     }
   },
   {
+    "name": "analytics_export_config",
+    "title": "Analytics: Export trackers + visitor identities",
+    "description": "Export this org's analytics configuration — trackers and visitor-identity links — as a portable JSON payload. Low-volume, returned in one shot. Tracker identity-verification secrets are redacted (the ciphertext is useless on another server); the operator re-enters them after import. Pair with `analytics_export_events` (paginated) and feed both into `analytics_import` on another Munin server.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_export_events",
+    "title": "Analytics: Export view + search events (paginated)",
+    "description": "Export this org's analytics events (page-view and search events) as a portable JSON payload. High-volume, so this is keyset-paginated over (createdAt, id): call with no arguments for the first page, then pass the returned `nextCursor` back as `cursor` until it comes back `null`. `limit` defaults to 200 (max 500). Feed each page's `records` into `analytics_import`. Import trackers + visitor identities first via `analytics_export_config` so event foreign keys resolve.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "analytics_import",
+    "title": "Analytics: Import data",
+    "description": "Import analytics `config` (trackers + visitor identities) and/or `events` (view + search events) produced by `analytics_export_config` / `analytics_export_events`, typically from another Munin server. Trackers are upserted by (org, name); visitor identities by (org, visitorId). Trackers import without their redacted identity-verification secret — rotate it afterwards. Visitor identities and events resolve their end-user / tracker foreign keys through `idMap`, so import end-users first and pass that `idMap` back in here. Events have no natural key: they are de-duplicated only within one run via `idMap` (re-running without the prior `idMap` inserts duplicates). Returns counts, warnings, and the merged `idMap` (source id → id on this server) — pass it forward to later imports.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "config": {
+          "type": "object",
+          "properties": {
+            "trackers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "allowedOrigins": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "requireVerifiedIdentity": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "identityVerificationSecret": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "allowedOrigins",
+                  "requireVerifiedIdentity"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "visitorIdentities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "visitorId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "endUserId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "visitorId",
+                  "endUserId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "trackers",
+            "visitorIdentities"
+          ],
+          "additionalProperties": false
+        },
+        "events": {
+          "type": "object",
+          "properties": {
+            "viewEvents": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "subjectType": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "subjectId": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string",
+                    "maxLength": 8
+                  },
+                  "path": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "locale": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "referrer": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "utmSource": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "utmMedium": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "utmCampaign": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "visitorId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "endUserId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "userAgentClass": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "dwellMs": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "readDepth": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "country": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "subjectType",
+                  "subjectId",
+                  "source",
+                  "createdAt"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "searchEvents": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "subjectType": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "locale": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "resultCount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "visitorId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "endUserId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "subjectType",
+                  "query",
+                  "resultCount",
+                  "createdAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "viewEvents",
+            "searchEvents"
+          ],
+          "additionalProperties": false
+        },
+        "idMap": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "analytics_create_tracker",
     "title": "Analytics: Create tracker key",
     "description": "Create a tracker and mint a public `mn_track_*` API key bound to it. The key is safe to embed in `<script>` tags or mobile clients — it can only write page-view events scoped to your org, never read them. `allowedOrigins` is an optional list of full origins (`https://example.com`) the tracker will accept; when empty, any origin is accepted (set `MUNIN_TRACKER_REQUIRE_ALLOWLIST=1` to fail-closed instead). Returns the plaintext key once; store it where it needs to be embedded. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the tracker + widget + CMS wiring end-to-end.",
@@ -1642,6 +2042,346 @@
     }
   },
   {
+    "name": "cms_export",
+    "title": "CMS: Export data",
+    "description": "Export this org's CMS (locales, collections, entries, and assets) as a portable JSON payload. Pair with `cms_import` on another Munin server to move content between self-hosted and cloud. Asset bytes are included base64-encoded (assets larger than 5MB are exported as metadata only). Entry embeddings are not included — they are regenerated on import. Feed the returned `records` straight into `cms_import`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_import",
+    "title": "CMS: Import data",
+    "description": "Import CMS `records` produced by `cms_export` (typically from another Munin server). Locales are upserted by code, collections by slug, entries by (collection, slug, locale), and assets by (name, size) — so re-running is idempotent. Asset bytes are re-uploaded to this server and entry references/asset ids are rewritten to local ids. Entry embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "object",
+          "properties": {
+            "locales": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 16
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "isDefault": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "code",
+                  "name",
+                  "isDefault"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "collections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "fields": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    }
+                  },
+                  "localized": {
+                    "type": "boolean"
+                  },
+                  "settings": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "slug",
+                  "fields",
+                  "localized",
+                  "settings"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "collectionId": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "locale": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "published",
+                      "scheduled",
+                      "archived"
+                    ]
+                  },
+                  "data": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "scheduledAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "collectionId",
+                  "slug",
+                  "locale",
+                  "status",
+                  "data"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "assets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "mime": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "storageKey": {
+                    "type": "string"
+                  },
+                  "altText": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "base64Body": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "mime",
+                  "sizeBytes",
+                  "storageKey",
+                  "metadata"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "locales",
+            "collections",
+            "entries",
+            "assets"
+          ],
+          "additionalProperties": false
+        },
+        "idMap": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "records"
+      ],
+      "additionalProperties": false,
+      "$defs": {
+        "__schema0": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "text",
+                "rich_text",
+                "markdown",
+                "number",
+                "integer",
+                "boolean",
+                "date",
+                "datetime",
+                "select",
+                "multi_select",
+                "asset",
+                "reference",
+                "array",
+                "json"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "localized": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "default": {},
+            "options": {
+              "type": "object",
+              "properties": {
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "targetCollection": {
+                  "type": "string"
+                },
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "name",
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  {
     "name": "conv_list_conversations",
     "title": "Conv: List conversations",
     "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, or topic.",
@@ -2129,6 +2869,221 @@
       "required": [
         "messageId",
         "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_export",
+    "title": "Conv: Export data",
+    "description": "Export this org's conversation channels, conversations, and messages as a portable JSON payload. Pair with `conv_import` on another Munin server to move conversations between self-hosted and cloud. Channel credentials are NOT included — they are encrypted with this server's key and must be re-entered on the target. Feed the returned `records` straight into `conv_import`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_import",
+    "title": "Conv: Import data",
+    "description": "Import conversation `records` produced by `conv_export` (typically from another Munin server). Channels are upserted by (type, vendor, name) and recreated without credentials — re-enter them on this server. Conversations and messages are append-only with no natural key: fresh ids are generated and parent FKs (channelId, conversationId) are resolved through the `idMap`. Returns counts, `warnings`, and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents. Re-running within a single migration is idempotent via the idMap, but messages are not deduplicated across separate runs.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "object",
+          "properties": {
+            "channels": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "email",
+                      "voice",
+                      "chat",
+                      "sms"
+                    ]
+                  },
+                  "vendor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "active": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "vendor",
+                  "name",
+                  "active"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "conversations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "channelId": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "snoozed",
+                      "closed",
+                      "spam"
+                    ]
+                  },
+                  "topicSlug": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "agentMode": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "draft_only",
+                      "off"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "channelId",
+                  "subject",
+                  "status",
+                  "topicSlug",
+                  "agentMode"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "messages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "conversationId": {
+                    "type": "string"
+                  },
+                  "authorType": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "agent",
+                      "end_user",
+                      "system"
+                    ]
+                  },
+                  "authorId": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "internal": {
+                    "type": "boolean"
+                  },
+                  "inReplyToId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "conversationId",
+                  "authorType",
+                  "authorId",
+                  "body",
+                  "internal",
+                  "inReplyToId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "channels",
+            "conversations",
+            "messages"
+          ],
+          "additionalProperties": false
+        },
+        "idMap": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "records"
       ],
       "additionalProperties": false
     }
@@ -4090,6 +5045,615 @@
     }
   },
   {
+    "name": "crm_export",
+    "title": "CRM: Export data",
+    "description": "Export this org's CRM (pipelines and stages, segments, companies, contacts, deals, activities, and relationships) as a portable JSON payload. Pair with `crm_import` on another Munin server to move a CRM between self-hosted and cloud. Feed the returned `records` straight into `crm_import`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_import",
+    "title": "CRM: Import data",
+    "description": "Import CRM `records` produced by `crm_export` (typically from another Munin server). Records are imported in dependency order (pipelines → segments → companies → contacts → deals → activities → relationships). Pipelines are upserted by slug, segments by name, companies by domain (else name), and contacts by email — so re-running is idempotent. Deals, activities, and relationships get fresh ids each run with their parents resolved through the `idMap`. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "object",
+          "properties": {
+            "pipelines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "stages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "winLoss": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "won",
+                            "lost"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "position",
+                        "winLoss"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "slug",
+                  "stages"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "filterDefinition": {
+                    "type": "object",
+                    "properties": {
+                      "tagsAny": {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      },
+                      "tagsAll": {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      },
+                      "companyId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "searchQuery": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "contactedSince": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "filterDefinition"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "companies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "domain": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "customFields": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "tags",
+                  "customFields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "contacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "companyId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "phone": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "address": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "customFields": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "tags",
+                  "customFields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "deals": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "pipelineId": {
+                    "type": "string"
+                  },
+                  "stageId": {
+                    "type": "string"
+                  },
+                  "amountCents": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "currency": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "primaryContactId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "companyId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "expectedCloseAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "pipelineId",
+                  "stageId"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "activities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "note",
+                      "call",
+                      "email",
+                      "meeting",
+                      "task"
+                    ]
+                  },
+                  "subject": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "contactId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "companyId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "dealId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "dueAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "completedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "metadata"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "fromType": {
+                    "type": "string",
+                    "enum": [
+                      "contact",
+                      "company",
+                      "deal"
+                    ]
+                  },
+                  "fromId": {
+                    "type": "string"
+                  },
+                  "toType": {
+                    "type": "string",
+                    "enum": [
+                      "contact",
+                      "company",
+                      "deal"
+                    ]
+                  },
+                  "toId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "startedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "endedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "fromType",
+                  "fromId",
+                  "toType",
+                  "toId",
+                  "role",
+                  "metadata"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "pipelines",
+            "segments",
+            "companies",
+            "contacts",
+            "deals",
+            "activities",
+            "relationships"
+          ],
+          "additionalProperties": false
+        },
+        "idMap": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "records"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "crm_get_my_contact",
     "title": "CRM: Read my contact",
     "description": "Read the CRM contact linked to the calling end-user. RLS restricts visibility to that single row.",
@@ -4433,6 +5997,166 @@
         "spaceId",
         "title",
         "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_export",
+    "title": "KB: Export data",
+    "description": "Export this org's knowledge base (spaces and non-system documents) as a portable JSON payload. Pair with `kb_import` on another Munin server to move a knowledge base between self-hosted and cloud. Embeddings are not included — they are regenerated on import. Feed the returned `records` straight into `kb_import`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_import",
+    "title": "KB: Import data",
+    "description": "Import knowledge-base `records` produced by `kb_export` (typically from another Munin server). Spaces are upserted by slug and documents by (space, slug) — or (space, title) when a document has no slug — so re-running is idempotent. Embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "object",
+          "properties": {
+            "spaces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "slug"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "documents": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "spaceId": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "body": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "audiences": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "admin",
+                        "self_service"
+                      ]
+                    }
+                  },
+                  "tags": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "spaceId",
+                  "title",
+                  "body",
+                  "audiences",
+                  "tags"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "spaces",
+            "documents"
+          ],
+          "additionalProperties": false
+        },
+        "idMap": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "records"
       ],
       "additionalProperties": false
     }

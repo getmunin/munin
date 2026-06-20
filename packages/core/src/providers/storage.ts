@@ -1,4 +1,4 @@
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { createHash, createHmac } from 'node:crypto';
 
@@ -24,6 +24,9 @@ export interface AssetStorage {
   publicUrlFor(key: string): string;
 
   writeDirect?(key: string, body: Buffer, opts?: { mime?: string }): Promise<void>;
+
+  /** Read an object's raw bytes back, or null if it does not exist. */
+  readBytes(key: string): Promise<Buffer | null>;
 
   statBytes(key: string): Promise<number | null>;
 }
@@ -95,6 +98,17 @@ export class LocalFsStorage implements AssetStorage {
     const fullPath = join(this.rootDir, safeKey);
     if (!fullPath.startsWith(this.rootDir)) return;
     await rm(fullPath, { force: true });
+  }
+
+  async readBytes(key: string): Promise<Buffer | null> {
+    const safeKey = sanitizeKey(key);
+    const fullPath = join(this.rootDir, safeKey);
+    if (!fullPath.startsWith(this.rootDir)) return null;
+    try {
+      return await readFile(fullPath);
+    } catch {
+      return null;
+    }
   }
 
   async statBytes(key: string): Promise<number | null> {
@@ -176,6 +190,17 @@ export class S3CompatibleStorage implements AssetStorage {
     if (!res.ok && res.status !== 404) {
       throw new Error(`s3 delete failed: ${res.status} ${await res.text().catch(() => '')}`);
     }
+  }
+
+  async readBytes(key: string): Promise<Buffer | null> {
+    const safeKey = sanitizeKey(key);
+    const url = this.signedUrl('GET', safeKey, 60, {});
+    const res = await fetch(url, { method: 'GET' });
+    if (res.status === 404 || res.status === 403) return null;
+    if (!res.ok) {
+      throw new Error(`s3 get failed: ${res.status}`);
+    }
+    return Buffer.from(await res.arrayBuffer());
   }
 
   async statBytes(key: string): Promise<number | null> {

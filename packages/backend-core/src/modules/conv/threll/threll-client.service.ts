@@ -58,6 +58,7 @@ export interface CreateWebCallRequest {
   context?: string;
   externalTools?: ThrellExternalTool[];
   allowedOrigins?: string[];
+  metadata?: Record<string, unknown>;
   customer?: { firstName?: string; lastName?: string; externalId?: string };
 }
 
@@ -287,6 +288,7 @@ export class ThrellClientService {
     if (req.context) body.context = req.context;
     if (req.externalTools && req.externalTools.length > 0) body.externalTools = req.externalTools;
     if (req.allowedOrigins && req.allowedOrigins.length > 0) body.allowedOrigins = req.allowedOrigins;
+    if (req.metadata && Object.keys(req.metadata).length > 0) body.metadata = req.metadata;
     if (req.customer) body.customer = req.customer;
     const r = await this.request({
       apiKey: req.apiKey,

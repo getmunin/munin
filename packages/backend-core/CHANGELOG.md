@@ -1,5 +1,31 @@
 # @getmunin/backend-core
 
+## 4.52.0
+
+### Minor Changes
+
+- e0a87c0: Replace the one-way data export with bidirectional per-module import/export.
+
+  Removes the dashboard "Data export" page and `GET /v1/export`. Adds symmetric
+  `*_export` / `*_import` MCP tools and `/v1/<module>/export|import` REST endpoints
+  for KB, CRM, CMS, Conversations, Outreach, and Analytics so an agent can move an org's data
+  between a self-hosted server and the cloud in either direction. Imports upsert by
+  natural key where one exists and return an `idMap` for foreign-key remapping;
+  embeddings are regenerated on import; secrets are redacted and re-entered on the
+  target; CMS asset bytes are copied to the target's storage. Adds
+  `skill://playbooks/data-migration`.
+
+### Patch Changes
+
+- 72869c4: Fix Threll in-browser (webrtc) voice calls dropping their transcript, recording/analysis, and mid-call tools. Widget voice/start now passes `{ conversationId, endUserId }` as web-call metadata, which Threll echoes back on every `call.*` webhook, so transcript/tool/ended events resolve to the conversation the visitor is viewing. The adapter also skips conversation creation for `webrtc` `call.worker_request` hooks (which fire before voice/start has linked the call and carry no correlation data — they'd otherwise mint a phantom conversation on the voice channel) and falls back to an org-wide `threllCallId` lookup so resolution still works for calls placed before the metadata round-trip is available.
+- Updated dependencies [e0a87c0]
+  - @getmunin/core@4.52.0
+  - @getmunin/agent-runtime@4.52.0
+  - @getmunin/mcp-toolkit@4.52.0
+  - @getmunin/db@4.52.0
+  - @getmunin/types@4.52.0
+  - @getmunin/emails@4.52.0
+
 ## 4.51.4
 
 ### Patch Changes

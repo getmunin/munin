@@ -62,7 +62,7 @@ Each module typically has `<mod>.module.ts`, `<mod>.service.ts`, `<mod>.tools.ts
 
 ```sh
 pnpm install                                # workspace install
-docker compose up                           # full stack (db + backend + web + adminer)
+docker compose up                           # full stack (db + backend + web; agent runner runs in-process in backend)
 pnpm dev                                    # run backend + web in dev mode
 pnpm typecheck                              # workspace typecheck
 pnpm -F @getmunin/backend-core test         # backend-core test suite (needs TEST_DATABASE_URL)

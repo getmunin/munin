@@ -1,6 +1,6 @@
 # Self-host Munin in one command:
 #
-#   git clone https://github.com/munin-dev/munin.git
+#   git clone https://github.com/getmunin/munin.git
 #   cd munin
 #   cp .env.example .env
 #   docker compose up
@@ -27,13 +27,13 @@ services:
 
   backend:
     build:
-      context: ..
+      context: .
       dockerfile: apps/backend/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-    env_file: ../.env
+    env_file: .env
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -45,12 +45,12 @@ services:
 
   web:
     build:
-      context: ..
+      context: .
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     depends_on:
       - backend
-    env_file: ../.env
+    env_file: .env
     environment:
       NODE_ENV: production
       PORT: 3000

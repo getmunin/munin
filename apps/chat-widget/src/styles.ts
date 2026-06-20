@@ -901,6 +901,11 @@ button {
   .voice-call-controls { padding-bottom: calc(26px + env(safe-area-inset-bottom)); }
 }
 
+@media (hover: none) and (pointer: coarse) {
+  .composer textarea,
+  .card-form input { font-size: 16px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .launcher { transition: none; }
   .panel { transition: none; }

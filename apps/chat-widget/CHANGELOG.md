@@ -1,5 +1,11 @@
 # @getmunin/chat-widget
 
+## 4.52.0
+
+### Patch Changes
+
+- ce59242: Stop mobile browsers from zooming in when the message box or email field is focused. iOS Safari auto-zooms when a focused field's font is below 16px, so text-entry fields are now 16px on touch devices.
+
 ## 4.51.4
 
 ### Patch Changes

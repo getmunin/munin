@@ -317,6 +317,11 @@
   font-size: 12px;
 }
 
+/* Mobile section-nav toggle — hidden on desktop, the list shows inline. */
+.docs-side-toggle {
+  display: none;
+}
+
 .docs .m-GET {
   color: var(--docs-accent);
 }
@@ -1244,8 +1249,63 @@
 }
 
 @media (max-width: 880px) {
-  .docs-side {
+  .docs-body {
+    flex-direction: column;
+  }
+  /* The 320px sidebar-column fill would otherwise paint over the article,
+     since :has(.docs-side) still matches the in-DOM (hidden) sidebar. */
+  .docs-body:has(.docs-side)::before {
     display: none;
+  }
+  .docs-side {
+    width: auto;
+    align-self: stretch;
+    padding: 0;
+    max-height: none;
+    overflow: visible;
+    z-index: 5;
+    border-bottom: 1px solid var(--docs-rule);
+    background: var(--docs-page);
+  }
+  .docs-side-toggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 20px;
+    background: var(--docs-page);
+    border: 0;
+    font-family: var(--munin-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--docs-soft);
+    cursor: pointer;
+  }
+  .docs-side-toggle .chev {
+    font-size: 13px;
+    transition: transform 160ms ease;
+  }
+  .docs-side[data-open='true'] .docs-side-toggle .chev {
+    transform: rotate(180deg);
+  }
+  .docs-side-list {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 8px 20px 16px;
+    max-height: min(70vh, 460px);
+    overflow: auto;
+    background: var(--docs-page);
+    border-bottom: 1px solid var(--docs-rule);
+    box-shadow: 0 14px 30px -18px rgb(0 0 0 / 0.4);
+    z-index: 5;
+  }
+  .docs-side[data-open='true'] .docs-side-list {
+    display: block;
   }
   .docs-main {
     padding: 24px 20px 80px;

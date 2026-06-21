@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { prettifyTag, type TagGroup } from '../_lib/openapi';
+import { DocsSide } from './docs-side';
 
 export function RestSidebar({ groups }: { groups: TagGroup[] }) {
   const [activeId, setActiveId] = useState<string>('');
@@ -14,7 +15,7 @@ export function RestSidebar({ groups }: { groups: TagGroup[] }) {
   }, []);
 
   return (
-    <aside className="docs-side">
+    <DocsSide label="Browse endpoints">
       {groups.map((g) => (
         <div className="group" key={g.tag}>
           <div className="group-h">
@@ -34,6 +35,6 @@ export function RestSidebar({ groups }: { groups: TagGroup[] }) {
           ))}
         </div>
       ))}
-    </aside>
+    </DocsSide>
   );
 }

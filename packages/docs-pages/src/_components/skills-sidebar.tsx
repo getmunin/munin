@@ -2,11 +2,12 @@
 
 import { Link, usePathname } from '../i18n-navigation';
 import type { Skill } from '../_lib/skills';
+import { DocsSide } from './docs-side';
 
 export function SkillsSidebar({ groups }: { groups: Array<{ module: string; skills: Skill[] }> }) {
   const pathname = usePathname() ?? '';
   return (
-    <aside className="docs-side">
+    <DocsSide label="Browse skills">
       {groups.map((g) => (
         <div className="group" key={g.module}>
           <div className="group-h">
@@ -22,6 +23,6 @@ export function SkillsSidebar({ groups }: { groups: Array<{ module: string; skil
           })}
         </div>
       ))}
-    </aside>
+    </DocsSide>
   );
 }

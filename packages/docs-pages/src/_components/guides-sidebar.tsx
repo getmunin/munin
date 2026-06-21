@@ -2,12 +2,13 @@
 
 import { Link, usePathname } from '../i18n-navigation';
 import { GUIDE_GROUPS, GUIDES, guidesByCategory } from '../guides/_lib/guides';
+import { DocsSide } from './docs-side';
 
 export function GuidesSidebar() {
   const pathname = usePathname() ?? '';
   const byCategory = guidesByCategory();
   return (
-    <aside className="docs-side">
+    <DocsSide label="Browse guides">
       <div className="group">
         <div className="group-h">
           All <span className="ct">· {GUIDES.length}</span>
@@ -35,6 +36,6 @@ export function GuidesSidebar() {
           </div>
         );
       })}
-    </aside>
+    </DocsSide>
   );
 }

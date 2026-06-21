@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { McpTool } from '../_lib/mcp';
+import { DocsSide } from './docs-side';
 
 export function McpSidebar({ admin, selfService }: { admin: McpTool[]; selfService: McpTool[] }) {
   const [activeId, setActiveId] = useState<string>('');
@@ -14,7 +15,7 @@ export function McpSidebar({ admin, selfService }: { admin: McpTool[]; selfServi
   }, []);
 
   return (
-    <aside className="docs-side">
+    <DocsSide label="Browse tools">
       <div className="group">
         <div className="group-h">
           Admin tools <span className="ct">· {admin.length}</span>
@@ -35,6 +36,6 @@ export function McpSidebar({ admin, selfService }: { admin: McpTool[]; selfServi
           </a>
         ))}
       </div>
-    </aside>
+    </DocsSide>
   );
 }

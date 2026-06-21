@@ -21,11 +21,11 @@ import {
   presetForUrl,
   type AgentConfigDto,
   type ListModelsResult,
-  type PresetId,
+  type ProviderPreset,
   type UpsertBody,
 } from './types';
 
-const PROVIDER_ICONS: Record<PresetId, ComponentType<SVGProps<SVGSVGElement>>> = {
+const PROVIDER_ICONS: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   openrouter: OpenRouterIcon,
   anthropic: AnthropicIcon,
   openai: OpenAiIcon,
@@ -34,14 +34,20 @@ const PROVIDER_ICONS: Record<PresetId, ComponentType<SVGProps<SVGSVGElement>>> =
 
 interface ProviderCardProps {
   config: AgentConfigDto;
+  extraPresets?: ProviderPreset[];
+  defaultPresetId?: string;
   onSaved?: (updated: AgentConfigDto, models: ListModelsResult) => void;
 }
 
-export function ProviderCard({ config, onSaved }: ProviderCardProps) {
+export function ProviderCard({ config, extraPresets, defaultPresetId, onSaved }: ProviderCardProps) {
   const t = useTranslations('agentSetup');
   const translate = useTranslateError();
 
-  const [preset, setPreset] = useState<PresetId>(presetForUrl(config.providerBaseUrl));
+  const presets: ProviderPreset[] = [...(extraPresets ?? []), ...PROVIDER_PRESETS];
+  const initialPreset =
+    !config.providerApiKeySet && defaultPresetId ? defaultPresetId : presetForUrl(config.providerBaseUrl);
+
+  const [preset, setPreset] = useState<string>(initialPreset);
   const [providerBaseUrl, setProviderBaseUrl] = useState(config.providerBaseUrl);
   const [apiKey, setApiKey] = useState('');
   const [keyDirty, setKeyDirty] = useState(false);
@@ -49,10 +55,32 @@ export function ProviderCard({ config, onSaved }: ProviderCardProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function selectPreset(id: PresetId) {
+  const selected = presets.find((p) => p.id === preset);
+  const isManaged = selected?.managed ?? false;
+
+  function selectPreset(id: string) {
     setPreset(id);
-    const match = PROVIDER_PRESETS.find((p) => p.id === id);
-    if (match && id !== 'custom') setProviderBaseUrl(match.url);
+    const match = presets.find((p) => p.id === id);
+    if (match && !match.managed && id !== 'custom') setProviderBaseUrl(match.url);
+  }
+
+  async function saveManaged() {
+    setError(null);
+    setMessage(null);
+    setTesting(true);
+    try {
+      const updated = await api<AgentConfigDto>('/v1/agent-config', {
+        method: 'PUT',
+        body: JSON.stringify({ providerApiKey: null } satisfies UpsertBody),
+      });
+      setApiKey('');
+      setKeyDirty(false);
+      onSaved?.(updated, { supported: false, models: [] });
+    } catch (err) {
+      setError(translate(err) || t('errors.test'));
+    } finally {
+      setTesting(false);
+    }
   }
 
   async function saveAndTest() {
@@ -94,8 +122,8 @@ export function ProviderCard({ config, onSaved }: ProviderCardProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {PROVIDER_PRESETS.map((p) => {
-            const Icon = PROVIDER_ICONS[p.id];
+          {presets.map((p) => {
+            const Icon = PROVIDER_ICONS[p.id] ?? Plug;
             return (
               <button
                 key={p.id}
@@ -114,39 +142,55 @@ export function ProviderCard({ config, onSaved }: ProviderCardProps) {
             );
           })}
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="providerBaseUrl">{t('provider.urlLabel')}</Label>
-          <Input
-            id="providerBaseUrl"
-            value={providerBaseUrl}
-            onChange={(e) => {
-              setProviderBaseUrl(e.target.value);
-              setPreset('custom');
-            }}
-            placeholder="https://..."
-          />
-        </div>
-        <div className="space-y-1.5 pt-2">
-          <Label htmlFor="apiKey">{t('apiKey.label')}</Label>
-          <Input
-            id="apiKey"
-            type="password"
-            value={apiKey}
-            placeholder={
-              config.providerApiKeySet ? t('apiKey.placeholderStored') : t('apiKey.ledeMissing')
-            }
-            onChange={(e) => {
-              setApiKey(e.target.value);
-              setKeyDirty(true);
-            }}
-          />
-        </div>
-        <div className="flex items-center gap-3">
-          <Button type="button" onClick={() => void saveAndTest()} disabled={saveDisabled}>
-            {testing ? t('connection.testing') : t('connection.test')}
-          </Button>
-          {message && <span className="text-sm text-muted-foreground">{message}</span>}
-        </div>
+        {isManaged ? (
+          <>
+            {selected?.description && (
+              <div className="text-sm text-muted-foreground">{selected.description}</div>
+            )}
+            <div className="flex items-center gap-3">
+              <Button type="button" onClick={() => void saveManaged()} disabled={testing}>
+                {testing ? t('connection.testing') : t('provider.useManaged')}
+              </Button>
+              {message && <span className="text-sm text-muted-foreground">{message}</span>}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="providerBaseUrl">{t('provider.urlLabel')}</Label>
+              <Input
+                id="providerBaseUrl"
+                value={providerBaseUrl}
+                onChange={(e) => {
+                  setProviderBaseUrl(e.target.value);
+                  setPreset('custom');
+                }}
+                placeholder="https://..."
+              />
+            </div>
+            <div className="space-y-1.5 pt-2">
+              <Label htmlFor="apiKey">{t('apiKey.label')}</Label>
+              <Input
+                id="apiKey"
+                type="password"
+                value={apiKey}
+                placeholder={
+                  config.providerApiKeySet ? t('apiKey.placeholderStored') : t('apiKey.ledeMissing')
+                }
+                onChange={(e) => {
+                  setApiKey(e.target.value);
+                  setKeyDirty(true);
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Button type="button" onClick={() => void saveAndTest()} disabled={saveDisabled}>
+                {testing ? t('connection.testing') : t('connection.test')}
+              </Button>
+              {message && <span className="text-sm text-muted-foreground">{message}</span>}
+            </div>
+          </>
+        )}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </CardContent>
     </Card>

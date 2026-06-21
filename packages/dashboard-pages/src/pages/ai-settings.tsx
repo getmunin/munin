@@ -1,7 +1,9 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Hero } from '@getmunin/ui';
+import type { ProviderPreset } from '../components/agent-config/types';
 import { useAgentConfig } from '../components/agent-config/use-agent-config';
 import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
@@ -13,7 +15,13 @@ import { useSkills } from '../components/assistants/use-skills';
 import { LoadFailed } from '../components/load-failed';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 
-export function AiSettingsPage() {
+interface AiSettingsPageProps {
+  extraPresets?: ProviderPreset[];
+  defaultPresetId?: string;
+  slot?: ReactNode;
+}
+
+export function AiSettingsPage({ extraPresets, defaultPresetId, slot }: AiSettingsPageProps = {}) {
   const t = useTranslations('agentSetup');
   const tList = useTranslations('assistants.list');
   const tCommon = useTranslations('common');
@@ -54,6 +62,8 @@ export function AiSettingsPage() {
         lede={t('settings.lede')}
       />
 
+      {slot}
+
       {config === null && (
         <p className="mt-6 text-sm text-muted-foreground">{tCommon('loading')}</p>
       )}
@@ -76,12 +86,16 @@ export function AiSettingsPage() {
             <div className="space-y-6">
               <ProviderCard
                 config={config}
+                extraPresets={extraPresets}
+                defaultPresetId={defaultPresetId}
                 onSaved={(updated, result) => {
                   setConfig(updated);
                   setModels(result);
                 }}
               />
-              <ModelsCard config={config} models={models} onSaved={setConfig} />
+              {config.providerApiKeySet && (
+                <ModelsCard config={config} models={models} onSaved={setConfig} />
+              )}
             </div>
           </section>
 

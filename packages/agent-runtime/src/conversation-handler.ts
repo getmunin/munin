@@ -46,9 +46,11 @@ export interface ConversationHandlerDeps {
     delay: (ms: number, signal: AbortSignal) => Promise<void>;
   };
   provider?: Provider;
+  beforeGenerate?: (args: { trigger: 'chat' }) => Promise<{ allowed: boolean; reason?: string }>;
   onTyping?: (conversationId: string, isTyping: boolean) => void;
   onProviderError?: (code: ProviderErrorCode, message: string) => void;
   onProviderSuccess?: () => void;
+  onGenerateBlocked?: (reason?: string) => void;
 }
 
 export interface IncomingMessage {
@@ -217,6 +219,15 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       ? `${baseSystem}${companyBlock}\n\n${channelDescriptor}${conversationContext}`
       : `${baseSystem}${companyBlock}${conversationContext}`;
     const systemPrompt = `${namePreamble}${systemBody}`;
+
+    if (deps.beforeGenerate) {
+      const verdict = await deps.beforeGenerate({ trigger: 'chat' });
+      if (!verdict.allowed) {
+        log.info(`${conversationId} reply suppressed: ${verdict.reason ?? 'gate denied'}`);
+        deps.onGenerateBlocked?.(verdict.reason);
+        return;
+      }
+    }
 
     let lastError: Error | null = null;
     let providerErrorCode: ProviderErrorCode | null = null;

@@ -8,6 +8,7 @@ import {
   type CuratorJob,
   type McpToolHandle,
   type McpToolResult,
+  type Provider,
   type ProviderErrorClassification,
   type SkillPassResult,
 } from '@getmunin/agent-runtime';
@@ -28,6 +29,7 @@ export interface WebImportHandlerOpts {
   providerBaseUrl: string;
   providerApiKey: string;
   model: string;
+  provider?: Provider;
   logger: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -81,6 +83,7 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
   if (crawl.pages.length > 0 && synthesizeCompanyProfile) {
     const outcome = await generateCompanyProfile({
       provider: { baseUrl: opts.providerBaseUrl, apiKey: opts.providerApiKey },
+      providerImpl: opts.provider,
       model: opts.model,
       siteTitle: crawl.siteTitle,
       siteUrl: crawl.siteUrl,
@@ -383,6 +386,7 @@ type GenerateProfileOutcome =
 
 async function generateCompanyProfile(opts: {
   provider: { baseUrl: string; apiKey: string };
+  providerImpl?: Provider;
   model: string;
   siteTitle: string | null;
   siteUrl: string;
@@ -404,7 +408,8 @@ async function generateCompanyProfile(opts: {
   const userPrompt = buildProfileUserPrompt(opts.siteTitle, opts.siteUrl, opts.pages);
 
   try {
-    const response = await openAiCompatibleProvider({
+    const callProvider = opts.providerImpl ?? openAiCompatibleProvider;
+    const response = await callProvider({
       config: {
         provider: { baseUrl: opts.provider.baseUrl, apiKey: opts.provider.apiKey },
         model: opts.model,

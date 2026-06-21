@@ -12,13 +12,18 @@ import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
 import { WebsiteImportCard } from '../components/agent-config/website-import-card';
 import { hasOauthAuthorizeParams } from '../auth/post-signin-redirect';
-import type { AgentConfigDto } from '../components/agent-config/types';
+import type { AgentConfigDto, ProviderPreset } from '../components/agent-config/types';
 import { api } from '../api';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 const TOTAL_STEPS = 5;
 
-export function AgentSetupWizard() {
+interface AgentSetupWizardProps {
+  extraPresets?: ProviderPreset[];
+  defaultPresetId?: string;
+}
+
+export function AgentSetupWizard({ extraPresets, defaultPresetId }: AgentSetupWizardProps = {}) {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
   const { config, loadErrorMessage, models, setConfig, setModels } = useAgentConfig();
@@ -99,10 +104,12 @@ export function AgentSetupWizard() {
         {step === 2 && (
           <ProviderCard
             config={config}
+            extraPresets={extraPresets}
+            defaultPresetId={defaultPresetId}
             onSaved={(updated, result) => {
               setConfig(updated);
               setModels(result);
-              setStep(3);
+              setStep(updated.providerApiKeySet ? 3 : 4);
             }}
           />
         )}

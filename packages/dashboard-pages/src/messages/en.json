@@ -1010,6 +1010,7 @@
         "byAgentBreakdown": "By-agent breakdown →",
         "mcpCalls": "MCP calls",
         "apiCalls": "API calls",
+        "aiTokens": "AI tokens",
         "conversations": "Conversations",
         "avgLatency": "Avg latency",
         "avgLatency7d": "Avg latency · 7d",
@@ -1145,7 +1146,8 @@
     "provider": {
       "title": "Provider",
       "lede": "OpenAI-compatible endpoint. OpenRouter offers a single key with access to many providers.",
-      "urlLabel": "Base URL"
+      "urlLabel": "Base URL",
+      "useManaged": "Use this provider"
     },
     "apiKey": {
       "title": "API key",

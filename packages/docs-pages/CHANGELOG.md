@@ -1,5 +1,12 @@
 # @getmunin/docs-pages
 
+## 4.52.1
+
+### Patch Changes
+
+- 2669ca2: Fix the developer-portal docs on mobile. The decorative 320px sidebar-column fill (`.docs-body::before`) was painting an opaque stripe over the article on phones — `:has(.docs-side)` still matched the in-DOM sidebar even though it was `display:none` — leaving content clipped against the right edge. The stripe is now hidden below 880px, and each section's sidebar (REST endpoints, MCP tools, guides, skills) becomes a collapsible "Browse…" dropdown so in-section navigation works on mobile instead of disappearing.
+  - @getmunin/backend-core@4.52.1
+
 ## 4.52.0
 
 ### Patch Changes

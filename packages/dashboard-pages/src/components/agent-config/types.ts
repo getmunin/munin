@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 export interface AgentConfigDto {
   id: string;
   fastModel: string;
@@ -26,6 +28,17 @@ export interface UpsertBody {
   providerApiKey?: string | null;
   fastModel?: string;
   smartModel?: string | null;
+}
+
+export interface ProviderPreset {
+  id: string;
+  name: string;
+  url: string;
+  managed?: boolean;
+  description?: ReactNode;
+  badge?: string;
+  icon?: ReactNode;
+  models?: ModelEntry[];
 }
 
 export const PROVIDER_PRESETS = [

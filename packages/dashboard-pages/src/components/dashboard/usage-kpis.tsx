@@ -14,6 +14,7 @@ interface SummaryTile {
 export interface UsageSummary {
   mcpCalls: SummaryTile;
   apiCalls: SummaryTile;
+  aiTokens: SummaryTile;
   conversations: SummaryTile;
   avgLatencyMs: SummaryTile;
 }
@@ -52,6 +53,13 @@ export function UsageKpis({ summary }: UsageKpisProps) {
           value={summary?.apiCalls.current}
           previous={summary?.apiCalls.previous}
           spark={summary?.apiCalls.sparkline ?? []}
+          format={formatCount}
+        />
+        <Kpi
+          label={t('aiTokens')}
+          value={summary?.aiTokens.current}
+          previous={summary?.aiTokens.previous}
+          spark={summary?.aiTokens.sparkline ?? []}
           format={formatCount}
         />
         <Kpi

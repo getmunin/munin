@@ -1,7 +1,9 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Hero } from '@getmunin/ui';
+import type { ProviderPreset } from '../components/agent-config/types';
 import { useAgentConfig } from '../components/agent-config/use-agent-config';
 import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
@@ -13,7 +15,19 @@ import { useSkills } from '../components/assistants/use-skills';
 import { LoadFailed } from '../components/load-failed';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 
-export function AiSettingsPage() {
+interface AiSettingsPageProps {
+  extraPresets?: ProviderPreset[];
+  defaultPresetId?: string;
+  providerLede?: string;
+  slot?: ReactNode;
+}
+
+export function AiSettingsPage({
+  extraPresets,
+  defaultPresetId,
+  providerLede,
+  slot,
+}: AiSettingsPageProps = {}) {
   const t = useTranslations('agentSetup');
   const tList = useTranslations('assistants.list');
   const tCommon = useTranslations('common');
@@ -46,20 +60,29 @@ export function AiSettingsPage() {
   const aiDrivenSkills = remainingSkills.filter((s) => s.kind === 'skill');
   const scheduledTasks = remainingSkills.filter((s) => s.kind === 'task');
 
+  const managedPreset = (extraPresets ?? []).find((p) => p.managed);
+  const isManaged = !!managedPreset && config != null && !config.providerApiKeySet;
+  const managedModelsResult =
+    isManaged && (managedPreset?.models?.length ?? 0) > 0
+      ? { supported: true, models: managedPreset?.models ?? [] }
+      : null;
+
   return (
-    <>
+    <div className="max-w-3xl space-y-10">
       <Hero
         eyebrow={t('settings.eyebrow')}
         title={t.rich('settings.title', { em: (chunks) => <em>{chunks}</em> })}
         lede={t('settings.lede')}
       />
 
+      {slot}
+
       {config === null && (
-        <p className="mt-6 text-sm text-muted-foreground">{tCommon('loading')}</p>
+        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
       )}
 
       {config && (
-        <div className="mt-8 space-y-10">
+        <div className="space-y-10">
           <section className="space-y-4">
             <SectionHeader title={tList('persona.title')} blurb={tList('persona.blurb')} />
             <div className="space-y-6">
@@ -76,12 +99,20 @@ export function AiSettingsPage() {
             <div className="space-y-6">
               <ProviderCard
                 config={config}
+                extraPresets={extraPresets}
+                defaultPresetId={defaultPresetId}
+                lede={providerLede}
                 onSaved={(updated, result) => {
                   setConfig(updated);
                   setModels(result);
                 }}
               />
-              <ModelsCard config={config} models={models} onSaved={setConfig} />
+              <ModelsCard
+                config={config}
+                models={managedModelsResult ?? models}
+                managed={isManaged}
+                onSaved={setConfig}
+              />
             </div>
           </section>
 
@@ -135,7 +166,7 @@ export function AiSettingsPage() {
           </section>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

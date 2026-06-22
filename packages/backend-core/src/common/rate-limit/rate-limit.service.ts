@@ -24,13 +24,16 @@ const FREE_TIER_LIMITS: OrgLimits = {
   perDay: 1_000,
 };
 
-type Granularity = 'day' | 'month';
+type Granularity = 'minute' | 'day' | 'month';
 
 const BUCKETS = {
   mcp_calls_day: 'day',
   api_calls_day: 'day',
   mcp_calls_month: 'month',
   api_calls_month: 'month',
+  ai_tokens_day: 'day',
+  ai_tokens_month: 'month',
+  ai_generates_min: 'minute',
 } as const satisfies Record<string, Granularity>;
 
 export type Bucket = keyof typeof BUCKETS;
@@ -53,12 +56,12 @@ type BucketCountRow = {
  */
 @Injectable()
 export class RateLimitService {
-  async record(bucket: Bucket): Promise<number> {
+  async record(bucket: Bucket, amount = 1): Promise<number> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor?.orgId;
     if (!orgId) return 0;
     const windowStart = windowStartFor(BUCKETS[bucket], new Date());
-    return this.bumpAndCount(orgId, bucket, windowStart);
+    return this.bumpAndCount(orgId, bucket, windowStart, amount);
   }
 
   async consume(): Promise<void> {
@@ -79,11 +82,16 @@ export class RateLimitService {
     }
   }
 
-  private async bumpAndCount(orgId: string, bucket: Bucket, windowStart: Date): Promise<number> {
+  private async bumpAndCount(
+    orgId: string,
+    bucket: Bucket,
+    windowStart: Date,
+    amount: number,
+  ): Promise<number> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .insert(schema.rateLimitCounters)
-      .values({ orgId, bucket, windowStart, count: 1 })
+      .values({ orgId, bucket, windowStart, count: amount })
       .onConflictDoUpdate({
         target: [
           schema.rateLimitCounters.orgId,
@@ -91,7 +99,7 @@ export class RateLimitService {
           schema.rateLimitCounters.windowStart,
         ],
         set: {
-          count: sql`${schema.rateLimitCounters.count} + 1`,
+          count: sql`${schema.rateLimitCounters.count} + ${amount}`,
         },
       })
       .returning({ count: schema.rateLimitCounters.count });
@@ -140,6 +148,16 @@ export class RateLimitService {
 
 function windowStartFor(granularity: Granularity, now: Date): Date {
   switch (granularity) {
+    case 'minute':
+      return new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+          now.getUTCHours(),
+          now.getUTCMinutes(),
+        ),
+      );
     case 'day':
       return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     case 'month':

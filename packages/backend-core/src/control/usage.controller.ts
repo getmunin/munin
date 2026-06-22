@@ -19,6 +19,7 @@ export interface UsageSummaryTile {
 export interface UsageSummaryDto {
   mcpCalls: UsageSummaryTile & { period: 'month' };
   apiCalls: UsageSummaryTile & { period: 'month' };
+  aiTokens: UsageSummaryTile & { period: 'month' };
   conversations: UsageSummaryTile & { period: 'month' };
   avgLatencyMs: UsageSummaryTile & { period: '7d' };
 }
@@ -83,9 +84,10 @@ export class UsageController {
 
     const monthSparkStart = addDays(startOfDay(now), -29);
 
-    const [mcp, api, conv, lat] = await Promise.all([
+    const [mcp, api, aiTokens, conv, lat] = await Promise.all([
       this.mcpCallsTile(orgId, monthStart, prevMonthStart, monthSparkStart, now),
       this.apiCallsTile(orgId, monthStart, prevMonthStart, monthSparkStart, now),
+      this.dailyCounterTile(orgId, 'ai_tokens_day', monthStart, prevMonthStart, monthSparkStart, now),
       this.conversationsTile(orgId, monthStart, prevMonthStart, monthSparkStart, now),
       this.latencyTile(orgId, sevenAgo, fourteenAgo, now),
     ]);
@@ -93,6 +95,7 @@ export class UsageController {
     return {
       mcpCalls: { ...mcp, period: 'month' },
       apiCalls: { ...api, period: 'month' },
+      aiTokens: { ...aiTokens, period: 'month' },
       conversations: { ...conv, period: 'month' },
       avgLatencyMs: { ...lat, period: '7d' },
     };
@@ -147,34 +150,29 @@ export class UsageController {
     return { rangeDays: days, agents: items };
   }
 
-  private async mcpCallsTile(
+  private mcpCallsTile(
     orgId: string,
     monthStart: Date,
     prevMonthStart: Date,
     sparkStart: Date,
     now: Date,
   ): Promise<UsageSummaryTile> {
-    const ctx = getCurrentContext();
-    const rows = await ctx.db.execute<DailyBigIntRow>(sql`
-      SELECT to_char(date_trunc('day', window_start AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
-             sum(count)::bigint AS value
-      FROM rate_limit_counters
-      WHERE org_id = ${orgId}
-        AND bucket = 'mcp_calls_day'
-        AND window_start >= ${prevMonthStart.toISOString()}::timestamptz
-      GROUP BY 1
-    `);
-    const byDay = mapDailyRows(rows.map((r) => ({ day: r.day, value: Number(r.value) || 0 })));
-    const monthKey = toUtcDateKey(monthStart);
-    return {
-      current: sumWhere(byDay, (k) => k >= monthKey),
-      previous: sumWhere(byDay, (k) => k < monthKey),
-      sparkline: dailySeries(byDay, sparkStart, now),
-    };
+    return this.dailyCounterTile(orgId, 'mcp_calls_day', monthStart, prevMonthStart, sparkStart, now);
   }
 
-  private async apiCallsTile(
+  private apiCallsTile(
     orgId: string,
+    monthStart: Date,
+    prevMonthStart: Date,
+    sparkStart: Date,
+    now: Date,
+  ): Promise<UsageSummaryTile> {
+    return this.dailyCounterTile(orgId, 'api_calls_day', monthStart, prevMonthStart, sparkStart, now);
+  }
+
+  private async dailyCounterTile(
+    orgId: string,
+    bucket: string,
     monthStart: Date,
     prevMonthStart: Date,
     sparkStart: Date,
@@ -186,7 +184,7 @@ export class UsageController {
              sum(count)::bigint AS value
       FROM rate_limit_counters
       WHERE org_id = ${orgId}
-        AND bucket = 'api_calls_day'
+        AND bucket = ${bucket}
         AND window_start >= ${prevMonthStart.toISOString()}::timestamptz
       GROUP BY 1
     `);

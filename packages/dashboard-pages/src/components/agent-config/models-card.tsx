@@ -24,13 +24,21 @@ import {
 interface ModelsCardProps {
   config: AgentConfigDto;
   models: ListModelsResult | null;
+  managed?: boolean;
   saveLabel?: string;
   /** Extra action rendered after the Save button (e.g., wizard's Back). */
   extraActions?: ReactNode;
   onSaved?: (updated: AgentConfigDto) => void;
 }
 
-export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }: ModelsCardProps) {
+export function ModelsCard({
+  config,
+  models,
+  managed,
+  saveLabel,
+  extraActions,
+  onSaved,
+}: ModelsCardProps) {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
@@ -71,7 +79,8 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
     }
   }
 
-  const canSave = config.providerApiKeySet && fastModel.length > 0 && !saving;
+  const credentialed = config.providerApiKeySet || managed === true;
+  const canSave = credentialed && fastModel.length > 0 && !saving;
   const label = saveLabel ?? tCommon('save');
 
   return (
@@ -81,7 +90,7 @@ export function ModelsCard({ config, models, saveLabel, extraActions, onSaved }:
         <CardDescription>{t('models.smartHint')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!config.providerApiKeySet ? (
+        {!credentialed ? (
           <p className="text-sm text-muted-foreground">{t('models.needKey')}</p>
         ) : models?.supported ? (
           <>

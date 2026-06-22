@@ -12,13 +12,23 @@ import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
 import { WebsiteImportCard } from '../components/agent-config/website-import-card';
 import { hasOauthAuthorizeParams } from '../auth/post-signin-redirect';
-import type { AgentConfigDto } from '../components/agent-config/types';
+import type { AgentConfigDto, ProviderPreset } from '../components/agent-config/types';
 import { api } from '../api';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 const TOTAL_STEPS = 5;
 
-export function AgentSetupWizard() {
+interface AgentSetupWizardProps {
+  extraPresets?: ProviderPreset[];
+  defaultPresetId?: string;
+  providerLede?: string;
+}
+
+export function AgentSetupWizard({
+  extraPresets,
+  defaultPresetId,
+  providerLede,
+}: AgentSetupWizardProps = {}) {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
   const { config, loadErrorMessage, models, setConfig, setModels } = useAgentConfig();
@@ -58,6 +68,13 @@ export function AgentSetupWizard() {
       </main>
     );
   }
+
+  const managedPreset = (extraPresets ?? []).find((p) => p.managed);
+  const isManaged = !!managedPreset && !config.providerApiKeySet;
+  const managedModelsResult =
+    isManaged && (managedPreset?.models?.length ?? 0) > 0
+      ? { supported: true, models: managedPreset?.models ?? [] }
+      : null;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-12">
@@ -99,6 +116,9 @@ export function AgentSetupWizard() {
         {step === 2 && (
           <ProviderCard
             config={config}
+            extraPresets={extraPresets}
+            defaultPresetId={defaultPresetId}
+            lede={providerLede}
             onSaved={(updated, result) => {
               setConfig(updated);
               setModels(result);
@@ -110,7 +130,8 @@ export function AgentSetupWizard() {
         {step === 3 && (
           <ModelsCard
             config={config}
-            models={models}
+            models={managedModelsResult ?? models}
+            managed={isManaged}
             saveLabel={t('wizard.saveAndContinue')}
             extraActions={
               <Button type="button" variant="outline" onClick={() => setStep(2)}>

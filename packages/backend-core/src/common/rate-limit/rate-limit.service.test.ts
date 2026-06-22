@@ -117,6 +117,13 @@ const skipReason = TEST_URL
     expect(u.day.used).toBe(102);
   });
 
+  it('record increments by an explicit amount', async () => {
+    const c1 = await run(() => svc.record('ai_tokens_month', 500));
+    const c2 = await run(() => svc.record('ai_tokens_month', 250));
+    expect(c1).toBe(500);
+    expect(c2).toBe(750);
+  });
+
   it('different orgs have isolated counters', async () => {
     const [otherOrg] = await db
       .insert(schema.orgs)

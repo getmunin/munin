@@ -34,6 +34,7 @@ import {
   type HandlerConfig,
   type MuninRestClient,
   type PromptResolver,
+  type Provider,
   type SkillPassResult,
   type SkillReader,
 } from '@getmunin/agent-runtime';
@@ -56,6 +57,7 @@ interface TaskHandlerContext {
   providerBaseUrl: string;
   providerApiKey: string;
   model: string;
+  provider?: Provider;
   logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
 }
 
@@ -77,8 +79,32 @@ const DEFAULT_END_USER_AGENT_SCOPES: readonly string[] = [
   'crm:write',
 ];
 
+export type GenerateTrigger = 'chat' | 'scheduled';
+
+export interface ResolvedProviderAuth {
+  apiKey: string;
+  baseUrl?: string;
+  model?: string;
+  managed: boolean;
+}
+
 export interface AgentHostRunnerOptions {
   databaseUrl?: string;
+  resolveProviderAuth?: (
+    orgId: string,
+    config: AgentConfigRow,
+  ) => Promise<ResolvedProviderAuth | null>;
+  createProvider?: (args: {
+    orgId: string;
+    config: AgentConfigRow;
+    managed: boolean;
+  }) => Provider;
+  beforeGenerate?: (args: {
+    orgId: string;
+    config: AgentConfigRow;
+    managed: boolean;
+    trigger: GenerateTrigger;
+  }) => Promise<{ allowed: boolean; reason?: string }>;
 }
 
 interface PerConfigRunner {
@@ -104,6 +130,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   private stopped = false;
   private readonly holderId: string;
   private readonly lockManager: ReplicaLockManager | null;
+  private readonly options?: AgentHostRunnerOptions;
 
   constructor(
     @Inject(AGENT_CONFIG_REPOSITORY) private readonly repo: AgentConfigRepository,
@@ -116,6 +143,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     @Inject(AgentHealthService) private readonly health: AgentHealthService,
     @Optional() @Inject('AGENT_HOST_RUNNER_OPTIONS') options?: AgentHostRunnerOptions,
   ) {
+    this.options = options;
     this.holderId =
       process.env.MUNIN_AGENT_HOLDER_ID ??
       `agent-host-${hostname()}-${randomUUID().slice(0, 8)}`;
@@ -265,17 +293,35 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     }
   }
 
+  private async defaultResolveProviderAuth(id: string): Promise<ResolvedProviderAuth | null> {
+    const apiKey = await this.repo.readDecryptedProviderKey(id);
+    return apiKey ? { apiKey, managed: false } : null;
+  }
+
   private async spawnRunner(id: string): Promise<PerConfigRunner | null> {
     const config = await runWithServiceContext(this.db, id, () => this.repo.read(id));
     const orgId = await runWithServiceContext(this.db, id, () => this.repo.resolveOrgId(id));
-    const providerApiKey = await runWithServiceContext(this.db, id, () =>
-      this.repo.readDecryptedProviderKey(id),
+    const auth = await runWithServiceContext(
+      this.db,
+      id,
+      () =>
+        this.options?.resolveProviderAuth
+          ? this.options.resolveProviderAuth(orgId, config)
+          : this.defaultResolveProviderAuth(id),
+      { orgId },
     );
 
-    if (!providerApiKey) {
-      this.logger.warn(`${id}: enabled but no LLM provider API key`);
+    if (!auth) {
+      this.logger.warn(`${id}: enabled but no LLM provider available`);
       return null;
     }
+
+    const providerApiKey = auth.apiKey;
+    const providerBaseUrl = auth.baseUrl ?? config.providerBaseUrl;
+    const fastModel = auth.model ?? config.fastModel;
+    const smartModel = auth.model ?? config.smartModel ?? config.fastModel;
+    const managed = auth.managed;
+    const provider = this.options?.createProvider?.({ orgId, config, managed });
 
     const rest = this.restClientFactory.forOrg(orgId);
 
@@ -292,15 +338,26 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     });
 
     const handlerConfig: HandlerConfig = {
-      providerBaseUrl: config.providerBaseUrl,
+      providerBaseUrl,
       providerApiKey,
-      model: config.fastModel,
+      model: fastModel,
       maxToolIterations: config.maxToolIterations,
       maxHistoryChars: config.maxHistoryChars,
       debounceMs: config.debounceMs,
     };
 
-    const curatorWorker = this.buildCuratorWorker({ id, orgId, config, providerApiKey, rest });
+    const curatorWorker = this.buildCuratorWorker({
+      id,
+      orgId,
+      config,
+      rest,
+      providerBaseUrl,
+      providerApiKey,
+      fastModel,
+      smartModel,
+      provider,
+      managed,
+    });
 
     const handlerRef: { current: ConversationHandler | null } = { current: null };
     const realtime = this.eventBus.subscribe(
@@ -346,6 +403,17 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             scopes: DEFAULT_END_USER_AGENT_SCOPES,
           }),
         ),
+      provider,
+      beforeGenerate: this.options?.beforeGenerate
+        ? () =>
+            runWithServiceContext(
+              this.db,
+              id,
+              () =>
+                this.options!.beforeGenerate!({ orgId, config, managed, trigger: 'chat' }),
+              { orgId },
+            )
+        : undefined,
       holderId: this.holderId,
       logger: this.scopedLogger(id, 'chat'),
       onTyping: (conversationId, isTyping) =>
@@ -377,8 +445,13 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     id: string;
     orgId: string;
     config: AgentConfigRow;
-    providerApiKey: string;
     rest: MuninRestClient;
+    providerBaseUrl: string;
+    providerApiKey: string;
+    fastModel: string;
+    smartModel: string;
+    provider?: Provider;
+    managed: boolean;
   }): CuratorWorker {
     const log = this.scopedLogger(opts.id, 'curator');
     const inFlight = new Set<Promise<unknown>>();
@@ -392,8 +465,8 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       return p;
     };
 
-    const smartModel = opts.config.smartModel ?? opts.config.fastModel;
-    const fastModel = opts.config.fastModel;
+    const smartModel = opts.smartModel;
+    const fastModel = opts.fastModel;
 
     const executeOne = async (job: CuratorJob): Promise<void> => {
       log.info(`running ${job.jobUri} for ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
@@ -421,9 +494,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         const ctx: TaskHandlerContext = {
           job,
           mcp: jobMcp,
-          providerBaseUrl: opts.config.providerBaseUrl,
+          providerBaseUrl: opts.providerBaseUrl,
           providerApiKey: opts.providerApiKey,
           model,
+          provider: opts.provider,
           logger: log,
         };
         const kind = jobKindOf(job.jobUri);
@@ -439,7 +513,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           result = await runSkillPass({
             mcp: jobMcp,
             skills,
-            providerBaseUrl: opts.config.providerBaseUrl,
+            providerBaseUrl: opts.providerBaseUrl,
             providerApiKey: opts.providerApiKey,
             model,
             skillUri: job.jobUri,
@@ -447,6 +521,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             assistantName: job.assistantName,
             maxToolIterations: 24,
             maxHistoryChars: opts.config.maxHistoryChars,
+            providerImpl: opts.provider,
             allowedToolPrefixes: prefixes ? [...prefixes] : undefined,
             logger: log,
           });
@@ -484,7 +559,8 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       const retryable =
         result.skipped !== 'skill_missing' &&
         result.skipped !== 'no_admin_key' &&
-        result.skipped !== 'no_provider_key';
+        result.skipped !== 'no_provider_key' &&
+        result.skipped !== 'quota_exceeded';
       log.warn(`${job.id} skipped: ${result.skipped}${result.error ? ` (${result.error})` : ''}`);
       const failBody: { error: string; retryable: boolean; code?: string; failedStep?: string } = {
         error: `${result.skipped}${result.error ? `: ${result.error}` : ''}`,
@@ -508,6 +584,27 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
     const pollOnce = async (): Promise<void> => {
       if (stopped) return;
+      if (this.options?.beforeGenerate) {
+        const verdict = await runWithServiceContext(
+          this.db,
+          opts.id,
+          () =>
+            this.options!.beforeGenerate!({
+              orgId: opts.orgId,
+              config: opts.config,
+              managed: opts.managed,
+              trigger: 'scheduled',
+            }),
+          { orgId: opts.orgId },
+        ).catch((err): { allowed: boolean; reason?: string } => {
+          log.warn(`beforeGenerate failed, proceeding: ${describe(err)}`);
+          return { allowed: true };
+        });
+        if (!verdict.allowed) {
+          log.info(`scheduled work suppressed: ${verdict.reason ?? 'gate denied'}`);
+          return;
+        }
+      }
       let jobs: CuratorJob[];
       try {
         jobs = await opts.rest.claimCuratorJobs({

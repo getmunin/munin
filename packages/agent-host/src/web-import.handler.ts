@@ -8,6 +8,7 @@ import {
   type CuratorJob,
   type McpToolHandle,
   type McpToolResult,
+  type Provider,
   type ProviderErrorClassification,
   type SkillPassResult,
 } from '@getmunin/agent-runtime';
@@ -28,6 +29,7 @@ export interface WebImportHandlerOpts {
   providerBaseUrl: string;
   providerApiKey: string;
   model: string;
+  provider?: Provider;
   logger: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -77,10 +79,11 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
   const reconcile = payload?.reconcile !== false;
 
   let profileTokens = 0;
-  let providerError: ProviderErrorClassification | null = null;
+  let profileSkipped = false;
   if (crawl.pages.length > 0 && synthesizeCompanyProfile) {
     const outcome = await generateCompanyProfile({
       provider: { baseUrl: opts.providerBaseUrl, apiKey: opts.providerApiKey },
+      providerImpl: opts.provider,
       model: opts.model,
       siteTitle: crawl.siteTitle,
       siteUrl: crawl.siteUrl,
@@ -92,18 +95,13 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
       const ok = await upsertProfileDocument(mcp, spaceId, outcome.profile.markdown, opts.logger);
       if (ok) created++;
     } else if (outcome.providerError) {
-      providerError = outcome.providerError;
+      profileSkipped = true;
+      opts.logger.warn(
+        `company profile skipped for ${crawl.siteUrl} — LLM provider error ` +
+          `(${outcome.providerError.code}): ${outcome.providerError.message}. ` +
+          `Imported the pages without it; check the agent's provider credentials.`,
+      );
     }
-  }
-
-  if (providerError) {
-    return {
-      ok: false,
-      skipped: 'provider_error',
-      code: providerError.code,
-      error: providerError.message,
-      failedStep: 'generate_company_profile',
-    };
   }
 
   let pruned = 0;
@@ -112,7 +110,8 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
   }
 
   const prunedText = pruned > 0 ? ` Pruned ${pruned} document(s) no longer on the site.` : '';
-  const replyText = `Imported ${created} document(s) from ${crawl.siteUrl}; ${crawl.skipped.length} URL(s) skipped.${prunedText}`;
+  const profileText = profileSkipped ? ' Company profile was skipped (LLM provider error).' : '';
+  const replyText = `Imported ${created} document(s) from ${crawl.siteUrl}; ${crawl.skipped.length} URL(s) skipped.${prunedText}${profileText}`;
   return {
     ok: true,
     toolCalls: created + pruned,
@@ -383,6 +382,7 @@ type GenerateProfileOutcome =
 
 async function generateCompanyProfile(opts: {
   provider: { baseUrl: string; apiKey: string };
+  providerImpl?: Provider;
   model: string;
   siteTitle: string | null;
   siteUrl: string;
@@ -404,7 +404,8 @@ async function generateCompanyProfile(opts: {
   const userPrompt = buildProfileUserPrompt(opts.siteTitle, opts.siteUrl, opts.pages);
 
   try {
-    const response = await openAiCompatibleProvider({
+    const callProvider = opts.providerImpl ?? openAiCompatibleProvider;
+    const response = await callProvider({
       config: {
         provider: { baseUrl: opts.provider.baseUrl, apiKey: opts.provider.apiKey },
         model: opts.model,

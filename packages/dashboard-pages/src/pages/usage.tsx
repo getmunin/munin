@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useRealtime } from '../realtime';
@@ -18,6 +18,7 @@ interface SummaryTile {
 interface UsageSummaryDto {
   mcpCalls: SummaryTile & { period: 'month' };
   apiCalls: SummaryTile & { period: 'month' };
+  aiTokens: SummaryTile & { period: 'month' };
   conversations: SummaryTile & { period: 'month' };
   avgLatencyMs: SummaryTile & { period: '7d' };
 }
@@ -35,7 +36,7 @@ interface UsageByAgentDto {
   agents: AgentUsageDto[];
 }
 
-export function UsagePage() {
+export function UsagePage({ slot }: { slot?: ReactNode } = {}) {
   const t = useTranslations('dashboard.usage');
   const [summary, setSummary] = useState<UsageSummaryDto | null>(null);
   const [byAgent, setByAgent] = useState<UsageByAgentDto | null>(null);
@@ -76,7 +77,9 @@ export function UsagePage() {
         lede={t('subtitle')}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px bg-rule-soft border-[0.5px] border-rule-soft dark:bg-rule-on-dark dark:border-rule-on-dark">
+      {slot}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 border-l-[0.5px] border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
         <Tile
           label={t('tiles.mcpCalls')}
           period={t('tiles.thisMonth')}
@@ -88,6 +91,13 @@ export function UsagePage() {
           label={t('tiles.apiCalls')}
           period={t('tiles.thisMonth')}
           tile={summary?.apiCalls}
+          format={formatCount}
+          mode="count"
+        />
+        <Tile
+          label={t('tiles.aiTokens')}
+          period={t('tiles.thisMonth')}
+          tile={summary?.aiTokens}
           format={formatCount}
           mode="count"
         />
@@ -129,7 +139,7 @@ function Tile({
   const delta = useMemo(() => computeDelta(tile, mode), [tile, mode]);
 
   return (
-    <div className="bg-paper dark:bg-card p-6 flex flex-col gap-4 min-h-[180px]">
+    <div className="bg-paper dark:bg-card p-6 flex flex-col gap-4 min-h-[180px] border-r-[0.5px] border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
       <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
         {label} · {period}
       </p>

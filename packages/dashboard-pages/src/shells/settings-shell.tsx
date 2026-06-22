@@ -42,7 +42,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
   }, [pathname]);
 
   if (loading || !isOwnerOrAdmin(role)) {
-    return <PageSpinner />;
+    return <PageSpinner className="min-h-screen bg-bone dark:bg-background" />;
   }
 
   const signOut = () => {

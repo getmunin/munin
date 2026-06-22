@@ -105,7 +105,7 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
   }, [isPending, session]);
 
   if (isPending || !session) {
-    return <PageSpinner className="min-h-screen bg-bone dark:bg-background" />;
+    return <PageSpinner className="min-h-screen bg-background" />;
   }
 
   if (!clientId || !oauthQuery) {
@@ -143,7 +143,7 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-bone dark:bg-background">
+    <div className="min-h-screen bg-background">
       <main className="mx-auto flex w-full max-w-[720px] flex-col px-6 py-12 sm:py-16">
         <EditorialHeader
           flow={flow}

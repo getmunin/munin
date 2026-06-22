@@ -482,6 +482,26 @@ describe('ui: composer', () => {
     expect(onTypingIntent).toHaveBeenCalledWith('stopped');
   });
 
+  it('restores focus to the textarea after a send completes', () => {
+    const ta = $<HTMLTextAreaElement>('textarea');
+    ta.focus();
+    controller!.setSending(true);
+    expect(ta.disabled).toBe(true);
+    controller!.setSending(false);
+    expect(ta.disabled).toBe(false);
+    expect(shadowRoot().activeElement).toBe(ta);
+  });
+
+  it('does not refocus the textarea while still disconnected', () => {
+    const ta = $<HTMLTextAreaElement>('textarea');
+    controller!.setConnectionState('reconnecting');
+    const focusSpy = vi.spyOn(ta, 'focus');
+    controller!.setSending(true);
+    controller!.setSending(false);
+    expect(ta.disabled).toBe(true);
+    expect(focusSpy).not.toHaveBeenCalled();
+  });
+
   it('sends on Enter, not on Shift+Enter', () => {
     setText('hi');
     const ta = $<HTMLTextAreaElement>('textarea');

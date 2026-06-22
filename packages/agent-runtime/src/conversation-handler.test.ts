@@ -563,4 +563,68 @@ describe('createConversationHandler', () => {
 
     expect(captured[0]).toMatch(/^JUST_BASE\n\n\[Conversation context\]/);
   });
+
+  it('proceeds with the reply when beforeGenerate throws (fail-open like the curator)', async () => {
+    const rest = buildRest();
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+
+    const stubProvider: Provider = () =>
+      Promise.resolve({
+        message: { role: 'assistant', content: 'hi' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+
+    const onGenerateBlocked = vi.fn();
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+      beforeGenerate: () => Promise.reject(new Error('quota check unavailable')),
+      onGenerateBlocked,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(onGenerateBlocked).not.toHaveBeenCalled();
+  });
+
+  it('suppresses the reply when beforeGenerate denies', async () => {
+    const rest = buildRest();
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+
+    const stubProvider: Provider = () =>
+      Promise.resolve({
+        message: { role: 'assistant', content: 'hi' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+
+    const onGenerateBlocked = vi.fn();
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+      beforeGenerate: () => Promise.resolve({ allowed: false, reason: 'quota_exhausted' }),
+      onGenerateBlocked,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(onGenerateBlocked).toHaveBeenCalledWith('quota_exhausted');
+  });
 });

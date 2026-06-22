@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProviderError } from '@getmunin/agent-runtime';
+import type * as AgentRuntime from '@getmunin/agent-runtime';
 import type {
   CrawlResult,
   CuratorJob,
@@ -13,7 +14,7 @@ const probeUrlMock = vi.hoisted(() => vi.fn());
 const crawlMock = vi.hoisted(() => vi.fn<(args: { url: string }) => Promise<CrawlResult>>());
 
 vi.mock('@getmunin/agent-runtime', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@getmunin/agent-runtime')>();
+  const actual = await importOriginal<typeof AgentRuntime>();
   return {
     ...actual,
     probeUrl: probeUrlMock,

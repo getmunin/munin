@@ -13,6 +13,7 @@ import {
   InProcessMuninRestClientFactoryService,
   McpRegistryService,
   McpSkillRegistryService,
+  RateLimitService,
   RealtimeEventBus,
   openAdminAgentMcpClient,
   openEndUserAgentMcpClient,
@@ -28,6 +29,7 @@ import { parseEnvBool } from '@getmunin/core';
 import {
   createConversationHandler,
   createPromptResolver,
+  openAiCompatibleProvider,
   runSkillPass,
   type ConversationHandler,
   type CuratorJob,
@@ -51,6 +53,7 @@ import { runWithServiceContext } from './service-context.ts';
 import { ReplicaLockManager } from './replica-lock.ts';
 import { runWebImportJob } from './web-import.handler.ts';
 import { AgentHealthService } from './agent-health.service.ts';
+import { createMeteringProvider } from './usage-metering.ts';
 
 interface TaskHandlerContext {
   job: CuratorJob;
@@ -143,6 +146,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     @Inject(InProcessMuninRestClientFactoryService)
     private readonly restClientFactory: InProcessMuninRestClientFactoryService,
     @Inject(AgentHealthService) private readonly health: AgentHealthService,
+    @Optional() @Inject(RateLimitService) private readonly rateLimit: RateLimitService | undefined,
     @Optional() @Inject('AGENT_HOST_RUNNER_OPTIONS') options?: AgentHostRunnerOptions,
   ) {
     this.options = options;
@@ -300,6 +304,24 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     return apiKey ? { apiKey, managed: false } : null;
   }
 
+  private meteringProvider(id: string, orgId: string): Provider {
+    return createMeteringProvider(openAiCompatibleProvider, (totalTokens) => {
+      const rateLimit = this.rateLimit;
+      if (!rateLimit) return;
+      void runWithServiceContext(
+        this.db,
+        id,
+        async () => {
+          await rateLimit.record('ai_tokens_day', totalTokens);
+          await rateLimit.record('ai_tokens_month', totalTokens);
+        },
+        { orgId },
+      ).catch((err) =>
+        this.scopedLogger(id, 'usage').warn(`ai-token record failed: ${describe(err)}`),
+      );
+    });
+  }
+
   private async spawnRunner(id: string): Promise<PerConfigRunner | null> {
     const config = await runWithServiceContext(this.db, id, () => this.repo.read(id));
     const orgId = await runWithServiceContext(this.db, id, () => this.repo.resolveOrgId(id));
@@ -323,7 +345,9 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     const fastModel = auth.model ?? config.fastModel;
     const smartModel = auth.model ?? config.smartModel ?? config.fastModel;
     const managed = auth.managed;
-    const provider = this.options?.createProvider?.({ orgId, config, managed });
+    const provider =
+      this.options?.createProvider?.({ orgId, config, managed }) ??
+      this.meteringProvider(id, orgId);
 
     const rest = this.restClientFactory.forOrg(orgId);
 

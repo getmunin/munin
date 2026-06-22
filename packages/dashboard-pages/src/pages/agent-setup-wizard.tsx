@@ -114,11 +114,14 @@ export function AgentSetupWizard({
       </div>
 
       <div className="mt-8 space-y-6">
-        {step === 1 && <OrgNameCard onSaved={() => setStep(2)} />}
+        {step === 1 && <OrgNameCard bare onSaved={() => setStep(2)} />}
 
         {step === 2 && (
           <ProviderCard
             config={config}
+            bare
+            saveLabel={t('wizard.saveAndContinue')}
+            onBack={() => setStep(1)}
             extraPresets={extraPresets}
             defaultPresetId={defaultPresetId}
             lede={providerLede}
@@ -133,11 +136,12 @@ export function AgentSetupWizard({
         {step === 3 && (
           <ModelsCard
             config={config}
+            bare
             models={managedModelsResult ?? models}
             managed={isManaged}
             saveLabel={t('wizard.saveAndContinue')}
             extraActions={
-              <Button type="button" variant="outline" onClick={() => setStep(2)}>
+              <Button type="button" variant="ghost" onClick={() => setStep(2)}>
                 {tCommon('back')}
               </Button>
             }
@@ -150,6 +154,7 @@ export function AgentSetupWizard({
 
         {step === 4 && (
           <WebsiteImportCard
+            bare
             onEnqueued={(id, url) => {
               setImportJobId(id);
               setImportUrl(url);
@@ -202,39 +207,33 @@ function ReadyCard({ config, importJobId, importUrl, onBack }: ReadyCardProps) {
   ];
 
   return (
-    <Card>
-      <CardContent className="space-y-6 py-6">
-        <div>
-          <h2 className="font-serif text-2xl text-ink dark:text-foreground">
-            {t('wizard.readyTitle')}
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">{t('wizard.readyLede')}</p>
-        </div>
-        <ul className="space-y-2.5 text-sm">
-          {lines.map((line, i) => (
-            <li key={i} className="flex items-baseline gap-2.5">
-              <span aria-hidden className="text-cobalt">✓</span>
-              <span className="text-ink dark:text-foreground">{line}</span>
-            </li>
-          ))}
-        </ul>
-        {importJobId && <WebsiteImportStatus jobId={importJobId} initialUrl={importUrl} />}
-        <div className="flex flex-wrap items-center gap-3 pt-2">
-          {oauthContinueHref ? (
-            <Button render={<Link href={oauthContinueHref} />}>
-              {t('wizard.cta.continue')}
-            </Button>
-          ) : (
-            <Button render={<Link href="/dashboard" />}>
-              {t('wizard.cta.goToDashboard')}
-            </Button>
-          )}
-          <Button variant="ghost" onClick={onBack}>
-            {tCommon('back')}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-serif text-2xl text-ink dark:text-foreground">
+          {t('wizard.readyTitle')}
+        </h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t('wizard.readyLede')}</p>
+      </div>
+      <ul className="space-y-2.5 text-sm">
+        {lines.map((line, i) => (
+          <li key={i} className="flex items-baseline gap-2.5">
+            <span aria-hidden className="text-cobalt">✓</span>
+            <span className="text-ink dark:text-foreground">{line}</span>
+          </li>
+        ))}
+      </ul>
+      {importJobId && <WebsiteImportStatus jobId={importJobId} initialUrl={importUrl} />}
+      <div className="flex flex-wrap items-center gap-3 pt-2">
+        {oauthContinueHref ? (
+          <Button render={<Link href={oauthContinueHref} />}>{t('wizard.cta.continue')}</Button>
+        ) : (
+          <Button render={<Link href="/dashboard" />}>{t('wizard.cta.goToDashboard')}</Button>
+        )}
+        <Button variant="ghost" onClick={onBack}>
+          {tCommon('back')}
+        </Button>
+      </div>
+    </div>
   );
 }
 

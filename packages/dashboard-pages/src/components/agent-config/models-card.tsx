@@ -17,6 +17,7 @@ import { NativeSelect } from '../native-select';
 import { useTranslateError } from '../../i18n/translate-error';
 import {
   formatModel,
+  BARE_CARD,
   type AgentConfigDto,
   type ListModelsResult,
 } from './types';
@@ -26,8 +27,8 @@ interface ModelsCardProps {
   models: ListModelsResult | null;
   managed?: boolean;
   saveLabel?: string;
-  /** Extra action rendered after the Save button (e.g., wizard's Back). */
   extraActions?: ReactNode;
+  bare?: boolean;
   onSaved?: (updated: AgentConfigDto) => void;
 }
 
@@ -37,6 +38,7 @@ export function ModelsCard({
   managed,
   saveLabel,
   extraActions,
+  bare,
   onSaved,
 }: ModelsCardProps) {
   const t = useTranslations('agentSetup');
@@ -84,12 +86,12 @@ export function ModelsCard({
   const label = saveLabel ?? tCommon('save');
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className={bare ? BARE_CARD : undefined}>
+      <CardHeader className={bare ? 'px-0' : undefined}>
         <CardTitle>{t('models.title')}</CardTitle>
         <CardDescription>{t('models.smartHint')}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className={bare ? 'space-y-4 px-0' : 'space-y-4'}>
         {!credentialed ? (
           <p className="text-sm text-muted-foreground">{t('models.needKey')}</p>
         ) : models?.supported ? (
@@ -154,10 +156,10 @@ export function ModelsCard({
           <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
         )}
         <div className="flex items-center gap-3">
-          {extraActions}
           <Button type="button" onClick={() => void save()} disabled={!canSave}>
             {saving ? label + '…' : label}
           </Button>
+          {extraActions}
           {message && <span className="text-sm text-muted-foreground">{message}</span>}
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}

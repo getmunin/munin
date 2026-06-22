@@ -1147,7 +1147,6 @@
       "title": "Leverandør",
       "lede": "Koble til en hvilken som helst OpenAI-kompatibel leverandør med din egen nøkkel.",
       "urlLabel": "Base-URL",
-      "use": "Bruk denne leverandøren",
       "useOwnKey": "Bruk din egen leverandørnøkkel",
       "hideAlternatives": "Skjul leverandørvalg",
       "presets": {

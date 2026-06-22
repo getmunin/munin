@@ -1147,7 +1147,6 @@
       "title": "Provider",
       "lede": "Connect any OpenAI-compatible provider with your own key.",
       "urlLabel": "Base URL",
-      "use": "Use this provider",
       "useOwnKey": "Use your own provider key",
       "hideAlternatives": "Hide provider options",
       "presets": {

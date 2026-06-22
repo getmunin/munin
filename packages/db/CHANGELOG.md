@@ -1,5 +1,11 @@
 # @getmunin/db
 
+## 4.56.1
+
+### Patch Changes
+
+- @getmunin/types@4.56.1
+
 ## 4.56.0
 
 ### Patch Changes

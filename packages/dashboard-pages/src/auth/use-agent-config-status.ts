@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 
 interface AgentConfigStatusDto {
-  providerApiKeySet: boolean;
+  providerConfigured: boolean;
 }
 
 export function useAgentConfigStatus(): {
@@ -21,7 +21,7 @@ export function useAgentConfigStatus(): {
     api<AgentConfigStatusDto>('/v1/agent-config')
       .then((dto) => {
         if (cancelled) return;
-        setConfigured(dto.providerApiKeySet);
+        setConfigured(dto.providerConfigured);
         setLoading(false);
       })
       .catch((err: unknown) => {

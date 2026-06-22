@@ -93,6 +93,7 @@ export { safeRedirect, resumeOauthAuthorizeUrl } from './auth/post-signin-redire
 export { AcceptInvitePage } from './pages/accept-invite';
 export { AccountPage, type AccountPageProps } from './pages/account';
 export { AiSettingsPage } from './pages/ai-settings';
+export type { ProviderPreset } from './components/agent-config/types';
 export {
   OAuthConsentPage,
   type OAuthClientInfo,

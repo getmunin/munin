@@ -80,7 +80,7 @@ export function AccountPage({ extraSections }: AccountPageProps) {
   }
 
   return (
-    <>
+    <div className="max-w-3xl space-y-10">
       <Hero
         eyebrow={t('eyebrow')}
         title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
@@ -90,7 +90,7 @@ export function AccountPage({ extraSections }: AccountPageProps) {
       <section className="space-y-4">
         <SectionHead title={t('orgSectionTitle')} divider={false} />
 
-        <form className="max-w-md space-y-4" onSubmit={(e) => void submit(e)}>
+        <form className="space-y-4" onSubmit={(e) => void submit(e)}>
           <FormField label={t('orgNameLabel')} hint={t('orgNameHint')} error={error}>
             <Input
               value={name}
@@ -116,6 +116,6 @@ export function AccountPage({ extraSections }: AccountPageProps) {
       </section>
 
       {extraSections}
-    </>
+    </div>
   );
 }

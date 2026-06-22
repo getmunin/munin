@@ -1,12 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CrawlResult, McpToolHandle, McpToolResult } from '@getmunin/agent-runtime';
-import { reconcileSpace, candidateUrls } from './web-import.handler.ts';
+import { ProviderError } from '@getmunin/agent-runtime';
+import type {
+  CrawlResult,
+  CuratorJob,
+  McpToolHandle,
+  McpToolResult,
+  Provider,
+} from '@getmunin/agent-runtime';
+import { reconcileSpace, candidateUrls, runWebImportJob } from './web-import.handler.ts';
 
 const probeUrlMock = vi.hoisted(() => vi.fn());
+const crawlMock = vi.hoisted(() => vi.fn<(args: { url: string }) => Promise<CrawlResult>>());
 
 vi.mock('@getmunin/agent-runtime', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@getmunin/agent-runtime')>();
-  return { ...actual, probeUrl: probeUrlMock };
+  return {
+    ...actual,
+    probeUrl: probeUrlMock,
+    WebCrawler: class {
+      crawl(args: { url: string }): Promise<CrawlResult> {
+        return crawlMock(args);
+      }
+    },
+  };
 });
 
 type DocRow = {
@@ -19,7 +35,8 @@ type DocRow = {
 
 function fakeMcp(docs: DocRow[]) {
   const deleted: string[] = [];
-  const handle = {
+  const handle: McpToolHandle = {
+    listTools: () => Promise.resolve([]),
     callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
       if (name === 'kb_list_documents') {
         return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(docs) }], isError: false });
@@ -33,7 +50,7 @@ function fakeMcp(docs: DocRow[]) {
       }
       return Promise.resolve({ content: [{ type: 'text', text: 'unexpected' }], isError: true });
     },
-  } as unknown as McpToolHandle;
+  };
   return { handle, deleted };
 }
 
@@ -56,9 +73,82 @@ const src = (url: string) => `source-url:${url}`;
 
 beforeEach(() => {
   probeUrlMock.mockReset();
+  crawlMock.mockReset();
   logger.info.mockReset();
   logger.warn.mockReset();
   logger.error.mockReset();
+});
+
+function okResult(obj: unknown): Promise<McpToolResult> {
+  return Promise.resolve({ content: [{ type: 'text', text: JSON.stringify(obj) }], isError: false });
+}
+
+function importMcp() {
+  const createdSlugs: string[] = [];
+  const handle: McpToolHandle = {
+    listTools: () => Promise.resolve([]),
+    callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
+      if (name === 'kb_list_spaces') return okResult([{ id: 'spc1', slug: 'website-import' }]);
+      if (name === 'kb_get_document_by_slug') {
+        return Promise.resolve({ content: [{ type: 'text', text: 'null' }], isError: false });
+      }
+      if (name === 'kb_create_document') {
+        createdSlugs.push(String(args.slug));
+        return okResult({ id: `doc_${createdSlugs.length}` });
+      }
+      return Promise.resolve({ content: [{ type: 'text', text: 'unexpected' }], isError: true });
+    },
+  };
+  return { handle, createdSlugs };
+}
+
+describe('runWebImportJob', () => {
+  it('completes the import when company-profile generation fails on a provider error', async () => {
+    crawlMock.mockResolvedValue(crawlWith(['/', '/about']));
+    const { handle, createdSlugs } = importMcp();
+    const failingProvider: Provider = () => Promise.reject(new ProviderError('unauthorized', 401));
+
+    const job: CuratorJob = {
+      id: 'job1',
+      orgId: 'org1',
+      jobUri: 'task://web/scrape-website',
+      userPrompt: 'https://example.com',
+      sourceEventType: null,
+      sourceEventPayload: { synthesizeCompanyProfile: true, reconcile: false },
+      dedupeKey: null,
+      status: 'pending',
+      attempts: 1,
+      maxAttempts: 3,
+      nextAttemptAt: '2026-01-01T00:00:00.000Z',
+      leaseExpiresAt: null,
+      leaseHolder: null,
+      lastError: null,
+      lastReplyText: null,
+      lastToolCalls: null,
+      lastTotalTokens: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      doneAt: null,
+      assistantName: null,
+    };
+
+    const result = await runWebImportJob({
+      job,
+      mcp: handle,
+      providerBaseUrl: 'https://api.example/v1',
+      providerApiKey: 'bad-key',
+      model: 'm',
+      provider: failingProvider,
+      logger,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(createdSlugs).toEqual(['home', 'about']);
+    expect(result.replyText).toContain('Imported 2 document');
+    expect(result.replyText).toContain('Company profile was skipped');
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('company profile skipped'));
+  });
 });
 
 describe('candidateUrls', () => {

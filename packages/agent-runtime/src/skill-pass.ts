@@ -43,7 +43,8 @@ export type SkillPassResult =
         | 'skill_missing'
         | 'mcp_connect_failed'
         | 'agent_error'
-        | 'provider_error';
+        | 'provider_error'
+        | 'quota_exceeded';
       error?: string;
       code?: ProviderErrorCode;
       failedStep?: string;

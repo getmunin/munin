@@ -1010,6 +1010,7 @@
         "byAgentBreakdown": "Detaljer per agent →",
         "mcpCalls": "MCP-kall",
         "apiCalls": "API-kall",
+        "aiTokens": "AI-tokens",
         "conversations": "Samtaler",
         "avgLatency": "Snitt-forsinkelse",
         "avgLatency7d": "Snitt-forsinkelse · 7d",
@@ -1144,8 +1145,17 @@
     },
     "provider": {
       "title": "Leverandør",
-      "lede": "OpenAI-kompatibelt endepunkt. OpenRouter gir én nøkkel med tilgang til mange leverandører.",
-      "urlLabel": "Base-URL"
+      "lede": "Koble til en hvilken som helst OpenAI-kompatibel leverandør med din egen nøkkel.",
+      "urlLabel": "Base-URL",
+      "use": "Bruk denne leverandøren",
+      "useOwnKey": "Bruk din egen leverandørnøkkel",
+      "hideAlternatives": "Skjul leverandørvalg",
+      "presets": {
+        "openrouter": "Én nøkkel, mange modeller",
+        "anthropic": "Claude-modeller",
+        "openai": "GPT-modeller",
+        "custom": "OpenAI-kompatibel URL"
+      }
     },
     "apiKey": {
       "title": "API-nøkkel",

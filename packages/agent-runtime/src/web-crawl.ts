@@ -20,9 +20,16 @@ const PRIORITY_PATTERNS: ReadonlyArray<{ test: (path: string) => boolean; weight
   { test: (p) => /^\/(blog|news|insights|resources?|guides?)(\/|$)/i.test(p), weight: 70 },
 ];
 
+export interface CrawlProgress {
+  total: number;
+  done: number;
+  recentPaths: string[];
+}
+
 export interface CrawlOptions {
   url: string;
   maxPages?: number;
+  onProgress?: (p: CrawlProgress) => void;
 }
 
 export interface CrawledPage {
@@ -139,58 +146,75 @@ export class WebCrawler {
     let siteTitle: string | null = null;
     const lastHitByHost = new Map<string, number>();
 
+    let processed = 0;
+    const recent: string[] = [];
+    const emitProgress = (): void => {
+      opts.onProgress?.({ total: ranked.length, done: processed, recentPaths: [...recent] });
+    };
+    emitProgress();
+
     await runWithConcurrency(ranked, FETCH_CONCURRENCY, async (target) => {
-      await politeWait(target, lastHitByHost);
-      let fetched: FetchedHtml;
       try {
-        fetched = await this.fetcher(target);
-      } catch (err) {
-        const message = describeError(err);
-        const reason: SkipReason = /timeout|aborted/i.test(message) ? 'timeout' : 'fetch_failed';
-        skipped.push({ url: target, reason, detail: message });
-        return;
-      }
-      if (fetched.status === 403 || fetched.status === 401 || fetched.status === 429) {
-        skipped.push({ url: target, reason: 'blocked', detail: `HTTP ${fetched.status}` });
-        return;
-      }
-      if (fetched.status >= 400) {
-        skipped.push({ url: target, reason: 'http_error', detail: `HTTP ${fetched.status}` });
-        return;
-      }
-      if (!fetched.contentType.includes('html')) {
-        skipped.push({
-          url: target,
-          reason: 'http_error',
-          detail: `non-HTML: ${fetched.contentType}`,
+        await politeWait(target, lastHitByHost);
+        let fetched: FetchedHtml;
+        try {
+          fetched = await this.fetcher(target);
+        } catch (err) {
+          const message = describeError(err);
+          const reason: SkipReason = /timeout|aborted/i.test(message) ? 'timeout' : 'fetch_failed';
+          skipped.push({ url: target, reason, detail: message });
+          return;
+        }
+        if (fetched.status === 403 || fetched.status === 401 || fetched.status === 429) {
+          skipped.push({ url: target, reason: 'blocked', detail: `HTTP ${fetched.status}` });
+          return;
+        }
+        if (fetched.status >= 400) {
+          skipped.push({ url: target, reason: 'http_error', detail: `HTTP ${fetched.status}` });
+          return;
+        }
+        if (!fetched.contentType.includes('html')) {
+          skipped.push({
+            url: target,
+            reason: 'http_error',
+            detail: `non-HTML: ${fetched.contentType}`,
+          });
+          return;
+        }
+        let extracted: { title: string; markdown: string } | null;
+        try {
+          extracted = await this.extractor(fetched.body, fetched.finalUrl);
+        } catch (err) {
+          skipped.push({ url: target, reason: 'extract_failed', detail: describeError(err) });
+          return;
+        }
+        if (!extracted) {
+          skipped.push({ url: target, reason: 'extract_failed' });
+          return;
+        }
+        const text = extracted.markdown.trim();
+        if (text.length < MIN_BODY_CHARS) {
+          skipped.push({ url: target, reason: 'too_short', detail: `${text.length} chars` });
+          return;
+        }
+        const wordCount = countWords(text);
+        pages.push({
+          url: fetched.finalUrl,
+          title: extracted.title || guessTitleFromUrl(target),
+          markdown: text,
+          wordCount,
         });
-        return;
-      }
-      let extracted: { title: string; markdown: string } | null;
-      try {
-        extracted = await this.extractor(fetched.body, fetched.finalUrl);
-      } catch (err) {
-        skipped.push({ url: target, reason: 'extract_failed', detail: describeError(err) });
-        return;
-      }
-      if (!extracted) {
-        skipped.push({ url: target, reason: 'extract_failed' });
-        return;
-      }
-      const text = extracted.markdown.trim();
-      if (text.length < MIN_BODY_CHARS) {
-        skipped.push({ url: target, reason: 'too_short', detail: `${text.length} chars` });
-        return;
-      }
-      const wordCount = countWords(text);
-      pages.push({
-        url: fetched.finalUrl,
-        title: extracted.title || guessTitleFromUrl(target),
-        markdown: text,
-        wordCount,
-      });
-      if (!siteTitle && fetched.finalUrl === start.toString()) {
-        siteTitle = extracted.title || null;
+        const path = pathOf(fetched.finalUrl);
+        if (path) {
+          recent.push(path);
+          if (recent.length > 4) recent.shift();
+        }
+        if (!siteTitle && fetched.finalUrl === start.toString()) {
+          siteTitle = extracted.title || null;
+        }
+      } finally {
+        processed += 1;
+        emitProgress();
       }
     });
 

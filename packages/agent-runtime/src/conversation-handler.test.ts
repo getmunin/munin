@@ -109,6 +109,7 @@ function buildRest(overrides: Partial<MuninRestClient> = {}): MuninRestClient {
     failCuratorJob: vi.fn(() =>
       Promise.reject(new Error('failCuratorJob not stubbed for this test')),
     ),
+    updateCuratorJobProgress: vi.fn(() => Promise.resolve()),
     tryAcquireConversation: vi.fn(() =>
       Promise.resolve({ acquired: true, leaseExpiresAt: new Date(Date.now() + 3600_000).toISOString() }),
     ),

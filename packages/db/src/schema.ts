@@ -25,6 +25,7 @@ import {
   vector,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import type { WebImportProgress } from '@getmunin/types';
 import { parseEnvInt } from './env.ts';
 import { makeId } from './id.ts';
 
@@ -1646,6 +1647,7 @@ export const curatorJobs = pgTable(
     lastReplyText: text('last_reply_text'),
     lastToolCalls: integer('last_tool_calls'),
     lastTotalTokens: integer('last_total_tokens'),
+    progress: jsonb('progress').$type<WebImportProgress>(),
     createdAt,
     updatedAt,
     doneAt: timestamp('done_at', { withTimezone: true }),

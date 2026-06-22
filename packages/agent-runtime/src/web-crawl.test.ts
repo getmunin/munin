@@ -331,4 +331,42 @@ describe('WebCrawler.crawl', () => {
     const blocked = result.skipped.find((s) => /private|reserved|ssrf|blocked/i.test(s.detail ?? ''));
     expect(blocked).toBeTruthy();
   });
+
+  it('reports progress: total known up front, done monotonic to total, recent paths', async () => {
+    const routes: RouteMap = {
+      'https://example.com/robots.txt': {
+        body: `Sitemap: https://example.com/sitemap.xml\n`,
+        contentType: 'text/plain',
+      },
+      'https://example.com/sitemap.xml': {
+        body: `<urlset><url><loc>https://example.com/</loc></url><url><loc>https://example.com/about</loc></url><url><loc>https://example.com/pricing</loc></url></urlset>`,
+        contentType: 'application/xml',
+      },
+      'https://example.com/': { body: goodBody('Home') },
+      'https://example.com/about': { body: goodBody('About') },
+      'https://example.com/pricing': { body: goodBody('Pricing') },
+    };
+    const updates: { total: number; done: number; recentPaths: string[] }[] = [];
+    const svc = new WebCrawler({ fetcher: makeFetcher(routes), extractor: passthroughExtractor });
+    const result = await svc.crawl({
+      url: 'https://example.com',
+      onProgress: (p) => updates.push({ ...p, recentPaths: [...p.recentPaths] }),
+    });
+
+    expect(updates.length).toBeGreaterThan(0);
+    const total = result.pages.length + result.skipped.length;
+    expect(updates.every((u) => u.total === total)).toBe(true);
+
+    const dones = updates.map((u) => u.done);
+    expect(dones[0]).toBe(0);
+    expect(dones.at(-1)).toBe(total);
+    for (let i = 1; i < dones.length; i++) {
+      expect(dones[i]!).toBeGreaterThanOrEqual(dones[i - 1]!);
+    }
+
+    const finalPaths = updates.at(-1)!.recentPaths;
+    expect(finalPaths.length).toBeGreaterThan(0);
+    expect(finalPaths.length).toBeLessThanOrEqual(4);
+    expect(finalPaths.every((p) => p.startsWith('/'))).toBe(true);
+  });
 });

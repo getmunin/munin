@@ -1,10 +1,11 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Link } from '../i18n-navigation';
 import { useTranslations } from 'next-intl';
 import { Button, Card, CardContent, Hero } from '@getmunin/ui';
+import type { WebImportProgress } from '@getmunin/types';
 import { useActiveMembership } from '../auth/use-active-role';
 import { useAgentConfig } from '../components/agent-config/use-agent-config';
 import { OrgNameCard } from '../components/agent-config/org-name-card';
@@ -12,6 +13,7 @@ import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
 import { WebsiteImportCard } from '../components/agent-config/website-import-card';
 import { hasOauthAuthorizeParams } from '../auth/post-signin-redirect';
+import { useTranslateError } from '../i18n/translate-error';
 import type { AgentConfigDto, ProviderPreset } from '../components/agent-config/types';
 import { api } from '../api';
 
@@ -36,6 +38,7 @@ export function AgentSetupWizard({
 
   const [step, setStep] = useState<Step | null>(null);
   const [importJobId, setImportJobId] = useState<string | null>(null);
+  const [importUrl, setImportUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (step !== null) return;
@@ -147,8 +150,9 @@ export function AgentSetupWizard({
 
         {step === 4 && (
           <WebsiteImportCard
-            onEnqueued={(id) => {
+            onEnqueued={(id, url) => {
               setImportJobId(id);
+              setImportUrl(url);
               setStep(5);
             }}
             onSkip={() => setStep(5)}
@@ -158,7 +162,12 @@ export function AgentSetupWizard({
 
         {step === 5 && (
           <Suspense fallback={null}>
-            <ReadyCard config={config} importJobId={importJobId} onBack={() => setStep(4)} />
+            <ReadyCard
+              config={config}
+              importJobId={importJobId}
+              importUrl={importUrl}
+              onBack={() => setStep(4)}
+            />
           </Suspense>
         )}
       </div>
@@ -169,10 +178,11 @@ export function AgentSetupWizard({
 interface ReadyCardProps {
   config: AgentConfigDto;
   importJobId: string | null;
+  importUrl: string | null;
   onBack: () => void;
 }
 
-function ReadyCard({ config, importJobId, onBack }: ReadyCardProps) {
+function ReadyCard({ config, importJobId, importUrl, onBack }: ReadyCardProps) {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
   const searchParams = useSearchParams();
@@ -182,10 +192,13 @@ function ReadyCard({ config, importJobId, onBack }: ReadyCardProps) {
     return `/dashboard/oauth/consent?${searchParams.toString()}`;
   }, [searchParams]);
 
-  const lines: string[] = [
-    t('wizard.checklist.provider', { url: shortHost(config.providerBaseUrl) }),
-    t('wizard.checklist.fast', { model: config.fastModel }),
-    t('wizard.checklist.smart', { model: config.smartModel ?? config.fastModel }),
+  const code = (chunks: ReactNode) => (
+    <code className="font-mono text-[13px] text-ink-soft dark:text-foreground/80">{chunks}</code>
+  );
+  const lines: ReactNode[] = [
+    t.rich('wizard.checklist.provider', { url: shortHost(config.providerBaseUrl), code }),
+    t.rich('wizard.checklist.fast', { model: config.fastModel, code }),
+    t.rich('wizard.checklist.smart', { model: config.smartModel ?? config.fastModel, code }),
   ];
 
   return (
@@ -197,15 +210,15 @@ function ReadyCard({ config, importJobId, onBack }: ReadyCardProps) {
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">{t('wizard.readyLede')}</p>
         </div>
-        <ul className="space-y-2 text-sm">
-          {lines.map((line) => (
-            <li key={line} className="flex items-start gap-2">
+        <ul className="space-y-2.5 text-sm">
+          {lines.map((line, i) => (
+            <li key={i} className="flex items-baseline gap-2.5">
               <span aria-hidden className="text-cobalt">✓</span>
               <span className="text-ink dark:text-foreground">{line}</span>
             </li>
           ))}
         </ul>
-        {importJobId && <WebsiteImportStatus jobId={importJobId} />}
+        {importJobId && <WebsiteImportStatus jobId={importJobId} initialUrl={importUrl} />}
         <div className="flex flex-wrap items-center gap-3 pt-2">
           {oauthContinueHref ? (
             <Button render={<Link href={oauthContinueHref} />}>
@@ -225,69 +238,197 @@ function ReadyCard({ config, importJobId, onBack }: ReadyCardProps) {
   );
 }
 
-type JobStatus = 'pending' | 'done' | 'failed' | 'dead';
+type JobStatus = 'pending' | 'done' | 'failed' | 'dead' | 'failed_retryable';
+
+const IMPORT_JOB_URI = 'task://web/scrape-website';
+const POLL_INTERVAL_MS = 2000;
+const MAX_POLL_ATTEMPTS = 90;
 
 interface CuratorJobDto {
   id: string;
   status: JobStatus;
+  userPrompt: string;
   lastError: string | null;
+  lastReplyText: string | null;
+  lastToolCalls: number | null;
+  createdAt: string;
+  doneAt: string | null;
+  progress: WebImportProgress | null;
 }
 
-function WebsiteImportStatus({ jobId }: { jobId: string }) {
+const MONO_LABEL = 'font-mono text-[11px] uppercase tracking-[0.14em]';
+
+function WebsiteImportStatus({ jobId, initialUrl }: { jobId: string; initialUrl: string | null }) {
   const t = useTranslations('agentSetup.websiteImport.status');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [activeJobId, setActiveJobId] = useState(jobId);
   const [job, setJob] = useState<CuratorJobDto | null>(null);
   const [stopped, setStopped] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let attempts = 0;
-    const MAX_ATTEMPTS = 36;
+    setJob(null);
+    setStopped(false);
 
     const tick = async (): Promise<void> => {
       if (cancelled) return;
       attempts += 1;
       try {
-        const res = await api<CuratorJobDto>(`/v1/curator/jobs/${jobId}`);
+        const res = await api<CuratorJobDto>(`/v1/curator/jobs/${activeJobId}`);
         if (cancelled) return;
         setJob(res);
-        if (res.status !== 'pending' || attempts >= MAX_ATTEMPTS) {
+        if (res.status !== 'pending' || attempts >= MAX_POLL_ATTEMPTS) {
           setStopped(true);
           return;
         }
       } catch (err) {
-        console.debug('[agent-setup] curator job poll failed', { jobId, attempts, err });
-        if (attempts >= MAX_ATTEMPTS) {
+        console.debug('[agent-setup] curator job poll failed', { activeJobId, attempts, err });
+        if (attempts >= MAX_POLL_ATTEMPTS) {
           setStopped(true);
           return;
         }
       }
       window.setTimeout(() => {
         void tick();
-      }, 5000);
+      }, POLL_INTERVAL_MS);
     };
 
     void tick();
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
+  }, [activeJobId]);
 
   const status: JobStatus = job?.status ?? 'pending';
-  const message =
-    status === 'done'
-      ? t('done')
-      : status === 'failed' || status === 'dead'
-        ? t('failed')
-        : stopped
-          ? t('stillRunning')
-          : t('running');
+  const url = job?.userPrompt ?? initialUrl;
+  const host = url ? shortHost(url) : '';
+  const failed = status === 'failed' || status === 'dead' || status === 'failed_retryable';
+  const done = status === 'done';
 
+  async function retry(): Promise<void> {
+    if (!url || retrying) return;
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const res = await api<{ job: { id: string } }>('/v1/curator/jobs', {
+        method: 'POST',
+        body: JSON.stringify({
+          jobUri: IMPORT_JOB_URI,
+          userPrompt: url,
+          dedupeKey: `onboarding-import-retry:${url}:${Date.now()}`,
+          maxAttempts: 3,
+        }),
+      });
+      setActiveJobId(res.job.id);
+    } catch (err) {
+      setRetryError(translate(err) || tCommon('retry'));
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  if (failed) {
+    const detail = cleanImportError(job?.lastError ?? null);
+    return (
+      <div className="border border-rule-soft border-t-[3px] border-t-rule px-5 py-4">
+        <span className={`${MONO_LABEL} text-ink dark:text-foreground`}>{t('failedLabel')}</span>
+        <p className="mt-2.5 text-sm leading-relaxed text-ink-soft dark:text-foreground/80">
+          {t('failedSummary', { host })}
+        </p>
+        {detail && (
+          <p className="mt-2 break-words font-mono text-[11px] text-ink-mute">{detail}</p>
+        )}
+        <div className="mt-3.5 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void retry()}
+            disabled={retrying || !url}
+            className="border border-rule px-3.5 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink transition-colors duration-base hover:bg-ink hover:text-paper disabled:opacity-50 dark:text-foreground"
+          >
+            {retrying ? tCommon('saving') : t('retry')}
+          </button>
+          {retryError && <span className="text-xs text-destructive">{retryError}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  if (done) {
+    const count = parseImportedCount(job?.lastReplyText ?? null) ?? job?.lastToolCalls ?? 0;
+    const duration = importDuration(job?.createdAt ?? null, job?.doneAt ?? null);
+    return (
+      <div className="border border-rule-soft px-5 py-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className={`${MONO_LABEL} text-cobalt`}>✓ {t('doneLabel')}</span>
+          <span className="font-mono text-[11px] text-ink-mute">{t('pagesChip', { count })}</span>
+        </div>
+        <p className="mt-2.5 text-sm leading-relaxed text-ink-soft dark:text-foreground/80">
+          {count <= 0
+            ? t('doneEmpty', { host })
+            : duration
+              ? t('doneSummary', { count, host, duration })
+              : t('doneSummaryNoTime', { count, host })}
+        </p>
+      </div>
+    );
+  }
+
+  const progress = job?.progress ?? null;
+  const hasTotal = progress !== null && progress.total > 0;
+  const pct = hasTotal ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : 0;
   return (
-    <div className="rounded-md border border-rule-soft px-4 py-3 text-sm">
-      <p className="font-medium text-ink dark:text-foreground">{t('label')}</p>
-      <p className="mt-1 text-muted-foreground">{message}</p>
+    <div className="border border-rule-soft px-5 py-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className={`${MONO_LABEL} text-cobalt`}>{t('readingLabel')}</span>
+        {hasTotal && (
+          <span className="font-mono text-[11px] text-ink-mute">
+            {t('counter', { done: progress.done, total: progress.total })}
+          </span>
+        )}
+      </div>
+      <p className="mt-2.5 text-sm leading-relaxed text-ink-mute">
+        {stopped ? t('stillRunning') : t('reading', { host })}
+      </p>
+      <div className="mt-3.5 h-[3px] overflow-hidden bg-rule-soft">
+        {hasTotal ? (
+          <div
+            className="h-[3px] bg-cobalt transition-all duration-slow"
+            style={{ width: `${pct}%` }}
+          />
+        ) : (
+          <div className="h-[3px] w-1/3 bg-cobalt animate-import-indeterminate" />
+        )}
+      </div>
+      {progress && progress.recentPaths.length > 0 && (
+        <div className="mt-2.5 truncate font-mono text-[10px] tracking-[0.04em] text-ink-mute">
+          {progress.recentPaths.join(' · ')} …
+        </div>
+      )}
     </div>
   );
+}
+
+function cleanImportError(raw: string | null): string | null {
+  if (!raw) return null;
+  const stripped = raw.replace(/^(agent_error|provider_error)(_[a-z0-9]+)?:\s*/i, '').trim();
+  return stripped.slice(0, 200) || null;
+}
+
+function parseImportedCount(replyText: string | null): number | null {
+  if (!replyText) return null;
+  const m = /Imported (\d+) document/.exec(replyText);
+  return m ? Number.parseInt(m[1]!, 10) : null;
+}
+
+function importDuration(createdAt: string | null, doneAt: string | null): number | null {
+  if (!createdAt || !doneAt) return null;
+  const ms = Date.parse(doneAt) - Date.parse(createdAt);
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  return Math.max(1, Math.round(ms / 1000));
 }
 
 function shortHost(url: string): string {

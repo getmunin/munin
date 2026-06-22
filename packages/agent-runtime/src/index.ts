@@ -46,6 +46,7 @@ export {
   type EnqueueCuratorJobInput,
   type FailCuratorJobInput,
   type MuninRestClient,
+  type UpdateCuratorJobProgressInput,
 } from './munin-rest.ts';
 export {
   openHttpMcpClient,
@@ -63,6 +64,7 @@ export {
   WebCrawler,
   probeUrl,
   type CrawlOptions,
+  type CrawlProgress,
   type CrawlResult,
   type CrawledPage,
   type SkippedPage,

@@ -27,7 +27,7 @@ interface EnqueueResponse {
 }
 
 export interface WebsiteImportCardProps {
-  onEnqueued: (jobId: string) => void;
+  onEnqueued: (jobId: string, url: string) => void;
   onSkip: () => void;
   onBack?: () => void;
 }
@@ -58,7 +58,7 @@ export function WebsiteImportCard({ onEnqueued, onSkip, onBack }: WebsiteImportC
           maxAttempts: 3,
         }),
       });
-      onEnqueued(res.job.id);
+      onEnqueued(res.job.id, normalized);
     } catch (err) {
       setError(translate(err) || t('errors.enqueue'));
     } finally {

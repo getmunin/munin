@@ -8,6 +8,7 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { type Db } from '@getmunin/db';
+import { type WebImportProgress } from '@getmunin/types';
 import {
   type AckCuratorJobInput,
   type ClaimCuratorJobsInput,
@@ -19,6 +20,7 @@ import {
   type EnqueueCuratorJobInput,
   type FailCuratorJobInput,
   type MuninRestClient,
+  type UpdateCuratorJobProgressInput,
 } from '@getmunin/agent-runtime';
 import type { ConversationMessage } from '@getmunin/agent-runtime';
 import { ConvService } from '../modules/conv/conv.service.ts';
@@ -243,6 +245,12 @@ function buildClient(opts: BuildOptions): MuninRestClient {
 
     async failCuratorJob(id: string, input: FailCuratorJobInput): Promise<CuratorJob> {
       return audited('runner:failCuratorJob', () => opts.curator.fail({ id, ...input }));
+    },
+
+    async updateCuratorJobProgress(id: string, input: UpdateCuratorJobProgressInput): Promise<void> {
+      await withTenancy(() =>
+        opts.curator.updateProgress({ id, progress: input.progress as WebImportProgress }),
+      );
     },
 
     toRuntimeHistory(detail: ConversationDetail): ConversationMessage[] {

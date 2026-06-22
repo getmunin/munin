@@ -1127,9 +1127,9 @@
       "readyLede": "From here, Munin handles new conversations on its own. The inbox shows what it's doing.",
       "saveAndContinue": "Save & continue",
       "checklist": {
-        "provider": "Provider configured ({url})",
-        "fast": "Fast model — {model}",
-        "smart": "Smart model — {model}"
+        "provider": "Provider configured (<code>{url}</code>)",
+        "fast": "Fast model — <code>{model}</code>",
+        "smart": "Smart model — <code>{model}</code>"
       },
       "cta": {
         "goToDashboard": "Go to dashboard",
@@ -1147,7 +1147,6 @@
       "title": "Provider",
       "lede": "Connect any OpenAI-compatible provider with your own key.",
       "urlLabel": "Base URL",
-      "use": "Use this provider",
       "useOwnKey": "Use your own provider key",
       "hideAlternatives": "Hide provider options",
       "presets": {
@@ -1192,11 +1191,18 @@
         "enqueue": "Couldn't start the import. Please check the URL and try again."
       },
       "status": {
-        "label": "Website import",
-        "running": "Reading your site — this usually takes under a minute. You can leave this page; we'll keep going in the background.",
-        "done": "Done. Your site is in the knowledge base — agents can search and cite it.",
-        "failed": "We couldn't finish the import. Open Settings → Curator jobs for details, or add documents manually.",
-        "stillRunning": "Still working. It's taking longer than usual; check back in a minute."
+        "readingLabel": "Website import · reading",
+        "failedLabel": "Website import · failed",
+        "doneLabel": "Website import · done",
+        "reading": "Reading {host} — usually under a minute. You can leave this page; we'll keep going in the background.",
+        "stillRunning": "Still working. It's taking longer than usual; check back in a minute.",
+        "counter": "{done} / {total}",
+        "pagesChip": "{count, plural, one {# page} other {# pages}}",
+        "doneSummary": "Imported {count, plural, one {# page} other {# pages}} from {host} in {duration}s. Munin will use them to ground its answers.",
+        "doneSummaryNoTime": "Imported {count, plural, one {# page} other {# pages}} from {host}. Munin will use them to ground its answers.",
+        "doneEmpty": "We read {host} but didn't find pages to import.",
+        "failedSummary": "Couldn't reach {host}. No pages were imported. Your agent is still live — import later from Settings.",
+        "retry": "Retry import"
       }
     }
   },

@@ -14,6 +14,7 @@ import {
 } from '@getmunin/ui';
 import { api } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
+import { BARE_CARD } from './types';
 
 const JOB_URI = 'task://web/scrape-website';
 
@@ -27,12 +28,13 @@ interface EnqueueResponse {
 }
 
 export interface WebsiteImportCardProps {
-  onEnqueued: (jobId: string) => void;
+  onEnqueued: (jobId: string, url: string) => void;
   onSkip: () => void;
   onBack?: () => void;
+  bare?: boolean;
 }
 
-export function WebsiteImportCard({ onEnqueued, onSkip, onBack }: WebsiteImportCardProps) {
+export function WebsiteImportCard({ onEnqueued, onSkip, onBack, bare }: WebsiteImportCardProps) {
   const t = useTranslations('agentSetup.websiteImport');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
@@ -58,7 +60,7 @@ export function WebsiteImportCard({ onEnqueued, onSkip, onBack }: WebsiteImportC
           maxAttempts: 3,
         }),
       });
-      onEnqueued(res.job.id);
+      onEnqueued(res.job.id, normalized);
     } catch (err) {
       setError(translate(err) || t('errors.enqueue'));
     } finally {
@@ -67,12 +69,12 @@ export function WebsiteImportCard({ onEnqueued, onSkip, onBack }: WebsiteImportC
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className={bare ? BARE_CARD : undefined}>
+      <CardHeader className={bare ? 'px-0' : undefined}>
         <CardTitle>{t('title')}</CardTitle>
         <CardDescription>{t('lede')}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className={bare ? 'space-y-4 px-0' : 'space-y-4'}>
         <div className="space-y-1.5">
           <Label htmlFor="websiteUrl">{t('urlLabel')}</Label>
           <Input

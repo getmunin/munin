@@ -12,6 +12,7 @@ import {
   type ProviderErrorClassification,
   type SkillPassResult,
 } from '@getmunin/agent-runtime';
+import type { WebImportProgress } from '@getmunin/types';
 
 const TARGET_SPACE_SLUG = 'website-import';
 const MAX_PAGES_TO_INSERT = 30;
@@ -35,6 +36,7 @@ export interface WebImportHandlerOpts {
     warn: (msg: string) => void;
     error: (msg: string) => void;
   };
+  onProgress?: (p: WebImportProgress) => void;
 }
 
 export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<SkillPassResult> {
@@ -48,7 +50,7 @@ export async function runWebImportJob(opts: WebImportHandlerOpts): Promise<Skill
   let crawl: CrawlResult;
   try {
     const crawler = new WebCrawler();
-    crawl = await crawler.crawl({ url });
+    crawl = await crawler.crawl({ url, onProgress: opts.onProgress });
   } catch (err) {
     const message = describe(err);
     opts.logger.warn(`crawl failed for ${url}: ${message}`);

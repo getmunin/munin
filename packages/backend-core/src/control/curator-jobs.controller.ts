@@ -53,6 +53,14 @@ const FailBody = z.object({
   failedStep: z.string().min(1).max(64).optional(),
 });
 
+const ProgressBody = z.object({
+  progress: z.object({
+    total: z.number().int().nonnegative(),
+    done: z.number().int().nonnegative(),
+    recentPaths: z.array(z.string().max(2048)).max(16),
+  }),
+});
+
 interface JobListResponse {
   items: CuratorJobDto[];
 }
@@ -121,6 +129,14 @@ export class CuratorJobsController {
     const parsed = FailBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.service.fail({ id, ...parsed.data });
+  }
+
+  @Post(':id/progress')
+  @HttpCode(204)
+  async progress(@Param('id') id: string, @Body() body: unknown): Promise<void> {
+    const parsed = ProgressBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    await this.service.updateProgress({ id, progress: parsed.data.progress });
   }
 }
 

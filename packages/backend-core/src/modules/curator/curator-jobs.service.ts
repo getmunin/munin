@@ -7,7 +7,12 @@ import {
   SsrfBlockedError,
   WebhookDispatcher,
 } from '@getmunin/core';
-import { KNOWN_SKILL_URIS, KNOWN_TASK_URIS, WEB_SCRAPE_SITE_TASK_URI } from '@getmunin/types';
+import {
+  KNOWN_SKILL_URIS,
+  KNOWN_TASK_URIS,
+  priorityFor,
+  WEB_SCRAPE_SITE_TASK_URI,
+} from '@getmunin/types';
 
 export const CURATOR_JOB_STATUSES = [
   'pending',
@@ -29,6 +34,7 @@ export interface CuratorJobDto {
   sourceEventPayload: unknown;
   dedupeKey: string | null;
   status: CuratorJobStatus;
+  priority: number;
   attempts: number;
   maxAttempts: number;
   nextAttemptAt: string;
@@ -54,6 +60,7 @@ export interface EnqueueInput {
   dedupeKey?: string;
   maxAttempts?: number;
   delaySeconds?: number;
+  priority?: number;
 }
 
 export interface EnqueueResult {
@@ -123,6 +130,7 @@ export class CuratorJobsService {
             sourceEventPayload: input.sourceEventPayload ?? null,
             dedupeKey: input.dedupeKey ?? null,
             status: 'pending',
+            priority: input.priority ?? priorityFor(input.jobUri),
             attempts: 0,
             maxAttempts: input.maxAttempts ?? 5,
             nextAttemptAt: nextAt,
@@ -179,7 +187,7 @@ export class CuratorJobsService {
           AND status = 'pending'
           AND next_attempt_at <= ${nowIso}::timestamptz
           AND (lease_expires_at IS NULL OR lease_expires_at < ${nowIso}::timestamptz)
-        ORDER BY next_attempt_at ASC
+        ORDER BY priority DESC, next_attempt_at ASC
         LIMIT ${limit}
         FOR UPDATE SKIP LOCKED
       )
@@ -331,6 +339,7 @@ function toDto(row: Row, assistantName: string | null = null): CuratorJobDto {
     sourceEventPayload: row.sourceEventPayload ?? null,
     dedupeKey: row.dedupeKey,
     status: row.status as CuratorJobStatus,
+    priority: row.priority,
     attempts: row.attempts,
     maxAttempts: row.maxAttempts,
     nextAttemptAt: toIso(row.nextAttemptAt),
@@ -393,6 +402,7 @@ function rowFromSql(raw: Record<string, unknown>): Row {
     sourceEventPayload: raw.source_event_payload ?? null,
     dedupeKey: (raw.dedupe_key as string | null) ?? null,
     status: raw.status as string,
+    priority: Number(raw.priority),
     attempts: Number(raw.attempts),
     maxAttempts: Number(raw.max_attempts),
     nextAttemptAt: raw.next_attempt_at as Date,

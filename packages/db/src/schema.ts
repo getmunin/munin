@@ -1632,6 +1632,7 @@ export const curatorJobs = pgTable(
     sourceEventPayload: jsonb('source_event_payload'),
     dedupeKey: text('dedupe_key'),
     status: varchar('status', { length: 32 }).notNull().default('pending'),
+    priority: integer('priority').notNull().default(0),
     attempts: integer('attempts').notNull().default(0),
     maxAttempts: integer('max_attempts').notNull().default(5),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true })
@@ -1652,6 +1653,9 @@ export const curatorJobs = pgTable(
   (t) => ({
     orgStatusIdx: index('curator_jobs_org_status_idx').on(t.orgId, t.status),
     pendingIdx: index('curator_jobs_pending_idx').on(t.nextAttemptAt),
+    claimIdx: index('curator_jobs_claim_idx')
+      .on(t.orgId, t.priority.desc(), t.nextAttemptAt)
+      .where(sql`status = 'pending'`),
     dedupeUq: uniqueIndex('curator_jobs_dedupe_uq')
       .on(t.orgId, t.dedupeKey)
       .where(sql`dedupe_key IS NOT NULL AND status = 'pending'`),

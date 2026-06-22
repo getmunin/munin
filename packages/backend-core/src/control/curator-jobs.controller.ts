@@ -31,6 +31,7 @@ const EnqueueBody = z.object({
   dedupeKey: z.string().min(1).optional(),
   maxAttempts: z.number().int().min(1).max(20).optional(),
   delaySeconds: z.number().int().min(0).max(86400).optional(),
+  priority: z.number().int().min(0).max(1000).optional(),
 });
 
 const ClaimBody = z.object({

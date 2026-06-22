@@ -56,6 +56,7 @@ export {
   jobKindOf,
   tierFor,
   toolPrefixesFor,
+  priorityFor,
   type JobKind,
   type ModelTier,
 } from './job-catalog.ts';

@@ -596,7 +596,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
               trigger: 'scheduled',
             }),
           { orgId: opts.orgId },
-        ).catch((err) => {
+        ).catch((err): { allowed: boolean; reason?: string } => {
           log.warn(`beforeGenerate failed, proceeding: ${describe(err)}`);
           return { allowed: true };
         });

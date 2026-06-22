@@ -31,7 +31,7 @@ export function DashboardShell({
   const { ready } = useDashboardGate();
 
   if (!ready || !session) {
-    return <PageSpinner className="min-h-screen bg-bone dark:bg-background" />;
+    return <PageSpinner className="min-h-screen bg-background" />;
   }
 
   const inSettings = pathname.startsWith('/dashboard/settings');

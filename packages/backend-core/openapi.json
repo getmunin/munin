@@ -2864,6 +2864,45 @@
         ]
       }
     },
+    "/v1/conversations/awaiting-reply": {
+      "get": {
+        "operationId": "ConversationsController_awaitingReply",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lookbackMinutes",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/{id}": {
       "get": {
         "operationId": "ConversationsController_get",

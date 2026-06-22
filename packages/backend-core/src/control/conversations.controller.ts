@@ -134,6 +134,20 @@ export class ConversationsController {
     return translate(() => this.conv.listTopics());
   }
 
+  @Get('awaiting-reply')
+  async awaitingReply(
+    @Query('limit') limit?: string,
+    @Query('lookbackMinutes') lookbackMinutes?: string,
+  ): Promise<{ items: Array<{ id: string }> }> {
+    const items = await translate(() =>
+      this.conv.listConversationsAwaitingAgentReply({
+        limit: parseLimit(limit),
+        lookbackMinutes: parsePositiveInt(lookbackMinutes),
+      }),
+    );
+    return { items };
+  }
+
   @Get(':id')
   async get(@Param('id') id: string): Promise<ConversationDetailResponse> {
     const detail = await translate(() => this.conv.getConversation(id));
@@ -306,6 +320,12 @@ function parseLimit(value: string | undefined): number | undefined {
   const n = value ? Number.parseInt(value, 10) : NaN;
   if (!Number.isFinite(n) || n <= 0) return undefined;
   return Math.min(n, 200);
+}
+
+function parsePositiveInt(value: string | undefined): number | undefined {
+  const n = value ? Number.parseInt(value, 10) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return n;
 }
 
 function encodeListCursor(c: { lastMessageAt: string | null; id: string }): string {

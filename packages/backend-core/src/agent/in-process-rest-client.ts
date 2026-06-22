@@ -11,6 +11,7 @@ import { type Db } from '@getmunin/db';
 import { type WebImportProgress } from '@getmunin/types';
 import {
   type AckCuratorJobInput,
+  type AwaitingReplyConversation,
   type ClaimCuratorJobsInput,
   type ConversationDetail,
   type ConversationStatus,
@@ -118,6 +119,12 @@ function buildClient(opts: BuildOptions): MuninRestClient {
           })),
         };
       });
+    },
+
+    async listConversationsAwaitingReply(
+      input: { limit?: number; lookbackMinutes?: number } = {},
+    ): Promise<AwaitingReplyConversation[]> {
+      return withTenancy(() => opts.conv.listConversationsAwaitingAgentReply(input));
     },
 
     async postAgentMessage(

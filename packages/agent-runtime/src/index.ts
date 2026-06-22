@@ -35,6 +35,7 @@ export {
 export {
   createMuninRestClient,
   type AckCuratorJobInput,
+  type AwaitingReplyConversation,
   type ClaimCuratorJobsInput,
   type ConversationDetail,
   type ConversationStatus,

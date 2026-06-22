@@ -31,6 +31,7 @@ import {
   createPromptResolver,
   openAiCompatibleProvider,
   runSkillPass,
+  type AwaitingReplyConversation,
   type ConversationHandler,
   type CuratorJob,
   type HandlerConfig,
@@ -75,6 +76,7 @@ const TASK_HANDLERS: ReadonlyMap<string, TaskHandler> = new Map([
 const RECONCILE_INTERVAL_MS = 30_000;
 const CURATOR_LEASE_SECONDS = 600;
 const CURATOR_MAX_SCHEDULED_DELAY_MS = 24 * 60 * 60 * 1000;
+const CONVERSATION_SWEEP_LIMIT = 50;
 
 const DEFAULT_END_USER_AGENT_SCOPES: readonly string[] = [
   'conv:read',
@@ -118,11 +120,17 @@ interface PerConfigRunner {
   prompts: PromptResolver;
   adminMcp: AgentMcpClient;
   curatorWorker: CuratorWorker;
+  sweeper: ConversationSweeper;
 }
 
 interface CuratorWorker {
   onPending(event: CuratorJobPendingBusEvent): void;
   onConnected(): void;
+  stop(): Promise<void>;
+}
+
+interface ConversationSweeper {
+  sweep(): void;
   stop(): Promise<void>;
 }
 
@@ -182,6 +190,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         r.realtime.unsubscribe();
         await r.handler.stop();
         await r.curatorWorker.stop();
+        await r.sweeper.stop();
         await r.adminMcp.close().catch((err: unknown) => {
           this.logger.warn(`adminMcp.close() on shutdown failed: ${describe(err)}`);
         });
@@ -211,6 +220,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         runner.realtime.unsubscribe();
         await runner.handler.stop();
         await runner.curatorWorker.stop();
+        await runner.sweeper.stop();
         await runner.adminMcp.close().catch((err: unknown) => {
           this.logger.warn(`${id}: adminMcp.close() on stop failed: ${describe(err)}`);
         });
@@ -241,6 +251,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         }
       }
     }
+
+    for (const runner of this.runners.values()) {
+      runner.sweeper.sweep();
+    }
   }
 
   private readonly respawnInFlight = new Set<string>();
@@ -261,6 +275,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           existing.realtime.unsubscribe();
           await existing.handler.stop();
           await existing.curatorWorker.stop();
+          await existing.sweeper.stop();
           await existing.adminMcp.close();
         } catch (err) {
           this.logger.warn(`respawn: teardown failed for ${id}: ${describe(err)}`);
@@ -386,6 +401,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     });
 
     const handlerRef: { current: ConversationHandler | null } = { current: null };
+    const sweeper = this.buildConversationSweeper({ id, rest, handlerRef });
     const realtime = this.eventBus.subscribe(
       { orgId },
       {
@@ -401,7 +417,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           handlerRef.current?.greet({ conversationId: event.conversationId });
         },
         onCuratorJobPending: (event) => curatorWorker.onPending(event),
-        onConnected: () => curatorWorker.onConnected(),
+        onConnected: () => {
+          curatorWorker.onConnected();
+          sweeper.sweep();
+        },
         onKbDocumentChanged: (event: KbDocumentChangedBusEvent) => {
           if (event.type === 'deleted') return;
           if (!event.slug || !prompts.isPromptDocument(event.slug)) return;
@@ -464,7 +483,51 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     });
     handlerRef.current = handler;
 
-    return { realtime, handler, prompts, adminMcp, curatorWorker };
+    return { realtime, handler, prompts, adminMcp, curatorWorker, sweeper };
+  }
+
+  private buildConversationSweeper(opts: {
+    id: string;
+    rest: MuninRestClient;
+    handlerRef: { current: ConversationHandler | null };
+  }): ConversationSweeper {
+    const log = this.scopedLogger(opts.id, 'sweep');
+    let stopped = false;
+    let pending: Promise<void> | null = null;
+
+    const runSweep = async (): Promise<void> => {
+      if (stopped) return;
+      if (this.lockManager && !this.lockManager.holds(opts.id)) return;
+      let candidates: AwaitingReplyConversation[];
+      try {
+        candidates = await opts.rest.listConversationsAwaitingReply({
+          limit: CONVERSATION_SWEEP_LIMIT,
+        });
+      } catch (err) {
+        log.warn(`sweep failed: ${describe(err)}`);
+        return;
+      }
+      if (stopped || candidates.length === 0) return;
+      log.info(`recovering ${candidates.length} unanswered conversation(s)`);
+      for (const c of candidates) {
+        if (stopped) break;
+        opts.handlerRef.current?.handle({ conversationId: c.id, authorType: 'end_user' });
+      }
+    };
+
+    return {
+      sweep() {
+        if (stopped || pending) return;
+        pending = runSweep().finally(() => {
+          pending = null;
+        });
+        void pending;
+      },
+      async stop() {
+        stopped = true;
+        await pending?.catch(() => undefined);
+      },
+    };
   }
 
   private buildCuratorWorker(opts: {

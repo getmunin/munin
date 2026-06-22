@@ -38,6 +38,7 @@ export interface ProviderPreset {
   description?: ReactNode;
   badge?: string;
   icon?: ReactNode;
+  models?: ModelEntry[];
 }
 
 export const PROVIDER_PRESETS = [

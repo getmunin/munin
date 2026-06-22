@@ -60,6 +60,13 @@ export function AiSettingsPage({
   const aiDrivenSkills = remainingSkills.filter((s) => s.kind === 'skill');
   const scheduledTasks = remainingSkills.filter((s) => s.kind === 'task');
 
+  const managedPreset = (extraPresets ?? []).find((p) => p.managed);
+  const isManaged = !!managedPreset && config != null && !config.providerApiKeySet;
+  const managedModelsResult =
+    isManaged && (managedPreset?.models?.length ?? 0) > 0
+      ? { supported: true, models: managedPreset?.models ?? [] }
+      : null;
+
   return (
     <div className="max-w-3xl space-y-10">
       <Hero
@@ -100,9 +107,12 @@ export function AiSettingsPage({
                   setModels(result);
                 }}
               />
-              {config.providerApiKeySet && (
-                <ModelsCard config={config} models={models} onSaved={setConfig} />
-              )}
+              <ModelsCard
+                config={config}
+                models={managedModelsResult ?? models}
+                managed={isManaged}
+                onSaved={setConfig}
+              />
             </div>
           </section>
 

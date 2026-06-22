@@ -69,6 +69,13 @@ export function AgentSetupWizard({
     );
   }
 
+  const managedPreset = (extraPresets ?? []).find((p) => p.managed);
+  const isManaged = !!managedPreset && !config.providerApiKeySet;
+  const managedModelsResult =
+    isManaged && (managedPreset?.models?.length ?? 0) > 0
+      ? { supported: true, models: managedPreset?.models ?? [] }
+      : null;
+
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-12">
       <Hero
@@ -115,7 +122,7 @@ export function AgentSetupWizard({
             onSaved={(updated, result) => {
               setConfig(updated);
               setModels(result);
-              setStep(updated.providerApiKeySet ? 3 : 4);
+              setStep(3);
             }}
           />
         )}
@@ -123,7 +130,8 @@ export function AgentSetupWizard({
         {step === 3 && (
           <ModelsCard
             config={config}
-            models={models}
+            models={managedModelsResult ?? models}
+            managed={isManaged}
             saveLabel={t('wizard.saveAndContinue')}
             extraActions={
               <Button type="button" variant="outline" onClick={() => setStep(2)}>

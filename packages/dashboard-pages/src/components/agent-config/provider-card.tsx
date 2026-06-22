@@ -95,7 +95,8 @@ export function ProviderCard({
       });
       setApiKey('');
       setKeyDirty(false);
-      onSaved?.(updated, { supported: false, models: [] });
+      const managedModels = managedPreset?.models ?? [];
+      onSaved?.(updated, { supported: managedModels.length > 0, models: managedModels });
     } catch (err) {
       setError(translate(err) || t('errors.test'));
     } finally {

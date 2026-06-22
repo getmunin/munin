@@ -436,8 +436,12 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   }
 
   function setSending(sending: boolean): void {
+    const wasSending = sendingNow;
     sendingNow = sending;
     refreshComposerState();
+    if (wasSending && !sending && !connectionDisabled && view === 'chat') {
+      panel.textarea.focus();
+    }
   }
 
   function canSend(): boolean {

@@ -1,8 +1,14 @@
 import { BadGatewayException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { describeError, safeFetch } from '@getmunin/core';
 
+export function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end -= 1;
+  return value.slice(0, end);
+}
+
 export async function validateProviderCredentials(baseUrl: string, apiKey: string): Promise<void> {
-  const root = baseUrl.replace(/\/+$/, '');
+  const root = stripTrailingSlashes(baseUrl);
   if (/openrouter\.ai/i.test(baseUrl)) {
     const body = await probe(`${root}/auth/key`, authHeaders(baseUrl, apiKey));
     if (!hasObjectData(body)) {

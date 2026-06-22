@@ -1,5 +1,35 @@
 # @getmunin/agent-host
 
+## 4.53.0
+
+### Minor Changes
+
+- c3a62e1: Add host extensibility hooks for the agent runner and provider configuration:
+  - Rate-limit counters can be incremented by an arbitrary amount (`record(bucket, amount)`); add monthly `ai_tokens` and per-minute `ai_generates` buckets.
+  - The usage summary (`/v1/usage/summary`) reports monthly AI token usage, surfaced as a tile on the usage and overview pages.
+  - Agent passes can report a `quota_exceeded` skip outcome.
+  - The agent host accepts an optional provider factory, credential resolver, and pre-generate gate via `runnerOptions`. The gate is consulted for both live chat and scheduled background work (distinguished by a `trigger` argument), so a host can supply its own provider implementation and meter or limit usage per org without forking the runner.
+  - The provider picker accepts host-supplied presets — including a credential-less "managed" preset that renders host content and clears the org key on selection — plus a default selection. The AI settings and usage pages accept an optional content slot.
+
+- 82fef68: Redesign the onboarding "Lift-off" summary's website-import section into three real states — importing, failed, and succeeded — driven by live crawl progress.
+
+  The web crawler now emits incremental progress (`{ total, done, recentPaths }`) as it reads pages; the runner persists it to a new nullable `curator_jobs.progress` column (throttled, best-effort), and the curator-job DTO surfaces it via `GET /v1/curator/jobs/:id`. The summary screen polls that to show a live `done / total` counter, a progress bar, and the paths being read while importing; the imported page count and duration on success; and the failure reason plus an inline **Retry import** on failure. A new internal `POST /v1/curator/jobs/:id/progress` endpoint backs the out-of-process runner path.
+
+  Also align the full-screen loading screens with the page background: `AuthLoading` (and the root route loader) now paint `bg-bone` so the loader no longer flashes the lighter paper surface before the bone-backed page resolves.
+
+### Patch Changes
+
+- c8a2026: Actually verify AI provider credentials on save. Previously the "Save & test" step only failed on an explicit 401/403, so a bogus custom endpoint or a 200/404/HTML response was accepted silently. Validation now requires a 2xx response and an OpenAI-compatible body shape (`data: []` for `/models`, `data: {}` for OpenRouter's `/auth/key`); non-2xx, unreachable, non-JSON, and wrong-shape responses are rejected with a descriptive error.
+- c3a62e1: Website import no longer fails the whole job when company-profile generation hits an LLM provider error (e.g. invalid credentials). The crawled pages are imported regardless — the optional profile step is skipped, a warning is logged, and the job completes successfully.
+- Updated dependencies [c3a62e1]
+- Updated dependencies [95f2983]
+- Updated dependencies [82fef68]
+  - @getmunin/backend-core@4.53.0
+  - @getmunin/agent-runtime@4.53.0
+  - @getmunin/types@4.53.0
+  - @getmunin/db@4.53.0
+  - @getmunin/core@4.53.0
+
 ## 4.52.1
 
 ### Patch Changes

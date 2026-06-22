@@ -221,7 +221,14 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const systemPrompt = `${namePreamble}${systemBody}`;
 
     if (deps.beforeGenerate) {
-      const verdict = await deps.beforeGenerate({ trigger: 'chat' });
+      const verdict = await deps
+        .beforeGenerate({ trigger: 'chat' })
+        .catch((err): { allowed: boolean; reason?: string } => {
+          log.warn(
+            `${conversationId} beforeGenerate failed, proceeding: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return { allowed: true };
+        });
       if (!verdict.allowed) {
         log.info(`${conversationId} reply suppressed: ${verdict.reason ?? 'gate denied'}`);
         deps.onGenerateBlocked?.(verdict.reason);

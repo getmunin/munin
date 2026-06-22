@@ -15,6 +15,7 @@ import {
 import { api } from '../../api';
 import { invalidateActiveMembershipCache } from '../../auth/use-active-role';
 import { useTranslateError } from '../../i18n/translate-error';
+import { BARE_CARD } from './types';
 
 interface OrgDto {
   id: string;
@@ -24,9 +25,10 @@ interface OrgDto {
 
 interface OrgNameCardProps {
   onSaved: () => void;
+  bare?: boolean;
 }
 
-export function OrgNameCard({ onSaved }: OrgNameCardProps) {
+export function OrgNameCard({ onSaved, bare }: OrgNameCardProps) {
   const t = useTranslations('agentSetup.org');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
@@ -77,12 +79,12 @@ export function OrgNameCard({ onSaved }: OrgNameCardProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className={bare ? BARE_CARD : undefined}>
+      <CardHeader className={bare ? 'px-0' : undefined}>
         <CardTitle>{t('title')}</CardTitle>
         <CardDescription>{t('lede')}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className={bare ? 'space-y-5 px-0' : 'space-y-5'}>
         <div className="space-y-1.5">
           <Label htmlFor="orgName">{t('nameLabel')}</Label>
           <Input

@@ -17,6 +17,7 @@ import { api } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
 import { AnthropicIcon, OpenAiIcon, OpenRouterIcon } from './provider-icons';
 import {
+  BARE_CARD,
   PROVIDER_PRESETS,
   presetForUrl,
   type AgentConfigDto,
@@ -39,6 +40,9 @@ interface ProviderCardProps {
   extraPresets?: ProviderPreset[];
   defaultPresetId?: string;
   lede?: string;
+  bare?: boolean;
+  saveLabel?: string;
+  onBack?: () => void;
   onSaved?: (updated: AgentConfigDto, models: ListModelsResult) => void;
 }
 
@@ -47,9 +51,13 @@ export function ProviderCard({
   extraPresets,
   defaultPresetId,
   lede,
+  bare,
+  saveLabel,
+  onBack,
   onSaved,
 }: ProviderCardProps) {
   const t = useTranslations('agentSetup');
+  const tCommon = useTranslations('common');
   const translate = useTranslateError();
 
   const managedPreset = (extraPresets ?? []).find((p) => p.managed);
@@ -209,20 +217,25 @@ export function ProviderCard({
     return (
       <div className="flex items-center gap-3">
         <Button type="button" onClick={onClick} disabled={disabled}>
-          {testing ? t('connection.testing') : t('provider.use')}
+          {testing ? t('connection.testing') : (saveLabel ?? tCommon('save'))}
         </Button>
+        {onBack && (
+          <Button type="button" variant="ghost" onClick={onBack}>
+            {tCommon('back')}
+          </Button>
+        )}
         {message && <span className="text-sm text-muted-foreground">{message}</span>}
       </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className={bare ? BARE_CARD : undefined}>
+      <CardHeader className={bare ? 'px-0' : undefined}>
         <CardTitle>{t('provider.title')}</CardTitle>
         <CardDescription>{lede ?? t('provider.lede')}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className={bare ? 'space-y-4 px-0' : 'space-y-4'}>
         {managedPreset ? (
           <>
             <button

@@ -1127,9 +1127,9 @@
       "readyLede": "Herfra håndterer Munin nye samtaler på egen hånd. Innboksen viser hva som skjer.",
       "saveAndContinue": "Lagre og fortsett",
       "checklist": {
-        "provider": "Leverandør konfigurert ({url})",
-        "fast": "Rask modell — {model}",
-        "smart": "Smart modell — {model}"
+        "provider": "Leverandør konfigurert (<code>{url}</code>)",
+        "fast": "Rask modell — <code>{model}</code>",
+        "smart": "Smart modell — <code>{model}</code>"
       },
       "cta": {
         "goToDashboard": "Gå til dashbord",
@@ -1147,7 +1147,6 @@
       "title": "Leverandør",
       "lede": "Koble til en hvilken som helst OpenAI-kompatibel leverandør med din egen nøkkel.",
       "urlLabel": "Base-URL",
-      "use": "Bruk denne leverandøren",
       "useOwnKey": "Bruk din egen leverandørnøkkel",
       "hideAlternatives": "Skjul leverandørvalg",
       "presets": {
@@ -1192,11 +1191,18 @@
         "enqueue": "Klarte ikke å starte importen. Sjekk URL-en og prøv igjen."
       },
       "status": {
-        "label": "Nettsted-import",
-        "running": "Leser nettstedet ditt — dette tar vanligvis under ett minutt. Du kan forlate siden; vi fortsetter i bakgrunnen.",
-        "done": "Ferdig. Nettstedet ditt ligger i kunnskapsbasen — agentene kan søke og sitere fra det.",
-        "failed": "Vi klarte ikke å fullføre importen. Åpne Innstillinger → Kurator-jobber for detaljer, eller legg til dokumenter manuelt.",
-        "stillRunning": "Jobber fortsatt. Det tar lenger enn vanlig; sjekk innom om et minutt."
+        "readingLabel": "Nettsted-import · leser",
+        "failedLabel": "Nettsted-import · mislyktes",
+        "doneLabel": "Nettsted-import · ferdig",
+        "reading": "Leser {host} — vanligvis under ett minutt. Du kan forlate siden; vi fortsetter i bakgrunnen.",
+        "stillRunning": "Jobber fortsatt. Det tar lenger enn vanlig; sjekk innom om et minutt.",
+        "counter": "{done} / {total}",
+        "pagesChip": "{count, plural, one {# side} other {# sider}}",
+        "doneSummary": "Importerte {count, plural, one {# side} other {# sider}} fra {host} på {duration} s. Munin bruker dem til å underbygge svarene sine.",
+        "doneSummaryNoTime": "Importerte {count, plural, one {# side} other {# sider}} fra {host}. Munin bruker dem til å underbygge svarene sine.",
+        "doneEmpty": "Vi leste {host}, men fant ingen sider å importere.",
+        "failedSummary": "Kunne ikke nå {host}. Ingen sider ble importert. Agenten din er fortsatt aktiv — importer senere fra Innstillinger.",
+        "retry": "Prøv import på nytt"
       }
     }
   },

@@ -1,0 +1,1 @@
+ALTER TABLE "curator_jobs" ADD COLUMN "progress" jsonb;

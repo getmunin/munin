@@ -100,3 +100,9 @@
   50%      { opacity: 1;    transform: scale(1.05); }
 }
 .animate-pulse-dot { animation: munin-pulse-dot 1.6s ease-in-out infinite; }
+
+@keyframes munin-import-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+.animate-import-indeterminate { animation: munin-import-indeterminate 1.4s ease-in-out infinite; }

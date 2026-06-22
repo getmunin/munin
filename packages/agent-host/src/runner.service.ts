@@ -43,6 +43,7 @@ import {
   tierFor,
   toolPrefixesFor,
   WEB_SCRAPE_SITE_TASK_URI,
+  type WebImportProgress,
 } from '@getmunin/types';
 import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.ts';
 import type { AgentConfigRepository, AgentConfigRow } from './config.repository.ts';
@@ -59,6 +60,7 @@ interface TaskHandlerContext {
   model: string;
   provider?: Provider;
   logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
+  onProgress?: (p: WebImportProgress) => void;
 }
 
 type TaskHandler = (ctx: TaskHandlerContext) => Promise<SkillPassResult>;
@@ -499,6 +501,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           model,
           provider: opts.provider,
           logger: log,
+          onProgress: makeProgressWriter(job.id, opts.rest),
         };
         const kind = jobKindOf(job.jobUri);
         if (kind === 'task') {
@@ -679,4 +682,45 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+const PROGRESS_THROTTLE_MS = 750;
+
+function makeProgressWriter(
+  jobId: string,
+  rest: MuninRestClient,
+): (p: WebImportProgress) => void {
+  let lastWriteAt = 0;
+  let pending: WebImportProgress | null = null;
+  let timer: NodeJS.Timeout | null = null;
+
+  const flush = (p: WebImportProgress): void => {
+    lastWriteAt = Date.now();
+    void rest.updateCuratorJobProgress(jobId, { progress: p }).catch(() => {});
+  };
+
+  return (p) => {
+    const sinceLast = Date.now() - lastWriteAt;
+    const isFinal = p.total > 0 && p.done >= p.total;
+    if (lastWriteAt === 0 || isFinal || sinceLast >= PROGRESS_THROTTLE_MS) {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      pending = null;
+      flush(p);
+      return;
+    }
+    pending = p;
+    if (!timer) {
+      timer = setTimeout(() => {
+        timer = null;
+        if (pending) {
+          const next = pending;
+          pending = null;
+          flush(next);
+        }
+      }, PROGRESS_THROTTLE_MS - sinceLast);
+    }
+  };
 }

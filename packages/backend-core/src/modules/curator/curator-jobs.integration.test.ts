@@ -190,6 +190,35 @@ const skipReason = TEST_URL
     expect(items[0]?.priority).toBe(100);
   });
 
+  it('round-trips web-import progress through the progress endpoint and DTO', async () => {
+    const enq = await call('/v1/curator/jobs', {
+      method: 'POST',
+      body: { jobUri: 'task://web/scrape-website', userPrompt: 'https://example.com/' },
+    });
+    expect(enq.status).toBe(201);
+    const jobId = (enq.body as { job: { id: string } }).job.id;
+
+    const before = await call(`/v1/curator/jobs/${jobId}`);
+    expect((before.body as { progress: unknown }).progress).toBeNull();
+
+    const progress = { total: 12, done: 5, recentPaths: ['/pricing', '/docs/mcp'] };
+    const update = await call(`/v1/curator/jobs/${jobId}/progress`, {
+      method: 'POST',
+      body: { progress },
+    });
+    expect(update.status).toBe(204);
+
+    const after = await call(`/v1/curator/jobs/${jobId}`);
+    expect((after.body as { progress: unknown }).progress).toEqual(progress);
+    expect((after.body as { status: string }).status).toBe('pending');
+
+    const bad = await call(`/v1/curator/jobs/${jobId}/progress`, {
+      method: 'POST',
+      body: { progress: { total: -1, done: 0, recentPaths: [] } },
+    });
+    expect(bad.status).toBe(400);
+  });
+
   it('returns existing job when same dedupeKey is enqueued twice', async () => {
     const first = await call('/v1/curator/jobs', {
       method: 'POST',

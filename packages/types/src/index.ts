@@ -73,3 +73,4 @@ export {
   type KnownEventType,
   type EventModule,
 } from './event-catalog.ts';
+export { type WebImportProgress } from './web-import.ts';

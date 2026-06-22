@@ -102,6 +102,10 @@ export interface FailCuratorJobInput {
   failedStep?: string;
 }
 
+export interface UpdateCuratorJobProgressInput {
+  progress: unknown;
+}
+
 export interface MuninRestClient {
   getConversation(id: string): Promise<ConversationDetail>;
   postAgentMessage(
@@ -132,6 +136,7 @@ export interface MuninRestClient {
   claimCuratorJobs(input: ClaimCuratorJobsInput): Promise<CuratorJob[]>;
   ackCuratorJob(id: string, input?: AckCuratorJobInput): Promise<CuratorJob>;
   failCuratorJob(id: string, input: FailCuratorJobInput): Promise<CuratorJob>;
+  updateCuratorJobProgress(id: string, input: UpdateCuratorJobProgressInput): Promise<void>;
 }
 
 export interface CreateMuninRestClientOptions {
@@ -291,6 +296,12 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     },
     async failCuratorJob(id: string, input: FailCuratorJobInput): Promise<CuratorJob> {
       return call<CuratorJob>(`/v1/curator/jobs/${encodeURIComponent(id)}/fail`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+    },
+    async updateCuratorJobProgress(id: string, input: UpdateCuratorJobProgressInput): Promise<void> {
+      await call<unknown>(`/v1/curator/jobs/${encodeURIComponent(id)}/progress`, {
         method: 'POST',
         body: JSON.stringify(input),
       });

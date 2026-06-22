@@ -295,6 +295,13 @@
       "when": 1782120045647,
       "tag": "0041_curator_jobs_priority",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1782122724985,
+      "tag": "0042_curator_jobs_progress",
+      "breakpoints": true
     }
   ]
 }

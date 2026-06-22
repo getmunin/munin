@@ -12,6 +12,7 @@ import {
   KNOWN_TASK_URIS,
   priorityFor,
   WEB_SCRAPE_SITE_TASK_URI,
+  type WebImportProgress,
 } from '@getmunin/types';
 
 export const CURATOR_JOB_STATUSES = [
@@ -46,6 +47,7 @@ export interface CuratorJobDto {
   lastReplyText: string | null;
   lastToolCalls: number | null;
   lastTotalTokens: number | null;
+  progress: WebImportProgress | null;
   createdAt: string;
   updatedAt: string;
   doneAt: string | null;
@@ -302,6 +304,14 @@ export class CuratorJobsService {
     return result.length;
   }
 
+  async updateProgress(input: { id: string; progress: WebImportProgress }): Promise<void> {
+    const ctx = getCurrentContext();
+    await ctx.db
+      .update(schema.curatorJobs)
+      .set({ progress: input.progress, updatedAt: new Date() })
+      .where(eq(schema.curatorJobs.id, input.id));
+  }
+
   async get(id: string): Promise<CuratorJobDto> {
     const ctx = getCurrentContext();
     const [row] = await ctx.db
@@ -351,6 +361,7 @@ function toDto(row: Row, assistantName: string | null = null): CuratorJobDto {
     lastReplyText: row.lastReplyText,
     lastToolCalls: row.lastToolCalls,
     lastTotalTokens: row.lastTotalTokens,
+    progress: row.progress ?? null,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
     doneAt: row.doneAt ? toIso(row.doneAt) : null,
@@ -414,6 +425,7 @@ function rowFromSql(raw: Record<string, unknown>): Row {
     lastReplyText: (raw.last_reply_text as string | null) ?? null,
     lastToolCalls: raw.last_tool_calls != null ? Number(raw.last_tool_calls) : null,
     lastTotalTokens: raw.last_total_tokens != null ? Number(raw.last_total_tokens) : null,
+    progress: (raw.progress as WebImportProgress | null) ?? null,
     createdAt: raw.created_at as Date,
     updatedAt: raw.updated_at as Date,
     doneAt: (raw.done_at as Date | null) ?? null,

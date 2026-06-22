@@ -50,6 +50,8 @@ export const PROVIDER_PRESETS = [
 
 export type PresetId = (typeof PROVIDER_PRESETS)[number]['id'];
 
+export const BARE_CARD = 'border-0 bg-transparent py-0 dark:border-0 dark:bg-transparent';
+
 export function presetForUrl(url: string): PresetId {
   const match = PROVIDER_PRESETS.find((p) => p.url === url);
   return match?.id ?? 'custom';

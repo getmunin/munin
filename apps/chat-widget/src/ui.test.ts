@@ -482,6 +482,26 @@ describe('ui: composer', () => {
     expect(onTypingIntent).toHaveBeenCalledWith('stopped');
   });
 
+  it('restores focus to the textarea after a send completes', () => {
+    const ta = $<HTMLTextAreaElement>('textarea');
+    ta.focus();
+    controller!.setSending(true);
+    expect(ta.disabled).toBe(true);
+    controller!.setSending(false);
+    expect(ta.disabled).toBe(false);
+    expect(shadowRoot().activeElement).toBe(ta);
+  });
+
+  it('does not refocus the textarea while disconnected', () => {
+    const ta = $<HTMLTextAreaElement>('textarea');
+    controller!.setConnectionState('closed');
+    const focusSpy = vi.spyOn(ta, 'focus');
+    controller!.setSending(true);
+    controller!.setSending(false);
+    expect(ta.disabled).toBe(true);
+    expect(focusSpy).not.toHaveBeenCalled();
+  });
+
   it('sends on Enter, not on Shift+Enter', () => {
     setText('hi');
     const ta = $<HTMLTextAreaElement>('textarea');
@@ -502,11 +522,44 @@ describe('ui: connection state banner', () => {
     ($('.launcher')).click();
   });
 
-  it('hides on connected, shows on reconnecting', () => {
+  it('shows the reconnecting bar only after the grace period, then hides on connected', () => {
+    vi.useFakeTimers();
     controller!.setConnectionState('reconnecting');
+    expect(($('.status')).hidden).toBe(true);
+    vi.advanceTimersByTime(1400);
+    expect(($('.status')).hidden).toBe(true);
+    vi.advanceTimersByTime(200);
     expect(($('.status')).hidden).toBe(false);
     expect($('.status').textContent).toMatch(/reconnect/i);
     controller!.setConnectionState('connected');
     expect(($('.status')).hidden).toBe(true);
+  });
+
+  it('never shows the bar when a reconnect succeeds within the grace period', () => {
+    vi.useFakeTimers();
+    controller!.setConnectionState('reconnecting');
+    vi.advanceTimersByTime(800);
+    controller!.setConnectionState('connecting');
+    controller!.setConnectionState('connected');
+    expect(($('.status')).hidden).toBe(true);
+    vi.advanceTimersByTime(5000);
+    expect(($('.status')).hidden).toBe(true);
+  });
+
+  it('keeps the grace clock running across reconnecting/connecting bounces', () => {
+    vi.useFakeTimers();
+    controller!.setConnectionState('reconnecting');
+    vi.advanceTimersByTime(1000);
+    controller!.setConnectionState('connecting');
+    controller!.setConnectionState('reconnecting');
+    expect(($('.status')).hidden).toBe(true);
+    vi.advanceTimersByTime(600);
+    expect(($('.status')).hidden).toBe(false);
+  });
+
+  it('shows the disconnected bar immediately on closed', () => {
+    controller!.setConnectionState('closed');
+    expect(($('.status')).hidden).toBe(false);
+    expect($('.status').textContent).toMatch(/disconnect/i);
   });
 });

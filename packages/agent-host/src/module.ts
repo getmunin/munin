@@ -1,4 +1,12 @@
-import { DynamicModule, Module, Provider, Type } from '@nestjs/common';
+import {
+  DynamicModule,
+  Module,
+  Provider,
+  Type,
+  type InjectionToken,
+  type ModuleMetadata,
+  type OptionalFactoryDependency,
+} from '@nestjs/common';
 import {
   AgentRunnerSupportModule,
   AlertsService,
@@ -15,52 +23,67 @@ import { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.t
 import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB, ALERT_RECORDER } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 
+const RUNNER_OPTIONS = 'AGENT_HOST_RUNNER_OPTIONS';
+
 export interface AgentHostModuleOptions {
   configRepository: Type<AgentConfigRepository>;
   runnerOptions?: AgentHostRunnerOptions;
 }
 
+export interface AgentHostModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
+  configRepository: Type<AgentConfigRepository>;
+  inject?: Array<InjectionToken | OptionalFactoryDependency>;
+  useFactory: (...args: never[]) => AgentHostRunnerOptions | Promise<AgentHostRunnerOptions>;
+}
+
 @Module({})
 export class AgentHostModule {
   static forRoot(options: AgentHostModuleOptions): DynamicModule {
-    const repoProvider: Provider = {
-      provide: AGENT_CONFIG_REPOSITORY,
-      useClass: options.configRepository,
-    };
-    const dbAliasProvider: Provider = {
-      provide: AGENT_HOST_DB,
-      useExisting: DB,
-    };
-    const runnerOptionsProvider: Provider = {
-      provide: 'AGENT_HOST_RUNNER_OPTIONS',
+    return buildModule(options.configRepository, {
+      provide: RUNNER_OPTIONS,
       useValue: options.runnerOptions ?? {},
-    };
-    const alertRecorderProvider: Provider = {
-      provide: ALERT_RECORDER,
-      useExisting: AlertsService,
-    };
-    return {
-      module: AgentHostModule,
-      imports: [DbModule, McpModule, RealtimeModule, AgentRunnerSupportModule],
-      providers: [
-        repoProvider,
-        dbAliasProvider,
-        runnerOptionsProvider,
-        alertRecorderProvider,
-        options.configRepository,
-        AgentConfigService,
-        AgentModelsService,
-        AgentHealthService,
-        AgentHostRunner,
-      ],
-      controllers: [AgentConfigController],
-      exports: [
-        AgentConfigService,
-        AgentModelsService,
-        AgentHealthService,
-        AGENT_CONFIG_REPOSITORY,
-        AGENT_HOST_DB,
-      ],
-    };
+    });
   }
+
+  static forRootAsync(options: AgentHostModuleAsyncOptions): DynamicModule {
+    return buildModule(
+      options.configRepository,
+      {
+        provide: RUNNER_OPTIONS,
+        useFactory: options.useFactory,
+        inject: options.inject ?? [],
+      },
+      options.imports ?? [],
+    );
+  }
+}
+
+function buildModule(
+  configRepository: Type<AgentConfigRepository>,
+  runnerOptionsProvider: Provider,
+  extraImports: NonNullable<ModuleMetadata['imports']> = [],
+): DynamicModule {
+  return {
+    module: AgentHostModule,
+    imports: [DbModule, McpModule, RealtimeModule, AgentRunnerSupportModule, ...extraImports],
+    providers: [
+      { provide: AGENT_CONFIG_REPOSITORY, useClass: configRepository },
+      { provide: AGENT_HOST_DB, useExisting: DB },
+      runnerOptionsProvider,
+      { provide: ALERT_RECORDER, useExisting: AlertsService },
+      configRepository,
+      AgentConfigService,
+      AgentModelsService,
+      AgentHealthService,
+      AgentHostRunner,
+    ],
+    controllers: [AgentConfigController],
+    exports: [
+      AgentConfigService,
+      AgentModelsService,
+      AgentHealthService,
+      AGENT_CONFIG_REPOSITORY,
+      AGENT_HOST_DB,
+    ],
+  };
 }

@@ -1,5 +1,12 @@
 # @getmunin/chat-widget
 
+## 4.56.1
+
+### Patch Changes
+
+- 74780cc: Keep the composer focused after sending a message. Disabling the textarea while a send was in flight dropped its focus and re-enabling it didn't restore it, forcing the user to click back into the field before each new message. The widget now restores focus to the composer once the send completes.
+- 8b7b284: Chat widget: defer the "Reconnecting…" status bar by a short grace period (1.5s) so a quick websocket reconnect no longer flashes the bar and shifts the layout. The bar now appears only if the connection stays down past the grace window, matching the admin dashboard's disconnect banner.
+
 ## 4.56.0
 
 ## 4.55.0

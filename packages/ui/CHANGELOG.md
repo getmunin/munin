@@ -1,5 +1,11 @@
 # @getmunin/ui
 
+## 4.56.0
+
+### Patch Changes
+
+- ccbc3a4: Update UI runtime dependencies within range: lucide-react 1.21, @base-ui/react 1.6, tailwind-merge 3.6, next-intl 4.13, and @react-email/render 2.0.9.
+
 ## 4.55.0
 
 ## 4.54.0

@@ -40,6 +40,6 @@
     "@getmunin/tsconfig": "workspace:*",
     "eslint": "^9.10.0",
     "typescript": "^5.6.0",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.9"
   }
 }

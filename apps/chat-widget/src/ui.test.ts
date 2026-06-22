@@ -492,9 +492,9 @@ describe('ui: composer', () => {
     expect(shadowRoot().activeElement).toBe(ta);
   });
 
-  it('does not refocus the textarea while still disconnected', () => {
+  it('does not refocus the textarea while disconnected', () => {
     const ta = $<HTMLTextAreaElement>('textarea');
-    controller!.setConnectionState('reconnecting');
+    controller!.setConnectionState('closed');
     const focusSpy = vi.spyOn(ta, 'focus');
     controller!.setSending(true);
     controller!.setSending(false);

@@ -288,6 +288,13 @@
       "when": 1781010000000,
       "tag": "0040_conv_conversations_threll_call_uq",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1782120045647,
+      "tag": "0041_curator_jobs_priority",
+      "breakpoints": true
     }
   ]
 }

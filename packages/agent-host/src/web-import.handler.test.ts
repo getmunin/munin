@@ -117,6 +117,7 @@ describe('runWebImportJob', () => {
       sourceEventPayload: { synthesizeCompanyProfile: true, reconcile: false },
       dedupeKey: null,
       status: 'pending',
+      priority: 100,
       attempts: 1,
       maxAttempts: 3,
       nextAttemptAt: '2026-01-01T00:00:00.000Z',

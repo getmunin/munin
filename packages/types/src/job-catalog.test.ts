@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   KNOWN_SKILL_URIS,
   jobKindOf,
+  priorityFor,
   tierFor,
   toolPrefixesFor,
 } from './job-catalog.ts';
@@ -39,6 +40,18 @@ describe('toolPrefixesFor', () => {
   it('returns undefined for unmapped URIs', () => {
     expect(toolPrefixesFor('task://web/scrape-website')).toBeUndefined();
     expect(toolPrefixesFor('skill://unknown/x')).toBeUndefined();
+  });
+});
+
+describe('priorityFor', () => {
+  it('prioritizes the interactive website import above background work', () => {
+    expect(priorityFor('task://web/scrape-website')).toBe(100);
+  });
+  it('defaults background jobs to 0', () => {
+    expect(priorityFor('skill://kb/review-content')).toBe(0);
+    expect(priorityFor('skill://crm/clean-contact-data')).toBe(0);
+    expect(priorityFor('skill://made-up/future')).toBe(0);
+    expect(priorityFor('')).toBe(0);
   });
 });
 

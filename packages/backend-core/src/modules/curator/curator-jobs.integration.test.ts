@@ -156,6 +156,40 @@ const skipReason = TEST_URL
     expect(reclaimBody.items).toHaveLength(0);
   });
 
+  it('claims higher-priority jobs ahead of older lower-priority ones', async () => {
+    const background = await call('/v1/curator/jobs', {
+      method: 'POST',
+      body: { jobUri: 'skill://kb/review-content', userPrompt: 'old background sweep' },
+    });
+    const backgroundJob = (background.body as { job: { id: string; priority: number } }).job;
+    expect(backgroundJob.priority).toBe(0);
+
+    await db
+      .update(schema.curatorJobs)
+      .set({ nextAttemptAt: new Date(Date.now() - 60_000) })
+      .where(sql`id = ${backgroundJob.id}`);
+
+    const interactive = await call('/v1/curator/jobs', {
+      method: 'POST',
+      body: {
+        jobUri: 'skill://kb/review-content',
+        userPrompt: 'interactive onboarding work',
+        priority: 100,
+      },
+    });
+    const interactiveJob = (interactive.body as { job: { id: string; priority: number } }).job;
+    expect(interactiveJob.priority).toBe(100);
+
+    const claim = await call('/v1/curator/jobs/claim', {
+      method: 'POST',
+      body: { holder: 'sidecar-test', limit: 1, leaseSeconds: 60 },
+    });
+    const items = (claim.body as { items: Array<{ id: string; priority: number }> }).items;
+    expect(items).toHaveLength(1);
+    expect(items[0]?.id).toBe(interactiveJob.id);
+    expect(items[0]?.priority).toBe(100);
+  });
+
   it('returns existing job when same dedupeKey is enqueued twice', async () => {
     const first = await call('/v1/curator/jobs', {
       method: 'POST',

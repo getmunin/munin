@@ -173,7 +173,7 @@
     "agents": "Agents",
     "apiKeys": "API keys",
     "channels": "Channels",
-    "trackers": "Page views",
+    "trackers": "Trackers",
     "endUsers": "End-users",
     "usage": "Usage",
     "auditLog": "Audit log",
@@ -717,9 +717,9 @@
       }
     },
     "trackers": {
-      "eyebrow": "Workspace · Page views",
+      "eyebrow": "Workspace · Trackers",
       "title": "What people <em>actually</em> read.",
-      "subtitle": "Page-view analytics from your sites and apps.",
+      "subtitle": "Track page views across your sites and apps.",
       "trackersTitle": "Trackers",
       "trackersTitleCount": "Trackers · {count}",
       "addTracker": "Add tracker",

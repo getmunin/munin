@@ -173,7 +173,7 @@
     "agents": "Agenter",
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
-    "trackers": "Sidevisninger",
+    "trackers": "Målepunkter",
     "endUsers": "Sluttbrukere",
     "usage": "Bruk",
     "auditLog": "Hendelseslogg",
@@ -717,9 +717,9 @@
       }
     },
     "trackers": {
-      "eyebrow": "Arbeidsområde · Sidevisninger",
+      "eyebrow": "Arbeidsområde · Målepunkter",
       "title": "Hva folk <em>faktisk</em> leser.",
-      "subtitle": "Sidevisning-analytikk fra dine nettsteder og apper.",
+      "subtitle": "Spor sidevisninger på tvers av dine nettsteder og apper.",
       "trackersTitle": "Målepunkter",
       "trackersTitleCount": "Målepunkter · {count}",
       "addTracker": "Legg til målepunkt",

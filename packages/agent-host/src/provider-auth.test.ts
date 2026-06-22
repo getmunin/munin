@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadGatewayException, UnauthorizedException } from '@nestjs/common';
 import * as core from '@getmunin/core';
-import { validateProviderCredentials } from './provider-auth.ts';
+import { stripTrailingSlashes, validateProviderCredentials } from './provider-auth.ts';
 
 function mockSafeFetch(response: {
   status: number;
@@ -125,5 +125,28 @@ describe('validateProviderCredentials', () => {
         BadGatewayException,
       );
     });
+  });
+});
+
+describe('stripTrailingSlashes', () => {
+  it('matches the trailing-slash semantics of the previous regex', () => {
+    const cases = [
+      'https://api.example.com/',
+      'https://api.example.com///',
+      'https://api.example.com',
+      'https://api.example.com/v1',
+      'https://api.example.com/v1/',
+      '',
+      '/',
+      '////',
+    ];
+    for (const value of cases) {
+      expect(stripTrailingSlashes(value)).toBe(value.replace(/\/+$/, ''));
+    }
+  });
+
+  it('runs in linear time on pathological all-slash input', () => {
+    const input = `${'/'.repeat(200_000)}a`;
+    expect(stripTrailingSlashes(input)).toBe(input);
   });
 });

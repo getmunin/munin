@@ -15,7 +15,7 @@
     "e2e:install": "playwright install chromium"
   },
   "dependencies": {
-    "@base-ui/react": "^1.4.1",
+    "@base-ui/react": "^1.6.0",
     "@getmunin/dashboard-pages": "workspace:*",
     "@getmunin/docs-pages": "workspace:*",
     "@getmunin/sdk": "workspace:*",
@@ -25,30 +25,30 @@
     "better-auth": "^1.6.11",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.11.0",
+    "lucide-react": "^1.21.0",
     "next": "^16.2.6",
-    "next-intl": "^4.12.0",
+    "next-intl": "^4.13.0",
     "next-themes": "^0.4.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "shadcn": "^4.5.0",
+    "shadcn": "^4.11.0",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^3.5.0",
+    "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "^1.61.0",
     "@types/node": "^22.7.0",
-    "@types/react": "^19.2.15",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.10.0",
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.0",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.9"
   }
 }

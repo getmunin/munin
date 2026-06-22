@@ -1,5 +1,19 @@
 # @getmunin/agent-host
 
+## 4.55.0
+
+### Minor Changes
+
+- e64b320: The setup/onboarding gate now treats an org as configured when the agent has a usable provider — not only when an org-level API key is set. `/v1/agent-config` exposes `providerConfigured` (`providerApiKeySet` OR a host-supplied `defaultProviderAvailable`), and `AgentHostModule.forRoot`/`forRootAsync` accept a `defaultProviderAvailable` flag. Hosts that supply a default provider can let key-less orgs finish onboarding and reach the dashboard; self-hosted setups (no flag) are unchanged.
+
+### Patch Changes
+
+- @getmunin/core@4.55.0
+- @getmunin/db@4.55.0
+- @getmunin/types@4.55.0
+- @getmunin/backend-core@4.55.0
+- @getmunin/agent-runtime@4.55.0
+
 ## 4.54.0
 
 ### Minor Changes

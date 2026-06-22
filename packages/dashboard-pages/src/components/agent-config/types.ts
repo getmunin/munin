@@ -34,10 +34,10 @@ export interface ProviderPreset {
   id: string;
   name: string;
   url: string;
-  /** When true, the preset uses no host credentials; selecting it clears the org key. */
   managed?: boolean;
-  /** Host-supplied content shown in place of the URL/key inputs for a managed preset. */
   description?: ReactNode;
+  badge?: string;
+  icon?: ReactNode;
 }
 
 export const PROVIDER_PRESETS = [

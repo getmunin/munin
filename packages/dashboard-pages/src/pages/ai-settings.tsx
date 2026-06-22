@@ -18,10 +18,16 @@ import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 interface AiSettingsPageProps {
   extraPresets?: ProviderPreset[];
   defaultPresetId?: string;
+  providerLede?: string;
   slot?: ReactNode;
 }
 
-export function AiSettingsPage({ extraPresets, defaultPresetId, slot }: AiSettingsPageProps = {}) {
+export function AiSettingsPage({
+  extraPresets,
+  defaultPresetId,
+  providerLede,
+  slot,
+}: AiSettingsPageProps = {}) {
   const t = useTranslations('agentSetup');
   const tList = useTranslations('assistants.list');
   const tCommon = useTranslations('common');
@@ -55,7 +61,7 @@ export function AiSettingsPage({ extraPresets, defaultPresetId, slot }: AiSettin
   const scheduledTasks = remainingSkills.filter((s) => s.kind === 'task');
 
   return (
-    <>
+    <div className="max-w-3xl space-y-10">
       <Hero
         eyebrow={t('settings.eyebrow')}
         title={t.rich('settings.title', { em: (chunks) => <em>{chunks}</em> })}
@@ -65,11 +71,11 @@ export function AiSettingsPage({ extraPresets, defaultPresetId, slot }: AiSettin
       {slot}
 
       {config === null && (
-        <p className="mt-6 text-sm text-muted-foreground">{tCommon('loading')}</p>
+        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
       )}
 
       {config && (
-        <div className="mt-8 space-y-10">
+        <div className="space-y-10">
           <section className="space-y-4">
             <SectionHeader title={tList('persona.title')} blurb={tList('persona.blurb')} />
             <div className="space-y-6">
@@ -88,6 +94,7 @@ export function AiSettingsPage({ extraPresets, defaultPresetId, slot }: AiSettin
                 config={config}
                 extraPresets={extraPresets}
                 defaultPresetId={defaultPresetId}
+                lede={providerLede}
                 onSaved={(updated, result) => {
                   setConfig(updated);
                   setModels(result);
@@ -149,7 +156,7 @@ export function AiSettingsPage({ extraPresets, defaultPresetId, slot }: AiSettin
           </section>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

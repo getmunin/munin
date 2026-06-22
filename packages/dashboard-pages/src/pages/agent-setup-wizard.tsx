@@ -21,9 +21,14 @@ const TOTAL_STEPS = 5;
 interface AgentSetupWizardProps {
   extraPresets?: ProviderPreset[];
   defaultPresetId?: string;
+  providerLede?: string;
 }
 
-export function AgentSetupWizard({ extraPresets, defaultPresetId }: AgentSetupWizardProps = {}) {
+export function AgentSetupWizard({
+  extraPresets,
+  defaultPresetId,
+  providerLede,
+}: AgentSetupWizardProps = {}) {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
   const { config, loadErrorMessage, models, setConfig, setModels } = useAgentConfig();
@@ -106,6 +111,7 @@ export function AgentSetupWizard({ extraPresets, defaultPresetId }: AgentSetupWi
             config={config}
             extraPresets={extraPresets}
             defaultPresetId={defaultPresetId}
+            lede={providerLede}
             onSaved={(updated, result) => {
               setConfig(updated);
               setModels(result);

@@ -1145,9 +1145,17 @@
     },
     "provider": {
       "title": "Provider",
-      "lede": "OpenAI-compatible endpoint. OpenRouter offers a single key with access to many providers.",
+      "lede": "Connect any OpenAI-compatible provider with your own key.",
       "urlLabel": "Base URL",
-      "useManaged": "Use this provider"
+      "use": "Use this provider",
+      "useOwnKey": "Use your own provider key",
+      "hideAlternatives": "Hide provider options",
+      "presets": {
+        "openrouter": "One key, many models",
+        "anthropic": "Claude models",
+        "openai": "GPT models",
+        "custom": "OpenAI-compatible URL"
+      }
     },
     "apiKey": {
       "title": "API key",

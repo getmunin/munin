@@ -79,7 +79,7 @@ export function UsagePage({ slot }: { slot?: ReactNode } = {}) {
 
       {slot}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px bg-rule-soft border-[0.5px] border-rule-soft dark:bg-rule-on-dark dark:border-rule-on-dark">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 border-l-[0.5px] border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
         <Tile
           label={t('tiles.mcpCalls')}
           period={t('tiles.thisMonth')}
@@ -139,7 +139,7 @@ function Tile({
   const delta = useMemo(() => computeDelta(tile, mode), [tile, mode]);
 
   return (
-    <div className="bg-paper dark:bg-card p-6 flex flex-col gap-4 min-h-[180px]">
+    <div className="bg-paper dark:bg-card p-6 flex flex-col gap-4 min-h-[180px] border-r-[0.5px] border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
       <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
         {label} · {period}
       </p>

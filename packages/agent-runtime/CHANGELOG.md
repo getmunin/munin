@@ -1,5 +1,18 @@
 # @getmunin/agent-runtime
 
+## 4.56.0
+
+### Minor Changes
+
+- 2d69094: Recover chat replies when the in-memory NOTIFY misses a live runner. A widget/chat reply was driven purely by an in-process `conversation.message.received` event reaching a subscribed runner; if no runner was resident when the NOTIFY fired (cold start, restart, scale-to-zero, dropped listener), the reply was silently lost because nothing durable recorded that one was owed.
+
+  The runner now also drives replies from a durable recovery set: `GET /v1/conversations/awaiting-reply` returns open, auto-mode, unassigned, non-voice conversations whose latest non-internal message is from the visitor. The agent host sweeps this on every (re)spawn — the same on-boot drain that lets the curator queue survive scale-to-zero — and on each reconcile tick, re-driving anything that slipped through. Already-answered and staff-handled threads are excluded, and the existing `shouldRespond` + conversation-claim + `sinceMessageId` guards keep a redundant trigger a no-op, so no duplicate replies.
+
+### Patch Changes
+
+- 373d29e: Fail open when the chat pre-generate gate errors. The `beforeGenerate` hook (a quota/usage gate) was awaited without a guard, so a thrown error rejected the whole reply attempt and silently dropped the visitor's reply. It now degrades to allow — mirroring the curator's scheduled-work gate — and logs the error (`beforeGenerate failed, proceeding: …`) and any explicit denial (`reply suppressed: …`) so the verdict is observable. A gate outage can no longer swallow a customer's reply.
+  - @getmunin/core@4.56.0
+
 ## 4.55.0
 
 ### Patch Changes

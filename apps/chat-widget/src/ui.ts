@@ -8,6 +8,8 @@ import { renderMarkdownInto } from './markdown.ts';
 
 export type ConnectionLabel = 'connected' | 'reconnecting' | 'closed' | 'idle' | 'connecting';
 
+const RECONNECT_STATUS_GRACE_MS = 1500;
+
 export interface UiHooks {
   onSend: (text: string) => void;
   onTypingIntent: (intent: 'typing' | 'stopped') => void;
@@ -386,16 +388,46 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   let connectionDisabled = false;
   let sendingNow = false;
 
+  let reconnectGraceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showReconnectingStatus(): void {
+    panel.statusEl.hidden = false;
+    panel.statusEl.textContent = strings.statusReconnecting;
+    connectionDisabled = true;
+    refreshComposerState();
+  }
+
   function setConnectionState(state: ConnectionLabel): void {
-    if (state === 'connected' || state === 'idle' || state === 'connecting') {
+    if (state === 'connecting') {
+      // Part of an in-flight (re)connect. Leave the bar and any pending grace
+      // timer untouched: a first connect shows nothing, and a mid-outage bounce
+      // (reconnecting → connecting → reconnecting) must not reset the grace clock,
+      // otherwise the bar would never appear during a sustained outage.
+      return;
+    }
+    if (state === 'connected' || state === 'idle') {
+      if (reconnectGraceTimer) {
+        clearTimeout(reconnectGraceTimer);
+        reconnectGraceTimer = null;
+      }
       panel.statusEl.hidden = true;
       panel.statusEl.textContent = '';
       connectionDisabled = false;
     } else if (state === 'reconnecting') {
-      panel.statusEl.hidden = false;
-      panel.statusEl.textContent = strings.statusReconnecting;
-      connectionDisabled = true;
+      // Defer the status bar by a grace period so a quick reconnect doesn't flash
+      // the bar and shift the layout. If we're already showing it (or already
+      // waiting), keep the existing timer running.
+      if (!panel.statusEl.hidden || reconnectGraceTimer) return;
+      reconnectGraceTimer = setTimeout(() => {
+        reconnectGraceTimer = null;
+        showReconnectingStatus();
+      }, RECONNECT_STATUS_GRACE_MS);
+      return;
     } else if (state === 'closed') {
+      if (reconnectGraceTimer) {
+        clearTimeout(reconnectGraceTimer);
+        reconnectGraceTimer = null;
+      }
       panel.statusEl.hidden = false;
       panel.statusEl.textContent = strings.statusDisconnected;
       connectionDisabled = true;

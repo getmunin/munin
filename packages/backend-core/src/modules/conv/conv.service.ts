@@ -44,6 +44,8 @@ export type ChannelType = (typeof CHANNEL_TYPES)[number];
 export type ConversationStatus = (typeof STATUSES)[number];
 export type AgentMode = (typeof AGENT_MODES)[number];
 
+const AWAITING_REPLY_LOOKBACK_MINUTES = 60;
+
 export interface ChannelDto {
   id: string;
   type: ChannelType;
@@ -437,6 +439,41 @@ export class ConvService {
     const nextCursor =
       rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
     return { items, nextCursor };
+  }
+
+  async listConversationsAwaitingAgentReply(input?: {
+    limit?: number;
+    lookbackMinutes?: number;
+  }): Promise<Array<{ id: string }>> {
+    const ctx = getCurrentContext();
+    const limit = clampLimit(input?.limit, 50, 200);
+    const lookbackMinutes = input?.lookbackMinutes ?? AWAITING_REPLY_LOOKBACK_MINUTES;
+    return ctx.db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .innerJoin(
+        schema.convChannels,
+        eq(schema.convChannels.id, schema.convConversations.channelId),
+      )
+      .where(
+        and(
+          eq(schema.convConversations.status, 'open'),
+          eq(schema.convConversations.agentMode, 'auto'),
+          isNull(schema.convConversations.assigneeUserId),
+          isNotNull(schema.convConversations.endUserId),
+          sql`${schema.convChannels.type} <> 'voice'`,
+          sql`${schema.convConversations.lastMessageAt} > now() - make_interval(mins => ${lookbackMinutes})`,
+          sql`(
+            SELECT author_type FROM conv_messages
+            WHERE conversation_id = ${schema.convConversations.id}
+              AND internal = false
+            ORDER BY created_at DESC
+            LIMIT 1
+          ) = 'end_user'`,
+        ),
+      )
+      .orderBy(desc(schema.convConversations.lastMessageAt))
+      .limit(limit);
   }
 
   async getConversation(id: string): Promise<ConversationDetail> {

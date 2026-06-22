@@ -83,6 +83,7 @@ function buildConversation(overrides: Partial<ConversationDetail> = {}): Convers
 function buildRest(overrides: Partial<MuninRestClient> = {}): MuninRestClient {
   return {
     getConversation: vi.fn(() => Promise.resolve(buildConversation())),
+    listConversationsAwaitingReply: vi.fn(() => Promise.resolve([])),
     postAgentMessage: vi.fn(() => Promise.resolve()),
     postInternalNote: vi.fn(() => Promise.resolve()),
     mintDelegatedToken: vi.fn(() =>

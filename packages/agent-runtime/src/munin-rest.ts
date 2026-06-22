@@ -106,8 +106,16 @@ export interface UpdateCuratorJobProgressInput {
   progress: unknown;
 }
 
+export interface AwaitingReplyConversation {
+  id: string;
+}
+
 export interface MuninRestClient {
   getConversation(id: string): Promise<ConversationDetail>;
+  listConversationsAwaitingReply(input?: {
+    limit?: number;
+    lookbackMinutes?: number;
+  }): Promise<AwaitingReplyConversation[]>;
   postAgentMessage(
     conversationId: string,
     body: string,
@@ -170,6 +178,20 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
   return {
     async getConversation(id: string): Promise<ConversationDetail> {
       return call<ConversationDetail>(`/v1/conversations/${encodeURIComponent(id)}`);
+    },
+    async listConversationsAwaitingReply(
+      input: { limit?: number; lookbackMinutes?: number } = {},
+    ): Promise<AwaitingReplyConversation[]> {
+      const params = new URLSearchParams();
+      if (input.limit !== undefined) params.set('limit', String(input.limit));
+      if (input.lookbackMinutes !== undefined) {
+        params.set('lookbackMinutes', String(input.lookbackMinutes));
+      }
+      const query = params.toString();
+      const result = await call<{ items: AwaitingReplyConversation[] }>(
+        `/v1/conversations/awaiting-reply${query ? `?${query}` : ''}`,
+      );
+      return result.items;
     },
     async postAgentMessage(
       conversationId: string,

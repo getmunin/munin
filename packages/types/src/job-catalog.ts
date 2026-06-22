@@ -31,6 +31,14 @@ export function tierFor(uri: string): ModelTier {
   return TIER_BY_URI.get(uri) ?? 'smart';
 }
 
+const PRIORITY_BY_URI: ReadonlyMap<string, number> = new Map([
+  [WEB_SCRAPE_SITE_TASK_URI, 100],
+]);
+
+export function priorityFor(uri: string): number {
+  return PRIORITY_BY_URI.get(uri) ?? 0;
+}
+
 const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
   ['skill://kb/review-content', ['conv_', 'kb_']],
   ['skill://crm/clean-contact-data', ['conv_', 'crm_']],

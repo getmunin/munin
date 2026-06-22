@@ -1,0 +1,2 @@
+ALTER TABLE "curator_jobs" ADD COLUMN "priority" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+CREATE INDEX "curator_jobs_claim_idx" ON "curator_jobs" USING btree ("org_id","priority" DESC NULLS LAST,"next_attempt_at") WHERE status = 'pending';

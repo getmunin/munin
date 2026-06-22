@@ -56,6 +56,7 @@ export interface CuratorJob {
   sourceEventPayload: unknown;
   dedupeKey: string | null;
   status: CuratorJobStatus;
+  priority: number;
   attempts: number;
   maxAttempts: number;
   nextAttemptAt: string;
@@ -79,6 +80,7 @@ export interface EnqueueCuratorJobInput {
   dedupeKey?: string;
   maxAttempts?: number;
   delaySeconds?: number;
+  priority?: number;
 }
 
 export interface ClaimCuratorJobsInput {

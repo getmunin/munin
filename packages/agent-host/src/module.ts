@@ -20,7 +20,12 @@ import { AgentConfigController } from './config.controller.ts';
 import { AgentModelsService } from './models.service.ts';
 import { AgentHealthService } from './agent-health.service.ts';
 import { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.ts';
-import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB, ALERT_RECORDER } from './injection-tokens.ts';
+import {
+  AGENT_CONFIG_REPOSITORY,
+  AGENT_HOST_DB,
+  ALERT_RECORDER,
+  DEFAULT_PROVIDER_AVAILABLE,
+} from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 
 const RUNNER_OPTIONS = 'AGENT_HOST_RUNNER_OPTIONS';
@@ -28,21 +33,25 @@ const RUNNER_OPTIONS = 'AGENT_HOST_RUNNER_OPTIONS';
 export interface AgentHostModuleOptions {
   configRepository: Type<AgentConfigRepository>;
   runnerOptions?: AgentHostRunnerOptions;
+  defaultProviderAvailable?: boolean;
 }
 
 export interface AgentHostModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
   configRepository: Type<AgentConfigRepository>;
   inject?: Array<InjectionToken | OptionalFactoryDependency>;
   useFactory: (...args: never[]) => AgentHostRunnerOptions | Promise<AgentHostRunnerOptions>;
+  defaultProviderAvailable?: boolean;
 }
 
 @Module({})
 export class AgentHostModule {
   static forRoot(options: AgentHostModuleOptions): DynamicModule {
-    return buildModule(options.configRepository, {
-      provide: RUNNER_OPTIONS,
-      useValue: options.runnerOptions ?? {},
-    });
+    return buildModule(
+      options.configRepository,
+      { provide: RUNNER_OPTIONS, useValue: options.runnerOptions ?? {} },
+      [],
+      options.defaultProviderAvailable ?? false,
+    );
   }
 
   static forRootAsync(options: AgentHostModuleAsyncOptions): DynamicModule {
@@ -54,6 +63,7 @@ export class AgentHostModule {
         inject: options.inject ?? [],
       },
       options.imports ?? [],
+      options.defaultProviderAvailable ?? false,
     );
   }
 }
@@ -62,6 +72,7 @@ function buildModule(
   configRepository: Type<AgentConfigRepository>,
   runnerOptionsProvider: Provider,
   extraImports: NonNullable<ModuleMetadata['imports']> = [],
+  defaultProviderAvailable = false,
 ): DynamicModule {
   return {
     module: AgentHostModule,
@@ -69,6 +80,7 @@ function buildModule(
     providers: [
       { provide: AGENT_CONFIG_REPOSITORY, useClass: configRepository },
       { provide: AGENT_HOST_DB, useExisting: DB },
+      { provide: DEFAULT_PROVIDER_AVAILABLE, useValue: defaultProviderAvailable },
       runnerOptionsProvider,
       { provide: ALERT_RECORDER, useExisting: AlertsService },
       configRepository,

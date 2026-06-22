@@ -1,5 +1,21 @@
 # @getmunin/agent-host
 
+## 4.54.0
+
+### Minor Changes
+
+- dfbfb8c: Add `AgentHostModule.forRootAsync({ configRepository, imports, inject, useFactory })` so `runnerOptions` (provider factory, credential resolver, pre-generate gate) can be built from a DI factory with injected services, instead of only a static value.
+- 0d4dd00: Record AI token usage for the agent's own configured LLM provider. The runner now meters token consumption on its default provider path — covering live chat, scheduled curator work, and website imports — so the monthly AI-tokens figure on the usage and overview pages reflects real usage instead of staying at zero.
+
+### Patch Changes
+
+- c74bcc3: Fix a polynomial-time ReDoS in provider credential validation: the trailing-slash trim on the user-supplied provider base URL used a backtracking regex (`/\/+$/`) on attacker-controllable input. Replace it with a linear scan.
+  - @getmunin/core@4.54.0
+  - @getmunin/db@4.54.0
+  - @getmunin/types@4.54.0
+  - @getmunin/backend-core@4.54.0
+  - @getmunin/agent-runtime@4.54.0
+
 ## 4.53.0
 
 ### Minor Changes

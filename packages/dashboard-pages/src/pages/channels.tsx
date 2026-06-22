@@ -981,10 +981,6 @@ function CreateWidgetDialog({
       .split(/[\s,]+/)
       .map((s) => s.trim())
       .filter(Boolean);
-    if (widgetAllowlistRequired() && allowlist.length === 0) {
-      setOriginsError(t('originsRequired'));
-      return;
-    }
     const parsed = CreateWidgetBody.safeParse({
       name: name.trim(),
       originAllowlist: allowlist,
@@ -1088,6 +1084,7 @@ function CreateWidgetDialog({
                     if (originsError) setOriginsError(null);
                   }}
                   placeholder="https://example.com, https://www.example.com"
+                  required={widgetAllowlistRequired()}
                   aria-invalid={originsError ? true : undefined}
                 />
                 {originsError && (

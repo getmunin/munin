@@ -481,6 +481,7 @@ function CreateTrackerDialog({
                     if (originsError) setOriginsError(null);
                   }}
                   placeholder="https://example.com, https://www.example.com"
+                  required={trackerAllowlistRequired()}
                   aria-invalid={originsError ? true : undefined}
                 />
                 {originsError && (
@@ -515,6 +516,11 @@ function CreateTrackerDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function trackerAllowlistRequired(): boolean {
+  const raw = process.env.NEXT_PUBLIC_TRACKER_REQUIRE_ALLOWLIST?.trim().toLowerCase();
+  return raw === '1' || raw === 'true';
 }
 
 function RotatedIdentityDialog({

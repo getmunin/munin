@@ -70,6 +70,6 @@ export function buildMcpSetups(host: string, docsHost: string = DEFAULT_DOCS_HOS
 }
 
 const DEFAULT_MCP_HOST = (process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
-const DEFAULT_DOCS_HOST = (process.env.NEXT_PUBLIC_DOCS_URL ?? 'http://localhost:3000/docs').replace(/\/+$/, '');
+export const DEFAULT_DOCS_HOST = (process.env.NEXT_PUBLIC_DOCS_URL ?? 'http://localhost:3000/docs').replace(/\/+$/, '');
 
 export const MCP_SETUPS: McpSetup[] = buildMcpSetups(DEFAULT_MCP_HOST, DEFAULT_DOCS_HOST);

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "dev": "next dev --port 3000",
+    "dev": "wait-on -t 60000 tcp:3001 && next dev --port 3000",
     "start": "next start --port 3000",
     "typecheck": "next typegen && tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
@@ -49,6 +49,7 @@
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.0",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "wait-on": "^9.0.10"
   }
 }

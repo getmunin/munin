@@ -7,7 +7,7 @@ export default function SetupRoute() {
   const { ready } = useSetupGate();
 
   if (!ready) {
-    return <PageSpinner className="min-h-screen bg-bone dark:bg-background" />;
+    return <PageSpinner className="min-h-screen bg-background" />;
   }
 
   return <AgentSetupWizard />;

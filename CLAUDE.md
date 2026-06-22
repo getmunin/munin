@@ -66,6 +66,7 @@ docker compose up                           # full stack (db + backend + web; ag
 pnpm dev                                    # run backend + web in dev mode
 pnpm typecheck                              # workspace typecheck
 pnpm -F @getmunin/backend-core test         # backend-core test suite (needs TEST_DATABASE_URL)
+pnpm test:coverage                          # aggregated v8 coverage across all packages (needs TEST_DATABASE_URL); scope with a name, e.g. test:coverage backend-core
 pnpm -F @getmunin/backend-core docs:generate # regen openapi.json + docs-fixtures
 pnpm changeset                              # author a changeset before merging
 ```

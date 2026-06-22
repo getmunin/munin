@@ -95,10 +95,19 @@ jobs:
             }
             console.log(out.join(' '));
           ")
+          echo "# Test results" >> "$GITHUB_STEP_SUMMARY"
           for pkg in $pkgs; do
             echo "::group::Test $pkg"
-            pnpm --filter "$pkg" test
+            sum=$(mktemp)
+            rc=0
+            GITHUB_STEP_SUMMARY="$sum" pnpm --filter "$pkg" test || rc=$?
+            # Vitest's reporter emits a generic "## Vitest Test Report"; relabel per package.
+            if [ -s "$sum" ]; then
+              sed "s|^## Vitest Test Report|## $pkg|" "$sum" >> "$GITHUB_STEP_SUMMARY"
+              printf '\n' >> "$GITHUB_STEP_SUMMARY"
+            fi
             echo "::endgroup::"
+            [ "$rc" -eq 0 ] || exit "$rc"
           done
 
       - name: Build

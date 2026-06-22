@@ -1,5 +1,5 @@
 import { PageSpinner } from '@getmunin/ui';
 
 export default function RootLoading() {
-  return <PageSpinner className="min-h-screen" />;
+  return <PageSpinner className="min-h-screen bg-bone dark:bg-background" />;
 }

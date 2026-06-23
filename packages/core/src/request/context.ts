@@ -38,6 +38,7 @@ export interface RequestContext {
   actor?: ActorIdentity;
   correlationId: string;
   afterCommit?: Array<() => void | Promise<void>>;
+  aiTokens?: number;
 }
 
 export const RequestContextStore = new AsyncLocalStorage<RequestContext>();

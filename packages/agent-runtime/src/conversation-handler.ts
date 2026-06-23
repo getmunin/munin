@@ -277,6 +277,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           await deps.rest.postAgentMessage(conversationId, reply.body, {
             preserveAttention: handoverThisTurn,
             sinceMessageId,
+            totalTokens: reply.usage.totalTokens,
           });
           log.info(
             `${conversationId} replied (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,

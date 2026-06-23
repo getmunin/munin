@@ -44,6 +44,7 @@ const ReplyBody = z.object({
   preserveAttention: z.boolean().optional(),
   sinceMessageId: z.string().optional(),
   claim: z.boolean().optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
 });
 
 const AcquireBody = z.object({
@@ -167,6 +168,7 @@ export class ConversationsController {
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    if (parsed.data.totalTokens != null) ctx.aiTokens = parsed.data.totalTokens;
     return translate(() =>
       this.conv.sendMessage({
         conversationId: id,

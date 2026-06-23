@@ -24,6 +24,7 @@ interface AuditDto {
   error: string | null;
   correlationId: string | null;
   durationMs: number | null;
+  totalTokens: number | null;
   userAgent: string | null;
   client: ClientKind;
   createdAt: string;
@@ -173,7 +174,8 @@ export function AuditLogPage() {
                 <Th className="hidden md:table-cell">{t('tableClient')}</Th>
                 <Th>{t('tableToolMethod')}</Th>
                 <Th>{t('tableResult')}</Th>
-                <Th className="hidden md:table-cell">{t('tableCorrelation')}</Th>
+                <Th className="text-right">{t('tableTokens')}</Th>
+                <Th className="hidden md:table-cell text-right">{t('tableCorrelation')}</Th>
               </tr>
             </thead>
             <tbody>
@@ -205,7 +207,10 @@ export function AuditLogPage() {
                   <td className="py-3 pr-4">
                     <ResultChip result={row.result} />
                   </td>
-                  <td className="hidden md:table-cell py-3 pr-4 font-mono text-[11px] text-ink-mute">
+                  <td className="py-3 pr-4 text-right font-mono text-[11px] tabular-nums text-ink dark:text-foreground">
+                    {row.totalTokens != null ? format.number(row.totalTokens) : '—'}
+                  </td>
+                  <td className="hidden md:table-cell py-3 pr-4 text-right font-mono text-[11px] text-ink-mute">
                     {row.correlationId?.slice(0, 8) ?? '—'}
                   </td>
                 </tr>

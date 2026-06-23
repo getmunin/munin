@@ -302,6 +302,13 @@
       "when": 1782122724985,
       "tag": "0042_curator_jobs_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1782196283455,
+      "tag": "0043_audit_log_total_tokens",
+      "breakpoints": true
     }
   ]
 }

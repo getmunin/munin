@@ -1052,6 +1052,7 @@
       "tableClient": "Client",
       "tableToolMethod": "Tool / method",
       "tableResult": "Result",
+      "tableTokens": "Tokens",
       "tableCorrelation": "Correlation",
       "errors": {
         "load": "Could not load audit log."

@@ -236,6 +236,39 @@ describe('AuditInterceptor api_calls_day counter', () => {
   });
 });
 
+describe('AuditInterceptor token usage', () => {
+  it('records totalTokens from the request context when a handler set it', async () => {
+    const { interceptor } = makeInterceptor();
+    const record = interceptor.auditRecord;
+    const ctx = makeActiveContext('admin_agent');
+    ctx.aiTokens = 1234;
+    const request = {
+      method: 'POST',
+      url: '/v1/curator/jobs/cjob_1/acknowledge',
+      headers: {},
+    };
+
+    await RequestContextStore.run(ctx, async () => {
+      await firstValueFrom(interceptor.intercept(makeContext(request), makeNext(null)));
+    });
+
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ totalTokens: 1234 }));
+  });
+
+  it('records undefined totalTokens when the context has none', async () => {
+    const { interceptor } = makeInterceptor();
+    const record = interceptor.auditRecord;
+    const request = { method: 'POST', url: '/v1/inbox', headers: {} };
+
+    await RequestContextStore.run(makeActiveContext('admin_agent'), async () => {
+      await firstValueFrom(interceptor.intercept(makeContext(request), makeNext(null)));
+    });
+
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ totalTokens: undefined }));
+  });
+});
+
 describe('AuditInterceptor quota delegation', () => {
   it('calls quotas.recordCall("api_request") for non-user, non-MCP HTTP traffic', async () => {
     const { interceptor, quotas } = makeInterceptor();

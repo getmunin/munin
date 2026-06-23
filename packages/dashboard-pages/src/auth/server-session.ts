@@ -16,7 +16,7 @@ interface MembershipDto {
 }
 
 interface AgentConfigStatusDto {
-  providerApiKeySet: boolean;
+  providerConfigured: boolean;
 }
 
 async function fetchWithCookies<T>(path: string, cookieHeader: string): Promise<T | null> {
@@ -87,7 +87,7 @@ export async function redirectIfSetupIncomplete(opts: {
   if (role !== 'owner' && role !== 'admin') return;
 
   const orgNamed = active.name.trim().length > 0;
-  const setupIncomplete = !config.providerApiKeySet || !orgNamed;
+  const setupIncomplete = !config.providerConfigured || !orgNamed;
   if (!setupIncomplete) return;
 
   const query = serializeSearchParams(opts.searchParams);

@@ -1052,6 +1052,7 @@
       "tableClient": "Klient",
       "tableToolMethod": "Verktøy / metode",
       "tableResult": "Resultat",
+      "tableTokens": "Tokens",
       "tableCorrelation": "Korrelasjon",
       "errors": {
         "load": "Kunne ikke laste hendelseslogg."

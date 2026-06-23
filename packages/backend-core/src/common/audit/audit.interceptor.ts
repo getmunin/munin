@@ -95,6 +95,7 @@ export class AuditInterceptor implements NestInterceptor {
           method,
           result: 'ok',
           durationMs: Date.now() - startedAt,
+          totalTokens: getCurrentContext().aiTokens,
           userAgent,
         });
         if (countApiCall) await recordApiCall();
@@ -108,6 +109,7 @@ export class AuditInterceptor implements NestInterceptor {
               result: 'error',
               error: err instanceof Error ? err.message : String(err),
               durationMs: Date.now() - startedAt,
+              totalTokens: getCurrentContext().aiTokens,
               userAgent,
             });
             if (countApiCall) await recordApiCall();

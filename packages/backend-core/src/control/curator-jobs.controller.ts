@@ -11,6 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
@@ -120,6 +121,7 @@ export class CuratorJobsController {
   async acknowledge(@Param('id') id: string, @Body() body: unknown): Promise<CuratorJobDto> {
     const parsed = AckBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    if (parsed.data.totalTokens != null) getCurrentContext().aiTokens = parsed.data.totalTokens;
     return this.service.ack({ id, ...parsed.data });
   }
 

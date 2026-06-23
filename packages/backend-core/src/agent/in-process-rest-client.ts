@@ -69,7 +69,11 @@ function buildClient(opts: BuildOptions): MuninRestClient {
     });
   }
 
-  async function audited<T>(method: string, fn: () => Promise<T>): Promise<T> {
+  async function audited<T>(
+    method: string,
+    fn: () => Promise<T>,
+    extra: { totalTokens?: number } = {},
+  ): Promise<T> {
     const startedAt = Date.now();
     return withTenancy(async () => {
       try {
@@ -78,6 +82,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
           method,
           result: 'ok',
           durationMs: Date.now() - startedAt,
+          totalTokens: extra.totalTokens,
           userAgent: 'in-process:agent-host',
         });
         return result;
@@ -87,6 +92,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
           result: 'error',
           error: err instanceof Error ? err.message : String(err),
           durationMs: Date.now() - startedAt,
+          totalTokens: extra.totalTokens,
           userAgent: 'in-process:agent-host',
         });
         throw err;
@@ -130,18 +136,22 @@ function buildClient(opts: BuildOptions): MuninRestClient {
     async postAgentMessage(
       conversationId: string,
       body: string,
-      messageOpts: { preserveAttention?: boolean; sinceMessageId?: string } = {},
+      messageOpts: { preserveAttention?: boolean; sinceMessageId?: string; totalTokens?: number } = {},
     ): Promise<void> {
-      await audited('runner:postAgentMessage', async () => {
-        await opts.conv.sendMessage({
-          conversationId,
-          body,
-          authorType: 'agent',
-          authorId: opts.actor.id,
-          preserveAttention: messageOpts.preserveAttention,
-          sinceMessageId: messageOpts.sinceMessageId,
-        });
-      });
+      await audited(
+        'runner:postAgentMessage',
+        async () => {
+          await opts.conv.sendMessage({
+            conversationId,
+            body,
+            authorType: 'agent',
+            authorId: opts.actor.id,
+            preserveAttention: messageOpts.preserveAttention,
+            sinceMessageId: messageOpts.sinceMessageId,
+          });
+        },
+        { totalTokens: messageOpts.totalTokens },
+      );
     },
 
     async postInternalNote(conversationId: string, body: string): Promise<void> {
@@ -247,7 +257,9 @@ function buildClient(opts: BuildOptions): MuninRestClient {
     },
 
     async ackCuratorJob(id: string, input: AckCuratorJobInput = {}): Promise<CuratorJob> {
-      return audited('runner:ackCuratorJob', () => opts.curator.ack({ id, ...input }));
+      return audited('runner:ackCuratorJob', () => opts.curator.ack({ id, ...input }), {
+        totalTokens: input.totalTokens,
+      });
     },
 
     async failCuratorJob(id: string, input: FailCuratorJobInput): Promise<CuratorJob> {

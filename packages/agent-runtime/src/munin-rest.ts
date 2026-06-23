@@ -119,7 +119,7 @@ export interface MuninRestClient {
   postAgentMessage(
     conversationId: string,
     body: string,
-    opts?: { preserveAttention?: boolean; sinceMessageId?: string },
+    opts?: { preserveAttention?: boolean; sinceMessageId?: string; totalTokens?: number },
   ): Promise<void>;
   tryAcquireConversation(input: {
     conversationId: string;
@@ -196,7 +196,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     async postAgentMessage(
       conversationId: string,
       body: string,
-      opts: { preserveAttention?: boolean; sinceMessageId?: string } = {},
+      opts: { preserveAttention?: boolean; sinceMessageId?: string; totalTokens?: number } = {},
     ): Promise<void> {
       await call<unknown>(`/v1/conversations/${encodeURIComponent(conversationId)}/messages`, {
         method: 'POST',
@@ -204,6 +204,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
           body,
           ...(opts.preserveAttention ? { preserveAttention: true } : {}),
           ...(opts.sinceMessageId ? { sinceMessageId: opts.sinceMessageId } : {}),
+          ...(opts.totalTokens !== undefined ? { totalTokens: opts.totalTokens } : {}),
         }),
       });
     },

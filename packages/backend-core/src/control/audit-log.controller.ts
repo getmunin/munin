@@ -20,6 +20,7 @@ interface AuditDto {
   error: string | null;
   correlationId: string | null;
   durationMs: number | null;
+  totalTokens: number | null;
   userAgent: string | null;
   client: ClientKind;
   createdAt: string;
@@ -87,6 +88,7 @@ function toDto(row: typeof schema.auditLog.$inferSelect): AuditDto {
     error: row.error,
     correlationId: row.correlationId,
     durationMs: row.durationMs,
+    totalTokens: row.totalTokens,
     userAgent: row.userAgent,
     client: classifyClient(row.userAgent, row.tool),
     createdAt: row.createdAt.toISOString(),

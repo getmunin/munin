@@ -9,6 +9,7 @@ export interface AuditEventInput {
   result?: 'ok' | 'error' | 'denied';
   error?: string;
   durationMs?: number;
+  totalTokens?: number;
   userAgent?: string;
 }
 
@@ -39,6 +40,7 @@ export class AuditLogger {
         result: input.result ?? 'ok',
         error: input.error ?? null,
         durationMs: input.durationMs ?? null,
+        totalTokens: input.totalTokens ?? null,
         userAgent: input.userAgent ?? null,
       });
     } catch (err) {

@@ -116,7 +116,45 @@ function buildRest(overrides: Partial<MuninRestClient> = {}): MuninRestClient {
     ),
     releaseConversationClaim: vi.fn(() => Promise.resolve({ released: true })),
     requestHandover: vi.fn(() => Promise.resolve()),
+    clearDraftReply: vi.fn(() => Promise.resolve()),
     ...overrides,
+  };
+}
+
+function sequenceProvider(responses: ProviderResponse[]): Provider {
+  let i = 0;
+  return () => Promise.resolve(responses[Math.min(i++, responses.length - 1)]!);
+}
+
+function handoverToolResponse(args: {
+  reason?: string;
+  suggestedReply?: string;
+}): ProviderResponse {
+  return {
+    message: {
+      role: 'assistant',
+      content: null,
+      tool_calls: [
+        {
+          id: 'tc_1',
+          type: 'function',
+          function: {
+            name: 'conv_request_human',
+            arguments: JSON.stringify({ conversationId: 'conv_1', ...args }),
+          },
+        },
+      ],
+    },
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    finishReason: 'tool_calls',
+  };
+}
+
+function assistantStop(content: string): ProviderResponse {
+  return {
+    message: { role: 'assistant', content },
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    finishReason: 'stop',
   };
 }
 
@@ -401,6 +439,57 @@ describe('createConversationHandler', () => {
     expect(conversationId).toBe('conv_1');
     expect(args.reason).toMatch(/retries exhausted/);
     expect(args.publicFallbackMessage).toMatch(/teammate will follow up/);
+  });
+
+  it('clears the handover draft when suggestedReply just repeats the public reply', async () => {
+    const deferral = 'A teammate will review your issue and get back to you shortly.';
+    const rest = buildRest();
+    const clearSpy = vi.fn((_conversationId: string) => Promise.resolve());
+    rest.clearDraftReply = clearSpy;
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        handoverToolResponse({ reason: 'cannot answer', suggestedReply: deferral }),
+        assistantStop(deferral),
+      ]),
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(clearSpy).toHaveBeenCalledTimes(1);
+    expect(clearSpy.mock.calls[0]?.[0]).toBe('conv_1');
+  });
+
+  it('keeps the handover draft when suggestedReply is a real answer distinct from the public reply', async () => {
+    const rest = buildRest();
+    const clearSpy = vi.fn(() => Promise.resolve());
+    rest.clearDraftReply = clearSpy;
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        handoverToolResponse({
+          reason: 'needs a human to confirm',
+          suggestedReply: 'We open at 10am on weekdays and stay open until 6pm.',
+        }),
+        assistantStop('A teammate will review your issue and get back to you shortly.'),
+      ]),
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(clearSpy).not.toHaveBeenCalled();
   });
 
   it('passes endUserId to openMcp once per attempt and never calls rest.mintDelegatedToken', async () => {

@@ -1164,6 +1164,26 @@ export class ConvService {
     return toConversationSummary(updated!);
   }
 
+  async clearDraftReply(conversationId: string): Promise<{ cleared: number }> {
+    const ctx = getCurrentContext();
+    const [latest] = await ctx.db
+      .select({ id: schema.convMessages.id })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conversationId),
+          eq(schema.convMessages.authorType, 'agent'),
+          eq(schema.convMessages.internal, true),
+          sql`${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'`,
+        ),
+      )
+      .orderBy(desc(schema.convMessages.createdAt))
+      .limit(1);
+    if (!latest) return { cleared: 0 };
+    await ctx.db.delete(schema.convMessages).where(eq(schema.convMessages.id, latest.id));
+    return { cleared: 1 };
+  }
+
   async searchMessages(input: { query: string; limit?: number }): Promise<MessageDto[]> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 25, 100);

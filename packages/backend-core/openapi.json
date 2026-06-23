@@ -3213,6 +3213,37 @@
         ]
       }
     },
+    "/v1/conversations/{id}/clear-draft": {
+      "post": {
+        "operationId": "ConversationsController_clearDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/{id}/topic": {
       "post": {
         "operationId": "ConversationsController_setTopic",

@@ -283,6 +283,12 @@ export class ConversationsController {
     );
   }
 
+  @Post(':id/clear-draft')
+  @HttpCode(200)
+  async clearDraft(@Param('id') id: string): Promise<{ cleared: number }> {
+    return translate(() => this.conv.clearDraftReply(id));
+  }
+
   @Post(':id/topic')
   @HttpCode(200)
   async setTopic(

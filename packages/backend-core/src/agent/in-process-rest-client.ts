@@ -169,6 +169,12 @@ function buildClient(opts: BuildOptions): MuninRestClient {
       });
     },
 
+    async clearDraftReply(conversationId: string): Promise<void> {
+      await audited('runner:clearDraftReply', async () => {
+        await opts.conv.clearDraftReply(conversationId);
+      });
+    },
+
     async tryAcquireConversation(input: {
       conversationId: string;
       holder: string;

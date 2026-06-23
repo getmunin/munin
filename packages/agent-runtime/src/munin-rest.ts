@@ -274,11 +274,8 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
       return detail.messages
         .filter((m) => !m.internal)
         .map((m) => ({
-          authorType: m.authorType,
-          body:
-            m.authorType === 'user'
-              ? `[human teammate] ${m.body}`
-              : m.body,
+          authorType: m.authorType === 'user' ? 'staff' : m.authorType,
+          body: m.body,
           createdAt: m.createdAt,
         }));
     },

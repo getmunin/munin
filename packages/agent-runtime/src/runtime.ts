@@ -135,7 +135,7 @@ function historyToChatMessage(msg: ConversationMessage): ChatMessage {
     case 'agent':
       return { role: 'assistant', content: msg.body };
     case 'staff':
-      return { role: 'user', name: 'staff', content: `[staff message] ${msg.body}` };
+      return { role: 'assistant', name: 'teammate', content: `[Human teammate] ${msg.body}` };
     case 'system':
       return { role: 'system', content: msg.body };
     default:

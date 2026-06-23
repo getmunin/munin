@@ -222,8 +222,9 @@ describe('runAgent', () => {
     expect(sent[1]?.content).toContain('<tool_result');
     expect(sent[2]).toMatchObject({ role: 'user', content: 'first user msg' });
     expect(sent[3]).toMatchObject({ role: 'assistant', content: 'agent reply' });
-    expect(sent[4]?.role).toBe('user');
-    expect(sent[4]?.name).toBe('staff');
+    expect(sent[4]?.role).toBe('assistant');
+    expect(sent[4]?.name).toBe('teammate');
+    expect(sent[4]?.content).toBe('[Human teammate] staff note');
     expect(sent[5]).toMatchObject({ role: 'user', content: 'second user msg' });
   });
 });

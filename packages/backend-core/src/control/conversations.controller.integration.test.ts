@@ -256,6 +256,49 @@ const skipReason = TEST_URL
     expect(released.body.released).toBe(true);
   }, 30_000);
 
+  it('clear-draft removes the suggested handover draft', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'What are your weekend hours?' },
+    );
+    expect(startResp.status).toBe(201);
+    const started = startResp.body;
+
+    await withClient(adminKeyA, async (c) => {
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: {
+          conversationId: started.id,
+          reason: 'needs a human',
+          suggestedReply: 'We are open 10–16 on Saturdays.',
+        },
+      });
+    });
+
+    type Detail = {
+      messages: Array<{ internal?: boolean; metadata?: Record<string, unknown> | null }>;
+    };
+    const hasDraft = (d: Detail): boolean =>
+      d.messages.some((m) => m.internal && m.metadata?.['kind'] === 'draft_reply');
+
+    const before = await rest<Detail>(adminKeyA, 'GET', `/v1/conversations/${started.id}`);
+    expect(hasDraft(before.body)).toBe(true);
+
+    const cleared = await rest<{ cleared: number }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${started.id}/clear-draft`,
+      {},
+    );
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.cleared).toBe(1);
+
+    const after = await rest<Detail>(adminKeyA, 'GET', `/v1/conversations/${started.id}`);
+    expect(hasDraft(after.body)).toBe(false);
+  }, 30_000);
+
   it('tenancy isolation: orgB cannot see orgA conversations or activity', async () => {
     const list = await rest<{ items: Array<{ id: string }> }>(
       adminKeyB,

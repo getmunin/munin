@@ -11,6 +11,7 @@ import {
   absoluteCallbackUrl,
   safeRedirect,
   hasOauthAuthorizeParams,
+  socialCallbackUrl,
 } from '../../auth/post-signin-redirect';
 import {
   AuthShell,
@@ -132,7 +133,7 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
               onClick={() => {
                 void authClient.signIn.social({
                   provider: 'google',
-                  callbackURL: absoluteCallbackUrl(redirectTo),
+                  callbackURL: socialCallbackUrl(params, redirectTo),
                 });
               }}
             >
@@ -146,7 +147,7 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
               onClick={() => {
                 void authClient.signIn.social({
                   provider: 'github',
-                  callbackURL: absoluteCallbackUrl(redirectTo),
+                  callbackURL: socialCallbackUrl(params, redirectTo),
                 });
               }}
             >

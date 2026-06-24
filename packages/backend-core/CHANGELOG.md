@@ -1,5 +1,23 @@
 # @getmunin/backend-core
 
+## 4.58.0
+
+### Minor Changes
+
+- cd6b338: feat(auth): optional Cloudflare Turnstile captcha on email auth endpoints
+
+  Adds opt-in captcha protection to the BetterAuth email flows (`/sign-up/email`, `/sign-in/email`, `/request-password-reset`). It is disabled by default and turns on only when both `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are set — the server verifies the token via the captcha plugin, and the shared login / signup / forgot-password forms render the Turnstile widget using the public site key exposed through `/v1/auth/providers`. Requiring both keys avoids a lockout where the server enforces a captcha the client cannot produce. Self-hosters who set neither key see no change.
+
+### Patch Changes
+
+- Updated dependencies [3d91858]
+  - @getmunin/types@4.58.0
+  - @getmunin/core@4.58.0
+  - @getmunin/db@4.58.0
+  - @getmunin/mcp-toolkit@4.58.0
+  - @getmunin/agent-runtime@4.58.0
+  - @getmunin/emails@4.58.0
+
 ## 4.57.1
 
 ### Patch Changes

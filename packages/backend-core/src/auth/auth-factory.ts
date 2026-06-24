@@ -1,6 +1,6 @@
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { jwt } from 'better-auth/plugins';
+import { jwt, captcha } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { schema, type Db } from '@getmunin/db';
 import {
@@ -55,6 +55,12 @@ export interface MuninAuthCoreOptions {
   socialProviders?: {
     google?: { clientId: string; clientSecret: string };
     github?: { clientId: string; clientSecret: string };
+  };
+
+  captcha?: {
+    provider: 'cloudflare-turnstile';
+    secretKey: string;
+    endpoints?: string[];
   };
 
   crossSubDomainCookies?: { domain: string };
@@ -114,6 +120,15 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         validAudiences,
         silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
       }),
+      ...(opts.captcha
+        ? [
+            captcha({
+              provider: opts.captcha.provider,
+              secretKey: opts.captcha.secretKey,
+              ...(opts.captcha.endpoints ? { endpoints: opts.captcha.endpoints } : {}),
+            }),
+          ]
+        : []),
     ],
     emailAndPassword: {
       enabled: true,

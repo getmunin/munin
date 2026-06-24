@@ -18,6 +18,19 @@ export function readGithubProviderFromEnv(): { clientId: string; clientSecret: s
   return { clientId, clientSecret };
 }
 
+export interface TurnstileCaptchaEnv {
+  provider: 'cloudflare-turnstile';
+  secretKey: string;
+  siteKey: string;
+}
+
+export function readTurnstileCaptchaFromEnv(): TurnstileCaptchaEnv | undefined {
+  const secretKey = process.env.TURNSTILE_SECRET_KEY;
+  const siteKey = process.env.TURNSTILE_SITE_KEY;
+  if (!secretKey || !siteKey) return undefined;
+  return { provider: 'cloudflare-turnstile', secretKey, siteKey };
+}
+
 export function readTrustedOriginsFromEnv(): string[] {
   const env = process.env.MUNIN_AUTH_TRUSTED_ORIGINS;
   if (!env) return ['http://localhost:3000', 'http://127.0.0.1:3000'];

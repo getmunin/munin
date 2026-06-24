@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { authClient } from '../../auth-client';
@@ -22,6 +22,7 @@ import {
 import { AuthEpigraph } from './auth-epigraph';
 import { ErrorAlert } from './error-alert';
 import { AuthField, AuthLabel, AuthInput, AuthSubmit, AuthOAuthButton } from './auth-form';
+import { Turnstile, type TurnstileHandle } from './turnstile';
 import { GoogleLogo, GithubLogo } from './oauth-logos';
 import type { AuthFooter } from './epigraphs';
 import type { AuthProviders } from './fetch-auth-providers';
@@ -53,18 +54,28 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
       ? `/signup?redirect=${encodeURIComponent(redirectRaw)}`
       : '/signup';
   const { refetch } = authClient.useSession();
+  const captcha = providers.captcha;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<SignInError | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const result = await authClient.signIn.email({ email, password });
+      const result = await authClient.signIn.email({
+        email,
+        password,
+        ...(captchaToken
+          ? { fetchOptions: { headers: { 'x-captcha-response': captchaToken } } }
+          : {}),
+      });
       if (result.error) {
+        turnstileRef.current?.reset();
         setError({
           kind: 'invalid',
           detail: translateError(result.error, 'unknownError') || t('failed'),
@@ -80,6 +91,7 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
       }
       router.push(redirectTo);
     } catch (err) {
+      turnstileRef.current?.reset();
       setError({
         kind: 'unreachable',
         detail: translateError(err) || tCommon('networkError'),
@@ -162,7 +174,16 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </AuthField>
-            <AuthSubmit type="submit" disabled={submitting}>
+            {captcha && (
+              <div className="mb-[18px]">
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={captcha.siteKey}
+                  onToken={setCaptchaToken}
+                />
+              </div>
+            )}
+            <AuthSubmit type="submit" disabled={submitting || (!!captcha && !captchaToken)}>
               {submitting ? t('submitting') : t('submit')}
             </AuthSubmit>
           </form>

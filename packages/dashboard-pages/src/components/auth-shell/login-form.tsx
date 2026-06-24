@@ -7,10 +7,10 @@ import { authClient } from '../../auth-client';
 import { Link, useRouter } from '../../i18n-navigation';
 import { useTranslateError } from '../../i18n/translate-error';
 import {
-  absoluteCallbackUrl,
   safeRedirect,
   resumeOauthAuthorizeUrl,
   hasOauthAuthorizeParams,
+  socialCallbackUrl,
 } from '../../auth/post-signin-redirect';
 import {
   AuthShell,
@@ -107,7 +107,7 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
               onClick={() => {
                 void authClient.signIn.social({
                   provider: 'google',
-                  callbackURL: absoluteCallbackUrl(redirectTo),
+                  callbackURL: socialCallbackUrl(params, redirectTo),
                 });
               }}
             >
@@ -121,7 +121,7 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
               onClick={() => {
                 void authClient.signIn.social({
                   provider: 'github',
-                  callbackURL: absoluteCallbackUrl(redirectTo),
+                  callbackURL: socialCallbackUrl(params, redirectTo),
                 });
               }}
             >

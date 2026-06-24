@@ -7,7 +7,13 @@ describe('buildSetTopicAndTitleJob', () => {
     expect(SET_TOPIC_AND_TITLE_SKILL_URI).toBe('skill://conv/set-topic-and-title');
     expect(KNOWN_SKILL_URIS.has(SET_TOPIC_AND_TITLE_SKILL_URI)).toBe(true);
     expect(tierFor(SET_TOPIC_AND_TITLE_SKILL_URI)).toBe('fast');
-    expect(toolPrefixesFor(SET_TOPIC_AND_TITLE_SKILL_URI)).toEqual(['conv_']);
+    expect(toolPrefixesFor(SET_TOPIC_AND_TITLE_SKILL_URI)).toEqual([
+      'conv_get_conversation',
+      'conv_list_topics',
+      'conv_create_topic',
+      'conv_set_topic',
+      'conv_set_subject',
+    ]);
   });
 
   it('names the conversation and carries an idempotent dedupe key', () => {

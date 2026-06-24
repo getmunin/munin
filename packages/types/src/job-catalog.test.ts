@@ -34,8 +34,14 @@ describe('tierFor', () => {
 });
 
 describe('toolPrefixesFor', () => {
-  it('returns the configured prefixes for a known skill', () => {
-    expect(toolPrefixesFor('skill://kb/review-content')).toEqual(['conv_', 'kb_']);
+  it('returns the configured tool allowlist for a known skill', () => {
+    expect(toolPrefixesFor('skill://kb/review-content')).toEqual([
+      'conv_list_conversations',
+      'conv_get_conversation',
+      'kb_search',
+      'kb_list_documents',
+      'kb_propose_curation_candidate',
+    ]);
   });
   it('returns undefined for unmapped URIs', () => {
     expect(toolPrefixesFor('task://web/scrape-website')).toBeUndefined();

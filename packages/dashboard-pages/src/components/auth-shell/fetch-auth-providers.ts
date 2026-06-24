@@ -1,6 +1,12 @@
+export interface CaptchaConfig {
+  provider: 'cloudflare-turnstile';
+  siteKey: string;
+}
+
 export interface AuthProviders {
   google: boolean;
   github: boolean;
+  captcha?: CaptchaConfig;
 }
 
 const SERVER_API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';

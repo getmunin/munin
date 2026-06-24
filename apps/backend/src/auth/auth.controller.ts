@@ -9,6 +9,7 @@ import {
   readGithubProviderFromEnv,
   readGoogleProviderFromEnv,
   readTrustedOriginsFromEnv,
+  readTurnstileCaptchaFromEnv,
   requireAuthSecret,
 } from '@getmunin/backend-core';
 import * as Sentry from '@sentry/nestjs';
@@ -27,6 +28,7 @@ export class AuthController {
 
   constructor(@Inject(DB) db: Db) {
     const mailer = readMailerFromEnv();
+    const captcha = readTurnstileCaptchaFromEnv();
     this.auth = createMuninAuth({
       db,
       baseUrl:
@@ -40,6 +42,9 @@ export class AuthController {
       allowedEmailDomains: readAllowedEmailDomainsFromEnv(),
       google: readGoogleProviderFromEnv(),
       github: readGithubProviderFromEnv(),
+      captcha: captcha
+        ? { provider: captcha.provider, secretKey: captcha.secretKey }
+        : undefined,
       logger: sentryForwardingLogger(Sentry.captureException),
     });
   }

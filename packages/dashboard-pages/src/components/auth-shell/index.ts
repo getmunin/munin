@@ -22,7 +22,9 @@ export { useAuthProviders } from './use-auth-providers';
 export {
   fetchAuthProviders,
   type AuthProviders,
+  type CaptchaConfig,
 } from './fetch-auth-providers';
+export { Turnstile, type TurnstileHandle, type TurnstileProps } from './turnstile';
 export { LoginForm, type LoginFormProps } from './login-form';
 export { SignupForm, type SignupFormProps } from './signup-form';
 export { ForgotPasswordPage, type ForgotPasswordPageProps } from './forgot-password-page';

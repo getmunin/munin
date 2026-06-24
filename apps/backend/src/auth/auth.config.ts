@@ -23,6 +23,7 @@ export interface MuninAuthOptions {
   allowedEmailDomains?: string[];
   google?: { clientId: string; clientSecret: string };
   github?: { clientId: string; clientSecret: string };
+  captcha?: { provider: 'cloudflare-turnstile'; secretKey: string };
   logger?: BetterAuthOptions['logger'];
 }
 
@@ -36,6 +37,7 @@ export function createMuninAuth({
   allowedEmailDomains = [],
   google,
   github,
+  captcha,
   logger,
 }: MuninAuthOptions): MuninAuthInstance {
   return createMuninAuthCore({
@@ -47,6 +49,7 @@ export function createMuninAuth({
     logger,
     rateLimit: buildAuthRateLimit(),
     socialProviders: google || github ? { google, github } : undefined,
+    captcha,
     sendResetPassword: mailer
       ? async ({ user, url }) => {
           const tpl = await renderResetPasswordEmail({ url });

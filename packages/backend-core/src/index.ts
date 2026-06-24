@@ -15,6 +15,8 @@ export {
   readGoogleProviderFromEnv,
   readGithubProviderFromEnv,
   readTrustedOriginsFromEnv,
+  readTurnstileCaptchaFromEnv,
+  type TurnstileCaptchaEnv,
 } from './auth-env.ts';
 
 export { FeedbackModule, isFeedbackEnabled } from './modules/feedback/feedback.module.ts';

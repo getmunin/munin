@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { authClient } from '../../auth-client';
 import { Link } from '../../i18n-navigation';
@@ -13,6 +13,8 @@ import {
 import { AuthEpigraph } from './auth-epigraph';
 import { ErrorAlert } from './error-alert';
 import { AuthField, AuthLabel, AuthInput, AuthSubmit } from './auth-form';
+import { Turnstile, type TurnstileHandle } from './turnstile';
+import { useAuthProviders } from './use-auth-providers';
 import type { AuthFooter } from './epigraphs';
 
 export interface ForgotPasswordPageProps {
@@ -22,19 +24,29 @@ export interface ForgotPasswordPageProps {
 export function ForgotPasswordPage({ footer }: ForgotPasswordPageProps) {
   const t = useTranslations('auth.forgotPassword');
   const tFields = useTranslations('auth.fields');
+  const captcha = useAuthProviders()?.captcha;
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     const redirectTo = `${window.location.origin}/reset-password?email=${encodeURIComponent(email)}`;
-    const res = await authClient.requestPasswordReset({ email, redirectTo });
+    const res = await authClient.requestPasswordReset({
+      email,
+      redirectTo,
+      ...(captchaToken
+        ? { fetchOptions: { headers: { 'x-captcha-response': captchaToken } } }
+        : {}),
+    });
     setSubmitting(false);
     if (res.error) {
+      turnstileRef.current?.reset();
       setError(t('failed'));
       return;
     }
@@ -100,7 +112,16 @@ export function ForgotPasswordPage({ footer }: ForgotPasswordPageProps) {
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </AuthField>
-              <AuthSubmit type="submit" disabled={submitting}>
+              {captcha && (
+                <div className="mb-[18px]">
+                  <Turnstile
+                    ref={turnstileRef}
+                    siteKey={captcha.siteKey}
+                    onToken={setCaptchaToken}
+                  />
+                </div>
+              )}
+              <AuthSubmit type="submit" disabled={submitting || (!!captcha && !captchaToken)}>
                 {submitting ? t('submitting') : t('submit')}
               </AuthSubmit>
             </form>

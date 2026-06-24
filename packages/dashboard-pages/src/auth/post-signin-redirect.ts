@@ -25,3 +25,7 @@ export function oauthParamString(params: URLSearchParams): string {
   if (!hasOauthAuthorizeParams(params)) return '';
   return params.toString();
 }
+
+export function socialCallbackUrl(params: URLSearchParams, redirectTo: string): string {
+  return resumeOauthAuthorizeUrl(params) ?? absoluteCallbackUrl(redirectTo);
+}

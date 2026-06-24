@@ -112,15 +112,6 @@ export function ForgotPasswordPage({ footer }: ForgotPasswordPageProps) {
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </AuthField>
-              {captcha && (
-                <div className="mb-[18px]">
-                  <Turnstile
-                    ref={turnstileRef}
-                    siteKey={captcha.siteKey}
-                    onToken={setCaptchaToken}
-                  />
-                </div>
-              )}
               <AuthSubmit type="submit" disabled={submitting || (!!captcha && !captchaToken)}>
                 {submitting ? t('submitting') : t('submit')}
               </AuthSubmit>
@@ -134,6 +125,16 @@ export function ForgotPasswordPage({ footer }: ForgotPasswordPageProps) {
                 {t('backToSignIn')}
               </Link>
             </AuthFootnote>
+
+            {captcha && (
+              <div className="mt-[18px]">
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={captcha.siteKey}
+                  onToken={setCaptchaToken}
+                />
+              </div>
+            )}
           </>
         )
       }

@@ -77,6 +77,7 @@ const RECONCILE_INTERVAL_MS = 30_000;
 const CURATOR_LEASE_SECONDS = 600;
 const CURATOR_MAX_SCHEDULED_DELAY_MS = 24 * 60 * 60 * 1000;
 const CONVERSATION_SWEEP_LIMIT = 50;
+const CURATOR_MAX_TOOL_ITERATIONS = 16;
 
 const DEFAULT_END_USER_AGENT_SCOPES: readonly string[] = [
   'conv:read',
@@ -609,7 +610,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             skillUri: job.jobUri,
             userPrompt: job.userPrompt,
             assistantName: job.assistantName,
-            maxToolIterations: 24,
+            maxToolIterations: CURATOR_MAX_TOOL_ITERATIONS,
             maxHistoryChars: opts.config.maxHistoryChars,
             providerImpl: opts.provider,
             allowedToolPrefixes: prefixes ? [...prefixes] : undefined,

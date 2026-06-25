@@ -14,13 +14,13 @@ Munin is an open-source customer platform built for the agentic era (Knowledge B
 
 > Lovable builds your frontend. Munin spins up your operations. One prompt, one MCP endpoint — and the agents do the rest.
 
+Watch Lovable build a real website from a single prompt while Munin stands up everything behind it — the CMS the blog reads from, a seeded knowledge base, analytics, and a chat widget that already knows the business. No admin UI, no dashboard to wire up; the agent does the work, over one MCP endpoint. Then a real customer conversation plays out: answered from the knowledge base, handed off to a human when it matters, and picked back up by the agent to close.
+
 <p align="center">
   <a href="https://vimeo.com/1204180225?autoplay=0&utm_source=github&utm_medium=readme&utm_campaign=demo-video">
     <img src=".github/assets/demo-thumbnail.png" alt="Watch: Lovable builds the frontend while Munin stands up everything behind it" width="100%">
   </a>
 </p>
-
-Watch Lovable build a real website from a single prompt while Munin stands up everything behind it — the CMS the blog reads from, a seeded knowledge base, analytics, and a chat widget that already knows the business. No admin UI, no dashboard to wire up; the agent does the work, over one MCP endpoint. Then a real customer conversation plays out: answered from the knowledge base, handed off to a human when it matters, and picked back up by the agent to close.
 
 ## Why I built this
 

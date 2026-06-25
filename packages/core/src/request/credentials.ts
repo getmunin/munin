@@ -21,6 +21,16 @@ async function readMembershipsForUser(
 
 export { readMembershipsForUser };
 
+function resolvePinnedMembership(
+  memberships: Array<typeof schema.orgMembers.$inferSelect>,
+  pinnedOrgId: string | null,
+): (typeof schema.orgMembers.$inferSelect) | undefined {
+  if (pinnedOrgId) return memberships.find((m) => m.orgId === pinnedOrgId);
+  return memberships.find((m) => m.isDefault) ?? memberships[0];
+}
+
+export { resolvePinnedMembership };
+
 function hashOauthOpaqueToken(rawToken: string): string {
   return createHash('sha256').update(rawToken).digest('base64url');
 }
@@ -93,7 +103,7 @@ export class CredentialResolver {
     if (!tokenRow.userId) return null;
 
     const memberships = await readMembershipsForUser(this.db, tokenRow.userId);
-    const active = memberships.find((m) => m.isDefault) ?? memberships[0];
+    const active = resolvePinnedMembership(memberships, tokenRow.referenceId);
     if (!active) return null;
 
     const scopes = tokenRow.scopes;

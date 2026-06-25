@@ -1,5 +1,33 @@
 # @getmunin/dashboard-pages
 
+## 4.59.0
+
+### Minor Changes
+
+- 2e3b87a: feat(conv): per-channel default agent mode
+
+  Add `defaultAgentMode` (`auto` | `draft_only` | `off`) to conversation channels. New conversations inherit the channel's mode when no explicit mode is passed — including inbound replies that fail threading and open a fresh conversation. Set an outreach-only inbox to `draft_only` so prospect replies are always drafted for human approval and never auto-sent, even when threading can't link the reply to its originating conversation. Configurable via `conv_setup_email_channel` and the email channel dialog.
+
+### Patch Changes
+
+- 0fb358d: fix(control): show OAuth-authorized agents in the flock
+
+  The Settings → Agents page ("The flock") read only the `tokens` table, which is populated solely by delegated end-user tokens. OAuth-authorized MCP clients (Claude Code, Cursor, Claude Desktop, …) have their access/refresh tokens persisted by BetterAuth in the separate `oauth_*` tables, so a fully-connected agent always showed up as "Agents · 0 / No connected agents yet".
+
+  `GET /v1/tokens` now also lists live (non-expired) OAuth access tokens — one row per (client, user), scoped to the calling org via `org_members` — with the OAuth client name as the origin. Revoking such a row (`DELETE /v1/tokens/:id` for an `oat_*` id) deletes both the access and refresh tokens so the agent can't silently refresh back in.
+
+- ad62308: feat(settings): standardize settings page loading with content-shaped skeletons
+
+  Replaces the inconsistent per-page "Loading…" text with content-shaped skeletons across every settings page (API keys, channels, trackers, team, end-users, activity, audit log, usage, agents, AI, account). Table pages render proportional column-width row skeletons, list pages render card placeholders, the usage page shows tile and by-agent placeholders, and the activity feed shows row placeholders with a vertically-centered empty state. The AI settings page now renders each section header with its own per-section loading instead of a single global loader.
+
+- edabd57: fix(auth): move Turnstile widget below the footnote links on auth forms
+
+  Repositions the Cloudflare Turnstile widget to render below the "Create an account · Forgot password?" (and equivalent) footnote links on the login, signup, and forgot-password forms, instead of between the password field and the submit button. Submit gating is unchanged — the button still stays disabled until a captcha token is present.
+
+- Updated dependencies [2e3b87a]
+  - @getmunin/types@4.59.0
+  - @getmunin/ui@4.59.0
+
 ## 4.58.0
 
 ### Minor Changes

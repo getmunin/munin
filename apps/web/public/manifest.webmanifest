@@ -1,7 +1,7 @@
 {
   "name": "Munin",
   "short_name": "Munin",
-  "description": "Agent-native business apps. The AI agent is the UI.",
+  "description": "The customer platform for the agentic era. The AI agent is the UI.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fafaf6",

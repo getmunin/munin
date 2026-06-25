@@ -8,7 +8,7 @@ test.describe('OSS locale switching', () => {
       await page.goto('/');
       // Norwegian translations live in messages/nb.json — assert the
       // tagline differs from the English version.
-      const englishTagline = 'Agent-native business apps. The AI agent is the UI.';
+      const englishTagline = 'The open source customer platform for the agentic era.';
       const tagline = await page.locator('main').first().innerText();
       expect(tagline).not.toContain(englishTagline);
     } finally {
@@ -24,7 +24,7 @@ test.describe('OSS locale switching', () => {
     const page = await ctx.newPage();
     try {
       await page.goto('/');
-      const taglineEn = 'Agent-native business apps. The AI agent is the UI.';
+      const taglineEn = 'The open source customer platform for the agentic era.';
       const main = page.locator('main').first();
       await expect(main).toBeVisible();
       const text = await main.innerText();

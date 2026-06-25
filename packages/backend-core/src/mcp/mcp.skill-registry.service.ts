@@ -40,7 +40,7 @@ function buildInstructions(
     '/v1/cms/* and this /mcp endpoint. Use it directly when scaffolding a frontend; do not ask',
     'for it. Skill bodies have it (and your org id) pre-filled.',
     '',
-    'Munin: agent-native business apps. You have ~80 tools across these modules:',
+    'Munin: the customer platform for the agentic era. Your tools span these modules:',
     '  • Knowledge Base (kb_*)        — articles, search, versions',
     '  • Conversations (conv_*)       — channels, messages, assignments',
     '  • CRM (crm_*)                  — contacts, companies, deals, activities',

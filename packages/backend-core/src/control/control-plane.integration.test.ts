@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { WebSocket } from 'ws';
 import { buildApiKey, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { createApp } from '../bootstrap-app.ts';
 import { AppModule } from '../app.module.ts';
 
@@ -130,7 +130,6 @@ interface OrgFixture {
     };
   }
 
-  // ─── api-keys ────────────────────────────────────────────────────────
 
   describe('POST/GET/DELETE /v1/api-keys', () => {
     it('rejects unauthenticated request with 401', async () => {
@@ -285,7 +284,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── transfer import/export (control-plane guard) ────────────────────
 
   describe('transfer endpoints enforce the control-plane guard', () => {
     const EXPORT_GETS = [
@@ -388,7 +386,6 @@ interface OrgFixture {
     }
   });
 
-  // ─── tokens ──────────────────────────────────────────────────────────
 
   describe('GET /v1/tokens, DELETE /v1/tokens/:id', () => {
     it('401 when unauthenticated', async () => {
@@ -397,7 +394,6 @@ interface OrgFixture {
     });
 
     it('returns tokens for the calling org only', async () => {
-      // Mint a delegated token for org A.
       const mint = await fetch(`${baseUrl}/v1/tokens/delegated`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
@@ -410,19 +406,16 @@ interface OrgFixture {
       const tokens = (await list.json()) as Array<{ id: string; endUserId: string }>;
       expect(tokens.find((t) => t.id === minted.tokenId)).toBeTruthy();
 
-      // Org B's listing should not include org A's token.
       const listB = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgB.adminKey) });
       const tokensB = (await listB.json()) as Array<{ id: string }>;
       expect(tokensB.find((t) => t.id === minted.tokenId)).toBeFalsy();
 
-      // Revoke from org A.
       const rv = await fetch(`${baseUrl}/v1/tokens/${minted.tokenId}`, {
         method: 'DELETE',
         headers: authHeaders(orgA.adminKey),
       });
       expect(rv.status).toBe(204);
 
-      // Cross-org revoke from B is 404.
       const otherMint = await fetch(`${baseUrl}/v1/tokens/delegated`, {
         method: 'POST',
         headers: authHeaders(orgB.adminKey),
@@ -436,88 +429,92 @@ interface OrgFixture {
       expect(wrongOrg.status).toBe(404);
     });
 
-    it('surfaces OAuth-authorized agents and revokes their access + refresh tokens', async () => {
+    it('collapses an OAuth agent reconnected under many clients into one flock row and revokes the group', async () => {
       const label = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-      const clientId = `oauth-client-${label}`;
-      await db.insert(schema.oauthClient).values({
-        clientId,
-        name: 'Claude Code',
-        redirectUris: ['https://example.com/cb'],
-      });
-      const [refresh] = await db
-        .insert(schema.oauthRefreshToken)
-        .values({
-          token: `rt-${label}`,
-          clientId,
+      const name = `Claude Code ${label}`;
+      const clientA = `oauth-client-a-${label}`;
+      const clientB = `oauth-client-b-${label}`;
+      await db.insert(schema.oauthClient).values([
+        { clientId: clientA, name, redirectUris: ['https://example.com/cb'] },
+        { clientId: clientB, name, redirectUris: ['https://example.com/cb'] },
+      ]);
+      await db.insert(schema.oauthRefreshToken).values([
+        {
+          token: `rt-a-${label}`,
+          clientId: clientA,
           userId: orgA.userId,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           scopes: ['mcp:admin', 'kb:read'],
-        })
-        .returning({ id: schema.oauthRefreshToken.id });
-      const [access] = await db
-        .insert(schema.oauthAccessToken)
-        .values({
-          token: `at-${label}`,
-          clientId,
+        },
+        {
+          token: `rt-b-${label}`,
+          clientId: clientB,
           userId: orgA.userId,
-          refreshId: refresh!.id,
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-          scopes: ['mcp:admin', 'kb:read'],
-        })
-        .returning({ id: schema.oauthAccessToken.id });
-      // An already-expired access token for the same client must not surface.
-      await db.insert(schema.oauthAccessToken).values({
-        token: `at-expired-${label}`,
-        clientId,
-        userId: orgA.userId,
-        expiresAt: new Date(Date.now() - 60 * 1000),
-        scopes: ['mcp:admin'],
-      });
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          scopes: ['mcp:admin', 'crm:write'],
+        },
+        {
+          token: `rt-expired-${label}`,
+          clientId: clientA,
+          userId: orgA.userId,
+          expiresAt: new Date(Date.now() - 60 * 1000),
+          scopes: ['mcp:admin'],
+        },
+        {
+          token: `rt-revoked-${label}`,
+          clientId: clientA,
+          userId: orgA.userId,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          revoked: new Date(),
+          scopes: ['mcp:admin'],
+        },
+      ]);
 
       const list = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgA.adminKey) });
       const tokens = (await list.json()) as Array<{
         id: string;
         type: string;
         origin: string | null;
+        count: number;
+        scopes: string[];
       }>;
-      const oauthRow = tokens.filter((t) => t.id.startsWith('oat_'));
-      expect(oauthRow).toHaveLength(1);
-      expect(oauthRow[0]!.id).toBe(access!.id);
-      expect(oauthRow[0]!.type).toBe('oauth_access');
-      expect(oauthRow[0]!.origin).toBe('Claude Code');
+      const oauthRows = tokens.filter((t) => t.origin === name);
+      expect(oauthRows).toHaveLength(1);
+      const agentRow = oauthRows[0]!;
+      expect(agentRow.id.startsWith('orft_')).toBe(true);
+      expect(agentRow.type).toBe('oauth_refresh');
+      expect(agentRow.count).toBe(2);
+      expect(agentRow.scopes.sort()).toEqual(['crm:write', 'kb:read', 'mcp:admin']);
 
-      // Org B can't see org A's OAuth agent, nor revoke it.
       const listB = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgB.adminKey) });
       const tokensB = (await listB.json()) as Array<{ id: string }>;
-      expect(tokensB.find((t) => t.id === access!.id)).toBeFalsy();
-      const wrongOrg = await fetch(`${baseUrl}/v1/tokens/${access!.id}`, {
+      expect(tokensB.find((t) => t.id === agentRow.id)).toBeFalsy();
+      const wrongOrg = await fetch(`${baseUrl}/v1/tokens/${agentRow.id}`, {
         method: 'DELETE',
         headers: authHeaders(orgB.adminKey),
       });
       expect(wrongOrg.status).toBe(404);
 
-      // Revoke from org A removes both the access and refresh tokens.
-      const rv = await fetch(`${baseUrl}/v1/tokens/${access!.id}`, {
+      const rv = await fetch(`${baseUrl}/v1/tokens/${agentRow.id}`, {
         method: 'DELETE',
         headers: authHeaders(orgA.adminKey),
       });
       expect(rv.status).toBe(204);
-      const remainingAccess = await db
-        .select({ id: schema.oauthAccessToken.id })
-        .from(schema.oauthAccessToken)
-        .where(eq(schema.oauthAccessToken.clientId, clientId));
-      expect(remainingAccess).toHaveLength(0);
-      const remainingRefresh = await db
-        .select({ id: schema.oauthRefreshToken.id })
+      const remaining = await db
+        .select({ id: schema.oauthRefreshToken.id, revoked: schema.oauthRefreshToken.revoked })
         .from(schema.oauthRefreshToken)
-        .where(eq(schema.oauthRefreshToken.clientId, clientId));
-      expect(remainingRefresh).toHaveLength(0);
+        .where(inArray(schema.oauthRefreshToken.clientId, [clientA, clientB]));
+      expect(remaining.every((r) => r.revoked !== null)).toBe(true);
 
-      await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId));
+      const after = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgA.adminKey) });
+      const afterTokens = (await after.json()) as Array<{ origin: string | null }>;
+      expect(afterTokens.find((t) => t.origin === name)).toBeFalsy();
+
+      await db.delete(schema.oauthRefreshToken).where(inArray(schema.oauthRefreshToken.clientId, [clientA, clientB]));
+      await db.delete(schema.oauthClient).where(inArray(schema.oauthClient.clientId, [clientA, clientB]));
     });
   });
 
-  // ─── delegated-token ─────────────────────────────────────────────────
 
   describe('POST /v1/tokens/delegated', () => {
     it('401 when unauthenticated', async () => {
@@ -563,7 +560,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── end-users ───────────────────────────────────────────────────────
 
   describe('/v1/end-users', () => {
     it('401 unauthenticated', async () => {
@@ -600,7 +596,6 @@ interface OrgFixture {
     });
 
     it('revoke-tokens revokes all active tokens for an end-user', async () => {
-      // Mint two tokens for the same end-user.
       for (let i = 0; i < 2; i++) {
         await fetch(`${baseUrl}/v1/tokens/delegated`, {
           method: 'POST',
@@ -622,7 +617,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── orgs ────────────────────────────────────────────────────────────
 
   describe('/v1/orgs/me', () => {
     it('401 unauthenticated', async () => {
@@ -650,7 +644,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── webhooks ────────────────────────────────────────────────────────
 
   describe('/v1/webhooks', () => {
     it('401 unauthenticated', async () => {
@@ -677,7 +670,6 @@ interface OrgFixture {
       const patched = (await patch.json()) as { active: boolean };
       expect(patched.active).toBe(false);
 
-      // Org B can't see or patch.
       const cross = await fetch(`${baseUrl}/v1/webhooks/${wh.id}`, {
         method: 'PATCH',
         headers: authHeaders(orgB.adminKey),
@@ -698,7 +690,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── audit-log ───────────────────────────────────────────────────────
 
   describe('GET /v1/audit-logs', () => {
     it('401 unauthenticated', async () => {
@@ -707,7 +698,6 @@ interface OrgFixture {
     });
 
     it('returns paginated audit entries for the calling org', async () => {
-      // Generate at least one audit entry by hitting an audited endpoint.
       await fetch(`${baseUrl}/v1/orgs/me`, { headers: authHeaders(orgA.adminKey) });
       const res = await fetch(`${baseUrl}/v1/audit-logs?limit=10`, {
         headers: authHeaders(orgA.adminKey),
@@ -718,7 +708,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── usage ───────────────────────────────────────────────────────────
 
   describe('GET /v1/usage', () => {
     it('401 unauthenticated', async () => {
@@ -734,7 +723,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── invitations (admin-issue) ───────────────────────────────────────
 
   describe('/v1/orgs/me/invitations (admin)', () => {
     it('401 unauthenticated', async () => {
@@ -775,7 +763,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── accept-invitation (anonymous lookup, session-cookie accept) ─────
 
   describe('/v1/invitations (lookup + accept)', () => {
     it('lookup is anonymous and returns 404 for unknown token', async () => {
@@ -806,7 +793,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── members (owner-only patch/delete) ──────────────────────────────
 
   describe('/v1/orgs/me/members', () => {
     it('401 without credentials', async () => {
@@ -821,7 +807,6 @@ interface OrgFixture {
       expect(res.status).toBe(200);
       const items = (await res.json()) as Array<{ userId: string }>;
       expect(items.find((m) => m.userId === orgA.userId)).toBeTruthy();
-      // Must not include other org's user.
       expect(items.find((m) => m.userId === orgB.userId)).toBeFalsy();
     });
 
@@ -835,7 +820,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── memberships (user-session only) ─────────────────────────────────
 
   describe('/v1/me/memberships', () => {
     it('user session can list its memberships', async () => {
@@ -855,7 +839,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── role gating: member vs admin via user session cookies ──────────
 
   describe('settings endpoints role gating (user session)', () => {
     let memberCookie: Record<string, string>;
@@ -1010,7 +993,6 @@ interface OrgFixture {
     }
   });
 
-  // ─── realtime gateway (websocket auth) ──────────────────────────────
 
   describe('GET /v1/realtime (websocket)', () => {
     function wsUrl(): string {
@@ -1062,7 +1044,6 @@ interface OrgFixture {
     });
   });
 
-  // ─── cms-delivery (anonymous) ────────────────────────────────────────
 
   describe('GET /v1/cms/:orgSlug/...', () => {
     it('returns 404 for unknown org id', async () => {

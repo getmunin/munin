@@ -23,6 +23,7 @@ interface TokenDto {
   lastUsedAt: string | null;
   revokedAt: string | null;
   createdAt: string;
+  count?: number;
 }
 
 type TokenStatus = 'active' | 'revoked' | 'expired';
@@ -153,6 +154,11 @@ export function AgentsPage() {
                     </td>
                     <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">
                       {token.origin ?? (token.audiences.join(', ') || '—')}
+                      {(token.count ?? 1) > 1 && (
+                        <span className="ml-2 text-ink-mute/70">
+                          · {t('connections', { count: token.count! })}
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 pr-4">
                       <StatusChip status={status} t={t} />

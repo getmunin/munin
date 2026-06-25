@@ -9,7 +9,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { schema, type Db, type Tx } from '@getmunin/db';
-import { and, desc, eq, gt } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -29,6 +29,7 @@ interface TokenDto {
   lastUsedAt: string | null;
   revokedAt: string | null;
   createdAt: string;
+  count: number;
 }
 
 @Controller('v1/tokens')
@@ -58,7 +59,7 @@ export class TokensController {
   async revoke(@Param('id') id: string): Promise<void> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (id.startsWith('oat_')) {
+    if (id.startsWith('orft_')) {
       await revokeOauthAgent(ctx.db, id);
       return;
     }
@@ -73,94 +74,127 @@ export class TokensController {
 
 /**
  * OAuth-authorized agents (Claude Code, Cursor, …) don't get rows in `tokens` —
- * BetterAuth persists their access/refresh tokens in the `oauth_*` tables. Surface
- * them as one row per (client, user) so they show up in the flock alongside
- * delegated tokens.
+ * BetterAuth persists their grants in the `oauth_*` tables. Their access tokens
+ * are stateless JWTs (no DB row), so the durable record of a connected agent is
+ * the *refresh* token. MCP dynamic client registration also mints a fresh
+ * `client_id` on every connect, so one user reconnecting Claude piles up many
+ * refresh tokens — we collapse them to one row per (client name, user).
  */
 async function listOauthAgents(db: Db | Tx): Promise<TokenDto[]> {
   const rows = await db
     .select({
-      id: schema.oauthAccessToken.id,
-      clientId: schema.oauthAccessToken.clientId,
-      userId: schema.oauthAccessToken.userId,
-      scopes: schema.oauthAccessToken.scopes,
-      expiresAt: schema.oauthAccessToken.expiresAt,
-      createdAt: schema.oauthAccessToken.createdAt,
+      id: schema.oauthRefreshToken.id,
+      clientId: schema.oauthRefreshToken.clientId,
+      userId: schema.oauthRefreshToken.userId,
+      scopes: schema.oauthRefreshToken.scopes,
+      expiresAt: schema.oauthRefreshToken.expiresAt,
+      createdAt: schema.oauthRefreshToken.createdAt,
       clientName: schema.oauthClient.name,
     })
-    .from(schema.oauthAccessToken)
-    // org_members is RLS-scoped to the caller's org, so this join is the tenant
-    // filter: only tokens whose user belongs to the current org survive.
+    .from(schema.oauthRefreshToken)
     .innerJoin(
       schema.orgMembers,
-      eq(schema.orgMembers.userId, schema.oauthAccessToken.userId),
+      eq(schema.orgMembers.userId, schema.oauthRefreshToken.userId),
     )
     .leftJoin(
       schema.oauthClient,
-      eq(schema.oauthClient.clientId, schema.oauthAccessToken.clientId),
+      eq(schema.oauthClient.clientId, schema.oauthRefreshToken.clientId),
     )
-    .where(gt(schema.oauthAccessToken.expiresAt, new Date()))
-    .orderBy(desc(schema.oauthAccessToken.createdAt));
+    .where(
+      and(
+        gt(schema.oauthRefreshToken.expiresAt, new Date()),
+        isNull(schema.oauthRefreshToken.revoked),
+      ),
+    )
+    .orderBy(desc(schema.oauthRefreshToken.createdAt));
 
-  const seen = new Set<string>();
-  const dtos: TokenDto[] = [];
+  const groups = new Map<string, TokenDto>();
   for (const row of rows) {
-    const key = `${row.clientId}:${row.userId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    dtos.push({
-      id: row.id,
-      type: 'oauth_access',
-      scopes: row.scopes,
-      audiences: [],
-      origin: row.clientName ?? row.clientId,
-      endUserId: null,
-      expiresAt: row.expiresAt.toISOString(),
-      lastUsedAt: null,
-      revokedAt: null,
-      createdAt: row.createdAt.toISOString(),
-    });
+    const origin = row.clientName ?? row.clientId;
+    const key = `${origin}:${row.userId}`;
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, {
+        id: row.id,
+        type: 'oauth_refresh',
+        scopes: row.scopes,
+        audiences: [],
+        origin,
+        endUserId: null,
+        expiresAt: row.expiresAt.toISOString(),
+        lastUsedAt: null,
+        revokedAt: null,
+        createdAt: row.createdAt.toISOString(),
+        count: 1,
+      });
+      continue;
+    }
+    existing.count += 1;
+    existing.scopes = [...new Set([...existing.scopes, ...row.scopes])];
+    if (row.expiresAt.toISOString() > existing.expiresAt!) {
+      existing.expiresAt = row.expiresAt.toISOString();
+    }
   }
-  return dtos;
+  return [...groups.values()];
 }
 
-async function revokeOauthAgent(db: Db | Tx, accessTokenId: string): Promise<void> {
+/**
+ * Revokes a connected OAuth agent given the refresh-token id that represents its
+ * flock row. Soft-revokes (`revoked = now()`) every live refresh token in the
+ * same (client name, user) group — the refresh grant rejects revoked tokens, so
+ * the agent can't refresh back in once its short-lived JWT expires.
+ */
+async function revokeOauthAgent(db: Db | Tx, refreshTokenId: string): Promise<void> {
   const rows = await db
     .select({
-      clientId: schema.oauthAccessToken.clientId,
-      userId: schema.oauthAccessToken.userId,
+      clientId: schema.oauthRefreshToken.clientId,
+      userId: schema.oauthRefreshToken.userId,
     })
-    .from(schema.oauthAccessToken)
-    .where(eq(schema.oauthAccessToken.id, accessTokenId))
+    .from(schema.oauthRefreshToken)
+    .where(eq(schema.oauthRefreshToken.id, refreshTokenId))
     .limit(1);
   const row = rows[0];
-  if (!row?.userId) throw new NotFoundException(`token ${accessTokenId} not found`);
+  if (!row?.userId) throw new NotFoundException(`token ${refreshTokenId} not found`);
 
-  // A hit in the RLS-scoped org_members proves the user belongs to the caller's
-  // org — blocks revoking an agent that lives in another tenant.
   const membership = await db
     .select({ orgId: schema.orgMembers.orgId })
     .from(schema.orgMembers)
     .where(eq(schema.orgMembers.userId, row.userId))
     .limit(1);
-  if (membership.length === 0) throw new NotFoundException(`token ${accessTokenId} not found`);
+  if (membership.length === 0) throw new NotFoundException(`token ${refreshTokenId} not found`);
 
-  // Drop access and refresh tokens together so the agent can't silently refresh
-  // back in after the access token is gone.
+  const nameRow = (
+    await db
+      .select({ name: schema.oauthClient.name })
+      .from(schema.oauthClient)
+      .where(eq(schema.oauthClient.clientId, row.clientId))
+      .limit(1)
+  )[0];
+  let clientIds = [row.clientId];
+  if (nameRow?.name) {
+    const sameName = await db
+      .select({ clientId: schema.oauthClient.clientId })
+      .from(schema.oauthClient)
+      .where(eq(schema.oauthClient.name, nameRow.name));
+    clientIds = sameName.map((c) => c.clientId);
+  }
+
+  await db
+    .update(schema.oauthRefreshToken)
+    .set({ revoked: new Date() })
+    .where(
+      and(
+        eq(schema.oauthRefreshToken.userId, row.userId),
+        inArray(schema.oauthRefreshToken.clientId, clientIds),
+        isNull(schema.oauthRefreshToken.revoked),
+      ),
+    );
   await db
     .delete(schema.oauthAccessToken)
     .where(
       and(
-        eq(schema.oauthAccessToken.clientId, row.clientId),
         eq(schema.oauthAccessToken.userId, row.userId),
-      ),
-    );
-  await db
-    .delete(schema.oauthRefreshToken)
-    .where(
-      and(
-        eq(schema.oauthRefreshToken.clientId, row.clientId),
-        eq(schema.oauthRefreshToken.userId, row.userId),
+        inArray(schema.oauthAccessToken.clientId, clientIds),
       ),
     );
 }
@@ -177,5 +211,6 @@ function toDto(row: typeof schema.tokens.$inferSelect): TokenDto {
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
     revokedAt: row.revokedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
+    count: 1,
   };
 }

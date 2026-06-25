@@ -404,6 +404,7 @@
       "emptyTitle": "Ingen tilkoblede agenter ennå",
       "emptyBody": "Legg MCP-URL-en inn i Claude Desktop, Cursor eller MCP-klienten din, og fullfør samtykket — utstedte tokens vises her.",
       "noScopes": "ingen scopes",
+      "connections": "{count, plural, one {# tilkobling} other {# tilkoblinger}}",
       "issued": "Utstedt {when}",
       "lastUsed": "Sist brukt {when}",
       "expires": "Utløper {when}",

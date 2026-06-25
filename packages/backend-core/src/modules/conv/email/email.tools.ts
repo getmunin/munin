@@ -7,6 +7,7 @@ import { getCurrentContext, resolvePublicHost, type Mailer } from '@getmunin/cor
 import { renderChannelTestEmail } from '@getmunin/emails';
 import { createTransport } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
+import { AgentModeSchema } from '@getmunin/types';
 import { DB } from '../../../common/db/db.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
 import {
@@ -21,6 +22,7 @@ const SetupInput = z.object({
   channelId: z.string().optional(),
   name: z.string().min(1).max(120),
   config: EmailChannelConfigInput,
+  defaultAgentMode: AgentModeSchema.optional(),
 });
 
 const TestInput = z.object({
@@ -44,7 +46,7 @@ export class EmailAdminTools {
     name: 'conv_setup_email_channel',
     title: 'Conv: Set up email channel',
     description:
-      "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host.",
+      "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host. Set `defaultAgentMode: 'draft_only'` on an outreach-only inbox so inbound replies are always drafted for human approval rather than auto-sent.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetupInput,
@@ -57,9 +59,14 @@ export class EmailAdminTools {
         channelId: args.channelId,
         name: args.name,
         config: args.config,
+        defaultAgentMode: args.defaultAgentMode,
       });
     }
-    return this.email.createChannel({ name: args.name, config: args.config });
+    return this.email.createChannel({
+      name: args.name,
+      config: args.config,
+      defaultAgentMode: args.defaultAgentMode,
+    });
   }
 
   @McpTool({

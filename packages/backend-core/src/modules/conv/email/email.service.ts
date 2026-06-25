@@ -18,6 +18,7 @@ import { z } from 'zod';
 import {
   EmailChannelConfigInput,
   SendLimitsSchema,
+  type AgentMode,
   type EmailChannelConfigInputT,
   type SendLimits,
 } from '@getmunin/types';
@@ -200,12 +201,17 @@ export class EmailService {
     return decryptString(tx, encryptedPassword);
   }
 
-  async createChannel(input: { name: string; config: EmailChannelConfigInputT }): Promise<{
+  async createChannel(input: {
+    name: string;
+    config: EmailChannelConfigInputT;
+    defaultAgentMode?: AgentMode;
+  }): Promise<{
     id: string;
     name: string;
     type: 'email';
     active: boolean;
     config: EmailChannelConfigDto;
+    defaultAgentMode: AgentMode;
   }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -218,6 +224,7 @@ export class EmailService {
         vendor: stored.outbound.provider,
         name: input.name,
         config: storedToJsonb(stored),
+        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
       })
       .returning();
     return {
@@ -226,6 +233,7 @@ export class EmailService {
       type: 'email',
       active: row!.active,
       config: this.toDto(stored),
+      defaultAgentMode: row!.defaultAgentMode as AgentMode,
     };
   }
 
@@ -233,12 +241,14 @@ export class EmailService {
     channelId: string;
     name?: string;
     config: EmailChannelConfigInputT;
+    defaultAgentMode?: AgentMode;
   }): Promise<{
     id: string;
     name: string;
     type: 'email';
     active: boolean;
     config: EmailChannelConfigDto;
+    defaultAgentMode: AgentMode;
   }> {
     const ctx = getCurrentContext();
     const existing = await ctx.db
@@ -259,6 +269,7 @@ export class EmailService {
         ...(input.name && { name: input.name }),
         vendor: merged.outbound.provider,
         config: storedToJsonb(merged),
+        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.convChannels.id, input.channelId))
@@ -269,6 +280,7 @@ export class EmailService {
       type: 'email',
       active: row!.active,
       config: this.toDto(merged),
+      defaultAgentMode: row!.defaultAgentMode as AgentMode,
     };
   }
 

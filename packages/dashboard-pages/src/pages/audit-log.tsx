@@ -5,6 +5,7 @@ import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
+import { TableSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
@@ -162,7 +163,19 @@ export function AuditLogPage() {
           divider={false}
         />
 
-        {items.length === 0 ? (
+        {!hasLoadedOnce ? (
+          <TableSkeleton
+            columns={[
+              { grow: 2, bar: 'w-3/4' },
+              { grow: 1.5, bar: 'w-1/2' },
+              { grow: 1.5, bar: 'w-12' },
+              { grow: 2.5, bar: 'w-2/3' },
+              { grow: 1.5, bar: 'w-12' },
+              { grow: 1, bar: 'w-10', right: true },
+              { grow: 1.5, bar: 'w-16', right: true },
+            ]}
+          />
+        ) : items.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
           <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">

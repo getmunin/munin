@@ -13,6 +13,7 @@ import { IdentityCard } from '../components/assistants/identity-card';
 import { useAssistant } from '../components/assistants/use-assistant';
 import { useSkills } from '../components/assistants/use-skills';
 import { LoadFailed } from '../components/load-failed';
+import { CardSkeleton } from '../components/skeleton';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 
 interface AiSettingsPageProps {
@@ -30,7 +31,6 @@ export function AiSettingsPage({
 }: AiSettingsPageProps = {}) {
   const t = useTranslations('agentSetup');
   const tList = useTranslations('assistants.list');
-  const tCommon = useTranslations('common');
 
   const {
     config,
@@ -77,95 +77,92 @@ export function AiSettingsPage({
 
       {slot}
 
-      {config === null && (
-        <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
-      )}
+      <div className="space-y-10">
+        <section className="space-y-4">
+          <SectionHeader title={tList('persona.title')} blurb={tList('persona.blurb')} />
+          <div className="space-y-6">
+            {assistant ? (
+              <IdentityCard assistant={assistant} onSaved={setAssistant} />
+            ) : (
+              <CardSkeleton />
+            )}
+          </div>
+        </section>
 
-      {config && (
-        <div className="space-y-10">
-          <section className="space-y-4">
-            <SectionHeader title={tList('persona.title')} blurb={tList('persona.blurb')} />
-            <div className="space-y-6">
-              {assistant ? (
-                <IdentityCard assistant={assistant} onSaved={setAssistant} />
-              ) : (
-                <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
-              )}
-            </div>
-          </section>
+        <section className="space-y-4">
+          <SectionHeader title={tList('models.title')} blurb={tList('models.blurb')} />
+          <div className="space-y-6">
+            {config ? (
+              <>
+                <ProviderCard
+                  config={config}
+                  extraPresets={extraPresets}
+                  defaultPresetId={defaultPresetId}
+                  lede={providerLede}
+                  onSaved={(updated, result) => {
+                    setConfig(updated);
+                    setModels(result);
+                  }}
+                />
+                <ModelsCard
+                  config={config}
+                  models={managedModelsResult ?? models}
+                  managed={isManaged}
+                  onSaved={setConfig}
+                />
+              </>
+            ) : (
+              <>
+                <CardSkeleton />
+                <CardSkeleton />
+              </>
+            )}
+          </div>
+        </section>
 
-          <section className="space-y-4">
-            <SectionHeader title={tList('models.title')} blurb={tList('models.blurb')} />
-            <div className="space-y-6">
-              <ProviderCard
-                config={config}
-                extraPresets={extraPresets}
-                defaultPresetId={defaultPresetId}
-                lede={providerLede}
-                onSaved={(updated, result) => {
-                  setConfig(updated);
-                  setModels(result);
-                }}
-              />
-              <ModelsCard
-                config={config}
-                models={managedModelsResult ?? models}
-                managed={isManaged}
-                onSaved={setConfig}
-              />
-            </div>
-          </section>
+        <section className="space-y-4">
+          <SectionHeader
+            title={tList('conversational.title')}
+            blurb={tList('conversational.blurb')}
+          />
+          <div className="space-y-3">
+            <ChatAssistantCard />
+            {conversationalSkills.map((skill) => (
+              <BackgroundSkillCard key={skill.uri} skill={skill} />
+            ))}
+          </div>
+        </section>
 
-          <section className="space-y-4">
-            <SectionHeader
-              title={tList('conversational.title')}
-              blurb={tList('conversational.blurb')}
-            />
-            <div className="space-y-3">
-              <ChatAssistantCard />
-              {conversationalSkills.map((skill) => (
+        <section className="space-y-4">
+          <SectionHeader title={tList('aiDriven.title')} blurb={tList('aiDriven.blurb')} />
+          <div className="space-y-3">
+            {skills === null ? (
+              <CardSkeleton />
+            ) : aiDrivenSkills.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{tList('aiDriven.empty')}</p>
+            ) : (
+              aiDrivenSkills.map((skill) => (
                 <BackgroundSkillCard key={skill.uri} skill={skill} />
-              ))}
-            </div>
-          </section>
+              ))
+            )}
+          </div>
+        </section>
 
-          <section className="space-y-4">
-            <SectionHeader
-              title={tList('aiDriven.title')}
-              blurb={tList('aiDriven.blurb')}
-            />
-            <div className="space-y-3">
-              {skills === null ? (
-                <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
-              ) : aiDrivenSkills.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{tList('aiDriven.empty')}</p>
-              ) : (
-                aiDrivenSkills.map((skill) => (
-                  <BackgroundSkillCard key={skill.uri} skill={skill} />
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <SectionHeader
-              title={tList('tasks.title')}
-              blurb={tList('tasks.blurb')}
-            />
-            <div className="space-y-3">
-              {skills === null ? (
-                <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
-              ) : scheduledTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{tList('tasks.empty')}</p>
-              ) : (
-                scheduledTasks.map((skill) => (
-                  <BackgroundSkillCard key={skill.uri} skill={skill} />
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-      )}
+        <section className="space-y-4">
+          <SectionHeader title={tList('tasks.title')} blurb={tList('tasks.blurb')} />
+          <div className="space-y-3">
+            {skills === null ? (
+              <CardSkeleton />
+            ) : scheduledTasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{tList('tasks.empty')}</p>
+            ) : (
+              scheduledTasks.map((skill) => (
+                <BackgroundSkillCard key={skill.uri} skill={skill} />
+              ))
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

@@ -435,6 +435,86 @@ interface OrgFixture {
       });
       expect(wrongOrg.status).toBe(404);
     });
+
+    it('surfaces OAuth-authorized agents and revokes their access + refresh tokens', async () => {
+      const label = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      const clientId = `oauth-client-${label}`;
+      await db.insert(schema.oauthClient).values({
+        clientId,
+        name: 'Claude Code',
+        redirectUris: ['https://example.com/cb'],
+      });
+      const [refresh] = await db
+        .insert(schema.oauthRefreshToken)
+        .values({
+          token: `rt-${label}`,
+          clientId,
+          userId: orgA.userId,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          scopes: ['mcp:admin', 'kb:read'],
+        })
+        .returning({ id: schema.oauthRefreshToken.id });
+      const [access] = await db
+        .insert(schema.oauthAccessToken)
+        .values({
+          token: `at-${label}`,
+          clientId,
+          userId: orgA.userId,
+          refreshId: refresh!.id,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+          scopes: ['mcp:admin', 'kb:read'],
+        })
+        .returning({ id: schema.oauthAccessToken.id });
+      // An already-expired access token for the same client must not surface.
+      await db.insert(schema.oauthAccessToken).values({
+        token: `at-expired-${label}`,
+        clientId,
+        userId: orgA.userId,
+        expiresAt: new Date(Date.now() - 60 * 1000),
+        scopes: ['mcp:admin'],
+      });
+
+      const list = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgA.adminKey) });
+      const tokens = (await list.json()) as Array<{
+        id: string;
+        type: string;
+        origin: string | null;
+      }>;
+      const oauthRow = tokens.filter((t) => t.id.startsWith('oat_'));
+      expect(oauthRow).toHaveLength(1);
+      expect(oauthRow[0]!.id).toBe(access!.id);
+      expect(oauthRow[0]!.type).toBe('oauth_access');
+      expect(oauthRow[0]!.origin).toBe('Claude Code');
+
+      // Org B can't see org A's OAuth agent, nor revoke it.
+      const listB = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgB.adminKey) });
+      const tokensB = (await listB.json()) as Array<{ id: string }>;
+      expect(tokensB.find((t) => t.id === access!.id)).toBeFalsy();
+      const wrongOrg = await fetch(`${baseUrl}/v1/tokens/${access!.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(orgB.adminKey),
+      });
+      expect(wrongOrg.status).toBe(404);
+
+      // Revoke from org A removes both the access and refresh tokens.
+      const rv = await fetch(`${baseUrl}/v1/tokens/${access!.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(orgA.adminKey),
+      });
+      expect(rv.status).toBe(204);
+      const remainingAccess = await db
+        .select({ id: schema.oauthAccessToken.id })
+        .from(schema.oauthAccessToken)
+        .where(eq(schema.oauthAccessToken.clientId, clientId));
+      expect(remainingAccess).toHaveLength(0);
+      const remainingRefresh = await db
+        .select({ id: schema.oauthRefreshToken.id })
+        .from(schema.oauthRefreshToken)
+        .where(eq(schema.oauthRefreshToken.clientId, clientId));
+      expect(remainingRefresh).toHaveLength(0);
+
+      await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId));
+    });
   });
 
   // ─── delegated-token ─────────────────────────────────────────────────

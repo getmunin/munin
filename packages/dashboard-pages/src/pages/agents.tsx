@@ -16,6 +16,7 @@ interface TokenDto {
   type: string;
   scopes: string[];
   audiences: string[];
+  origin: string | null;
   endUserId: string | null;
   expiresAt: string | null;
   lastUsedAt: string | null;
@@ -140,7 +141,7 @@ export function AgentsPage() {
                       </div>
                     </td>
                     <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">
-                      {token.audiences.join(', ') || '—'}
+                      {token.origin ?? (token.audiences.join(', ') || '—')}
                     </td>
                     <td className="py-4 pr-4">
                       <StatusChip status={status} t={t} />

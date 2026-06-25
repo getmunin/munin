@@ -53,6 +53,7 @@ export interface ChannelDto {
   name: string;
   active: boolean;
   config: Record<string, unknown>;
+  defaultAgentMode: AgentMode;
   createdAt: string;
 }
 
@@ -235,6 +236,7 @@ export class ConvService {
     vendor: string;
     name: string;
     config?: Record<string, unknown>;
+    defaultAgentMode?: AgentMode;
   }): Promise<ChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -246,6 +248,7 @@ export class ConvService {
         vendor: input.vendor,
         name: input.name,
         config: input.config ?? {},
+        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
       })
       .returning();
     return toChannelDto(row!);
@@ -578,6 +581,7 @@ export class ConvService {
         id: schema.convChannels.id,
         active: schema.convChannels.active,
         type: schema.convChannels.type,
+        defaultAgentMode: schema.convChannels.defaultAgentMode,
       })
       .from(schema.convChannels)
       .where(eq(schema.convChannels.id, input.channelId))
@@ -596,7 +600,7 @@ export class ConvService {
       topicId: input.topicId ?? null,
       subject: input.subject ?? null,
       outreachCampaignId: input.outreachCampaignId ?? null,
-      agentMode: input.agentMode ?? 'auto',
+      agentMode: input.agentMode ?? (channelRows[0].defaultAgentMode as AgentMode),
     });
 
     const [firstMsg] = await ctx.db
@@ -1439,6 +1443,7 @@ function toChannelDto(row: typeof schema.convChannels.$inferSelect): ChannelDto 
     name: row.name,
     active: row.active,
     config: row.config,
+    defaultAgentMode: row.defaultAgentMode as AgentMode,
     createdAt: row.createdAt.toISOString(),
   };
 }

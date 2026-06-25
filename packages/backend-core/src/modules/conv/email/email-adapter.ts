@@ -341,6 +341,7 @@ export class EmailAdapter implements ChannelAdapter {
               endUserId: contact.endUserId,
               status: 'open',
               subject: parsed.subject || null,
+              agentMode: channel.defaultAgentMode,
               lastMessageAt: new Date(),
             })
             .returning();

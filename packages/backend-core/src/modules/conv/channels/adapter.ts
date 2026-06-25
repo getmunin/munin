@@ -58,6 +58,7 @@ export interface ChannelRow {
   name: string;
   config: Record<string, unknown>;
   active: boolean;
+  defaultAgentMode: string;
 }
 
 export interface SendContext {

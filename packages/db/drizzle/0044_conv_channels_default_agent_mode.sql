@@ -1,0 +1,1 @@
+ALTER TABLE "conv_channels" ADD COLUMN "default_agent_mode" varchar(16) DEFAULT 'auto' NOT NULL;

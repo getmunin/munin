@@ -118,6 +118,22 @@ const skipReason = TEST_URL
       expect(list.map((c) => c.name)).toEqual(['A', 'B']);
     });
 
+    it('createChannel defaults agentMode to auto and persists an explicit draft_only', async () => {
+      const auto = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'Auto' }));
+      expect(auto.defaultAgentMode).toBe('auto');
+      const draft = await run(() =>
+        svc.createChannel({
+          type: 'email',
+          vendor: 'smtp',
+          name: 'Draft',
+          defaultAgentMode: 'draft_only',
+        }),
+      );
+      expect(draft.defaultAgentMode).toBe('draft_only');
+      const list = await run(() => svc.listChannels());
+      expect(list.find((c) => c.name === 'Draft')!.defaultAgentMode).toBe('draft_only');
+    });
+
     it('firstActiveChannel returns first by createdAt; null when none', async () => {
       const empty = await run(() => svc.firstActiveChannel());
       expect(empty).toBeNull();
@@ -217,6 +233,36 @@ const skipReason = TEST_URL
       const types = await eventTypes();
       expect(types).toContain('conversation.created');
       expect(types).toContain('conversation.message.sent');
+    });
+
+    it('createConversation inherits the channel defaultAgentMode; explicit mode still wins', async () => {
+      const ch = await run(() =>
+        svc.createChannel({
+          type: 'email',
+          vendor: 'smtp',
+          name: 'Outreach',
+          defaultAgentMode: 'draft_only',
+        }),
+      );
+      const inherited = await run(() =>
+        svc.createConversation({
+          channelId: ch.id,
+          body: 'inbound',
+          authorType: 'end_user',
+          authorId: 'eu-inherit',
+        }),
+      );
+      expect(inherited.agentMode).toBe('draft_only');
+      const explicit = await run(() =>
+        svc.createConversation({
+          channelId: ch.id,
+          body: 'agent-started',
+          authorType: 'agent',
+          authorId: actor.id,
+          agentMode: 'auto',
+        }),
+      );
+      expect(explicit.agentMode).toBe('auto');
     });
 
     it('createConversation by an end_user emits message.received event', async () => {

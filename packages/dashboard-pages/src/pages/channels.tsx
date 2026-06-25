@@ -66,6 +66,7 @@ interface ChannelDto {
   name: string;
   active: boolean;
   config: Record<string, unknown>;
+  defaultAgentMode?: 'auto' | 'draft_only' | 'off';
   createdAt: string;
 }
 
@@ -1194,6 +1195,7 @@ function EmailChannelDialog({
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const [name, setName] = useState('');
+  const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>('auto');
   const [fromAddress, setFromAddress] = useState('');
   const [fromName, setFromName] = useState('');
   const [smtpHost, setSmtpHost] = useState('');
@@ -1227,6 +1229,7 @@ function EmailChannelDialog({
     if (!open) return;
     const cfg = editChannel?.config;
     setName(editChannel?.name ?? '');
+    setDefaultAgentMode(editChannel?.defaultAgentMode ?? 'auto');
     setFromAddress(cfg?.addressing?.fromAddress ?? '');
     setFromName(cfg?.addressing?.fromName ?? '');
     setSmtpHost(cfg?.outbound?.host ?? '');
@@ -1259,6 +1262,7 @@ function EmailChannelDialog({
     const payload = {
       ...(isEdit && editChannel ? { channelId: editChannel.id } : {}),
       name: name.trim(),
+      defaultAgentMode,
       config: {
         addressing: {
           fromAddress: fromAddress.trim(),
@@ -1329,7 +1333,7 @@ function EmailChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
         {submitError ? (
           <SaveErrorStage
             detail={submitError}
@@ -1346,12 +1350,13 @@ function EmailChannelDialog({
           </DialogDescription>
         </DialogHeader>
         <form
-          className="mt-4 flex flex-col gap-4"
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
             void submit();
           }}
         >
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField label={t('nameLabel')}>
               <Input
@@ -1541,6 +1546,18 @@ function EmailChannelDialog({
                     maxLength={120}
                   />
                 </FormField>
+                <FormField label={t('email.defaultAgentModeLabel')}>
+                  <NativeSelect
+                    value={defaultAgentMode}
+                    onChange={(e) =>
+                      setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+                    }
+                  >
+                    <option value="auto">{t('email.agentModeAuto')}</option>
+                    <option value="draft_only">{t('email.agentModeDraftOnly')}</option>
+                    <option value="off">{t('email.agentModeOff')}</option>
+                  </NativeSelect>
+                </FormField>
                 <label className="flex items-center gap-2 text-sm sm:col-span-2">
                   <input
                     type="checkbox"
@@ -1552,6 +1569,7 @@ function EmailChannelDialog({
               </div>
             )}
           </fieldset>
+          </div>
 
           <DialogFooter className={dialogFooterClass}>
             <Button

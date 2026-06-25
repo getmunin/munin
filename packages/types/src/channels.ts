@@ -6,6 +6,10 @@ const HOST_RE =
 
 const HostSchema = z.string().min(1).max(253).regex(HOST_RE);
 
+export const AgentModeSchema = z.enum(['auto', 'draft_only', 'off']);
+
+export type AgentMode = z.infer<typeof AgentModeSchema>;
+
 export const SmtpOutboundSchema = z.object({
   provider: z.literal('smtp'),
   host: HostSchema,
@@ -77,6 +81,7 @@ export const SetupEmailBody = z.object({
   channelId: z.string().optional(),
   name: z.string().min(1).max(120),
   config: EmailChannelConfigInput,
+  defaultAgentMode: AgentModeSchema.optional(),
 });
 
 export type SetupEmailBodyT = z.infer<typeof SetupEmailBody>;

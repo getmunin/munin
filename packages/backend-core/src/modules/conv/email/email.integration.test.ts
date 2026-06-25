@@ -400,6 +400,69 @@ class StubImapFetcher implements ImapFetcher {
       .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, 'newcomer@elsewhere.test')));
     expect(newcomer).toHaveLength(1);
   }, 30_000);
+
+  it('reply that fails threading on a draft_only channel opens a draft_only conversation', async () => {
+    await db
+      .update(schema.convChannels)
+      .set({ active: false })
+      .where(eq(schema.convChannels.orgId, orgId));
+
+    const rawResult = await withClient(adminKey, async (c) =>
+      c.callTool({
+        name: 'conv_setup_email_channel',
+        arguments: {
+          name: 'Acme Outreach',
+          defaultAgentMode: 'draft_only',
+          config: {
+            addressing: { fromAddress: 'outreach@acme.test', fromName: 'Acme Outreach' },
+            outbound: { provider: 'mailer' },
+            inbound: {
+              provider: 'imap',
+              host: 'imap.acme.test',
+              port: 993,
+              secure: true,
+              username: 'outreach@acme.test',
+              password: 'app-pw-stub',
+              mailbox: 'INBOX',
+            },
+          },
+        },
+      }),
+    );
+    if ((rawResult as { isError?: boolean }).isError) {
+      throw new Error(`conv_setup_email_channel failed: ${JSON.stringify(rawResult)}`);
+    }
+    const outreachChannel = parseToolResult<{ id: string; defaultAgentMode: string }>(rawResult);
+    expect(outreachChannel.defaultAgentMode).toBe('draft_only');
+
+    await waitFor(async () => {
+      const rows = await db
+        .select()
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, outreachChannel.id));
+      return rows.length === 1 && rows[0]!.active === true;
+    });
+
+    const orphanFetcher = new StubImapFetcher();
+    emailAdapter.setFetcher(orphanFetcher);
+    orphanFetcher.push(rfc822({
+      from: 'Prospect <prospect@lead.test>',
+      to: 'outreach@acme.test',
+      subject: 'Re: quick question about your product',
+      messageId: 'inbound-orphan-reply@lead.test',
+      body: 'Sounds interesting — tell me more.',
+    }));
+
+    const ingested = await inboundWorker.tick();
+    expect(ingested.messagesIngested).toBe(1);
+
+    const convs = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.channelId, outreachChannel.id));
+    expect(convs).toHaveLength(1);
+    expect(convs[0]!.agentMode).toBe('draft_only');
+  }, 60_000);
 });
 
 async function waitFor(check: () => Promise<boolean>, timeoutMs = 2000): Promise<void> {

@@ -7,6 +7,7 @@ import { CreateTrackerBody } from '@getmunin/types';
 import { api, ApiError } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
+import { CardListSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { CopyableSecret } from '../components/copyable-secret';
 import { useConfirm } from '../components/confirm-dialog';
@@ -235,7 +236,7 @@ export function TrackersPage() {
         />
 
         {trackers === null ? (
-          <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
+          <CardListSkeleton rows={3} />
         ) : trackers.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (

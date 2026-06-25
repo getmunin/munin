@@ -8,6 +8,7 @@ import { invalidateActiveMembershipCache } from '../auth/use-active-role';
 import { useTranslateError } from '../i18n/translate-error';
 import { FormField } from '../components/form-field';
 import { LoadFailed } from '../components/load-failed';
+import { Skeleton } from '../components/skeleton';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 
@@ -90,29 +91,40 @@ export function AccountPage({ extraSections }: AccountPageProps) {
       <section className="space-y-4">
         <SectionHead title={t('orgSectionTitle')} divider={false} />
 
-        <form className="space-y-4" onSubmit={(e) => void submit(e)}>
-          <FormField label={t('orgNameLabel')} hint={t('orgNameHint')} error={error}>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('orgNamePlaceholder')}
-              maxLength={128}
-              disabled={!org || saving}
-              aria-invalid={error ? true : undefined}
-            />
-          </FormField>
-
-          <div className="flex items-center gap-3">
-            <Button type="submit" disabled={!dirty || saving}>
-              {saving ? tCommon('saving') : tCommon('save')}
-            </Button>
-            {savedAt && !dirty && !error ? (
-              <span key={savedAt} className="text-sm text-muted-foreground">
-                {tCommon('saved')}
-              </span>
-            ) : null}
+        {org === null ? (
+          <div role="status" aria-busy="true" className="space-y-4">
+            <span className="sr-only">{tCommon('loading')}</span>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+            <Skeleton className="h-9 w-24" />
           </div>
-        </form>
+        ) : (
+          <form className="space-y-4" onSubmit={(e) => void submit(e)}>
+            <FormField label={t('orgNameLabel')} hint={t('orgNameHint')} error={error}>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t('orgNamePlaceholder')}
+                maxLength={128}
+                disabled={saving}
+                aria-invalid={error ? true : undefined}
+              />
+            </FormField>
+
+            <div className="flex items-center gap-3">
+              <Button type="submit" disabled={!dirty || saving}>
+                {saving ? tCommon('saving') : tCommon('save')}
+              </Button>
+              {savedAt && !dirty && !error ? (
+                <span key={savedAt} className="text-sm text-muted-foreground">
+                  {tCommon('saved')}
+                </span>
+              ) : null}
+            </div>
+          </form>
+        )}
       </section>
 
       {extraSections}

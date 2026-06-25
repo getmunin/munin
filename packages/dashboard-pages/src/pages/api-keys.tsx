@@ -6,6 +6,7 @@ import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
+import { TableSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
@@ -111,7 +112,15 @@ export function ApiKeysPage() {
         />
 
         {keys === null ? (
-          <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
+          <TableSkeleton
+            columns={[
+              { grow: 4, bar: 'w-2/3' },
+              { grow: 2, bar: 'w-1/2' },
+              { grow: 2, bar: 'w-3/4' },
+              { grow: 2, bar: 'w-3/4' },
+              { grow: 1, bar: 'w-10', right: true },
+            ]}
+          />
         ) : keys.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (

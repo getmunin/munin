@@ -59,6 +59,7 @@ function fromRealtime(
 
 export function ActivityPage() {
   const t = useTranslations('dashboard.activity');
+  const tCommon = useTranslations('common');
   const [items, setItems] = useState<ActivityDto[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const actorCache = useRef(new Map<string, { kind: ActorKind; label: string }>());
@@ -136,15 +137,31 @@ export function ActivityPage() {
           </span>
         </header>
 
-        <div className="bg-ink dark:bg-card text-paper dark:text-foreground font-mono text-[12px] leading-relaxed px-6 py-4 min-h-[12rem]">
+        <div className="flex min-h-[12rem] flex-col bg-ink dark:bg-card text-paper dark:text-foreground font-mono text-[12px] leading-relaxed px-6 py-4">
           <div className="grid grid-cols-[6rem_minmax(0,11rem)_minmax(0,12rem)_1fr] gap-x-6 pb-2 mb-1 border-b-[0.5px] border-paper/15 dark:border-rule-on-dark text-[10px] uppercase tracking-eyebrow text-paper/45 dark:text-foreground/45">
             <span>{t('colTime')}</span>
             <span>{t('colType')}</span>
             <span>{t('colActor')}</span>
             <span>{t('colDetail')}</span>
           </div>
-          <ul>
-            {visible.map((e) => (
+          <ul className="flex flex-1 flex-col">
+            {!hasLoadedOnce && (
+              <>
+                <li className="sr-only">{tCommon('loading')}</li>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <li
+                    key={i}
+                    className="grid grid-cols-[6rem_minmax(0,11rem)_minmax(0,12rem)_1fr] items-center gap-x-6 py-1"
+                  >
+                    <div className="h-3 w-14 animate-pulse bg-paper/15 dark:bg-foreground/15" />
+                    <div className="h-3 w-24 animate-pulse bg-paper/15 dark:bg-foreground/15" />
+                    <div className="h-3 w-28 animate-pulse bg-paper/15 dark:bg-foreground/15" />
+                    <div className="h-3 w-40 animate-pulse bg-paper/15 dark:bg-foreground/15" />
+                  </li>
+                ))}
+              </>
+            )}
+            {hasLoadedOnce && visible.map((e) => (
               <li
                 key={e.id}
                 className="grid grid-cols-[6rem_minmax(0,11rem)_minmax(0,12rem)_1fr] gap-x-6 items-baseline py-0.5"
@@ -159,8 +176,8 @@ export function ActivityPage() {
                 <span className="truncate text-paper/90 dark:text-foreground/90">{summary(e)}</span>
               </li>
             ))}
-            {visible.length === 0 && (
-              <li className="py-8 text-center text-paper/50 dark:text-foreground/50">
+            {hasLoadedOnce && visible.length === 0 && (
+              <li className="flex grow items-center justify-center text-paper/50 dark:text-foreground/50">
                 {t('empty')}
               </li>
             )}

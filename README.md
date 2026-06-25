@@ -1,8 +1,8 @@
 # Munin
 
-> MCP-first customer platform made for the agentic era. The agent is the UI.
+> Open-source, headless HubSpot alternative.
 
-Munin is an open-source customer platform built for the agentic era (Knowledge Base, Conversations, CRM, CMS, Outreach, Analytics) where the only interface is via AI agents. There is no traditional admin UI for the apps themselves — every action runs through MCP tools, callable from any MCP-compatible client.
+CRM, conversations, outreach, CMS, knowledge base, and analytics on one Postgres schema — exposed as tools your agents drive, not screens you click through. Headless the way a headless CMS is: there's a thin dashboard for settings, auth, and human-in-the-loop review, but the apps themselves have no admin UI. Every action runs through MCP tools, callable from any MCP-compatible client (Claude, Cursor, ChatGPT, custom runners) — same tools, same permissions, same audit log, whether a human or an agent is driving.
 
 <p align="center">
   <a href="https://vimeo.com/1202399440?autoplay=0&utm_source=github&utm_medium=readme&utm_campaign=promo-video">
@@ -14,7 +14,7 @@ Munin is an open-source customer platform built for the agentic era (Knowledge B
 
 > Lovable builds your frontend. Munin spins up your operations. One prompt, one MCP endpoint — and the agents do the rest.
 
-Watch Lovable build a real website from a single prompt while Munin stands up everything behind it — the CMS the blog reads from, a seeded knowledge base, analytics, and a chat widget that already knows the business. No admin UI, no dashboard to wire up; the agent does the work, over one MCP endpoint. Then a real customer conversation plays out: answered from the knowledge base, handed off to a human when it matters, and picked back up by the agent to close.
+Watch Lovable build a real website from a single prompt while Munin stands up everything behind it — the CMS the blog reads from, a seeded knowledge base, analytics, and a chat widget that already knows the business. No click-ops, no screens to wire up; the agent does the work, over one MCP endpoint. Then a real customer conversation plays out: answered from the knowledge base, handed off to a human when it matters, and picked back up by the agent to close.
 
 <p align="center">
   <a href="https://vimeo.com/1204180225?autoplay=0&utm_source=github&utm_medium=readme&utm_campaign=demo-video">
@@ -28,7 +28,7 @@ Hi — Kjell here. Last year my company was paying HubSpot $500/month for three 
 
 Then our AI agents started doing the prospecting and outreach themselves, and it hit me: what we still used HubSpot for had shrunk to basic CRUD. The agent does the work; HubSpot just stored the record. I wasn't going to keep paying $500/month for CRUD.
 
-So I built the thing I actually wanted. Over roughly a month, with Claude Code as my primary IDE, Munin went from nothing to what's in this repo. I've shipped production software for about twenty years — that experience is what shaped the architecture and let me catch the agent when it got things wrong. Claude Code took the labor of typing it out of the equation; a year ago I don't think this would have been feasible solo.
+So I built the thing I actually wanted. Over roughly a month, with Claude Code as my primary IDE, Munin went from nothing to what's in this repo. Years of shipping production software is what shaped the architecture and let me catch the agent when it got things wrong. Claude Code took the labor of typing it out of the equation; a year ago I don't think this would have been feasible solo.
 
 Munin isn't the AI — it's what your AI uses. You bring the agent, write the prompts, wire up the workflows; Munin's job is to be the cleanest possible tool surface underneath. It's open source and yours to run.
 

@@ -404,6 +404,7 @@
       "emptyTitle": "No connected agents yet",
       "emptyBody": "Add the MCP URL to Claude Desktop, Cursor, or your runtime, then complete consent — issued tokens will appear here.",
       "noScopes": "no scopes",
+      "connections": "{count, plural, one {# connection} other {# connections}}",
       "issued": "Issued {when}",
       "lastUsed": "Last used {when}",
       "expires": "Expires {when}",

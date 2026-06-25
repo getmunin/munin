@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useRealtime } from '../realtime';
 import { LoadFailed } from '../components/load-failed';
+import { Skeleton } from '../components/skeleton';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { Hero, cn } from '@getmunin/ui';
@@ -79,45 +80,85 @@ export function UsagePage({ slot }: { slot?: ReactNode } = {}) {
 
       {slot}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 border-l-[0.5px] border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
-        <Tile
-          label={t('tiles.mcpCalls')}
-          period={t('tiles.thisMonth')}
-          tile={summary?.mcpCalls}
-          format={formatCount}
-          mode="count"
-        />
-        <Tile
-          label={t('tiles.apiCalls')}
-          period={t('tiles.thisMonth')}
-          tile={summary?.apiCalls}
-          format={formatCount}
-          mode="count"
-        />
-        <Tile
-          label={t('tiles.aiTokens')}
-          period={t('tiles.thisMonth')}
-          tile={summary?.aiTokens}
-          format={formatCount}
-          mode="count"
-        />
-        <Tile
-          label={t('tiles.conversations')}
-          period={t('tiles.thisMonth')}
-          tile={summary?.conversations}
-          format={formatCount}
-          mode="count"
-        />
-        <Tile
-          label={t('tiles.avgLatency')}
-          period={t('tiles.sevenDay')}
-          tile={summary?.avgLatencyMs}
-          format={formatLatency}
-          mode="latency"
-        />
-      </div>
+      {!hasLoadedOnce ? (
+        <UsageSkeleton />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 border-l-[0.5px] border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+            <Tile
+              label={t('tiles.mcpCalls')}
+              period={t('tiles.thisMonth')}
+              tile={summary?.mcpCalls}
+              format={formatCount}
+              mode="count"
+            />
+            <Tile
+              label={t('tiles.apiCalls')}
+              period={t('tiles.thisMonth')}
+              tile={summary?.apiCalls}
+              format={formatCount}
+              mode="count"
+            />
+            <Tile
+              label={t('tiles.aiTokens')}
+              period={t('tiles.thisMonth')}
+              tile={summary?.aiTokens}
+              format={formatCount}
+              mode="count"
+            />
+            <Tile
+              label={t('tiles.conversations')}
+              period={t('tiles.thisMonth')}
+              tile={summary?.conversations}
+              format={formatCount}
+              mode="count"
+            />
+            <Tile
+              label={t('tiles.avgLatency')}
+              period={t('tiles.sevenDay')}
+              tile={summary?.avgLatencyMs}
+              format={formatLatency}
+              mode="latency"
+            />
+          </div>
 
-      <ByAgentSection data={byAgent} />
+          <ByAgentSection data={byAgent} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function UsageSkeleton() {
+  return (
+    <div role="status" aria-busy="true" className="space-y-10">
+      <span className="sr-only">Loading…</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 border-l-[0.5px] border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex min-h-[180px] flex-col gap-4 border-b-[0.5px] border-r-[0.5px] border-rule-soft bg-paper p-6 dark:border-rule-on-dark dark:bg-card"
+          >
+            <Skeleton className="h-2.5 w-24" />
+            <Skeleton className="h-9 w-20" />
+            <Skeleton className="mt-auto h-[42px] w-full" />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-6">
+        <Skeleton className="h-6 w-56" />
+        <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between gap-12 border-b-[0.5px] border-rule-soft px-1 py-5 dark:border-rule-on-dark"
+            >
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { authClient } from '../auth-client';
 import { useActiveRole, isOwnerOrAdmin } from '../auth/use-active-role';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
+import { TableSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { useConfirm } from '../components/confirm-dialog';
 import { CopyableSecret } from '../components/copyable-secret';
@@ -193,7 +194,15 @@ export function TeamPage() {
           divider={false}
         />
         {members === null ? (
-          <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
+          <TableSkeleton
+            columns={[
+              { grow: 3, bar: 'w-2/3' },
+              { grow: 3, bar: 'w-3/4' },
+              { grow: 2, bar: 'w-20' },
+              { grow: 2, bar: 'w-1/2' },
+              { grow: 2, bar: 'w-16', right: true },
+            ]}
+          />
         ) : (
           <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full min-w-[640px]">
@@ -255,7 +264,15 @@ export function TeamPage() {
           divider={false}
         />
         {invites === null ? (
-          <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
+          <TableSkeleton
+            columns={[
+              { grow: 3, bar: 'w-3/4' },
+              { grow: 2, bar: 'w-20' },
+              { grow: 2, bar: 'w-1/2' },
+              { grow: 2, bar: 'w-1/2' },
+              { grow: 1, bar: 'w-12', right: true },
+            ]}
+          />
         ) : invites.length === 0 ? (
           <EmptyCallout title={t('invitesEmptyTitle')} body={t('invitesEmptyBody')} />
         ) : (

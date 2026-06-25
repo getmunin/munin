@@ -17,6 +17,7 @@ import { api, ApiError } from '../api';
 import { authClient } from '../auth-client';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
+import { CardListSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { SaveErrorStage, type SaveErrorDetail } from '../components/save-error-stage';
 import { useConfirm } from '../components/confirm-dialog';
@@ -519,7 +520,7 @@ export function ChannelsPage() {
         />
 
         {channels === null ? (
-          <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
+          <CardListSkeleton rows={3} />
         ) : channels.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (

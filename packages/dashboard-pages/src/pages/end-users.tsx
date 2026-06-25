@@ -5,6 +5,7 @@ import { useFormatter, useNow, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
+import { TableSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
@@ -24,7 +25,6 @@ interface EndUserDto {
 
 export function EndUsersPage() {
   const t = useTranslations('dashboard.endUsers');
-  const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const format = useFormatter();
   const now = useNow();
@@ -105,7 +105,14 @@ export function EndUsersPage() {
         />
 
         {filtered === null ? (
-          <p className="text-sm text-ink-mute">{tCommon('loading')}</p>
+          <TableSkeleton
+            columns={[
+              { grow: 4, bar: 'w-2/3' },
+              { grow: 3, bar: 'w-1/2' },
+              { grow: 2, bar: 'w-3/4' },
+              { grow: 1, bar: 'w-10', right: true },
+            ]}
+          />
         ) : filtered.length === 0 ? (
           <EmptyCallout
             title={items && items.length === 0 ? t('emptyTitle') : t('emptyTitle')}

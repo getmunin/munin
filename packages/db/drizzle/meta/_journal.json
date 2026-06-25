@@ -309,6 +309,13 @@
       "when": 1782196283455,
       "tag": "0043_audit_log_total_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1782374000638,
+      "tag": "0044_conv_channels_default_agent_mode",
+      "breakpoints": true
     }
   ]
 }

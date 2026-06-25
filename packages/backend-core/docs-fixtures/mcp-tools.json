@@ -3125,7 +3125,7 @@
   {
     "name": "conv_setup_email_channel",
     "title": "Conv: Set up email channel",
-    "description": "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host.",
+    "description": "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host. Set `defaultAgentMode: 'draft_only'` on an outreach-only inbox so inbound replies are always drafted for human approval rather than auto-sent.",
     "audiences": [
       "admin"
     ],
@@ -3298,6 +3298,14 @@
             "outbound"
           ],
           "additionalProperties": false
+        },
+        "defaultAgentMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "draft_only",
+            "off"
+          ]
         }
       },
       "required": [

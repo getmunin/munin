@@ -1,6 +1,8 @@
 export const MUNIN_VERSION = '0.0.1';
 
 export {
+  AgentModeSchema,
+  type AgentMode,
   SmtpOutboundSchema,
   MailerOutboundSchema,
   OutboundConfigSchema,

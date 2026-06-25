@@ -3,6 +3,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { jwt, captcha } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { schema, type Db } from '@getmunin/db';
+import { readMembershipsForUser } from '@getmunin/core';
 import {
   SUPPORTED_SCOPES as MUNIN_SUPPORTED_SCOPES,
   mcpResourceUrl,
@@ -88,6 +89,12 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
 
   const socialProviders = buildSocialProviders(opts.socialProviders);
 
+  const resolveDefaultOrgId = async (userId: string): Promise<string | undefined> => {
+    const memberships = await readMembershipsForUser(opts.db, userId);
+    const active = memberships.find((m) => m.isDefault) ?? memberships[0];
+    return active?.orgId;
+  };
+
   return asMuninAuth(betterAuth({
     baseURL: opts.baseUrl,
     basePath: '/auth',
@@ -119,6 +126,14 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         scopes: [...SUPPORTED_AUTH_SCOPES],
         validAudiences,
         silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
+        postLogin: {
+          page: `${dashboardUrl}/dashboard/oauth/consent`,
+          shouldRedirect: () => false,
+          consentReferenceId: async ({ user }) =>
+            user?.id ? await resolveDefaultOrgId(user.id) : undefined,
+        },
+        customAccessTokenClaims: ({ referenceId }) =>
+          referenceId ? { org_id: referenceId } : {},
       }),
       ...(opts.captcha
         ? [

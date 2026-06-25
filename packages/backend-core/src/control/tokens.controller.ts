@@ -47,7 +47,7 @@ export class TokensController {
         .from(schema.tokens)
         .where(eq(schema.tokens.orgId, actor.orgId))
         .orderBy(desc(schema.tokens.createdAt)),
-      listOauthAgents(ctx.db),
+      listOauthAgents(ctx.db, actor.orgId),
     ]);
     return [...issued.map(toDto), ...oauth].sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt),
@@ -60,7 +60,7 @@ export class TokensController {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     if (id.startsWith('orft_')) {
-      await revokeOauthAgent(ctx.db, id);
+      await revokeOauthAgent(ctx.db, id, actor.orgId);
       return;
     }
     const result = await ctx.db
@@ -72,15 +72,7 @@ export class TokensController {
   }
 }
 
-/**
- * OAuth-authorized agents (Claude Code, Cursor, …) don't get rows in `tokens` —
- * BetterAuth persists their grants in the `oauth_*` tables. Their access tokens
- * are stateless JWTs (no DB row), so the durable record of a connected agent is
- * the *refresh* token. MCP dynamic client registration also mints a fresh
- * `client_id` on every connect, so one user reconnecting Claude piles up many
- * refresh tokens — we collapse them to one row per (client name, user).
- */
-async function listOauthAgents(db: Db | Tx): Promise<TokenDto[]> {
+async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> {
   const rows = await db
     .select({
       id: schema.oauthRefreshToken.id,
@@ -92,16 +84,13 @@ async function listOauthAgents(db: Db | Tx): Promise<TokenDto[]> {
       clientName: schema.oauthClient.name,
     })
     .from(schema.oauthRefreshToken)
-    .innerJoin(
-      schema.orgMembers,
-      eq(schema.orgMembers.userId, schema.oauthRefreshToken.userId),
-    )
     .leftJoin(
       schema.oauthClient,
       eq(schema.oauthClient.clientId, schema.oauthRefreshToken.clientId),
     )
     .where(
       and(
+        eq(schema.oauthRefreshToken.referenceId, orgId),
         gt(schema.oauthRefreshToken.expiresAt, new Date()),
         isNull(schema.oauthRefreshToken.revoked),
       ),
@@ -138,30 +127,24 @@ async function listOauthAgents(db: Db | Tx): Promise<TokenDto[]> {
   return [...groups.values()];
 }
 
-/**
- * Revokes a connected OAuth agent given the refresh-token id that represents its
- * flock row. Soft-revokes (`revoked = now()`) every live refresh token in the
- * same (client name, user) group — the refresh grant rejects revoked tokens, so
- * the agent can't refresh back in once its short-lived JWT expires.
- */
-async function revokeOauthAgent(db: Db | Tx, refreshTokenId: string): Promise<void> {
+async function revokeOauthAgent(
+  db: Db | Tx,
+  refreshTokenId: string,
+  orgId: string,
+): Promise<void> {
   const rows = await db
     .select({
       clientId: schema.oauthRefreshToken.clientId,
       userId: schema.oauthRefreshToken.userId,
+      referenceId: schema.oauthRefreshToken.referenceId,
     })
     .from(schema.oauthRefreshToken)
     .where(eq(schema.oauthRefreshToken.id, refreshTokenId))
     .limit(1);
   const row = rows[0];
-  if (!row?.userId) throw new NotFoundException(`token ${refreshTokenId} not found`);
-
-  const membership = await db
-    .select({ orgId: schema.orgMembers.orgId })
-    .from(schema.orgMembers)
-    .where(eq(schema.orgMembers.userId, row.userId))
-    .limit(1);
-  if (membership.length === 0) throw new NotFoundException(`token ${refreshTokenId} not found`);
+  if (!row?.userId || row.referenceId !== orgId) {
+    throw new NotFoundException(`token ${refreshTokenId} not found`);
+  }
 
   const nameRow = (
     await db
@@ -185,6 +168,7 @@ async function revokeOauthAgent(db: Db | Tx, refreshTokenId: string): Promise<vo
     .where(
       and(
         eq(schema.oauthRefreshToken.userId, row.userId),
+        eq(schema.oauthRefreshToken.referenceId, orgId),
         inArray(schema.oauthRefreshToken.clientId, clientIds),
         isNull(schema.oauthRefreshToken.revoked),
       ),
@@ -194,6 +178,7 @@ async function revokeOauthAgent(db: Db | Tx, refreshTokenId: string): Promise<vo
     .where(
       and(
         eq(schema.oauthAccessToken.userId, row.userId),
+        eq(schema.oauthAccessToken.referenceId, orgId),
         inArray(schema.oauthAccessToken.clientId, clientIds),
       ),
     );

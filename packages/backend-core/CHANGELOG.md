@@ -1,5 +1,29 @@
 # @getmunin/backend-core
 
+## 4.59.0
+
+### Minor Changes
+
+- 2e3b87a: feat(conv): per-channel default agent mode
+
+  Add `defaultAgentMode` (`auto` | `draft_only` | `off`) to conversation channels. New conversations inherit the channel's mode when no explicit mode is passed — including inbound replies that fail threading and open a fresh conversation. Set an outreach-only inbox to `draft_only` so prospect replies are always drafted for human approval and never auto-sent, even when threading can't link the reply to its originating conversation. Configurable via `conv_setup_email_channel` and the email channel dialog.
+
+### Patch Changes
+
+- 0fb358d: fix(control): show OAuth-authorized agents in the flock
+
+  The Settings → Agents page ("The flock") read only the `tokens` table, which is populated solely by delegated end-user tokens. OAuth-authorized MCP clients (Claude Code, Cursor, Claude Desktop, …) have their access/refresh tokens persisted by BetterAuth in the separate `oauth_*` tables, so a fully-connected agent always showed up as "Agents · 0 / No connected agents yet".
+
+  `GET /v1/tokens` now also lists live (non-expired) OAuth access tokens — one row per (client, user), scoped to the calling org via `org_members` — with the OAuth client name as the origin. Revoking such a row (`DELETE /v1/tokens/:id` for an `oat_*` id) deletes both the access and refresh tokens so the agent can't silently refresh back in.
+
+- Updated dependencies [2e3b87a]
+  - @getmunin/types@4.59.0
+  - @getmunin/db@4.59.0
+  - @getmunin/core@4.59.0
+  - @getmunin/mcp-toolkit@4.59.0
+  - @getmunin/agent-runtime@4.59.0
+  - @getmunin/emails@4.59.0
+
 ## 4.58.0
 
 ### Minor Changes

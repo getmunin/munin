@@ -7,6 +7,7 @@ import {
   deriveAudiencesFromScopes,
   oauthMcpResourceAudience,
   readMembershipsForUser,
+  resolvePinnedMembership,
   type ResolvedCredential,
 } from './credentials.ts';
 
@@ -65,7 +66,10 @@ export async function resolveOauthJwtAccessToken(
     typeof payload['scope'] === 'string' ? payload['scope'].split(/\s+/).filter(Boolean) : [];
 
   const memberships = await readMembershipsForUser(db, userId);
-  const active = memberships.find((m) => m.isDefault) ?? memberships[0];
+  const active = resolvePinnedMembership(
+    memberships,
+    typeof payload['org_id'] === 'string' ? payload['org_id'] : null,
+  );
   if (!active) return null;
 
   const audiences = deriveAudiencesFromScopes(scopes);

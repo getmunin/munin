@@ -429,34 +429,47 @@ interface OrgFixture {
       expect(wrongOrg.status).toBe(404);
     });
 
-    it('collapses an OAuth agent reconnected under many clients into one flock row and revokes the group', async () => {
+    it('collapses an OAuth agent into one flock row per org, scoped by pinned reference_id, and revokes only the caller org', async () => {
       const label = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
       const name = `Claude Code ${label}`;
       const clientA = `oauth-client-a-${label}`;
       const clientB = `oauth-client-b-${label}`;
-      await db.insert(schema.oauthClient).values([
-        { clientId: clientA, name, redirectUris: ['https://example.com/cb'] },
-        { clientId: clientB, name, redirectUris: ['https://example.com/cb'] },
-      ]);
+      const clientC = `oauth-client-c-${label}`;
+      const allClients = [clientA, clientB, clientC];
+      const live = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await db.insert(schema.oauthClient).values(
+        allClients.map((clientId) => ({ clientId, name, redirectUris: ['https://example.com/cb'] })),
+      );
       await db.insert(schema.oauthRefreshToken).values([
         {
           token: `rt-a-${label}`,
           clientId: clientA,
           userId: orgA.userId,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          referenceId: orgA.id,
+          expiresAt: live,
           scopes: ['mcp:admin', 'kb:read'],
         },
         {
           token: `rt-b-${label}`,
           clientId: clientB,
           userId: orgA.userId,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          referenceId: orgA.id,
+          expiresAt: live,
           scopes: ['mcp:admin', 'crm:write'],
+        },
+        {
+          token: `rt-c-${label}`,
+          clientId: clientC,
+          userId: orgA.userId,
+          referenceId: orgB.id,
+          expiresAt: live,
+          scopes: ['mcp:admin'],
         },
         {
           token: `rt-expired-${label}`,
           clientId: clientA,
           userId: orgA.userId,
+          referenceId: orgA.id,
           expiresAt: new Date(Date.now() - 60 * 1000),
           scopes: ['mcp:admin'],
         },
@@ -464,7 +477,8 @@ interface OrgFixture {
           token: `rt-revoked-${label}`,
           clientId: clientA,
           userId: orgA.userId,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          referenceId: orgA.id,
+          expiresAt: live,
           revoked: new Date(),
           scopes: ['mcp:admin'],
         },
@@ -487,7 +501,10 @@ interface OrgFixture {
       expect(agentRow.scopes.sort()).toEqual(['crm:write', 'kb:read', 'mcp:admin']);
 
       const listB = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgB.adminKey) });
-      const tokensB = (await listB.json()) as Array<{ id: string }>;
+      const tokensB = (await listB.json()) as Array<{ id: string; origin: string | null; count: number }>;
+      const oauthRowsB = tokensB.filter((t) => t.origin === name);
+      expect(oauthRowsB).toHaveLength(1);
+      expect(oauthRowsB[0]!.count).toBe(1);
       expect(tokensB.find((t) => t.id === agentRow.id)).toBeFalsy();
       const wrongOrg = await fetch(`${baseUrl}/v1/tokens/${agentRow.id}`, {
         method: 'DELETE',
@@ -501,17 +518,27 @@ interface OrgFixture {
       });
       expect(rv.status).toBe(204);
       const remaining = await db
-        .select({ id: schema.oauthRefreshToken.id, revoked: schema.oauthRefreshToken.revoked })
+        .select({
+          clientId: schema.oauthRefreshToken.clientId,
+          revoked: schema.oauthRefreshToken.revoked,
+        })
         .from(schema.oauthRefreshToken)
-        .where(inArray(schema.oauthRefreshToken.clientId, [clientA, clientB]));
-      expect(remaining.every((r) => r.revoked !== null)).toBe(true);
+        .where(inArray(schema.oauthRefreshToken.clientId, allClients));
+      const revokedFor = (clientId: string) =>
+        remaining.filter((r) => r.clientId === clientId).every((r) => r.revoked !== null);
+      expect(revokedFor(clientA)).toBe(true);
+      expect(revokedFor(clientB)).toBe(true);
+      expect(remaining.find((r) => r.clientId === clientC)!.revoked).toBeNull();
 
-      const after = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgA.adminKey) });
-      const afterTokens = (await after.json()) as Array<{ origin: string | null }>;
-      expect(afterTokens.find((t) => t.origin === name)).toBeFalsy();
+      const afterA = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgA.adminKey) });
+      const afterTokensA = (await afterA.json()) as Array<{ origin: string | null }>;
+      expect(afterTokensA.find((t) => t.origin === name)).toBeFalsy();
+      const afterB = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgB.adminKey) });
+      const afterTokensB = (await afterB.json()) as Array<{ origin: string | null }>;
+      expect(afterTokensB.find((t) => t.origin === name)).toBeTruthy();
 
-      await db.delete(schema.oauthRefreshToken).where(inArray(schema.oauthRefreshToken.clientId, [clientA, clientB]));
-      await db.delete(schema.oauthClient).where(inArray(schema.oauthClient.clientId, [clientA, clientB]));
+      await db.delete(schema.oauthRefreshToken).where(inArray(schema.oauthRefreshToken.clientId, allClients));
+      await db.delete(schema.oauthClient).where(inArray(schema.oauthClient.clientId, allClients));
     });
   });
 

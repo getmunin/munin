@@ -19,6 +19,7 @@ const skipReason = TEST_URL
   let baseUrl: string;
   let db: ReturnType<typeof createDb>;
   let userId: string;
+  let memberOrgId: string;
   let signingKey: Awaited<ReturnType<typeof generateKeyPair>>['privateKey'];
   let kid: string;
 
@@ -55,7 +56,18 @@ const skipReason = TEST_URL
       role: 'owner',
       isDefault: true,
     });
+    const [memberOrg] = await db
+      .insert(schema.orgs)
+      .values({ name: 'JWT Resolver IT Org (secondary)' })
+      .returning();
+    await db.insert(schema.orgMembers).values({
+      orgId: memberOrg!.id,
+      userId: user!.id,
+      role: 'member',
+      isDefault: false,
+    });
     userId = user!.id;
+    memberOrgId = memberOrg!.id;
 
     const { publicKey, privateKey } = await generateKeyPair('EdDSA', { extractable: true });
     const publicJwk = await exportJWK(publicKey);
@@ -88,6 +100,7 @@ const skipReason = TEST_URL
     iss?: string;
     scope?: string;
     expSeconds?: number;
+    orgId?: string;
   }): Promise<string> {
     const iat = Math.floor(Date.now() / 1000);
     const jwt = new SignJWT({
@@ -95,6 +108,7 @@ const skipReason = TEST_URL
       aud: claims.aud ?? `${baseUrl}/mcp`,
       scope: claims.scope ?? 'mcp:tools kb:read',
       azp: 'test-client',
+      ...(claims.orgId ? { org_id: claims.orgId } : {}),
       iat,
       exp: iat + (claims.expSeconds ?? 3600),
     })
@@ -175,5 +189,18 @@ const skipReason = TEST_URL
     const token = await sign({ sub: 'usr_does_not_exist_xxxxxxxxxxxx' });
     const { status } = await callMcp(token);
     expect(status).toBe(401);
+  });
+
+  it('accepts a JWT pinned (org_id) to a non-default org the user belongs to', async () => {
+    const token = await sign({ orgId: memberOrgId });
+    const { status } = await callMcp(token);
+    expect(status).not.toBe(401);
+  });
+
+  it('rejects a JWT pinned (org_id) to an org the user is not a member of', async () => {
+    const token = await sign({ orgId: 'org_user_is_not_a_member_xxxx' });
+    const { status, wwwAuth } = await callMcp(token);
+    expect(status).toBe(401);
+    expect(wwwAuth).toContain('Bearer');
   });
 });

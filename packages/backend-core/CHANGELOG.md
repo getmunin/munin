@@ -1,5 +1,32 @@
 # @getmunin/backend-core
 
+## 4.59.1
+
+### Patch Changes
+
+- 7c3fa39: Refresh stale product copy: drop the hardcoded "~80 tools" count from the MCP server instructions (the surface has long since outgrown it) and replace the old "agent-native business apps" tagline with "the customer platform for the agentic era" in the dashboard metadata titles.
+- 1940b63: fix(control): list OAuth agents from refresh tokens, not access tokens
+
+  The previous fix read `oauth_access_token`, but MCP clients (Claude Code, Cursor, …) send a `resource` parameter per RFC 8707, so BetterAuth issues them **stateless JWT access tokens that are never persisted** — that table is empty in practice, so the flock still showed "Agents · 0".
+
+  `GET /v1/tokens` now lists live (non-expired, non-revoked) **refresh tokens** — the durable record of a connected OAuth agent. Because dynamic client registration mints a fresh `client_id` on every connect, grants are collapsed into one row per (client name, user) with a connection count. Revoking a row soft-revokes (`revoked = now()`) every live refresh token in that group, so the agent can't refresh back in once its short-lived JWT expires.
+
+- b8c162b: feat(oauth): pin OAuth/MCP agent connections to an organization
+
+  OAuth agents used to float to the user's current default org, resolved live on every request — so the flock listed an agent under whichever org happened to be default, switching the default silently retargeted live agents, and revoke was user-global.
+
+  Connections are now pinned to a specific org at consent time via BetterAuth's `consentReferenceId`, which persists the org as `reference_id` on the refresh token and as an `org_id` claim on the issued JWT access token (carried forward on refresh). The credential resolvers read that pinned org and require the user to still be a member of it — removing someone from an org now kills their agents there. Tokens issued before this change fall back to the default org and are backfilled by a migration.
+
+  As a result the flock is truthful per-org (lists only agents pinned to the calling org) and revoke is org-scoped (only revokes grants pinned to the caller's org, leaving the same user's other-org agents alone). Which org an agent binds to is the user's active org at consent time, set with the existing topbar org switcher.
+
+- Updated dependencies [b8c162b]
+  - @getmunin/core@4.59.1
+  - @getmunin/db@4.59.1
+  - @getmunin/agent-runtime@4.59.1
+  - @getmunin/mcp-toolkit@4.59.1
+  - @getmunin/types@4.59.1
+  - @getmunin/emails@4.59.1
+
 ## 4.59.0
 
 ### Minor Changes

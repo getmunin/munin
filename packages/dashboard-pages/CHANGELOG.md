@@ -1,5 +1,18 @@
 # @getmunin/dashboard-pages
 
+## 4.59.1
+
+### Patch Changes
+
+- 7c3fa39: Refresh stale product copy: drop the hardcoded "~80 tools" count from the MCP server instructions (the surface has long since outgrown it) and replace the old "agent-native business apps" tagline with "the customer platform for the agentic era" in the dashboard metadata titles.
+- 1940b63: fix(control): list OAuth agents from refresh tokens, not access tokens
+
+  The previous fix read `oauth_access_token`, but MCP clients (Claude Code, Cursor, …) send a `resource` parameter per RFC 8707, so BetterAuth issues them **stateless JWT access tokens that are never persisted** — that table is empty in practice, so the flock still showed "Agents · 0".
+
+  `GET /v1/tokens` now lists live (non-expired, non-revoked) **refresh tokens** — the durable record of a connected OAuth agent. Because dynamic client registration mints a fresh `client_id` on every connect, grants are collapsed into one row per (client name, user) with a connection count. Revoking a row soft-revokes (`revoked = now()`) every live refresh token in that group, so the agent can't refresh back in once its short-lived JWT expires.
+  - @getmunin/types@4.59.1
+  - @getmunin/ui@4.59.1
+
 ## 4.59.0
 
 ### Minor Changes

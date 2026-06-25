@@ -1,5 +1,7 @@
 # @getmunin/types
 
+## 4.59.1
+
 ## 4.59.0
 
 ### Minor Changes

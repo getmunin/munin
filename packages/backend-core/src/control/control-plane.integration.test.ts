@@ -437,8 +437,9 @@ interface OrgFixture {
       const clientC = `oauth-client-c-${label}`;
       const allClients = [clientA, clientB, clientC];
       const live = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const icon = 'https://example.com/icon.png';
       await db.insert(schema.oauthClient).values(
-        allClients.map((clientId) => ({ clientId, name, redirectUris: ['https://example.com/cb'] })),
+        allClients.map((clientId) => ({ clientId, name, icon, redirectUris: ['https://example.com/cb'] })),
       );
       await db.insert(schema.oauthRefreshToken).values([
         {
@@ -489,6 +490,7 @@ interface OrgFixture {
         id: string;
         type: string;
         origin: string | null;
+        iconUrl: string | null;
         count: number;
         scopes: string[];
       }>;
@@ -498,6 +500,7 @@ interface OrgFixture {
       expect(agentRow.id.startsWith('orft_')).toBe(true);
       expect(agentRow.type).toBe('oauth_refresh');
       expect(agentRow.count).toBe(2);
+      expect(agentRow.iconUrl).toBe(icon);
       expect(agentRow.scopes.sort()).toEqual(['crm:write', 'kb:read', 'mcp:admin']);
 
       const listB = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgB.adminKey) });

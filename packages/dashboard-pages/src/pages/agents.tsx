@@ -18,6 +18,7 @@ interface TokenDto {
   scopes: string[];
   audiences: string[];
   origin: string | null;
+  iconUrl: string | null;
   endUserId: string | null;
   expiresAt: string | null;
   lastUsedAt: string | null;
@@ -99,16 +100,15 @@ export function AgentsPage() {
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
           <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
-                <Th>{t('tableToken')}</Th>
-                <Th className="hidden md:table-cell">{t('tableOrigin')}</Th>
-                <Th>{t('tableStatus')}</Th>
-                <Th className="hidden md:table-cell">{t('tableIssued')}</Th>
-                <Th className="hidden md:table-cell">{t('tableLastUsed')}</Th>
-                <Th className="hidden md:table-cell">{t('tableExpires')}</Th>
-                <Th className="text-right" />
+                <Th className="w-[40%]">{t('tableToken')}</Th>
+                <Th className="w-[10%]">{t('tableStatus')}</Th>
+                <Th className="hidden md:table-cell w-[14%]">{t('tableIssued')}</Th>
+                <Th className="hidden md:table-cell w-[14%]">{t('tableLastUsed')}</Th>
+                <Th className="hidden md:table-cell w-[14%]">{t('tableExpires')}</Th>
+                <Th className="text-right w-[8%]" />
               </tr>
             </thead>
             <tbody>
@@ -120,6 +120,7 @@ export function AgentsPage() {
                       ? 'expired'
                       : 'active';
                 const typeLabel = labelForType(token.type, t);
+                const primaryName = token.origin ?? typeLabel;
                 const issued = format.dateTime(new Date(token.createdAt), {
                   month: 'short',
                   day: 'numeric',
@@ -142,23 +143,25 @@ export function AgentsPage() {
                 return (
                   <tr
                     key={token.id}
-                    className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark align-middle"
+                    className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark align-top"
                   >
-                    <td className="py-4 pr-4">
-                      <div className="text-sm font-medium text-ink dark:text-foreground">
-                        {typeLabel}
+                    <td className="py-4 pr-4 align-top">
+                      <div className="flex items-start gap-3">
+                        <ClientGlyph iconUrl={token.iconUrl} name={primaryName} />
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-ink dark:text-foreground">
+                            {primaryName}
+                            {(token.count ?? 1) > 1 && (
+                              <span className="ml-1.5 font-normal text-ink-mute">
+                                · {t('connections', { count: token.count! })}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[11px] leading-relaxed text-ink-mute break-words">
+                            {token.scopes.length > 0 ? token.scopes.join(' ') : t('noScopes')}
+                          </div>
+                        </div>
                       </div>
-                      <div className="font-mono text-[11px] text-ink-mute">
-                        {token.scopes.length > 0 ? token.scopes.join(' ') : t('noScopes')}
-                      </div>
-                    </td>
-                    <td className="hidden md:table-cell py-4 pr-4 font-mono text-xs text-ink-mute">
-                      {token.origin ?? (token.audiences.join(', ') || '—')}
-                      {(token.count ?? 1) > 1 && (
-                        <span className="ml-2 text-ink-mute/70">
-                          · {t('connections', { count: token.count! })}
-                        </span>
-                      )}
                     </td>
                     <td className="py-4 pr-4">
                       <StatusChip status={status} t={t} />
@@ -187,6 +190,26 @@ export function AgentsPage() {
         )}
       </section>
     </>
+  );
+}
+
+function ClientGlyph({ iconUrl, name }: { iconUrl: string | null; name: string }) {
+  const glyph = (name.trim()[0] ?? '?').toUpperCase();
+  return (
+    <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md border-[0.5px] border-rule-soft bg-white font-serif text-[13px] leading-none text-ink dark:border-rule-on-dark">
+      {iconUrl ? (
+        <img
+          src={iconUrl}
+          alt=""
+          className="size-5 object-contain"
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      ) : (
+        glyph
+      )}
+    </span>
   );
 }
 

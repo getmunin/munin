@@ -24,6 +24,7 @@ interface TokenDto {
   scopes: string[];
   audiences: string[];
   origin: string | null;
+  iconUrl: string | null;
   endUserId: string | null;
   expiresAt: string | null;
   lastUsedAt: string | null;
@@ -82,6 +83,7 @@ async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> 
       expiresAt: schema.oauthRefreshToken.expiresAt,
       createdAt: schema.oauthRefreshToken.createdAt,
       clientName: schema.oauthClient.name,
+      clientIcon: schema.oauthClient.icon,
     })
     .from(schema.oauthRefreshToken)
     .leftJoin(
@@ -109,6 +111,7 @@ async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> 
         scopes: row.scopes,
         audiences: [],
         origin,
+        iconUrl: row.clientIcon ?? null,
         endUserId: null,
         expiresAt: row.expiresAt.toISOString(),
         lastUsedAt: null,
@@ -191,6 +194,7 @@ function toDto(row: typeof schema.tokens.$inferSelect): TokenDto {
     scopes: row.scopes,
     audiences: row.audiences,
     origin: null,
+    iconUrl: null,
     endUserId: row.endUserId,
     expiresAt: row.expiresAt?.toISOString() ?? null,
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,

@@ -11,6 +11,7 @@ import { WebhookDispatcher, getCurrentContext, verifyHmac } from '@getmunin/core
 import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
+import { reopenClosedConversation } from '../conversation-reopen.ts';
 import { WidgetChannelConfig } from './widget.types.ts';
 import type {
   WidgetConversationEnvelope,
@@ -661,23 +662,11 @@ export class WidgetIngestService {
         .where(eq(schema.convConversations.id, conv.id));
 
       const hasVisitorMessage = events.some((e) => e.authorType === 'end_user');
-      if (hasVisitorMessage) {
-        const reopened = await tx
-          .update(schema.convConversations)
-          .set({ status: 'open', updatedAt: new Date() })
-          .where(
-            and(
-              eq(schema.convConversations.id, conv.id),
-              inArray(schema.convConversations.status, ['closed', 'snoozed']),
-            ),
-          )
-          .returning({ id: schema.convConversations.id });
-        if (reopened[0]) {
-          await this.webhooks.emit({
-            type: 'conversation.status_changed',
-            payload: { conversationId: conv.id, status: 'open' },
-          });
-        }
+      if (hasVisitorMessage && (await reopenClosedConversation(tx, conv.id))) {
+        await this.webhooks.emit({
+          type: 'conversation.status_changed',
+          payload: { conversationId: conv.id, status: 'open' },
+        });
       }
     }
 

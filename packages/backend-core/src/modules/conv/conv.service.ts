@@ -45,6 +45,7 @@ export type ConversationStatus = (typeof STATUSES)[number];
 export type AgentMode = (typeof AGENT_MODES)[number];
 
 const AWAITING_REPLY_LOOKBACK_MINUTES = 60;
+const AUTO_CLOSE_THRESHOLD_DAYS = 2;
 
 export interface ChannelDto {
   id: string;
@@ -477,6 +478,49 @@ export class ConvService {
       )
       .orderBy(desc(schema.convConversations.lastMessageAt))
       .limit(limit);
+  }
+
+  async listConversationsAwaitingUserReply(input?: {
+    limit?: number;
+    thresholdDays?: number;
+  }): Promise<Array<{ id: string }>> {
+    const ctx = getCurrentContext();
+    const limit = clampLimit(input?.limit, 100, 500);
+    const thresholdDays = input?.thresholdDays ?? AUTO_CLOSE_THRESHOLD_DAYS;
+    return ctx.db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .innerJoin(
+        schema.convChannels,
+        eq(schema.convChannels.id, schema.convConversations.channelId),
+      )
+      .where(
+        and(
+          eq(schema.convConversations.status, 'open'),
+          isNotNull(schema.convConversations.endUserId),
+          eq(schema.convConversations.needsHumanAttention, false),
+          sql`${schema.convChannels.type} <> 'voice'`,
+          sql`${schema.convConversations.lastMessageAt} < now() - make_interval(days => ${thresholdDays})`,
+          sql`(
+            SELECT author_type FROM conv_messages
+            WHERE conversation_id = ${schema.convConversations.id}
+              AND internal = false
+            ORDER BY created_at DESC
+            LIMIT 1
+          ) IN ('agent', 'user')`,
+        ),
+      )
+      .orderBy(asc(schema.convConversations.lastMessageAt))
+      .limit(limit);
+  }
+
+  async autoCloseInactive(input?: { thresholdDays?: number }): Promise<number> {
+    const thresholdDays = input?.thresholdDays ?? AUTO_CLOSE_THRESHOLD_DAYS;
+    const stale = await this.listConversationsAwaitingUserReply({ thresholdDays });
+    for (const { id } of stale) {
+      await this.changeStatus({ id, status: 'closed' });
+    }
+    return stale.length;
   }
 
   async getConversation(id: string): Promise<ConversationDetail> {

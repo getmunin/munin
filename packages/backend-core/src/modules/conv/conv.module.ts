@@ -4,6 +4,7 @@ import { McpModule } from '../../mcp/mcp.module.ts';
 import { RealtimeModule } from '../../realtime/realtime.module.ts';
 import { PublicThrottleModule } from '../../common/rate-limit/public-throttle.module.ts';
 import { ConvService } from './conv.service.ts';
+import { ConvSchedulerService } from './conv-scheduler.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { ConvAdminTools } from './conv.tools.ts';
 import { ConvSelfServiceTools } from './conv.self-service.tools.ts';
@@ -58,6 +59,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
   controllers: [WidgetController, ChannelWebhookController],
   providers: [
     ConvService,
+    ConvSchedulerService,
     ConversationClaimsService,
     ConvAdminTools,
     ConvSelfServiceTools,

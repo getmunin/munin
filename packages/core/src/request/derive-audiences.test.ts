@@ -7,14 +7,9 @@ describe('deriveAudiencesFromScopes', () => {
     expect(deriveAudiencesFromScopes(['mcp:admin', 'kb:read'])).toEqual(['admin']);
   });
 
-  it('grants self_service only when mcp:self_service is present', () => {
-    expect(deriveAudiencesFromScopes(['mcp:self_service'])).toEqual(['self_service']);
-  });
-
-  it('grants both when both mcp:* scopes are present', () => {
-    expect(deriveAudiencesFromScopes(['mcp:admin', 'mcp:self_service']).sort()).toEqual(
-      ['admin', 'self_service'].sort(),
-    );
+  it('ignores the retired mcp:self_service scope', () => {
+    expect(deriveAudiencesFromScopes(['mcp:self_service'])).toEqual([]);
+    expect(deriveAudiencesFromScopes(['mcp:admin', 'mcp:self_service'])).toEqual(['admin']);
   });
 
   it('returns an empty list for OIDC-only or resource-scope-only tokens', () => {

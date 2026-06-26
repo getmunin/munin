@@ -4,7 +4,6 @@ export const MCP_RESOURCE_PATH = MCP_INTERNAL_PATH;
 export const SUPPORTED_SCOPES = [
   'mcp:tools',
   'mcp:admin',
-  'mcp:self_service',
   'kb:read',
   'kb:write',
   'conv:read',

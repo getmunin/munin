@@ -25,6 +25,7 @@ interface TokenDto {
   audiences: string[];
   origin: string | null;
   iconUrl: string | null;
+  user: { name: string | null; email: string } | null;
   endUserId: string | null;
   expiresAt: string | null;
   lastUsedAt: string | null;
@@ -75,12 +76,15 @@ async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> 
       createdAt: schema.oauthRefreshToken.createdAt,
       clientName: schema.oauthClient.name,
       clientIcon: schema.oauthClient.icon,
+      userName: schema.users.name,
+      userEmail: schema.users.email,
     })
     .from(schema.oauthRefreshToken)
     .leftJoin(
       schema.oauthClient,
       eq(schema.oauthClient.clientId, schema.oauthRefreshToken.clientId),
     )
+    .leftJoin(schema.users, eq(schema.users.id, schema.oauthRefreshToken.userId))
     .where(
       and(
         eq(schema.oauthRefreshToken.referenceId, orgId),
@@ -103,6 +107,7 @@ async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> 
         audiences: [],
         origin,
         iconUrl: row.clientIcon ?? null,
+        user: row.userEmail ? { name: row.userName, email: row.userEmail } : null,
         endUserId: null,
         expiresAt: row.expiresAt.toISOString(),
         lastUsedAt: null,

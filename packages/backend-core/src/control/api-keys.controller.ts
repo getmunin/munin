@@ -119,7 +119,13 @@ export class ApiKeysController {
         revokedAt: schema.apiKeys.revokedAt,
       })
       .from(schema.apiKeys)
-      .where(and(eq(schema.apiKeys.orgId, actor.orgId), isNull(schema.apiKeys.revokedAt)));
+      .where(
+        and(
+          eq(schema.apiKeys.orgId, actor.orgId),
+          eq(schema.apiKeys.type, 'admin'),
+          isNull(schema.apiKeys.revokedAt),
+        ),
+      );
 
     return rows.map((r) => ({
       id: r.id,
@@ -139,7 +145,13 @@ export class ApiKeysController {
     const result = await ctx.db
       .update(schema.apiKeys)
       .set({ revokedAt: new Date() })
-      .where(and(eq(schema.apiKeys.id, id), eq(schema.apiKeys.orgId, actor.orgId)))
+      .where(
+        and(
+          eq(schema.apiKeys.id, id),
+          eq(schema.apiKeys.orgId, actor.orgId),
+          eq(schema.apiKeys.type, 'admin'),
+        ),
+      )
       .returning({ id: schema.apiKeys.id, prefix: schema.apiKeys.keyPrefix });
     if (result.length === 0) throw new NotFoundException(`API key ${id} not found`);
     await this.webhooks.emit({

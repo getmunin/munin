@@ -178,7 +178,9 @@ export class EmailAdapter implements ChannelAdapter {
     const body = quoted ? `${ctx.message.body}\n\n${quoted}` : ctx.message.body;
     const html = ctx.message.bodyHtml ?? renderEmailHtml(ctx.message.body, prior, 3);
 
-    const subject = ensureReSubject(ctx.conversation.subject?.trim() || null);
+    const rawSubject = ctx.conversation.subject?.trim() || null;
+    const isReply = prior.length > 0 || ctx.delivery.inReplyToHeader != null;
+    const subject = isReply ? ensureReSubject(rawSubject) : (rawSubject ?? '(no subject)');
     const trackerUrl = trackerUrlFor(config, ctx, html);
 
     const built: BuiltMessage = buildOutbound({

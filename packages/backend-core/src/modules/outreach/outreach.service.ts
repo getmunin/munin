@@ -1124,7 +1124,7 @@ function composeOutreachBody(input: {
     body += `\n\n${input.ctaUrl}`;
   }
   if (input.unsubscribeRequired) {
-    body += `\n\n---\nUnsubscribe: ${input.unsubscribeUrl}`;
+    body += `\n\n---\n[Unsubscribe](${input.unsubscribeUrl})`;
   }
   return body;
 }

@@ -142,7 +142,7 @@ export function AgentsPage() {
                 return (
                   <tr
                     key={token.id}
-                    className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark align-top"
+                    className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark align-middle"
                   >
                     <td className="py-4 pr-4 align-top">
                       <div className="flex items-center gap-2 text-sm font-medium text-ink dark:text-foreground">

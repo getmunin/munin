@@ -12,6 +12,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { readApiBaseUrl } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
@@ -92,7 +93,7 @@ export class OutreachProposalsController {
   @Post(':id/approve')
   @HttpCode(200)
   async approve(@Param('id') id: string): Promise<ProposalDto> {
-    const publicBaseUrl = process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001';
+    const publicBaseUrl = readApiBaseUrl();
     return translate(() => this.outreach.approveProposal(id, { publicBaseUrl }));
   }
 

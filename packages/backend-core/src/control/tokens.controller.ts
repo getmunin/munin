@@ -24,6 +24,7 @@ interface TokenDto {
   scopes: string[];
   audiences: string[];
   origin: string | null;
+  iconUrl: string | null;
   endUserId: string | null;
   expiresAt: string | null;
   lastUsedAt: string | null;
@@ -41,17 +42,8 @@ export class TokensController {
   async list(): Promise<TokenDto[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const [issued, oauth] = await Promise.all([
-      ctx.db
-        .select()
-        .from(schema.tokens)
-        .where(eq(schema.tokens.orgId, actor.orgId))
-        .orderBy(desc(schema.tokens.createdAt)),
-      listOauthAgents(ctx.db, actor.orgId),
-    ]);
-    return [...issued.map(toDto), ...oauth].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    );
+    const agents = await listOauthAgents(ctx.db, actor.orgId);
+    return agents.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   @Delete(':id')
@@ -82,6 +74,7 @@ async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> 
       expiresAt: schema.oauthRefreshToken.expiresAt,
       createdAt: schema.oauthRefreshToken.createdAt,
       clientName: schema.oauthClient.name,
+      clientIcon: schema.oauthClient.icon,
     })
     .from(schema.oauthRefreshToken)
     .leftJoin(
@@ -109,6 +102,7 @@ async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> 
         scopes: row.scopes,
         audiences: [],
         origin,
+        iconUrl: row.clientIcon ?? null,
         endUserId: null,
         expiresAt: row.expiresAt.toISOString(),
         lastUsedAt: null,
@@ -184,18 +178,3 @@ async function revokeOauthAgent(
     );
 }
 
-function toDto(row: typeof schema.tokens.$inferSelect): TokenDto {
-  return {
-    id: row.id,
-    type: row.type,
-    scopes: row.scopes,
-    audiences: row.audiences,
-    origin: null,
-    endUserId: row.endUserId,
-    expiresAt: row.expiresAt?.toISOString() ?? null,
-    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
-    revokedAt: row.revokedAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    count: 1,
-  };
-}

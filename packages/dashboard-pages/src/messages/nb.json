@@ -392,17 +392,16 @@
     "agents": {
       "eyebrow": "Tilgang · Agenter",
       "title": "<em>Flokken</em>.",
-      "subtitle": "Alle OAuth-autoriserte agenter og sluttbruker-tokens utstedt for denne organisasjonen. Tilbakekall et aktivt token for å gjøre videre MCP-kall ugyldige umiddelbart.",
+      "subtitle": "Alle OAuth-autoriserte agenter koblet til denne organisasjonen. Tilbakekall en for å kutte MCP-tilgangen umiddelbart.",
       "agentsTitleCount": "Agenter · {count}",
       "agentsTitle": "Agenter",
       "tableToken": "Token",
-      "tableOrigin": "Opphav",
       "tableStatus": "Status",
       "tableIssued": "Utstedt",
       "tableLastUsed": "Sist brukt",
       "tableExpires": "Utløper",
       "emptyTitle": "Ingen tilkoblede agenter ennå",
-      "emptyBody": "Legg MCP-URL-en inn i Claude Desktop, Cursor eller MCP-klienten din, og fullfør samtykket — utstedte tokens vises her.",
+      "emptyBody": "Legg MCP-URL-en inn i Claude Desktop, Cursor eller MCP-klienten din, og fullfør samtykket — tilkoblede agenter vises her.",
       "noScopes": "ingen scopes",
       "connections": "{count, plural, one {# tilkobling} other {# tilkoblinger}}",
       "issued": "Utstedt {when}",
@@ -412,12 +411,6 @@
         "active": "aktiv",
         "revoked": "tilbakekalt",
         "expired": "utløpt"
-      },
-      "types": {
-        "oauth_access": "OAuth-tilgangstoken",
-        "oauth_refresh": "OAuth-fornyelsestoken",
-        "delegated_end_user": "Sluttbruker-token",
-        "guest": "Gjeste-token"
       },
       "revoked": "Token tilbakekalt.",
       "errors": {

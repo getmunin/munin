@@ -165,6 +165,60 @@ interface OrgFixture {
       expect(afterItems.find((k) => k.id === created.id)).toBeFalsy();
     });
 
+    it('list excludes widget and tracker keys, and they cannot be revoked here', async () => {
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId: orgA.id,
+          type: 'chat',
+          vendor: 'munin',
+          name: 'cp-list-widget-channel',
+        })
+        .returning({ id: schema.convChannels.id });
+      const widgetKey = buildApiKey('widget');
+      const [widgetRow] = await db
+        .insert(schema.apiKeys)
+        .values({
+          orgId: orgA.id,
+          type: 'widget',
+          name: 'cp-list-widget',
+          keyHash: hashSecret(widgetKey),
+          keyPrefix: keyPrefix(widgetKey),
+          scopes: ['conv:widget:write'],
+          channelId: channel!.id,
+        })
+        .returning({ id: schema.apiKeys.id });
+      const [tracker] = await db
+        .insert(schema.analyticsTrackers)
+        .values({ orgId: orgA.id, name: 'cp-list-tracker-tracker' })
+        .returning({ id: schema.analyticsTrackers.id });
+      const trackerKey = buildApiKey('track');
+      const [trackerRow] = await db
+        .insert(schema.apiKeys)
+        .values({
+          orgId: orgA.id,
+          type: 'track',
+          name: 'cp-list-tracker',
+          keyHash: hashSecret(trackerKey),
+          keyPrefix: keyPrefix(trackerKey),
+          scopes: ['analytics:track:write'],
+          trackerId: tracker!.id,
+        })
+        .returning({ id: schema.apiKeys.id });
+
+      const list = await fetch(`${baseUrl}/v1/api-keys`, { headers: authHeaders(orgA.adminKey) });
+      expect(list.status).toBe(200);
+      const items = (await list.json()) as Array<{ id: string }>;
+      expect(items.find((k) => k.id === widgetRow!.id)).toBeFalsy();
+      expect(items.find((k) => k.id === trackerRow!.id)).toBeFalsy();
+
+      const revokeWidget = await fetch(`${baseUrl}/v1/api-keys/${widgetRow!.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(orgA.adminKey),
+      });
+      expect(revokeWidget.status).toBe(404);
+    });
+
     it('cross-org: org A cannot revoke org B\'s key', async () => {
       const res = await fetch(`${baseUrl}/v1/api-keys/${orgB.adminKeyId}`, {
         method: 'DELETE',

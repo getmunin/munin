@@ -1126,6 +1126,7 @@
       "saveAndContinue": "Lagre og fortsett",
       "checklist": {
         "provider": "Leverandør konfigurert (<code>{url}</code>)",
+        "providerManaged": "Leverandør konfigurert (<code>{name}</code>)",
         "fast": "Rask modell — <code>{model}</code>",
         "smart": "Smart modell — <code>{model}</code>"
       },

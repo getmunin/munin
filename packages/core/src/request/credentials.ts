@@ -230,7 +230,6 @@ export function deriveAudiencesFromScopes(scopes: string[]): Audience[] {
   const set = new Set<Audience>();
   for (const scope of scopes) {
     if (scope === 'mcp:admin') set.add('admin');
-    if (scope === 'mcp:self_service') set.add('self_service');
   }
   return Array.from(set);
 }

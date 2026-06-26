@@ -38,6 +38,13 @@ export {
   type SettingsTopbarProps,
 } from './components/munin-topbar';
 export { PageShell, nativeFieldClass } from './components/page-shell';
+export {
+  Skeleton,
+  TableSkeleton,
+  CardSkeleton,
+  CardListSkeleton,
+  type SkeletonColumn,
+} from './components/skeleton';
 export { NativeSelect } from './components/native-select';
 export {
   AuthShell,

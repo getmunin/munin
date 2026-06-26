@@ -57,16 +57,6 @@ Watch Lovable build a real website from a single prompt while Munin stands up ev
   </a>
 </p>
 
-## Why I built this
-
-Hi — Kjell here. Last year my company was paying HubSpot $500/month for three users who barely touched it. Every workflow worth having lived a tier above the one we were on.
-
-Then our AI agents started doing the prospecting and outreach themselves, and it hit me: what we still used HubSpot for had shrunk to basic CRUD. The agent does the work; HubSpot just stored the record. I wasn't going to keep paying $500/month for CRUD.
-
-So I built the thing I actually wanted. Over roughly a month, with Claude Code as my primary IDE, Munin went from nothing to what's in this repo. Years of shipping production software is what shaped the architecture and let me catch the agent when it got things wrong. Claude Code took the labor of typing it out of the equation; a year ago I don't think this would have been feasible solo.
-
-Munin isn't the AI — it's what your AI uses. You bring the agent, write the prompts, wire up the workflows; Munin's job is to be the cleanest possible tool surface underneath. It's open source and yours to run.
-
 ## What's in the box
 
 - **Knowledge Base** — markdown documents, hybrid search (BM25 + pgvector embeddings), per-document audience scoping.
@@ -149,10 +139,6 @@ Once you've signed up (hosted) or run `docker compose up` (self-host), point you
 
 (For the hosted version, swap in `https://mcp.getmunin.com`.) The first call triggers an OAuth consent screen in your browser, then your agent has the full tool surface — Knowledge Base, Conversations, CRM, CMS, Outreach, Analytics.
 
-## Documentation
-
-Developer docs live at **[getmunin.com/docs](https://www.getmunin.com/en/docs/)** — guides, the REST API reference, the full MCP tool list, and the skill library.
-
 ## Two trust contexts, one MCP endpoint
 
 The same `/mcp` endpoint serves two distinct callers, audience-aware:
@@ -178,7 +164,18 @@ See `packages/backend-core/src/control/delegated-token.controller.ts` for the to
 
 ## Stack
 
-TypeScript · Node 24 LTS · Turborepo · pnpm · NestJS · Next.js · Drizzle · Postgres + pgvector · MCP Streamable HTTP · BetterAuth + OAuth 2.1 dynamic client registration
+| Layer | Tech |
+|---|---|
+| Language & runtime | TypeScript, Node 24 LTS |
+| Monorepo | Turborepo, pnpm |
+| Backend | NestJS |
+| Frontend | Next.js |
+| Data | Postgres + pgvector, Drizzle |
+| Protocol & auth | MCP Streamable HTTP, BetterAuth + OAuth 2.1 |
+
+## Documentation
+
+Developer docs live at **[getmunin.com/docs](https://www.getmunin.com/en/docs/)** — guides, the REST API reference, the full MCP tool list, and the skill library.
 
 ## Contributing
 

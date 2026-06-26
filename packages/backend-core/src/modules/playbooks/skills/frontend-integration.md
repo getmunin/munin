@@ -150,7 +150,25 @@ Required attribute: `data-key`. The script auto-fires a page view on `DOMContent
 
 `data-api` is optional and defaults to the script's origin. Don't set it unless the API origin differs from where you loaded the bundle.
 
-For custom events (CTA clicks, signup funnels, scroll depth), `window.mn.track(subjectId, attrs?)` is exposed once the bundle loads — see `skill://analytics/track-website-traffic`.
+For custom events (CTA clicks, signup funnels, scroll depth), `window.mn.track(subjectId, attrs?)` is exposed once the bundle loads — see `skill://analytics/track-website-traffic`. Drop-off across those steps is then one call to `analytics_get_funnel`.
+
+### 2c. Identify logged-in users (optional, but it's what makes journeys/funnels pay off)
+
+Anonymous tracking works with zero extra setup. But if the site has signed-in users, link each one to a known identity so their page-views attach to a CRM contact and funnels stop double-counting the anonymous → signed-in transition.
+
+Cheapest path: when your server renders the tracker tag for a signed-in user, add `data-external-id` (your stable user id) and `data-user-hash` (an HMAC of that id, signed server-side with the tracker's identity secret). The bundle auto-fires the identify on load — no client code:
+
+```html
+<script async
+  src="{{API_URL}}/tracker.js"
+  data-key="mn_track_…"
+  data-spa="true"
+  data-external-id="user_42"
+  data-user-hash="<hex hmac, computed server-side>">
+</script>
+```
+
+Render the two `data-` attributes only for signed-in users; omit them for anonymous visitors. Full recipe (minting the identity secret, signing the hash, the `window.mn.identify` alternative): `skill://analytics/identify-visitors`.
 
 ## Step 3 — CMS content (the CORS trap)
 

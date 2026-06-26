@@ -10,7 +10,8 @@ Page-view events from the tracker are anonymous by default — they carry an opa
 
 - new `analytics_view_events` / `analytics_search_events` rows for the same visitor are stamped with `end_user_id` at ingest
 - the chat widget and the CRM share the same `end_users` identity, so a visitor → conversation → CRM contact chain becomes one query
-- `analytics_get_contact_journey` returns the chronological page-view + search timeline for a contact
+- `analytics_get_contact_journey` returns the chronological page-view + search timeline for a contact — including activity from *before* the link existed, resolved at read time
+- `analytics_get_funnel` groups conversion steps by the identified end-user, so a journey that crosses the anonymous → identified boundary counts as one person, not two
 
 This skill walks through wiring it up.
 
@@ -60,6 +61,21 @@ Call it once, after sign-in, on every authenticated page. The tracker sends `(vi
 
 Every subsequent tracker beacon for the same `visitorId` lands with `end_user_id` populated.
 
+### Auto-identify on page load (no client code)
+
+If your server renders the tracker `<script>` tag per request, skip the manual JS call: add `data-external-id` and `data-user-hash` and the bundle fires the identify automatically on load, before the first page view.
+
+```html
+<script async
+  src="https://api.your-munin.example/tracker.js"
+  data-key="mn_track_…"
+  data-external-id="user_42"
+  data-user-hash="<hex hmac from step 2>">
+</script>
+```
+
+This is the cheapest way to stitch *known* sessions: every authenticated page load re-asserts the link, so a returning logged-in user is attributed from their first pageview — no client code, no race with the auto-fired page view. Render the attributes only for signed-in users; omit them for anonymous visitors.
+
 ## 4. Read the journey
 
 ```jsonc
@@ -67,7 +83,7 @@ Every subsequent tracker beacon for the same `visitorId` lands with `end_user_id
 { "contactId": "ctc_…", "sinceDays": 30, "limit": 100 }
 ```
 
-Returns the visitor's page-view and search timeline, chronologically. Or pass `endUserId` directly if you already have it (e.g. resolved through the widget). Events recorded before the visitor was linked stay anonymous and are not returned — there's no retroactive backfill.
+Returns the visitor's page-view and search timeline, chronologically. Or pass `endUserId` directly if you already have it (e.g. resolved through the widget). Events recorded *before* the visitor was linked are included too: the journey resolves the `visitor_id → end_user` link at read time, so a contact's anonymous history — the pages they read before they ever identified — shows up retroactively the moment the link exists. (The link only reaches forward across one `visitor_id`; activity on a different device/browser, with its own `visitor_id`, joins only once that visitor identifies too.)
 
 You can also pass `endUserId` / `contactId` to `analytics_get_views_over_time`, `analytics_get_subject_engagement`, and `analytics_list_top_subjects` to scope those aggregates to one identified visitor.
 

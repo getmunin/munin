@@ -94,7 +94,22 @@ window.mn.track('checkout-complete', {
 });
 ```
 
-Then query: `analytics_list_top_subjects({ subjectType: 'funnel', sinceDays: 7 })` gives drop-off counts across steps.
+Then compute true *ordered* drop-off with `analytics_get_funnel` — it counts distinct visitors who reached each step in sequence, not just raw per-step volumes:
+
+```jsonc
+{ "name": "analytics_get_funnel",
+  "arguments": {
+    "steps": [
+      { "subjectType": "funnel", "subjectId": "signup-cta-click" },
+      { "subjectType": "funnel", "subjectId": "checkout-step-2-reached" },
+      { "subjectType": "funnel", "subjectId": "checkout-complete" }
+    ],
+    "sinceDays": 7,
+    "stepWindowHours": 24
+  } }
+```
+
+`analytics_list_top_subjects({ subjectType: 'funnel' })` still gives the raw per-step counts if you only want volumes.
 
 **SPA route change with dwell** — if you're not using `data-spa="true"` (or want manual control), fire `mn.track` on route transitions with the previous-route dwell:
 
@@ -187,7 +202,21 @@ Returns `[{ host, views, visitors }]`. Pass `excludeHost` set to your production
 
 Returns `[{ day: '2026-05-09', views, visitors }, …]` zero-filled per UTC day, oldest first. Pin to a single page by passing `subjectId`.
 
-For anything more bespoke (custom funnels, multi-dimension cohorts), the events sit in `analytics_view_events` and `analytics_search_events`; query them directly from a DB client. The MCP tools cover the common questions; the table covers the long tail.
+```jsonc
+// Where do people drop off in a multi-step flow?
+{ "name": "analytics_get_funnel",
+  "arguments": {
+    "steps": [
+      { "subjectType": "page", "subjectId": "/pricing" },
+      { "subjectType": "page", "subjectId": "/signup" },
+      { "pathLike": "/onboarding/%" }
+    ],
+    "sinceDays": 30 } }
+```
+
+Returns per-step `{ index, label, actors, conversionFromPrev, dropFromPrev, conversionFromStart }` plus `overallConversion`. Steps are strictly ordered — a visitor counts at a step only if they reached it *after* the previous one. Each step matches by `subjectType`/`subjectId` and/or a `pathLike` SQL `LIKE` pattern. Visitors are grouped by their identified end-user when known (else the anonymous `visitor_id`), so the anonymous → identified transition isn't double-counted. Add `stepWindowHours` to require each step within a time budget of the previous.
+
+For anything more bespoke (multi-dimension cohorts, session-windowed paths), the events sit in `analytics_view_events` and `analytics_search_events`; query them directly from a DB client. The MCP tools cover the common questions; the table covers the long tail.
 
 ## 5. Server-side / SDK ingestion
 

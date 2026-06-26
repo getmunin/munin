@@ -872,9 +872,79 @@
     }
   },
   {
+    "name": "analytics_get_funnel",
+    "title": "Analytics: Conversion funnel across ordered steps",
+    "description": "Compute a conversion funnel over page-view events: how many distinct visitors reached each ordered step, and where they drop off. Pass 2–8 `steps`; each step matches a view event by `subjectType` and/or `subjectId` (e.g. `{ subjectType: \"page\", subjectId: \"/pricing\" }`) and/or a `pathLike` SQL LIKE pattern (e.g. `{ pathLike: \"/blog/%\" }`). Steps are strictly ordered — a visitor counts at step N only if they hit step N after reaching step N-1. Visitors are grouped by a stable actor key (their identified end-user when known, else their anonymous `visitor_id`), so a journey that spans the anonymous → identified transition is not double-counted. Set `stepWindowHours` to require each step to follow the previous within a time budget (e.g. signup within 24h of viewing pricing). Anonymous funnels work without any identity setup. Returns per-step actor counts plus conversion/drop rates.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "analytics:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "steps": {
+          "minItems": 2,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "subjectType": {
+                "type": "string",
+                "maxLength": 32
+              },
+              "subjectId": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "pathLike": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "sinceDays": {
+          "default": 30,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "stepWindowHours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8760
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "pixel",
+            "beacon",
+            "tracker"
+          ]
+        }
+      },
+      "required": [
+        "steps",
+        "sinceDays"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "analytics_get_contact_journey",
     "title": "Analytics: Journey of subjects viewed by a contact",
-    "description": "Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`; events recorded before linkage stay anonymous and are not returned here.",
+    "description": "Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`. Events recorded under a `visitor_id` *before* that link was established are still included retroactively — the link is resolved at read time — so the journey spans the visitor's anonymous history too.",
     "audiences": [
       "admin"
     ],

@@ -29,6 +29,7 @@ import { smtpTransportOptions } from './email.tools.ts';
 import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.ts';
 import { renderEmailHtml } from './markdown.ts';
 import { resolveInbound, type ParsedInboundEmail } from './threading.ts';
+import { reopenClosedConversation } from '../conversation-reopen.ts';
 import {
   detectSignatureBlock,
   ensureReSubject,
@@ -374,6 +375,13 @@ export class EmailAdapter implements ChannelAdapter {
           .update(schema.convConversations)
           .set({ lastMessageAt: new Date(), updatedAt: new Date() })
           .where(eq(schema.convConversations.id, conversationId));
+
+        if (resolution && (await reopenClosedConversation(tx, conversationId))) {
+          await this.webhooks.emit({
+            type: 'conversation.status_changed',
+            payload: { conversationId, status: 'open' },
+          });
+        }
 
         await this.webhooks.emit({
           type: 'conversation.message.received',

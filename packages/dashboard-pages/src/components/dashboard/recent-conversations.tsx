@@ -6,10 +6,7 @@ import { api } from '../../api';
 import { useRelative } from '../../lib/use-relative';
 import type { InboxController } from './inbox-sections';
 
-const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-const MAX_ITEMS = 10;
-const FETCH_LIMIT = 20;
-const EVICT_INTERVAL_MS = 60_000;
+const MAX_ITEMS = 20;
 
 type ConversationStatus = 'open' | 'snoozed' | 'closed' | 'spam';
 
@@ -36,7 +33,6 @@ export function RecentConversationsSection({
 }) {
   const t = useTranslations('dashboard.overview.recentConversations');
   const [items, setItems] = useState<ConversationSummary[]>([]);
-  const [now, setNow] = useState(() => Date.now());
   const fetchedRef = useRef(false);
 
   useEffect(() => {
@@ -45,27 +41,17 @@ export function RecentConversationsSection({
     void (async () => {
       try {
         const page = await api<ConversationListResponse>(
-          `/v1/conversations?limit=${FETCH_LIMIT}`,
+          `/v1/conversations?status=open&limit=${MAX_ITEMS}`,
         );
         setItems(page.items);
       } catch (err) {
-        console.warn('[dashboard] recent conversations fetch failed:', err);
+        console.warn('[dashboard] open conversations fetch failed:', err);
       }
     })();
   }, []);
 
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), EVICT_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, []);
-
   const visible = useMemo(() => {
-    const cutoff = now - WINDOW_MS;
     return items
-      .filter((c) => {
-        const ts = c.lastMessageAt ?? c.updatedAt;
-        return new Date(ts).getTime() >= cutoff;
-      })
       .slice()
       .sort((a, b) => {
         const ta = new Date(a.lastMessageAt ?? a.updatedAt).getTime();
@@ -73,7 +59,7 @@ export function RecentConversationsSection({
         return tb - ta;
       })
       .slice(0, MAX_ITEMS);
-  }, [items, now]);
+  }, [items]);
 
   if (visible.length === 0) return null;
 
@@ -131,8 +117,6 @@ function ConversationRow({
           <span className="text-sm font-medium text-ink dark:text-foreground">{title}</span>
           {preview ? (
             <span className="ml-2 text-sm text-ink-mute"> — {preview}</span>
-          ) : conv.status !== 'open' ? (
-            <span className="ml-2 text-sm text-ink-mute"> — {t(`status.${conv.status}`)}</span>
           ) : null}
         </div>
         <span className="shrink-0 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">

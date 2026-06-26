@@ -1,5 +1,36 @@
 # @getmunin/backend-core
 
+## 4.59.2
+
+### Patch Changes
+
+- 0d4aef1: fix(control): scope the API keys list to admin keys only
+
+  The dashboard "API keys" page is labelled "Admin keys for the Munin API", but `GET /v1/api-keys` returned every non-revoked key for the org regardless of type — so widget (`mn_widget_*`) and tracker (`mn_track_*`) keys leaked into the list.
+
+  `list()` now filters on `type = 'admin'`, and `revoke()` carries the same guard so this route can't revoke a widget/tracker key by id and bypass their dedicated rotation/cleanup flows (`analytics_revoke_tracker`, `conv_widget_rotate_key`). Revoking a non-admin key here now returns 404.
+
+- 39443cb: fix(oauth): retire the `mcp:self_service` OAuth scope
+
+  `mcp:self_service` was advertised in the OAuth discovery metadata (`scopes_supported`), so MCP clients like Claude — which request the full advertised set — were granted it on connect, cluttering every agent's scope list. It was inert (an admin-eligible OAuth agent always resolves to the `admin` audience via `deriveMcpAudience`), and nothing server-side ever used it: the self-service audience is granted directly to server-minted delegated end-user tokens (`audiences: ['self_service']`), not through an OAuth scope.
+
+  Removed `mcp:self_service` from `SUPPORTED_SCOPES` (so it's no longer advertised or accepted) and dropped its now-orphaned branch in `deriveAudiencesFromScopes`. Existing tokens keep the scope until they reconnect; behavior is unchanged either way.
+
+- 6f941e1: feat(access): OAuth-only flock with client identity; tidy end-user display
+
+  **The flock (Settings → Agents)** now lists only OAuth-authorized agents. Delegated end-user tokens are no longer mixed in — they're managed on the End-users page. Each row leads with the OAuth client's name (e.g. "Claude · 3 connections") and a small client icon/glyph (matching the consent screen) instead of a generic "OAuth refresh token" label, the Origin column is dropped (its info moved into the primary label), and the table uses a fixed layout so the scopes list wraps inside the Token column instead of squeezing the other columns. `GET /v1/tokens` returns only OAuth agents (with `iconUrl`) and no longer merges the `tokens` table.
+
+  **The End-users page** now shows a single identity line (name, else email, else phone, else "—") with an avatar of initials derived from the name ("Jens Pettersen" → "JP") or the email's first letter ("kjell@apps.no" → "K").
+
+- Updated dependencies [39443cb]
+- Updated dependencies [e5f7d98]
+  - @getmunin/core@4.59.2
+  - @getmunin/db@4.59.2
+  - @getmunin/agent-runtime@4.59.2
+  - @getmunin/mcp-toolkit@4.59.2
+  - @getmunin/types@4.59.2
+  - @getmunin/emails@4.59.2
+
 ## 4.59.1
 
 ### Patch Changes

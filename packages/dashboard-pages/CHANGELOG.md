@@ -1,5 +1,21 @@
 # @getmunin/dashboard-pages
 
+## 4.59.2
+
+### Patch Changes
+
+- 3546224: feat(dashboard-pages): export skeleton loading components
+
+  `Skeleton`, `TableSkeleton`, `CardSkeleton`, `CardListSkeleton`, and the `SkeletonColumn` type are now re-exported from the package barrel so downstream consumers can reuse them. Previously they lived in `components/skeleton.tsx` and were only reachable via relative imports inside the package — the `exports` map exposes only `.` and `./server`, so deep imports were blocked too.
+
+- 6f941e1: feat(access): OAuth-only flock with client identity; tidy end-user display
+
+  **The flock (Settings → Agents)** now lists only OAuth-authorized agents. Delegated end-user tokens are no longer mixed in — they're managed on the End-users page. Each row leads with the OAuth client's name (e.g. "Claude · 3 connections") and a small client icon/glyph (matching the consent screen) instead of a generic "OAuth refresh token" label, the Origin column is dropped (its info moved into the primary label), and the table uses a fixed layout so the scopes list wraps inside the Token column instead of squeezing the other columns. `GET /v1/tokens` returns only OAuth agents (with `iconUrl`) and no longer merges the `tokens` table.
+
+  **The End-users page** now shows a single identity line (name, else email, else phone, else "—") with an avatar of initials derived from the name ("Jens Pettersen" → "JP") or the email's first letter ("kjell@apps.no" → "K").
+  - @getmunin/types@4.59.2
+  - @getmunin/ui@4.59.2
+
 ## 4.59.1
 
 ### Patch Changes

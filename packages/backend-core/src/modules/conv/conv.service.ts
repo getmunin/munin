@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
@@ -1015,6 +1015,35 @@ export class ConvService {
       });
     }
     return toConversationSummary(result[0]);
+  }
+
+  async wakeDueSnoozedConversations(): Promise<number> {
+    const ctx = getCurrentContext();
+    const now = new Date();
+    const woken = await ctx.db
+      .update(schema.convConversations)
+      .set({
+        status: 'open',
+        snoozeUntil: null,
+        needsHumanAttention: true,
+        needsHumanAttentionAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.convConversations.status, 'snoozed'),
+          isNotNull(schema.convConversations.snoozeUntil),
+          lte(schema.convConversations.snoozeUntil, now),
+        ),
+      )
+      .returning({ id: schema.convConversations.id });
+    for (const row of woken) {
+      await this.webhooks.emit({
+        type: 'conversation.status_changed',
+        payload: { conversationId: row.id, status: 'open' },
+      });
+    }
+    return woken.length;
   }
 
   async tryAcquireConversation(input: {

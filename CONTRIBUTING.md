@@ -1,6 +1,6 @@
 # Contributing to Munin
 
-Thanks for your interest. Munin is in alpha — APIs, schema, and conventions are still settling. This means: lots of opportunity, also lots of churn. Heads up.
+Thanks for your interest. Munin is evolving quickly — APIs, schema, and conventions are still settling, so expect some churn.
 
 ## Local setup
 

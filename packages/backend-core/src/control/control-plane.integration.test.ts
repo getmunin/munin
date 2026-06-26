@@ -393,7 +393,7 @@ interface OrgFixture {
       expect(res.status).toBe(401);
     });
 
-    it('returns tokens for the calling org only', async () => {
+    it('mints and revokes delegated tokens with org scoping; they stay out of the OAuth-only flock', async () => {
       const mint = await fetch(`${baseUrl}/v1/tokens/delegated`, {
         method: 'POST',
         headers: authHeaders(orgA.adminKey),
@@ -403,12 +403,8 @@ interface OrgFixture {
       const minted = (await mint.json()) as { tokenId: string };
 
       const list = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgA.adminKey) });
-      const tokens = (await list.json()) as Array<{ id: string; endUserId: string }>;
-      expect(tokens.find((t) => t.id === minted.tokenId)).toBeTruthy();
-
-      const listB = await fetch(`${baseUrl}/v1/tokens`, { headers: authHeaders(orgB.adminKey) });
-      const tokensB = (await listB.json()) as Array<{ id: string }>;
-      expect(tokensB.find((t) => t.id === minted.tokenId)).toBeFalsy();
+      const tokens = (await list.json()) as Array<{ id: string }>;
+      expect(tokens.find((t) => t.id === minted.tokenId)).toBeFalsy();
 
       const rv = await fetch(`${baseUrl}/v1/tokens/${minted.tokenId}`, {
         method: 'DELETE',

@@ -392,17 +392,16 @@
     "agents": {
       "eyebrow": "Access · Agents",
       "title": "The <em>flock</em>.",
-      "subtitle": "Every OAuth-authorized agent and end-user token issued for this org. Revoke any active token to immediately invalidate further MCP calls.",
+      "subtitle": "Every OAuth-authorized agent connected to this org. Revoke one to immediately cut off its MCP access.",
       "agentsTitleCount": "Agents · {count}",
       "agentsTitle": "Agents",
       "tableToken": "Token",
-      "tableOrigin": "Origin",
       "tableStatus": "Status",
       "tableIssued": "Issued",
       "tableLastUsed": "Last used",
       "tableExpires": "Expires",
       "emptyTitle": "No connected agents yet",
-      "emptyBody": "Add the MCP URL to Claude Desktop, Cursor, or your runtime, then complete consent — issued tokens will appear here.",
+      "emptyBody": "Add the MCP URL to Claude Desktop, Cursor, or your runtime, then complete consent — connected agents will appear here.",
       "noScopes": "no scopes",
       "connections": "{count, plural, one {# connection} other {# connections}}",
       "issued": "Issued {when}",
@@ -412,12 +411,6 @@
         "active": "active",
         "revoked": "revoked",
         "expired": "expired"
-      },
-      "types": {
-        "oauth_access": "OAuth access token",
-        "oauth_refresh": "OAuth refresh token",
-        "delegated_end_user": "End-user token",
-        "guest": "Guest token"
       },
       "revoked": "Token revoked.",
       "errors": {

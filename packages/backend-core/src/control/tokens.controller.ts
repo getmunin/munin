@@ -42,17 +42,8 @@ export class TokensController {
   async list(): Promise<TokenDto[]> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const [issued, oauth] = await Promise.all([
-      ctx.db
-        .select()
-        .from(schema.tokens)
-        .where(eq(schema.tokens.orgId, actor.orgId))
-        .orderBy(desc(schema.tokens.createdAt)),
-      listOauthAgents(ctx.db, actor.orgId),
-    ]);
-    return [...issued.map(toDto), ...oauth].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
-    );
+    const agents = await listOauthAgents(ctx.db, actor.orgId);
+    return agents.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   @Delete(':id')
@@ -187,19 +178,3 @@ async function revokeOauthAgent(
     );
 }
 
-function toDto(row: typeof schema.tokens.$inferSelect): TokenDto {
-  return {
-    id: row.id,
-    type: row.type,
-    scopes: row.scopes,
-    audiences: row.audiences,
-    origin: null,
-    iconUrl: null,
-    endUserId: row.endUserId,
-    expiresAt: row.expiresAt?.toISOString() ?? null,
-    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
-    revokedAt: row.revokedAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    count: 1,
-  };
-}

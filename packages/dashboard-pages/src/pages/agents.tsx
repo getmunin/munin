@@ -119,8 +119,7 @@ export function AgentsPage() {
                     : token.expiresAt !== null && new Date(token.expiresAt) < new Date()
                       ? 'expired'
                       : 'active';
-                const typeLabel = labelForType(token.type, t);
-                const primaryName = token.origin ?? typeLabel;
+                const primaryName = token.origin ?? '—';
                 const issued = format.dateTime(new Date(token.createdAt), {
                   month: 'short',
                   day: 'numeric',
@@ -246,15 +245,4 @@ function StatusChip({
       {label}
     </span>
   );
-}
-
-function labelForType(
-  type: string,
-  t: ReturnType<typeof useTranslations<'dashboard.agents'>>,
-): string {
-  if (type === 'oauth_access') return t('types.oauth_access');
-  if (type === 'oauth_refresh') return t('types.oauth_refresh');
-  if (type === 'delegated_end_user') return t('types.delegated_end_user');
-  if (type === 'guest') return t('types.guest');
-  return type;
 }

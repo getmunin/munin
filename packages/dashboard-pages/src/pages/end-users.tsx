@@ -138,14 +138,9 @@ export function EndUsersPage() {
                 <tr key={eu.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
                   <td className="py-4 pr-4">
                     <div className="flex items-center gap-3">
-                      <Avatar name={eu.name} />
-                      <div>
-                        <div className="text-sm font-medium text-ink dark:text-foreground">
-                          {eu.name ?? '—'}
-                        </div>
-                        <div className="font-mono text-[11px] text-ink-mute">
-                          {eu.email ?? eu.phone ?? '—'}
-                        </div>
+                      <Avatar name={eu.name} email={eu.email} />
+                      <div className="text-sm font-medium text-ink dark:text-foreground">
+                        {eu.name ?? eu.email ?? eu.phone ?? '—'}
                       </div>
                     </div>
                   </td>
@@ -189,19 +184,26 @@ function Th({ children, className }: { children?: ReactNode; className?: string 
   );
 }
 
-function Avatar({ name }: { name: string | null }) {
-  const initials =
-    name && name !== '—'
-      ? name
-          .split(/\s+/)
-          .map((s) => s[0])
-          .join('')
-          .slice(0, 2)
-          .toUpperCase()
-      : '?';
+function Avatar({ name, email }: { name: string | null; email: string | null }) {
   return (
     <span className="inline-flex size-9 items-center justify-center rounded-full bg-paper-deep dark:bg-secondary font-mono text-[11px] uppercase text-ink dark:text-foreground">
-      {initials}
+      {avatarInitials(name, email)}
     </span>
   );
+}
+
+function avatarInitials(name: string | null, email: string | null): string {
+  const trimmedName = name?.trim();
+  if (trimmedName) {
+    return trimmedName
+      .split(/\s+/)
+      .map((s) => s[0])
+      .filter(Boolean)
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  }
+  const trimmedEmail = email?.trim();
+  if (trimmedEmail) return trimmedEmail[0]!.toUpperCase();
+  return '?';
 }

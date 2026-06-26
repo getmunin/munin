@@ -19,6 +19,7 @@ interface TokenDto {
   audiences: string[];
   origin: string | null;
   iconUrl: string | null;
+  user?: { name: string | null; email: string } | null;
   endUserId: string | null;
   expiresAt: string | null;
   lastUsedAt: string | null;
@@ -149,9 +150,12 @@ export function AgentsPage() {
                         <ClientGlyph iconUrl={token.iconUrl} name={primaryName} />
                         <span>
                           {primaryName}
-                          {(token.count ?? 1) > 1 && (
-                            <span className="ml-1.5 font-normal text-ink-mute">
-                              · {t('connections', { count: token.count! })}
+                          {token.user && (
+                            <span
+                              className="ml-1.5 font-normal text-ink-mute"
+                              title={token.user.email}
+                            >
+                              · {token.user.name ?? token.user.email}
                             </span>
                           )}
                         </span>

@@ -1,5 +1,39 @@
 # @getmunin/backend-core
 
+## 4.60.0
+
+### Minor Changes
+
+- c713b77: feat(conv): reopen on reply across channels + auto-close conversations waiting on the user
+
+  Inbound replies now reopen a `closed`/`snoozed` conversation on every channel, not just the chat widget. A shared `reopenClosedConversation` helper is wired into the email adapter's threaded-reply path (and the widget path now reuses it), emitting `conversation.status_changed` when a conversation actually transitions back to `open`.
+
+  A new deterministic backend sweep (`ConvSchedulerService`, hourly by default) auto-closes non-voice conversations that have been waiting on the end-user: open, last public message from an AI agent or human teammate, and idle past a threshold (default 2 days). Closing reuses the existing `changeStatus` path, so it clears human-attention flags, releases the runner lease, emits the status webhook, and enqueues CRM contact extraction — identical to an operator close. Configurable via `MUNIN_CONV_AUTO_CLOSE_CRON`, `MUNIN_CONV_AUTO_CLOSE_DAYS`, and `MUNIN_CONV_AUTO_CLOSE_DISABLED`.
+
+### Patch Changes
+
+- 84ee716: feat(access): show the authorizing member on each flock row
+
+  The flock (Settings → Agents) groups OAuth connections by client _and_ the org member who authorized them, but only the client name was shown — so two members who each connected, say, Claude produced two visually identical rows with no way to tell whose access a revoke would cut off.
+
+  `GET /v1/tokens` now joins the authorizing user and returns `user: { name, email }` per row. The Agents page shows that member inline after the client name ("Claude · Kjell Rune Monsø", with the email on hover and as the fallback when no name is set), replacing the "· N connections" count — which only reflected dynamic-client-registration reconnects and wasn't actionable, since a row already represents one member's access to one client and revoke cuts off that whole group.
+
+- a393617: fix(outreach): correct fresh-email subject, unsubscribe domain, and link rendering
+
+  - Only prepend `Re:` to outbound email subjects when the message is an actual reply (the conversation has prior messages or an `In-Reply-To` header); fresh outreach sends keep their subject verbatim.
+  - Build the unsubscribe URL from the API domain (`MUNIN_API_URL`) like other transactional emails, instead of the MCP domain.
+  - Render the unsubscribe footer as a markdown link (`[Unsubscribe](…)`) so it shows as an "Unsubscribe" link in the HTML email instead of a full URL.
+
+- 6719043: Dashboard: replace the single "last conversation" widget with "Last open conversations" — the 20 most recently active open conversations, newest first, with closed/snoozed/spam filtered out.
+
+  Conversations: add a snooze-wake worker that reopens snoozed conversations once their `snoozeUntil` elapses, flagging them as needing human attention so they resurface in the inbox. Previously `snoozeUntil` was stored but never honored, so timed snoozes never woke on their own.
+  - @getmunin/core@4.60.0
+  - @getmunin/db@4.60.0
+  - @getmunin/types@4.60.0
+  - @getmunin/mcp-toolkit@4.60.0
+  - @getmunin/agent-runtime@4.60.0
+  - @getmunin/emails@4.60.0
+
 ## 4.59.2
 
 ### Patch Changes

@@ -367,7 +367,7 @@
         "days": "{n}d"
       },
       "recentConversations": {
-        "eyebrow": "Last conversations",
+        "eyebrow": "Last open conversations",
         "meta": "All channels",
         "untitled": "Conversation #{displayId}",
         "status": {

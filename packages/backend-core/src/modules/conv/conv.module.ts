@@ -26,6 +26,7 @@ import { ChannelIngestService } from './channels/channel-ingest.service.ts';
 import { ChannelWebhookController } from './channels/channel-webhook.controller.ts';
 import { InboundPollWorker } from './channels/inbound-poll.worker.ts';
 import { OutboundDeliveryWorker } from './channels/outbound-delivery.worker.ts';
+import { SnoozeWakeWorker } from './snooze-wake.worker.ts';
 import { MessageBirdClientService } from './messagebird/messagebird-client.service.ts';
 import { MessageBirdSmsAdapter } from './messagebird/messagebird-sms-adapter.ts';
 import { MessageBirdSmsAdminTools } from './messagebird/messagebird-sms.tools.ts';
@@ -69,6 +70,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ChannelIngestService,
     InboundPollWorker,
     OutboundDeliveryWorker,
+    SnoozeWakeWorker,
     MessageBirdClientService,
     MessageBirdSmsService,
     MessageBirdSmsAdapter,

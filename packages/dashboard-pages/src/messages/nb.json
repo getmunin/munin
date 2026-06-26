@@ -367,7 +367,7 @@
         "days": "{n}d"
       },
       "recentConversations": {
-        "eyebrow": "Siste samtaler",
+        "eyebrow": "Siste åpne samtaler",
         "meta": "Alle kanaler",
         "untitled": "Samtale #{displayId}",
         "status": {

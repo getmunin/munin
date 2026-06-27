@@ -555,6 +555,14 @@ export class CrmService {
     const actor = ctx.actor!;
     if (!input.name.trim()) throw new CrmInvalidError('segment name must be non-empty');
     const filter = normaliseFilter(input.filter);
+    const existing = await ctx.db
+      .select({ id: schema.crmSegments.id })
+      .from(schema.crmSegments)
+      .where(and(eq(schema.crmSegments.orgId, actor.orgId), eq(schema.crmSegments.name, input.name)))
+      .limit(1);
+    if (existing[0]) {
+      throw new ConflictException(`crm_conflict: segment with name "${input.name}" already exists`);
+    }
     try {
       const [row] = await ctx.db
         .insert(schema.crmSegments)
@@ -596,6 +604,15 @@ export class CrmService {
 
   async deleteSegment(id: string): Promise<{ deleted: true }> {
     const ctx = getCurrentContext();
+    const referencingCampaigns = await ctx.db
+      .select({ id: schema.outreachCampaigns.id })
+      .from(schema.outreachCampaigns)
+      .where(eq(schema.outreachCampaigns.segmentId, id));
+    if (referencingCampaigns.length > 0) {
+      throw new ConflictException(
+        `crm_conflict: segment ${id} is referenced by ${referencingCampaigns.length} outreach campaign(s); delete or repoint those campaigns first`,
+      );
+    }
     const result = await ctx.db
       .delete(schema.crmSegments)
       .where(eq(schema.crmSegments.id, id))

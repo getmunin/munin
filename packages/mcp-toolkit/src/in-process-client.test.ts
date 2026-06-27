@@ -65,6 +65,16 @@ function buildRegistry(): McpToolRegistry {
       throw new Error('handler exploded');
     },
   );
+  r.register(
+    {
+      name: 'void_tool',
+      description: 'returns undefined',
+      audiences: ['admin'],
+      scopes: [],
+      input: z.object({}),
+    },
+    () => undefined,
+  );
   return r;
 }
 
@@ -97,6 +107,21 @@ describe('openInProcessMcpClient', () => {
     expect(fakeAudit.record).toHaveBeenCalledWith(
       expect.objectContaining({ tool: 'echo', result: 'ok' }),
     );
+  });
+
+  it('callTool coerces a void return into a valid text result (never undefined)', async () => {
+    // Regression: JSON.stringify(undefined) === undefined, which fails the MCP
+    // CallToolResult schema and surfaces as a transport-level -32602 error.
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+    });
+    const out = await runInCtx(adminActor(), () => client.callTool('void_tool', {}));
+    expect(out.isError).toBeUndefined();
+    expect(out.content[0]).toEqual({ type: 'text', text: 'null' });
+    expect(typeof out.content[0]?.text).toBe('string');
   });
 
   it('callTool rejects an unknown tool with a denied audit row', async () => {

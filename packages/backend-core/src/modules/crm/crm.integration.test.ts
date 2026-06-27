@@ -265,6 +265,48 @@ const skipReason = TEST_URL
       expect(text).not.toMatch(/Alice/);
     });
   }, 30_000);
+
+  it('createSegment returns an actionable conflict on a duplicate name (not a 500)', async () => {
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'crm_create_segment',
+        arguments: { name: 'Duplicate Segment', filter: { tagsAny: ['vip'] } },
+      });
+      const dup = (await c.callTool({
+        name: 'crm_create_segment',
+        arguments: { name: 'Duplicate Segment', filter: { tagsAny: ['vip'] } },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(dup.isError).toBe(true);
+      expect(dup.content?.[0]?.text).toContain('crm_conflict');
+    });
+  }, 30_000);
+
+  it('deleteSegment returns an actionable conflict when referenced by a campaign (not a 500)', async () => {
+    await withClient(adminKey, async (c) => {
+      const seg = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'crm_create_segment',
+          arguments: { name: 'Referenced Segment', filter: { tagsAny: ['x'] } },
+        }),
+      );
+      const channel = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'conv_create_channel',
+          arguments: { type: 'email', vendor: 'smtp', name: 'Outreach Channel' },
+        }),
+      );
+      await c.callTool({
+        name: 'outreach_create_campaign',
+        arguments: { name: 'Spring Push', brief: 'Hello', segmentId: seg.id, channelId: channel.id },
+      });
+      const del = (await c.callTool({
+        name: 'crm_delete_segment',
+        arguments: { id: seg.id },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(del.isError).toBe(true);
+      expect(del.content?.[0]?.text).toMatch(/referenced by .*campaign/i);
+    });
+  }, 30_000);
 });
 
 function parseToolResult<T>(result: unknown): T {

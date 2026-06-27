@@ -37,6 +37,19 @@ Each module typically has `<mod>.module.ts`, `<mod>.service.ts`, `<mod>.tools.ts
 - Tool + skill enforcement lives in `packages/mcp-toolkit/src/server.ts`. Scopes are intersected against `actor.scopes` at call time.
 - The same `/mcp` serves admin agents (OAuth-authorized) and end-user agents (delegated tokens minted via `delegated-token.controller.ts`).
 
+### Adding a new MCP tool — checklist
+
+Tools are a public product surface and are reviewed for the Anthropic Software Directory (reviewers call every tool with valid params and scan its metadata). Keep new tools correct *and* compliant:
+
+- **Pre-check DB constraints — don't rely on `try/catch`.** A handler runs inside the request's outer tenant transaction, so a unique/FK violation poisons that transaction and the *commit* fails **after** your handler returns — past any in-handler catch — surfacing as a bare `500`. Guard *before* the failing statement: `SELECT` for an existing row (unique), check referencing rows before a delete (FK `restrict`), confirm an FK target exists before insert/update — then `throw new ConflictException('<module>_conflict: …')` / `BadRequestException(...)`. Pattern: `crm_create_pipeline` (unique), `crm_delete_segment` (FK), `conv_assign_conversation` (FK target). Never return a generic 500 — reviewers reject them.
+- **Never return `void`/`undefined` from a handler.** `JSON.stringify(undefined)` is `undefined`, which fails the MCP `CallToolResult` schema (`-32602`). Return a small object, e.g. `{ deleted: true, id }`. (Dispatch coalesces void → `null` as a backstop, but return something meaningful.)
+- **Annotations are required:** `title` plus exactly one hint — `readOnlyHint: true` for reads, `destructiveHint: true` for anything that writes/updates/deletes (read-only tools auto-run; destructive tools always prompt). Tool `name` ≤ 64 chars.
+- **Split read and write.** No tool that both reads and mutates, and no catch-all `method`-style param; keep `create` / `update` / `delete` as separate tools.
+- **Description = what it does and when to use it**, matching actual behavior. Don't tell Claude how to behave, don't direct it to call other tools, no hidden/encoded instructions — those are auto-rejected as prompt-injection.
+- **Zod input schema** for every input (drives validation + the published JSON schema); set `audiences` (admin vs end-user) and `scopes` (`<module>:read` / `<module>:write`).
+- **DB touch?** migration + RLS policy + per-module SQL (see Conventions).
+- **Test the conflict/validation paths, not just the happy path** (`*.test.ts` / `*.integration.test.ts`). To exercise the whole surface locally, drive `/mcp` with an admin key (`mn_admin_*`) over JSON-RPC and assert no `500`/`-32602`.
+
 ## Persistence
 
 - Postgres + pgvector. Schema in `packages/db/src/schema.ts`, migrations in `packages/db/drizzle/`. RLS policies in `packages/db/src/sql/rls.sql` (one policy per table, gated by the `app.org_id` and `app.bypass_rls` GUCs that `TenancyInterceptor` sets per request).

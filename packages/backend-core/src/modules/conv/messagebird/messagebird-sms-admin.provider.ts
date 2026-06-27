@@ -5,7 +5,7 @@ import type {
   ChannelAdminProvider,
   ConfigureChannelInput,
 } from '../channels/channel-admin.ts';
-import { ConfigureInput, MessageBirdSmsAdminTools } from './messagebird-sms.tools.ts';
+import { ConfigureInput, MessageBirdSmsAdminService } from './messagebird-sms-admin.service.ts';
 
 const ConfigSchema = ConfigureInput.omit({ channelId: true, name: true });
 
@@ -18,7 +18,7 @@ export class MessageBirdSmsAdminProvider implements ChannelAdminProvider {
   readonly configFields = describeConfigFields(ConfigSchema);
   readonly capabilities = { call: false, sendTest: true };
 
-  constructor(@Inject(MessageBirdSmsAdminTools) private readonly tools: MessageBirdSmsAdminTools) {}
+  constructor(@Inject(MessageBirdSmsAdminService) private readonly tools: MessageBirdSmsAdminService) {}
 
   configure(input: ConfigureChannelInput): Promise<ChannelAdminDto> {
     const config = ConfigSchema.parse(input.config);

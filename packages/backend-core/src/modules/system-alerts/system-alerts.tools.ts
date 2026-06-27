@@ -21,13 +21,14 @@ export class SystemAlertsTools {
 
   @McpTool({
     name: 'system_alerts_list',
-    title: 'System alerts: list',
+    title: 'System alerts: List',
     description:
       'List operational alerts for the org. Defaults to open alerts only; pass includeResolved to see history.',
     audiences: ['admin'],
     scopes: [],
     input: ListInput,
     readOnlyHint: true,
+    destructiveHint: false,
   })
   async list(args: z.infer<typeof ListInput>) {
     return { items: await this.service.list(args) };
@@ -35,12 +36,13 @@ export class SystemAlertsTools {
 
   @McpTool({
     name: 'system_alerts_get',
-    title: 'System alerts: get',
+    title: 'System alerts: Get',
     description: 'Read a single alert by id.',
     audiences: ['admin'],
     scopes: [],
     input: IdInput,
     readOnlyHint: true,
+    destructiveHint: false,
   })
   get(args: z.infer<typeof IdInput>) {
     return this.service.get(args.id);
@@ -48,7 +50,7 @@ export class SystemAlertsTools {
 
   @McpTool({
     name: 'system_alerts_acknowledge',
-    title: 'System alerts: acknowledge',
+    title: 'System alerts: Acknowledge',
     description: 'Mark an alert as acknowledged. Does not resolve it; only signals that someone is on it.',
     audiences: ['admin'],
     scopes: [],
@@ -62,7 +64,7 @@ export class SystemAlertsTools {
 
   @McpTool({
     name: 'system_alerts_resolve',
-    title: 'System alerts: resolve',
+    title: 'System alerts: Resolve',
     description:
       'Manually resolve the open alert for the given source+subject. Writers normally self-resolve; use this when the underlying state can no longer be observed.',
     audiences: ['admin'],

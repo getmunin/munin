@@ -66,7 +66,7 @@ export const ConfigureInput = z.object({
 });
 
 @Injectable()
-export class VapiAdminTools {
+export class VapiAdminService {
   constructor(
     @Inject(VapiService) private readonly svc: VapiService,
     @Inject(VapiClientService) private readonly client: VapiClientService,

@@ -5,7 +5,7 @@ import type {
   ChannelAdminProvider,
   ConfigureChannelInput,
 } from '../channels/channel-admin.ts';
-import { ConfigureInput, TwilioSmsAdminTools } from './twilio-sms.tools.ts';
+import { ConfigureInput, TwilioSmsAdminService } from './twilio-sms-admin.service.ts';
 
 const ConfigSchema = ConfigureInput.omit({ channelId: true, name: true });
 
@@ -18,7 +18,7 @@ export class TwilioSmsAdminProvider implements ChannelAdminProvider {
   readonly configFields = describeConfigFields(ConfigSchema);
   readonly capabilities = { call: false, sendTest: true };
 
-  constructor(@Inject(TwilioSmsAdminTools) private readonly tools: TwilioSmsAdminTools) {}
+  constructor(@Inject(TwilioSmsAdminService) private readonly tools: TwilioSmsAdminService) {}
 
   configure(input: ConfigureChannelInput): Promise<ChannelAdminDto> {
     const config = ConfigSchema.parse(input.config);

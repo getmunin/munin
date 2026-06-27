@@ -60,6 +60,7 @@ export class FeedbackTools {
     scopes: [],
     input: EmptyInput,
     readOnlyHint: true,
+    destructiveHint: false,
   })
   async list() {
     return { items: await this.service.listPending() };
@@ -73,6 +74,7 @@ export class FeedbackTools {
     scopes: [],
     input: IdInput,
     readOnlyHint: true,
+    destructiveHint: false,
   })
   get(args: z.infer<typeof IdInput>) {
     return this.service.get(args.id);
@@ -101,6 +103,7 @@ export class FeedbackTools {
     audiences: ['admin'],
     scopes: [],
     input: IdInput,
+    readOnlyHint: false,
     destructiveHint: true,
   })
   async dismiss(args: z.infer<typeof IdInput>) {
@@ -117,6 +120,7 @@ export class FeedbackTools {
     scopes: [],
     input: SearchInput,
     readOnlyHint: true,
+    destructiveHint: false,
   })
   async search(args: z.infer<typeof SearchInput>) {
     return { items: await this.service.search(args) };

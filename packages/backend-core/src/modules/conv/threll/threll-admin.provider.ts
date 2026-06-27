@@ -8,7 +8,7 @@ import type {
   ConfigureChannelInput,
   ListChannelOptionsInput,
 } from '../channels/channel-admin.ts';
-import { ConfigureInput, ThrellAdminTools, type ThrellListWorkersResult } from './threll.tools.ts';
+import { ConfigureInput, ThrellAdminService, type ThrellListWorkersResult } from './threll-admin.service.ts';
 
 const ConfigSchema = ConfigureInput.omit({ channelId: true, name: true });
 
@@ -26,7 +26,7 @@ export class ThrellAdminProvider implements ChannelAdminProvider {
   readonly configFields = describeConfigFields(ConfigSchema);
   readonly capabilities = { call: true, sendTest: false };
 
-  constructor(@Inject(ThrellAdminTools) private readonly tools: ThrellAdminTools) {}
+  constructor(@Inject(ThrellAdminService) private readonly tools: ThrellAdminService) {}
 
   configure(input: ConfigureChannelInput): Promise<ChannelAdminDto> {
     const config = ConfigSchema.parse(input.config);

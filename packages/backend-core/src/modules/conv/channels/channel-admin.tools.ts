@@ -41,7 +41,7 @@ const SendTestInput = z.object({
   body: z.string().min(1).max(1600).optional(),
 });
 
-const ListVendorsInput = z.object({});
+const EmptyInput = z.object({});
 
 const ListOptionsInput = z
   .object({
@@ -79,11 +79,11 @@ export class ChannelAdminTools {
       'List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_channel.',
     audiences: ['admin'],
     scopes: ['conv:read'],
-    input: ListVendorsInput,
+    input: EmptyInput,
     readOnlyHint: true,
     destructiveHint: false,
   })
-  listVendors(_args: z.infer<typeof ListVendorsInput>) {
+  listVendors() {
     return { vendors: this.svc.listVendors() };
   }
 

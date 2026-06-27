@@ -1,8 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, asc, eq, sql } from 'drizzle-orm';
-import { getCurrentContext } from '@getmunin/core';
+import { and, asc, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { getCurrentContext, randomToken } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
+import { mintApiKey } from '../../common/api-keys/api-key.helpers.ts';
+import { assertOriginAllowlistPopulated } from '../../common/allowlist.ts';
 import {
   decodeCursor,
   encodeCursor,
@@ -146,6 +148,43 @@ export interface RecordSearchInput {
   requireVerifiedIdentity?: boolean;
 }
 
+export interface TrackerSummary {
+  id: string;
+  name: string;
+  allowedOrigins: string[];
+  keyPrefix: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  requireVerifiedIdentity: boolean;
+  hasIdentityVerificationSecret: boolean;
+}
+
+export interface CreateTrackerResult extends TrackerSummary {
+  trackerKey: string;
+  identityVerificationSecret: string;
+}
+
+export interface RotateIdentitySecretResult {
+  trackerId: string;
+  identityVerificationSecret: string;
+}
+
+export interface RotateTrackerKeyResult {
+  trackerId: string;
+  trackerKey: string;
+  keyPrefix: string;
+}
+
+export interface FunnelStepArg {
+  label?: string;
+  subjectType?: string;
+  subjectId?: string;
+  pathLike?: string;
+}
+
+type ViewSource = 'pixel' | 'beacon' | 'tracker';
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
@@ -223,8 +262,6 @@ export class AnalyticsService {
       return null;
     }
   }
-
-  // ─── Transfer (import / export) ──────────────────────────────────────────
 
   async exportAnalyticsConfig(): Promise<AnalyticsConfigExport> {
     const ctx = getCurrentContext();
@@ -515,6 +552,764 @@ export class AnalyticsService {
 
     return result;
   }
+
+  async createTracker(args: {
+    name: string;
+    allowedOrigins?: string[];
+    requireVerifiedIdentity?: boolean;
+  }): Promise<CreateTrackerResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    assertOriginAllowlistPopulated({
+      origins: args.allowedOrigins ?? [],
+      envVar: 'MUNIN_TRACKER_REQUIRE_ALLOWLIST',
+      errorCode: 'allowed_origins_required',
+      field: 'allowedOrigins',
+    });
+    const identityVerificationSecret = randomToken(32);
+    const [tracker] = await ctx.db
+      .insert(schema.analyticsTrackers)
+      .values({
+        orgId: actor.orgId,
+        name: args.name,
+        allowedOrigins: args.allowedOrigins ?? [],
+        identityVerificationSecret,
+        requireVerifiedIdentity: args.requireVerifiedIdentity ?? false,
+      })
+      .returning();
+    const key = await mintApiKey(ctx.db, {
+      orgId: actor.orgId,
+      type: 'track',
+      name: args.name,
+      scopes: ['analytics:track:write'],
+      audiences: ['public'],
+      trackerId: tracker!.id,
+      createdByUserId: actor.userId ?? null,
+    });
+    return {
+      id: tracker!.id,
+      name: tracker!.name,
+      allowedOrigins: tracker!.allowedOrigins,
+      keyPrefix: key.keyPrefix,
+      createdAt: tracker!.createdAt.toISOString(),
+      lastUsedAt: null,
+      revokedAt: null,
+      requireVerifiedIdentity: tracker!.requireVerifiedIdentity,
+      hasIdentityVerificationSecret: true,
+      trackerKey: key.rawKey,
+      identityVerificationSecret,
+    };
+  }
+
+  async listTrackers(args: { includeRevoked?: boolean }): Promise<TrackerSummary[]> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select({
+        id: schema.analyticsTrackers.id,
+        name: schema.analyticsTrackers.name,
+        allowedOrigins: schema.analyticsTrackers.allowedOrigins,
+        createdAt: schema.analyticsTrackers.createdAt,
+        requireVerifiedIdentity: schema.analyticsTrackers.requireVerifiedIdentity,
+        identityVerificationSecret: schema.analyticsTrackers.identityVerificationSecret,
+        keyPrefix: schema.apiKeys.keyPrefix,
+        lastUsedAt: schema.apiKeys.lastUsedAt,
+        revokedAt: schema.apiKeys.revokedAt,
+      })
+      .from(schema.analyticsTrackers)
+      .leftJoin(
+        schema.apiKeys,
+        and(
+          eq(schema.apiKeys.trackerId, schema.analyticsTrackers.id),
+          eq(schema.apiKeys.type, 'track'),
+        ),
+      )
+      .where(eq(schema.analyticsTrackers.orgId, actor.orgId));
+    return rows
+      .filter((r) => args.includeRevoked || r.revokedAt === null)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        allowedOrigins: r.allowedOrigins,
+        keyPrefix: r.keyPrefix,
+        createdAt: r.createdAt.toISOString(),
+        lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
+        revokedAt: r.revokedAt?.toISOString() ?? null,
+        requireVerifiedIdentity: r.requireVerifiedIdentity,
+        hasIdentityVerificationSecret: r.identityVerificationSecret !== null,
+      }));
+  }
+
+  async updateTracker(args: {
+    trackerId: string;
+    name?: string;
+    allowedOrigins?: string[];
+    requireVerifiedIdentity?: boolean;
+  }): Promise<TrackerSummary> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const patch: {
+      name?: string;
+      allowedOrigins?: string[];
+      requireVerifiedIdentity?: boolean;
+      updatedAt: Date;
+    } = {
+      updatedAt: new Date(),
+    };
+    if (args.name !== undefined) patch.name = args.name;
+    if (args.allowedOrigins !== undefined) {
+      assertOriginAllowlistPopulated({
+        origins: args.allowedOrigins,
+        envVar: 'MUNIN_TRACKER_REQUIRE_ALLOWLIST',
+        errorCode: 'allowed_origins_required',
+        field: 'allowedOrigins',
+      });
+      patch.allowedOrigins = args.allowedOrigins;
+    }
+    if (args.requireVerifiedIdentity !== undefined)
+      patch.requireVerifiedIdentity = args.requireVerifiedIdentity;
+    const [updated] = await ctx.db
+      .update(schema.analyticsTrackers)
+      .set(patch)
+      .where(
+        and(
+          eq(schema.analyticsTrackers.id, args.trackerId),
+          eq(schema.analyticsTrackers.orgId, actor.orgId),
+        ),
+      )
+      .returning();
+    if (!updated) throw new NotFoundException(`tracker ${args.trackerId} not found`);
+    const [key] = await ctx.db
+      .select({
+        keyPrefix: schema.apiKeys.keyPrefix,
+        lastUsedAt: schema.apiKeys.lastUsedAt,
+        revokedAt: schema.apiKeys.revokedAt,
+      })
+      .from(schema.apiKeys)
+      .where(
+        and(eq(schema.apiKeys.trackerId, args.trackerId), eq(schema.apiKeys.type, 'track')),
+      )
+      .limit(1);
+    return {
+      id: updated.id,
+      name: updated.name,
+      allowedOrigins: updated.allowedOrigins,
+      keyPrefix: key?.keyPrefix ?? null,
+      createdAt: updated.createdAt.toISOString(),
+      lastUsedAt: key?.lastUsedAt?.toISOString() ?? null,
+      revokedAt: key?.revokedAt?.toISOString() ?? null,
+      requireVerifiedIdentity: updated.requireVerifiedIdentity,
+      hasIdentityVerificationSecret: updated.identityVerificationSecret !== null,
+    };
+  }
+
+  async rotateIdentitySecret(args: {
+    trackerId: string;
+  }): Promise<RotateIdentitySecretResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const identityVerificationSecret = randomToken(32);
+    const [updated] = await ctx.db
+      .update(schema.analyticsTrackers)
+      .set({ identityVerificationSecret, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.analyticsTrackers.id, args.trackerId),
+          eq(schema.analyticsTrackers.orgId, actor.orgId),
+        ),
+      )
+      .returning({ id: schema.analyticsTrackers.id });
+    if (!updated) throw new NotFoundException(`tracker ${args.trackerId} not found`);
+    return { trackerId: updated.id, identityVerificationSecret };
+  }
+
+  async rotateTrackerKey(args: { trackerId: string }): Promise<RotateTrackerKeyResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const tracker = await ctx.db
+      .select({ id: schema.analyticsTrackers.id, name: schema.analyticsTrackers.name })
+      .from(schema.analyticsTrackers)
+      .where(
+        and(
+          eq(schema.analyticsTrackers.id, args.trackerId),
+          eq(schema.analyticsTrackers.orgId, actor.orgId),
+        ),
+      )
+      .limit(1);
+    if (!tracker[0]) throw new NotFoundException(`tracker ${args.trackerId} not found`);
+
+    await ctx.db
+      .update(schema.apiKeys)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(
+          eq(schema.apiKeys.trackerId, args.trackerId),
+          eq(schema.apiKeys.orgId, actor.orgId),
+          eq(schema.apiKeys.type, 'track'),
+          isNull(schema.apiKeys.revokedAt),
+        ),
+      );
+
+    const key = await mintApiKey(ctx.db, {
+      orgId: actor.orgId,
+      type: 'track',
+      name: tracker[0].name,
+      scopes: ['analytics:track:write'],
+      audiences: ['public'],
+      trackerId: args.trackerId,
+      createdByUserId: actor.userId ?? null,
+    });
+    return { trackerId: args.trackerId, trackerKey: key.rawKey, keyPrefix: key.keyPrefix };
+  }
+
+  async revokeTracker(args: { trackerId: string }): Promise<{ revoked: boolean }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const tracker = await ctx.db
+      .select({ id: schema.analyticsTrackers.id })
+      .from(schema.analyticsTrackers)
+      .where(
+        and(
+          eq(schema.analyticsTrackers.id, args.trackerId),
+          eq(schema.analyticsTrackers.orgId, actor.orgId),
+        ),
+      )
+      .limit(1);
+    if (!tracker[0]) return { revoked: false };
+    const result = await ctx.db
+      .update(schema.apiKeys)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(
+          eq(schema.apiKeys.trackerId, args.trackerId),
+          eq(schema.apiKeys.orgId, actor.orgId),
+          eq(schema.apiKeys.type, 'track'),
+          isNull(schema.apiKeys.revokedAt),
+        ),
+      )
+      .returning({ id: schema.apiKeys.id });
+    return { revoked: result.length > 0 };
+  }
+
+  async topSubjects(args: {
+    subjectType?: string;
+    sinceDays: number;
+    limit: number;
+    source?: ViewSource;
+    endUserId?: string;
+    contactId?: string;
+  }): Promise<Array<{ subjectType: string; subjectId: string; views: number; visitors: number }>> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const conditions = this.viewWindowConditions(actor.orgId, args);
+    const endUserId = await this.resolveQueryEndUserId(args);
+    if (args.endUserId || args.contactId) {
+      if (!endUserId) return [];
+      conditions.push(sql`end_user_id = ${endUserId}`);
+    }
+    const where = sql.join(conditions, sql` AND `);
+    const rows = await ctx.db.execute<{
+      subject_type: string;
+      subject_id: string;
+      views: number;
+      visitors: number;
+    }>(sql`
+      SELECT subject_type, subject_id,
+             COUNT(*)::int AS views,
+             COUNT(DISTINCT visitor_id)::int AS visitors
+      FROM analytics_view_events
+      WHERE ${where}
+      GROUP BY subject_type, subject_id
+      ORDER BY views DESC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      subjectType: r.subject_type,
+      subjectId: r.subject_id,
+      views: r.views,
+      visitors: r.visitors,
+    }));
+  }
+
+  async topCountries(args: {
+    subjectType?: string;
+    sinceDays: number;
+    limit: number;
+    source?: ViewSource;
+  }): Promise<Array<{ country: string | null; views: number; visitors: number }>> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const where = sql.join(this.viewWindowConditions(actor.orgId, args), sql` AND `);
+    const rows = await ctx.db.execute<{
+      country: string | null;
+      views: number;
+      visitors: number;
+    }>(sql`
+      SELECT country,
+             COUNT(*)::int AS views,
+             COUNT(DISTINCT visitor_id)::int AS visitors
+      FROM analytics_view_events
+      WHERE ${where}
+      GROUP BY country
+      ORDER BY views DESC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      country: r.country,
+      views: r.views,
+      visitors: r.visitors,
+    }));
+  }
+
+  async trafficBySource(args: {
+    subjectType?: string;
+    sinceDays: number;
+    limit: number;
+    source?: ViewSource;
+  }): Promise<
+    Array<{
+      utmSource: string | null;
+      utmMedium: string | null;
+      utmCampaign: string | null;
+      views: number;
+      visitors: number;
+    }>
+  > {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const where = sql.join(this.viewWindowConditions(actor.orgId, args), sql` AND `);
+    const rows = await ctx.db.execute<{
+      utm_source: string | null;
+      utm_medium: string | null;
+      utm_campaign: string | null;
+      views: number;
+      visitors: number;
+    }>(sql`
+      SELECT utm_source, utm_medium, utm_campaign,
+             COUNT(*)::int AS views,
+             COUNT(DISTINCT visitor_id)::int AS visitors
+      FROM analytics_view_events
+      WHERE ${where}
+      GROUP BY utm_source, utm_medium, utm_campaign
+      ORDER BY views DESC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      utmSource: r.utm_source,
+      utmMedium: r.utm_medium,
+      utmCampaign: r.utm_campaign,
+      views: r.views,
+      visitors: r.visitors,
+    }));
+  }
+
+  async referrerHosts(args: {
+    subjectType?: string;
+    excludeHost?: string;
+    sinceDays: number;
+    limit: number;
+    source?: ViewSource;
+  }): Promise<Array<{ host: string | null; views: number; visitors: number }>> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const where = sql.join(this.viewWindowConditions(actor.orgId, args), sql` AND `);
+    const hostExpr = sql`NULLIF(substring(referrer FROM '^[a-zA-Z]+://([^/?#]+)'), '')`;
+    const exclude = args.excludeHost
+      ? sql`AND (${hostExpr} IS NULL OR ${hostExpr} <> ${args.excludeHost})`
+      : sql``;
+    const rows = await ctx.db.execute<{
+      host: string | null;
+      views: number;
+      visitors: number;
+    }>(sql`
+      SELECT ${hostExpr} AS host,
+             COUNT(*)::int AS views,
+             COUNT(DISTINCT visitor_id)::int AS visitors
+      FROM analytics_view_events
+      WHERE ${where} ${exclude}
+      GROUP BY host
+      ORDER BY views DESC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      host: r.host,
+      views: r.views,
+      visitors: r.visitors,
+    }));
+  }
+
+  async viewsOverTime(args: {
+    subjectType?: string;
+    subjectId?: string;
+    sinceDays: number;
+    source?: ViewSource;
+    endUserId?: string;
+    contactId?: string;
+  }): Promise<Array<{ day: string; views: number; visitors: number }>> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const eventConditions = this.viewWindowConditions(actor.orgId, args);
+    const endUserId = await this.resolveQueryEndUserId(args);
+    if (args.endUserId || args.contactId) {
+      if (!endUserId) {
+        return Array.from({ length: args.sinceDays }, (_, i) => {
+          const d = new Date(Date.now() - (args.sinceDays - 1 - i) * 86400000);
+          return { day: d.toISOString().slice(0, 10), views: 0, visitors: 0 };
+        });
+      }
+      eventConditions.push(sql`end_user_id = ${endUserId}`);
+    }
+    const eventWhere = sql.join(eventConditions, sql` AND `);
+    const rows = await ctx.db.execute<{
+      day: Date | string;
+      views: number;
+      visitors: number;
+    }>(sql`
+      WITH days AS (
+        SELECT generate_series(
+          date_trunc('day', NOW()) - ((${args.sinceDays} - 1) || ' days')::interval,
+          date_trunc('day', NOW()),
+          '1 day'::interval
+        )::date AS day
+      ),
+      counts AS (
+        SELECT date_trunc('day', created_at)::date AS day,
+               COUNT(*)::int AS views,
+               COUNT(DISTINCT visitor_id)::int AS visitors
+        FROM analytics_view_events
+        WHERE ${eventWhere}
+        GROUP BY 1
+      )
+      SELECT d.day, COALESCE(c.views, 0)::int AS views, COALESCE(c.visitors, 0)::int AS visitors
+      FROM days d
+      LEFT JOIN counts c ON c.day = d.day
+      ORDER BY d.day ASC
+    `);
+    return rows.map((r) => ({
+      day: typeof r.day === 'string' ? r.day : r.day.toISOString().slice(0, 10),
+      views: r.views,
+      visitors: r.visitors,
+    }));
+  }
+
+  async subjectEngagement(args: {
+    subjectType: string;
+    subjectId: string;
+    sinceDays: number;
+    endUserId?: string;
+    contactId?: string;
+  }): Promise<{
+    views: number;
+    visitors: number;
+    avgDwellMs: number | null;
+    avgReadDepth: number | null;
+    lastViewAt: string | null;
+  }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const conditions = [
+      sql`org_id = ${actor.orgId}`,
+      sql`subject_type = ${args.subjectType}`,
+      sql`subject_id = ${args.subjectId}`,
+      sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
+    ];
+    const endUserId = await this.resolveQueryEndUserId(args);
+    if (args.endUserId || args.contactId) {
+      if (!endUserId) {
+        return {
+          views: 0,
+          visitors: 0,
+          avgDwellMs: null,
+          avgReadDepth: null,
+          lastViewAt: null,
+        };
+      }
+      conditions.push(sql`end_user_id = ${endUserId}`);
+    }
+    const where = sql.join(conditions, sql` AND `);
+    const rows = await ctx.db.execute<{
+      views: number;
+      visitors: number;
+      avg_dwell_ms: number | null;
+      avg_read_depth: number | null;
+      last_view_at: Date | string | null;
+    }>(sql`
+      SELECT COUNT(*)::int AS views,
+             COUNT(DISTINCT visitor_id)::int AS visitors,
+             AVG(dwell_ms) FILTER (WHERE dwell_ms IS NOT NULL) AS avg_dwell_ms,
+             AVG(read_depth) FILTER (WHERE read_depth IS NOT NULL) AS avg_read_depth,
+             MAX(created_at) AS last_view_at
+      FROM analytics_view_events
+      WHERE ${where}
+    `);
+    const r = rows[0]!;
+    return {
+      views: r.views,
+      visitors: r.visitors,
+      avgDwellMs: r.avg_dwell_ms !== null ? Math.round(Number(r.avg_dwell_ms)) : null,
+      avgReadDepth: r.avg_read_depth !== null ? Math.round(Number(r.avg_read_depth)) : null,
+      lastViewAt: r.last_view_at ? new Date(r.last_view_at).toISOString() : null,
+    };
+  }
+
+  async funnel(args: {
+    steps: FunnelStepArg[];
+    sinceDays: number;
+    stepWindowHours?: number;
+    source?: ViewSource;
+  }): Promise<{
+    sinceDays: number;
+    steps: Array<{
+      index: number;
+      label: string;
+      actors: number;
+      conversionFromPrev: number | null;
+      dropFromPrev: number | null;
+      conversionFromStart: number;
+    }>;
+    overallConversion: number;
+  }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const steps = args.steps;
+
+    const prefilter = sql.join(
+      steps.map((s) => sql`(${funnelStepPredicate(s, sql.raw('ev'))})`),
+      sql` OR `,
+    );
+    const sourceCond = args.source ? sql` AND ev.source = ${args.source}` : sql``;
+
+    const ctes: SQL[] = [
+      sql`base AS (
+        SELECT COALESCE(vi.end_user_id, ev.visitor_id) AS actor,
+               ev.created_at AS created_at,
+               ev.subject_type AS subject_type,
+               ev.subject_id AS subject_id,
+               ev.path AS path
+        FROM analytics_view_events ev
+        LEFT JOIN analytics_visitor_identities vi
+          ON vi.org_id = ev.org_id AND vi.visitor_id = ev.visitor_id
+        WHERE ev.org_id = ${actor.orgId}
+          AND ev.created_at > NOW() - (${args.sinceDays} || ' days')::interval${sourceCond}
+          AND COALESCE(vi.end_user_id, ev.visitor_id) IS NOT NULL
+          AND (${prefilter})
+      )`,
+    ];
+
+    steps.forEach((step, i) => {
+      const name = sql.raw(`s${i}`);
+      const pred = funnelStepPredicate(step, sql.raw('b'));
+      if (i === 0) {
+        ctes.push(sql`${name} AS (
+          SELECT b.actor AS actor, MIN(b.created_at) AS t
+          FROM base b
+          WHERE ${pred}
+          GROUP BY b.actor
+        )`);
+      } else {
+        const prev = sql.raw(`s${i - 1}`);
+        const windowCond = args.stepWindowHours
+          ? sql` AND b.created_at <= ${prev}.t + (${args.stepWindowHours} || ' hours')::interval`
+          : sql``;
+        ctes.push(sql`${name} AS (
+          SELECT b.actor AS actor, MIN(b.created_at) AS t
+          FROM base b
+          JOIN ${prev} ON ${prev}.actor = b.actor
+          WHERE (${pred}) AND b.created_at > ${prev}.t${windowCond}
+          GROUP BY b.actor
+        )`);
+      }
+    });
+
+    const selectCols = steps.map(
+      (_, i) => sql`(SELECT COUNT(*)::int FROM ${sql.raw(`s${i}`)}) AS ${sql.raw(`step_${i}`)}`,
+    );
+    const rows = await ctx.db.execute<Record<string, number>>(
+      sql`WITH ${sql.join(ctes, sql`, `)} SELECT ${sql.join(selectCols, sql`, `)}`,
+    );
+    const counts = steps.map((_, i) => Number(rows[0]?.[`step_${i}`] ?? 0));
+    const first = counts[0] ?? 0;
+
+    return {
+      sinceDays: args.sinceDays,
+      steps: steps.map((step, i) => {
+        const actors = counts[i] ?? 0;
+        const prevCount = i > 0 ? counts[i - 1] ?? 0 : null;
+        return {
+          index: i + 1,
+          label: funnelStepLabel(step, i),
+          actors,
+          conversionFromPrev:
+            prevCount === null ? null : prevCount > 0 ? roundRate(actors / prevCount) : 0,
+          dropFromPrev:
+            prevCount === null ? null : prevCount > 0 ? roundRate(1 - actors / prevCount) : 0,
+          conversionFromStart: first > 0 ? roundRate(actors / first) : 0,
+        };
+      }),
+      overallConversion: first > 0 ? roundRate((counts[counts.length - 1] ?? 0) / first) : 0,
+    };
+  }
+
+  async contactJourney(args: {
+    endUserId?: string;
+    contactId?: string;
+    sinceDays: number;
+    limit: number;
+  }): Promise<
+    Array<{
+      kind: 'view' | 'search';
+      at: string;
+      subjectType: string | null;
+      subjectId: string | null;
+      path: string | null;
+      query: string | null;
+      resultCount: number | null;
+    }>
+  > {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const endUserId = await this.resolveQueryEndUserId(args);
+    if (!endUserId) return [];
+    const matchActor = sql`(end_user_id = ${endUserId} OR visitor_id IN (
+      SELECT visitor_id FROM analytics_visitor_identities
+      WHERE org_id = ${actor.orgId} AND end_user_id = ${endUserId}
+    ))`;
+    const rows = await ctx.db.execute<{
+      kind: 'view' | 'search';
+      at: Date | string;
+      subject_type: string | null;
+      subject_id: string | null;
+      path: string | null;
+      query: string | null;
+      result_count: number | null;
+    }>(sql`
+      SELECT 'view'::text AS kind,
+             created_at AS at,
+             subject_type,
+             subject_id,
+             path,
+             NULL::text AS query,
+             NULL::int AS result_count
+      FROM analytics_view_events
+      WHERE org_id = ${actor.orgId}
+        AND ${matchActor}
+        AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
+      UNION ALL
+      SELECT 'search'::text AS kind,
+             created_at AS at,
+             subject_type,
+             NULL::text AS subject_id,
+             NULL::text AS path,
+             query,
+             result_count
+      FROM analytics_search_events
+      WHERE org_id = ${actor.orgId}
+        AND ${matchActor}
+        AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
+      ORDER BY at ASC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      kind: r.kind,
+      at: new Date(r.at).toISOString(),
+      subjectType: r.subject_type,
+      subjectId: r.subject_id,
+      path: r.path,
+      query: r.query,
+      resultCount: r.result_count,
+    }));
+  }
+
+  async zeroResultSearches(args: {
+    subjectType?: string;
+    sinceDays: number;
+    limit: number;
+  }): Promise<Array<{ query: string; occurrences: number; lastSeenAt: string }>> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const conditions = [
+      sql`org_id = ${actor.orgId}`,
+      sql`result_count = 0`,
+      sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
+    ];
+    if (args.subjectType) conditions.push(sql`subject_type = ${args.subjectType}`);
+    const where = sql.join(conditions, sql` AND `);
+    const rows = await ctx.db.execute<{
+      query: string;
+      occurrences: number;
+      last_seen_at: Date | string;
+    }>(sql`
+      SELECT query,
+             COUNT(*)::int AS occurrences,
+             MAX(created_at) AS last_seen_at
+      FROM analytics_search_events
+      WHERE ${where}
+      GROUP BY query
+      ORDER BY occurrences DESC, last_seen_at DESC
+      LIMIT ${args.limit}
+    `);
+    return rows.map((r) => ({
+      query: r.query,
+      occurrences: r.occurrences,
+      lastSeenAt: new Date(r.last_seen_at).toISOString(),
+    }));
+  }
+
+  private viewWindowConditions(
+    orgId: string,
+    args: { sinceDays: number; subjectType?: string; subjectId?: string; source?: ViewSource },
+  ): SQL[] {
+    const conditions: SQL[] = [
+      sql`org_id = ${orgId}`,
+      sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
+    ];
+    if (args.subjectType) conditions.push(sql`subject_type = ${args.subjectType}`);
+    if (args.subjectId) conditions.push(sql`subject_id = ${args.subjectId}`);
+    if (args.source) conditions.push(sql`source = ${args.source}`);
+    return conditions;
+  }
+
+  private async resolveQueryEndUserId(args: {
+    endUserId?: string;
+    contactId?: string;
+  }): Promise<string | null> {
+    if (args.endUserId) return args.endUserId;
+    if (!args.contactId) return null;
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select({ endUserId: schema.crmContacts.endUserId })
+      .from(schema.crmContacts)
+      .where(
+        and(
+          eq(schema.crmContacts.id, args.contactId),
+          eq(schema.crmContacts.orgId, actor.orgId),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.endUserId ?? null;
+  }
+}
+
+function funnelStepPredicate(step: FunnelStepArg, alias: SQL): SQL {
+  const conds: SQL[] = [];
+  if (step.subjectType) conds.push(sql`${alias}.subject_type = ${step.subjectType}`);
+  if (step.subjectId) conds.push(sql`${alias}.subject_id = ${step.subjectId}`);
+  if (step.pathLike) conds.push(sql`${alias}.path LIKE ${step.pathLike}`);
+  return sql.join(conds, sql` AND `);
+}
+
+function funnelStepLabel(step: FunnelStepArg, index: number): string {
+  if (step.label) return step.label;
+  const parts: string[] = [];
+  if (step.subjectType) parts.push(step.subjectType);
+  if (step.subjectId) parts.push(step.subjectId);
+  if (step.pathLike) parts.push(`path~${step.pathLike}`);
+  return parts.join(':') || `step ${index + 1}`;
+}
+
+function roundRate(n: number): number {
+  return Number(n.toFixed(4));
 }
 
 function truncate(value: string | null | undefined, max: number): string | null {

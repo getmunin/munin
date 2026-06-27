@@ -1126,6 +1126,7 @@
       "saveAndContinue": "Save & continue",
       "checklist": {
         "provider": "Provider configured (<code>{url}</code>)",
+        "providerManaged": "Provider configured (<code>{name}</code>)",
         "fast": "Fast model — <code>{model}</code>",
         "smart": "Smart model — <code>{model}</code>"
       },

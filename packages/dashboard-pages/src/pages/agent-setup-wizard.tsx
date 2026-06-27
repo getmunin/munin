@@ -169,6 +169,8 @@ export function AgentSetupWizard({
           <Suspense fallback={null}>
             <ReadyCard
               config={config}
+              isManaged={isManaged}
+              managedProviderName={managedPreset?.name}
               importJobId={importJobId}
               importUrl={importUrl}
               onBack={() => setStep(4)}
@@ -182,12 +184,21 @@ export function AgentSetupWizard({
 
 interface ReadyCardProps {
   config: AgentConfigDto;
+  isManaged: boolean;
+  managedProviderName?: string;
   importJobId: string | null;
   importUrl: string | null;
   onBack: () => void;
 }
 
-function ReadyCard({ config, importJobId, importUrl, onBack }: ReadyCardProps) {
+function ReadyCard({
+  config,
+  isManaged,
+  managedProviderName,
+  importJobId,
+  importUrl,
+  onBack,
+}: ReadyCardProps) {
   const t = useTranslations('agentSetup');
   const tCommon = useTranslations('common');
   const searchParams = useSearchParams();
@@ -201,7 +212,9 @@ function ReadyCard({ config, importJobId, importUrl, onBack }: ReadyCardProps) {
     <code className="font-mono text-[13px] text-ink-soft dark:text-foreground/80">{chunks}</code>
   );
   const lines: ReactNode[] = [
-    t.rich('wizard.checklist.provider', { url: shortHost(config.providerBaseUrl), code }),
+    isManaged && managedProviderName
+      ? t.rich('wizard.checklist.providerManaged', { name: managedProviderName, code })
+      : t.rich('wizard.checklist.provider', { url: shortHost(config.providerBaseUrl), code }),
     t.rich('wizard.checklist.fast', { model: config.fastModel, code }),
     t.rich('wizard.checklist.smart', { model: config.smartModel ?? config.fastModel, code }),
   ];

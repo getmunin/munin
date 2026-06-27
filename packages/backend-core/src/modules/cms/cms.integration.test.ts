@@ -570,6 +570,18 @@ const skipReason = TEST_URL
       );
     });
   }, 30_000);
+
+  it('createLocale returns an actionable conflict on a duplicate code (not a 500)', async () => {
+    await withClient(adminKey, async (c) => {
+      await c.callTool({ name: 'cms_create_locale', arguments: { code: 'nl', name: 'Dutch' } });
+      const dup = (await c.callTool({
+        name: 'cms_create_locale',
+        arguments: { code: 'nl', name: 'Dutch (dup)' },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(dup.isError).toBe(true);
+      expect(dup.content?.[0]?.text).toContain('cms_locale_conflict');
+    });
+  }, 30_000);
 });
 
 function retarget(url: string, baseUrl: string): string {

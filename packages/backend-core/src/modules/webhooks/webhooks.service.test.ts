@@ -93,9 +93,12 @@ const skipReason = TEST_URL
     );
   });
 
-  it('delete removes the row; second delete is 404', async () => {
+  it('delete removes the row, returns a serializable result; second delete is 404', async () => {
     const created = await run(() => svc.create({ url: 'https://hooks.example.com/h' }));
-    await run(() => svc.delete(created.id));
+    // Must return a value (not void): a void return serializes to undefined content
+    // and trips the MCP CallToolResult schema (-32602).
+    const result = await run(() => svc.delete(created.id));
+    expect(result).toEqual({ deleted: true, id: created.id });
     expect(await run(() => svc.list())).toHaveLength(0);
     await expect(run(() => svc.delete(created.id))).rejects.toThrow(NotFoundException);
   });

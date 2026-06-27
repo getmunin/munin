@@ -8,7 +8,7 @@ import {
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConvService, ConvInvalidError } from './conv.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
@@ -44,6 +44,7 @@ const skipReason = TEST_URL
       .values({ email: `conv-svc-test-${ts}@example.com`, name: 'Test User' })
       .returning();
     userId = user!.id;
+    await db.insert(schema.orgMembers).values({ orgId, userId });
     actor = new ActorIdentity('admin_agent', 'agt_conv_test', orgId, ['*'], ['admin']);
 
     const dispatcher = new WebhookDispatcher();
@@ -453,6 +454,13 @@ const skipReason = TEST_URL
       await expect(
         run(() => svc.assignConversation({ id: randomUUID(), assigneeUserId: null })),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('assignConversation rejects a non-member assignee (no constraint 500)', async () => {
+      const conv = await seedConv();
+      await expect(
+        run(() => svc.assignConversation({ id: conv.id, assigneeUserId: 'user_not_a_member' })),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('changeStatus open/closed/spam transitions emit webhook', async () => {

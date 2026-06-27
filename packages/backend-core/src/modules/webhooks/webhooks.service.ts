@@ -145,7 +145,7 @@ export class WebhooksService {
     return toDto(result[0]);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string): Promise<{ deleted: true; id: string }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const result = await ctx.db
@@ -153,6 +153,7 @@ export class WebhooksService {
       .where(and(eq(schema.webhooks.id, id), eq(schema.webhooks.orgId, actor.orgId)))
       .returning({ id: schema.webhooks.id });
     if (result.length === 0) throw new NotFoundException(`webhook ${id} not found`);
+    return { deleted: true, id };
   }
 
   async rotateSecret(id: string): Promise<WebhookDto> {

@@ -1,4 +1,11 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
@@ -288,6 +295,14 @@ export class ConvService {
     const actor = ctx.actor!;
     if (!isValidSlug(input.slug)) {
       throw new ConvInvalidError('slug must be lowercase letters, digits and hyphens (1-64 chars)');
+    }
+    const existing = await ctx.db
+      .select({ id: schema.convTopics.id })
+      .from(schema.convTopics)
+      .where(and(eq(schema.convTopics.orgId, actor.orgId), eq(schema.convTopics.slug, input.slug)))
+      .limit(1);
+    if (existing[0]) {
+      throw new ConflictException(`conv_topic_slug_conflict: ${input.slug}`);
     }
     const [row] = await ctx.db
       .insert(schema.convTopics)
@@ -979,6 +994,24 @@ export class ConvService {
     assigneeUserId: string | null;
   }): Promise<ConversationSummary> {
     const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (input.assigneeUserId !== null) {
+      const member = await ctx.db
+        .select({ userId: schema.orgMembers.userId })
+        .from(schema.orgMembers)
+        .where(
+          and(
+            eq(schema.orgMembers.orgId, actor.orgId),
+            eq(schema.orgMembers.userId, input.assigneeUserId),
+          ),
+        )
+        .limit(1);
+      if (!member[0]) {
+        throw new BadRequestException(
+          `conv_invalid: user ${input.assigneeUserId} is not a member of this org`,
+        );
+      }
+    }
     const result = await ctx.db
       .update(schema.convConversations)
       .set({ assigneeUserId: input.assigneeUserId, updatedAt: new Date() })

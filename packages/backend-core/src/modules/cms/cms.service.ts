@@ -901,6 +901,9 @@ export class CmsService {
       .from(schema.cmsLocales)
       .where(eq(schema.cmsLocales.orgId, actor.orgId))
       .orderBy(desc(schema.cmsLocales.position));
+    if (existing.some((l) => l.code === input.code)) {
+      throw new ConflictException(`cms_locale_conflict: ${input.code}`);
+    }
     const position = existing[0] ? existing[0].position + 1 : 0;
     const isDefault = input.isDefault ?? existing.length === 0;
     if (isDefault) {

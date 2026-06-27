@@ -502,6 +502,49 @@ const skipReason = TEST_URL
       expect(detail.needsHumanAttentionAt).toBeNull();
     });
   }, 30_000);
+
+  it('createTopic returns an actionable conflict on a duplicate slug (not a 500)', async () => {
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_create_topic',
+        arguments: { name: 'Billing', slug: 'billing' },
+      });
+      const dup = (await c.callTool({
+        name: 'conv_create_topic',
+        arguments: { name: 'Billing 2', slug: 'billing' },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(dup.isError).toBe(true);
+      expect(dup.content?.[0]?.text).toContain('conv_topic_slug_conflict');
+    });
+  }, 30_000);
+
+  it('assignConversation rejects a non-member assignee with an actionable error (not a 500)', async () => {
+    await withClient(adminKey, async (c) => {
+      const importId = `it-${Date.now()}`;
+      await c.callTool({
+        name: 'conv_import',
+        arguments: {
+          records: {
+            channels: [{ id: importId, type: 'email', vendor: 'smtp', name: 'Imported', active: true }],
+            conversations: [
+              { id: `${importId}-c`, channelId: importId, subject: 'Hi', status: 'open', topicSlug: null, agentMode: 'auto' },
+            ],
+            messages: [],
+          },
+        },
+      });
+      const list = parseToolResult<Array<{ id: string }>>(
+        await c.callTool({ name: 'conv_list_conversations', arguments: {} }),
+      );
+      const conversationId = list[0]!.id;
+      const assigned = (await c.callTool({
+        name: 'conv_assign_conversation',
+        arguments: { id: conversationId, assigneeUserId: 'user_does_not_exist' },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(assigned.isError).toBe(true);
+      expect(assigned.content?.[0]?.text).toMatch(/not a member/i);
+    });
+  }, 30_000);
 });
 
 function parseToolResult<T>(result: unknown): T {

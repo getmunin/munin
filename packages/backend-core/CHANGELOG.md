@@ -1,5 +1,45 @@
 # @getmunin/backend-core
 
+## 4.61.0
+
+### Minor Changes
+
+- 86bf3d0: Add `analytics_get_funnel`: an admin MCP tool that computes ordered conversion funnels (per-step visitor counts, conversion and drop-off rates) from page-view events. Steps match by `subjectType`/`subjectId` and/or a `pathLike` pattern, are strictly ordered, and support an optional per-step time budget (`stepWindowHours`). Visitors are grouped by their identified end-user when known (else their anonymous `visitor_id`), so a journey crossing the anonymous → identified boundary isn't double-counted.
+
+  `analytics_get_contact_journey` now resolves the `visitor_id → end_user` link at read time, so a contact's page-views and searches recorded _before_ they identified are included retroactively (no backfill).
+
+  Adds an `analytics_view_events (org_id, visitor_id, created_at)` index to back visitor-grouped scans.
+
+### Patch Changes
+
+- f92d186: Fix MCP tools that returned a bare `500 Internal server error` or an invalid result on otherwise-valid input. Database constraint violations are now caught before they fire and surface as actionable tool errors:
+
+  - `crm_create_segment` — duplicate segment name now returns `crm_conflict` instead of a 500.
+  - `conv_create_topic` — duplicate slug now returns `conv_topic_slug_conflict` instead of a 500.
+  - `cms_create_locale` — duplicate locale code now returns `cms_locale_conflict` instead of a 500.
+  - `crm_delete_segment` — deleting a segment referenced by an outreach campaign now explains the conflict (and how to resolve it) instead of a 500.
+  - `conv_assign_conversation` — assigning to a user who is not a member of the org now returns a clear `conv_invalid` error instead of a 500.
+  - `webhooks_delete` — now returns `{ deleted, id }` instead of nothing; a void return serialized to `undefined` content and tripped the MCP `CallToolResult` schema (`-32602`).
+
+  The MCP dispatch layer also coalesces a void tool return to a valid `null` text result so a future void-returning tool can't produce a transport-level error.
+
+- 8e0d50e: Tidy the MCP tools layer for consistency. No tool names, input schemas, or output shapes change.
+
+  - Analytics: moved tracker CRUD and all reporting queries out of `AnalyticsAdminTools` into `AnalyticsService`, leaving the tool methods as thin delegators (matching every other module). Inline Zod schemas are now named consts inferred with `z.infer`, dropping the hand-maintained arg types.
+  - Widget: extracted channel/key logic from `WidgetAdminTools` into a new `WidgetChannelAdminService`; the tool class now delegates.
+  - Shared the duplicated API-key minting and origin-allowlist checks (analytics + widget) into `common/` helpers.
+  - Renamed the vendor channel-admin files/classes that carried no `@McpTool` from `*.tools.ts`/`*AdminTools` to `*-admin.service.ts`/`*AdminService` (Twilio, MessageBird, Vapi, Threll).
+  - Standardized empty-input schemas on the shared `EmptyInput`, set both `readOnlyHint` and `destructiveHint` on every feedback/system-alerts tool, and fixed `system_alerts_*` title casing.
+
+- Updated dependencies [86bf3d0]
+- Updated dependencies [f92d186]
+  - @getmunin/db@4.61.0
+  - @getmunin/mcp-toolkit@4.61.0
+  - @getmunin/core@4.61.0
+  - @getmunin/agent-runtime@4.61.0
+  - @getmunin/types@4.61.0
+  - @getmunin/emails@4.61.0
+
 ## 4.60.0
 
 ### Minor Changes

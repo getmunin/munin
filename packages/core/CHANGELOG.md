@@ -1,5 +1,13 @@
 # @getmunin/core
 
+## 4.61.0
+
+### Patch Changes
+
+- Updated dependencies [86bf3d0]
+  - @getmunin/db@4.61.0
+  - @getmunin/types@4.61.0
+
 ## 4.60.0
 
 ### Patch Changes

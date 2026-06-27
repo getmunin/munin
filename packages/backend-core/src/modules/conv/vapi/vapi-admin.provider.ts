@@ -8,7 +8,7 @@ import type {
   ConfigureChannelInput,
   ListChannelOptionsInput,
 } from '../channels/channel-admin.ts';
-import { ConfigureInput, VapiAdminTools, type VapiListAssistantsResult } from './vapi.tools.ts';
+import { ConfigureInput, VapiAdminService, type VapiListAssistantsResult } from './vapi-admin.service.ts';
 
 const ConfigSchema = ConfigureInput.omit({ channelId: true, name: true });
 
@@ -23,7 +23,7 @@ export class VapiAdminProvider implements ChannelAdminProvider {
   readonly configFields = describeConfigFields(ConfigSchema);
   readonly capabilities = { call: true, sendTest: false };
 
-  constructor(@Inject(VapiAdminTools) private readonly tools: VapiAdminTools) {}
+  constructor(@Inject(VapiAdminService) private readonly tools: VapiAdminService) {}
 
   configure(input: ConfigureChannelInput): Promise<ChannelAdminDto> {
     const config = ConfigSchema.parse(input.config);

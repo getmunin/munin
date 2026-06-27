@@ -48,7 +48,7 @@ export const ConfigureInput = z.object({
 });
 
 @Injectable()
-export class MessageBirdSmsAdminTools {
+export class MessageBirdSmsAdminService {
   constructor(
     @Inject(MessageBirdSmsService) private readonly svc: MessageBirdSmsService,
     @Inject(MessageBirdClientService) private readonly client: MessageBirdClientService,

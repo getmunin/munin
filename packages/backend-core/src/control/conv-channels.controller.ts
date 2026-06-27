@@ -20,10 +20,10 @@ import { RequireRole } from './role.decorator.ts';
 import { ConvService, type ChannelDto } from '../modules/conv/conv.service.ts';
 import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.ts';
 import { EmailAdminTools } from '../modules/conv/email/email.tools.ts';
-import { TwilioSmsAdminTools } from '../modules/conv/twilio/twilio-sms.tools.ts';
-import { MessageBirdSmsAdminTools } from '../modules/conv/messagebird/messagebird-sms.tools.ts';
-import { VapiAdminTools } from '../modules/conv/vapi/vapi.tools.ts';
-import { ThrellAdminTools } from '../modules/conv/threll/threll.tools.ts';
+import { TwilioSmsAdminService } from '../modules/conv/twilio/twilio-sms-admin.service.ts';
+import { MessageBirdSmsAdminService } from '../modules/conv/messagebird/messagebird-sms-admin.service.ts';
+import { VapiAdminService } from '../modules/conv/vapi/vapi-admin.service.ts';
+import { ThrellAdminService } from '../modules/conv/threll/threll-admin.service.ts';
 import { ChannelAdminService } from '../modules/conv/channels/channel-admin.service.ts';
 import {
   CreateWidgetBody,
@@ -57,10 +57,10 @@ export class ConvChannelsController {
     private readonly conv: ConvService,
     private readonly widgetTools: WidgetAdminTools,
     private readonly emailTools: EmailAdminTools,
-    private readonly twilioSmsTools: TwilioSmsAdminTools,
-    private readonly messageBirdSmsTools: MessageBirdSmsAdminTools,
-    private readonly vapiTools: VapiAdminTools,
-    private readonly threllTools: ThrellAdminTools,
+    private readonly twilioSmsTools: TwilioSmsAdminService,
+    private readonly messageBirdSmsTools: MessageBirdSmsAdminService,
+    private readonly vapiTools: VapiAdminService,
+    private readonly threllTools: ThrellAdminService,
     private readonly channelAdmin: ChannelAdminService,
   ) {}
 
@@ -173,7 +173,7 @@ export class ConvChannelsController {
   @HttpCode(200)
   async configureTwilioSms(
     @Body() body: unknown,
-  ): Promise<Awaited<ReturnType<TwilioSmsAdminTools['configure']>>> {
+  ): Promise<Awaited<ReturnType<TwilioSmsAdminService['configure']>>> {
     const parsed = ConfigureTwilioSmsBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.twilioSmsTools.configure(parsed.data);
@@ -183,7 +183,7 @@ export class ConvChannelsController {
   @HttpCode(200)
   async testTwilioSms(
     @Param('id') id: string,
-  ): Promise<Awaited<ReturnType<TwilioSmsAdminTools['testChannel']>>> {
+  ): Promise<Awaited<ReturnType<TwilioSmsAdminService['testChannel']>>> {
     return this.twilioSmsTools.testChannel({ channelId: id });
   }
 
@@ -192,7 +192,7 @@ export class ConvChannelsController {
   async sendTwilioSmsTest(
     @Param('id') id: string,
     @Body() body: unknown,
-  ): Promise<Awaited<ReturnType<TwilioSmsAdminTools['sendTest']>>> {
+  ): Promise<Awaited<ReturnType<TwilioSmsAdminService['sendTest']>>> {
     const parsed = SendTwilioSmsTestBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.twilioSmsTools.sendTest({
@@ -206,7 +206,7 @@ export class ConvChannelsController {
   @HttpCode(200)
   async configureMessageBirdSms(
     @Body() body: unknown,
-  ): Promise<Awaited<ReturnType<MessageBirdSmsAdminTools['configure']>>> {
+  ): Promise<Awaited<ReturnType<MessageBirdSmsAdminService['configure']>>> {
     const parsed = ConfigureMessageBirdSmsBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.messageBirdSmsTools.configure(parsed.data);
@@ -216,7 +216,7 @@ export class ConvChannelsController {
   @HttpCode(200)
   async testMessageBirdSms(
     @Param('id') id: string,
-  ): Promise<Awaited<ReturnType<MessageBirdSmsAdminTools['testChannel']>>> {
+  ): Promise<Awaited<ReturnType<MessageBirdSmsAdminService['testChannel']>>> {
     return this.messageBirdSmsTools.testChannel({ channelId: id });
   }
 
@@ -225,7 +225,7 @@ export class ConvChannelsController {
   async sendMessageBirdSmsTest(
     @Param('id') id: string,
     @Body() body: unknown,
-  ): Promise<Awaited<ReturnType<MessageBirdSmsAdminTools['sendTest']>>> {
+  ): Promise<Awaited<ReturnType<MessageBirdSmsAdminService['sendTest']>>> {
     const parsed = SendMessageBirdSmsTestBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.messageBirdSmsTools.sendTest({
@@ -239,7 +239,7 @@ export class ConvChannelsController {
   @HttpCode(200)
   async configureVapi(
     @Body() body: unknown,
-  ): Promise<Awaited<ReturnType<VapiAdminTools['configure']>>> {
+  ): Promise<Awaited<ReturnType<VapiAdminService['configure']>>> {
     const parsed = ConfigureVapiBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.vapiTools.configure(parsed.data);
@@ -249,7 +249,7 @@ export class ConvChannelsController {
   @HttpCode(200)
   async testVapi(
     @Param('id') id: string,
-  ): Promise<Awaited<ReturnType<VapiAdminTools['testChannel']>>> {
+  ): Promise<Awaited<ReturnType<VapiAdminService['testChannel']>>> {
     return this.vapiTools.testChannel({ channelId: id });
   }
 
@@ -258,7 +258,7 @@ export class ConvChannelsController {
   async vapiCall(
     @Param('id') id: string,
     @Body() body: unknown,
-  ): Promise<Awaited<ReturnType<VapiAdminTools['callInitiate']>>> {
+  ): Promise<Awaited<ReturnType<VapiAdminService['callInitiate']>>> {
     const parsed = VapiCallInitiateBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.vapiTools.callInitiate({
@@ -272,7 +272,7 @@ export class ConvChannelsController {
   @HttpCode(200)
   async configureThrell(
     @Body() body: unknown,
-  ): Promise<Awaited<ReturnType<ThrellAdminTools['configure']>>> {
+  ): Promise<Awaited<ReturnType<ThrellAdminService['configure']>>> {
     const parsed = ConfigureThrellBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.threllTools.configure(parsed.data);
@@ -300,7 +300,7 @@ export class ConvChannelsController {
   @HttpCode(200)
   async testThrell(
     @Param('id') id: string,
-  ): Promise<Awaited<ReturnType<ThrellAdminTools['testChannel']>>> {
+  ): Promise<Awaited<ReturnType<ThrellAdminService['testChannel']>>> {
     return this.threllTools.testChannel({ channelId: id });
   }
 
@@ -309,7 +309,7 @@ export class ConvChannelsController {
   async threllCall(
     @Param('id') id: string,
     @Body() body: unknown,
-  ): Promise<Awaited<ReturnType<ThrellAdminTools['callInitiate']>>> {
+  ): Promise<Awaited<ReturnType<ThrellAdminService['callInitiate']>>> {
     const parsed = ThrellCallInitiateBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.threllTools.callInitiate({

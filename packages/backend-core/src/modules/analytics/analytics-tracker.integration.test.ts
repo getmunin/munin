@@ -616,7 +616,203 @@ const skipReason = TEST_URL
       delete process.env.MUNIN_TRACKER_REQUIRE_ALLOWLIST;
     }
   }, 30_000);
+
+  it('analytics_get_funnel counts ordered steps and drop-off', async () => {
+    const { orgId: fOrg, key: fKey } = await createSeedOrg(db, 'Funnel Org A');
+    const now = new Date();
+    const sec = (s: number): Date => new Date(now.getTime() - s * 1000);
+    const ev = (visitorId: string, subjectId: string, createdAt: Date) => ({
+      orgId: fOrg,
+      subjectType: 'page',
+      subjectId,
+      path: subjectId,
+      visitorId,
+      source: 'tracker' as const,
+      createdAt,
+    });
+    await db.insert(schema.analyticsViewEvents).values([
+      ev('fa-v1', '/pricing', sec(300)),
+      ev('fa-v1', '/signup', sec(200)),
+      ev('fa-v1', '/welcome/1', sec(100)),
+      ev('fa-v2', '/pricing', sec(300)),
+      ev('fa-v2', '/signup', sec(200)),
+      ev('fa-v3', '/pricing', sec(300)),
+      ev('fa-v4', '/signup', sec(300)),
+      ev('fa-v4', '/pricing', sec(200)),
+      ev('fa-v5', '/pricing', sec(300)),
+      ev('fa-v5', '/about', sec(250)),
+    ]);
+    try {
+      const funnel = await withClient(fKey, async (c) =>
+        parseToolResult<FunnelResult>(
+          await c.callTool({
+            name: 'analytics_get_funnel',
+            arguments: {
+              steps: [
+                { subjectType: 'page', subjectId: '/pricing' },
+                { subjectType: 'page', subjectId: '/signup' },
+                { pathLike: '/welcome/%' },
+              ],
+              sinceDays: 1,
+            },
+          }),
+        ),
+      );
+      expect(funnel.steps.map((s) => s.actors)).toEqual([5, 2, 1]);
+      expect(funnel.steps[0]!.conversionFromPrev).toBeNull();
+      expect(funnel.steps[1]!.conversionFromPrev).toBeCloseTo(0.4);
+      expect(funnel.steps[1]!.dropFromPrev).toBeCloseTo(0.6);
+      expect(funnel.steps[2]!.conversionFromPrev).toBeCloseTo(0.5);
+      expect(funnel.overallConversion).toBeCloseTo(0.2);
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${fOrg}`);
+    }
+  }, 30_000);
+
+  it('analytics_get_funnel honors stepWindowHours', async () => {
+    const { orgId, key } = await createSeedOrg(db, 'Funnel Org Window');
+    const now = new Date();
+    const hrs = (h: number): Date => new Date(now.getTime() - h * 3600 * 1000);
+    const ev = (visitorId: string, subjectId: string, createdAt: Date) => ({
+      orgId,
+      subjectType: 'page',
+      subjectId,
+      path: subjectId,
+      visitorId,
+      source: 'tracker' as const,
+      createdAt,
+    });
+    await db.insert(schema.analyticsViewEvents).values([
+      ev('fw-in', '/pricing', hrs(3)),
+      ev('fw-in', '/signup', hrs(2)),
+      ev('fw-out', '/pricing', hrs(5)),
+      ev('fw-out', '/signup', hrs(1)),
+    ]);
+    const steps = [
+      { subjectType: 'page', subjectId: '/pricing' },
+      { subjectType: 'page', subjectId: '/signup' },
+    ];
+    try {
+      const noWindow = await withClient(key, async (c) =>
+        parseToolResult<FunnelResult>(
+          await c.callTool({
+            name: 'analytics_get_funnel',
+            arguments: { steps, sinceDays: 1 },
+          }),
+        ),
+      );
+      expect(noWindow.steps.map((s) => s.actors)).toEqual([2, 2]);
+
+      const windowed = await withClient(key, async (c) =>
+        parseToolResult<FunnelResult>(
+          await c.callTool({
+            name: 'analytics_get_funnel',
+            arguments: { steps, sinceDays: 1, stepWindowHours: 2 },
+          }),
+        ),
+      );
+      expect(windowed.steps.map((s) => s.actors)).toEqual([2, 1]);
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${orgId}`);
+    }
+  }, 30_000);
+
+  it('funnel merges a visitor\'s linked identities; journey includes pre-identify events', async () => {
+    const { orgId, key } = await createSeedOrg(db, 'Funnel Org Identity');
+    const [eu] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'cust-merge-1' })
+      .returning();
+    const euId = eu!.id;
+    const now = new Date();
+    const sec = (s: number): Date => new Date(now.getTime() - s * 1000);
+    await db.insert(schema.analyticsViewEvents).values([
+      {
+        orgId,
+        subjectType: 'page',
+        subjectId: '/pricing',
+        path: '/pricing',
+        visitorId: 'fi-vA',
+        source: 'tracker',
+        createdAt: sec(300),
+      },
+      {
+        orgId,
+        subjectType: 'page',
+        subjectId: '/signup',
+        path: '/signup',
+        visitorId: 'fi-vB',
+        endUserId: euId,
+        source: 'tracker',
+        createdAt: sec(200),
+      },
+    ]);
+    await db.insert(schema.analyticsVisitorIdentities).values([
+      { orgId, visitorId: 'fi-vA', endUserId: euId },
+      { orgId, visitorId: 'fi-vB', endUserId: euId },
+    ]);
+    try {
+      const funnel = await withClient(key, async (c) =>
+        parseToolResult<FunnelResult>(
+          await c.callTool({
+            name: 'analytics_get_funnel',
+            arguments: {
+              steps: [
+                { subjectType: 'page', subjectId: '/pricing' },
+                { subjectType: 'page', subjectId: '/signup' },
+              ],
+              sinceDays: 1,
+            },
+          }),
+        ),
+      );
+      expect(funnel.steps.map((s) => s.actors)).toEqual([1, 1]);
+
+      const journey = await withClient(key, async (c) =>
+        parseToolResult<Array<{ kind: string; subjectId: string | null }>>(
+          await c.callTool({
+            name: 'analytics_get_contact_journey',
+            arguments: { endUserId: euId, sinceDays: 1 },
+          }),
+        ),
+      );
+      expect(journey.some((e) => e.subjectId === '/pricing')).toBe(true);
+      expect(journey.some((e) => e.subjectId === '/signup')).toBe(true);
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${orgId}`);
+    }
+  }, 30_000);
 });
+
+interface FunnelResult {
+  sinceDays: number;
+  steps: Array<{
+    index: number;
+    label: string;
+    actors: number;
+    conversionFromPrev: number | null;
+    dropFromPrev: number | null;
+    conversionFromStart: number;
+  }>;
+  overallConversion: number;
+}
+
+async function createSeedOrg(
+  db: ReturnType<typeof createDb>,
+  name: string,
+): Promise<{ orgId: string; key: string }> {
+  const [org] = await db.insert(schema.orgs).values({ name }).returning();
+  const key = buildApiKey('admin');
+  await db.insert(schema.apiKeys).values({
+    orgId: org!.id,
+    type: 'admin',
+    name: `${name} admin`,
+    keyHash: hashSecret(key),
+    keyPrefix: keyPrefix(key),
+    scopes: ['*'],
+  });
+  return { orgId: org!.id, key };
+}
 
 async function countTrackerEvents(
   db: ReturnType<typeof createDb>,

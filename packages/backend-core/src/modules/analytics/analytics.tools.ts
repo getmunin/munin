@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { schema } from '@getmunin/db';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   buildApiKey,
   getCurrentContext,
@@ -119,6 +119,47 @@ const ContactJourneyInput = z.object({
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(500).default(100),
 });
+
+const FunnelStepSchema = z
+  .object({
+    label: z.string().max(120).optional(),
+    subjectType: z.string().max(32).optional(),
+    subjectId: z.string().max(512).optional(),
+    pathLike: z.string().max(512).optional(),
+  })
+  .refine((s) => Boolean(s.subjectType || s.subjectId || s.pathLike), {
+    message: 'each funnel step needs at least one of subjectType, subjectId, or pathLike',
+  });
+
+const FunnelInput = z.object({
+  steps: z.array(FunnelStepSchema).min(2).max(8),
+  sinceDays: z.number().int().min(1).max(365).default(30),
+  stepWindowHours: z.number().int().min(1).max(24 * 365).optional(),
+  source: z.enum(['pixel', 'beacon', 'tracker']).optional(),
+});
+
+type FunnelStep = z.infer<typeof FunnelStepSchema>;
+
+function funnelStepPredicate(step: FunnelStep, alias: SQL): SQL {
+  const conds: SQL[] = [];
+  if (step.subjectType) conds.push(sql`${alias}.subject_type = ${step.subjectType}`);
+  if (step.subjectId) conds.push(sql`${alias}.subject_id = ${step.subjectId}`);
+  if (step.pathLike) conds.push(sql`${alias}.path LIKE ${step.pathLike}`);
+  return sql.join(conds, sql` AND `);
+}
+
+function funnelStepLabel(step: FunnelStep, index: number): string {
+  if (step.label) return step.label;
+  const parts: string[] = [];
+  if (step.subjectType) parts.push(step.subjectType);
+  if (step.subjectId) parts.push(step.subjectId);
+  if (step.pathLike) parts.push(`path~${step.pathLike}`);
+  return parts.join(':') || `step ${index + 1}`;
+}
+
+function roundRate(n: number): number {
+  return Number(n.toFixed(4));
+}
 
 interface TrackerSummary {
   id: string;
@@ -862,10 +903,114 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
+    name: 'analytics_get_funnel',
+    title: 'Analytics: Conversion funnel across ordered steps',
+    description:
+      'Compute a conversion funnel over page-view events: how many distinct visitors reached each ordered step, and where they drop off. Pass 2–8 `steps`; each step matches a view event by `subjectType` and/or `subjectId` (e.g. `{ subjectType: "page", subjectId: "/pricing" }`) and/or a `pathLike` SQL LIKE pattern (e.g. `{ pathLike: "/blog/%" }`). Steps are strictly ordered — a visitor counts at step N only if they hit step N after reaching step N-1. Visitors are grouped by a stable actor key (their identified end-user when known, else their anonymous `visitor_id`), so a journey that spans the anonymous → identified transition is not double-counted. Set `stepWindowHours` to require each step to follow the previous within a time budget (e.g. signup within 24h of viewing pricing). Anonymous funnels work without any identity setup. Returns per-step actor counts plus conversion/drop rates.',
+    audiences: ['admin'],
+    scopes: ['analytics:read'],
+    input: FunnelInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  async funnel(args: z.infer<typeof FunnelInput>): Promise<{
+    sinceDays: number;
+    steps: Array<{
+      index: number;
+      label: string;
+      actors: number;
+      conversionFromPrev: number | null;
+      dropFromPrev: number | null;
+      conversionFromStart: number;
+    }>;
+    overallConversion: number;
+  }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const steps = args.steps;
+
+    const prefilter = sql.join(
+      steps.map((s) => sql`(${funnelStepPredicate(s, sql.raw('ev'))})`),
+      sql` OR `,
+    );
+    const sourceCond = args.source ? sql` AND ev.source = ${args.source}` : sql``;
+
+    const ctes: SQL[] = [
+      sql`base AS (
+        SELECT COALESCE(vi.end_user_id, ev.visitor_id) AS actor,
+               ev.created_at AS created_at,
+               ev.subject_type AS subject_type,
+               ev.subject_id AS subject_id,
+               ev.path AS path
+        FROM analytics_view_events ev
+        LEFT JOIN analytics_visitor_identities vi
+          ON vi.org_id = ev.org_id AND vi.visitor_id = ev.visitor_id
+        WHERE ev.org_id = ${actor.orgId}
+          AND ev.created_at > NOW() - (${args.sinceDays} || ' days')::interval${sourceCond}
+          AND COALESCE(vi.end_user_id, ev.visitor_id) IS NOT NULL
+          AND (${prefilter})
+      )`,
+    ];
+
+    steps.forEach((step, i) => {
+      const name = sql.raw(`s${i}`);
+      const pred = funnelStepPredicate(step, sql.raw('b'));
+      if (i === 0) {
+        ctes.push(sql`${name} AS (
+          SELECT b.actor AS actor, MIN(b.created_at) AS t
+          FROM base b
+          WHERE ${pred}
+          GROUP BY b.actor
+        )`);
+      } else {
+        const prev = sql.raw(`s${i - 1}`);
+        const windowCond = args.stepWindowHours
+          ? sql` AND b.created_at <= ${prev}.t + (${args.stepWindowHours} || ' hours')::interval`
+          : sql``;
+        ctes.push(sql`${name} AS (
+          SELECT b.actor AS actor, MIN(b.created_at) AS t
+          FROM base b
+          JOIN ${prev} ON ${prev}.actor = b.actor
+          WHERE (${pred}) AND b.created_at > ${prev}.t${windowCond}
+          GROUP BY b.actor
+        )`);
+      }
+    });
+
+    const selectCols = steps.map(
+      (_, i) => sql`(SELECT COUNT(*)::int FROM ${sql.raw(`s${i}`)}) AS ${sql.raw(`step_${i}`)}`,
+    );
+    const rows = await ctx.db.execute<Record<string, number>>(
+      sql`WITH ${sql.join(ctes, sql`, `)} SELECT ${sql.join(selectCols, sql`, `)}`,
+    );
+    const counts = steps.map((_, i) => Number(rows[0]?.[`step_${i}`] ?? 0));
+    const first = counts[0] ?? 0;
+
+    return {
+      sinceDays: args.sinceDays,
+      steps: steps.map((step, i) => {
+        const actors = counts[i] ?? 0;
+        const prevCount = i > 0 ? counts[i - 1] ?? 0 : null;
+        return {
+          index: i + 1,
+          label: funnelStepLabel(step, i),
+          actors,
+          conversionFromPrev:
+            prevCount === null ? null : prevCount > 0 ? roundRate(actors / prevCount) : 0,
+          dropFromPrev:
+            prevCount === null ? null : prevCount > 0 ? roundRate(1 - actors / prevCount) : 0,
+          conversionFromStart: first > 0 ? roundRate(actors / first) : 0,
+        };
+      }),
+      overallConversion: first > 0 ? roundRate((counts[counts.length - 1] ?? 0) / first) : 0,
+    };
+  }
+
+  @McpTool({
     name: 'analytics_get_contact_journey',
     title: 'Analytics: Journey of subjects viewed by a contact',
     description:
-      'Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`; events recorded before linkage stay anonymous and are not returned here.',
+      'Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`. Events recorded under a `visitor_id` *before* that link was established are still included retroactively — the link is resolved at read time — so the journey spans the visitor\'s anonymous history too.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: ContactJourneyInput,
@@ -887,6 +1032,10 @@ export class AnalyticsAdminTools {
     const actor = ctx.actor!;
     const endUserId = await this.resolveEndUserId(args);
     if (!endUserId) return [];
+    const matchActor = sql`(end_user_id = ${endUserId} OR visitor_id IN (
+      SELECT visitor_id FROM analytics_visitor_identities
+      WHERE org_id = ${actor.orgId} AND end_user_id = ${endUserId}
+    ))`;
     const rows = await ctx.db.execute<{
       kind: 'view' | 'search';
       at: Date | string;
@@ -905,7 +1054,7 @@ export class AnalyticsAdminTools {
              NULL::int AS result_count
       FROM analytics_view_events
       WHERE org_id = ${actor.orgId}
-        AND end_user_id = ${endUserId}
+        AND ${matchActor}
         AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
       UNION ALL
       SELECT 'search'::text AS kind,
@@ -917,7 +1066,7 @@ export class AnalyticsAdminTools {
              result_count
       FROM analytics_search_events
       WHERE org_id = ${actor.orgId}
-        AND end_user_id = ${endUserId}
+        AND ${matchActor}
         AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
       ORDER BY at ASC
       LIMIT ${args.limit}

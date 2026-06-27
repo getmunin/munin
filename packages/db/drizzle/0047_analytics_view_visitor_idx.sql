@@ -1,0 +1,1 @@
+CREATE INDEX "analytics_view_events_visitor_idx" ON "analytics_view_events" USING btree ("org_id","visitor_id","created_at");

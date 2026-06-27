@@ -330,6 +330,13 @@
       "when": 1782800000000,
       "tag": "0046_oauth_token_org_backfill_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1782800100000,
+      "tag": "0047_analytics_view_visitor_idx",
+      "breakpoints": true
     }
   ]
 }

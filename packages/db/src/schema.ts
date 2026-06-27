@@ -1556,6 +1556,11 @@ export const analyticsViewEvents = pgTable(
       t.endUserId,
       t.createdAt,
     ),
+    visitorIdx: index('analytics_view_events_visitor_idx').on(
+      t.orgId,
+      t.visitorId,
+      t.createdAt,
+    ),
   }),
 );
 

@@ -645,7 +645,7 @@ export class CrmAdminTools {
       'List saved contact segments. A segment is a named CRM filter — used as the audience for outreach campaigns and other targeting workflows. Returns each segment with its filter definition.',
     audiences: ['admin'],
     scopes: ['crm:read'],
-    input: z.object({}),
+    input: EmptyInput,
     readOnlyHint: true,
     destructiveHint: false,
   })

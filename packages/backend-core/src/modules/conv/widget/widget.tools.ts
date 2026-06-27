@@ -1,23 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { schema } from '@getmunin/db';
-import { and, eq } from 'drizzle-orm';
-import { buildApiKey, getCurrentContext, hashSecret, keyPrefix, randomToken } from '@getmunin/core';
-import { WidgetChannelConfig } from './widget.types.ts';
-
-function requireWidgetAllowlist(): boolean {
-  const raw = process.env.MUNIN_WIDGET_REQUIRE_ALLOWLIST?.trim().toLowerCase();
-  return raw === '1' || raw === 'true';
-}
-
-function assertAllowlistPopulated(originAllowlist: readonly string[]): void {
-  if (originAllowlist.length === 0 && requireWidgetAllowlist()) {
-    throw new BadRequestException(
-      'origin_allowlist_required: this deployment requires at least one entry in `originAllowlist` (full origin like `https://app.example.com`). Add the production and any preview origins before saving.',
-    );
-  }
-}
+import { WidgetChannelAdminService } from './widget-channel-admin.service.ts';
 
 const CreateInput = z.object({
   name: z.string().min(1).max(120),
@@ -35,40 +19,12 @@ const UpdateInput = z.object({
 
 const RotateInput = z.object({ channelId: z.string() });
 
-type WidgetConfig = z.infer<typeof WidgetChannelConfig>;
-type SanitizedWidgetConfig = Omit<WidgetConfig, 'identityVerificationSecret'> & {
-  /** Whether an identity verification secret is currently configured. The
-   *  plaintext is only ever surfaced from `conv_widget_create_channel` and
-   *  `conv_widget_rotate_identity_secret`. */
-  hasIdentityVerificationSecret: boolean;
-};
-
-function sanitizeConfig(config: WidgetConfig): SanitizedWidgetConfig {
-  const { identityVerificationSecret, ...rest } = config;
-  return { ...rest, hasIdentityVerificationSecret: !!identityVerificationSecret };
-}
-
-interface ChannelDto {
-  id: string;
-  name: string;
-  type: 'chat';
-  active: boolean;
-  config: SanitizedWidgetConfig;
-}
-
-interface CreateResult extends ChannelDto {
-  widgetKey: string;
-  /** HMAC secret for browser-side identity verification. Surfaced once. */
-  identityVerificationSecret: string;
-}
-
-interface RotateIdentitySecretResult {
-  channelId: string;
-  identityVerificationSecret: string;
-}
-
 @Injectable()
 export class WidgetAdminTools {
+  constructor(
+    @Inject(WidgetChannelAdminService) private readonly widget: WidgetChannelAdminService,
+  ) {}
+
   @McpTool({
     name: 'conv_widget_create_channel',
     title: 'Conv: Create chat-widget channel',
@@ -80,53 +36,8 @@ export class WidgetAdminTools {
     readOnlyHint: false,
     destructiveHint: true,
   })
-  async createChannel(args: z.infer<typeof CreateInput>): Promise<CreateResult> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-
-    assertAllowlistPopulated(args.originAllowlist);
-
-    const identityVerificationSecret = randomToken(32);
-    const config = WidgetChannelConfig.parse({
-      provider: 'widget',
-      originAllowlist: args.originAllowlist,
-      webhookOnEscalation: args.webhookOnEscalation,
-      identityVerificationSecret,
-      requireVerifiedIdentity: args.requireVerifiedIdentity ?? false,
-    });
-
-    const [channel] = await ctx.db
-      .insert(schema.convChannels)
-      .values({
-        orgId: actor.orgId,
-        type: 'chat',
-        vendor: 'munin',
-        name: args.name,
-        config: config,
-      })
-      .returning();
-
-    const rawKey = buildApiKey('widget');
-    await ctx.db.insert(schema.apiKeys).values({
-      orgId: actor.orgId,
-      type: 'widget',
-      name: `${args.name} widget key`,
-      keyHash: hashSecret(rawKey),
-      keyPrefix: keyPrefix(rawKey),
-      scopes: ['conv:widget:write'],
-      channelId: channel!.id,
-      createdByUserId: actor.userId ?? null,
-    });
-
-    return {
-      id: channel!.id,
-      name: channel!.name,
-      type: 'chat',
-      active: channel!.active,
-      config: sanitizeConfig(config),
-      widgetKey: rawKey,
-      identityVerificationSecret,
-    };
+  createChannel(args: z.infer<typeof CreateInput>) {
+    return this.widget.createChannel(args);
   }
 
   @McpTool({
@@ -140,52 +51,8 @@ export class WidgetAdminTools {
     readOnlyHint: false,
     destructiveHint: true,
   })
-  async updateChannel(args: z.infer<typeof UpdateInput>): Promise<ChannelDto> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-
-    const rows = await ctx.db
-      .select()
-      .from(schema.convChannels)
-      .where(
-        and(
-          eq(schema.convChannels.id, args.channelId),
-          eq(schema.convChannels.orgId, actor.orgId),
-        ),
-      )
-      .limit(1);
-    const existing = rows[0];
-    if (!existing) throw new NotFoundException(`channel ${args.channelId} not found`);
-    const prev = WidgetChannelConfig.parse(existing.config);
-
-    if (args.originAllowlist !== undefined) {
-      assertAllowlistPopulated(args.originAllowlist);
-    }
-
-    const next = WidgetChannelConfig.parse({
-      provider: 'widget',
-      originAllowlist: args.originAllowlist ?? prev.originAllowlist,
-      webhookOnEscalation:
-        args.webhookOnEscalation === null
-          ? undefined
-          : (args.webhookOnEscalation ?? prev.webhookOnEscalation),
-      identityVerificationSecret: prev.identityVerificationSecret,
-      requireVerifiedIdentity: args.requireVerifiedIdentity ?? prev.requireVerifiedIdentity,
-    });
-
-    const [updated] = await ctx.db
-      .update(schema.convChannels)
-      .set({ config: next, updatedAt: new Date() })
-      .where(eq(schema.convChannels.id, args.channelId))
-      .returning();
-
-    return {
-      id: updated!.id,
-      name: updated!.name,
-      type: 'chat',
-      active: updated!.active,
-      config: sanitizeConfig(next),
-    };
+  updateChannel(args: z.infer<typeof UpdateInput>) {
+    return this.widget.updateChannel(args);
   }
 
   @McpTool({
@@ -199,45 +66,8 @@ export class WidgetAdminTools {
     readOnlyHint: false,
     destructiveHint: true,
   })
-  async rotateKey(args: z.infer<typeof RotateInput>): Promise<{ widgetKey: string }> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-
-    const channel = await ctx.db
-      .select({ id: schema.convChannels.id, name: schema.convChannels.name })
-      .from(schema.convChannels)
-      .where(
-        and(
-          eq(schema.convChannels.id, args.channelId),
-          eq(schema.convChannels.orgId, actor.orgId),
-        ),
-      )
-      .limit(1);
-    if (!channel[0]) throw new NotFoundException(`channel ${args.channelId} not found`);
-
-    await ctx.db
-      .update(schema.apiKeys)
-      .set({ revokedAt: new Date() })
-      .where(
-        and(
-          eq(schema.apiKeys.channelId, args.channelId),
-          eq(schema.apiKeys.type, 'widget'),
-        ),
-      );
-
-    const rawKey = buildApiKey('widget');
-    await ctx.db.insert(schema.apiKeys).values({
-      orgId: actor.orgId,
-      type: 'widget',
-      name: `${channel[0].name} widget key`,
-      keyHash: hashSecret(rawKey),
-      keyPrefix: keyPrefix(rawKey),
-      scopes: ['conv:widget:write'],
-      channelId: args.channelId,
-      createdByUserId: actor.userId ?? null,
-    });
-
-    return { widgetKey: rawKey };
+  rotateKey(args: z.infer<typeof RotateInput>) {
+    return this.widget.rotateKey(args);
   }
 
   @McpTool({
@@ -251,37 +81,7 @@ export class WidgetAdminTools {
     readOnlyHint: false,
     destructiveHint: true,
   })
-  async rotateIdentitySecret(
-    args: z.infer<typeof RotateInput>,
-  ): Promise<RotateIdentitySecretResult> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-
-    const rows = await ctx.db
-      .select()
-      .from(schema.convChannels)
-      .where(
-        and(
-          eq(schema.convChannels.id, args.channelId),
-          eq(schema.convChannels.orgId, actor.orgId),
-        ),
-      )
-      .limit(1);
-    const existing = rows[0];
-    if (!existing) throw new NotFoundException(`channel ${args.channelId} not found`);
-    const prev = WidgetChannelConfig.parse(existing.config);
-
-    const identityVerificationSecret = randomToken(32);
-    const next = WidgetChannelConfig.parse({
-      ...prev,
-      identityVerificationSecret,
-    });
-
-    await ctx.db
-      .update(schema.convChannels)
-      .set({ config: next, updatedAt: new Date() })
-      .where(eq(schema.convChannels.id, args.channelId));
-
-    return { channelId: args.channelId, identityVerificationSecret };
+  rotateIdentitySecret(args: z.infer<typeof RotateInput>) {
+    return this.widget.rotateIdentitySecret(args);
   }
 }

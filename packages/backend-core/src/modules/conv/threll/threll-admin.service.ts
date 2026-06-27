@@ -53,7 +53,7 @@ export const ConfigureInput = z.object({
 });
 
 @Injectable()
-export class ThrellAdminTools {
+export class ThrellAdminService {
   constructor(
     @Inject(ThrellService) private readonly svc: ThrellService,
     @Inject(ThrellClientService) private readonly client: ThrellClientService,

@@ -49,7 +49,7 @@ export const ConfigureInput = z.object({
 });
 
 @Injectable()
-export class TwilioSmsAdminTools {
+export class TwilioSmsAdminService {
   constructor(
     @Inject(TwilioSmsService) private readonly svc: TwilioSmsService,
     @Inject(TwilioClientService) private readonly client: TwilioClientService,

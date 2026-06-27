@@ -29,29 +29,30 @@ import { OutboundDeliveryWorker } from './channels/outbound-delivery.worker.ts';
 import { SnoozeWakeWorker } from './snooze-wake.worker.ts';
 import { MessageBirdClientService } from './messagebird/messagebird-client.service.ts';
 import { MessageBirdSmsAdapter } from './messagebird/messagebird-sms-adapter.ts';
-import { MessageBirdSmsAdminTools } from './messagebird/messagebird-sms.tools.ts';
+import { MessageBirdSmsAdminService } from './messagebird/messagebird-sms-admin.service.ts';
 import { MessageBirdSmsService } from './messagebird/messagebird-sms.service.ts';
 import { VapiClientService } from './vapi/vapi-client.service.ts';
 import { VapiAdapter } from './vapi/vapi-adapter.ts';
-import { VapiAdminTools } from './vapi/vapi.tools.ts';
+import { VapiAdminService } from './vapi/vapi-admin.service.ts';
 import { VapiService } from './vapi/vapi.service.ts';
 import { VapiToolBridge } from './vapi/vapi-tool-bridge.ts';
 import { ThrellClientService } from './threll/threll-client.service.ts';
 import { ThrellAdapter } from './threll/threll-adapter.ts';
-import { ThrellAdminTools } from './threll/threll.tools.ts';
+import { ThrellAdminService } from './threll/threll-admin.service.ts';
 import { ThrellService } from './threll/threll.service.ts';
 import { ThrellToolBridge } from './threll/threll-tool-bridge.ts';
 import { VoiceCallbackService } from './voice-callback.service.ts';
 import { VoiceCallbackTools } from './voice-callback.tools.ts';
 import { TwilioClientService } from './twilio/twilio-client.service.ts';
 import { TwilioSmsAdapter } from './twilio/twilio-sms-adapter.ts';
-import { TwilioSmsAdminTools } from './twilio/twilio-sms.tools.ts';
+import { TwilioSmsAdminService } from './twilio/twilio-sms-admin.service.ts';
 import { TwilioSmsService } from './twilio/twilio-sms.service.ts';
 import { WidgetAdapter } from './widget/widget-adapter.ts';
 import { WidgetIngestService } from './widget/widget-ingest.service.ts';
 import { WidgetVoiceService } from './widget/widget-voice.service.ts';
 import { WidgetController } from './widget/widget.controller.ts';
 import { WidgetEmailFallbackWorker } from './widget/widget-email-fallback.worker.ts';
+import { WidgetChannelAdminService } from './widget/widget-channel-admin.service.ts';
 import { WidgetAdminTools } from './widget/widget.tools.ts';
 import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
 
@@ -74,20 +75,20 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     MessageBirdClientService,
     MessageBirdSmsService,
     MessageBirdSmsAdapter,
-    MessageBirdSmsAdminTools,
+    MessageBirdSmsAdminService,
     TwilioClientService,
     TwilioSmsService,
     TwilioSmsAdapter,
-    TwilioSmsAdminTools,
+    TwilioSmsAdminService,
     VapiClientService,
     VapiService,
     VapiAdapter,
-    VapiAdminTools,
+    VapiAdminService,
     VapiToolBridge,
     ThrellClientService,
     ThrellService,
     ThrellAdapter,
-    ThrellAdminTools,
+    ThrellAdminService,
     ThrellToolBridge,
     VoiceCallbackService,
     VoiceCallbackTools,
@@ -95,6 +96,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     WidgetEmailFallbackWorker,
     WidgetIngestService,
     WidgetVoiceService,
+    WidgetChannelAdminService,
     WidgetAdminTools,
     WidgetThrottlerGuard,
     {
@@ -147,19 +149,19 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     MessageBirdClientService,
     MessageBirdSmsService,
     MessageBirdSmsAdapter,
-    MessageBirdSmsAdminTools,
+    MessageBirdSmsAdminService,
     TwilioClientService,
     TwilioSmsService,
     TwilioSmsAdapter,
-    TwilioSmsAdminTools,
+    TwilioSmsAdminService,
     VapiClientService,
     VapiService,
     VapiAdapter,
-    VapiAdminTools,
+    VapiAdminService,
     ThrellClientService,
     ThrellService,
     ThrellAdapter,
-    ThrellAdminTools,
+    ThrellAdminService,
     ChannelAdminService,
     ChannelAdminTools,
     VoiceCallbackService,

@@ -1,5 +1,14 @@
 # @getmunin/dashboard-pages
 
+## 4.61.1
+
+### Patch Changes
+
+- 47eb749: Keep the dashboard's recent open conversations list in sync with realtime conversation events, so closing a conversation removes it from the list without a page reload.
+- 308d78e: Share a single realtime WebSocket connection across all `useRealtime` callers instead of opening one socket per component. The dashboard previously held several concurrent connections (inbox, usage summary, recent conversations, system alerts, activity rail); they now multiplex over one connection, with each `event` frame routed to only the listeners subscribed to its channel. The `useRealtime` API is unchanged.
+  - @getmunin/types@4.61.1
+  - @getmunin/ui@4.61.1
+
 ## 4.61.0
 
 ### Patch Changes

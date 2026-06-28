@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import {
   contentHash,
   describeError,
@@ -20,12 +20,17 @@ import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.s
 import { STORAGE } from '../../common/storage/storage.token.ts';
 import {
   applyAssetExpansion,
+  buildInlineAssetSidecar,
   buildSearchText,
   collectAssetIds,
+  extractAssetReferences,
   extractReferences,
   FIELD_TYPES,
   projectData,
+  remapInlineAssetUris,
+  rewriteInlineAssets,
   validateEntryData,
+  type AssetSummary,
   type FieldDef,
 } from './cms.fields.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
@@ -77,6 +82,7 @@ export interface EntryDto {
   locale: string;
   status: EntryStatus;
   data: Record<string, unknown>;
+  assets?: Record<string, AssetSummary>;
   version: number;
   scheduledAt: string | null;
   publishedAt: string | null;
@@ -435,6 +441,9 @@ export class CmsService {
       const fields = fieldsByEntryId.get(dto.id);
       if (!fields) continue;
       dto.data = applyAssetExpansion(fields, dto.data, assets);
+      const sidecar = buildInlineAssetSidecar(fields, dto.data, assets);
+      dto.data = rewriteInlineAssets(fields, dto.data, assets);
+      if (Object.keys(sidecar).length > 0) dto.assets = sidecar;
     }
   }
 
@@ -457,6 +466,7 @@ export class CmsService {
         { fieldErrors: errors },
       );
     }
+    await this.assertAssetsExist(actor.orgId, collection.fields, input.data);
 
     await this.quotas.assertCanAdd('cms_entries');
 
@@ -493,6 +503,7 @@ export class CmsService {
 
     await this.snapshotVersion(row!, actor.id, tag);
     await this.rewriteReferences(row!.id, row!.orgId, collection.fields, input.data);
+    await this.rewriteAssetReferences(row!.id, row!.orgId, collection.fields, input.data);
 
     await this.webhooks.emit({
       type: 'cms.entry.created',
@@ -534,6 +545,7 @@ export class CmsService {
           { fieldErrors: errors },
         );
       }
+      await this.assertAssetsExist(actor.orgId, collection.fields, newData);
     }
     const newSlug = input.slug ?? existing.slug;
     const newLocale = input.locale ?? existing.locale;
@@ -571,6 +583,7 @@ export class CmsService {
     await this.snapshotVersion(updated!, actor.id, tag);
     if (dataChanged) {
       await this.rewriteReferences(updated!.id, updated!.orgId, collection.fields, newData);
+      await this.rewriteAssetReferences(updated!.id, updated!.orgId, collection.fields, newData);
     }
 
     await this.webhooks.emit({
@@ -867,12 +880,38 @@ export class CmsService {
       .where(eq(schema.cmsAssets.id, input.id))
       .limit(1);
     if (!rows[0]) throw new NotFoundException(`cms_not_found: asset ${input.id}`);
+
+    const usage = await this.listAssetUsage(input.id);
+    if (usage.length > 0) {
+      const entries = [...new Set(usage.map((u) => u.fromEntryId))];
+      const preview = entries.slice(0, 10).join(', ');
+      const suffix = entries.length > 10 ? `, +${entries.length - 10} more` : '';
+      throw new ConflictException(
+        `cms_conflict: asset ${input.id} is referenced by ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} (${preview}${suffix})`,
+      );
+    }
+
     await this.storage.delete(rows[0].storageKey).catch(() => {
       // Storage delete failure shouldn't block row deletion — log via audit
       // and let an operator GC the orphan later.
     });
     await ctx.db.delete(schema.cmsAssets).where(eq(schema.cmsAssets.id, input.id));
     return { deleted: true };
+  }
+
+  async listAssetUsage(
+    assetId: string,
+  ): Promise<{ fromEntryId: string; fieldName: string; kind: string }[]> {
+    const ctx = getCurrentContext();
+    return ctx.db
+      .select({
+        fromEntryId: schema.cmsAssetReferences.fromEntryId,
+        fieldName: schema.cmsAssetReferences.fieldName,
+        kind: schema.cmsAssetReferences.kind,
+      })
+      .from(schema.cmsAssetReferences)
+      .where(eq(schema.cmsAssetReferences.assetId, assetId))
+      .orderBy(desc(schema.cmsAssetReferences.createdAt));
   }
 
   // ─── Locales ─────────────────────────────────────────────────────────
@@ -1395,6 +1434,75 @@ export class CmsService {
     );
   }
 
+  private async rewriteAssetReferences(
+    entryId: string,
+    orgId: string,
+    fields: FieldDef[],
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    const ctx = getCurrentContext();
+    await ctx.db
+      .delete(schema.cmsAssetReferences)
+      .where(eq(schema.cmsAssetReferences.fromEntryId, entryId));
+    const refs = [...extractAssetReferences(fields, data)];
+    if (refs.length === 0) return;
+
+    const referencedIds = [...new Set(refs.map((r) => r.assetId))];
+    const existing = await ctx.db
+      .select({ id: schema.cmsAssets.id })
+      .from(schema.cmsAssets)
+      .where(
+        and(eq(schema.cmsAssets.orgId, orgId), inArray(schema.cmsAssets.id, referencedIds)),
+      );
+    const known = new Set(existing.map((r) => r.id));
+    const trackable = refs.filter((r) => known.has(r.assetId));
+    if (trackable.length === 0) return;
+
+    await ctx.db.insert(schema.cmsAssetReferences).values(
+      trackable.map((r) => ({
+        orgId,
+        fromEntryId: entryId,
+        assetId: r.assetId,
+        fieldName: r.fieldName,
+        kind: r.kind,
+        position: r.position,
+      })),
+    );
+  }
+
+  private async assertAssetsExist(
+    orgId: string,
+    fields: FieldDef[],
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    const ids = [
+      ...new Set(
+        [...extractAssetReferences(fields, data)]
+          .filter((r) => r.kind === 'inline')
+          .map((r) => r.assetId),
+      ),
+    ];
+    if (ids.length === 0) return;
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.cmsAssets.id })
+      .from(schema.cmsAssets)
+      .where(
+        and(
+          eq(schema.cmsAssets.orgId, orgId),
+          eq(schema.cmsAssets.uploaded, true),
+          inArray(schema.cmsAssets.id, ids),
+        ),
+      );
+    const found = new Set(rows.map((r) => r.id));
+    const missing = ids.filter((id) => !found.has(id));
+    if (missing.length > 0) {
+      throw new CmsInvalidError(
+        `unknown or unconfirmed inline asset(s): ${missing.join(', ')}`,
+      );
+    }
+  }
+
   private async computeEmbedding(searchText: string): Promise<number[] | null> {
     if (!searchText.trim()) return null;
     try {
@@ -1495,15 +1603,20 @@ function remapEntryData(
   const out: Record<string, unknown> = { ...data };
   const remap = (id: unknown): unknown =>
     typeof id === 'string' && idMap[id] ? idMap[id] : id;
+  const remapId = (id: string): string => idMap[id] ?? id;
   for (const field of fields) {
+    const value = out[field.name];
+    if (value === undefined || value === null) continue;
+    if ((field.type === 'rich_text' || field.type === 'markdown') && typeof value === 'string') {
+      out[field.name] = remapInlineAssetUris(value, remapId);
+      continue;
+    }
     if (field.type !== 'asset' && field.type !== 'reference') {
       const isIdArray =
         field.type === 'array' &&
         (field.options?.items?.type === 'asset' || field.options?.items?.type === 'reference');
       if (!isIdArray) continue;
     }
-    const value = out[field.name];
-    if (value === undefined || value === null) continue;
     if ((field.type === 'asset' || field.type === 'reference') && typeof value === 'string') {
       out[field.name] = remap(value);
     } else if (field.type === 'array' && Array.isArray(value)) {

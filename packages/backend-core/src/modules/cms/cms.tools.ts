@@ -144,6 +144,7 @@ const CreateLocaleInput = z.object({
 const SetDefaultLocaleInput = z.object({ code: z.string() });
 
 const ListInboundReferencesInput = z.object({ entryId: z.string() });
+const ListAssetUsageInput = z.object({ assetId: z.string() });
 
 const SearchInput = z.object({
   query: z.string().min(1).max(500),
@@ -510,7 +511,8 @@ export class CmsAdminTools {
   @McpTool({
     name: 'cms_delete_asset',
     title: 'CMS: Delete asset',
-    description: 'Delete an asset and remove the underlying file from storage.',
+    description:
+      'Delete an asset and remove the underlying file from storage. Fails with a conflict if the asset is still referenced by any entry, as a typed asset field or inline in a body.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: DeleteAssetInput,
@@ -580,6 +582,21 @@ export class CmsAdminTools {
   })
   listInboundReferences(args: z.infer<typeof ListInboundReferencesInput>) {
     return this.cms.listInboundReferences(args.entryId);
+  }
+
+  @McpTool({
+    name: 'cms_list_asset_usage',
+    title: 'CMS: List asset usage',
+    description:
+      'List entries that use the given asset, either as a typed asset field or as an inline reference inside a markdown/rich_text body. Useful before deleting an asset — an asset that is still in use cannot be deleted.',
+    audiences: ['admin'],
+    scopes: ['cms:read'],
+    input: ListAssetUsageInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listAssetUsage(args: z.infer<typeof ListAssetUsageInput>) {
+    return this.cms.listAssetUsage(args.assetId);
   }
 
   // Search ──────────────────────────────────────────────────────────────

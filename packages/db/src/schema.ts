@@ -1478,6 +1478,34 @@ export const cmsReferences = pgTable(
   }),
 );
 
+// Asset references: materialize "entry A uses asset X" edges so deleting an
+// asset can refuse while it is still referenced, and "what uses this asset"
+// is cheap. kind distinguishes a typed asset field from an inline asset://
+// token embedded in a markdown / rich_text body.
+export const cmsAssetReferences = pgTable(
+  'cms_asset_references',
+  {
+    id: id('cmar'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    fromEntryId: text('from_entry_id')
+      .notNull()
+      .references(() => cmsEntries.id, { onDelete: 'cascade' }),
+    assetId: text('asset_id')
+      .notNull()
+      .references(() => cmsAssets.id, { onDelete: 'cascade' }),
+    fieldName: varchar('field_name', { length: 64 }).notNull(),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt,
+  },
+  (t) => ({
+    fromIdx: index('cms_asset_references_from_idx').on(t.fromEntryId),
+    assetIdx: index('cms_asset_references_asset_idx').on(t.assetId),
+  }),
+);
+
 // ───────────────────────────── Analytics ─────────────────────────────
 // Polymorphic page-view and search events. The first consumer is the
 // CMS delivery API (subject_type='cms_entry'); landing pages, dashboard
@@ -1901,6 +1929,7 @@ export const allTables = {
   cmsAssets,
   cmsLocales,
   cmsReferences,
+  cmsAssetReferences,
   analyticsTrackers,
   analyticsViewEvents,
   analyticsSearchEvents,

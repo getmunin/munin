@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { api } from '../../api';
+import { useRealtime } from '../../realtime';
 import { useRelative } from '../../lib/use-relative';
 import type { InboxController } from './inbox-sections';
 
@@ -33,22 +34,25 @@ export function RecentConversationsSection({
 }) {
   const t = useTranslations('dashboard.overview.recentConversations');
   const [items, setItems] = useState<ConversationSummary[]>([]);
-  const fetchedRef = useRef(false);
+
+  const load = useCallback(async () => {
+    try {
+      const page = await api<ConversationListResponse>(
+        `/v1/conversations?status=open&limit=${MAX_ITEMS}`,
+      );
+      setItems(page.items);
+    } catch (err) {
+      console.warn('[dashboard] open conversations fetch failed:', err);
+    }
+  }, []);
 
   useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-    void (async () => {
-      try {
-        const page = await api<ConversationListResponse>(
-          `/v1/conversations?status=open&limit=${MAX_ITEMS}`,
-        );
-        setItems(page.items);
-      } catch (err) {
-        console.warn('[dashboard] open conversations fetch failed:', err);
-      }
-    })();
-  }, []);
+    void load();
+  }, [load]);
+
+  useRealtime([{ channel: 'org' }], (event) => {
+    if (event.type.startsWith('conversation.')) void load();
+  });
 
   const visible = useMemo(() => {
     return items

@@ -12,9 +12,16 @@ export const FIELD_TYPES = [
   'asset',
   'reference',
   'array',
+  'blocks',
   'json',
 ] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
+
+export interface BlockTypeDef {
+  name: string;
+  label?: string;
+  fields: FieldDef[];
+}
 
 export interface FieldDef {
   name: string;
@@ -27,6 +34,7 @@ export interface FieldDef {
     choices?: string[];
     targetCollection?: string;
     items?: FieldDef;
+    blockTypes?: BlockTypeDef[];
   };
 }
 
@@ -35,10 +43,98 @@ const SEARCH_TEXT_FIELD_TYPES = new Set<FieldType>(['text', 'rich_text', 'markdo
 const INLINE_ASSET_FIELD_TYPES = new Set<FieldType>(['rich_text', 'markdown']);
 
 const ASSET_URI_PATTERN = /asset:\/\/([A-Za-z0-9_]+)/g;
+const ASSET_URI_TEST = /asset:\/\/[A-Za-z0-9_]+/;
 
 function inlineAssetIdsIn(value: unknown): string[] {
   if (typeof value !== 'string') return [];
   return [...value.matchAll(ASSET_URI_PATTERN)].map((m) => m[1]!);
+}
+
+export interface BlockInstance {
+  type: string;
+  key?: string;
+  props: Record<string, unknown>;
+}
+
+export function asBlock(value: unknown): BlockInstance | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const type = (value as { type?: unknown }).type;
+  if (typeof type !== 'string') return null;
+  const key = (value as { key?: unknown }).key;
+  const props = (value as { props?: unknown }).props;
+  return {
+    type,
+    ...(typeof key === 'string' ? { key } : {}),
+    props:
+      props && typeof props === 'object' && !Array.isArray(props)
+        ? (props as Record<string, unknown>)
+        : {},
+  };
+}
+
+function blockTypesOf(field: FieldDef): BlockTypeDef[] {
+  return field.options?.blockTypes ?? [];
+}
+
+function resolveBlock(
+  types: BlockTypeDef[],
+  raw: unknown,
+): { block: BlockInstance; blockType: BlockTypeDef } | null {
+  const block = asBlock(raw);
+  if (!block) return null;
+  const blockType = types.find((t) => t.name === block.type);
+  return blockType ? { block, blockType } : null;
+}
+
+function forEachBlock(
+  field: FieldDef,
+  value: unknown,
+  fn: (blockFields: FieldDef[], props: Record<string, unknown>, index: number) => void,
+): void {
+  if (field.type !== 'blocks' || !Array.isArray(value)) return;
+  const types = blockTypesOf(field);
+  (value as unknown[]).forEach((raw, index) => {
+    const resolved = resolveBlock(types, raw);
+    if (resolved) fn(resolved.blockType.fields, resolved.block.props, index);
+  });
+}
+
+function mapBlocks(
+  field: FieldDef,
+  value: unknown[],
+  transformProps: (blockFields: FieldDef[], props: Record<string, unknown>) => Record<string, unknown>,
+): unknown[] {
+  const types = blockTypesOf(field);
+  return value.map((raw) => {
+    const resolved = resolveBlock(types, raw);
+    if (!resolved) return raw;
+    return {
+      ...(raw as Record<string, unknown>),
+      props: transformProps(resolved.blockType.fields, resolved.block.props),
+    };
+  });
+}
+
+function jsonContainsAssetUri(value: unknown): boolean {
+  if (typeof value === 'string') return ASSET_URI_TEST.test(value);
+  if (Array.isArray(value)) return value.some(jsonContainsAssetUri);
+  if (value && typeof value === 'object') return Object.values(value).some(jsonContainsAssetUri);
+  return false;
+}
+
+function jsonLooksLikeBlocks(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.some(
+      (el) =>
+        !!el &&
+        typeof el === 'object' &&
+        !Array.isArray(el) &&
+        typeof (el as { type?: unknown }).type === 'string' &&
+        typeof (el as { props?: unknown }).props === 'object' &&
+        (el as { props?: unknown }).props !== null,
+    )
+  );
 }
 
 function stripInlineAssetUris(value: string): string {
@@ -133,7 +229,37 @@ function validateValue(field: FieldDef, value: unknown): string | null {
       }
       return null;
     }
+    case 'blocks': {
+      if (!Array.isArray(value)) return 'expected array of blocks';
+      const types = blockTypesOf(field);
+      const items = value as unknown[];
+      for (let i = 0; i < items.length; i++) {
+        const block = items[i];
+        if (!block || typeof block !== 'object' || Array.isArray(block)) {
+          return `[${i}]: expected a block object`;
+        }
+        const type = (block as { type?: unknown }).type;
+        if (typeof type !== 'string') return `[${i}]: block is missing a string "type"`;
+        const bt = types.find((t) => t.name === type);
+        if (!bt) return `[${i}]: unknown block type "${type}"`;
+        const rawProps = (block as { props?: unknown }).props;
+        if (!rawProps || typeof rawProps !== 'object' || Array.isArray(rawProps)) {
+          return `[${i}] (${type}): block "props" must be an object`;
+        }
+        const errs = validateEntryData(bt.fields, rawProps as Record<string, unknown>);
+        if (errs.length > 0) {
+          return `[${i}] (${type}): ${errs.map((e) => `${e.field}: ${e.message}`).join('; ')}`;
+        }
+      }
+      return null;
+    }
     case 'json':
+      if (jsonContainsAssetUri(value)) {
+        return 'json must not contain asset:// references — use a markdown, rich_text, or blocks field';
+      }
+      if (jsonLooksLikeBlocks(value)) {
+        return 'json must not contain block-shaped data ({type, props}) — use a blocks field';
+      }
       return null;
     default:
       return null;
@@ -159,6 +285,16 @@ export function buildSearchText(
   const targets = new Set(override ?? []);
   const parts: string[] = [];
   for (const field of fields) {
+    if (field.type === 'blocks') {
+      const include = override ? targets.has(field.name) : true;
+      if (include) {
+        forEachBlock(field, data[field.name], (bf, props) => {
+          const text = buildSearchText(bf, props);
+          if (text) parts.push(text);
+        });
+      }
+      continue;
+    }
     const include = override
       ? targets.has(field.name)
       : SEARCH_TEXT_FIELD_TYPES.has(field.type);
@@ -180,6 +316,49 @@ export interface AssetSummary {
   sizeBytes: number;
 }
 
+export interface ExpandedEntry {
+  id: string;
+  slug: string;
+  collection: string;
+  locale: string;
+  data: Record<string, unknown>;
+}
+
+export function collectReferenceIds(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+): string[] {
+  return [...extractReferences(fields, data)].map((r) => r.toEntryId);
+}
+
+export function applyReferenceExpansion(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+  entries: Map<string, ExpandedEntry>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  for (const field of fields) {
+    const value = out[field.name];
+    if (value === undefined || value === null) continue;
+    if (field.type === 'reference' && typeof value === 'string') {
+      out[field.name] = entries.get(value) ?? null;
+    } else if (
+      field.type === 'array' &&
+      field.options?.items?.type === 'reference' &&
+      Array.isArray(value)
+    ) {
+      out[field.name] = value.map((v) =>
+        typeof v === 'string' ? entries.get(v) ?? null : null,
+      );
+    } else if (field.type === 'blocks' && Array.isArray(value)) {
+      out[field.name] = mapBlocks(field, value, (bf, props) =>
+        applyReferenceExpansion(bf, props, entries),
+      );
+    }
+  }
+  return out;
+}
+
 export function collectAssetIds(
   fields: FieldDef[],
   data: Record<string, unknown>,
@@ -198,6 +377,10 @@ export function collectAssetIds(
       for (const v of value) if (typeof v === 'string') out.push(v);
     } else if (INLINE_ASSET_FIELD_TYPES.has(field.type)) {
       for (const id of inlineAssetIdsIn(value)) out.push(id);
+    } else if (field.type === 'blocks') {
+      forEachBlock(field, value, (bf, props) => {
+        for (const id of collectAssetIds(bf, props)) out.push(id);
+      });
     }
   }
   return out;
@@ -222,6 +405,10 @@ export function applyAssetExpansion(
       out[field.name] = value.map((v) =>
         typeof v === 'string' ? assets.get(v) ?? null : null,
       );
+    } else if (field.type === 'blocks' && Array.isArray(value)) {
+      out[field.name] = mapBlocks(field, value, (bf, props) =>
+        applyAssetExpansion(bf, props, assets),
+      );
     }
   }
   return out;
@@ -234,13 +421,18 @@ export function rewriteInlineAssets(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...data };
   for (const field of fields) {
-    if (!INLINE_ASSET_FIELD_TYPES.has(field.type)) continue;
     const value = out[field.name];
-    if (typeof value !== 'string') continue;
-    out[field.name] = value.replace(ASSET_URI_PATTERN, (match, id: string) => {
-      const asset = assets.get(id);
-      return asset ? asset.publicUrl : match;
-    });
+    if (INLINE_ASSET_FIELD_TYPES.has(field.type)) {
+      if (typeof value !== 'string') continue;
+      out[field.name] = value.replace(ASSET_URI_PATTERN, (match, id: string) => {
+        const asset = assets.get(id);
+        return asset ? asset.publicUrl : match;
+      });
+    } else if (field.type === 'blocks' && Array.isArray(value)) {
+      out[field.name] = mapBlocks(field, value, (bf, props) =>
+        rewriteInlineAssets(bf, props, assets),
+      );
+    }
   }
   return out;
 }
@@ -252,10 +444,15 @@ export function buildInlineAssetSidecar(
 ): Record<string, AssetSummary> {
   const out: Record<string, AssetSummary> = {};
   for (const field of fields) {
-    if (!INLINE_ASSET_FIELD_TYPES.has(field.type)) continue;
-    for (const id of inlineAssetIdsIn(data[field.name])) {
-      const asset = assets.get(id);
-      if (asset) out[id] = asset;
+    if (INLINE_ASSET_FIELD_TYPES.has(field.type)) {
+      for (const id of inlineAssetIdsIn(data[field.name])) {
+        const asset = assets.get(id);
+        if (asset) out[id] = asset;
+      }
+    } else if (field.type === 'blocks') {
+      forEachBlock(field, data[field.name], (bf, props) => {
+        Object.assign(out, buildInlineAssetSidecar(bf, props, assets));
+      });
     }
   }
   return out;
@@ -293,6 +490,16 @@ export function* extractAssetReferences(
         yield { fieldName: field.name, assetId: id, position: i, kind: 'inline' };
         i++;
       }
+    } else if (field.type === 'blocks' && Array.isArray(value)) {
+      const types = blockTypesOf(field);
+      const blocks = value as unknown[];
+      for (let index = 0; index < blocks.length; index++) {
+        const resolved = resolveBlock(types, blocks[index]);
+        if (!resolved) continue;
+        for (const ref of extractAssetReferences(resolved.blockType.fields, resolved.block.props)) {
+          yield { fieldName: field.name, assetId: ref.assetId, position: index, kind: ref.kind };
+        }
+      }
     }
   }
 }
@@ -317,6 +524,16 @@ export function* extractReferences(
           yield { fieldName: field.name, toEntryId: v, position: i };
         }
         i++;
+      }
+    } else if (field.type === 'blocks' && Array.isArray(value)) {
+      const types = blockTypesOf(field);
+      const blocks = value as unknown[];
+      for (let index = 0; index < blocks.length; index++) {
+        const resolved = resolveBlock(types, blocks[index]);
+        if (!resolved) continue;
+        for (const ref of extractReferences(resolved.blockType.fields, resolved.block.props)) {
+          yield { fieldName: field.name, toEntryId: ref.toEntryId, position: index };
+        }
       }
     }
   }

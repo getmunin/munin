@@ -1,13 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyAssetExpansion,
+  applyReferenceExpansion,
   buildInlineAssetSidecar,
   buildSearchText,
   collectAssetIds,
   extractAssetReferences,
+  extractReferences,
   remapInlineAssetUris,
   rewriteInlineAssets,
+  validateEntryData,
   type AssetSummary,
+  type ExpandedEntry,
   type FieldDef,
 } from './cms.fields.ts';
 
@@ -171,5 +175,167 @@ describe('applyAssetExpansion', () => {
   it('leaves non-asset fields untouched', () => {
     const out = applyAssetExpansion(fields, { title: 'hi', tags: ['x', 'y'] }, map);
     expect(out).toMatchObject({ title: 'hi', tags: ['x', 'y'] });
+  });
+});
+
+const blockFields: FieldDef[] = [
+  {
+    name: 'body',
+    type: 'blocks',
+    options: {
+      blockTypes: [
+        {
+          name: 'callout',
+          fields: [
+            { name: 'text', type: 'markdown' },
+            { name: 'icon', type: 'asset' },
+          ],
+        },
+        {
+          name: 'gallery',
+          fields: [
+            { name: 'images', type: 'array', options: { items: { name: 'i', type: 'asset' } } },
+          ],
+        },
+        {
+          name: 'product_card',
+          fields: [{ name: 'product', type: 'reference', options: { targetCollection: 'products' } }],
+        },
+      ],
+    },
+  },
+];
+
+const blockData = {
+  body: [
+    { type: 'callout', key: 'b1', props: { text: 'see ![x](asset://cma_a)', icon: 'cma_b' } },
+    { type: 'gallery', key: 'b2', props: { images: ['cma_b', 'cma_c'] } },
+    { type: 'product_card', key: 'b3', props: { product: 'ent_1' } },
+    { type: 'unknown_type', key: 'b4', props: { foo: 1 } },
+  ],
+};
+
+const blockAssetMap = new Map<string, AssetSummary>([
+  ['cma_a', { id: 'cma_a', publicUrl: 'https://cdn/a.png', altText: 'A', mime: 'image/png', sizeBytes: 1 }],
+  ['cma_b', { id: 'cma_b', publicUrl: 'https://cdn/b.png', altText: null, mime: 'image/png', sizeBytes: 2 }],
+]);
+
+describe('blocks: validation', () => {
+  it('accepts well-formed blocks of known types', () => {
+    const data = { body: [{ type: 'callout', key: 'b1', props: { text: 'hi' } }] };
+    expect(validateEntryData(blockFields, data)).toEqual([]);
+  });
+
+  it('rejects an unknown block type', () => {
+    const data = { body: [{ type: 'nope', props: {} }] };
+    const errs = validateEntryData(blockFields, data);
+    expect(errs[0]?.message).toContain('unknown block type "nope"');
+  });
+
+  it('rejects a bad prop inside a block', () => {
+    const data = { body: [{ type: 'callout', props: { icon: 123 } }] };
+    const errs = validateEntryData(blockFields, data);
+    expect(errs[0]?.message).toContain('icon');
+  });
+
+  it('rejects a non-array blocks value', () => {
+    const errs = validateEntryData(blockFields, { body: { type: 'callout' } });
+    expect(errs[0]?.message).toContain('expected array of blocks');
+  });
+});
+
+describe('blocks: traversal helpers', () => {
+  it('collectAssetIds recurses into block props (typed + inline)', () => {
+    expect(collectAssetIds(blockFields, blockData).sort()).toEqual(['cma_a', 'cma_b', 'cma_b', 'cma_c']);
+  });
+
+  it('extractAssetReferences yields block refs with block index as position', () => {
+    const refs = [...extractAssetReferences(blockFields, blockData)];
+    expect(refs).toEqual([
+      { fieldName: 'body', assetId: 'cma_a', position: 0, kind: 'inline' },
+      { fieldName: 'body', assetId: 'cma_b', position: 0, kind: 'field' },
+      { fieldName: 'body', assetId: 'cma_b', position: 1, kind: 'field' },
+      { fieldName: 'body', assetId: 'cma_c', position: 1, kind: 'field' },
+    ]);
+  });
+
+  it('extractReferences yields entry refs from block props', () => {
+    expect([...extractReferences(blockFields, blockData)]).toEqual([
+      { fieldName: 'body', toEntryId: 'ent_1', position: 2 },
+    ]);
+  });
+
+  it('applyAssetExpansion expands typed asset props inside blocks', () => {
+    const out = applyAssetExpansion(blockFields, blockData, blockAssetMap) as { body: Array<{ props: Record<string, unknown> }> };
+    expect(out.body[0]?.props.icon).toMatchObject({ id: 'cma_b' });
+    expect(out.body[1]?.props.images).toEqual([
+      expect.objectContaining({ id: 'cma_b' }),
+      null,
+    ]);
+    expect(out.body[3]).toMatchObject({ type: 'unknown_type' });
+  });
+
+  it('rewriteInlineAssets rewrites inline tokens in block prose', () => {
+    const out = rewriteInlineAssets(blockFields, blockData, blockAssetMap) as { body: Array<{ props: Record<string, unknown> }> };
+    expect(out.body[0]?.props.text).toBe('see ![x](https://cdn/a.png)');
+  });
+
+  it('buildInlineAssetSidecar collects inline assets from blocks', () => {
+    const sidecar = buildInlineAssetSidecar(blockFields, blockData, blockAssetMap);
+    expect(Object.keys(sidecar)).toEqual(['cma_a']);
+  });
+
+  it('buildSearchText indexes block prose (sentinels stripped)', () => {
+    const text = buildSearchText(blockFields, blockData);
+    expect(text).toContain('see');
+    expect(text).not.toContain('asset://');
+  });
+
+  it('skips unknown block types without throwing', () => {
+    expect(() => collectAssetIds(blockFields, blockData)).not.toThrow();
+    const expanded = applyAssetExpansion(blockFields, { body: 'not-an-array' }, blockAssetMap);
+    expect(expanded.body).toBe('not-an-array');
+  });
+});
+
+describe('applyReferenceExpansion', () => {
+  const entryMap = new Map<string, ExpandedEntry>([
+    ['ent_1', { id: 'ent_1', slug: 'p1', collection: 'products', locale: 'en', data: { name: 'Widget' } }],
+  ]);
+
+  it('expands top-level and block reference fields one level; unknown -> null', () => {
+    const fields: FieldDef[] = [{ name: 'author', type: 'reference' }, ...blockFields];
+    const out = applyReferenceExpansion(
+      fields,
+      {
+        author: 'ent_1',
+        body: [
+          { type: 'product_card', props: { product: 'ent_1' } },
+          { type: 'product_card', props: { product: 'ent_x' } },
+        ],
+      },
+      entryMap,
+    ) as { author: unknown; body: Array<{ props: Record<string, unknown> }> };
+    expect(out.author).toMatchObject({ id: 'ent_1', data: { name: 'Widget' } });
+    expect(out.body[0]?.props.product).toMatchObject({ id: 'ent_1' });
+    expect(out.body[1]?.props.product).toBeNull();
+  });
+});
+
+describe('json misuse lint', () => {
+  const jsonFields: FieldDef[] = [{ name: 'meta', type: 'json' }];
+
+  it('rejects asset:// references nested anywhere in json', () => {
+    const errs = validateEntryData(jsonFields, { meta: { nested: { url: 'asset://cma_a' } } });
+    expect(errs[0]?.message).toContain('asset://');
+  });
+
+  it('rejects block-shaped arrays in json', () => {
+    const errs = validateEntryData(jsonFields, { meta: [{ type: 'callout', props: {} }] });
+    expect(errs[0]?.message).toContain('block-shaped');
+  });
+
+  it('allows genuinely opaque json', () => {
+    expect(validateEntryData(jsonFields, { meta: { ok: true, list: [1, 2], type: 'invoice' } })).toEqual([]);
   });
 });

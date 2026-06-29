@@ -19,6 +19,15 @@ const FieldSchema: z.ZodType<FieldDef> = z.lazy(() =>
         choices: z.array(z.string()).optional(),
         targetCollection: z.string().optional(),
         items: z.lazy(() => FieldSchema).optional(),
+        blockTypes: z
+          .array(
+            z.object({
+              name: z.string().min(1).max(64),
+              label: z.string().max(120).optional(),
+              fields: z.array(z.lazy(() => FieldSchema)).max(100),
+            }),
+          )
+          .optional(),
       })
       .optional(),
   }),
@@ -46,14 +55,20 @@ const UpdateCollectionInput = z.object({
 const GetCollectionInput = z.object({ idOrSlug: z.string() });
 const DeleteCollectionInput = z.object({ idOrSlug: z.string() });
 
+const IncludeInput = z
+  .array(z.enum(['references']))
+  .optional()
+  .describe('Set to ["references"] to expand reference fields into the referenced entries.');
+
 const ListEntriesInput = z.object({
   collection: z.string().optional(),
   status: z.enum(ENTRY_STATUSES).optional(),
   locale: z.string().optional(),
   limit: z.number().int().positive().max(200).optional(),
+  include: IncludeInput,
 });
 
-const GetEntryInput = z.object({ id: z.string() });
+const GetEntryInput = z.object({ id: z.string(), include: IncludeInput });
 
 const CreateEntryInput = z.object({
   collection: z.string(),
@@ -314,7 +329,7 @@ export class CmsAdminTools {
     destructiveHint: false,
   })
   getEntry(args: z.infer<typeof GetEntryInput>) {
-    return this.cms.getEntry(args.id);
+    return this.cms.getEntry(args.id, args.include);
   }
 
   @McpTool({
@@ -588,7 +603,7 @@ export class CmsAdminTools {
     name: 'cms_list_asset_usage',
     title: 'CMS: List asset usage',
     description:
-      'List entries that use the given asset, either as a typed asset field or as an inline reference inside a markdown/rich_text body. Useful before deleting an asset — an asset that is still in use cannot be deleted.',
+      'List entries that use the given asset — as a typed asset field, as an inline reference inside a markdown/rich_text body, or inside a block. Useful before deleting an asset — an asset that is still in use cannot be deleted.',
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: ListAssetUsageInput,

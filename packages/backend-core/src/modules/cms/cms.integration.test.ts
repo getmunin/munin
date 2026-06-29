@@ -952,6 +952,77 @@ const skipReason = TEST_URL
     const noIncJson = (await noInc.json()) as { _refs?: unknown };
     expect(noIncJson._refs).toBeUndefined();
   }, 30_000);
+
+  it('cms_search with include:["references"] expands reference fields and inline ref:// tokens', async () => {
+    let targetId = '';
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Docs',
+          slug: 'docs',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+            { name: 'body', type: 'markdown' },
+            { name: 'related', type: 'reference', options: { targetCollection: 'docs' } },
+          ],
+        },
+      });
+      const target = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'docs',
+            slug: 'target-doc',
+            data: { title: 'Target Doc', slug: 'target-doc', body: 'target' },
+            status: 'published',
+          },
+        }),
+      );
+      targetId = target.id;
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'docs',
+          slug: 'searchabledoc',
+          data: {
+            title: 'Searchabledoc unique',
+            slug: 'searchabledoc',
+            body: `see [target](ref://${target.id})`,
+            related: target.id,
+          },
+          status: 'published',
+        },
+      });
+    });
+
+    await withClient(adminKey, async (c) => {
+      const hits = parseToolResult<
+        Array<{
+          slug: string;
+          data: { related: unknown };
+          refs?: Record<string, { slug: string }>;
+        }>
+      >(
+        await c.callTool({
+          name: 'cms_search',
+          arguments: { query: 'Searchabledoc', include: ['references'] },
+        }),
+      );
+      const hit = hits.find((h) => h.slug === 'searchabledoc');
+      expect(hit).toBeTruthy();
+      expect(hit!.data.related).toMatchObject({ id: targetId, collection: 'docs' });
+      expect(hit!.refs?.[targetId]).toMatchObject({ slug: 'target-doc' });
+
+      const plain = parseToolResult<Array<{ slug: string; data: { related: unknown }; refs?: unknown }>>(
+        await c.callTool({ name: 'cms_search', arguments: { query: 'Searchabledoc' } }),
+      );
+      const plainHit = plain.find((h) => h.slug === 'searchabledoc');
+      expect(plainHit!.data.related).toBe(targetId);
+      expect(plainHit!.refs).toBeUndefined();
+    });
+  }, 30_000);
 });
 
 function retarget(url: string, baseUrl: string): string {

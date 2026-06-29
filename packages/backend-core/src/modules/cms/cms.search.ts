@@ -9,13 +9,19 @@ import { CmsService, type EntryStatus } from './cms.service.ts';
 import type { FieldDef } from './cms.fields.ts';
 import {
   applyAssetExpansion,
+  applyReferenceExpansion,
   buildInlineAssetSidecar,
+  buildReferenceSidecar,
   collectAssetIds,
+  collectInlineReferenceIds,
+  collectReferenceIds,
   projectData,
   rewriteInlineAssets,
   type AssetSummary,
+  type ExpandedEntry,
 } from './cms.fields.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
+import { loadEntryMap } from './cms.entry-loader.ts';
 
 export interface SearchHit {
   entryId: string;
@@ -26,6 +32,7 @@ export interface SearchHit {
   status: EntryStatus;
   data: Record<string, unknown>;
   assets?: Record<string, AssetSummary>;
+  refs?: Record<string, ExpandedEntry>;
   excerpt: string;
   score: number;
   source: 'fts' | 'vector' | 'both';
@@ -36,9 +43,9 @@ export interface SearchInput {
   collection?: string;
   status?: EntryStatus;
   locale?: string;
-  /** Public-only filter (delivery API). Admin search includes drafts + scheduled. */
   publishedOnly?: boolean;
   limit?: number;
+  include?: string[];
 }
 
 const DEFAULT_LIMIT = 10;
@@ -98,8 +105,6 @@ export class CmsSearchService {
     const trimmed = input.query.trim();
     if (!trimmed) return [];
 
-    // Public path uses the service-role DB (no request context); admin path
-    // uses the tenant-bound transaction Db from the request context.
     const db: Db | Tx = opts?.orgId ? this.serviceDb : getCurrentContext().db;
 
     const filters: SQL[] = [];
@@ -196,9 +201,29 @@ export class CmsSearchService {
       const fields = fieldsByEntryId.get(hit.entryId);
       if (!fields) continue;
       const expanded = applyAssetExpansion(fields, hit.data, assets);
-      const sidecar = buildInlineAssetSidecar(fields, expanded, assets);
+      const assetSidecar = buildInlineAssetSidecar(fields, expanded, assets);
       hit.data = rewriteInlineAssets(fields, expanded, assets);
-      if (Object.keys(sidecar).length > 0) hit.assets = sidecar;
+      if (Object.keys(assetSidecar).length > 0) hit.assets = assetSidecar;
+    }
+
+    if (input.include?.includes('references') || input.include?.includes('*')) {
+      const refIds = new Set<string>();
+      for (const hit of fused) {
+        const fields = fieldsByEntryId.get(hit.entryId);
+        if (!fields) continue;
+        for (const id of collectReferenceIds(fields, hit.data)) refIds.add(id);
+        for (const id of collectInlineReferenceIds(fields, hit.data)) refIds.add(id);
+      }
+      const entryMap = await loadEntryMap(db, orgId, refIds, {
+        publishedOnly: !!input.publishedOnly,
+      });
+      for (const hit of fused) {
+        const fields = fieldsByEntryId.get(hit.entryId);
+        if (!fields) continue;
+        const refSidecar = buildReferenceSidecar(fields, hit.data, entryMap);
+        hit.data = applyReferenceExpansion(fields, hit.data, entryMap);
+        if (Object.keys(refSidecar).length > 0) hit.refs = refSidecar;
+      }
     }
     return fused;
   }

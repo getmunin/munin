@@ -78,6 +78,7 @@ export class CmsDeliveryController {
     @Query('locale') locale?: string,
     @Query('limit') limit?: string,
     @Query('visitor_id') visitorId?: string,
+    @Query('include') include?: string,
   ) {
     if (!q || !q.trim()) return [];
     const org = await this.resolveOrg(orgId);
@@ -88,6 +89,7 @@ export class CmsDeliveryController {
         locale,
         limit: limit ? Number.parseInt(limit, 10) : undefined,
         publishedOnly: true,
+        ...(includeReferences(include) ? { include: ['references'] } : {}),
       },
       { orgId: org.id },
     );
@@ -225,8 +227,6 @@ export class CmsDeliveryController {
       ...(trackingEnabled(tracking) ? { _tracking: buildTracking(org.id, row.id) } : {}),
     };
   }
-
-  // ─── helpers ─────────────────────────────────────────────────────────
 
   private async fetchAssets(
     orgId: string,

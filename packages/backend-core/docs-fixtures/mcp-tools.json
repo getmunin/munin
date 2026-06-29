@@ -2209,6 +2209,16 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 50
+        },
+        "include": {
+          "description": "Set to [\"references\"] to expand reference fields into the referenced entries.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "references"
+            ]
+          }
         }
       },
       "required": [

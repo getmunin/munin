@@ -890,6 +890,68 @@ const skipReason = TEST_URL
       data: { name: 'Ada' },
     });
   }, 30_000);
+
+  it('delivery: inline ref:// tokens resolve to a _refs sidecar (token left in place) under ?include', async () => {
+    let targetId = '';
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Notes',
+          slug: 'notes',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+            { name: 'body', type: 'markdown' },
+          ],
+        },
+      });
+      const target = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'notes',
+            slug: 'target',
+            data: { title: 'Target', slug: 'target', body: 'I am the target' },
+            status: 'published',
+          },
+        }),
+      );
+      targetId = target.id;
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'notes',
+          slug: 'source',
+          data: {
+            title: 'Source',
+            slug: 'source',
+            body: `see [the target](ref://${target.id}) for details`,
+          },
+          status: 'published',
+        },
+      });
+    });
+
+    const res = await fetchUntil(
+      `${baseUrl}/v1/cms/${orgId}/notes/source?include=references`,
+      (r) => r.status === 200,
+    );
+    const json = (await res.json()) as {
+      data: { body: string };
+      _refs?: Record<string, { slug: string; collection: string; data: { title: string } }>;
+    };
+    expect(json.data.body).toContain(`ref://${targetId}`);
+    expect(json._refs?.[targetId]).toMatchObject({
+      slug: 'target',
+      collection: 'notes',
+      data: { title: 'Target' },
+    });
+
+    const noInc = await fetch(`${baseUrl}/v1/cms/${orgId}/notes/source`);
+    const noIncJson = (await noInc.json()) as { _refs?: unknown };
+    expect(noIncJson._refs).toBeUndefined();
+  }, 30_000);
 });
 
 function retarget(url: string, baseUrl: string): string {

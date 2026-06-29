@@ -20,7 +20,9 @@ import {
   applyAssetExpansion,
   applyReferenceExpansion,
   buildInlineAssetSidecar,
+  buildReferenceSidecar,
   collectAssetIds,
+  collectInlineReferenceIds,
   collectReferenceIds,
   projectData,
   rewriteInlineAssets,
@@ -148,13 +150,15 @@ export class CmsDeliveryController {
       : null;
     const items = projected.map(({ id, ...p }) => {
       const expanded = applyAssetExpansion(fields, p.data, assets);
-      const sidecar = buildInlineAssetSidecar(fields, expanded, assets);
+      const assetSidecar = buildInlineAssetSidecar(fields, expanded, assets);
       let data = rewriteInlineAssets(fields, expanded, assets);
+      const refSidecar = entryMap ? buildReferenceSidecar(fields, data, entryMap) : {};
       if (entryMap) data = applyReferenceExpansion(fields, data, entryMap);
       return {
         ...p,
         data,
-        ...(Object.keys(sidecar).length > 0 ? { _assets: sidecar } : {}),
+        ...(Object.keys(assetSidecar).length > 0 ? { _assets: assetSidecar } : {}),
+        ...(Object.keys(refSidecar).length > 0 ? { _refs: refSidecar } : {}),
         ...(trackingOn ? { _tracking: buildTracking(org.id, id) } : {}),
       };
     });
@@ -201,17 +205,20 @@ export class CmsDeliveryController {
     const projected = projectData(fields, row.data);
     const assets = await this.fetchAssets(org.id, fields, [projected]);
     const expanded = applyAssetExpansion(fields, projected, assets);
-    const sidecar = buildInlineAssetSidecar(fields, expanded, assets);
+    const assetSidecar = buildInlineAssetSidecar(fields, expanded, assets);
     let data = rewriteInlineAssets(fields, expanded, assets);
+    let refSidecar: Record<string, unknown> = {};
     if (includeReferences(include)) {
       const entryMap = await this.fetchReferencedEntries(org.id, fields, [data]);
+      refSidecar = buildReferenceSidecar(fields, data, entryMap);
       data = applyReferenceExpansion(fields, data, entryMap);
     }
     return {
       slug: row.slug,
       locale: row.locale,
       data,
-      ...(Object.keys(sidecar).length > 0 ? { _assets: sidecar } : {}),
+      ...(Object.keys(assetSidecar).length > 0 ? { _assets: assetSidecar } : {}),
+      ...(Object.keys(refSidecar).length > 0 ? { _refs: refSidecar } : {}),
       version: row.version,
       publishedAt: row.publishedAt?.toISOString() ?? null,
       updatedAt: row.updatedAt.toISOString(),
@@ -241,6 +248,7 @@ export class CmsDeliveryController {
     const ids = new Set<string>();
     for (const data of datas) {
       for (const id of collectReferenceIds(fields, data)) ids.add(id);
+      for (const id of collectInlineReferenceIds(fields, data)) ids.add(id);
     }
     return loadEntryMap(this.db, orgId, ids, { publishedOnly: true });
   }

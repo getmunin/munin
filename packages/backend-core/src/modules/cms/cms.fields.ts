@@ -40,14 +40,20 @@ export interface FieldDef {
 
 const SEARCH_TEXT_FIELD_TYPES = new Set<FieldType>(['text', 'rich_text', 'markdown']);
 
-const INLINE_ASSET_FIELD_TYPES = new Set<FieldType>(['rich_text', 'markdown']);
+const INLINE_PROSE_FIELD_TYPES = new Set<FieldType>(['rich_text', 'markdown']);
 
 const ASSET_URI_PATTERN = /asset:\/\/([A-Za-z0-9_]+)/g;
 const ASSET_URI_TEST = /asset:\/\/[A-Za-z0-9_]+/;
+const REF_URI_PATTERN = /ref:\/\/([A-Za-z0-9_]+)/g;
 
 function inlineAssetIdsIn(value: unknown): string[] {
   if (typeof value !== 'string') return [];
   return [...value.matchAll(ASSET_URI_PATTERN)].map((m) => m[1]!);
+}
+
+function inlineRefIdsIn(value: unknown): string[] {
+  if (typeof value !== 'string') return [];
+  return [...value.matchAll(REF_URI_PATTERN)].map((m) => m[1]!);
 }
 
 export interface BlockInstance {
@@ -331,6 +337,48 @@ export function collectReferenceIds(
   return [...extractReferences(fields, data)].map((r) => r.toEntryId);
 }
 
+export function collectInlineReferenceIds(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+): string[] {
+  const out: string[] = [];
+  for (const field of fields) {
+    const value = data[field.name];
+    if (value === undefined || value === null) continue;
+    if (INLINE_PROSE_FIELD_TYPES.has(field.type)) {
+      out.push(...inlineRefIdsIn(value));
+    } else if (field.type === 'blocks') {
+      forEachBlock(field, value, (bf, props) => {
+        out.push(...collectInlineReferenceIds(bf, props));
+      });
+    }
+  }
+  return out;
+}
+
+export function buildReferenceSidecar(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+  entries: Map<string, ExpandedEntry>,
+): Record<string, ExpandedEntry> {
+  const out: Record<string, ExpandedEntry> = {};
+  for (const field of fields) {
+    const value = data[field.name];
+    if (value === undefined || value === null) continue;
+    if (INLINE_PROSE_FIELD_TYPES.has(field.type)) {
+      for (const id of inlineRefIdsIn(value)) {
+        const entry = entries.get(id);
+        if (entry) out[id] = entry;
+      }
+    } else if (field.type === 'blocks') {
+      forEachBlock(field, value, (bf, props) => {
+        Object.assign(out, buildReferenceSidecar(bf, props, entries));
+      });
+    }
+  }
+  return out;
+}
+
 export function applyReferenceExpansion(
   fields: FieldDef[],
   data: Record<string, unknown>,
@@ -375,7 +423,7 @@ export function collectAssetIds(
       Array.isArray(value)
     ) {
       for (const v of value) if (typeof v === 'string') out.push(v);
-    } else if (INLINE_ASSET_FIELD_TYPES.has(field.type)) {
+    } else if (INLINE_PROSE_FIELD_TYPES.has(field.type)) {
       for (const id of inlineAssetIdsIn(value)) out.push(id);
     } else if (field.type === 'blocks') {
       forEachBlock(field, value, (bf, props) => {
@@ -422,7 +470,7 @@ export function rewriteInlineAssets(
   const out: Record<string, unknown> = { ...data };
   for (const field of fields) {
     const value = out[field.name];
-    if (INLINE_ASSET_FIELD_TYPES.has(field.type)) {
+    if (INLINE_PROSE_FIELD_TYPES.has(field.type)) {
       if (typeof value !== 'string') continue;
       out[field.name] = value.replace(ASSET_URI_PATTERN, (match, id: string) => {
         const asset = assets.get(id);
@@ -444,7 +492,7 @@ export function buildInlineAssetSidecar(
 ): Record<string, AssetSummary> {
   const out: Record<string, AssetSummary> = {};
   for (const field of fields) {
-    if (INLINE_ASSET_FIELD_TYPES.has(field.type)) {
+    if (INLINE_PROSE_FIELD_TYPES.has(field.type)) {
       for (const id of inlineAssetIdsIn(data[field.name])) {
         const asset = assets.get(id);
         if (asset) out[id] = asset;
@@ -484,7 +532,7 @@ export function* extractAssetReferences(
         }
         i++;
       }
-    } else if (INLINE_ASSET_FIELD_TYPES.has(field.type)) {
+    } else if (INLINE_PROSE_FIELD_TYPES.has(field.type)) {
       let i = 0;
       for (const id of inlineAssetIdsIn(value)) {
         yield { fieldName: field.name, assetId: id, position: i, kind: 'inline' };

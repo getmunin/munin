@@ -3,8 +3,10 @@ import {
   applyAssetExpansion,
   applyReferenceExpansion,
   buildInlineAssetSidecar,
+  buildReferenceSidecar,
   buildSearchText,
   collectAssetIds,
+  collectInlineReferenceIds,
   extractAssetReferences,
   extractReferences,
   remapInlineAssetUris,
@@ -319,6 +321,42 @@ describe('applyReferenceExpansion', () => {
     expect(out.author).toMatchObject({ id: 'ent_1', data: { name: 'Widget' } });
     expect(out.body[0]?.props.product).toMatchObject({ id: 'ent_1' });
     expect(out.body[1]?.props.product).toBeNull();
+  });
+});
+
+describe('inline ref:// tokens', () => {
+  const proseFields: FieldDef[] = [
+    { name: 'title', type: 'text' },
+    { name: 'body', type: 'markdown' },
+  ];
+  const entryMap = new Map<string, ExpandedEntry>([
+    ['ent_1', { id: 'ent_1', slug: 'pricing', collection: 'pages', locale: 'en', data: { title: 'Pricing' } }],
+  ]);
+
+  it('collectInlineReferenceIds finds ref:// ids in prose and blocks', () => {
+    expect(
+      collectInlineReferenceIds(proseFields, { body: 'see [pricing](ref://ent_1) and ref://ent_2' }).sort(),
+    ).toEqual(['ent_1', 'ent_2']);
+    expect(
+      collectInlineReferenceIds(blockFields, {
+        body: [{ type: 'callout', props: { text: 'x ref://ent_9' } }],
+      }),
+    ).toEqual(['ent_9']);
+  });
+
+  it('buildReferenceSidecar resolves only known inline ref ids', () => {
+    const sidecar = buildReferenceSidecar(
+      proseFields,
+      { body: '[a](ref://ent_1) [b](ref://ent_missing)' },
+      entryMap,
+    );
+    expect(Object.keys(sidecar)).toEqual(['ent_1']);
+    expect(sidecar.ent_1).toMatchObject({ slug: 'pricing', collection: 'pages' });
+  });
+
+  it('inline ref tokens are left in place (not rewritten) — sidecar only', () => {
+    const out = rewriteInlineAssets(proseFields, { body: 'ref://ent_1' }, new Map());
+    expect(out.body).toBe('ref://ent_1');
   });
 });
 

@@ -21,6 +21,9 @@ export function liveToStubDetail(c: LiveSummary): ConversationDetail {
   return {
     ...c,
     claim: c.claim,
+    contactEmail: null,
+    contactName: null,
+    contactPhone: null,
     messages: latest
       ? [
           {

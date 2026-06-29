@@ -80,6 +80,10 @@ On the delivery API and `cms_get_entry`:
 - Inline `asset://<id>` tokens in block prose are rewritten to the asset's `publicUrl`, and an `_assets` map (keyed by asset id) is attached alongside `data` for `altText`/dimensions.
 - `reference` props stay raw ids by default. Request expansion explicitly: delivery `GET /v1/cms/<org>/articles/<slug>?include=references`, or `cms_get_entry` / `cms_list_entries` with `"include": ["references"]`. Expanded references resolve **one level** to `{ id, slug, collection, locale, data }`; references inside the referenced entry are not followed.
 
+## Linking to another entry inline (`ref://`)
+
+To link or embed another entry from within prose (a `markdown`/`rich_text` field or block prop), write a `ref://<entryId>` token — e.g. `see [our pricing](ref://ent_pricing)`. Unlike `asset://` (which is rewritten to a URL on read), a `ref://` token is **left in place**, because the server doesn't know your site's routing. Instead, under `?include=references` the response carries a `_refs` map keyed by entry id → `{ id, slug, collection, locale, data }`; your renderer detects `ref://<id>`, looks it up in `_refs`, and builds its own link (`/blog/<slug>`) or embed. Tokens whose target isn't published (or doesn't exist) simply have no `_refs` entry.
+
 ## What NOT to do
 
 - **Don't nest blocks.** A block type's fields cannot include another `blocks` field.

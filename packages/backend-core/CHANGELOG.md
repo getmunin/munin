@@ -1,5 +1,29 @@
 # @getmunin/backend-core
 
+## 4.62.0
+
+### Minor Changes
+
+- 73491b2: CMS: first-class blocks for rich in-article content. A new `blocks` field type holds an ordered list of typed components (callouts, galleries, product cards, …), each block type being a named set of fields declared in `options.blockTypes`. Assets and entry references embedded inside blocks — typed props and inline `asset://` tokens in block prose — are validated on write, expanded on read (with the `_assets` sidecar), indexed for search, and tracked for deletion safety, exactly like top-level fields.
+
+  Adds opt-in reference expansion: pass `?include=references` on the delivery API or `include: ["references"]` to `cms_get_entry` / `cms_list_entries` to resolve `reference` fields (top-level and inside blocks) one level deep into `{ id, slug, collection, locale, data }`; the default still returns raw ids.
+
+  `json` is now scoped to opaque, non-renderable data: the server rejects `asset://` tokens and block-shaped arrays inside a `json` field, pointing authors at `blocks` instead. New skill `skill://cms/author-with-blocks`.
+
+- 398077b: CMS: inline entry references (`ref://<entryId>`). Authors can link or embed another entry from within prose (a markdown/rich_text field or a block prop) with a `ref://<entryId>` token. Under `?include=references` (delivery API) or `include: ["references"]` (`cms_get_entry` / `cms_list_entries`), the response carries a `_refs` map keyed by entry id → `{ id, slug, collection, locale, data }`. Unlike `asset://`, the token is intentionally left in place (the server doesn't know the consumer's routing); the frontend resolves it via `_refs` to build its own link or embed.
+- 4d7d83a: CMS: support inline images in entry bodies. Embed an `asset://<assetId>` reference inside a `markdown`/`rich_text` field and the delivery API, `cms_get_entry`, and `cms_search` resolve it to the asset's `publicUrl` plus an `_assets` sidecar map. Inline references are validated on write (an unknown or unconfirmed asset is rejected). Asset references — inline and typed fields alike — are now tracked, so `cms_delete_asset` refuses to delete an asset still in use, and a new `cms_list_asset_usage` tool reports which entries reference an asset.
+- 5f7319d: CMS: `cms_search` reference expansion. Pass `include: ["references"]` to `cms_search` (or `?include=references` on the public delivery search endpoint) to resolve `reference` fields and inline `ref://` tokens on search hits — reference fields expand in place to `{ id, slug, collection, locale, data }` and inline tokens are surfaced in a `_refs` sidecar, matching the behavior of `cms_get_entry` / `cms_list_entries` and the entry delivery endpoints. Default search behavior (raw ids, no `_refs`) is unchanged.
+
+### Patch Changes
+
+- Updated dependencies [4d7d83a]
+  - @getmunin/db@4.62.0
+  - @getmunin/core@4.62.0
+  - @getmunin/agent-runtime@4.62.0
+  - @getmunin/mcp-toolkit@4.62.0
+  - @getmunin/types@4.62.0
+  - @getmunin/emails@4.62.0
+
 ## 4.61.1
 
 ### Patch Changes

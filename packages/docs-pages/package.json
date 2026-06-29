@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/docs-pages",
-  "version": "4.61.1",
+  "version": "4.62.0",
   "license": "MIT",
   "description": "Munin developer-portal route components shared between OSS and cloud Next apps.",
   "publishConfig": {

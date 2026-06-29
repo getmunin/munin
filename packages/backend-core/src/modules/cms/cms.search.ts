@@ -7,7 +7,14 @@ import { DB } from '../../common/db/db.module.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 import { CmsService, type EntryStatus } from './cms.service.ts';
 import type { FieldDef } from './cms.fields.ts';
-import { applyAssetExpansion, collectAssetIds, projectData } from './cms.fields.ts';
+import {
+  applyAssetExpansion,
+  buildInlineAssetSidecar,
+  collectAssetIds,
+  projectData,
+  rewriteInlineAssets,
+  type AssetSummary,
+} from './cms.fields.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
 
 export interface SearchHit {
@@ -18,6 +25,7 @@ export interface SearchHit {
   locale: string;
   status: EntryStatus;
   data: Record<string, unknown>;
+  assets?: Record<string, AssetSummary>;
   excerpt: string;
   score: number;
   source: 'fts' | 'vector' | 'both';
@@ -187,7 +195,10 @@ export class CmsSearchService {
     for (const hit of fused) {
       const fields = fieldsByEntryId.get(hit.entryId);
       if (!fields) continue;
-      hit.data = applyAssetExpansion(fields, hit.data, assets);
+      const expanded = applyAssetExpansion(fields, hit.data, assets);
+      const sidecar = buildInlineAssetSidecar(fields, expanded, assets);
+      hit.data = rewriteInlineAssets(fields, expanded, assets);
+      if (Object.keys(sidecar).length > 0) hit.assets = sidecar;
     }
     return fused;
   }

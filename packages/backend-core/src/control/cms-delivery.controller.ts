@@ -18,8 +18,10 @@ import { CmsSearchService } from '../modules/cms/cms.search.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
 import {
   applyAssetExpansion,
+  buildInlineAssetSidecar,
   collectAssetIds,
   projectData,
+  rewriteInlineAssets,
   type FieldDef,
 } from '../modules/cms/cms.fields.ts';
 import { loadAssetMap } from '../modules/cms/cms.asset-loader.ts';
@@ -137,11 +139,16 @@ export class CmsDeliveryController {
       updatedAt: r.updatedAt.toISOString(),
     }));
     const assets = await this.fetchAssets(org.id, fields, projected.map((p) => p.data));
-    const items = projected.map(({ id, ...p }) => ({
-      ...p,
-      data: applyAssetExpansion(fields, p.data, assets),
-      ...(trackingOn ? { _tracking: buildTracking(org.id, id) } : {}),
-    }));
+    const items = projected.map(({ id, ...p }) => {
+      const expanded = applyAssetExpansion(fields, p.data, assets);
+      const sidecar = buildInlineAssetSidecar(fields, expanded, assets);
+      return {
+        ...p,
+        data: rewriteInlineAssets(fields, expanded, assets),
+        ...(Object.keys(sidecar).length > 0 ? { _assets: sidecar } : {}),
+        ...(trackingOn ? { _tracking: buildTracking(org.id, id) } : {}),
+      };
+    });
 
     const etag = computeEtag(rows.map((r) => r.updatedAt.getTime()));
     if (handleEtag(req, res, etag)) return;
@@ -183,10 +190,13 @@ export class CmsDeliveryController {
     setCdnHeaders(res);
     const projected = projectData(fields, row.data);
     const assets = await this.fetchAssets(org.id, fields, [projected]);
+    const expanded = applyAssetExpansion(fields, projected, assets);
+    const sidecar = buildInlineAssetSidecar(fields, expanded, assets);
     return {
       slug: row.slug,
       locale: row.locale,
-      data: applyAssetExpansion(fields, projected, assets),
+      data: rewriteInlineAssets(fields, expanded, assets),
+      ...(Object.keys(sidecar).length > 0 ? { _assets: sidecar } : {}),
       version: row.version,
       publishedAt: row.publishedAt?.toISOString() ?? null,
       updatedAt: row.updatedAt.toISOString(),

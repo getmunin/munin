@@ -23,8 +23,10 @@ import {
   applyReferenceExpansion,
   asBlock,
   buildInlineAssetSidecar,
+  buildReferenceSidecar,
   buildSearchText,
   collectAssetIds,
+  collectInlineReferenceIds,
   collectReferenceIds,
   extractAssetReferences,
   extractReferences,
@@ -34,6 +36,7 @@ import {
   rewriteInlineAssets,
   validateEntryData,
   type AssetSummary,
+  type ExpandedEntry,
   type FieldDef,
 } from './cms.fields.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
@@ -87,6 +90,7 @@ export interface EntryDto {
   status: EntryStatus;
   data: Record<string, unknown>;
   assets?: Record<string, AssetSummary>;
+  refs?: Record<string, ExpandedEntry>;
   version: number;
   scheduledAt: string | null;
   publishedAt: string | null;
@@ -454,6 +458,7 @@ export class CmsService {
         const fields = fieldsByEntryId.get(dto.id);
         if (!fields) continue;
         for (const id of collectReferenceIds(fields, dto.data)) refIds.add(id);
+        for (const id of collectInlineReferenceIds(fields, dto.data)) refIds.add(id);
       }
       entryMap = await loadEntryMap(ctx.db, orgId, refIds, { publishedOnly: false });
     }
@@ -463,10 +468,14 @@ export class CmsService {
       const fields = fieldsByEntryId.get(dto.id);
       if (!fields) continue;
       dto.data = applyAssetExpansion(fields, dto.data, assets);
-      const sidecar = buildInlineAssetSidecar(fields, dto.data, assets);
+      const assetSidecar = buildInlineAssetSidecar(fields, dto.data, assets);
       dto.data = rewriteInlineAssets(fields, dto.data, assets);
-      if (entryMap) dto.data = applyReferenceExpansion(fields, dto.data, entryMap);
-      if (Object.keys(sidecar).length > 0) dto.assets = sidecar;
+      if (entryMap) {
+        const refSidecar = buildReferenceSidecar(fields, dto.data, entryMap);
+        dto.data = applyReferenceExpansion(fields, dto.data, entryMap);
+        if (Object.keys(refSidecar).length > 0) dto.refs = refSidecar;
+      }
+      if (Object.keys(assetSidecar).length > 0) dto.assets = assetSidecar;
     }
   }
 

@@ -715,6 +715,181 @@ const skipReason = TEST_URL
       expect(freed.deleted).toBe(true);
     });
   }, 30_000);
+
+  it('blocks: authored block content expands assets on delivery and is guarded against asset deletion', async () => {
+    const [asset] = await db
+      .insert(schema.cmsAssets)
+      .values({
+        orgId,
+        name: 'block.png',
+        mime: 'image/png',
+        sizeBytes: 256,
+        storageProvider: 'local',
+        storageKey: `cms/${orgId}/it-block.png`,
+        publicUrl: 'https://assets.test/block.png',
+        altText: 'Block image',
+        uploaded: true,
+        createdByType: 'user',
+        createdById: 'usr_test',
+      })
+      .returning();
+    const assetId = asset!.id;
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Articles',
+          slug: 'articles',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+            {
+              name: 'body',
+              type: 'blocks',
+              options: {
+                blockTypes: [
+                  {
+                    name: 'callout',
+                    fields: [
+                      { name: 'text', type: 'markdown' },
+                      { name: 'icon', type: 'asset' },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+      const entry = parseToolResult<{ id: string; version: number }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'articles',
+            slug: 'blocky',
+            data: {
+              title: 'Blocky',
+              slug: 'blocky',
+              body: [
+                {
+                  type: 'callout',
+                  key: 'c1',
+                  props: { text: `hi ![x](asset://${assetId})`, icon: assetId },
+                },
+              ],
+            },
+            status: 'published',
+          },
+        }),
+      );
+
+      const usage = parseToolResult<Array<{ fromEntryId: string; kind: string }>>(
+        await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }),
+      );
+      expect(usage.length).toBeGreaterThanOrEqual(1);
+      expect(usage.every((u) => u.fromEntryId === entry.id)).toBe(true);
+
+      const blocked = (await c.callTool({
+        name: 'cms_delete_asset',
+        arguments: { id: assetId },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(blocked.isError).toBe(true);
+      expect(blocked.content?.[0]?.text).toContain('cms_conflict');
+
+      const bad = (await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'articles',
+          slug: 'bad-block',
+          data: {
+            title: 'Bad',
+            slug: 'bad-block',
+            body: [{ type: 'callout', props: { text: 'oops ![y](asset://cma_missing)' } }],
+          },
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(bad.isError).toBe(true);
+      expect(bad.content?.[0]?.text).toContain('cms_invalid');
+    });
+
+    const res = await fetchUntil(
+      `${baseUrl}/v1/cms/${orgId}/articles/blocky`,
+      (r) => r.status === 200,
+    );
+    const json = (await res.json()) as {
+      data: { body: Array<{ props: { text: string; icon: unknown } }> };
+      _assets?: Record<string, { publicUrl: string }>;
+    };
+    expect(json.data.body[0]!.props.text).toContain('https://assets.test/block.png');
+    expect(json.data.body[0]!.props.icon).toMatchObject({ id: assetId });
+    expect(json._assets?.[assetId]).toMatchObject({ publicUrl: 'https://assets.test/block.png' });
+  }, 30_000);
+
+  it('delivery: ?include=references expands reference fields one level; default returns raw ids', async () => {
+    let authorId = '';
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Authors',
+          slug: 'authors',
+          fields: [
+            { name: 'name', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+          ],
+        },
+      });
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Posts',
+          slug: 'posts',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+            { name: 'author', type: 'reference', options: { targetCollection: 'authors' } },
+          ],
+        },
+      });
+      const author = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'authors',
+            slug: 'ada',
+            data: { name: 'Ada', slug: 'ada' },
+            status: 'published',
+          },
+        }),
+      );
+      authorId = author.id;
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'posts',
+          slug: 'hello',
+          data: { title: 'Hello', slug: 'hello', author: author.id },
+          status: 'published',
+        },
+      });
+    });
+
+    const raw = await fetchUntil(`${baseUrl}/v1/cms/${orgId}/posts/hello`, (r) => r.status === 200);
+    const rawJson = (await raw.json()) as { data: { author: unknown } };
+    expect(rawJson.data.author).toBe(authorId);
+
+    const inc = await fetch(`${baseUrl}/v1/cms/${orgId}/posts/hello?include=references`);
+    const incJson = (await inc.json()) as {
+      data: { author: { id: string; collection: string; data: { name: string } } };
+    };
+    expect(incJson.data.author).toMatchObject({
+      id: authorId,
+      collection: 'authors',
+      data: { name: 'Ada' },
+    });
+  }, 30_000);
 });
 
 function retarget(url: string, baseUrl: string): string {

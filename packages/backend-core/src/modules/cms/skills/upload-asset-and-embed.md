@@ -93,7 +93,7 @@ Flips `uploaded: true`. Until you call this, the asset is invisible to other too
 
 ## Step 4 — embed in an entry
 
-There are two ways to embed an asset, depending on whether it's a standalone field (a cover image, a gallery) or an image placed within prose.
+There are two ways to embed an asset, depending on whether it's a standalone field (a cover image, a gallery) or an image placed within prose. Both also work *inside a block* (`skill://cms/author-with-blocks`) — an asset used in a block, as a typed prop or an inline `asset://` token in block prose, is tracked the same way and is covered by the delete guard below.
 
 ### As a typed field
 

@@ -26217,7 +26217,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## linkify-it@5.0.0
+## linkify-it@5.0.1
 
 > Links recognition library with FULL unicode support
 - Homepage: https://github.com/markdown-it/linkify-it#readme

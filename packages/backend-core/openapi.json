@@ -1312,6 +1312,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "include",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1363,6 +1371,14 @@
           },
           {
             "name": "tracking",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include",
             "required": true,
             "in": "query",
             "schema": {

@@ -1173,6 +1173,7 @@
                 "asset",
                 "reference",
                 "array",
+                "blocks",
                 "json"
               ]
             },
@@ -1201,6 +1202,35 @@
                 },
                 "items": {
                   "$ref": "#/$defs/__schema0"
+                },
+                "blockTypes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "fields": {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema0"
+                        }
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "fields"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "additionalProperties": false
@@ -1300,6 +1330,7 @@
                 "asset",
                 "reference",
                 "array",
+                "blocks",
                 "json"
               ]
             },
@@ -1328,6 +1359,35 @@
                 },
                 "items": {
                   "$ref": "#/$defs/__schema0"
+                },
+                "blockTypes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "fields": {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema0"
+                        }
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "fields"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "additionalProperties": false
@@ -1403,6 +1463,16 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 200
+        },
+        "include": {
+          "description": "Set to [\"references\"] to expand reference fields into the referenced entries.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "references"
+            ]
+          }
         }
       },
       "additionalProperties": false
@@ -1426,6 +1496,16 @@
       "properties": {
         "id": {
           "type": "string"
+        },
+        "include": {
+          "description": "Set to [\"references\"] to expand reference fields into the referenced entries.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "references"
+            ]
+          }
         }
       },
       "required": [
@@ -2066,7 +2146,7 @@
   {
     "name": "cms_list_asset_usage",
     "title": "CMS: List asset usage",
-    "description": "List entries that use the given asset, either as a typed asset field or as an inline reference inside a markdown/rich_text body. Useful before deleting an asset — an asset that is still in use cannot be deleted.",
+    "description": "List entries that use the given asset — as a typed asset field, as an inline reference inside a markdown/rich_text body, or inside a block. Useful before deleting an asset — an asset that is still in use cannot be deleted.",
     "audiences": [
       "admin"
     ],
@@ -2435,6 +2515,7 @@
                 "asset",
                 "reference",
                 "array",
+                "blocks",
                 "json"
               ]
             },
@@ -2463,6 +2544,35 @@
                 },
                 "items": {
                   "$ref": "#/$defs/__schema0"
+                },
+                "blockTypes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "fields": {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema0"
+                        }
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "fields"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "additionalProperties": false

@@ -18,13 +18,16 @@ import { CmsSearchService } from '../modules/cms/cms.search.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
 import {
   applyAssetExpansion,
+  applyReferenceExpansion,
   buildInlineAssetSidecar,
   collectAssetIds,
+  collectReferenceIds,
   projectData,
   rewriteInlineAssets,
   type FieldDef,
 } from '../modules/cms/cms.fields.ts';
 import { loadAssetMap } from '../modules/cms/cms.asset-loader.ts';
+import { loadEntryMap } from '../modules/cms/cms.entry-loader.ts';
 
 /**
  * Public delivery API — anonymous JSON for external websites / mobile
@@ -107,6 +110,7 @@ export class CmsDeliveryController {
     @Query('limit') limit?: string,
     @Query('before') before?: string,
     @Query('tracking') tracking?: string,
+    @Query('include') include?: string,
   ) {
     const { org, collection } = await this.resolveOrgCollection(orgId, collectionSlug);
     const filters: SQL[] = [
@@ -139,12 +143,17 @@ export class CmsDeliveryController {
       updatedAt: r.updatedAt.toISOString(),
     }));
     const assets = await this.fetchAssets(org.id, fields, projected.map((p) => p.data));
+    const entryMap = includeReferences(include)
+      ? await this.fetchReferencedEntries(org.id, fields, projected.map((p) => p.data))
+      : null;
     const items = projected.map(({ id, ...p }) => {
       const expanded = applyAssetExpansion(fields, p.data, assets);
       const sidecar = buildInlineAssetSidecar(fields, expanded, assets);
+      let data = rewriteInlineAssets(fields, expanded, assets);
+      if (entryMap) data = applyReferenceExpansion(fields, data, entryMap);
       return {
         ...p,
-        data: rewriteInlineAssets(fields, expanded, assets),
+        data,
         ...(Object.keys(sidecar).length > 0 ? { _assets: sidecar } : {}),
         ...(trackingOn ? { _tracking: buildTracking(org.id, id) } : {}),
       };
@@ -165,6 +174,7 @@ export class CmsDeliveryController {
     @Res({ passthrough: true }) res: Response,
     @Query('locale') locale?: string,
     @Query('tracking') tracking?: string,
+    @Query('include') include?: string,
   ) {
     const { org, collection } = await this.resolveOrgCollection(orgId, collectionSlug);
     const filters: SQL[] = [
@@ -192,10 +202,15 @@ export class CmsDeliveryController {
     const assets = await this.fetchAssets(org.id, fields, [projected]);
     const expanded = applyAssetExpansion(fields, projected, assets);
     const sidecar = buildInlineAssetSidecar(fields, expanded, assets);
+    let data = rewriteInlineAssets(fields, expanded, assets);
+    if (includeReferences(include)) {
+      const entryMap = await this.fetchReferencedEntries(org.id, fields, [data]);
+      data = applyReferenceExpansion(fields, data, entryMap);
+    }
     return {
       slug: row.slug,
       locale: row.locale,
-      data: rewriteInlineAssets(fields, expanded, assets),
+      data,
       ...(Object.keys(sidecar).length > 0 ? { _assets: sidecar } : {}),
       version: row.version,
       publishedAt: row.publishedAt?.toISOString() ?? null,
@@ -216,6 +231,18 @@ export class CmsDeliveryController {
       for (const id of collectAssetIds(fields, data)) ids.add(id);
     }
     return loadAssetMap(this.db, orgId, ids);
+  }
+
+  private async fetchReferencedEntries(
+    orgId: string,
+    fields: FieldDef[],
+    datas: Array<Record<string, unknown>>,
+  ) {
+    const ids = new Set<string>();
+    for (const data of datas) {
+      for (const id of collectReferenceIds(fields, data)) ids.add(id);
+    }
+    return loadEntryMap(this.db, orgId, ids, { publishedOnly: true });
   }
 
   private async resolveOrg(orgId: string): Promise<{ id: string }> {
@@ -271,6 +298,12 @@ function handleEtag(req: Request, res: Response, etag: string): boolean {
 
 function setCdnHeaders(res: Response): void {
   res.setHeader('cache-control', 'public, max-age=60, stale-while-revalidate=600');
+}
+
+function includeReferences(include: string | undefined): boolean {
+  if (!include) return false;
+  const parts = include.split(',').map((s) => s.trim());
+  return parts.includes('references') || parts.includes('*');
 }
 
 function trackingEnabled(flag: string | undefined): boolean {

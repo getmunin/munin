@@ -20,9 +20,12 @@ import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.s
 import { STORAGE } from '../../common/storage/storage.token.ts';
 import {
   applyAssetExpansion,
+  applyReferenceExpansion,
+  asBlock,
   buildInlineAssetSidecar,
   buildSearchText,
   collectAssetIds,
+  collectReferenceIds,
   extractAssetReferences,
   extractReferences,
   FIELD_TYPES,
@@ -34,6 +37,7 @@ import {
   type FieldDef,
 } from './cms.fields.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
+import { loadEntryMap } from './cms.entry-loader.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
@@ -321,6 +325,7 @@ export class CmsService {
     status?: EntryStatus;
     locale?: string;
     limit?: number;
+    include?: string[];
   }): Promise<EntryDto[]> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
@@ -348,7 +353,9 @@ export class CmsService {
     const fieldsByEntryId = new Map<string, FieldDef[]>(
       rows.map((r) => [r.entry.id, r.collection.fields as FieldDef[]]),
     );
-    await this.expandAssetsInDtos(ctx.actor!.orgId, dtos, fieldsByEntryId);
+    await this.expandAssetsInDtos(ctx.actor!.orgId, dtos, fieldsByEntryId, {
+      expandReferences: wantsReferences(input.include),
+    });
     return dtos;
   }
 
@@ -401,7 +408,7 @@ export class CmsService {
     return this.transition(input, 'archived');
   }
 
-  async getEntry(id: string): Promise<EntryDto> {
+  async getEntry(id: string, include?: string[]): Promise<EntryDto> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select({ entry: schema.cmsEntries, collection: schema.cmsCollections })
@@ -419,6 +426,7 @@ export class CmsService {
       ctx.actor!.orgId,
       [dto],
       new Map([[rows[0].entry.id, fields]]),
+      { expandReferences: wantsReferences(include) },
     );
     return dto;
   }
@@ -427,22 +435,37 @@ export class CmsService {
     orgId: string,
     dtos: EntryDto[],
     fieldsByEntryId: Map<string, FieldDef[]>,
+    opts?: { expandReferences?: boolean },
   ): Promise<void> {
+    const ctx = getCurrentContext();
     const ids = new Set<string>();
     for (const dto of dtos) {
       const fields = fieldsByEntryId.get(dto.id);
       if (!fields) continue;
       for (const id of collectAssetIds(fields, dto.data)) ids.add(id);
     }
-    if (ids.size === 0) return;
-    const ctx = getCurrentContext();
-    const assets = await loadAssetMap(ctx.db, orgId, ids);
+    const assets =
+      ids.size > 0 ? await loadAssetMap(ctx.db, orgId, ids) : new Map<string, AssetSummary>();
+
+    let entryMap: Awaited<ReturnType<typeof loadEntryMap>> | null = null;
+    if (opts?.expandReferences) {
+      const refIds = new Set<string>();
+      for (const dto of dtos) {
+        const fields = fieldsByEntryId.get(dto.id);
+        if (!fields) continue;
+        for (const id of collectReferenceIds(fields, dto.data)) refIds.add(id);
+      }
+      entryMap = await loadEntryMap(ctx.db, orgId, refIds, { publishedOnly: false });
+    }
+
+    if (ids.size === 0 && !entryMap) return;
     for (const dto of dtos) {
       const fields = fieldsByEntryId.get(dto.id);
       if (!fields) continue;
       dto.data = applyAssetExpansion(fields, dto.data, assets);
       const sidecar = buildInlineAssetSidecar(fields, dto.data, assets);
       dto.data = rewriteInlineAssets(fields, dto.data, assets);
+      if (entryMap) dto.data = applyReferenceExpansion(fields, dto.data, entryMap);
       if (Object.keys(sidecar).length > 0) dto.assets = sidecar;
     }
   }
@@ -1611,6 +1634,16 @@ function remapEntryData(
       out[field.name] = remapInlineAssetUris(value, remapId);
       continue;
     }
+    if (field.type === 'blocks' && Array.isArray(value)) {
+      const blockTypes = field.options?.blockTypes ?? [];
+      out[field.name] = (value as unknown[]).map((raw) => {
+        const block = asBlock(raw);
+        const bt = block ? blockTypes.find((t) => t.name === block.type) : null;
+        if (!block || !bt) return raw;
+        return { ...(raw as Record<string, unknown>), props: remapEntryData(bt.fields, block.props, idMap) };
+      });
+      continue;
+    }
     if (field.type !== 'asset' && field.type !== 'reference') {
       const isIdArray =
         field.type === 'array' &&
@@ -1631,7 +1664,11 @@ function clampLimit(value: number | undefined, fallback: number, max: number): n
   return Math.min(value, max);
 }
 
-function validateFieldsShape(fields: FieldDef[]): void {
+function wantsReferences(include?: string[]): boolean {
+  return !!include && (include.includes('references') || include.includes('*'));
+}
+
+function validateFieldsShape(fields: FieldDef[], allowBlocks = true): void {
   const seen = new Set<string>();
   for (const f of fields) {
     if (!f.name || !/^[a-z][a-z0-9_]{0,63}$/.test(f.name)) {
@@ -1649,6 +1686,35 @@ function validateFieldsShape(fields: FieldDef[]): void {
     }
     if ((f.type === 'select' || f.type === 'multi_select') && !f.options?.choices?.length) {
       throw new CmsInvalidError(`${f.type} field ${f.name}: options.choices is required`);
+    }
+    if (f.type === 'blocks') {
+      if (!allowBlocks) {
+        throw new CmsInvalidError(
+          `blocks field ${f.name}: blocks cannot be nested inside a block type`,
+        );
+      }
+      const blockTypes = f.options?.blockTypes;
+      if (!blockTypes?.length) {
+        throw new CmsInvalidError(`blocks field ${f.name}: options.blockTypes is required`);
+      }
+      const seenBlockType = new Set<string>();
+      for (const bt of blockTypes) {
+        if (!bt.name || !/^[a-z][a-z0-9_]{0,63}$/.test(bt.name)) {
+          throw new CmsInvalidError(
+            `blocks field ${f.name}: block type name ${JSON.stringify(bt.name)} must be lowercase letters, digits, underscores`,
+          );
+        }
+        if (seenBlockType.has(bt.name)) {
+          throw new CmsInvalidError(`blocks field ${f.name}: duplicate block type: ${bt.name}`);
+        }
+        seenBlockType.add(bt.name);
+        if (!Array.isArray(bt.fields) || bt.fields.length === 0) {
+          throw new CmsInvalidError(
+            `blocks field ${f.name}: block type ${bt.name} must define at least one field`,
+          );
+        }
+        validateFieldsShape(bt.fields, false);
+      }
     }
   }
 }

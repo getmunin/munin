@@ -167,6 +167,7 @@ const SearchInput = z.object({
   status: z.enum(ENTRY_STATUSES).optional(),
   locale: z.string().optional(),
   limit: z.number().int().positive().max(50).optional(),
+  include: IncludeInput,
 });
 
 const EmptyInput = z.object({});
@@ -225,8 +226,6 @@ export class CmsAdminTools {
     @Inject(CmsService) private readonly cms: CmsService,
     @Inject(CmsSearchService) private readonly search: CmsSearchService,
   ) {}
-
-  // Collections ─────────────────────────────────────────────────────────
 
   @McpTool({
     name: 'cms_list_collections',
@@ -300,8 +299,6 @@ export class CmsAdminTools {
   deleteCollection(args: z.infer<typeof DeleteCollectionInput>) {
     return this.cms.deleteCollection(args.idOrSlug);
   }
-
-  // Entries ─────────────────────────────────────────────────────────────
 
   @McpTool({
     name: 'cms_list_entries',
@@ -448,8 +445,6 @@ export class CmsAdminTools {
     return this.cms.restoreVersion(args);
   }
 
-  // Assets ──────────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'cms_list_assets',
     title: 'CMS: List assets',
@@ -538,8 +533,6 @@ export class CmsAdminTools {
     return this.cms.deleteAsset(args);
   }
 
-  // Locales ─────────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'cms_list_locales',
     title: 'CMS: List locales',
@@ -582,8 +575,6 @@ export class CmsAdminTools {
     return this.cms.setDefaultLocale(args);
   }
 
-  // References ──────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'cms_list_inbound_references',
     title: 'CMS: List inbound references',
@@ -614,8 +605,6 @@ export class CmsAdminTools {
     return this.cms.listAssetUsage(args.assetId);
   }
 
-  // Search ──────────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'cms_search',
     title: 'CMS: Search entries',
@@ -630,8 +619,6 @@ export class CmsAdminTools {
   searchEntries(args: z.infer<typeof SearchInput>) {
     return this.search.search(args);
   }
-
-  // Transfer ────────────────────────────────────────────────────────────
 
   @McpTool({
     name: 'cms_export',

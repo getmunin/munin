@@ -582,6 +582,139 @@ const skipReason = TEST_URL
       expect(dup.content?.[0]?.text).toContain('cms_locale_conflict');
     });
   }, 30_000);
+
+  it('delivery: inline asset:// tokens in a body resolve to publicUrl and a _assets sidecar', async () => {
+    const [asset] = await db
+      .insert(schema.cmsAssets)
+      .values({
+        orgId,
+        name: 'inline.png',
+        mime: 'image/png',
+        sizeBytes: 2048,
+        storageProvider: 'local',
+        storageKey: `cms/${orgId}/it-inline.png`,
+        publicUrl: 'https://assets.test/inline.png',
+        altText: 'Inline image',
+        uploaded: true,
+        createdByType: 'user',
+        createdById: 'usr_test',
+      })
+      .returning();
+    const assetId = asset!.id;
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'inline-img',
+          data: {
+            title: 'Inline',
+            slug: 'inline-img',
+            body: `Intro.\n\n![diagram](asset://${assetId})\n\nOutro.`,
+          },
+          status: 'published',
+        },
+      });
+    });
+
+    const res = await fetchUntil(
+      `${baseUrl}/v1/cms/${orgId}/pages/inline-img`,
+      (r) => r.status === 200,
+    );
+    const json = (await res.json()) as {
+      data: { body: string };
+      _assets?: Record<string, { publicUrl: string }>;
+    };
+    expect(json.data.body).toContain('https://assets.test/inline.png');
+    expect(json.data.body).not.toContain('asset://');
+    expect(json._assets?.[assetId]).toMatchObject({ publicUrl: 'https://assets.test/inline.png' });
+  }, 30_000);
+
+  it('an inline reference to an unknown asset is rejected (not a 500)', async () => {
+    await withClient(adminKey, async (c) => {
+      const bad = (await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'inline-bad',
+          data: {
+            title: 'Bad',
+            slug: 'inline-bad',
+            body: 'oops ![x](asset://cma_does_not_exist)',
+          },
+          status: 'draft',
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(bad.isError).toBe(true);
+      expect(bad.content?.[0]?.text).toContain('cms_invalid');
+    });
+  }, 30_000);
+
+  it('cms_delete_asset is blocked while referenced; cms_list_asset_usage shows the user; delete succeeds once freed', async () => {
+    const [asset] = await db
+      .insert(schema.cmsAssets)
+      .values({
+        orgId,
+        name: 'guarded.png',
+        mime: 'image/png',
+        sizeBytes: 512,
+        storageProvider: 'local',
+        storageKey: `cms/${orgId}/it-guarded.png`,
+        publicUrl: 'https://assets.test/guarded.png',
+        uploaded: true,
+        createdByType: 'user',
+        createdById: 'usr_test',
+      })
+      .returning();
+    const assetId = asset!.id;
+
+    await withClient(adminKey, async (c) => {
+      const entry = parseToolResult<{ id: string; version: number }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'pages',
+            slug: 'guarded-page',
+            data: {
+              title: 'Guarded',
+              slug: 'guarded-page',
+              body: `![g](asset://${assetId})`,
+            },
+            status: 'draft',
+          },
+        }),
+      );
+
+      const usage = parseToolResult<Array<{ fromEntryId: string; kind: string }>>(
+        await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }),
+      );
+      expect(usage).toEqual([
+        expect.objectContaining({ fromEntryId: entry.id, kind: 'inline' }),
+      ]);
+
+      const blocked = (await c.callTool({
+        name: 'cms_delete_asset',
+        arguments: { id: assetId },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(blocked.isError).toBe(true);
+      expect(blocked.content?.[0]?.text).toContain('cms_conflict');
+
+      await c.callTool({
+        name: 'cms_update_entry',
+        arguments: {
+          id: entry.id,
+          ifVersion: entry.version,
+          data: { body: 'no image anymore' },
+        },
+      });
+
+      const freed = parseToolResult<{ deleted: boolean }>(
+        await c.callTool({ name: 'cms_delete_asset', arguments: { id: assetId } }),
+      );
+      expect(freed.deleted).toBe(true);
+    });
+  }, 30_000);
 });
 
 function retarget(url: string, baseUrl: string): string {

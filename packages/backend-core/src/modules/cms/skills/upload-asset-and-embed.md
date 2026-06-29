@@ -93,7 +93,11 @@ Flips `uploaded: true`. Until you call this, the asset is invisible to other too
 
 ## Step 4 — embed in an entry
 
-Asset references in entries are stored as the asset id (or a structured `{ assetId, ... }` object — depends on the field's collection schema). Read the entry, write the field, send the update:
+There are two ways to embed an asset, depending on whether it's a standalone field (a cover image, a gallery) or an image placed within prose.
+
+### As a typed field
+
+A field whose collection type is `asset` (or `array` of `asset`) stores the asset id. Read the entry, write the field, send the update:
 
 ```jsonc
 { "name": "cms_get_entry", "arguments": { "id": "<entryId>" } }
@@ -110,6 +114,20 @@ Asset references in entries are stored as the asset id (or a structured `{ asset
 }
 ```
 
+### Inline in a markdown/rich_text body
+
+To place an image within the prose of a `markdown` or `rich_text` field, embed an `asset://<assetId>` reference — in markdown, as the URL of an image:
+
+```markdown
+Intro paragraph.
+
+![Spring launch hero](asset://<assetId>)
+
+More copy.
+```
+
+The asset must already be uploaded (`uploaded: true`) — an inline reference to an unknown or unconfirmed asset is rejected when you create/update the entry. On read, the delivery API and `cms_get_entry`/`cms_search` rewrite each `asset://<assetId>` to the asset's `publicUrl` and attach an `_assets` map keyed by asset id so you can also read `altText`, `mime`, and `sizeBytes`.
+
 (Use `skill://cms/publish-entry` for the full update + publish dance.)
 
 ## Auditing unused assets
@@ -118,23 +136,20 @@ Asset references in entries are stored as the asset id (or a structured `{ asset
 { "name": "cms_list_assets", "arguments": { "limit": 200 } }
 ```
 
-For each asset you want to verify usage of, walk inbound references on every entry that *might* point at it — there's no `cms_list_referencing_entries(assetId)` shortcut today; you'd grep entry data jsonb. A pragmatic alternative is to use the search API:
+To see which entries use a given asset — as a typed field or inline in a body — call:
 
 ```jsonc
-{
-  "name": "cms_search",
-  "arguments": { "query": "<assetId>", "limit": 50 }
-}
+{ "name": "cms_list_asset_usage", "arguments": { "assetId": "<assetId>" } }
 ```
 
-Then inspect those entries to confirm.
+It returns one row per reference with `fromEntryId`, `fieldName`, and `kind` (`field` or `inline`). An empty result means the asset is safe to delete.
 
 ## What NOT to do
 
 - **Don't call `cms_complete_asset_upload` before the binary PUT succeeds.** The asset will be marked `uploaded: true` with no actual file — entries referencing it will render broken.
 - **Don't lose the `id`.** Without it you can't complete the upload, and the half-uploaded row sits as an orphan (no automatic GC).
 - **Don't reuse one presigned URL for multiple files.** Each `cms_request_asset_upload` mints a new URL bound to the size and mime you declared.
-- **Don't delete an asset before checking inbound references.** `cms_delete_asset` removes the row + storage file; entries that referenced it will render broken in the delivery API. Search/grep first.
+- **Don't expect to delete an asset that's still in use.** `cms_delete_asset` fails with a conflict while any entry references the asset (field or inline). Call `cms_list_asset_usage` first, then remove the references from those entries before deleting.
 
 ## Related
 

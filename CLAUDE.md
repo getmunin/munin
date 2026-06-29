@@ -70,6 +70,8 @@ Tools are a public product surface and are reviewed for the Anthropic Software D
 - Zod schemas for all MCP tool inputs and external boundaries.
 - Tests live alongside source (`*.test.ts`, `*.integration.test.ts`). Integration tests gate on `TEST_DATABASE_URL`.
 - New features that touch DB → migration + RLS policy + per-module SQL in `packages/db/src/sql/<module>.sql`.
+- Migrations: `drizzle-kit generate` assigns a random `NNNN_adjective_noun` name — always rename the `.sql` file (and its `meta/NNNN_snapshot.json` + the `_journal.json` tag) to a meaningful `NNNN_<what_it_does>.sql`, e.g. `0048_cms_asset_references.sql`.
+- Always smoke-test a migration against a throwaway local DB before opening the PR — especially any data backfill. Create a scratch DB on the local Postgres (`docker-postgres-1`), `MUNIN_MIGRATE_URL=… pnpm -F @getmunin/db db:migrate`, seed representative pre-existing rows, run the backfill, and assert the result. A backfill that only ran against an empty DB is untested. Note: data migrations that read FORCE-RLS tables must `set_config('app.bypass_rls','on',true)` — verify by querying as the non-superuser `munin_app` role (a superuser connection bypasses RLS and hides the bug).
 
 ## Common dev commands
 

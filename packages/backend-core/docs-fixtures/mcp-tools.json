@@ -1932,7 +1932,7 @@
   {
     "name": "cms_delete_asset",
     "title": "CMS: Delete asset",
-    "description": "Delete an asset and remove the underlying file from storage.",
+    "description": "Delete an asset and remove the underlying file from storage. Fails with a conflict if the asset is still referenced by any entry, as a typed asset field or inline in a body.",
     "audiences": [
       "admin"
     ],
@@ -2059,6 +2059,32 @@
       },
       "required": [
         "entryId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cms_list_asset_usage",
+    "title": "CMS: List asset usage",
+    "description": "List entries that use the given asset, either as a typed asset field or as an inline reference inside a markdown/rich_text body. Useful before deleting an asset — an asset that is still in use cannot be deleted.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId"
       ],
       "additionalProperties": false
     }

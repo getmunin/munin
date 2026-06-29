@@ -32,6 +32,29 @@ export interface FieldDef {
 
 const SEARCH_TEXT_FIELD_TYPES = new Set<FieldType>(['text', 'rich_text', 'markdown']);
 
+const INLINE_ASSET_FIELD_TYPES = new Set<FieldType>(['rich_text', 'markdown']);
+
+const ASSET_URI_PATTERN = /asset:\/\/([A-Za-z0-9_]+)/g;
+
+function inlineAssetIdsIn(value: unknown): string[] {
+  if (typeof value !== 'string') return [];
+  return [...value.matchAll(ASSET_URI_PATTERN)].map((m) => m[1]!);
+}
+
+function stripInlineAssetUris(value: string): string {
+  return value.replace(ASSET_URI_PATTERN, '');
+}
+
+export function remapInlineAssetUris(
+  value: string,
+  remap: (id: string) => string,
+): string {
+  return value.replace(ASSET_URI_PATTERN, (match, id: string) => {
+    const next = remap(id);
+    return next === id ? match : `asset://${next}`;
+  });
+}
+
 export interface ValidationError {
   field: string;
   message: string;
@@ -141,9 +164,9 @@ export function buildSearchText(
       : SEARCH_TEXT_FIELD_TYPES.has(field.type);
     if (!include) continue;
     const value = data[field.name];
-    if (typeof value === 'string') parts.push(value);
+    if (typeof value === 'string') parts.push(stripInlineAssetUris(value));
     else if (Array.isArray(value)) {
-      for (const v of value) if (typeof v === 'string') parts.push(v);
+      for (const v of value) if (typeof v === 'string') parts.push(stripInlineAssetUris(v));
     }
   }
   return parts.join('\n\n');
@@ -173,6 +196,8 @@ export function collectAssetIds(
       Array.isArray(value)
     ) {
       for (const v of value) if (typeof v === 'string') out.push(v);
+    } else if (INLINE_ASSET_FIELD_TYPES.has(field.type)) {
+      for (const id of inlineAssetIdsIn(value)) out.push(id);
     }
   }
   return out;
@@ -200,6 +225,76 @@ export function applyAssetExpansion(
     }
   }
   return out;
+}
+
+export function rewriteInlineAssets(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+  assets: Map<string, AssetSummary>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  for (const field of fields) {
+    if (!INLINE_ASSET_FIELD_TYPES.has(field.type)) continue;
+    const value = out[field.name];
+    if (typeof value !== 'string') continue;
+    out[field.name] = value.replace(ASSET_URI_PATTERN, (match, id: string) => {
+      const asset = assets.get(id);
+      return asset ? asset.publicUrl : match;
+    });
+  }
+  return out;
+}
+
+export function buildInlineAssetSidecar(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+  assets: Map<string, AssetSummary>,
+): Record<string, AssetSummary> {
+  const out: Record<string, AssetSummary> = {};
+  for (const field of fields) {
+    if (!INLINE_ASSET_FIELD_TYPES.has(field.type)) continue;
+    for (const id of inlineAssetIdsIn(data[field.name])) {
+      const asset = assets.get(id);
+      if (asset) out[id] = asset;
+    }
+  }
+  return out;
+}
+
+export function* extractAssetReferences(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+): Generator<{
+  fieldName: string;
+  assetId: string;
+  position: number;
+  kind: 'field' | 'inline';
+}> {
+  for (const field of fields) {
+    const value = data[field.name];
+    if (value === undefined || value === null) continue;
+    if (field.type === 'asset' && typeof value === 'string') {
+      yield { fieldName: field.name, assetId: value, position: 0, kind: 'field' };
+    } else if (
+      field.type === 'array' &&
+      field.options?.items?.type === 'asset' &&
+      Array.isArray(value)
+    ) {
+      let i = 0;
+      for (const v of value) {
+        if (typeof v === 'string') {
+          yield { fieldName: field.name, assetId: v, position: i, kind: 'field' };
+        }
+        i++;
+      }
+    } else if (INLINE_ASSET_FIELD_TYPES.has(field.type)) {
+      let i = 0;
+      for (const id of inlineAssetIdsIn(value)) {
+        yield { fieldName: field.name, assetId: id, position: i, kind: 'inline' };
+        i++;
+      }
+    }
+  }
 }
 
 export function* extractReferences(

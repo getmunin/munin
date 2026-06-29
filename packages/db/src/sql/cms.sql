@@ -102,3 +102,13 @@ CREATE POLICY tenant_isolation ON cms_references
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+ALTER TABLE cms_asset_references ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cms_asset_references FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON cms_asset_references;
+CREATE POLICY tenant_isolation ON cms_asset_references
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

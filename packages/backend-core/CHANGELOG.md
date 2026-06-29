@@ -1,5 +1,17 @@
 # @getmunin/backend-core
 
+## 4.62.1
+
+### Patch Changes
+
+- Updated dependencies [81e91ae]
+  - @getmunin/db@4.62.1
+  - @getmunin/core@4.62.1
+  - @getmunin/agent-runtime@4.62.1
+  - @getmunin/mcp-toolkit@4.62.1
+  - @getmunin/types@4.62.1
+  - @getmunin/emails@4.62.1
+
 ## 4.62.0
 
 ### Minor Changes

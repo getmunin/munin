@@ -68,6 +68,7 @@ These six modules aren't separate products — they share one Postgres schema, o
 
 #### CMS
 - Content collections with structured fields, and entries you can publish in multiple languages.
+- Rich content blocks for article bodies — callouts, quotes, media, and more.
 - Scheduled publishing and a media library for images and files.
 - Full version history with restore, search, and cross-references between entries.
 - A public content API serves your site or app, with engagement tracking built into every entry.

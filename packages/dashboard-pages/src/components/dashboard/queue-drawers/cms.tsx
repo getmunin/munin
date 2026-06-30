@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useTranslations } from 'next-intl';
 import ReactMarkdown from 'react-markdown';
-import { MoreHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronUp, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../api';
 import {
   Button,
@@ -28,10 +28,16 @@ import {
   MD_COMPONENTS,
   useCmdEnter,
 } from './shared';
+import { NativeSelect } from '../../native-select';
+import { computePatch, seedBlock } from './cms-blocks';
 import {
+  asBlock,
+  blockTypeDef,
+  blockTypeLabel,
   humanizeFieldName,
   readAssetField,
   type CmsAssetExpanded,
+  type CmsBlockTypeDef,
   type CmsDraftDetailDto,
   type CmsDraftSummaryDto,
   type CmsFieldDef,
@@ -85,9 +91,17 @@ export function CmsQueueDrawer({
     setFieldErrors(EMPTY_FIELD_ERRORS);
   }, [item.id, initialData]);
 
+  const inlineAssetReverse = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [id, asset] of Object.entries(detail?.assets ?? {})) {
+      if (asset?.publicUrl) map.set(asset.publicUrl, `asset://${id}`);
+    }
+    return map;
+  }, [detail?.assets]);
+
   const patch = useMemo(
-    () => computePatch(fields, initialData, editedData),
-    [fields, initialData, editedData],
+    () => computePatch(fields, initialData, editedData, inlineAssetReverse),
+    [fields, initialData, editedData, inlineAssetReverse],
   );
   const dirty = Object.keys(patch).length > 0;
 
@@ -440,7 +454,7 @@ function FieldEditor({
         <textarea
           value={asString(value)}
           onChange={(e) => onChange(e.target.value)}
-          rows={field.type === 'markdown' ? 18 : 6}
+          rows={field.type === 'markdown' ? 9 : 6}
           disabled={disabled}
           aria-invalid={invalid || undefined}
           className={textareaClass}
@@ -479,12 +493,17 @@ function FieldEditor({
       );
     case 'select':
       return (
-        <select
+        <NativeSelect
           value={asString(value)}
           onChange={(e) => onChange(e.target.value || null)}
           disabled={disabled}
           aria-invalid={invalid || undefined}
-          className={inputClass}
+          className={cn(
+            'h-auto pl-4 py-2 text-[15px] leading-7',
+            invalid
+              ? 'border-destructive focus-visible:border-destructive'
+              : 'border-cobalt focus-visible:border-cobalt',
+          )}
         >
           <option value="">—</option>
           {(field.options?.choices ?? []).map((c) => (
@@ -492,7 +511,7 @@ function FieldEditor({
               {c}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       );
     case 'date':
       return (
@@ -531,6 +550,23 @@ function FieldEditor({
           onChange={onChange}
         />
       );
+    case 'blocks':
+      return (
+        <BlocksEditor
+          field={field}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+          onUploadAsset={onUploadAsset}
+          assetLabels={{
+            aspectLabel,
+            dropHintLabel,
+            dropActiveLabel,
+            uploadingLabel,
+            replaceLabel,
+          }}
+        />
+      );
     default:
       return (
         <pre className="w-full overflow-x-auto rounded-input border-[0.5px] border-rule-soft bg-paper-deep px-3 py-2 font-mono text-xs text-ink-mute dark:border-rule-on-dark dark:bg-secondary">
@@ -562,6 +598,8 @@ function FieldViewer({
       if (!asset) return null;
       return <AssetFigure asset={asset} aspectLabel={aspectLabel} />;
     }
+    case 'blocks':
+      return <BlocksViewer field={field} value={value} aspectLabel={aspectLabel} />;
     case 'boolean':
       return <ValueBox>{value === true ? 'true' : 'false'}</ValueBox>;
     case 'text':
@@ -587,6 +625,252 @@ function ValueBox({ children }: { children: React.ReactNode }) {
     <div className="border-[0.5px] border-ink bg-paper px-4 py-3 font-sans text-[15px] leading-7 text-ink dark:bg-card dark:border-rule-on-dark dark:text-foreground">
       {children}
     </div>
+  );
+}
+
+interface AssetLabels {
+  aspectLabel: string;
+  dropHintLabel: string;
+  dropActiveLabel: string;
+  uploadingLabel: string;
+  replaceLabel: string;
+}
+
+function BlockCard({
+  label,
+  controls,
+  children,
+}: {
+  label: string;
+  controls?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-3 border-[0.5px] border-rule-soft bg-paper-deep/50 p-3 dark:border-rule-on-dark dark:bg-secondary/40">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+          {label}
+        </span>
+        {controls}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function BlockProp({ children }: { children: React.ReactNode }) {
+  return <div className="space-y-1.5">{children}</div>;
+}
+
+function BlockPropLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute/80">{children}</p>
+  );
+}
+
+function BlocksViewer({
+  field,
+  value,
+  aspectLabel,
+}: {
+  field: CmsFieldDef;
+  value: unknown;
+  aspectLabel: string;
+}) {
+  const blocks: unknown[] = Array.isArray(value) ? (value as unknown[]) : [];
+  if (blocks.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      {blocks.map((raw, index) => {
+        const block = asBlock(raw);
+        const bt = block ? blockTypeDef(field, block.type) : null;
+        const key = block?.key ?? `block-${index}`;
+        if (!block || !bt) {
+          return (
+            <BlockCard key={key} label={block?.type ?? 'block'}>
+              <pre className="w-full overflow-x-auto font-mono text-xs text-ink-mute">
+                {JSON.stringify(block?.props ?? raw, null, 2)}
+              </pre>
+            </BlockCard>
+          );
+        }
+        const visible = bt.fields.filter((pf) => !isEmpty(block.props[pf.name]));
+        return (
+          <BlockCard key={key} label={blockTypeLabel(bt)}>
+            {visible.length === 0 ? (
+              <p className="font-sans text-sm text-ink-mute">—</p>
+            ) : (
+              visible.map((pf) => (
+                <BlockProp key={pf.name}>
+                  <BlockPropLabel>{humanizeFieldName(pf.name)}</BlockPropLabel>
+                  <FieldViewer field={pf} value={block.props[pf.name]} aspectLabel={aspectLabel} />
+                </BlockProp>
+              ))
+            )}
+          </BlockCard>
+        );
+      })}
+    </div>
+  );
+}
+
+function BlocksEditor({
+  field,
+  value,
+  disabled,
+  onChange,
+  onUploadAsset,
+  assetLabels,
+}: {
+  field: CmsFieldDef;
+  value: unknown;
+  disabled: boolean;
+  onChange: (next: unknown) => void;
+  onUploadAsset: (file: File) => Promise<CmsAssetExpanded>;
+  assetLabels: AssetLabels;
+}) {
+  const t = useTranslations('dashboard.overview.drawer');
+  const blocks: unknown[] = Array.isArray(value) ? (value as unknown[]) : [];
+  const blockTypes = field.options?.blockTypes ?? [];
+
+  const replaceBlock = (index: number, next: unknown) =>
+    onChange(blocks.map((b, i) => (i === index ? next : b)));
+
+  const setProp = (index: number, propName: string, propValue: unknown) => {
+    const block = asBlock(blocks[index]);
+    if (!block) return;
+    replaceBlock(index, {
+      ...(blocks[index] as Record<string, unknown>),
+      props: { ...block.props, [propName]: propValue },
+    });
+  };
+
+  const removeBlock = (index: number) => onChange(blocks.filter((_, i) => i !== index));
+
+  const moveBlock = (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= blocks.length) return;
+    const next = [...blocks];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  };
+
+  const addBlock = (bt: CmsBlockTypeDef) => onChange([...blocks, seedBlock(bt)]);
+
+  return (
+    <div className="space-y-3">
+      {blocks.map((raw, index) => {
+        const block = asBlock(raw);
+        const bt = block ? blockTypeDef(field, block.type) : null;
+        const key = block?.key ?? `block-${index}`;
+        const controls = (
+          <div className="flex items-center gap-1">
+            <BlockControl
+              label={t('cmsBlockMoveUp')}
+              disabled={disabled || index === 0}
+              onClick={() => moveBlock(index, -1)}
+            >
+              <ChevronUp className="size-3.5" />
+            </BlockControl>
+            <BlockControl
+              label={t('cmsBlockMoveDown')}
+              disabled={disabled || index === blocks.length - 1}
+              onClick={() => moveBlock(index, 1)}
+            >
+              <ChevronDown className="size-3.5" />
+            </BlockControl>
+            <BlockControl
+              label={t('cmsBlockRemove')}
+              disabled={disabled}
+              onClick={() => removeBlock(index)}
+            >
+              <Trash2 className="size-3.5" />
+            </BlockControl>
+          </div>
+        );
+        if (!block || !bt) {
+          return (
+            <BlockCard key={key} label={block?.type ?? 'block'} controls={controls}>
+              <pre className="w-full overflow-x-auto font-mono text-xs text-ink-mute">
+                {JSON.stringify(block?.props ?? raw, null, 2)}
+              </pre>
+            </BlockCard>
+          );
+        }
+        return (
+          <BlockCard key={key} label={blockTypeLabel(bt)} controls={controls}>
+            {bt.fields.map((pf) => (
+              <BlockProp key={pf.name}>
+                <BlockPropLabel>{humanizeFieldName(pf.name)}</BlockPropLabel>
+                {pf.description && (
+                  <p className="font-sans text-xs text-ink-mute">{pf.description}</p>
+                )}
+                <FieldEditor
+                  field={pf}
+                  value={block.props[pf.name]}
+                  invalid={false}
+                  disabled={disabled}
+                  onChange={(v) => setProp(index, pf.name, v)}
+                  onUploadAsset={onUploadAsset}
+                  aspectLabel={assetLabels.aspectLabel}
+                  dropHintLabel={assetLabels.dropHintLabel}
+                  dropActiveLabel={assetLabels.dropActiveLabel}
+                  uploadingLabel={assetLabels.uploadingLabel}
+                  replaceLabel={assetLabels.replaceLabel}
+                />
+              </BlockProp>
+            ))}
+          </BlockCard>
+        );
+      })}
+      {blockTypes.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="outline" size="sm" disabled={disabled} />}
+          >
+            <Plus className="size-3.5" />
+            {t('cmsBlockAdd')}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {blockTypes.map((bt) => (
+              <DropdownMenuItem key={bt.name} disabled={disabled} onClick={() => addBlock(bt)}>
+                <span className="flex flex-col">
+                  <span>{blockTypeLabel(bt)}</span>
+                  {bt.description && (
+                    <span className="text-xs text-ink-mute">{bt.description}</span>
+                  )}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
+}
+
+function BlockControl({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="inline-flex size-6 items-center justify-center rounded-input text-ink-mute transition hover:text-ink disabled:pointer-events-none disabled:opacity-40 dark:hover:text-foreground"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -741,46 +1025,6 @@ function AssetDropZone({
       />
     </>
   );
-}
-
-function computePatch(
-  fields: CmsFieldDef[],
-  initial: EditableData,
-  edited: EditableData,
-): EditableData {
-  const patch: EditableData = {};
-  for (const field of fields) {
-    if (!fieldValuesEqual(field, initial[field.name], edited[field.name])) {
-      patch[field.name] = serializeForPatch(field, edited[field.name]);
-    }
-  }
-  return patch;
-}
-
-function fieldValuesEqual(field: CmsFieldDef, a: unknown, b: unknown): boolean {
-  if (field.type === 'asset') return assetIdOf(a) === assetIdOf(b);
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b)) return false;
-    return a.length === b.length && a.every((x, i) => x === b[i]);
-  }
-  if (a == null && b == null) return true;
-  return a === b;
-}
-
-function serializeForPatch(field: CmsFieldDef, value: unknown): unknown {
-  if (value == null) return null;
-  if (field.type === 'asset') return assetIdOf(value);
-  return value;
-}
-
-function assetIdOf(value: unknown): string | null {
-  if (value == null) return null;
-  if (typeof value === 'string') return value;
-  if (typeof value === 'object') {
-    const id = (value as Record<string, unknown>).id;
-    return typeof id === 'string' ? id : null;
-  }
-  return null;
 }
 
 function asString(value: unknown): string {

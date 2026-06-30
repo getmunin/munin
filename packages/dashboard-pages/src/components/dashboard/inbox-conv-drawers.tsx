@@ -371,6 +371,7 @@ export function FullConvDrawer({
               </Button>
             </div>
             <Button
+              size="sm"
               variant="accent"
               onClick={onSend}
               disabled={pending || !reply.trim()}

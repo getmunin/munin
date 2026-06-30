@@ -633,12 +633,14 @@ function FieldViewer({
       return <ArrayViewer field={field} value={value} aspectLabel={aspectLabel} />;
     case 'boolean':
       return <ValueBox>{value === true ? 'true' : 'false'}</ValueBox>;
+    case 'date':
+      return <ValueBox>{formatDateValue(value, false) || '—'}</ValueBox>;
+    case 'datetime':
+      return <ValueBox>{formatDateValue(value, true) || '—'}</ValueBox>;
     case 'text':
     case 'select':
     case 'integer':
     case 'number':
-    case 'date':
-    case 'datetime':
       return <ValueBox>{asString(value) || '—'}</ValueBox>;
     default:
       return (
@@ -1219,6 +1221,16 @@ function AssetDropZone({
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function formatDateValue(value: unknown, withTime: boolean): string {
+  const raw = asString(value);
+  if (!raw) return '';
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return withTime
+    ? d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : d.toLocaleDateString(undefined, { dateStyle: 'medium' });
 }
 
 function scalarText(value: unknown): string {

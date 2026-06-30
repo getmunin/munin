@@ -320,7 +320,7 @@ export class ConvAdminTools {
     name: 'conv_strip_message_signature',
     title: 'Conv: Strip the signature from an inbound message',
     description:
-      "Replace an inbound message's body with a signature-stripped version. Used by the strip-email-signature curator skill — runs after the regex quote-stripper to clean up the trailing sign-off / contact block. The original body is kept in `metadata.preStripBody` for audit; the removed signature (if provided) is stored in `metadata.signatureText`. Refuses if the new body is empty, more than 50% shorter than the original, or if the message isn't an end-user inbound in the caller's org.",
+      "Replace an inbound message's body with a signature-stripped version. Used by the strip-email-signature curator skill — runs after the regex quote-stripper to clean up the trailing sign-off / contact block. The original body is kept in `metadata.preStripBody` for audit; the removed signature (if provided) is stored in `metadata.signatureText`. Refuses if the new body is empty or if the message isn't an end-user inbound in the caller's org. A cut that removes more than half the body is allowed only when `signatureText` is supplied, matches the removed trailing portion, and carries multiple contact-info hints (email, phone, address, URL) — this is what lets a one-line reply followed by a large contact block be cleaned.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: StripMessageSignatureInput,

@@ -532,6 +532,56 @@ const skipReason = TEST_URL
       expect(rows[0]!.dedupe_key).toMatch(/^outreach-draft-reply:msg:cvm_/);
     });
 
+    it('inbound on an outreach conv with autoDraftReplies=false does NOT enqueue reply-draft', async () => {
+      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'outreach-ch-noreply' }));
+      const [seg] = await db
+        .insert(schema.crmSegments)
+        .values({
+          orgId,
+          name: 'outreach-seg-noreply',
+          filterDefinition: {},
+          createdByActorType: 'admin_agent',
+          createdByActorId: 'test',
+        })
+        .returning();
+      const [camp] = await db
+        .insert(schema.outreachCampaigns)
+        .values({
+          orgId,
+          name: 'outreach-camp-noreply',
+          brief: 'test',
+          segmentId: seg!.id,
+          channelId: ch.id,
+          enabled: true,
+          autoDraftReplies: false,
+          createdByActorType: 'admin_agent',
+          createdByActorId: 'test',
+        })
+        .returning();
+      const conv = await run(() =>
+        svc.createConversation({
+          channelId: ch.id,
+          body: 'first outreach email',
+          authorType: 'agent',
+          authorId: actor.id,
+          outreachCampaignId: camp!.id,
+          agentMode: 'draft_only',
+        }),
+      );
+      await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: 'Tell me more',
+          authorType: 'end_user',
+          authorId: 'eu_test',
+        }),
+      );
+      const rows = await db.execute<{ job_uri: string }>(
+        sql`SELECT job_uri FROM curator_jobs WHERE org_id = ${orgId} AND job_uri = 'skill://outreach/draft-reply-email' AND (source_event_payload->>'conversationId') = ${conv.id}`,
+      );
+      expect(rows.length).toBe(0);
+    });
+
     it('inbound on a non-outreach conv does NOT enqueue reply-draft', async () => {
       const conv = await seedConv();
       await run(() =>

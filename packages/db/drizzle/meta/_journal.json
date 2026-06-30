@@ -344,6 +344,13 @@
       "when": 1782800200000,
       "tag": "0048_cms_asset_references",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1782807511913,
+      "tag": "0049_outreach_campaign_auto_draft",
+      "breakpoints": true
     }
   ]
 }

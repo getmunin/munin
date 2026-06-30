@@ -6702,7 +6702,7 @@
   {
     "name": "outreach_list_campaigns",
     "title": "Outreach: List campaigns",
-    "description": "List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, CTA URL, and the enabled flag. The draft-initial curator only drafts proposals for `enabled = true` campaigns.",
+    "description": "List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, CTA URL, the enabled flag, and the two automation flags: `autoDraftInitial` (the weekly curator drafts first-touch emails only when true) and `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true). The draft-initial curator only drafts proposals for `enabled = true` campaigns with `autoDraftInitial = true`.",
     "audiences": [
       "admin"
     ],
@@ -6749,7 +6749,7 @@
   {
     "name": "outreach_create_campaign",
     "title": "Outreach: Create campaign",
-    "description": "Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email channel. New campaigns default `enabled: false` so the curator does not start drafting until you flip it on.",
+    "description": "Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email channel. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftInitial` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), while `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review).",
     "audiences": [
       "admin"
     ],
@@ -6821,6 +6821,12 @@
           ]
         },
         "enabled": {
+          "type": "boolean"
+        },
+        "autoDraftInitial": {
+          "type": "boolean"
+        },
+        "autoDraftReplies": {
           "type": "boolean"
         },
         "unsubscribeRequired": {
@@ -6936,6 +6942,14 @@
                       }
                     ]
                   },
+                  "autoDraftInitial": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "autoDraftReplies": {
+                    "default": true,
+                    "type": "boolean"
+                  },
                   "unsubscribeRequired": {
                     "type": "boolean"
                   }
@@ -6947,6 +6961,8 @@
                   "segmentId",
                   "channelId",
                   "cadenceRules",
+                  "autoDraftInitial",
+                  "autoDraftReplies",
                   "unsubscribeRequired"
                 ],
                 "additionalProperties": false
@@ -7064,7 +7080,7 @@
   {
     "name": "outreach_update_campaign",
     "title": "Outreach: Update campaign",
-    "description": "Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled.",
+    "description": "Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled, or toggle the automation flags `autoDraftInitial` (weekly first-touch drafting) and `autoDraftReplies` (auto-drafting replies to inbound prospect messages).",
     "audiences": [
       "admin"
     ],
@@ -7146,6 +7162,12 @@
             "enabled": {
               "type": "boolean"
             },
+            "autoDraftInitial": {
+              "type": "boolean"
+            },
+            "autoDraftReplies": {
+              "type": "boolean"
+            },
             "unsubscribeRequired": {
               "type": "boolean"
             }
@@ -7215,7 +7237,7 @@
   {
     "name": "outreach_propose_initial",
     "title": "Outreach: Propose initial",
-    "description": "File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) while a pending row exists throws — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.",
+    "description": "File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.",
     "audiences": [
       "admin"
     ],

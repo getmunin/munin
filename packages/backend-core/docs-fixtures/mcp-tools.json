@@ -1217,6 +1217,10 @@
                         "type": "string",
                         "maxLength": 120
                       },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
                       "fields": {
                         "maxItems": 100,
                         "type": "array",
@@ -1373,6 +1377,10 @@
                       "label": {
                         "type": "string",
                         "maxLength": 120
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 500
                       },
                       "fields": {
                         "maxItems": 100,
@@ -2568,6 +2576,10 @@
                       "label": {
                         "type": "string",
                         "maxLength": 120
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 500
                       },
                       "fields": {
                         "maxItems": 100,

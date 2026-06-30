@@ -12,7 +12,7 @@ Use `blocks` for renderable structured content. Use `json` only for opaque, non-
 
 ## 1 — Declare block types on the collection
 
-A `blocks` field carries its allowed block types in `options.blockTypes`. Each block type has a `name` (lowercase, the same rules as field names), an optional `label`, and a list of `fields` (any field types except `blocks` — blocks cannot nest).
+A `blocks` field carries its allowed block types in `options.blockTypes`. Each block type has a `name` (lowercase, the same rules as field names), an optional `label`, an optional `description`, and a list of `fields` (any field types except `blocks` — blocks cannot nest). Use `description` to say what the block is for and when to reach for it — e.g. "Highlights a warning the reader must not miss; don't use for ordinary body text" — so the agent picks the right block while authoring.
 
 ```jsonc
 {
@@ -28,14 +28,14 @@ A `blocks` field carries its allowed block types in `options.blockTypes`. Each b
         "type": "blocks",
         "options": {
           "blockTypes": [
-            { "name": "callout", "label": "Callout", "fields": [
+            { "name": "callout", "label": "Callout", "description": "A highlighted box for an important aside or warning the reader must not miss. Not for ordinary body text.", "fields": [
               { "name": "tone", "type": "select", "options": { "choices": ["info", "warn"] } },
               { "name": "text", "type": "markdown" }
             ]},
-            { "name": "gallery", "label": "Gallery", "fields": [
+            { "name": "gallery", "label": "Gallery", "description": "A set of images shown together as a gallery. Use when you have two or more related photos; for a single image embed it inline instead.", "fields": [
               { "name": "images", "type": "array", "options": { "items": { "name": "img", "type": "asset" } } }
             ]},
-            { "name": "product_card", "label": "Product card", "fields": [
+            { "name": "product_card", "label": "Product card", "description": "Promotes one product from the products collection inline in the article.", "fields": [
               { "name": "product", "type": "reference", "options": { "targetCollection": "products" } }
             ]}
           ]

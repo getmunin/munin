@@ -20,6 +20,7 @@ export type FieldType = (typeof FIELD_TYPES)[number];
 export interface BlockTypeDef {
   name: string;
   label?: string;
+  description?: string;
   fields: FieldDef[];
 }
 

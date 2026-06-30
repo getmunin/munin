@@ -13,6 +13,7 @@ import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
+import { countSignatureHints, isTrailingSignatureSplit } from './email/reply-history.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
@@ -988,9 +989,8 @@ export class ConvService {
     if (newBody === originalBody) return { updated: false, reason: 'no_change' };
 
     if (
-      originalBody.length > 0 &&
-      newBody.length < originalBody.length * 0.5 &&
-      !looksLikeCompleteProse(newBody)
+      isOverAggressiveCut(originalBody, newBody) &&
+      !removedTailIsSignature(originalBody, newBody, input.signatureText)
     ) {
       return { updated: false, reason: 'too_aggressive' };
     }
@@ -1651,4 +1651,27 @@ function looksLikeCompleteProse(text: string): boolean {
   if (!/[.!?]['")\]]*\s*$/.test(trimmed)) return false;
   const wordCount = trimmed.split(/\s+/).filter((w) => /\w/.test(w)).length;
   return wordCount >= 4;
+}
+
+const MAX_SIGNATURE_CUT_RATIO = 0.5;
+const MIN_SIGNATURE_CONTACT_HINTS = 2;
+
+function isOverAggressiveCut(original: string, next: string): boolean {
+  return (
+    original.length > 0 &&
+    next.length < original.length * MAX_SIGNATURE_CUT_RATIO &&
+    !looksLikeCompleteProse(next)
+  );
+}
+
+function removedTailIsSignature(
+  original: string,
+  next: string,
+  signature: string | null | undefined,
+): boolean {
+  if (signature == null) return false;
+  return (
+    isTrailingSignatureSplit(original, next, signature) &&
+    countSignatureHints(signature) >= MIN_SIGNATURE_CONTACT_HINTS
+  );
 }

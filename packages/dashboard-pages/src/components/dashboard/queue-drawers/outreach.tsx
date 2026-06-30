@@ -128,7 +128,7 @@ export function OutreachQueueDrawer({
         <DrawerFooter
           primary={{ label: t('approve'), onClick: onApprove, disabled: pending }}
           secondary={[
-            { label: t('edit'), onClick: () => setEditing(true) },
+            { label: t('edit'), onClick: () => setEditing(true), disabled: pending },
             { label: t('dismiss'), onClick: onDismiss, disabled: pending },
           ]}
           shortcut={t('shortcutApprove')}

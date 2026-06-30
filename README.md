@@ -128,9 +128,11 @@ Watch Lovable build a real website from a single prompt while Munin stands up ev
 ```bash
 git clone https://github.com/getmunin/munin.git
 cd munin
-cp .env.example .env  # edit MUNIN_AUTH_SECRET + MUNIN_KEY_PEPPER + MUNIN_ENCRYPTION_KEY
+cp .env.example .env
 docker compose up
 ```
+
+Secrets left at their `.env.example` placeholders are auto-generated on first boot and persisted in the `munin-data` volume — fine for local self-hosting. For shared or production deployments, set strong `MUNIN_AUTH_SECRET` + `MUNIN_KEY_PEPPER` + `MUNIN_ENCRYPTION_KEY` values (`openssl rand -base64 48`) in `.env` instead.
 
 The first user to sign up becomes the org admin; subsequent users need an invitation token or an email whose domain is in `MUNIN_ALLOWED_EMAIL_DOMAINS`.
 

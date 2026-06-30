@@ -133,6 +133,9 @@ export interface ConversationDetail extends ConversationSummary {
    */
   assistantName: string | null;
   endUserLocale: string | null;
+  contactEmail: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
 }
 
 export interface ConvChannelExport {
@@ -546,11 +549,18 @@ export class ConvService {
         channelType: schema.convChannels.type,
         assistantName: schema.assistants.name,
         endUserLocale: sql<string | null>`(${schema.endUsers.metadata}->>'locale')`.as('end_user_locale'),
+        endUserEmail: schema.endUsers.email,
+        endUserName: schema.endUsers.name,
+        endUserPhone: schema.endUsers.phone,
+        contactEmail: schema.convContacts.email,
+        contactName: schema.convContacts.name,
+        contactPhone: schema.convContacts.phone,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
       .leftJoin(schema.assistants, eq(schema.assistants.orgId, schema.convConversations.orgId))
       .leftJoin(schema.endUsers, eq(schema.endUsers.id, schema.convConversations.endUserId))
+      .leftJoin(schema.convContacts, eq(schema.convContacts.id, schema.convConversations.contactId))
       .where(eq(schema.convConversations.id, id))
       .limit(1);
     const row = conversations[0];
@@ -583,6 +593,9 @@ export class ConvService {
       messages: rows.map((r) => toMessageDto(r.msg, authorNames, r.seenAt)),
       assistantName: row.assistantName ?? null,
       endUserLocale: row.endUserLocale ?? null,
+      contactEmail: row.contactEmail ?? row.endUserEmail ?? null,
+      contactName: row.contactName ?? row.endUserName ?? null,
+      contactPhone: row.contactPhone ?? row.endUserPhone ?? null,
     };
   }
 

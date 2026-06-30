@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import ReactMarkdown from 'react-markdown';
 import { useRelative } from '../../../lib/use-relative';
-import { DrawerFooter, DrawerHeader, MD_COMPONENTS, useCmdEnter } from './shared';
+import { DrawerFooter, DrawerHeader, Markdown, useCmdEnter } from './shared';
 import type { OutreachProposalDto } from './types';
 
 export function OutreachQueueDrawer({
@@ -108,7 +107,7 @@ export function OutreachQueueDrawer({
                   {t('subject', { subject: item.raw.draftSubject })}
                 </p>
               )}
-              <ReactMarkdown components={MD_COMPONENTS}>{editedBody}</ReactMarkdown>
+              <Markdown>{editedBody}</Markdown>
             </div>
           )}
         </section>

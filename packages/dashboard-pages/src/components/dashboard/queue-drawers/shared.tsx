@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Button, Pill, cn } from '@getmunin/ui';
-import type { Components } from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export type DrawerPillTone =
   | 'live'
@@ -41,7 +42,31 @@ export const MD_COMPONENTS: Components = {
       {children}
     </a>
   ),
+  del: ({ children }) => <del className="text-ink-mute line-through">{children}</del>,
+  table: ({ children }) => (
+    <div className="mb-2 overflow-x-auto">
+      <table className="w-full border-collapse text-left text-[13px] leading-snug">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => (
+    <th className="border-[0.5px] border-rule-soft px-2 py-1 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute dark:border-rule-on-dark">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => (
+    <td className="border-[0.5px] border-rule-soft px-2 py-1 align-top dark:border-rule-on-dark">
+      {children}
+    </td>
+  ),
 };
+
+export function Markdown({ children }: { children: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+      {children}
+    </ReactMarkdown>
+  );
+}
 
 export function useCmdEnter(handler: () => void) {
   useEffect(() => {

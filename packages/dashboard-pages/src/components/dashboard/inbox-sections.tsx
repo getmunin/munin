@@ -376,7 +376,7 @@ function QueueRow({
           <span className="text-sm font-medium text-ink dark:text-foreground">{item.title}</span>
           <span className="ml-2 text-sm text-ink-mute"> — {item.snippet}</span>
         </div>
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute group-hover/qrow:hidden">
+        <span className="flex h-7 shrink-0 items-center font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute group-hover/qrow:hidden">
           {age(item.createdAt)}
         </span>
         <div

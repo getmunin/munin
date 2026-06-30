@@ -123,7 +123,7 @@ function ConversationRow({
             <span className="ml-2 text-sm text-ink-mute"> — {preview}</span>
           ) : null}
         </div>
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        <span className="flex h-7 shrink-0 items-center font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
           {age(ts)}
         </span>
       </div>

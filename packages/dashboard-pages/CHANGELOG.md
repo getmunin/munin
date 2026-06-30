@@ -1,5 +1,15 @@
 # @getmunin/dashboard-pages
 
+## 4.63.1
+
+### Patch Changes
+
+- 0d56ab7: Fix two rendering gaps in the CMS draft-approval block editor. Array (string-list) and `multi_select` fields — and array-of-text block props such as a stat block's `items` — no longer fall through to a raw JSON dump: they render as a clean list / comma-separated values, and in edit mode get a proper list editor (add / remove / reorder) and a checkbox group. Markdown prose now renders GitHub-flavored markdown (tables, strikethrough) via `remark-gfm`, so a comparison table in a prose block shows as a table instead of raw pipe-delimited text. The GFM upgrade applies to all shared markdown rendering in the dashboard drawers (KB, outreach, conversation drafts, message bubbles).
+- 9a87f0b: Fix dashboard overview row heights and pill text centering. Queue rows no longer grow taller on hover — the right-hand slot now always reserves the action buttons' height (`h-7`) whether it shows the timestamp or the hover-revealed approve/dismiss buttons. The "open conversations" rows now reserve the same height, so both sections line up at a consistent row height. Pills (e.g. the `CMS` badge) get `leading-none` so their uppercase text is vertically centered within the badge instead of floating high.
+- Updated dependencies [9a87f0b]
+  - @getmunin/ui@4.63.1
+  - @getmunin/types@4.63.1
+
 ## 4.63.0
 
 ### Minor Changes

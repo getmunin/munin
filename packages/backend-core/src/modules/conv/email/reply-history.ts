@@ -143,6 +143,36 @@ const SIGNATURE_INFO_HINTS: RegExp[] = [
 ];
 const SIGNATURE_DETECT_MAX_LINES = 30;
 
+function signatureHintCount(lines: string[]): number {
+  let n = 0;
+  for (const re of SIGNATURE_INFO_HINTS) {
+    if (lines.some((l) => re.test(l))) n += 1;
+  }
+  return n;
+}
+
+export function countSignatureHints(block: string): number {
+  if (!block) return 0;
+  return signatureHintCount(block.split(/\r?\n/));
+}
+
+function normalizeForSplit(s: string): string {
+  return s.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+export function isTrailingSignatureSplit(
+  original: string,
+  body: string,
+  signature: string,
+): boolean {
+  const o = normalizeForSplit(original);
+  const b = normalizeForSplit(body);
+  const s = normalizeForSplit(signature);
+  if (!o || !s) return false;
+  if (b && !o.startsWith(b)) return false;
+  return o.endsWith(s);
+}
+
 export function detectSignatureBlock(body: string, html: string | null = null): string | null {
   const fromHtml = detectSignatureBlockFromHtml(html);
   if (fromHtml) return fromHtml;
@@ -160,8 +190,7 @@ function detectSignatureBlockFromText(body: string): string | null {
   if (start === 0) return null;
   if (end - start + 1 > SIGNATURE_DETECT_MAX_LINES) return null;
   const block = lines.slice(start, end + 1);
-  const hasHint = block.some((l) => SIGNATURE_INFO_HINTS.some((re) => re.test(l)));
-  if (!hasHint) return null;
+  if (signatureHintCount(block) === 0) return null;
   const keptHasContent = lines.slice(0, start).some((l) => l.trim().length > 0);
   if (!keptHasContent) return null;
   return block.join('\n').trim() || null;

@@ -22,6 +22,14 @@ A signature in email is the trailing block that contains some combination of:
 - An RFC 3676 `--` delimiter on its own line followed by 1-6 lines of contact info.
 - A horizontal-rule separator (`____________________` or repeated `-` or `=`).
 
+A signature does **not** need a closing greeting or a `--` delimiter. Many
+clients (Outlook, Apple Mail) render the signature as an HTML table with no
+sign-off — once flattened to text it shows up as a trailing contact block like
+`Email: sam@northwind.example mailto:sam@northwind.example Phone: +1 555 0142 Web: northwind.example`.
+A trailing block that pairs a name/title/company with two or more contact details
+(email, phone, postal address, website) is a signature even when it follows the
+message body directly with no greeting.
+
 The signature is **always at the end** of the body. Never in the middle.
 
 ## Inputs
@@ -41,8 +49,12 @@ The user prompt below contains:
    somewhere in the middle of the body (because the sender wrote a P.S. after
    it, or interleaved their text with a previous reply), do not cut.
 3. **Be conservative.** If you're not confident, return the body unchanged.
-4. **Never remove more than ~40% of the body.** A short message that's mostly
-   signature still has a real first line that must remain.
+4. **Don't cut into real content.** The cap protects against eating the
+   sender's prose — not against short messages. A one-line reply followed by a
+   large contact block is fine to strip down to that one line, *provided* the
+   removed block is unambiguously a signature (name/title/company plus two or
+   more contact details). Pass that block as `signatureText` so the tool can
+   verify the cut. When the trailing block is ambiguous, leave it.
 5. **If the body has no signature, return it unchanged.** This is the common
    case for terse replies ("Sounds good!", "Thanks", "Approved.").
 6. **Single output.** Make exactly one call to `conv_strip_message_signature`
@@ -63,8 +75,10 @@ conv_strip_message_signature({
 The tool will refuse to apply changes if:
 
 - `body` is empty or whitespace-only.
-- `body` is more than ~50% shorter than the original (defense against
-  accidental over-cutting).
+- `body` is more than ~50% shorter than the original **and** you did not pass a
+  matching `signatureText` with multiple contact-info hints (defense against
+  accidental over-cutting). Always pass `signatureText` when the signature is
+  most of the body, or the cut will be rejected.
 - `messageId` doesn't resolve to an inbound (`author_type = 'end_user'`)
   message in your org.
 
@@ -115,7 +129,33 @@ conv_strip_message_signature({
 })
 ```
 
-**Example 3 — no signature, leave it alone**
+**Example 3 — one-line reply, signature is most of the body (HTML-table sig)**
+
+The signature has no closing greeting and dwarfs the actual reply, but it's an
+unambiguous contact block, so strip it down to the one real line. Passing
+`signatureText` is what allows the cut past the 50% guard.
+
+Input body:
+```
+Looks cool!
+
+Sam Rivera CTO
+
+Northwind Labs, 12 Harbor St, Springfield
+
+Email: sam@northwind.example mailto:sam@northwind.example Phone: +1 555 0142 Web: northwind.example https://northwind.example/
+```
+
+Tool call:
+```
+conv_strip_message_signature({
+  messageId: "ccm_…",
+  body: "Looks cool!",
+  signatureText: "Sam Rivera CTO\n\nNorthwind Labs, 12 Harbor St, Springfield\n\nEmail: sam@northwind.example mailto:sam@northwind.example Phone: +1 555 0142 Web: northwind.example https://northwind.example/"
+})
+```
+
+**Example 4 — no signature, leave it alone**
 
 Input body:
 ```
@@ -130,7 +170,7 @@ conv_strip_message_signature({
 })
 ```
 
-**Example 4 — ambiguous, stay conservative**
+**Example 5 — ambiguous, stay conservative**
 
 Input body:
 ```

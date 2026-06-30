@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import ReactMarkdown from 'react-markdown';
 import { useRelative } from '../../../lib/use-relative';
 import {
   DrawerErrorState,
   DrawerFooter,
   DrawerHeader,
   DrawerLoadingState,
-  MD_COMPONENTS,
+  Markdown,
   useCmdEnter,
 } from './shared';
 import type { KbCandidateDto } from './types';
@@ -109,7 +108,7 @@ export function KbQueueDrawer({
               />
             ) : (
               <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
-                <ReactMarkdown components={MD_COMPONENTS}>{editedBody}</ReactMarkdown>
+                <Markdown>{editedBody}</Markdown>
               </div>
             )}
           </section>

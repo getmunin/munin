@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useTranslations } from 'next-intl';
-import ReactMarkdown from 'react-markdown';
 import { ChevronDown, ChevronUp, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../api';
 import {
@@ -25,11 +24,11 @@ import {
   DrawerFooter,
   DrawerHeader,
   DrawerLoadingState,
-  MD_COMPONENTS,
+  Markdown,
   useCmdEnter,
 } from './shared';
 import { NativeSelect } from '../../native-select';
-import { computePatch, seedBlock } from './cms-blocks';
+import { computePatch, defaultForField, seedBlock } from './cms-blocks';
 import {
   asBlock,
   blockTypeDef,
@@ -550,6 +549,32 @@ function FieldEditor({
           onChange={onChange}
         />
       );
+    case 'multi_select':
+      return (
+        <MultiSelectEditor
+          choices={field.options?.choices ?? []}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      );
+    case 'array':
+      return (
+        <ListEditor
+          field={field}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+          onUploadAsset={onUploadAsset}
+          assetLabels={{
+            aspectLabel,
+            dropHintLabel,
+            dropActiveLabel,
+            uploadingLabel,
+            replaceLabel,
+          }}
+        />
+      );
     case 'blocks':
       return (
         <BlocksEditor
@@ -590,7 +615,7 @@ function FieldViewer({
     case 'rich_text':
       return (
         <ValueBox>
-          <ReactMarkdown components={MD_COMPONENTS}>{asString(value)}</ReactMarkdown>
+          <Markdown>{asString(value)}</Markdown>
         </ValueBox>
       );
     case 'asset': {
@@ -600,6 +625,12 @@ function FieldViewer({
     }
     case 'blocks':
       return <BlocksViewer field={field} value={value} aspectLabel={aspectLabel} />;
+    case 'multi_select': {
+      const items = Array.isArray(value) ? (value as unknown[]) : [];
+      return <ValueBox>{items.map(scalarText).filter(Boolean).join(', ') || '—'}</ValueBox>;
+    }
+    case 'array':
+      return <ArrayViewer field={field} value={value} aspectLabel={aspectLabel} />;
     case 'boolean':
       return <ValueBox>{value === true ? 'true' : 'false'}</ValueBox>;
     case 'text':
@@ -710,6 +741,165 @@ function BlocksViewer({
           </BlockCard>
         );
       })}
+    </div>
+  );
+}
+
+function ArrayViewer({
+  field,
+  value,
+  aspectLabel,
+}: {
+  field: CmsFieldDef;
+  value: unknown;
+  aspectLabel: string;
+}) {
+  const items: unknown[] = Array.isArray(value) ? (value as unknown[]) : [];
+  if (items.length === 0) return null;
+  const itemDef = field.options?.items;
+  if (itemDef?.type === 'asset') {
+    return (
+      <div className="space-y-2">
+        {items.map((it, index) => (
+          <FieldViewer key={index} field={itemDef} value={it} aspectLabel={aspectLabel} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <ValueBox>
+      <ul className="list-disc space-y-1 pl-5">
+        {items.map((it, index) => (
+          <li key={index}>{scalarText(it) || '—'}</li>
+        ))}
+      </ul>
+    </ValueBox>
+  );
+}
+
+function MultiSelectEditor({
+  choices,
+  value,
+  disabled,
+  onChange,
+}: {
+  choices: string[];
+  value: unknown;
+  disabled: boolean;
+  onChange: (next: unknown) => void;
+}) {
+  const selected = Array.isArray(value)
+    ? (value as unknown[]).filter((v): v is string => typeof v === 'string')
+    : [];
+  return (
+    <div className="flex flex-col gap-1.5">
+      {choices.map((c) => (
+        <label key={c} className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={selected.includes(c)}
+            disabled={disabled}
+            onChange={(e) => {
+              const next = new Set(selected);
+              if (e.target.checked) next.add(c);
+              else next.delete(c);
+              onChange(choices.filter((choice) => next.has(choice)));
+            }}
+          />
+          <span className="font-sans text-sm">{c}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function ListEditor({
+  field,
+  value,
+  disabled,
+  onChange,
+  onUploadAsset,
+  assetLabels,
+}: {
+  field: CmsFieldDef;
+  value: unknown;
+  disabled: boolean;
+  onChange: (next: unknown) => void;
+  onUploadAsset: (file: File) => Promise<CmsAssetExpanded>;
+  assetLabels: AssetLabels;
+}) {
+  const t = useTranslations('dashboard.overview.drawer');
+  const items: unknown[] = Array.isArray(value) ? (value as unknown[]) : [];
+  const itemDef = field.options?.items;
+
+  if (!itemDef) {
+    return (
+      <pre className="w-full overflow-x-auto rounded-input border-[0.5px] border-rule-soft bg-paper-deep px-3 py-2 font-mono text-xs text-ink-mute dark:border-rule-on-dark dark:bg-secondary">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    );
+  }
+
+  const setItem = (index: number, next: unknown) =>
+    onChange(items.map((it, i) => (i === index ? next : it)));
+  const removeItem = (index: number) => onChange(items.filter((_, i) => i !== index));
+  const moveItem = (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  };
+  const addItem = () => onChange([...items, defaultForField(itemDef)]);
+
+  return (
+    <div className="space-y-2">
+      {items.map((item, index) => (
+        <div key={index} className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <FieldEditor
+              field={{ ...itemDef, name: `${field.name}.${index}` }}
+              value={item}
+              invalid={false}
+              disabled={disabled}
+              onChange={(v) => setItem(index, v)}
+              onUploadAsset={onUploadAsset}
+              aspectLabel={assetLabels.aspectLabel}
+              dropHintLabel={assetLabels.dropHintLabel}
+              dropActiveLabel={assetLabels.dropActiveLabel}
+              uploadingLabel={assetLabels.uploadingLabel}
+              replaceLabel={assetLabels.replaceLabel}
+            />
+          </div>
+          <div className="flex items-center gap-1 pt-1.5">
+            <BlockControl
+              label={t('cmsListMoveUp')}
+              disabled={disabled || index === 0}
+              onClick={() => moveItem(index, -1)}
+            >
+              <ChevronUp className="size-3.5" />
+            </BlockControl>
+            <BlockControl
+              label={t('cmsListMoveDown')}
+              disabled={disabled || index === items.length - 1}
+              onClick={() => moveItem(index, 1)}
+            >
+              <ChevronDown className="size-3.5" />
+            </BlockControl>
+            <BlockControl
+              label={t('cmsListRemove')}
+              disabled={disabled}
+              onClick={() => removeItem(index)}
+            >
+              <Trash2 className="size-3.5" />
+            </BlockControl>
+          </div>
+        </div>
+      ))}
+      <Button variant="outline" size="sm" disabled={disabled} onClick={addItem}>
+        <Plus className="size-3.5" />
+        {t('cmsListAdd')}
+      </Button>
     </div>
   );
 }
@@ -1029,6 +1219,14 @@ function AssetDropZone({
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function scalarText(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  return JSON.stringify(value);
 }
 
 function asAsset(value: unknown): CmsAssetExpanded | null {

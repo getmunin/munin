@@ -3,10 +3,9 @@
 import { useEffect, useRef } from 'react';
 import { Unplug, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import ReactMarkdown from 'react-markdown';
 import { Button, Pill } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
-import { DrawerFooter, DrawerHeader, MD_COMPONENTS, useCmdEnter } from './queue-drawers/shared';
+import { DrawerFooter, DrawerHeader, Markdown, useCmdEnter } from './queue-drawers/shared';
 import { ActivityRail } from './inbox-activity-rail';
 import { MessageBubble } from './inbox-message-bubble';
 import type { ConvActionError, ConversationDetail } from './inbox-types';
@@ -191,7 +190,7 @@ export function SimplifiedConvDrawer({
             />
           ) : (
             <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
-              <ReactMarkdown components={MD_COMPONENTS}>{draft?.body ?? ''}</ReactMarkdown>
+              <Markdown>{draft?.body ?? ''}</Markdown>
             </div>
           )}
         </section>

@@ -50,6 +50,9 @@ export function serializeForPatch(
   if (value == null) return null;
   if (field.type === 'asset') return assetIdOf(value);
   if (field.type === 'blocks') return serializeBlocksForPatch(field, value, inlineAssetReverse);
+  if (field.type === 'array' && field.options?.items?.type === 'asset' && Array.isArray(value)) {
+    return value.map((v) => assetIdOf(v));
+  }
   if (INLINE_PROSE_TYPES.has(field.type) && typeof value === 'string') {
     return reinlineAssets(value, inlineAssetReverse);
   }
@@ -138,7 +141,7 @@ export function seedBlock(bt: CmsBlockTypeDef): CmsBlockInstance {
   return { type: bt.name, key: genBlockKey(), props };
 }
 
-function defaultForField(field: CmsFieldDef): unknown {
+export function defaultForField(field: CmsFieldDef): unknown {
   if (field.default !== undefined) return field.default;
   switch (field.type) {
     case 'boolean':

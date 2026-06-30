@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computePatch,
+  defaultForField,
   fieldValuesEqual,
   reinlineAssets,
   seedBlock,
@@ -102,6 +103,101 @@ describe('serializeForPatch (top-level fields)', () => {
     expect(serializeForPatch(field, 'see https://cdn.example.com/logo.png', reverse)).toBe(
       'see asset://asset_logo',
     );
+  });
+});
+
+describe('serializeForPatch (array fields)', () => {
+  const textList: CmsFieldDef = {
+    name: 'items',
+    type: 'array',
+    options: { items: { name: 'item', type: 'text' } },
+  };
+  const assetList: CmsFieldDef = {
+    name: 'gallery',
+    type: 'array',
+    options: { items: { name: 'item', type: 'asset' } },
+  };
+
+  it('leaves a string array untouched', () => {
+    const value = ['~44x | price jump', '~$3,000 | onboarding fee'];
+    expect(serializeForPatch(textList, value, reverse)).toEqual(value);
+  });
+
+  it('converts an expanded asset array back to ids', () => {
+    const value = [
+      { id: 'asset_1', publicUrl: 'https://cdn.example.com/icon.png', altText: null },
+      'asset_2',
+    ];
+    expect(serializeForPatch(assetList, value, reverse)).toEqual(['asset_1', 'asset_2']);
+  });
+
+  it('serializes a null array field to null', () => {
+    expect(serializeForPatch(textList, null, reverse)).toBeNull();
+  });
+});
+
+describe('fieldValuesEqual (array fields)', () => {
+  const textList: CmsFieldDef = {
+    name: 'items',
+    type: 'array',
+    options: { items: { name: 'item', type: 'text' } },
+  };
+
+  it('treats an unchanged string array as equal', () => {
+    expect(fieldValuesEqual(textList, ['a', 'b'], ['a', 'b'])).toBe(true);
+  });
+
+  it('detects an edited item', () => {
+    expect(fieldValuesEqual(textList, ['a', 'b'], ['a', 'B'])).toBe(false);
+  });
+
+  it('detects an added item', () => {
+    expect(fieldValuesEqual(textList, ['a'], ['a', 'b'])).toBe(false);
+  });
+
+  it('detects a reordered array', () => {
+    expect(fieldValuesEqual(textList, ['a', 'b'], ['b', 'a'])).toBe(false);
+  });
+});
+
+describe('computePatch (array + multi_select)', () => {
+  const fields: CmsFieldDef[] = [
+    { name: 'items', type: 'array', options: { items: { name: 'item', type: 'text' } } },
+    { name: 'tags', type: 'multi_select', options: { choices: ['a', 'b', 'c'] } },
+  ];
+
+  it('omits array + multi_select fields when unchanged', () => {
+    const data = { items: ['x'], tags: ['a'] };
+    expect(computePatch(fields, data, { items: ['x'], tags: ['a'] }, reverse)).toEqual({});
+  });
+
+  it('sends an edited string array verbatim', () => {
+    const patch = computePatch(fields, { items: ['x'], tags: ['a'] }, { items: ['x', 'y'], tags: ['a'] }, reverse);
+    expect(patch).toEqual({ items: ['x', 'y'] });
+  });
+
+  it('sends an edited multi_select selection', () => {
+    const patch = computePatch(fields, { items: ['x'], tags: ['a'] }, { items: ['x'], tags: ['a', 'c'] }, reverse);
+    expect(patch).toEqual({ tags: ['a', 'c'] });
+  });
+});
+
+describe('defaultForField (list item seeds)', () => {
+  it('seeds an empty string for a text item', () => {
+    expect(defaultForField({ name: 'item', type: 'text' })).toBe('');
+  });
+
+  it('seeds null for an asset item', () => {
+    expect(defaultForField({ name: 'item', type: 'asset' })).toBeNull();
+  });
+
+  it('seeds an empty array for nested arrays and multi_select', () => {
+    expect(defaultForField({ name: 'x', type: 'array' })).toEqual([]);
+    expect(defaultForField({ name: 'y', type: 'multi_select' })).toEqual([]);
+  });
+
+  it('honors a field default over the type seed', () => {
+    expect(defaultForField({ name: 'item', type: 'text', default: 'hi' })).toBe('hi');
   });
 });
 

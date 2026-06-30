@@ -1023,6 +1023,123 @@ const skipReason = TEST_URL
       expect(plainHit!.refs).toBeUndefined();
     });
   }, 30_000);
+
+  it('rich field types: array, multi_select, and array-of-text block props round-trip and validate', async () => {
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Stat cards',
+          slug: 'stat-cards',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+            { name: 'bullets', type: 'array', options: { items: { name: 'item', type: 'text' } } },
+            { name: 'tags', type: 'multi_select', options: { choices: ['pricing', 'lock-in', 'oss'] } },
+            {
+              name: 'figures',
+              type: 'blocks',
+              options: {
+                blockTypes: [
+                  {
+                    name: 'stat',
+                    fields: [
+                      { name: 'heading', type: 'text' },
+                      { name: 'items', type: 'array', options: { items: { name: 'item', type: 'text' } } },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+      const bullets = ['~44x | price jump from Starter to Professional', '~$3,000 | onboarding fee'];
+      const statItems = ['20–30% | budget on top of list price', 'free | self-host tier'];
+
+      const created = parseToolResult<{ id: string; version: number }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'stat-cards',
+            slug: 'comparison',
+            data: {
+              title: 'Comparison',
+              slug: 'comparison',
+              bullets,
+              tags: ['pricing', 'oss'],
+              figures: [
+                { type: 'stat', key: 's1', props: { heading: 'Stat figures', items: statItems } },
+              ],
+            },
+            status: 'draft',
+          },
+        }),
+      );
+      expect(created.id).toBeTruthy();
+
+      const got = parseToolResult<{
+        data: {
+          bullets: string[];
+          tags: string[];
+          figures: Array<{ type: string; props: { heading: string; items: string[] } }>;
+        };
+      }>(await c.callTool({ name: 'cms_get_entry', arguments: { id: created.id } }));
+      expect(got.data.bullets).toEqual(bullets);
+      expect(got.data.tags).toEqual(['pricing', 'oss']);
+      expect(got.data.figures[0]!.props.items).toEqual(statItems);
+
+      const editedBullets = [...bullets, 'new bullet'];
+      const editedItems = ['20–30% | budget on top of list price'];
+      const updated = parseToolResult<{ version: number }>(
+        await c.callTool({
+          name: 'cms_update_entry',
+          arguments: {
+            id: created.id,
+            ifVersion: created.version,
+            data: {
+              bullets: editedBullets,
+              tags: ['lock-in'],
+              figures: [
+                { type: 'stat', key: 's1', props: { heading: 'Stat figures', items: editedItems } },
+              ],
+            },
+          },
+        }),
+      );
+      expect(updated.version).toBeGreaterThan(created.version);
+
+      const reread = parseToolResult<{
+        data: { bullets: string[]; tags: string[]; figures: Array<{ props: { items: string[] } }> };
+      }>(await c.callTool({ name: 'cms_get_entry', arguments: { id: created.id } }));
+      expect(reread.data.bullets).toEqual(editedBullets);
+      expect(reread.data.tags).toEqual(['lock-in']);
+      expect(reread.data.figures[0]!.props.items).toEqual(editedItems);
+
+      const badSelect = (await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'stat-cards',
+          slug: 'bad-select',
+          data: { title: 'Bad', slug: 'bad-select', tags: ['not-a-choice'] },
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(badSelect.isError).toBe(true);
+      expect(badSelect.content?.[0]?.text).toContain('cms_invalid');
+
+      const badArray = (await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'stat-cards',
+          slug: 'bad-array',
+          data: { title: 'Bad', slug: 'bad-array', bullets: 'not an array' },
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(badArray.isError).toBe(true);
+      expect(badArray.content?.[0]?.text).toContain('cms_invalid');
+    });
+  }, 30_000);
 });
 
 function retarget(url: string, baseUrl: string): string {

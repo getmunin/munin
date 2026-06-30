@@ -1,5 +1,36 @@
 # @getmunin/backend-core
 
+## 4.63.0
+
+### Minor Changes
+
+- cadc2c8: CMS: block types can carry an optional `description`. Each entry in a `blocks` field's `options.blockTypes` now accepts a `description` (≤500 chars) alongside `name` and `label`, so a collection can tell the agent what a block is for and when to use it while authoring (e.g. "Highlights a warning the reader must not miss; not for ordinary body text"). Optional and additive — existing collections and block content are unaffected.
+- 5902396: Show who a conversation is with in the inbox drawer instead of a bare end-user id.
+
+  `GET /v1/conversations/:id` (and the `ConversationDetail` it returns) now carries
+  the resolved counterpart identity — `contactEmail`, `contactName`, `contactPhone`
+  — preferring the linked `conv_contacts` row and falling back to the `end_users`
+  row. Both the full and simplified conversation drawers render the email (then
+  name) in the header rather than the raw end-user id.
+
+  Also tightens the queue row layout so long titles truncate and the row actions
+  swap in on hover without overlapping the timestamp.
+
+- 834138e: outreach: stop re-drafting already-contacted prospects + add per-campaign automation switches
+
+  - `outreach_propose_initial` now refuses a fresh first-touch when the contact already has a `sent` or `approved` initial proposal in that campaign (previously dedup only covered pending drafts, so the weekly curator could re-draft someone who was already emailed). `dismissed`/`failed` proposals still allow a re-draft.
+  - New `outreach_campaigns` columns `auto_draft_initial` (default `false`) and `auto_draft_replies` (default `true`), exposed on `outreach_create_campaign` / `outreach_update_campaign` / `outreach_list_campaigns`. The weekly first-touch curator only drafts for campaigns with `autoDraftInitial = true`, and inbound prospect replies are auto-drafted only when `autoDraftReplies = true`. Existing campaigns keep auto-replies but must opt in to automated first-touch.
+
+### Patch Changes
+
+- Updated dependencies [834138e]
+  - @getmunin/db@4.63.0
+  - @getmunin/core@4.63.0
+  - @getmunin/agent-runtime@4.63.0
+  - @getmunin/mcp-toolkit@4.63.0
+  - @getmunin/types@4.63.0
+  - @getmunin/emails@4.63.0
+
 ## 4.62.1
 
 ### Patch Changes

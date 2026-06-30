@@ -29,5 +29,8 @@ COPY --from=build /deploy/package.json ./
 COPY --from=build /deploy/node_modules ./node_modules
 COPY --from=build /repo/apps/backend/dist ./dist
 COPY --from=build /repo/apps/backend/public ./public
+COPY apps/backend/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3001
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "dist/main.js"]

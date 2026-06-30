@@ -305,6 +305,90 @@ const skipReason = TEST_URL
     });
   });
 
+  it('automation flags default to autoDraftInitial=false / autoDraftReplies=true and are togglable', async () => {
+    await withClient(adminKey, async (c) => {
+      const created = firstJson(
+        (await c.callTool({
+          name: 'outreach_create_campaign',
+          arguments: {
+            name: 'flag-defaults',
+            brief: 'Check automation flag defaults.',
+            segmentId,
+            channelId,
+          },
+        })) as never,
+      ) as { id: string; autoDraftInitial: boolean; autoDraftReplies: boolean };
+      expect(created.autoDraftInitial).toBe(false);
+      expect(created.autoDraftReplies).toBe(true);
+
+      const updated = firstJson(
+        (await c.callTool({
+          name: 'outreach_update_campaign',
+          arguments: { id: created.id, patch: { autoDraftInitial: true, autoDraftReplies: false } },
+        })) as never,
+      ) as { autoDraftInitial: boolean; autoDraftReplies: boolean };
+      expect(updated.autoDraftInitial).toBe(true);
+      expect(updated.autoDraftReplies).toBe(false);
+    });
+  });
+
+  it('propose_initial refuses a contact already sent a first-touch, but allows re-draft after dismissal', async () => {
+    let campaignId = '';
+    let firstProposalId = '';
+
+    await withClient(adminKey, async (c) => {
+      const created = firstJson(
+        (await c.callTool({
+          name: 'outreach_create_campaign',
+          arguments: {
+            name: 'recontact-guard',
+            brief: 'Guard against re-contacting the same person.',
+            segmentId,
+            channelId,
+          },
+        })) as never,
+      ) as { id: string };
+      campaignId = created.id;
+
+      const first = firstJson(
+        (await c.callTool({
+          name: 'outreach_propose_initial',
+          arguments: { campaignId, contactId, draftSubject: 'Hi Jane', draftBody: 'First touch.' },
+        })) as never,
+      ) as { id: string };
+      firstProposalId = first.id;
+    });
+
+    await db
+      .update(schema.outreachProposals)
+      .set({ status: 'sent' })
+      .where(sql`id = ${firstProposalId}`);
+
+    await withClient(adminKey, async (c) => {
+      const blocked = await c.callTool({
+        name: 'outreach_propose_initial',
+        arguments: { campaignId, contactId, draftSubject: 'Hi again', draftBody: 'Second touch.' },
+      });
+      expect(blocked.isError).toBe(true);
+      expect(JSON.stringify(blocked)).toContain('outreach_conflict');
+    });
+
+    await db
+      .update(schema.outreachProposals)
+      .set({ status: 'dismissed' })
+      .where(sql`id = ${firstProposalId}`);
+
+    await withClient(adminKey, async (c) => {
+      const allowed = await c.callTool({
+        name: 'outreach_propose_initial',
+        arguments: { campaignId, contactId, draftSubject: 'Hi again', draftBody: 'Second touch.' },
+      });
+      expect(allowed.isError).not.toBe(true);
+      const proposal = firstJson(allowed as never) as { status: string };
+      expect(proposal.status).toBe('pending');
+    });
+  });
+
   it('create_campaign rejects a non-email channel', async () => {
     const [chatCh] = await db
       .insert(schema.convChannels)

@@ -1735,6 +1735,8 @@ export const outreachCampaigns = pgTable(
       .default({}),
     ctaUrl: text('cta_url'),
     enabled: boolean('enabled').notNull().default(false),
+    autoDraftInitial: boolean('auto_draft_initial').notNull().default(false),
+    autoDraftReplies: boolean('auto_draft_replies').notNull().default(true),
     unsubscribeRequired: boolean('unsubscribe_required').notNull().default(true),
     createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
     createdByActorId: text('created_by_actor_id').notNull(),

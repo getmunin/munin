@@ -13,9 +13,9 @@ A separate `skill://crm/clean-contact-data` runs weekly to merge any duplicate c
 
 ## TL;DR
 
-1. **List enabled campaigns** with `outreach_list_campaigns`. Skip rows where `enabled = false`.
+1. **List campaigns** with `outreach_list_campaigns`. Skip rows where `enabled = false` or `autoDraftInitial = false` (the latter are drafted manually on demand, not by this weekly pass).
 2. **For each campaign**, materialise the audience with `crm_list_contacts_in_segment(campaign.segmentId)`. The list is *already* filtered for suppression (`do_not_contact`, `unsubscribed_at`) and lawful basis (`consent_lawful_basis IS NOT NULL`) — that floor is non-overridable in the service. Treat what comes back as the eligible set.
-3. **For each contact in the audience**, dedupe via `outreach_list_proposals({ status: "pending", kind: "initial", campaignId, contactId })`. Skip if a pending proposal already exists.
+3. **For each contact in the audience**, dedupe via `outreach_list_proposals({ kind: "initial", campaignId, contactId })`. Skip if any proposal is `pending`, `approved`, or `sent` (already drafted or already reached). Only `dismissed`/`failed` allow a re-draft.
 4. **Pull product context** with `kb_search` against the brief — find 1–3 relevant KB snippets to ground the email in real facts (don't fabricate features).
 5. **Draft** an 80–200-word email, personalised to the contact's name + company. Plain prose, no headings, sparing bold/italic, no JSON-escaping. The unsubscribe footer is appended **at approve-time** by the system — do not include one in your draft.
 6. **File** with `outreach_propose_initial({ campaignId, contactId, draftSubject, draftBody, evidence })`. The `evidence` JSONB carries the (KB doc ids, contact-tag matches, reasoning summary) you'd want a human reviewer to see — keep it short and structured.
@@ -27,7 +27,7 @@ A separate `skill://crm/clean-contact-data` runs weekly to merge any duplicate c
 { "name": "outreach_list_campaigns", "arguments": {} }
 ```
 
-Each row carries `id`, `name`, `brief`, `segmentId`, `channelId`, `cadenceRules`, `ctaUrl`, `enabled`, `unsubscribeRequired`. Filter to `enabled = true`. Skim `cadenceRules.maxPerWeekPerContact` for sanity (it doesn't gate you here — it's enforced at send-time — but if you see `1` you should be especially conservative about re-running too often).
+Each row carries `id`, `name`, `brief`, `segmentId`, `channelId`, `cadenceRules`, `ctaUrl`, `enabled`, `autoDraftInitial`, `autoDraftReplies`, `unsubscribeRequired`. Filter to `enabled = true` AND `autoDraftInitial = true` (a campaign with `autoDraftInitial = false` is live but the operator drafts first-touch by hand — leave it alone). Skim `cadenceRules.maxPerWeekPerContact` for sanity (it doesn't gate you here — it's enforced at send-time — but if you see `1` you should be especially conservative about re-running too often).
 
 ## Step 2 — materialise the audience
 
@@ -44,13 +44,13 @@ If the segment returns 0 contacts, skip this campaign entirely.
 ```jsonc
 {
   "name": "outreach_list_proposals",
-  "arguments": { "status": "pending", "kind": "initial", "campaignId": "<id>", "contactId": "<id>" }
+  "arguments": { "kind": "initial", "campaignId": "<id>", "contactId": "<id>" }
 }
 ```
 
-If non-empty, the contact already has a pending draft — skip. Don't re-propose; the unique index will reject you anyway, and you'll waste an LLM call.
+If any returned proposal is `pending`, `approved`, or `sent`, skip the contact — they already have a draft in flight or were already reached. Don't re-propose; the service will reject you anyway (the pending unique index for a pending draft, an `outreach_conflict` for a sent/approved first-touch), and you'll waste an LLM call. Only `dismissed` (the operator rejected a prior draft) and `failed` (a send that didn't land) leave the contact eligible for a fresh draft.
 
-You may also want to skip when the contact's `lastContactedAt` was within `cadenceRules.maxPerWeekPerContact / 7` days — but for the initial pass, skipping based on a pending proposal is the only hard rule.
+You may also want to skip when the contact's `lastContactedAt` was within `cadenceRules.maxPerWeekPerContact / 7` days — but for the initial pass, skipping based on an existing non-dismissed proposal is the only hard rule.
 
 ## Step 4 — pull product context
 
@@ -96,7 +96,7 @@ Behavior:
 
 - The proposal lands in `pending` status, visible to the operator on `/dashboard/inbox` (Outreach drafts tab).
 - An `outreach.proposal.created` realtime event fires.
-- Re-running this skill on the same (campaign, contact) before the operator decides will reject with a uniqueness conflict — that's the dedup signal.
+- Re-running this skill on the same (campaign, contact) while a pending draft exists, or after a first-touch was already sent/approved, will reject with a conflict — that's the dedup signal.
 
 ## Step 7 — review and approve (the operator's loop)
 

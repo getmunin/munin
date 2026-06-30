@@ -1,0 +1,2 @@
+ALTER TABLE "outreach_campaigns" ADD COLUMN "auto_draft_initial" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "outreach_campaigns" ADD COLUMN "auto_draft_replies" boolean DEFAULT true NOT NULL;

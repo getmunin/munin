@@ -84,7 +84,15 @@ export type CmsFieldType =
   | 'asset'
   | 'reference'
   | 'array'
+  | 'blocks'
   | 'json';
+
+export interface CmsBlockTypeDef {
+  name: string;
+  label?: string;
+  description?: string;
+  fields: CmsFieldDef[];
+}
 
 export interface CmsFieldDef {
   name: string;
@@ -92,11 +100,19 @@ export interface CmsFieldDef {
   required?: boolean;
   localized?: boolean;
   description?: string;
+  default?: unknown;
   options?: {
     choices?: string[];
     targetCollection?: string;
     items?: CmsFieldDef;
+    blockTypes?: CmsBlockTypeDef[];
   };
+}
+
+export interface CmsBlockInstance {
+  type: string;
+  key?: string;
+  props: Record<string, unknown>;
 }
 
 export interface CmsDraftDetailDto {
@@ -108,6 +124,7 @@ export interface CmsDraftDetailDto {
   status: 'draft' | 'published' | 'scheduled' | 'archived';
   version: number;
   data: Record<string, unknown>;
+  assets?: Record<string, CmsAssetExpanded>;
   fields: CmsFieldDef[];
   updatedAt: string;
 }
@@ -162,4 +179,28 @@ export function humanizeFieldName(name: string): string {
     .replace(/[_-]+/g, ' ')
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function asBlock(value: unknown): CmsBlockInstance | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const type = (value as { type?: unknown }).type;
+  if (typeof type !== 'string') return null;
+  const key = (value as { key?: unknown }).key;
+  const props = (value as { props?: unknown }).props;
+  return {
+    type,
+    ...(typeof key === 'string' ? { key } : {}),
+    props:
+      props && typeof props === 'object' && !Array.isArray(props)
+        ? (props as Record<string, unknown>)
+        : {},
+  };
+}
+
+export function blockTypeDef(field: CmsFieldDef, typeName: string): CmsBlockTypeDef | null {
+  return field.options?.blockTypes?.find((t) => t.name === typeName) ?? null;
+}
+
+export function blockTypeLabel(blockType: CmsBlockTypeDef): string {
+  return blockType.label ?? humanizeFieldName(blockType.name);
 }

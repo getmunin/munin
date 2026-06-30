@@ -144,7 +144,11 @@ export function SimplifiedConvDrawer({
   const draftBody = draftEdit ?? draft?.body ?? '';
   const isEditing = draftEdit !== null || !draft;
   const waiting = detail.needsHumanAttentionAt ? age(detail.needsHumanAttentionAt) : '';
-  const who = detail.endUserId ?? t('conversationFallback', { id: detail.displayId });
+  const who =
+    detail.contactEmail ??
+    detail.contactName ??
+    detail.endUserId ??
+    t('conversationFallback', { id: detail.displayId });
 
   useCmdEnter(() => {
     if (draftBody.trim() && !pending) onSendDraft(draftBody);
@@ -270,7 +274,8 @@ export function FullConvDrawer({
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const claimed = detail.claim !== null;
-  const endUserLabel = detail.endUserId ?? t('endUserFallback');
+  const endUserLabel =
+    detail.contactEmail ?? detail.contactName ?? detail.endUserId ?? t('endUserFallback');
 
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const lastMessageId = detail.messages[detail.messages.length - 1]?.id;

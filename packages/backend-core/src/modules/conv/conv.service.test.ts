@@ -322,6 +322,51 @@ const skipReason = TEST_URL
       const detail = await run(() => svc.getConversation(conv.id));
       expect(detail.messages.map((m) => m.body)).toEqual(['first', 'second']);
     });
+
+    it('getConversation resolves counterpart identity, preferring the contact over the end user', async () => {
+      const ch = await seedChannel();
+      const [endUser] = await db
+        .insert(schema.endUsers)
+        .values({ orgId, email: 'eu@example.com', name: 'End User' })
+        .returning();
+      const [contact] = await db
+        .insert(schema.convContacts)
+        .values({ orgId, endUserId: endUser!.id, email: 'contact@example.com', name: 'Contact' })
+        .returning();
+      const conv = await run(() =>
+        svc.createConversation({
+          channelId: ch.id,
+          body: 'hi',
+          authorType: 'agent',
+          authorId: actor.id,
+          endUserId: endUser!.id,
+          contactId: contact!.id,
+        }),
+      );
+      const detail = await run(() => svc.getConversation(conv.id));
+      expect(detail.contactEmail).toBe('contact@example.com');
+      expect(detail.contactName).toBe('Contact');
+    });
+
+    it('getConversation falls back to the end user when no contact is linked', async () => {
+      const ch = await seedChannel();
+      const [endUser] = await db
+        .insert(schema.endUsers)
+        .values({ orgId, email: 'lonely@example.com', name: 'Lonely' })
+        .returning();
+      const conv = await run(() =>
+        svc.createConversation({
+          channelId: ch.id,
+          body: 'hi',
+          authorType: 'agent',
+          authorId: actor.id,
+          endUserId: endUser!.id,
+        }),
+      );
+      const detail = await run(() => svc.getConversation(conv.id));
+      expect(detail.contactEmail).toBe('lonely@example.com');
+      expect(detail.contactName).toBe('Lonely');
+    });
   });
 
   // ─── Messaging ───────────────────────────────────────────────────────

@@ -358,7 +358,7 @@ function QueueRow({
   return (
     <li className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
       <div
-        className="group/qrow relative flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
+        className="group/qrow flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
         onClick={onOpen}
         role="button"
         tabIndex={0}
@@ -372,15 +372,15 @@ function QueueRow({
         <span className="shrink-0">
           <Pill tone={tone}>{t(labelKey)}</Pill>
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 truncate">
           <span className="text-sm font-medium text-ink dark:text-foreground">{item.title}</span>
           <span className="ml-2 text-sm text-ink-mute"> — {item.snippet}</span>
         </div>
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute opacity-100 transition-opacity duration-fast ease-munin group-hover/qrow:opacity-0">
+        <span className="shrink-0 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute group-hover/qrow:hidden">
           {age(item.createdAt)}
         </span>
         <div
-          className="absolute inset-y-0 right-3 flex items-center gap-2 opacity-0 transition-opacity duration-fast ease-munin group-hover/qrow:opacity-100 focus-within:opacity-100"
+          className="hidden shrink-0 items-center gap-2 group-hover/qrow:flex focus-within:flex"
           onClick={(e) => e.stopPropagation()}
         >
           <Button variant="accent" size="sm" onClick={onApprove} disabled={pending}>

@@ -3,6 +3,7 @@
 import { AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import ReactMarkdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { cn } from '@getmunin/ui';
 import type { MessageDto } from './inbox-types';
 
@@ -30,7 +31,9 @@ const MESSAGE_MD_COMPONENTS: Components = {
 function MessageMarkdown({ body }: { body: string }) {
   return (
     <div className="break-words [overflow-wrap:anywhere]">
-      <ReactMarkdown components={MESSAGE_MD_COMPONENTS}>{body}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MESSAGE_MD_COMPONENTS}>
+        {body}
+      </ReactMarkdown>
     </div>
   );
 }

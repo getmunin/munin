@@ -6,6 +6,12 @@
 #   docker compose up
 #
 # Brings up: Postgres + pgvector, Munin backend, Munin web.
+#
+# The placeholder secrets in .env.example are auto-generated on first boot
+# and persisted in the munin-data volume — fine for local/single-host
+# self-hosting. For shared or production deployments, set strong
+# MUNIN_AUTH_SECRET / MUNIN_KEY_PEPPER / MUNIN_ENCRYPTION_KEY values in .env
+# (`openssl rand -base64 48`) instead of relying on the generated ones.
 
 services:
   postgres:
@@ -40,6 +46,8 @@ services:
       MUNIN_MIGRATE_URL: postgres://${POSTGRES_USER:-munin}:${POSTGRES_PASSWORD:-munin}@postgres:5432/${POSTGRES_DB:-munin}
       DATABASE_URL: postgres://munin_app:munin_app@postgres:5432/${POSTGRES_DB:-munin}
     command: ["sh", "-c", "node dist/migrate.js && node dist/main.js"]
+    volumes:
+      - munin-data:/var/munin
     ports:
       - "${BACKEND_PORT:-3001}:3001"
 
@@ -59,3 +67,4 @@ services:
 
 volumes:
   munin-pg:
+  munin-data:

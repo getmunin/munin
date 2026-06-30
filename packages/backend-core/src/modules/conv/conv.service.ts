@@ -856,21 +856,28 @@ export class ConvService {
         conv.outreachCampaignId &&
         conv.agentMode === 'draft_only'
       ) {
-        await this.curatorJobs.enqueue({
-          jobUri: 'skill://outreach/draft-reply-email',
-          userPrompt:
-            `Run an outreach reply-draft pass for conversation ${input.conversationId}. ` +
-            `Follow skill://outreach/draft-reply-email exactly. Read the thread, identify the prospect's ` +
-            `intent on the latest end-user message, and file a draft via outreach_propose_reply. ` +
-            `Do NOT send anything — drafts go to the operator review queue.`,
-          sourceEventType: 'conversation.message.received',
-          sourceEventPayload: {
-            conversationId: input.conversationId,
-            messageId: row!.id,
-            outreachCampaignId: conv.outreachCampaignId,
-          },
-          dedupeKey: `outreach-draft-reply:msg:${row!.id}`,
-        });
+        const [campaign] = await ctx.db
+          .select({ autoDraftReplies: schema.outreachCampaigns.autoDraftReplies })
+          .from(schema.outreachCampaigns)
+          .where(eq(schema.outreachCampaigns.id, conv.outreachCampaignId))
+          .limit(1);
+        if (campaign?.autoDraftReplies) {
+          await this.curatorJobs.enqueue({
+            jobUri: 'skill://outreach/draft-reply-email',
+            userPrompt:
+              `Run an outreach reply-draft pass for conversation ${input.conversationId}. ` +
+              `Follow skill://outreach/draft-reply-email exactly. Read the thread, identify the prospect's ` +
+              `intent on the latest end-user message, and file a draft via outreach_propose_reply. ` +
+              `Do NOT send anything — drafts go to the operator review queue.`,
+            sourceEventType: 'conversation.message.received',
+            sourceEventPayload: {
+              conversationId: input.conversationId,
+              messageId: row!.id,
+              outreachCampaignId: conv.outreachCampaignId,
+            },
+            dedupeKey: `outreach-draft-reply:msg:${row!.id}`,
+          });
+        }
       }
 
       if (clearAttention && conv.needsHumanAttention) {

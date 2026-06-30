@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { makeId, schema, type Db } from '@getmunin/db';
 import { DB } from '../../common/db/db.module.ts';
-import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import {
@@ -48,6 +48,8 @@ export interface CampaignDto {
   cadenceRules: CadenceRules;
   ctaUrl: string | null;
   enabled: boolean;
+  autoDraftInitial: boolean;
+  autoDraftReplies: boolean;
   unsubscribeRequired: boolean;
   createdAt: string;
   updatedAt: string;
@@ -99,6 +101,8 @@ export interface OutreachCampaignExport {
   channelId: string;
   cadenceRules: CadenceRules;
   ctaUrl: string | null;
+  autoDraftInitial: boolean;
+  autoDraftReplies: boolean;
   unsubscribeRequired: boolean;
 }
 
@@ -161,6 +165,8 @@ export class OutreachService {
     cadenceRules?: CadenceRules;
     ctaUrl?: string | null;
     enabled?: boolean;
+    autoDraftInitial?: boolean;
+    autoDraftReplies?: boolean;
     unsubscribeRequired?: boolean;
   }): Promise<CampaignDto> {
     const ctx = getCurrentContext();
@@ -182,6 +188,8 @@ export class OutreachService {
           cadenceRules: input.cadenceRules ?? {},
           ctaUrl: input.ctaUrl ?? null,
           enabled: input.enabled ?? false,
+          autoDraftInitial: input.autoDraftInitial ?? false,
+          autoDraftReplies: input.autoDraftReplies ?? true,
           unsubscribeRequired: input.unsubscribeRequired ?? true,
           createdByActorType: actor.type,
           createdByActorId: actor.id,
@@ -206,6 +214,8 @@ export class OutreachService {
       cadenceRules: CadenceRules;
       ctaUrl: string | null;
       enabled: boolean;
+      autoDraftInitial: boolean;
+      autoDraftReplies: boolean;
       unsubscribeRequired: boolean;
     }>;
   }): Promise<CampaignDto> {
@@ -325,6 +335,23 @@ export class OutreachService {
     if (channel.type === 'voice' && !contact.phone) {
       throw new OutreachInvalidError(
         `contact ${input.contactId} has no phone number — required for voice campaigns`,
+      );
+    }
+    const [contacted] = await ctx.db
+      .select({ status: schema.outreachProposals.status })
+      .from(schema.outreachProposals)
+      .where(
+        and(
+          eq(schema.outreachProposals.campaignId, input.campaignId),
+          eq(schema.outreachProposals.contactId, input.contactId),
+          eq(schema.outreachProposals.kind, 'initial'),
+          inArray(schema.outreachProposals.status, ['sent', 'approved']),
+        ),
+      )
+      .limit(1);
+    if (contacted) {
+      throw new ConflictException(
+        `outreach_conflict: contact ${input.contactId} already has a ${contacted.status} first-touch in campaign ${input.campaignId}`,
       );
     }
     try {
@@ -900,6 +927,8 @@ export class OutreachService {
         channelId: c.channelId,
         cadenceRules: c.cadenceRules,
         ctaUrl: c.ctaUrl,
+        autoDraftInitial: c.autoDraftInitial,
+        autoDraftReplies: c.autoDraftReplies,
         unsubscribeRequired: c.unsubscribeRequired,
       })),
       proposals: proposals.map((p) => ({
@@ -947,6 +976,8 @@ export class OutreachService {
         cadenceRules: campaign.cadenceRules,
         ctaUrl: campaign.ctaUrl,
         enabled: false,
+        autoDraftInitial: campaign.autoDraftInitial,
+        autoDraftReplies: campaign.autoDraftReplies,
         unsubscribeRequired: campaign.unsubscribeRequired,
       });
       result.idMap[campaign.id] = created.id;
@@ -1042,6 +1073,8 @@ function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): Campa
     cadenceRules: row.cadenceRules,
     ctaUrl: row.ctaUrl,
     enabled: row.enabled,
+    autoDraftInitial: row.autoDraftInitial,
+    autoDraftReplies: row.autoDraftReplies,
     unsubscribeRequired: row.unsubscribeRequired,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

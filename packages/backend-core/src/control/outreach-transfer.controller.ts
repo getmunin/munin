@@ -39,6 +39,8 @@ const ImportBody = z.object({
           })
           .default({}),
         ctaUrl: z.string().nullable().optional(),
+        autoDraftInitial: z.boolean().default(false),
+        autoDraftReplies: z.boolean().default(true),
         unsubscribeRequired: z.boolean(),
       }),
     ),

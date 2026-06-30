@@ -101,7 +101,14 @@ const skipReason = TEST_URL
     warnings: string[];
   }
   interface OutreachExportData {
-    campaigns: Array<{ id: string; name: string; segmentId: string; channelId: string }>;
+    campaigns: Array<{
+      id: string;
+      name: string;
+      segmentId: string;
+      channelId: string;
+      autoDraftInitial: boolean;
+      autoDraftReplies: boolean;
+    }>;
     proposals: Array<{ id: string; campaignId: string; contactId: string }>;
   }
 
@@ -128,7 +135,7 @@ const skipReason = TEST_URL
       const campaign = firstJson(
         (await c.callTool({
           name: 'outreach_create_campaign',
-          arguments: { name: 'Spring promo', brief: 'Re-engage warm leads.', segmentId: segment.id, channelId: channel.id },
+          arguments: { name: 'Spring promo', brief: 'Re-engage warm leads.', segmentId: segment.id, channelId: channel.id, autoDraftInitial: true, autoDraftReplies: false },
         })) as never,
       ) as { id: string };
       return { channel, segment, contact, campaign };
@@ -192,6 +199,8 @@ const skipReason = TEST_URL
     expect(migrated.onB.proposals.length).toBe(1);
     expect(migrated.onB.campaigns[0]!.segmentId).not.toBe(srcSegmentId);
     expect(migrated.onB.campaigns[0]!.segmentId).toBe(migrated.outreachRes.idMap[srcSegmentId]);
+    expect(migrated.onB.campaigns[0]!.autoDraftInitial).toBe(true);
+    expect(migrated.onB.campaigns[0]!.autoDraftReplies).toBe(false);
 
     expect(migrated.reimport.created).toBe(0);
     expect(migrated.reimport.skipped).toBe(2);

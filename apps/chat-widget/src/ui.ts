@@ -947,7 +947,7 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
     </button>
     <div class="messages"></div>
     <form class="composer">
-      <textarea rows="1" placeholder="${escapeAttr(strings.composerPlaceholder)}" aria-label="${escapeAttr(strings.messageAriaLabel)}"></textarea>
+      <textarea rows="1" autocomplete="off" autocorrect="off" placeholder="${escapeAttr(strings.composerPlaceholder)}" aria-label="${escapeAttr(strings.messageAriaLabel)}"></textarea>
       <div class="composer-row">
         <button type="submit" class="send" aria-label="${escapeAttr(strings.sendAriaLabel)}" disabled>
           <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">

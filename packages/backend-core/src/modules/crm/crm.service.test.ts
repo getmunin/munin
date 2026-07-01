@@ -514,6 +514,33 @@ const skipReason = TEST_URL
       expect(refreshedDup.doNotContact).toBe(true);
     });
 
+    it('applyMergeProposal coerces ISO-string timestamps in the patch and drops unknown keys', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
+      const dup = await run(() => svc.createContact({ name: 'Dup', email: 'k@y' }));
+      const givenAt = '2026-06-26T12:17:03.653Z';
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: { sameEmail: 'k@y' },
+          recommendedKeeperId: keeper.id,
+          recommendedPatch: {
+            consentLawfulBasis: 'consent',
+            consentGivenAt: givenAt,
+            consentSource: 'self-test-outreach-flow',
+            notARealColumn: 'should be dropped',
+          },
+        }),
+      );
+      const applied = await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      expect(applied.status).toBe('applied');
+      const refreshedKeeper = await run(() => svc.getContact(keeper.id));
+      expect(refreshedKeeper.consentGivenAt).toBe(givenAt);
+      expect(refreshedKeeper.consentLawfulBasis).toBe('consent');
+      expect(refreshedKeeper.consentSource).toBe('self-test-outreach-flow');
+    });
+
     it('applyMergeProposal reassigns activities, deals, and contact-typed relationships from duplicate to keeper', async () => {
       const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
       const dup = await run(() => svc.createContact({ name: 'Dup', email: 'k@y' }));

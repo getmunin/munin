@@ -7367,7 +7367,7 @@
   {
     "name": "webhooks_create",
     "title": "Webhooks: Create",
-    "description": "Create a webhook subscription. `url` must be https://. `events` is an array of event type strings (e.g. [\"cms.entry.published\"]); omit or pass an empty array to subscribe to all events. The response includes a one-time `secret` of the form `whsec_…` — store it now; it cannot be retrieved later. Deliveries are signed with `x-munin-signature: sha256=<HMAC-SHA256(\"<x-munin-timestamp>.\" + body, secret)>` and include `x-munin-timestamp` (unix seconds), `x-munin-event`, and `x-munin-delivery-id` headers. To verify, reject requests whose `x-munin-timestamp` is outside your freshness window, then recompute the HMAC over `timestamp + \".\" + rawBody`. Retries: up to 5 attempts with exponential backoff (30s → 8m). Use webhooks_list_event_types to discover known event names.",
+    "description": "Create a webhook subscription. `url` must be https://. `events` is an array of event type strings (e.g. [\"cms.entry.published\"]); omit or pass an empty array to subscribe to all events. The response includes a one-time `secret` of the form `whsec_…` — store it now; it cannot be retrieved later. Deliveries are signed with `x-munin-signature: sha256=<HMAC-SHA256(body, secret)>` and include `x-munin-event`, `x-munin-delivery-id` headers. The signed body carries `createdAt` — reject deliveries whose `createdAt` is outside your freshness window, and dedupe on `x-munin-delivery-id`, to defend against replay. Retries: up to 5 attempts with exponential backoff (30s → 8m). Use webhooks_list_event_types to discover known event names.",
     "audiences": [
       "admin"
     ],

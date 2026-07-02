@@ -72,20 +72,14 @@ export class WebhookDispatcher {
   /**
    * Build the canonical payload + signature header pair for a delivery.
    * Used by the worker; exposed here so callers (and tests) can replay.
-   *
-   * The signature covers `${timestamp}.${body}` so receivers can reject stale
-   * replays by checking `x-munin-timestamp` against a freshness window before
-   * recomputing the HMAC.
    */
   static buildSignedRequest(
     eventType: string,
     eventPayload: Record<string, unknown>,
     secret: string,
-    timestampSeconds?: number,
-  ): { body: string; signature: string; timestamp: string } {
+  ): { body: string; signature: string } {
     const body = JSON.stringify({ type: eventType, ...eventPayload });
-    const timestamp = String(timestampSeconds ?? Math.floor(Date.now() / 1000));
-    const signature = `sha256=${signHmac(`${timestamp}.${body}`, secret)}`;
-    return { body, signature, timestamp };
+    const signature = `sha256=${signHmac(body, secret)}`;
+    return { body, signature };
   }
 }

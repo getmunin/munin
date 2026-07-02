@@ -125,7 +125,7 @@ export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
       return 'failed';
     }
 
-    const { body, signature } = WebhookDispatcher.buildSignedRequest(
+    const { body, signature, timestamp } = WebhookDispatcher.buildSignedRequest(
       eventRow.type,
       {
         id: eventRow.id,
@@ -146,6 +146,7 @@ export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
         headers: {
           'content-type': 'application/json',
           'x-munin-signature': signature,
+          'x-munin-timestamp': timestamp,
           'x-munin-event': eventRow.type,
           'x-munin-delivery-id': deliveryId,
         },

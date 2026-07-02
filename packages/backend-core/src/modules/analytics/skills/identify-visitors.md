@@ -31,50 +31,39 @@ Rotate later with `analytics_rotate_tracker_identity_secret`. The previous secre
 
 ## 2. Sign an identity hash server-side
 
-When your application server knows the user is logged in, compute:
+The hash binds a specific browser (its `visitorId`) to a specific `externalId`, so a leaked or observed hash can only ever link the one visitor it was signed for — it can't be replayed to attach a different visitor to that identity. The browser therefore has to tell your server its `visitorId` before you sign.
+
+Read it in the browser with `window.mn.getVisitorId()` and send it to your server alongside the logged-in user. Then compute:
 
 ```ts
 import { createHmac } from 'node:crypto';
 
-function userHash(externalId: string, secret: string): string {
-  return createHmac('sha256', secret).update(externalId).digest('hex');
+function userHash(externalId: string, visitorId: string, secret: string): string {
+  return createHmac('sha256', secret).update(`${externalId}:${visitorId}`).digest('hex');
 }
 ```
 
-`externalId` is whatever stable id you use for the user in your own system (database row id, auth provider sub, etc.). The same value will be stored on the resulting `end_users` row.
-
-Render the hash and id into the page (a `<script>` block, a `data-` attribute, a hydration payload — whatever your stack uses).
+`externalId` is whatever stable id you use for the user in your own system (database row id, auth provider sub, etc.). The same value will be stored on the resulting `end_users` row. `visitorId` is the value returned by `window.mn.getVisitorId()`.
 
 ## 3. Call `window.mn.identify` from the browser
 
 The tracker script exposes:
 
 ```ts
+const visitorId = window.mn.getVisitorId();
+// send { externalId, visitorId } to your server, get back userHash, then:
 window.mn.identify(externalId, userHash);
 ```
 
 Call it once, after sign-in, on every authenticated page. The tracker sends `(visitorId, externalId, userHash)` to `POST /v1/a/identify`. The backend:
 
-1. Validates the HMAC against the tracker's identity verification secret. Mismatches and missing secrets are silently dropped.
+1. Validates the HMAC of `${externalId}:${visitorId}` against the tracker's identity verification secret. Mismatches and missing secrets are silently dropped.
 2. Upserts an `end_users` row keyed by `(orgId, externalId)`.
 3. Upserts the `(orgId, visitorId) → endUserId` row in `analytics_visitor_identities`.
 
 Every subsequent tracker beacon for the same `visitorId` lands with `end_user_id` populated.
 
-### Auto-identify on page load (no client code)
-
-If your server renders the tracker `<script>` tag per request, skip the manual JS call: add `data-external-id` and `data-user-hash` and the bundle fires the identify automatically on load, before the first page view.
-
-```html
-<script async
-  src="https://api.your-munin.example/tracker.js"
-  data-key="mn_track_…"
-  data-external-id="user_42"
-  data-user-hash="<hex hmac from step 2>">
-</script>
-```
-
-This is the cheapest way to stitch *known* sessions: every authenticated page load re-asserts the link, so a returning logged-in user is attributed from their first pageview — no client code, no race with the auto-fired page view. Render the attributes only for signed-in users; omit them for anonymous visitors.
+Because the hash covers the `visitorId`, you must sign per browser session — you can't precompute a hash server-side without first learning the visitor's id, so the old `data-user-hash` script-tag auto-identify is not supported. Do the one-time round trip (read `getVisitorId()` → sign → `identify()`) on the first authenticated page load.
 
 ## 4. Read the journey
 

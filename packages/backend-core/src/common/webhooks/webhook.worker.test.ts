@@ -18,6 +18,7 @@ const skipReason = TEST_URL
 interface ReceivedRequest {
   body: string;
   signature: string | null;
+  timestamp: string | null;
   event: string | null;
   deliveryId: string | null;
 }
@@ -62,6 +63,7 @@ interface ReceivedRequest {
         received.push({
           body: Buffer.concat(chunks).toString('utf8'),
           signature: pickHeader(req, 'x-munin-signature'),
+          timestamp: pickHeader(req, 'x-munin-timestamp'),
           event: pickHeader(req, 'x-munin-event'),
           deliveryId: pickHeader(req, 'x-munin-delivery-id'),
         });
@@ -153,10 +155,12 @@ interface ReceivedRequest {
     const delivery = received[0]!;
     expect(delivery.event).toBe('conversation.created');
     expect(delivery.signature).toMatch(/^sha256=/);
+    expect(delivery.timestamp).toMatch(/^\d+$/);
 
-    // Signature verifies against the secret that's set on the webhook.
+    // Signature verifies against the secret that's set on the webhook, over
+    // the timestamped payload so stale deliveries can be rejected on replay.
     const sigOnly = delivery.signature!.replace(/^sha256=/, '');
-    expect(verifyHmac(delivery.body, webhook.secret, sigOnly)).toBe(true);
+    expect(verifyHmac(`${delivery.timestamp}.${delivery.body}`, webhook.secret, sigOnly)).toBe(true);
 
     const parsed = JSON.parse(delivery.body) as {
       type: string;

@@ -75,7 +75,8 @@ Munin POSTs JSON to your URL. Headers:
 | `content-type` | `application/json` |
 | `x-munin-event` | The event type string (e.g. `conversation.message.sent`). |
 | `x-munin-delivery-id` | UUID for this delivery attempt. Stable across retries of the same event. Use it for idempotency. |
-| `x-munin-signature` | `sha256=<hex>` — HMAC-SHA256 of the raw request body using your secret. |
+| `x-munin-timestamp` | Unix seconds when the delivery was signed. Part of the signed payload — check it against a freshness window to reject replays. |
+| `x-munin-signature` | `sha256=<hex>` — HMAC-SHA256 of `<x-munin-timestamp>.<rawBody>` using your secret. |
 
 Body shape:
 
@@ -92,13 +93,22 @@ Body shape:
 
 ### Signature verification (the only thing you can't skip)
 
-Compute `HMAC-SHA256(rawBody, secret)`, prefix `sha256=`, compare to `x-munin-signature` using a **constant-time** comparison. Never use `===` for the comparison itself — leak the timing and an attacker can forge signatures.
+Check `x-munin-timestamp` against a freshness window first, then compute `HMAC-SHA256(`${timestamp}.${rawBody}`, secret)`, prefix `sha256=`, and compare to `x-munin-signature` using a **constant-time** comparison. Never use `===` for the comparison itself — leak the timing and an attacker can forge signatures.
 
 ```ts
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-function verifyMuninSignature(rawBody: string, header: string, secret: string): boolean {
-  const expected = `sha256=${createHmac('sha256', secret).update(rawBody).digest('hex')}`;
+const MAX_SKEW_SECONDS = 5 * 60;
+
+function verifyMuninSignature(
+  rawBody: string,
+  timestamp: string,
+  header: string,
+  secret: string,
+): boolean {
+  const age = Math.floor(Date.now() / 1000) - Number(timestamp);
+  if (!Number.isFinite(age) || Math.abs(age) > MAX_SKEW_SECONDS) return false;
+  const expected = `sha256=${createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex')}`;
   const a = Buffer.from(expected);
   const b = Buffer.from(header);
   if (a.length !== b.length) return false;
@@ -109,6 +119,7 @@ function verifyMuninSignature(rawBody: string, header: string, secret: string): 
 Critical points:
 
 - **Verify against the raw body bytes**, not a re-stringified parsed JSON. `JSON.parse` then `JSON.stringify` changes key order, whitespace, and number formatting — the signature won't match. Frameworks that parse the body before your handler must give you the original buffer (Express: `express.raw({ type: 'application/json' })`; Next.js route handler: `await req.text()`; Fastify: `addContentTypeParser('application/json', { parseAs: 'buffer' }, …)`).
+- **Reject stale timestamps.** The `x-munin-timestamp` is inside the signed payload, so an attacker can't rewrite it without breaking the signature — but you must actually check it against a window (a few minutes) or a captured delivery replays forever.
 - If verification fails, return **`401`** without revealing why. No "bad signature" / "missing header" distinction in the response body.
 
 ### Idempotency
@@ -133,7 +144,14 @@ Pattern: verify → idempotency-check → enqueue → 200. Then process the queu
 ```ts
 app.post('/munin/webhook', async (req, res) => {
   const raw = req.rawBody;
-  if (!verifyMuninSignature(raw, req.header('x-munin-signature'), SECRET)) {
+  if (
+    !verifyMuninSignature(
+      raw,
+      req.header('x-munin-timestamp'),
+      req.header('x-munin-signature'),
+      SECRET,
+    )
+  ) {
     return res.status(401).end();
   }
   const deliveryId = req.header('x-munin-delivery-id');

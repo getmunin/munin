@@ -8,7 +8,14 @@
  * `history.pushState` / `replaceState` so route changes fire fresh
  * views.
  *
- * Exposes `window.mn.track(subjectId, attrs)` for custom events.
+ * Exposes `window.mn.track(subjectId, attrs)` for custom events. Once the
+ * public API is installed it sets `window.mn.ready = true` and dispatches a
+ * `munin:ready` CustomEvent on `document`, so consumers can run
+ * initialization code without polling:
+ *
+ *   window.mn?.ready
+ *     ? go()
+ *     : document.addEventListener('munin:ready', go, { once: true });
  */
 
 interface TrackAttrs {
@@ -40,6 +47,7 @@ interface MuninGlobal {
   trackPageView: () => void;
   getVisitorId: () => string;
   identify: (externalId: string, userHash: string) => void;
+  ready: boolean;
 }
 
 interface IdentifyPayload {
@@ -248,6 +256,8 @@ const VISITOR_KEY = 'mn.vid';
       }
     }
   };
+  mn.ready = true;
+  doc.dispatchEvent(new CustomEvent('munin:ready'));
 })();
 
 export {};

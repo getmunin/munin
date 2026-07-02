@@ -47,13 +47,21 @@ function userHash(externalId: string, visitorId: string, secret: string): string
 
 ## 3. Call `window.mn.identify` from the browser
 
-The tracker script exposes:
+The tracker loads async, so `window.mn` is `undefined` until the script has executed. Once initialized the tracker sets `window.mn.ready = true` and dispatches a `munin:ready` CustomEvent on `document` — gate on those instead of polling:
 
-```ts
-const visitorId = window.mn.getVisitorId();
-// send { externalId, visitorId } to your server, get back userHash, then:
-window.mn.identify(externalId, userHash);
+```js
+const go = () => {
+  const visitorId = window.mn.getVisitorId();
+  // send { externalId, visitorId } to your server, get back userHash, then:
+  window.mn.identify(externalId, userHash);
+};
+
+window.mn?.ready
+  ? go()
+  : document.addEventListener('munin:ready', go, { once: true });
 ```
+
+The `ready` flag is what closes the listener-attached-too-late race: if the tracker finished initializing before your code ran, the event has already fired and gone, but the flag tells you it is safe to run immediately.
 
 Call it once, after sign-in, on every authenticated page. The tracker sends `(visitorId, externalId, userHash)` to `POST /v1/a/identify`. The backend:
 

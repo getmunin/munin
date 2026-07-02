@@ -64,6 +64,7 @@ interface MnApi {
   trackPageView: () => void;
   getVisitorId: () => string;
   identify: (externalId: string, userHash: string) => void;
+  ready: boolean;
 }
 
 function mn(): MnApi {
@@ -256,6 +257,35 @@ describe('identify', () => {
     mn().identify('user_9', 'hash9');
     expect(prior).toHaveBeenCalledWith('user_9', 'hash9');
     expect(await beaconsFor(key, '/v1/a/identify')).toHaveLength(1);
+  });
+});
+
+describe('readiness signal', () => {
+  it('sets window.mn.ready once initialized', async () => {
+    await loadTracker();
+    expect(mn().ready).toBe(true);
+  });
+
+  it('dispatches munin:ready on document after the full API is installed', async () => {
+    let apiAtDispatch: Partial<MnApi> | undefined;
+    const listener = vi.fn(() => {
+      apiAtDispatch = { ...(window as unknown as { mn: MnApi }).mn };
+    });
+    document.addEventListener('munin:ready', listener, { once: true });
+    await loadTracker();
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(apiAtDispatch!.ready).toBe(true);
+    expect(typeof apiAtDispatch!.getVisitorId).toBe('function');
+    expect(typeof apiAtDispatch!.identify).toBe('function');
+  });
+
+  it('signals nothing when the tracker is disabled', async () => {
+    const listener = vi.fn();
+    document.addEventListener('munin:ready', listener, { once: true });
+    await loadTracker({ noKey: true });
+    expect(listener).not.toHaveBeenCalled();
+    expect((window as { mn?: unknown }).mn).toBeUndefined();
+    document.removeEventListener('munin:ready', listener);
   });
 });
 

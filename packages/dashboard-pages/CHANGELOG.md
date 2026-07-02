@@ -1,5 +1,33 @@
 # @getmunin/dashboard-pages
 
+## 4.64.0
+
+### Minor Changes
+
+- 1823364: Security hardening from a full audit.
+
+  - **Voice tool bridges (Vapi, Threll):** enforce tenancy on every self-service tool call. The bridges previously disabled RLS without setting `app.org_id` and granted wildcard scope, allowing cross-tenant reads/writes; they now apply the standard tenancy GUCs and the restricted self-service scope set.
+  - **OAuth JWT verification:** pin verification to the algorithm bound to the trusted JWKS key and reject symmetric algorithms, closing an algorithm-confusion gap.
+  - **Analytics `identify` (BREAKING):** the identity hash now signs `${externalId}:${visitorId}` so a leaked hash can't link a different visitor. Compute `HMAC(secret, "<externalId>:<visitorId>")` where `visitorId` comes from the new `window.mn.getVisitorId()`. The server-rendered `data-external-id`/`data-user-hash` auto-identify is removed — do the read-visitor-id → sign → `window.mn.identify()` round trip instead.
+  - **Webhook replay guidance:** documented that receivers should reject deliveries whose signed `createdAt` is outside a freshness window (in addition to the existing `x-munin-delivery-id` idempotency). No wire-format change — the signature scheme is unchanged.
+  - **MCP scopes:** `webhooks_*`, `feedback_*`, and `system_alerts_*` tools now require real `webhooks:*` / `feedback:*` / `system_alerts:*` scopes instead of being gated by audience alone.
+  - **Capability tokens:** view, unsubscribe, and email-open tokens now enforce a max age (and reject future-dated tokens), preventing indefinite replay of leaked links.
+  - **Tool hints:** `conv_test_channel` and `conv_test_email_channel` are marked destructive (they open outbound vendor connections) so they prompt before running.
+  - **Input validation:** a caller-supplied `endUserId` is validated against the caller's org in delegated-token minting and `crm_create_contact`.
+
+### Patch Changes
+
+- b4978ab: Format `date` and `datetime` fields in the read-only CMS entry drawer using the viewer's locale instead of printing the raw stored ISO string (e.g. `Jun 29, 2026, 12:00 PM` rather than `2026-06-29T12:00:00.000Z`), matching how the edit-mode date picker displays them.
+- bd0cb38: fix(channels): stop the email channel dialog button label flashing on cancel
+
+  The "Edit email channel" dialog derived its edit/create state live from the
+  `editChannel` prop. Cancelling cleared that prop before the dialog's close
+  animation finished, briefly re-rendering the still-mounted dialog in create
+  mode (the footer button flashed from "Save changes" to "Create"). The edit
+  state is now frozen while the dialog is open.
+  - @getmunin/types@4.64.0
+  - @getmunin/ui@4.64.0
+
 ## 4.63.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @getmunin/chat-widget
 
+## 4.64.0
+
+### Patch Changes
+
+- 43fdff8: fix(widget): stop iCloud Passwords popover from opening on the message composer
+
+  The composer textarea had no `autocomplete` attribute, so browsers defaulted it to `on` and the iCloud Passwords extension classified the widget as a login form (helped by the save-thread email field), offering credential autofill when typing a message. Set `autocomplete="off"` (and `autocorrect="off"`) on the composer to opt it out.
+
 ## 4.63.1
 
 ## 4.63.0

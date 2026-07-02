@@ -832,7 +832,10 @@
         "crm": "Contacts",
         "cms": "Content",
         "outreach": "Outreach",
-        "analytics": "Analytics"
+        "analytics": "Analytics",
+        "webhooks": "Webhooks",
+        "feedback": "Feedback",
+        "system_alerts": "System alerts"
       },
       "moduleDescriptions": {
         "kb": {
@@ -858,6 +861,18 @@
         "analytics": {
           "readWrite": "Read analytics and manage tracker keys.",
           "read": "Read analytics for content and search engagement."
+        },
+        "webhooks": {
+          "readWrite": "Read, create, and delete webhook subscriptions and rotate their signing secrets.",
+          "read": "Read webhook subscriptions and delivery history."
+        },
+        "feedback": {
+          "readWrite": "Read, submit, and act on feedback and roadmap items.",
+          "read": "Read feedback and roadmap items."
+        },
+        "system_alerts": {
+          "readWrite": "Read and resolve operational system alerts.",
+          "read": "Read operational system alerts."
         }
       },
       "actions": {

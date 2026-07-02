@@ -832,7 +832,10 @@
         "crm": "Kontakter",
         "cms": "Innhold",
         "outreach": "Utgående",
-        "analytics": "Analyse"
+        "analytics": "Analyse",
+        "webhooks": "Webhooks",
+        "feedback": "Tilbakemelding",
+        "system_alerts": "Systemvarsler"
       },
       "moduleDescriptions": {
         "kb": {
@@ -858,6 +861,18 @@
         "analytics": {
           "readWrite": "Les analyse og administrer sporingsnøkler.",
           "read": "Les analyse for innhold og søk."
+        },
+        "webhooks": {
+          "readWrite": "Les, opprett og slett webhook-abonnementer og roter signeringshemmeligheter.",
+          "read": "Les webhook-abonnementer og leveringshistorikk."
+        },
+        "feedback": {
+          "readWrite": "Les, send inn og håndter tilbakemeldinger og veikartelementer.",
+          "read": "Les tilbakemeldinger og veikartelementer."
+        },
+        "system_alerts": {
+          "readWrite": "Les og løs operasjonelle systemvarsler.",
+          "read": "Les operasjonelle systemvarsler."
         }
       },
       "actions": {

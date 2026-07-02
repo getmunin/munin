@@ -1149,10 +1149,10 @@ export class CrmService {
     }
 
     const patch = proposal.recommendedPatch ?? {};
-    const keeperUpdates: Record<string, unknown> = { updatedAt: new Date() };
-    for (const [k, v] of Object.entries(patch)) {
-      if (v !== undefined) keeperUpdates[k] = v;
-    }
+    const keeperUpdates: Record<string, unknown> = {
+      updatedAt: new Date(),
+      ...normalizeMergePatch(patch),
+    };
     if (!keeperRow.endUserId && duplicateRow.endUserId) {
       keeperUpdates['endUserId'] = duplicateRow.endUserId;
     }
@@ -1898,6 +1898,54 @@ function toMergeProposalDto(
 
 function canonicalizePair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
+}
+
+const MERGE_PATCH_TIMESTAMP_FIELDS = new Set([
+  'consentGivenAt',
+  'lastContactedAt',
+  'unsubscribedAt',
+  'aiSummaryAt',
+  'lastAiTouchAt',
+]);
+
+const MERGE_PATCH_ALLOWED_FIELDS = new Set([
+  'name',
+  'email',
+  'phone',
+  'title',
+  'address',
+  'companyId',
+  'ownerUserId',
+  'tags',
+  'customFields',
+  'aiSummary',
+  'aiNextAction',
+  'engagementScore',
+  'doNotContact',
+  'consentLawfulBasis',
+  'consentSource',
+  'consentEvidence',
+  ...MERGE_PATCH_TIMESTAMP_FIELDS,
+]);
+
+function normalizeMergePatch(patch: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) continue;
+    if (!MERGE_PATCH_ALLOWED_FIELDS.has(k)) continue;
+    if (MERGE_PATCH_TIMESTAMP_FIELDS.has(k)) {
+      if (v === null) {
+        out[k] = null;
+        continue;
+      }
+      const d = v instanceof Date ? v : new Date(v as string | number);
+      if (Number.isNaN(d.getTime())) continue;
+      out[k] = d;
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
 }
 
 function archiveMonth(d: Date): string {

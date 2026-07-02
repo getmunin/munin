@@ -38,6 +38,7 @@ interface BeaconPayload {
 interface MuninGlobal {
   track: (subjectId: string, attrs?: TrackAttrs) => void;
   trackPageView: () => void;
+  getVisitorId: () => string;
   identify: (externalId: string, userHash: string) => void;
 }
 
@@ -199,12 +200,6 @@ const VISITOR_KEY = 'mn.vid';
     }
   }
 
-  const initialExternalId = script.getAttribute('data-external-id');
-  const initialUserHash = script.getAttribute('data-user-hash');
-  if (initialExternalId && initialUserHash) {
-    identify(initialExternalId, initialUserHash);
-  }
-
   if (doc.readyState === 'loading') {
     doc.addEventListener('DOMContentLoaded', trackPageView, { once: true });
   } else {
@@ -241,6 +236,7 @@ const VISITOR_KEY = 'mn.vid';
   const mn = (w.mn ??= {});
   mn.track = trackView;
   mn.trackPageView = trackPageView;
+  mn.getVisitorId = (): string => visitorId;
   const previousIdentify = mn.identify;
   mn.identify = (externalId: string, userHash: string): void => {
     identify(externalId, userHash);

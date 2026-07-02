@@ -61,7 +61,15 @@ describe('view tokens', () => {
       { orgId: 'org_a', subjectType: 'cms_entry', subjectId: 'cme_b', issuedAt: 1700000000 },
       PEPPER,
     );
-    const payload = verifyViewToken(token, PEPPER);
+    const payload = verifyViewToken(token, PEPPER, Infinity);
     expect(payload.issuedAt).toBe(1700000000);
+  });
+
+  it('rejects a token older than the max age', () => {
+    const token = signViewToken(
+      { orgId: 'org_a', subjectType: 'cms_entry', subjectId: 'cme_b', issuedAt: 1700000000 },
+      PEPPER,
+    );
+    expect(() => verifyViewToken(token, PEPPER)).toThrow(/expired/);
   });
 });

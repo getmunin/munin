@@ -433,7 +433,7 @@ const skipReason = TEST_URL
 
     const visitorId = 'visitor-identify-1';
     const externalId = 'customer:42';
-    const userHash = signHmac(externalId, minted.identityVerificationSecret);
+    const userHash = signHmac(`${externalId}:${visitorId}`, minted.identityVerificationSecret);
 
     const identifyRes = await fetch(`${baseUrl}/v1/a/identify`, {
       method: 'POST',
@@ -510,6 +510,25 @@ const skipReason = TEST_URL
       .limit(1);
     expect(tamperedBridge.length).toBe(0);
 
+    const replayed = await fetch(`${baseUrl}/v1/a/identify`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({
+        key: minted.trackerKey,
+        visitorId: 'visitor-replayed',
+        externalId,
+        userHash,
+      }),
+    });
+    expect(replayed.status).toBe(204);
+    await new Promise((r) => setTimeout(r, 100));
+    const replayedBridge = await db
+      .select()
+      .from(schema.analyticsVisitorIdentities)
+      .where(sql`org_id = ${orgId} AND visitor_id = 'visitor-replayed'`)
+      .limit(1);
+    expect(replayedBridge.length).toBe(0);
+
     const journey = await withClient(adminKey, async (c) =>
       parseToolResult<
         Array<{
@@ -560,7 +579,7 @@ const skipReason = TEST_URL
 
     const visitorId = 'visitor-verified-gated';
     const externalId = 'user_gated_1';
-    const userHash = signHmac(externalId, minted.identityVerificationSecret);
+    const userHash = signHmac(`${externalId}:${visitorId}`, minted.identityVerificationSecret);
     const identifyRes = await fetch(`${baseUrl}/v1/a/identify`, {
       method: 'POST',
       headers: { 'content-type': 'text/plain;charset=UTF-8' },

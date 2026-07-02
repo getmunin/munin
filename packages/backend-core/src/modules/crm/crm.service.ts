@@ -334,6 +334,14 @@ export class CrmService {
     await this.quotas.assertCanAdd('crm_contacts');
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    if (input.endUserId) {
+      const owned = await ctx.db
+        .select({ id: schema.endUsers.id })
+        .from(schema.endUsers)
+        .where(and(eq(schema.endUsers.orgId, actor.orgId), eq(schema.endUsers.id, input.endUserId)))
+        .limit(1);
+      if (!owned[0]) throw new CrmInvalidError('endUserId does not belong to this org');
+    }
     const [row] = await ctx.db
       .insert(schema.crmContacts)
       .values({

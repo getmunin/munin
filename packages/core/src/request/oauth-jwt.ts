@@ -13,12 +13,33 @@ import {
 
 type VerifyKey = Awaited<ReturnType<typeof importJWK>>;
 
+interface VerificationKey {
+  key: VerifyKey;
+  alg: string;
+}
+
 interface JwksRow {
   id: string;
   publicKey: string;
 }
 
-const jwksCache = new Map<string, VerifyKey>();
+const jwksCache = new Map<string, VerificationKey>();
+
+// Asymmetric algorithms only. Symmetric HMAC (HS*) is deliberately excluded so a
+// stored/injected `oct` key can never enable an alg-confusion bypass where an
+// HS256 token is verified against public-key bytes. BetterAuth mints EdDSA.
+const ALLOWED_JWT_ALGS = new Set([
+  'EdDSA',
+  'ES256',
+  'ES384',
+  'ES512',
+  'RS256',
+  'RS384',
+  'RS512',
+  'PS256',
+  'PS384',
+  'PS512',
+]);
 
 export function looksLikeJwt(raw: string): boolean {
   const parts = raw.split('.');
@@ -39,12 +60,15 @@ export async function resolveOauthJwtAccessToken(
   }
   if (!header.kid) return null;
 
-  const key = await loadVerificationKey(db, header.kid);
-  if (!key) return null;
+  const verifyKey = await loadVerificationKey(db, header.kid);
+  if (!verifyKey) return null;
 
   let payload: JWTPayload;
   try {
-    const verified = await jwtVerify(rawToken, key, { issuer: jwtIssuer() });
+    const verified = await jwtVerify(rawToken, verifyKey.key, {
+      issuer: jwtIssuer(),
+      algorithms: [verifyKey.alg],
+    });
     payload = verified.payload;
   } catch (err) {
     console.warn('[credentials] JWT verification failed', { err });
@@ -95,7 +119,7 @@ export async function resolveOauthJwtAccessToken(
   };
 }
 
-async function loadVerificationKey(db: Db, kid: string): Promise<VerifyKey | null> {
+async function loadVerificationKey(db: Db, kid: string): Promise<VerificationKey | null> {
   const cached = jwksCache.get(kid);
   if (cached) return cached;
   const rows = (await db
@@ -113,9 +137,14 @@ async function loadVerificationKey(db: Db, kid: string): Promise<VerifyKey | nul
     return null;
   }
   const alg = (jwk['alg'] as string | undefined) ?? 'EdDSA';
+  if (!ALLOWED_JWT_ALGS.has(alg)) {
+    console.warn('[credentials] jwks row has unsupported alg', { kid, alg });
+    return null;
+  }
   const key = await importJWK(jwk, alg);
-  jwksCache.set(kid, key);
-  return key;
+  const entry: VerificationKey = { key, alg };
+  jwksCache.set(kid, entry);
+  return entry;
 }
 
 function publicUrl(): string {

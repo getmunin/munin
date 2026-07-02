@@ -16,6 +16,12 @@ export const SUPPORTED_SCOPES = [
   'outreach:write',
   'analytics:read',
   'analytics:write',
+  'webhooks:read',
+  'webhooks:write',
+  'feedback:read',
+  'feedback:write',
+  'system_alerts:read',
+  'system_alerts:write',
 ] as const;
 
 export type SupportedScope = (typeof SUPPORTED_SCOPES)[number];

@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import {
   ActorIdentity,
@@ -10,6 +9,8 @@ import {
 import type { Db } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
 import { McpRegistryService } from '../../../mcp/mcp.registry.ts';
+import { applyTenancyGUCs } from '../../../common/tenancy/tenancy.interceptor.ts';
+import { SELF_SERVICE_SCOPES } from '../../../control/delegated-token.controller.ts';
 
 export interface VapiFunctionTool {
   type: 'function';
@@ -31,8 +32,6 @@ export interface VapiToolResult {
   result?: string;
   error?: string;
 }
-
-const SELF_SERVICE_SCOPES = ['*'] as const;
 
 @Injectable()
 export class VapiToolBridge {
@@ -110,7 +109,7 @@ export class VapiToolBridge {
       await withContext(outerCtx, async () => {
         try {
           const value = await this.db.transaction(async (tx) => {
-            await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+            await applyTenancyGUCs(tx, actor);
             const innerCtx: RequestContext = { db: tx, actor, correlationId };
             return withContext(innerCtx, () => Promise.resolve(tool.handler(parsed.data)));
           });

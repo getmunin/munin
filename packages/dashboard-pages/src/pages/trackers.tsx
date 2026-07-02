@@ -598,11 +598,11 @@ const HASH_SNIPPETS: Array<{
   {
     language: 'node',
     label: 'Node.js',
-    build: () => `// Compute on every authenticated request, signed with this tracker's identity secret.
+    build: () => `// Sign the visitor id (from window.mn.getVisitorId()) together with your user id.
 import crypto from 'node:crypto';
 const userHash = crypto
   .createHmac('sha256', process.env.MUNIN_TRACKER_IDENTITY_SECRET)
-  .update(externalId) // your stable user id
+  .update(\`\${externalId}:\${visitorId}\`) // stable user id + window.mn.getVisitorId()
   .digest('hex');`,
   },
   {
@@ -610,7 +610,7 @@ const userHash = crypto
     label: 'Ruby',
     build: () => `require 'openssl'
 user_hash = OpenSSL::HMAC.hexdigest(
-  'sha256', ENV['MUNIN_TRACKER_IDENTITY_SECRET'], external_id
+  'sha256', ENV['MUNIN_TRACKER_IDENTITY_SECRET'], "#{external_id}:#{visitor_id}"
 )`,
   },
   {
@@ -618,7 +618,7 @@ user_hash = OpenSSL::HMAC.hexdigest(
     label: 'PHP',
     build: () => `$userHash = hash_hmac(
   'sha256',
-  $externalId,
+  "$externalId:$visitorId",
   getenv('MUNIN_TRACKER_IDENTITY_SECRET')
 );`,
   },
@@ -628,7 +628,7 @@ user_hash = OpenSSL::HMAC.hexdigest(
     build: () => `import hmac, hashlib, os
 user_hash = hmac.new(
     os.environ['MUNIN_TRACKER_IDENTITY_SECRET'].encode(),
-    external_id.encode(),
+    f"{external_id}:{visitor_id}".encode(),
     hashlib.sha256,
 ).hexdigest()`,
   },
@@ -649,10 +649,14 @@ function EmbedSnippetDialog({
 
   const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
   const scriptSnippet = [
-    `<script async src="${host}/tracker.js"`,
-    `        data-key="<your tracker key>"`,
-    `        data-external-id="<your stable user id, when known>"`,
-    `        data-user-hash="<server-signed hash>"></script>`,
+    `<script async src="${host}/tracker.js" data-key="<your tracker key>"></script>`,
+    ``,
+    `<script>`,
+    `  // On the first authenticated page load, link the visitor to your user:`,
+    `  const visitorId = window.mn.getVisitorId();`,
+    `  // POST { externalId, visitorId } to your server, get back userHash, then:`,
+    `  window.mn.identify(externalId, userHash);`,
+    `</script>`,
   ].join('\n');
 
   const hashSnippet = HASH_SNIPPETS.find((s) => s.language === language)!.build();

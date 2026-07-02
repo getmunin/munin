@@ -38,7 +38,17 @@ const HIDDEN_SCOPES = new Set([
   'mcp:self_service',
 ]);
 
-const MODULE_ORDER = ['kb', 'conv', 'crm', 'cms', 'outreach', 'analytics'] as const;
+const MODULE_ORDER = [
+  'kb',
+  'conv',
+  'crm',
+  'cms',
+  'outreach',
+  'analytics',
+  'webhooks',
+  'feedback',
+  'system_alerts',
+] as const;
 type ModuleKey = (typeof MODULE_ORDER)[number];
 
 interface ModuleScopes {

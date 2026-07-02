@@ -134,8 +134,8 @@ export class ChannelAdminTools {
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: TestInput,
-    readOnlyHint: true,
-    destructiveHint: false,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   test(args: z.infer<typeof TestInput>): Promise<unknown> {
     return this.svc.test(args.channelId);

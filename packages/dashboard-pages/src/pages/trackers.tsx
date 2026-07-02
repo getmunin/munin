@@ -653,9 +653,14 @@ function EmbedSnippetDialog({
     ``,
     `<script>`,
     `  // On the first authenticated page load, link the visitor to your user:`,
-    `  const visitorId = window.mn.getVisitorId();`,
-    `  // POST { externalId, visitorId } to your server, get back userHash, then:`,
-    `  window.mn.identify(externalId, userHash);`,
+    `  const go = () => {`,
+    `    const visitorId = window.mn.getVisitorId();`,
+    `    // POST { externalId, visitorId } to your server, get back userHash, then:`,
+    `    window.mn.identify(externalId, userHash);`,
+    `  };`,
+    `  window.mn?.ready`,
+    `    ? go()`,
+    `    : document.addEventListener('munin:ready', go, { once: true });`,
     `</script>`,
   ].join('\n');
 

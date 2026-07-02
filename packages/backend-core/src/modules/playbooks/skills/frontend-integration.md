@@ -156,13 +156,19 @@ For custom events (CTA clicks, signup funnels, scroll depth), `window.mn.track(s
 
 Anonymous tracking works with zero extra setup. But if the site has signed-in users, link each one to a known identity so their page-views attach to a CRM contact and funnels stop double-counting the anonymous → signed-in transition.
 
-On the first authenticated page load, read the visitor id, have your server sign it together with your stable user id, then call identify:
+On the first authenticated page load, read the visitor id, have your server sign it together with your stable user id, then call identify. The tracker loads async — gate on the `window.mn.ready` flag / `munin:ready` document event rather than polling for `window.mn`:
 
 ```ts
-const visitorId = window.mn.getVisitorId();
-// POST { externalId: 'user_42', visitorId } to your server; it returns
-// userHash = HMAC_sha256(secret, `${externalId}:${visitorId}`)
-window.mn.identify('user_42', userHash);
+const go = () => {
+  const visitorId = window.mn.getVisitorId();
+  // POST { externalId: 'user_42', visitorId } to your server; it returns
+  // userHash = HMAC_sha256(secret, `${externalId}:${visitorId}`)
+  window.mn.identify('user_42', userHash);
+};
+
+window.mn?.ready
+  ? go()
+  : document.addEventListener('munin:ready', go, { once: true });
 ```
 
 The hash binds the specific browser to the identity, so an observed hash can't be replayed to hijack a different visitor's trail — which is why it must be signed per session rather than baked into the script tag. Full recipe (minting the identity secret, signing the hash): `skill://analytics/identify-visitors`.

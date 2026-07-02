@@ -1191,7 +1191,7 @@ function EmailChannelDialog({
   onSaved: () => void;
   editChannel: EmailChannelDto | null;
 }) {
-  const isEdit = editChannel !== null;
+  const [isEdit, setIsEdit] = useState(editChannel !== null);
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
@@ -1228,6 +1228,7 @@ function EmailChannelDialog({
 
   useEffect(() => {
     if (!open) return;
+    setIsEdit(editChannel !== null);
     const cfg = editChannel?.config;
     setName(editChannel?.name ?? '');
     setDefaultAgentMode(editChannel?.defaultAgentMode ?? 'auto');

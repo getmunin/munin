@@ -10,6 +10,7 @@ import type { McpToolRegistry } from './registry.ts';
 import type { SkillRegistry } from './skill-registry.ts';
 import {
   callTool,
+  listAppResources,
   listResources,
   listTools,
   readResource,
@@ -59,10 +60,13 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
 
   if (opts.skills) {
     server.setRequestHandler(ListResourcesRequestSchema, () => ({
-      resources: listResources(dispatch).map((r) => ({
-        ...r,
-        annotations: { audience: ['assistant'] as const, priority: 0.9 },
-      })),
+      resources: [
+        ...listResources(dispatch).map((r) => ({
+          ...r,
+          annotations: { audience: ['assistant'] as const, priority: 0.9 },
+        })),
+        ...listAppResources(dispatch),
+      ],
     }));
     server.setRequestHandler(ReadResourceRequestSchema, (req) => ({
       contents: [readResource(dispatch, req.params.uri)],

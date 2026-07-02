@@ -1,6 +1,6 @@
 export { McpTool, getMcpToolMeta, MCP_TOOL_META, type McpToolMeta } from './decorator.ts';
 export { McpToolRegistry, type RegisteredMcpTool } from './registry.ts';
-export { SkillRegistry, type RegisteredSkill } from './skill-registry.ts';
+export { SkillRegistry, APP_RESOURCE_MIME_TYPE, type RegisteredSkill } from './skill-registry.ts';
 export { createMcpServer, type CreateMcpServerOptions } from './server.ts';
 export {
   openInProcessMcpClient,

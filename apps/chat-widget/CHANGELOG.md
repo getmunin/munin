@@ -1,5 +1,7 @@
 # @getmunin/chat-widget
 
+## 4.65.0
+
 ## 4.64.0
 
 ### Patch Changes

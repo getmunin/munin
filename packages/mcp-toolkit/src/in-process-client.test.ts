@@ -552,7 +552,7 @@ describe('ui:// MCP App resources (SEP-1865)', () => {
   });
 
   it('hides admin-only ui:// panels from a self-service caller', () => {
-    const selfActor = new ActorIdentity('end_user', 'eu:1', 'org_test', [], ['self_service']);
+    const selfActor = new ActorIdentity('end_user_agent', 'eu:1', 'org_test', [], ['self_service']);
     expect(listAppResources(ctx(selfActor, 'self_service'))).toEqual([]);
     expect(() => readResource(ctx(selfActor, 'self_service'), 'ui://inspector/hello')).toThrow(
       /not available/,

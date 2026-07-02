@@ -2,6 +2,9 @@ import { signHmac, timingSafeEqual } from './primitives.ts';
 
 const VERSION = 'v1';
 
+const DEFAULT_MAX_AGE_SECONDS = 180 * 24 * 60 * 60;
+const FUTURE_SKEW_SECONDS = 5 * 60;
+
 export interface EmailOpenTokenPayload {
   orgId: string;
   deliveryId: string;
@@ -32,7 +35,11 @@ export function signEmailOpenToken(
   return `${body}.${sig}`;
 }
 
-export function verifyEmailOpenToken(token: string, pepper?: string): EmailOpenTokenPayload {
+export function verifyEmailOpenToken(
+  token: string,
+  pepper?: string,
+  maxAgeSeconds: number = DEFAULT_MAX_AGE_SECONDS,
+): EmailOpenTokenPayload {
   const secret = pepper ?? process.env.MUNIN_KEY_PEPPER ?? '';
   if (!secret) throw new EmailOpenTokenError('server pepper not configured');
   const parts = token.split('.');
@@ -44,5 +51,8 @@ export function verifyEmailOpenToken(token: string, pepper?: string): EmailOpenT
   if (!timingSafeEqual(expected, sig!)) throw new EmailOpenTokenError('signature mismatch');
   const issuedAt = Number(issuedAtStr);
   if (!Number.isFinite(issuedAt)) throw new EmailOpenTokenError('issuedAt not numeric');
+  const now = Math.floor(Date.now() / 1000);
+  if (issuedAt > now + FUTURE_SKEW_SECONDS) throw new EmailOpenTokenError('issuedAt in the future');
+  if (now - issuedAt > maxAgeSeconds) throw new EmailOpenTokenError('token expired');
   return { orgId: orgId!, deliveryId: deliveryId!, issuedAt };
 }

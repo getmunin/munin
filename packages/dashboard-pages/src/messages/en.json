@@ -761,10 +761,10 @@
         "title": "Embed snippet — {name}",
         "description": "Paste this on every page where you want page views recorded.",
         "scriptLabel": "Embed snippet",
-        "scriptHint": "Replace [your tracker key] with the mn_track_* shown when this tracker was created. To identify a known visitor, add data-external-id and data-user-hash (see below).",
+        "scriptHint": "Replace [your tracker key] with the mn_track_* shown when this tracker was created. To identify a known visitor, read window.mn.getVisitorId(), sign it with your user id server-side (see below), then call window.mn.identify(externalId, userHash).",
         "copyScript": "Copy snippet",
         "hashLabel": "Optional · verify visitor identity",
-        "hashHint": "Compute a server-side HMAC with this tracker's identity secret and pass it as data-user-hash. Page-views from that visitor will be stamped with their end_user_id. For SPAs where the user logs in after script load, call window.mn.identify(externalId, userHash) once the user is known.",
+        "hashHint": "Compute a server-side HMAC of `externalId:visitorId` (the visitor id comes from window.mn.getVisitorId()) with this tracker's identity secret. Binding the visitor id keeps a leaked hash from linking any other visitor. Page-views from that visitor are then stamped with their end_user_id.",
         "copyHash": "Copy code"
       },
       "emptyTitle": "No trackers yet",

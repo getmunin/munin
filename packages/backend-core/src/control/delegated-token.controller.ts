@@ -80,6 +80,16 @@ export class DelegatedTokenController {
 
     // Resolve / upsert EndUser.
     let endUserId = input.endUserId;
+    if (endUserId) {
+      const owned = await ctx.db
+        .select({ id: schema.endUsers.id })
+        .from(schema.endUsers)
+        .where(and(eq(schema.endUsers.orgId, actor.orgId), eq(schema.endUsers.id, endUserId)))
+        .limit(1);
+      if (!owned[0]) {
+        throw new BadRequestException('end_user_not_found: endUserId does not belong to this org');
+      }
+    }
     if (!endUserId) {
       if (input.externalId) {
         const found = await ctx.db

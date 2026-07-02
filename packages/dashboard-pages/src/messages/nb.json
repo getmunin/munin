@@ -761,10 +761,10 @@
         "title": "Embed-snutt — {name}",
         "description": "Lim inn på hver side hvor du vil registrere sidevisninger.",
         "scriptLabel": "Embed-snutt",
-        "scriptHint": "Erstatt [din sporingsnøkkel] med mn_track_* som ble vist da målepunktet ble opprettet. For å identifisere en kjent besøkende, legg til data-external-id og data-user-hash (se under).",
+        "scriptHint": "Erstatt [din sporingsnøkkel] med mn_track_* som ble vist da målepunktet ble opprettet. For å identifisere en kjent besøkende, les window.mn.getVisitorId(), signer den sammen med bruker- id-en din på serversiden (se under), og kall window.mn.identify(externalId, userHash).",
         "copyScript": "Kopier snutt",
         "hashLabel": "Valgfritt · verifiser besøkendes identitet",
-        "hashHint": "Beregn en server-side HMAC med dette målepunktets identitetshemmelighet og send den som data-user-hash. Sidevisninger fra den besøkende vil bli merket med end_user_id. For SPA-er der innlogging skjer etter at skriptet er lastet, kall window.mn.identify(externalId, userHash) når brukeren er kjent.",
+        "hashHint": "Beregn en server-side HMAC av `externalId:visitorId` (besøkende-id-en kommer fra window.mn.getVisitorId()) med dette målepunktets identitetshemmelighet. Å binde besøkende-id-en hindrer at en lekket hash kan knytte en annen besøkende. Sidevisninger fra den besøkende blir merket med end_user_id.",
         "copyHash": "Kopier kode"
       },
       "emptyTitle": "Ingen målepunkter ennå",
@@ -832,7 +832,10 @@
         "crm": "Kontakter",
         "cms": "Innhold",
         "outreach": "Utgående",
-        "analytics": "Analyse"
+        "analytics": "Analyse",
+        "webhooks": "Webhooks",
+        "feedback": "Tilbakemelding",
+        "system_alerts": "Systemvarsler"
       },
       "moduleDescriptions": {
         "kb": {
@@ -858,6 +861,18 @@
         "analytics": {
           "readWrite": "Les analyse og administrer sporingsnøkler.",
           "read": "Les analyse for innhold og søk."
+        },
+        "webhooks": {
+          "readWrite": "Les, opprett og slett webhook-abonnementer og roter signeringshemmeligheter.",
+          "read": "Les webhook-abonnementer og leveringshistorikk."
+        },
+        "feedback": {
+          "readWrite": "Les, send inn og håndter tilbakemeldinger og veikartelementer.",
+          "read": "Les tilbakemeldinger og veikartelementer."
+        },
+        "system_alerts": {
+          "readWrite": "Les og løs operasjonelle systemvarsler.",
+          "read": "Les operasjonelle systemvarsler."
         }
       },
       "actions": {

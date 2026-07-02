@@ -191,7 +191,11 @@ export class AnalyticsTrackerController {
       );
       return;
     }
-    const ok = verifyHmac(body.externalId, secret, body.userHash.toLowerCase());
+    const ok = verifyHmac(
+      `${body.externalId}:${body.visitorId}`,
+      secret,
+      body.userHash.toLowerCase(),
+    );
     if (!ok) {
       this.logger.warn(`identify.rejected: hmac_mismatch tracker=${tracker.trackerId}`);
       return;

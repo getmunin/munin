@@ -62,6 +62,7 @@ async function beaconsFor(key: string, pathSuffix: string): Promise<Record<strin
 interface MnApi {
   track: (id: string, attrs?: Record<string, unknown>) => void;
   trackPageView: () => void;
+  getVisitorId: () => string;
   identify: (externalId: string, userHash: string) => void;
 }
 
@@ -225,18 +226,19 @@ describe('window.mn.track', () => {
 });
 
 describe('identify', () => {
-  it('auto-identifies from data-external-id + data-user-hash', async () => {
-    const key = await loadTracker({
-      attrs: { 'data-external-id': 'user_7', 'data-user-hash': 'abc123' },
-    });
+  it('sends externalId, userHash and the caller visitor id', async () => {
+    const key = await loadTracker();
+    beacons = [];
+    const visitorId = mn().getVisitorId();
+    mn().identify('user_7', 'abc123');
     const [payload] = await beaconsFor(key, '/v1/a/identify');
-    expect(payload).toMatchObject({ key, externalId: 'user_7', userHash: 'abc123' });
-    expect(typeof payload!.visitorId).toBe('string');
+    expect(payload).toMatchObject({ key, externalId: 'user_7', userHash: 'abc123', visitorId });
   });
 
-  it('does not auto-identify when only one attribute is present', async () => {
-    const key = await loadTracker({ attrs: { 'data-external-id': 'user_7' } });
-    expect(await beaconsFor(key, '/v1/a/identify')).toHaveLength(0);
+  it('exposes the visitor id used by page-view beacons', async () => {
+    const key = await loadTracker();
+    const [view] = await beaconsFor(key, '/v1/a/t');
+    expect(mn().getVisitorId()).toBe(view!.visitorId);
   });
 
   it('warns and sends nothing when identify is called without both args', async () => {

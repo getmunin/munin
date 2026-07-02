@@ -77,8 +77,8 @@ export class EmailAdminTools {
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: TestInput,
-    readOnlyHint: true,
-    destructiveHint: false,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   async testChannel(args: z.infer<typeof TestInput>): Promise<{
     smtp: string;

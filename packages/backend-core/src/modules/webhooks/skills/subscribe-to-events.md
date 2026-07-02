@@ -111,6 +111,19 @@ Critical points:
 - **Verify against the raw body bytes**, not a re-stringified parsed JSON. `JSON.parse` then `JSON.stringify` changes key order, whitespace, and number formatting — the signature won't match. Frameworks that parse the body before your handler must give you the original buffer (Express: `express.raw({ type: 'application/json' })`; Next.js route handler: `await req.text()`; Fastify: `addContentTypeParser('application/json', { parseAs: 'buffer' }, …)`).
 - If verification fails, return **`401`** without revealing why. No "bad signature" / "missing header" distinction in the response body.
 
+### Reject replays
+
+The body is signed, so an attacker can't alter it — but a *captured* delivery can be re-sent verbatim. Two defenses, use both:
+
+- **Freshness window.** The signed body carries `createdAt` (ISO-8601). After verifying the signature, reject anything older than a few minutes past the retry window (deliveries retry for ~16 minutes, so a window of ~20–30 min is safe).
+- **Idempotency on `x-munin-delivery-id`** (next section) — a replayed delivery reuses its id, so a dedupe check drops it.
+
+```ts
+const event = JSON.parse(rawBody);
+const ageMs = Date.now() - Date.parse(event.createdAt);
+if (!Number.isFinite(ageMs) || ageMs > 30 * 60 * 1000) return res.status(401).end();
+```
+
 ### Idempotency
 
 Munin retries on non-2xx — up to **5 attempts**, exponential backoff starting at **30s** (30s → 1m → 2m → 4m → 8m, ~16 minutes total). Retries reuse the same `x-munin-delivery-id`.

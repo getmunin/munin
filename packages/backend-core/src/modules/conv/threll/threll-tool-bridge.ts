@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import {
   ActorIdentity,
@@ -10,6 +9,8 @@ import {
 import type { Db } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
 import { McpRegistryService } from '../../../mcp/mcp.registry.ts';
+import { applyTenancyGUCs } from '../../../common/tenancy/tenancy.interceptor.ts';
+import { SELF_SERVICE_SCOPES } from '../../../control/delegated-token.controller.ts';
 
 export interface ThrellExternalToolSpec {
   name: string;
@@ -24,8 +25,6 @@ export interface ThrellToolCallResult {
   result?: unknown;
   error?: string;
 }
-
-const SELF_SERVICE_SCOPES = ['*'] as const;
 
 @Injectable()
 export class ThrellToolBridge {
@@ -83,7 +82,7 @@ export class ThrellToolBridge {
     return withContext(outerCtx, async () => {
       try {
         const value = await this.db.transaction(async (tx) => {
-          await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+          await applyTenancyGUCs(tx, actor);
           const innerCtx: RequestContext = { db: tx, actor, correlationId };
           return withContext(innerCtx, () => Promise.resolve(tool.handler(parsed.data)));
         });

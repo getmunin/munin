@@ -22,23 +22,6 @@
     }
   },
   {
-    "name": "inspector_hello",
-    "title": "Inspector: Hello Munin",
-    "description": "Returns a small greeting payload rendered by the Hello Munin MCP App panel. A plumbing spike for interactive MCP Apps panels.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
     "name": "analytics_export_config",
     "title": "Analytics: Export trackers + visitor identities",
     "description": "Export this org's analytics configuration — trackers and visitor-identity links — as a portable JSON payload. Low-volume, returned in one shot. Tracker identity-verification secrets are redacted (the ciphertext is useless on another server); the operator re-enters them after import. Pair with `analytics_export_events` (paginated) and feed both into `analytics_import` on another Munin server.",

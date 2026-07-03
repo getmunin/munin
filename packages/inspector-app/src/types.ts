@@ -31,13 +31,6 @@ export interface Proposal {
   campaign: ProposalCampaign | null;
 }
 
-export interface HelloPayload {
-  greeting: string;
-  orgId?: string;
-  actorType?: string;
-  now?: string;
-}
-
 export function parseToolResult(result: CallToolResult): unknown {
   const text = result.content?.find((c) => c.type === 'text')?.text;
   if (typeof text !== 'string') return null;
@@ -65,8 +58,4 @@ export function isProposal(value: unknown): value is Proposal {
 
 export function isProposalList(value: unknown): value is Proposal[] {
   return Array.isArray(value) && (value.length === 0 || isProposal(value[0]));
-}
-
-export function isHelloPayload(value: unknown): value is HelloPayload {
-  return typeof value === 'object' && value !== null && 'greeting' in value;
 }

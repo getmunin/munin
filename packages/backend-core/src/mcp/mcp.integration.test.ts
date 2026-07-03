@@ -9,6 +9,7 @@ import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../app.module.ts';
+import { INSPECTOR_APP_URI } from './inspector.resource.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -222,26 +223,24 @@ const skipReason = TEST_URL
   it('exposes the inspector MCP App: tool _meta.ui.resourceUri + ui:// resource', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
-      const inspector = tools.find((t) => t.name === 'inspector_hello');
-      expect(inspector, 'inspector_hello tool missing').toBeDefined();
-      expect((inspector as { _meta?: { ui?: { resourceUri?: string } } })._meta?.ui?.resourceUri).toBe(
-        'ui://munin/inspector',
-      );
+      const listProposals = tools.find((t) => t.name === 'outreach_list_proposals');
+      expect(listProposals, 'outreach_list_proposals tool missing').toBeDefined();
+      expect(
+        (listProposals as { _meta?: { ui?: { resourceUri?: string } } })._meta?.ui?.resourceUri,
+      ).toBe(INSPECTOR_APP_URI);
 
       const { resources } = await c.listResources();
-      const panel = resources.find((r) => r.uri === 'ui://munin/inspector');
-      expect(panel, 'ui://munin/inspector not in resources/list').toBeDefined();
+      const panel = resources.find((r) => r.uri === INSPECTOR_APP_URI);
+      expect(panel, `${INSPECTOR_APP_URI} not in resources/list`).toBeDefined();
       expect(panel!.mimeType).toBe('text/html;profile=mcp-app');
 
-      const read = await c.readResource({ uri: 'ui://munin/inspector' });
+      const read = await c.readResource({ uri: INSPECTOR_APP_URI });
       const first = read.contents[0];
       expect(first?.mimeType).toBe('text/html;profile=mcp-app');
       const html = first && 'text' in first ? first.text : '';
-      expect(html).toContain('Hello from Munin');
+      expect(html.toLowerCase()).toContain('<!doctype html>');
+      expect(html).toContain('Munin');
       expect((first as { _meta?: { ui?: { csp?: unknown } } })._meta?.ui?.csp).toBeDefined();
-
-      const called = await c.callTool({ name: 'inspector_hello', arguments: {} });
-      expect(JSON.stringify(called)).toContain('Hello from Munin');
     });
   });
 

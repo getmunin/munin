@@ -9,6 +9,7 @@ import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
+import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -162,7 +163,8 @@ const skipReason = TEST_URL
       const listProposals = tools.find((t) => t.name === 'outreach_list_proposals');
       expect(
         (listProposals as { _meta?: { ui?: { resourceUri?: string } } })._meta?.ui?.resourceUri,
-      ).toBe('ui://munin/inspector');
+      ).toBe(INSPECTOR_APP_URI);
+      expect(INSPECTOR_APP_URI).toMatch(/^ui:\/\/munin\/inspector@[0-9a-f]{8}$/);
     });
   });
 

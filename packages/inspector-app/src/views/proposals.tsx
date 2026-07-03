@@ -7,45 +7,63 @@ import {
   parseToolResult,
   type Proposal,
 } from '../types';
+import { Chrome } from '../chrome';
 
-type CardState = { busy: boolean; error: string | null; dismissing: boolean; reason: string };
+type CardState = {
+  busy: 'approve' | 'dismiss' | null;
+  error: string | null;
+  decidedNow: boolean;
+};
 
-const IDLE: CardState = { busy: false, error: null, dismissing: false, reason: '' };
+const IDLE: CardState = { busy: null, error: null, decidedNow: false };
+
+const DISPLAY_PAGE = 25;
+const REFRESH_LIMIT = 100;
 
 export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal[] }) {
   const [proposals, setProposals] = useState<Proposal[]>(initial);
+  const [openId, setOpenId] = useState<string | null>(initial[0]?.id ?? null);
+  const [evidenceOpen, setEvidenceOpen] = useState<Record<string, boolean>>({});
   const [cards, setCards] = useState<Record<string, CardState>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(DISPLAY_PAGE);
 
-  const pending = proposals.filter((p) => p.status === 'pending');
-  const decided = proposals.filter((p) => p.status !== 'pending');
+  const pendingCount = proposals.filter((p) => p.status === 'pending').length;
+  const visible = proposals.slice(0, visibleCount);
+  const hiddenCount = proposals.length - visible.length;
 
   function patchCard(id: string, patch: Partial<CardState>) {
     setCards((prev) => ({ ...prev, [id]: { ...(prev[id] ?? IDLE), ...patch } }));
   }
 
   async function decide(proposal: Proposal, action: 'approve' | 'dismiss') {
-    patchCard(proposal.id, { busy: true, error: null });
-    const reason = cards[proposal.id]?.reason.trim();
+    patchCard(proposal.id, { busy: action, error: null });
     try {
       const result = await app.callServerTool({
         name: action === 'approve' ? 'outreach_approve_proposal' : 'outreach_dismiss_proposal',
-        arguments:
-          action === 'approve'
-            ? { id: proposal.id }
-            : { id: proposal.id, ...(reason ? { reason } : {}) },
+        arguments: { id: proposal.id },
       });
       const parsed = parseToolResult(result);
       if (result.isError || !isProposal(parsed)) {
-        patchCard(proposal.id, { busy: false, error: errorText(result) });
+        patchCard(proposal.id, { busy: null, error: errorText(result) });
         return;
       }
-      setProposals((prev) => prev.map((p) => (p.id === parsed.id ? parsed : p)));
-      patchCard(proposal.id, { busy: false, dismissing: false });
+      const updated = proposals.map((p) => (p.id === parsed.id ? parsed : p));
+      setProposals(updated);
+      patchCard(proposal.id, { busy: null, decidedNow: true });
+      const idx = updated.findIndex((p) => p.id === parsed.id);
+      const next =
+        updated.slice(idx + 1).find((p) => p.status === 'pending') ??
+        updated.slice(0, idx).find((p) => p.status === 'pending');
+      if (next) {
+        setOpenId(next.id);
+        const nextIdx = updated.findIndex((p) => p.id === next.id);
+        setVisibleCount((n) => (nextIdx >= n ? nextIdx + 1 : n));
+      }
     } catch (err) {
       patchCard(proposal.id, {
-        busy: false,
+        busy: null,
         error: err instanceof Error ? err.message : String(err),
       });
     }
@@ -57,14 +75,17 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
     try {
       const result = await app.callServerTool({
         name: 'outreach_list_proposals',
-        arguments: { status: 'pending' },
+        arguments: { status: 'pending', limit: REFRESH_LIMIT },
       });
       const parsed = parseToolResult(result);
       if (result.isError || !isProposalList(parsed)) {
         setListError(errorText(result));
       } else {
         setProposals(parsed);
+        setOpenId(parsed[0]?.id ?? null);
+        setEvidenceOpen({});
         setCards({});
+        setVisibleCount(DISPLAY_PAGE);
       }
     } catch (err) {
       setListError(err instanceof Error ? err.message : String(err));
@@ -74,132 +95,181 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
   }
 
   return (
-    <div className="shell">
-      <header className="head">
+    <Chrome context="Outreach" tool="outreach_list_proposals">
+      <div className="ledger-head">
         <div>
-          <h1>Outreach proposals</h1>
-          <p className="status">
-            {pending.length === 0
-              ? 'Nothing waiting for review.'
-              : `${pending.length} waiting for review — approving sends the email.`}
+          <div className="eyebrow eyebrow-accent">Pending proposals</div>
+          <h1 className="ledger-title">Outreach proposals</h1>
+          <p className="subline">
+            {pendingCount === 0
+              ? 'Nothing waiting — the queue is clear.'
+              : `${pendingCount} waiting for review — approving sends the email.`}
           </p>
         </div>
-        <button className="btn" disabled={refreshing} onClick={() => void refresh()}>
-          {refreshing ? 'Refreshing…' : 'Refresh pending'}
+        <button className="chip-btn" disabled={refreshing} onClick={() => void refresh()}>
+          {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
-      </header>
-      {listError && <p className="status status-error">{listError}</p>}
-      {pending.map((p) => (
-        <ProposalCard
+      </div>
+      {listError && <p className="list-error">{listError}</p>}
+      {visible.map((p) => (
+        <ProposalRow
           key={p.id}
           proposal={p}
           state={cards[p.id] ?? IDLE}
+          open={openId === p.id}
+          evidenceOpen={evidenceOpen[p.id] ?? false}
+          onToggle={() => setOpenId((cur) => (cur === p.id ? null : p.id))}
+          onToggleEvidence={() =>
+            setEvidenceOpen((prev) => ({ ...prev, [p.id]: !(prev[p.id] ?? false) }))
+          }
           onApprove={() => void decide(p, 'approve')}
           onDismiss={() => void decide(p, 'dismiss')}
-          onToggleDismiss={(open) => patchCard(p.id, { dismissing: open, error: null })}
-          onReason={(reason) => patchCard(p.id, { reason })}
         />
       ))}
-      {decided.length > 0 && (
-        <section>
-          <h2>Decided</h2>
-          {decided.map((p) => (
-            <ProposalCard key={p.id} proposal={p} state={IDLE} />
-          ))}
-        </section>
+      {hiddenCount > 0 && (
+        <button
+          className="more-row"
+          onClick={() => setVisibleCount((n) => n + DISPLAY_PAGE)}
+        >
+          Show {Math.min(DISPLAY_PAGE, hiddenCount)} more ({hiddenCount} hidden)
+        </button>
+      )}
+      <div className="ledger-foot">
+        {pendingCount === 0
+          ? 'Queue clear'
+          : `${
+              hiddenCount > 0 ? `showing ${visible.length} of ${proposals.length} · ` : ''
+            }${pendingCount} pending · approve sends immediately`}
+      </div>
+    </Chrome>
+  );
+}
+
+function ProposalRow({
+  proposal,
+  state,
+  open,
+  evidenceOpen,
+  onToggle,
+  onToggleEvidence,
+  onApprove,
+  onDismiss,
+}: {
+  proposal: Proposal;
+  state: CardState;
+  open: boolean;
+  evidenceOpen: boolean;
+  onToggle: () => void;
+  onToggleEvidence: () => void;
+  onApprove: () => void;
+  onDismiss: () => void;
+}) {
+  const contact = proposal.contact;
+  const name = contact?.name || contact?.email || proposal.contactId;
+  const campaignMeta = `${proposal.campaign?.name ?? proposal.campaignId} · ${proposal.kind}`;
+  const hasEvidence = Object.keys(proposal.evidence ?? {}).length > 0;
+  const line = decidedLine(proposal, state.decidedNow);
+
+  return (
+    <div className="row">
+      <div
+        className="row-grid"
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+      >
+        <span className={`pill pill-${proposal.status}`}>
+          <span className="pill-dot" />
+          {proposal.status}
+        </span>
+        <div className="row-main">
+          <div className="row-who">
+            <b>{name}</b>
+            {contact?.email && contact.name && <span className="mute"> · {contact.email}</span>}
+          </div>
+          <div className="row-subject">{proposal.draftSubject ?? '(no subject)'}</div>
+        </div>
+        <span className="row-age">{age(proposal.createdAt)}</span>
+        <span className="row-caret">{open ? '−' : '+'}</span>
+      </div>
+      {open && (
+        <div className="row-detail">
+          <div className="draft">
+            <div className="eyebrow">{campaignMeta}</div>
+            {proposal.draftBody.split(/\n+/).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </div>
+          {hasEvidence && (
+            <button className="ev-toggle" onClick={onToggleEvidence}>
+              {evidenceOpen ? 'Evidence −' : 'Evidence +'}
+            </button>
+          )}
+          {hasEvidence && evidenceOpen && (
+            <pre className="evidence">{JSON.stringify(proposal.evidence, null, 2)}</pre>
+          )}
+          {state.error && <p className="line line-error">{state.error}</p>}
+          {proposal.status === 'pending' ? (
+            <div className="actions">
+              <button
+                className="chip-btn chip-btn-solid"
+                disabled={state.busy !== null}
+                onClick={onApprove}
+              >
+                {state.busy === 'approve' ? 'Sending…' : 'Approve & send'}
+              </button>
+              <button className="chip-btn" disabled={state.busy !== null} onClick={onDismiss}>
+                {state.busy === 'dismiss' ? 'Dismissing…' : 'Dismiss'}
+              </button>
+            </div>
+          ) : (
+            line && <p className={`line ${line.className}`}>{line.text}</p>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-function ProposalCard({
-  proposal,
-  state,
-  onApprove,
-  onDismiss,
-  onToggleDismiss,
-  onReason,
-}: {
-  proposal: Proposal;
-  state: CardState;
-  onApprove?: () => void;
-  onDismiss?: () => void;
-  onToggleDismiss?: (open: boolean) => void;
-  onReason?: (reason: string) => void;
-}) {
-  const contact = proposal.contact;
-  const who = contact?.name || contact?.email || proposal.contactId;
-  const actionable = proposal.status === 'pending' && onApprove && onDismiss;
-
-  return (
-    <article className={`card card-${proposal.status}`}>
-      <div className="card-head">
-        <div>
-          <strong>{who}</strong>
-          {contact?.email && contact.name && <span className="mute"> · {contact.email}</span>}
-          <div className="mute">
-            {proposal.campaign?.name ?? proposal.campaignId} · {proposal.kind}
-            {proposal.proposedSendAt && ` · scheduled ${formatDate(proposal.proposedSendAt)}`}
-          </div>
-        </div>
-        <span className={`badge badge-${proposal.status}`}>{proposal.status}</span>
-      </div>
-      {proposal.draftSubject && <div className="subject">{proposal.draftSubject}</div>}
-      <pre className="body">{proposal.draftBody}</pre>
-      {Object.keys(proposal.evidence ?? {}).length > 0 && (
-        <details className="evidence">
-          <summary>Evidence</summary>
-          <pre className="payload">{JSON.stringify(proposal.evidence, null, 2)}</pre>
-        </details>
-      )}
-      {proposal.status === 'dismissed' && proposal.dismissReason && (
-        <p className="mute">Dismissed: {proposal.dismissReason}</p>
-      )}
-      {proposal.status === 'failed' && proposal.failureReason && (
-        <p className="status-error">Failed: {proposal.failureReason}</p>
-      )}
-      {state.error && <p className="status-error">{state.error}</p>}
-      {actionable && (
-        <div className="actions">
-          <button className="btn btn-primary" disabled={state.busy} onClick={onApprove}>
-            {state.busy ? 'Working…' : 'Approve & send'}
-          </button>
-          {state.dismissing ? (
-            <>
-              <input
-                className="reason"
-                placeholder="Reason (optional)"
-                value={state.reason}
-                onChange={(e) => onReason?.(e.target.value)}
-                disabled={state.busy}
-              />
-              <button className="btn" disabled={state.busy} onClick={onDismiss}>
-                Confirm dismiss
-              </button>
-              <button
-                className="btn btn-ghost"
-                disabled={state.busy}
-                onClick={() => onToggleDismiss?.(false)}
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <button
-              className="btn"
-              disabled={state.busy}
-              onClick={() => onToggleDismiss?.(true)}
-            >
-              Dismiss
-            </button>
-          )}
-        </div>
-      )}
-    </article>
-  );
+function decidedLine(
+  proposal: Proposal,
+  decidedNow: boolean,
+): { text: string; className: string } | null {
+  switch (proposal.status) {
+    case 'sent':
+      return { text: decidedNow ? 'Sent just now.' : 'Sent.', className: 'line-accent' };
+    case 'approved':
+      return { text: 'Approved.', className: 'line-accent' };
+    case 'dismissed':
+      return {
+        text: proposal.dismissReason
+          ? `Dismissed — ${proposal.dismissReason}`
+          : 'Dismissed — nothing was sent.',
+        className: 'line-mute',
+      };
+    case 'failed':
+      return {
+        text: proposal.failureReason ? `Failed — ${proposal.failureReason}` : 'Failed.',
+        className: 'line-error',
+      };
+    default:
+      return null;
+  }
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+function age(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const mins = Math.max(0, Math.floor((Date.now() - then) / 60_000));
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
 }

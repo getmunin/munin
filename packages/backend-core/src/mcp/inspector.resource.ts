@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { APP_RESOURCE_MIME_TYPE, type RegisteredSkill } from '@getmunin/mcp-toolkit';
-
-export const INSPECTOR_APP_URI = 'ui://munin/inspector';
 
 const FALLBACK_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -53,47 +52,27 @@ const FALLBACK_HTML = `<!DOCTYPE html>
   </head>
   <body>
     <main>
-      <h1>Hello from Munin 👋</h1>
+      <h1>Munin Inspector</h1>
       <p id="status">Connecting to host…</p>
       <pre id="payload">—</pre>
-      <button id="refresh" disabled>Refresh from server</button>
     </main>
     <script type="module">
       import { App } from 'https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@1.7.4/+esm';
 
       const statusEl = document.getElementById('status');
       const payloadEl = document.getElementById('payload');
-      const refreshBtn = document.getElementById('refresh');
-
-      function render(result) {
-        const text = result?.content?.find((c) => c.type === 'text')?.text;
-        payloadEl.textContent = text ?? JSON.stringify(result ?? {}, null, 2);
-      }
 
       const app = new App({ name: 'Munin Inspector', version: '0.1.0' });
 
-      app.ontoolresult = (params) => {
+      app.ontoolresult = (result) => {
         statusEl.textContent = 'Tool result pushed by host.';
-        render(params);
+        const text = result?.content?.find((c) => c.type === 'text')?.text;
+        payloadEl.textContent = text ?? JSON.stringify(result ?? {}, null, 2);
       };
 
       await app.connect();
-      statusEl.textContent = 'Connected — served by Munin over ui://munin/inspector.';
-      refreshBtn.disabled = false;
-
-      refreshBtn.addEventListener('click', async () => {
-        refreshBtn.disabled = true;
-        statusEl.textContent = 'Calling inspector_hello…';
-        try {
-          const result = await app.callServerTool({ name: 'inspector_hello', arguments: {} });
-          statusEl.textContent = 'Refreshed via tools/call round trip.';
-          render(result);
-        } catch (err) {
-          statusEl.textContent = 'Tool call failed: ' + (err?.message ?? err);
-        } finally {
-          refreshBtn.disabled = false;
-        }
-      });
+      statusEl.textContent =
+        'Connected — the interactive panel bundle is not built on this server (@getmunin/inspector-app).';
     </script>
   </body>
 </html>
@@ -114,8 +93,15 @@ function loadInspectorPayload(): InspectorPayload {
   }
 }
 
+const inspectorPayload = loadInspectorPayload();
+
+export const INSPECTOR_APP_URI = `ui://munin/inspector@${createHash('sha256')
+  .update(inspectorPayload.content)
+  .digest('hex')
+  .slice(0, 8)}`;
+
 export function inspectorAppResource(): RegisteredSkill {
-  const { content, cspDomains } = loadInspectorPayload();
+  const { content, cspDomains } = inspectorPayload;
   return {
     uri: INSPECTOR_APP_URI,
     name: 'Munin Inspector',

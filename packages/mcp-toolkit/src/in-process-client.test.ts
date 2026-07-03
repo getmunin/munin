@@ -2,9 +2,16 @@ import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { ActorIdentity, RequestContextStore, type RequestContext } from '@getmunin/core';
 import { McpToolRegistry } from './registry.ts';
-import { SkillRegistry } from './skill-registry.ts';
+import { SkillRegistry, APP_RESOURCE_MIME_TYPE } from './skill-registry.ts';
 import { openInProcessMcpClient } from './in-process-client.ts';
-import type { CaptureExceptionContext, CaptureExceptionFn } from './dispatch.ts';
+import {
+  listAppResources,
+  listResources,
+  readResource,
+  type CaptureExceptionContext,
+  type CaptureExceptionFn,
+  type DispatchContext,
+} from './dispatch.ts';
 
 const fakeAudit = { record: vi.fn(() => Promise.resolve()) };
 
@@ -486,5 +493,69 @@ describe('openInProcessMcpClient', () => {
       mimeType: 'text/markdown',
       text: '# go',
     });
+  });
+});
+
+describe('ui:// MCP App resources (SEP-1865)', () => {
+  function mixedRegistry(): SkillRegistry {
+    const skills = new SkillRegistry();
+    skills.register({
+      uri: 'skill://playbooks/frontend-integration',
+      name: 'Frontend integration',
+      description: 'markdown guide',
+      audiences: ['admin'],
+      mimeType: 'text/markdown',
+      content: '# guide',
+      public: true,
+    });
+    skills.register({
+      uri: 'ui://inspector/hello',
+      name: 'Inspector: Hello Munin',
+      description: 'spike panel',
+      audiences: ['admin'],
+      mimeType: APP_RESOURCE_MIME_TYPE,
+      content: '<!DOCTYPE html><body>hello</body>',
+      public: false,
+      meta: { ui: { csp: { resourceDomains: ['https://esm.sh'] } } },
+    });
+    return skills;
+  }
+
+  function ctx(actor: ActorIdentity, audience: 'admin' | 'self_service'): DispatchContext {
+    return { registry: buildRegistry(), audience, actor, audit: fakeAudit, skills: mixedRegistry() };
+  }
+
+  it('listResources stays skill:// only so skills_list never leaks ui:// panels', () => {
+    const uris = listResources(ctx(adminActor(), 'admin')).map((r) => r.uri);
+    expect(uris).toContain('skill://playbooks/frontend-integration');
+    expect(uris).not.toContain('ui://inspector/hello');
+  });
+
+  it('listAppResources returns ui:// panels with the App mime type and resource _meta', () => {
+    const listed = listAppResources(ctx(adminActor(), 'admin'));
+    expect(listed).toEqual([
+      {
+        uri: 'ui://inspector/hello',
+        name: 'Inspector: Hello Munin',
+        description: 'spike panel',
+        mimeType: 'text/html;profile=mcp-app',
+        _meta: { ui: { csp: { resourceDomains: ['https://esm.sh'] } } },
+      },
+    ]);
+  });
+
+  it('readResource serves the panel HTML with its _meta passthrough', () => {
+    const out = readResource(ctx(adminActor(), 'admin'), 'ui://inspector/hello');
+    expect(out.mimeType).toBe(APP_RESOURCE_MIME_TYPE);
+    expect(out.text).toContain('hello');
+    expect(out._meta).toEqual({ ui: { csp: { resourceDomains: ['https://esm.sh'] } } });
+  });
+
+  it('hides admin-only ui:// panels from a self-service caller', () => {
+    const selfActor = new ActorIdentity('end_user_agent', 'eu:1', 'org_test', [], ['self_service']);
+    expect(listAppResources(ctx(selfActor, 'self_service'))).toEqual([]);
+    expect(() => readResource(ctx(selfActor, 'self_service'), 'ui://inspector/hello')).toThrow(
+      /not available/,
+    );
   });
 });

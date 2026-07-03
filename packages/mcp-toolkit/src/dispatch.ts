@@ -53,12 +53,14 @@ export interface ResourceListing {
   name: string;
   description: string;
   mimeType: string;
+  _meta?: Record<string, unknown>;
 }
 
 export interface ResourceContent {
   uri: string;
   mimeType: string;
   text: string;
+  _meta?: Record<string, unknown>;
 }
 
 function skillToolListings(): ToolListing[] {
@@ -280,6 +282,20 @@ export function listResources(ctx: DispatchContext): ResourceListing[] {
     }));
 }
 
+export function listAppResources(ctx: DispatchContext): ResourceListing[] {
+  if (!ctx.skills) return [];
+  return ctx.skills
+    .list(ctx.audience)
+    .filter((s) => s.uri.startsWith('ui://'))
+    .map((s) => ({
+      uri: s.uri,
+      name: s.name,
+      description: s.description,
+      mimeType: s.mimeType,
+      ...(s.meta ? { _meta: s.meta } : {}),
+    }));
+}
+
 export function readResource(ctx: DispatchContext, uri: string): ResourceContent {
   if (!ctx.skills) throw new Error(`Unknown resource: ${uri}`);
   const skill: RegisteredSkill | undefined = ctx.skills.get(uri);
@@ -291,6 +307,7 @@ export function readResource(ctx: DispatchContext, uri: string): ResourceContent
     uri: skill.uri,
     mimeType: skill.mimeType,
     text: renderSkill(ctx, skill),
+    ...(skill.meta ? { _meta: skill.meta } : {}),
   };
 }
 

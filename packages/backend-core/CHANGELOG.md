@@ -1,5 +1,28 @@
 # @getmunin/backend-core
 
+## 4.66.0
+
+### Minor Changes
+
+- 44a9d34: Munin Inspector MCP App: new `@getmunin/inspector-app` package builds the `ui://munin/inspector` panel (React, single self-contained HTML, SDK bundled — no CDN) with an outreach proposal review view and the hello diagnostics view. New `outreach_approve_proposal` / `outreach_dismiss_proposal` admin tools expose the existing decision surface over MCP (declared panel-only via `_meta.ui.visibility: ["app"]` so MCP App hosts hide them from the model — sends require a human click); `outreach_list_proposals` and `inspector_hello` now declare `_meta.ui.resourceUri` so supporting hosts render the panel inline, with approve/dismiss round-tripping over the widget channel. Adds `skill://outreach/review-proposals`.
+- abeb2ef: Serve `ui://` MCP App resources (SEP-1865): tools can declare `_meta.ui.resourceUri` pointing at an app-audience HTML resource rendered inline by supporting hosts, with resource-level `_meta` (CSP) passed through `resources/list` / `resources/read`. App resources are kept separate from the `skill://` catalog. Includes the `inspector_hello` spike tool + `ui://inspector/hello` panel, verified end-to-end against claude.ai including the widget-initiated `callServerTool` round trip.
+
+### Patch Changes
+
+- 37c95e9: Outreach proposal mutations (`outreach_approve_proposal`, `outreach_dismiss_proposal`, propose/update) now return the same joined `contact` and `campaign` summaries as `outreach_list_proposals`. Previously they returned `contact: null`, which made the inspector panel's row title fall back to the raw contact id after a decision.
+- Updated dependencies [44a9d34]
+- Updated dependencies [45f0e56]
+- Updated dependencies [768642a]
+- Updated dependencies [abeb2ef]
+- Updated dependencies [b84577f]
+  - @getmunin/inspector-app@4.66.0
+  - @getmunin/mcp-toolkit@4.66.0
+  - @getmunin/core@4.66.0
+  - @getmunin/db@4.66.0
+  - @getmunin/types@4.66.0
+  - @getmunin/agent-runtime@4.66.0
+  - @getmunin/emails@4.66.0
+
 ## 4.65.0
 
 ### Patch Changes

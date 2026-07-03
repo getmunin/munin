@@ -1,5 +1,25 @@
 # @getmunin/dashboard-pages
 
+## 4.66.0
+
+### Minor Changes
+
+- 768642a: Localize the inspector panel from the MCP App host locale.
+
+  - The panel reads `getHostContext()?.locale` after connect (falling back to `navigator.language`, then `en`) and re-renders on `onhostcontextchanged`, so it follows the user's Claude language setting rather than the iframe's browser default.
+  - Strings live in a new `inspector.*` namespace in `@getmunin/dashboard-pages`' message catalogs (English + Norwegian), now exposed via a `./messages/*.json` export; the panel bundles only that namespace (~1 kB per locale) through a small `t(key, params)` helper.
+  - Ages in the proposal ledger format through `Intl.RelativeTimeFormat` with the host locale instead of hardcoded English abbreviations.
+
+  Server-originated strings (tool error messages) remain English.
+
+### Patch Changes
+
+- fb104ce: fix(docs): use the real `mn_admin_` admin key prefix in MCP connect guides and setup placeholder (was the non-existent `mn_live_`)
+- 04cab6d: Resume a pending OAuth authorize instead of dropping it at the login page. When better-auth bounced `/auth/oauth2/authorize` to `/login` and the user already had a session, `redirectIfAuthenticated` ignored the OAuth query and redirected to `/dashboard`, stranding the connector mid-flow. It now detects authorize params (`response_type=code` + `client_id`) and redirects back to the authorize endpoint. The consent page's unauthenticated and switch-account bounces now carry the OAuth query to `/login` (the previous `?next=` param was never read, and its absolute URL would have been rejected anyway), so the existing post-sign-in resume logic completes the flow.
+- Updated dependencies [b84577f]
+  - @getmunin/ui@4.66.0
+  - @getmunin/types@4.66.0
+
 ## 4.65.0
 
 ### Patch Changes

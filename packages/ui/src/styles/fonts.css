@@ -3,7 +3,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/Instrument-Serif-latin.woff2') format('woff2');
+  src: url('../fonts/Instrument-Serif-latin.woff2') format('woff2');
 }
 
 @font-face {
@@ -11,7 +11,7 @@
   font-style: italic;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/Instrument-Serif-Italic-latin.woff2') format('woff2');
+  src: url('../fonts/Instrument-Serif-Italic-latin.woff2') format('woff2');
 }
 
 @font-face {
@@ -19,7 +19,7 @@
   font-style: normal;
   font-weight: 300 700;
   font-display: swap;
-  src: url('/fonts/Inter-300-latin.woff2') format('woff2');
+  src: url('../fonts/Inter-300-latin.woff2') format('woff2');
 }
 
 @font-face {
@@ -27,5 +27,5 @@
   font-style: normal;
   font-weight: 400 500;
   font-display: swap;
-  src: url('/fonts/JetBrains-Mono-latin.woff2') format('woff2');
+  src: url('../fonts/JetBrains-Mono-latin.woff2') format('woff2');
 }

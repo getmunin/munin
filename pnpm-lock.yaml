@@ -851,9 +851,18 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.3.4
         version: 4.7.0(vite@6.4.3(@types/node@22.20.0)(jiti@1.21.7)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
+      autoprefixer:
+        specifier: ^10.4.20
+        version: 10.5.0(postcss@8.5.12)
       eslint:
         specifier: ^9.10.0
         version: 9.39.4(jiti@1.21.7)
+      postcss:
+        specifier: ^8.5.10
+        version: 8.5.12
+      tailwindcss:
+        specifier: ^3.4.13
+        version: 3.4.19(tsx@4.22.4)(yaml@2.9.0)
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -995,6 +1004,9 @@ importers:
       eslint:
         specifier: ^9.10.0
         version: 9.39.4(jiti@1.21.7)
+      tailwindcss:
+        specifier: ^3.4.13
+        version: 3.4.19(tsx@4.22.4)(yaml@2.9.0)
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

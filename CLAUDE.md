@@ -86,6 +86,35 @@ pnpm -F @getmunin/backend-core docs:generate # regen openapi.json + docs-fixture
 pnpm changeset                              # author a changeset before merging
 ```
 
+## Testing /mcp against claude.ai (local server as a custom connector)
+
+claude.ai custom connectors need OAuth discovery (`/.well-known/oauth-*`), dynamic client registration, the `/mcp` endpoint, and the login/consent pages all on **one public https origin**. Locally that means a path-routing proxy in front of backend (3001) + web (3000), exposed through a tunnel:
+
+```sh
+pnpm dev                                            # backend :3001 + web :3000
+node scripts/claude-connector-proxy.mjs             # single origin on :8088
+cloudflared tunnel --url http://localhost:8088      # prints https://<name>.trycloudflare.com
+```
+
+Then set in `.env` and restart the backend (it re-reads `.env` on every `--watch` restart; real env vars win over the file):
+
+- `MUNIN_PUBLIC_URL=https://<tunnel>`
+- `NEXT_PUBLIC_MCP_URL=https://<tunnel>/mcp` — drives the OAuth discovery documents.
+- `NEXT_PUBLIC_AUTH_URL=https://<tunnel>` — **required, no path**. BetterAuth's baseUrl falls back to `NEXT_PUBLIC_MCP_URL`, and the `/mcp` path segment breaks its route matching: every `/auth/*` route 404s and claude.ai reports "Couldn't register with …'s sign-in service".
+- `MUNIN_AUTH_TRUSTED_ORIGINS=…,https://<tunnel>`
+- `MUNIN_INBOUND_POLL_WORKER_DISABLED=1` if you seed email channels without a real mailbox — the poll worker auto-deactivates channels after repeated failures, which then fails outreach approvals with `channel … is not active`.
+
+The web dev server bakes `NEXT_PUBLIC_API_URL` into its bundles at compile time — if the login page shows "Couldn't reach the server", the web process was started with a stale value; restart it with `NEXT_PUBLIC_API_URL=http://localhost:3001`.
+
+In claude.ai: Settings → Connectors → Add custom connector → `https://<tunnel>/mcp`, then sign in through the local dashboard when prompted. For headless smoke tests skip OAuth entirely: create an admin key (`mn_admin_*`) and drive `/mcp` over JSON-RPC with `Authorization: Bearer`.
+
+MCP Apps (`ui://` panels) specifics:
+
+- Hosts cache `ui://` resources **per URI** and tell the model "the widget rendered" even when the iframe stays blank — serve panels under content-addressed URIs (see `inspector.resource.ts`) so rebuilds bust the cache.
+- An app that never completes `App.connect()` renders nothing, silently. Don't import the ext-apps SDK from esm.sh (its `zod/v4` shim drops named exports and the SDK throws at import time inside the iframe); bundle the SDK, or use jsdelivr `+esm` for inline spikes.
+- Tool results over ~150k characters abort widget rendering — keep list-tool payloads bounded.
+- Tools can declare `_meta: { ui: { visibility: ['app'] } }` to be callable **only from the panel** — Apps-capable hosts hide them from the model, so the action requires a human click (e.g. `outreach_approve_proposal`). This is host-enforced: hosts without MCP Apps still expose the tool normally, so keep `destructiveHint`, scopes, and service-level state checks as the real backstops. The panel and the model share one credential per session — scopes cannot separate them.
+
 ## Skill and task URI naming
 
 Conventions for `skill://*` markdown under `packages/backend-core/src/modules/*/skills/` and `task://*` URIs in `packages/types/src/job-catalog.ts`.

@@ -100,11 +100,11 @@ Behavior:
 
 ## Step 7 — review and approve (the operator's loop)
 
-Out of scope for this skill. The operator (or a trusted admin agent acting on their authority) calls `outreach_list_proposals({ status: "pending" })`, reviews each row in the dashboard, then either approves (which sends via the campaign's email channel and creates an outbound conversation) or dismisses with a reason.
+Out of scope for this skill — see `skill://outreach/review-proposals`. The operator (or a trusted admin agent acting on their authority) calls `outreach_list_proposals({ status: "pending" })`, reviews each draft (MCP App hosts render the Munin Inspector review panel inline), then either approves via `outreach_approve_proposal` (which sends via the campaign's email channel and creates an outbound conversation) or dismisses via `outreach_dismiss_proposal` with a reason.
 
 ## What NOT to do
 
-- **Don't auto-approve.** The plan-level invariant: every outreach email ships through a human-approved gate. If you're tempted to call `outreach_propose_initial` followed by `outreach_approve_proposal`, stop. The latter tool does not exist for the curator; only operators or operator-delegated admin agents reach the approve surface.
+- **Don't auto-approve.** The plan-level invariant: every outreach email ships through a human-approved gate. If you're tempted to call `outreach_propose_initial` followed by `outreach_approve_proposal`, stop. The approve surface belongs to the operator's review pass (`skill://outreach/review-proposals`); a curator never decides its own drafts.
 - **Don't bypass `crm_list_contacts_in_segment`.** Calling `crm_list_contacts` directly bypasses the suppression+consent floor and will eventually file proposals for someone who already unsubscribed — even if the operator catches it at approve-time, the audit trail looks bad.
 - **Don't fabricate facts.** If the brief says "we shipped feature X" and KB has no doc on X, write at a higher level. Better to send a vaguer email than a confidently wrong one.
 - **Don't write headings or pseudo-templates.** No `# Hello {name}` or `## About us`. Real emails are plain prose.

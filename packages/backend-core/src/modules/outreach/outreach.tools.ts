@@ -1,8 +1,15 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { OutreachService, PROPOSAL_KINDS, PROPOSAL_STATUSES } from './outreach.service.ts';
+import { readApiBaseUrl } from '@getmunin/core';
+import {
+  OutreachInvalidError,
+  OutreachService,
+  PROPOSAL_KINDS,
+  PROPOSAL_STATUSES,
+} from './outreach.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
+import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const CadenceRulesSchema = z.object({
   maxPerWeekPerContact: z.number().int().positive().max(7).optional(),
@@ -78,6 +85,13 @@ const ProposeReplyInput = z.object({
 });
 
 const EmptyInput = z.object({});
+
+const ApproveProposalInput = z.object({ id: z.string().min(1).max(64) });
+
+const DismissProposalInput = z.object({
+  id: z.string().min(1).max(64),
+  reason: z.string().max(500).optional(),
+});
 
 const OutreachImportInput = z.object({
   records: z.object({
@@ -219,15 +233,52 @@ export class OutreachAdminTools {
     name: 'outreach_list_proposals',
     title: 'Outreach: List proposals',
     description:
-      'List drafted outreach proposals (initials in PR2; replies in PR3). Defaults to all statuses. The draft-initial curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`.',
+      'List drafted outreach proposals. Defaults to all statuses. The draft-initial curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.',
     audiences: ['admin'],
     scopes: ['outreach:read'],
     input: ListProposalsInput,
     readOnlyHint: true,
     destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   listProposals(args: z.infer<typeof ListProposalsInput>) {
     return this.outreach.listProposals(args);
+  }
+
+  @McpTool({
+    name: 'outreach_approve_proposal',
+    title: 'Outreach: Approve proposal',
+    description:
+      "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and sends the first email (with CTA and unsubscribe footer per campaign settings) via the campaign's channel; a reply proposal sends the draft verbatim on its existing conversation. Fails if the proposal is not pending, or if the campaign is disabled or the contact became suppressed since drafting. Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
+    audiences: ['admin'],
+    scopes: ['outreach:write'],
+    input: ApproveProposalInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+    _meta: { ui: { visibility: ['app'] } },
+  })
+  approveProposal(args: z.infer<typeof ApproveProposalInput>) {
+    return translateInvalid(() =>
+      this.outreach.approveProposal(args.id, { publicBaseUrl: readApiBaseUrl() }),
+    );
+  }
+
+  @McpTool({
+    name: 'outreach_dismiss_proposal',
+    title: 'Outreach: Dismiss proposal',
+    description:
+      'Dismiss one pending outreach proposal without sending, optionally recording a reason. The decision (actor and timestamp) is kept on the proposal for audit. Fails if the proposal is not pending. Returns the proposal with `status: "dismissed"`.',
+    audiences: ['admin'],
+    scopes: ['outreach:write'],
+    input: DismissProposalInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+    _meta: { ui: { visibility: ['app'] } },
+  })
+  dismissProposal(args: z.infer<typeof DismissProposalInput>) {
+    return translateInvalid(() =>
+      this.outreach.dismissProposal({ id: args.id, reason: args.reason }),
+    );
   }
 
   @McpTool({
@@ -258,5 +309,14 @@ export class OutreachAdminTools {
   })
   proposeReply(args: z.infer<typeof ProposeReplyInput>) {
     return this.outreach.proposeReply(args);
+  }
+}
+
+async function translateInvalid<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof OutreachInvalidError) throw new BadRequestException(err.message);
+    throw err;
   }
 }

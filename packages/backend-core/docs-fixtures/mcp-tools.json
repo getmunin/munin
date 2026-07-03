@@ -7214,7 +7214,7 @@
   {
     "name": "outreach_list_proposals",
     "title": "Outreach: List proposals",
-    "description": "List drafted outreach proposals (initials in PR2; replies in PR3). Defaults to all statuses. The draft-initial curator queries `status: \"pending\", kind: \"initial\"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: \"pending\"`.",
+    "description": "List drafted outreach proposals. Defaults to all statuses. The draft-initial curator queries `status: \"pending\", kind: \"initial\"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: \"pending\"`. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.",
     "audiences": [
       "admin"
     ],
@@ -7260,6 +7260,66 @@
           "maximum": 500
         }
       },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_approve_proposal",
+    "title": "Outreach: Approve proposal",
+    "description": "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and sends the first email (with CTA and unsubscribe footer per campaign settings) via the campaign's channel; a reply proposal sends the draft verbatim on its existing conversation. Fails if the proposal is not pending, or if the campaign is disabled or the contact became suppressed since drafting. Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_dismiss_proposal",
+    "title": "Outreach: Dismiss proposal",
+    "description": "Dismiss one pending outreach proposal without sending, optionally recording a reason. The decision (actor and timestamp) is kept on the proposal for audit. Fails if the proposal is not pending. Returns the proposal with `status: \"dismissed\"`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "id"
+      ],
       "additionalProperties": false
     }
   },

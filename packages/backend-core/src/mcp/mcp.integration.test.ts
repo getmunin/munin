@@ -225,15 +225,15 @@ const skipReason = TEST_URL
       const inspector = tools.find((t) => t.name === 'inspector_hello');
       expect(inspector, 'inspector_hello tool missing').toBeDefined();
       expect((inspector as { _meta?: { ui?: { resourceUri?: string } } })._meta?.ui?.resourceUri).toBe(
-        'ui://inspector/hello',
+        'ui://munin/inspector',
       );
 
       const { resources } = await c.listResources();
-      const panel = resources.find((r) => r.uri === 'ui://inspector/hello');
-      expect(panel, 'ui://inspector/hello not in resources/list').toBeDefined();
+      const panel = resources.find((r) => r.uri === 'ui://munin/inspector');
+      expect(panel, 'ui://munin/inspector not in resources/list').toBeDefined();
       expect(panel!.mimeType).toBe('text/html;profile=mcp-app');
 
-      const read = await c.readResource({ uri: 'ui://inspector/hello' });
+      const read = await c.readResource({ uri: 'ui://munin/inspector' });
       const first = read.contents[0];
       expect(first?.mimeType).toBe('text/html;profile=mcp-app');
       const html = first && 'text' in first ? first.text : '';

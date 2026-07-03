@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { APP_RESOURCE_MIME_TYPE, type RegisteredSkill } from '@getmunin/mcp-toolkit';
 
-export const INSPECTOR_HELLO_URI = 'ui://inspector/hello';
+export const INSPECTOR_APP_URI = 'ui://munin/inspector';
 
-const INSPECTOR_HELLO_HTML = `<!DOCTYPE html>
+const FALLBACK_HTML = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -76,7 +78,7 @@ const INSPECTOR_HELLO_HTML = `<!DOCTYPE html>
       };
 
       await app.connect();
-      statusEl.textContent = 'Connected — served by Munin over ui://inspector/hello.';
+      statusEl.textContent = 'Connected — served by Munin over ui://munin/inspector.';
       refreshBtn.disabled = false;
 
       refreshBtn.addEventListener('click', async () => {
@@ -97,22 +99,34 @@ const INSPECTOR_HELLO_HTML = `<!DOCTYPE html>
 </html>
 `;
 
-export function inspectorHelloResource(): RegisteredSkill {
+interface InspectorPayload {
+  content: string;
+  cspDomains: string[] | null;
+}
+
+function loadInspectorPayload(): InspectorPayload {
+  try {
+    const require = createRequire(import.meta.url);
+    const bundlePath = require.resolve('@getmunin/inspector-app/dist/index.html');
+    return { content: readFileSync(bundlePath, 'utf8'), cspDomains: null };
+  } catch {
+    return { content: FALLBACK_HTML, cspDomains: ['https://cdn.jsdelivr.net'] };
+  }
+}
+
+export function inspectorAppResource(): RegisteredSkill {
+  const { content, cspDomains } = loadInspectorPayload();
   return {
-    uri: INSPECTOR_HELLO_URI,
-    name: 'Inspector: Hello Munin',
-    description: 'Spike panel validating the MCP Apps round trip (issue #385).',
+    uri: INSPECTOR_APP_URI,
+    name: 'Munin Inspector',
+    description:
+      'Interactive panel rendered by MCP App hosts: outreach proposal review plus a hello diagnostics view (issue #385).',
     audiences: ['admin'],
     mimeType: APP_RESOURCE_MIME_TYPE,
-    content: INSPECTOR_HELLO_HTML,
+    content,
     public: false,
-    meta: {
-      ui: {
-        csp: {
-          resourceDomains: ['https://cdn.jsdelivr.net'],
-          connectDomains: ['https://cdn.jsdelivr.net'],
-        },
-      },
-    },
+    meta: cspDomains
+      ? { ui: { csp: { resourceDomains: cspDomains, connectDomains: cspDomains } } }
+      : { ui: { csp: { resourceDomains: [], connectDomains: [] } } },
   };
 }

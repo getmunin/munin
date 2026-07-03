@@ -1,0 +1,196 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background: rgb(var(--munin-bone));
+  color: rgb(var(--munin-fg-1));
+  font-family: var(--munin-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: rgb(var(--munin-ink));
+    color: rgb(var(--munin-fg-on-dark-1));
+  }
+}
+
+.shell {
+  padding: 1.25rem;
+  max-width: 44rem;
+}
+
+h1 {
+  font-family: var(--munin-serif);
+  font-size: 1.35rem;
+  font-weight: 400;
+  margin: 0 0 0.25rem;
+}
+
+h2 {
+  font-family: var(--munin-serif);
+  font-size: 1.05rem;
+  font-weight: 400;
+  margin: 1.25rem 0 0.5rem;
+  opacity: 0.75;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.status {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  margin: 0 0 0.5rem;
+}
+
+.status-error {
+  color: rgb(var(--munin-alert-bad-ink));
+  background: rgb(var(--munin-alert-bad-bg));
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  opacity: 1;
+}
+
+.payload,
+.body {
+  background: rgba(127, 127, 127, 0.12);
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-family: var(--munin-mono);
+  font-size: 0.78rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin: 0 0 0.75rem;
+}
+
+.body {
+  font-family: var(--munin-sans);
+  font-size: 0.85rem;
+  max-height: 14rem;
+}
+
+.card {
+  background: rgb(var(--munin-paper));
+  color: rgb(var(--munin-fg-1));
+  border: 1px solid rgba(15, 20, 25, var(--munin-rule-soft-alpha));
+  border-radius: var(--munin-radius-bubble);
+  padding: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.subject {
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.mute {
+  color: rgb(var(--munin-fg-3));
+  font-size: 0.82rem;
+}
+
+.badge {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: var(--munin-radius-pill);
+  padding: 0.15rem 0.6rem;
+  white-space: nowrap;
+}
+
+.badge-pending {
+  background: rgba(0, 102, 255, 0.12);
+  color: rgb(var(--munin-accent-deep));
+}
+
+.badge-sent,
+.badge-approved {
+  background: rgb(var(--munin-invite-good-bg));
+  color: rgb(var(--munin-invite-good-ink));
+}
+
+.badge-dismissed {
+  background: rgba(127, 127, 127, 0.15);
+  color: rgb(var(--munin-fg-2));
+}
+
+.badge-failed {
+  background: rgb(var(--munin-alert-bad-bg));
+  color: rgb(var(--munin-alert-bad-ink));
+}
+
+.evidence summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: rgb(var(--munin-fg-3));
+  margin-bottom: 0.4rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--munin-radius-pill);
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: rgb(var(--munin-auth-navy));
+  border-color: rgb(var(--munin-auth-navy));
+  color: rgb(var(--munin-fg-on-dark-1));
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: rgb(var(--munin-auth-navy-hover));
+}
+
+.btn-ghost {
+  border-color: transparent;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.reason {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: transparent;
+  color: inherit;
+  min-width: 12rem;
+}
+
+.card-dismissed,
+.card-sent {
+  opacity: 0.75;
+}

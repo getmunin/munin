@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { getCurrentContext } from '@getmunin/core';
-import { INSPECTOR_HELLO_URI } from './inspector.resource.ts';
+import { INSPECTOR_APP_URI } from './inspector.resource.ts';
 
 const InspectorHelloInput = z.object({});
 
@@ -18,7 +18,7 @@ export class InspectorMcpTool {
     input: InspectorHelloInput,
     readOnlyHint: true,
     destructiveHint: false,
-    _meta: { ui: { resourceUri: INSPECTOR_HELLO_URI }, 'ui/resourceUri': INSPECTOR_HELLO_URI },
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   hello() {
     const ctx = getCurrentContext();

@@ -255,6 +255,7 @@ export class OutreachAdminTools {
     input: ApproveProposalInput,
     readOnlyHint: false,
     destructiveHint: true,
+    _meta: { ui: { visibility: ['app'] } },
   })
   approveProposal(args: z.infer<typeof ApproveProposalInput>) {
     return translateInvalid(() =>
@@ -272,6 +273,7 @@ export class OutreachAdminTools {
     input: DismissProposalInput,
     readOnlyHint: false,
     destructiveHint: true,
+    _meta: { ui: { visibility: ['app'] } },
   })
   dismissProposal(args: z.infer<typeof DismissProposalInput>) {
     return translateInvalid(() =>

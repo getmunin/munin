@@ -113,6 +113,7 @@ MCP Apps (`ui://` panels) specifics:
 - Hosts cache `ui://` resources **per URI** and tell the model "the widget rendered" even when the iframe stays blank — serve panels under content-addressed URIs (see `inspector.resource.ts`) so rebuilds bust the cache.
 - An app that never completes `App.connect()` renders nothing, silently. Don't import the ext-apps SDK from esm.sh (its `zod/v4` shim drops named exports and the SDK throws at import time inside the iframe); bundle the SDK, or use jsdelivr `+esm` for inline spikes.
 - Tool results over ~150k characters abort widget rendering — keep list-tool payloads bounded.
+- Tools can declare `_meta: { ui: { visibility: ['app'] } }` to be callable **only from the panel** — Apps-capable hosts hide them from the model, so the action requires a human click (e.g. `outreach_approve_proposal`). This is host-enforced: hosts without MCP Apps still expose the tool normally, so keep `destructiveHint`, scopes, and service-level state checks as the real backstops. The panel and the model share one credential per session — scopes cannot separate them.
 
 ## Skill and task URI naming
 

@@ -12,11 +12,11 @@ Every outbound email in Munin ships through a human-approved gate: curators file
 
 ## In an MCP App host (Claude, Claude Desktop, …)
 
-Call `outreach_list_proposals({ "status": "pending" })`. Hosts that support MCP Apps render the **Munin Inspector** panel (`ui://munin/inspector`) inline: one card per proposal with the contact, campaign, draft subject/body, and the curator's evidence, plus **Approve & send** and **Dismiss** buttons that call the decision tools directly. The operator clicks; you don't need to relay their decision through chat.
+Call `outreach_list_proposals({ "status": "pending" })`. Hosts that support MCP Apps render the **Munin Inspector** panel (`ui://munin/inspector`) inline: one card per proposal with the contact, campaign, draft subject/body, and the curator's evidence, plus **Approve & send** and **Dismiss** buttons that call the decision tools directly. In these hosts the decision tools are **panel-only** (`_meta.ui.visibility: ["app"]`): they are hidden from you and only the operator's click can invoke them. Render the list and stop — the send decision is physically the human's.
 
 ## Without a panel
 
-The same flow works as plain tool calls:
+In hosts without MCP Apps support the decision tools appear normally, and the same flow works as plain tool calls:
 
 1. **List** — `outreach_list_proposals({ "status": "pending" })`. Each row carries `id`, `kind`, `draftSubject`, `draftBody`, `evidence`, `proposedSendAt`, and nested `contact` / `campaign` summaries.
 2. **Present each draft** to the operator: who it goes to, which campaign, the subject, the full body, and anything notable in `evidence`. Don't paraphrase the body — the operator is approving the literal text.

@@ -165,6 +165,14 @@ const skipReason = TEST_URL
         (listProposals as { _meta?: { ui?: { resourceUri?: string } } })._meta?.ui?.resourceUri,
       ).toBe(INSPECTOR_APP_URI);
       expect(INSPECTOR_APP_URI).toMatch(/^ui:\/\/munin\/inspector@[0-9a-f]{8}$/);
+
+      for (const name of ['outreach_approve_proposal', 'outreach_dismiss_proposal']) {
+        const tool = tools.find((t) => t.name === name);
+        expect(
+          (tool as { _meta?: { ui?: { visibility?: string[] } } })._meta?.ui?.visibility,
+          `${name} should be app-only`,
+        ).toEqual(['app']);
+      }
     });
   });
 

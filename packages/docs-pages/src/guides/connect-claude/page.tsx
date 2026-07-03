@@ -46,7 +46,7 @@ export default function ConnectClaude() {
         <p className="tag-blurb">
           In the dashboard, go to <Link href="/dashboard/settings/api-keys">Settings → API keys</Link>{' '}
           and create a key. Scope it to what Claude should be allowed to do — read-only KB access,
-          full CRM write, or everything. The token starts with <code>mn_live_</code>. You&rsquo;ll
+          full CRM write, or everything. The token starts with <code>mn_admin_</code>. You&rsquo;ll
           only see it once.
         </p>
 
@@ -66,7 +66,7 @@ export default function ConnectClaude() {
           </dd>
           <dt>Authentication</dt>
           <dd>
-            Bearer token. Paste your <code>mn_live_…</code> key.
+            Bearer token. Paste your <code>mn_admin_…</code> key.
           </dd>
         </dl>
         <p className="tag-blurb">

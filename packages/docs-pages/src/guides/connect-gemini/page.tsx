@@ -36,7 +36,7 @@ export default function ConnectGemini() {
         <p className="tag-blurb">
           From the dashboard, go to{' '}
           <Link href="/dashboard/settings/api-keys">Settings → API keys</Link>. Pick scopes that
-          match what Gemini should be allowed to do. The token starts with <code>mn_live_</code>{' '}
+          match what Gemini should be allowed to do. The token starts with <code>mn_admin_</code>{' '}
           and is shown once.
         </p>
 
@@ -53,7 +53,7 @@ export default function ConnectGemini() {
             <span style={{ color: 'var(--docs-mute)' }}>writes ~/.gemini/settings.json</span>
           </div>
           <pre>{`gemini mcp add --transport http munin ${mcpUrl} \\
-  -H "Authorization: Bearer mn_live_…"`}</pre>
+  -H "Authorization: Bearer mn_admin_…"`}</pre>
         </div>
 
         <h2 className="tag-h" id="add-file" style={{ marginTop: 56 }}>
@@ -75,7 +75,7 @@ export default function ConnectGemini() {
     "munin": {
       "httpUrl": "${mcpUrl}",
       "headers": {
-        "Authorization": "Bearer mn_live_…"
+        "Authorization": "Bearer mn_admin_…"
       }
     }
   }

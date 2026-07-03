@@ -37,7 +37,7 @@ export default function ConnectOpenClaw() {
           In the dashboard, go to{' '}
           <Link href="/dashboard/settings/api-keys">Settings → API keys</Link> and create a key.
           Scope it to what OpenClaw should be allowed to do — read-only KB, full CRM write, or
-          everything. The token starts with <code>mn_live_</code> and is shown once.
+          everything. The token starts with <code>mn_admin_</code> and is shown once.
         </p>
 
         <h2 className="tag-h" id="add-cli" style={{ marginTop: 56 }}>
@@ -57,7 +57,7 @@ export default function ConnectOpenClaw() {
           <pre>{`openclaw mcp add munin \\
   --url ${mcpUrl} \\
   --transport streamable-http \\
-  --header "Authorization: Bearer mn_live_…" \\
+  --header "Authorization: Bearer mn_admin_…" \\
   --timeout 20`}</pre>
         </div>
 
@@ -81,7 +81,7 @@ export default function ConnectOpenClaw() {
         "transport": "streamable-http",
         "timeout": 20,
         "headers": {
-          "Authorization": "Bearer mn_live_…"
+          "Authorization": "Bearer mn_admin_…"
         }
       }
     }
@@ -131,7 +131,7 @@ openclaw mcp list`}</pre>
       "munin": {
         "url": "${mcpUrl}",
         "transport": "streamable-http",
-        "headers": { "Authorization": "Bearer mn_live_…" },
+        "headers": { "Authorization": "Bearer mn_admin_…" },
         "toolFilter": {
           "include": ["kb_*", "crm_get_*", "crm_search_*"],
           "exclude": ["*_delete_*"]

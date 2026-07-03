@@ -48,7 +48,7 @@ export default function ConnectChatGPT() {
           From the dashboard, go to{' '}
           <Link href="/dashboard/settings/api-keys">Settings → API keys</Link> and create one.
           Scope it to what ChatGPT should be allowed to do. The token starts with{' '}
-          <code>mn_live_</code> and is shown once.
+          <code>mn_admin_</code> and is shown once.
         </p>
 
         <h2 className="tag-h" id="developer-mode" style={{ marginTop: 56 }}>
@@ -79,7 +79,7 @@ export default function ConnectChatGPT() {
           <dd>
             No authentication is the default for the form, but Munin requires a bearer token. Pick{' '}
             <em>Custom</em> and add an <code>Authorization</code> header with value{' '}
-            <code>Bearer mn_live_…</code>.
+            <code>Bearer mn_admin_…</code>.
           </dd>
           <dt>I trust this application</dt>
           <dd>

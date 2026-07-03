@@ -38,7 +38,7 @@ export default function ConnectHermes() {
           <Link href="/dashboard/settings/api-keys">Settings → API keys</Link> and create a key.
           Pick scopes that match what Hermes should be allowed to do — read-only KB for an
           answer-bot, full CRM write for a sales agent. The token starts with{' '}
-          <code>mn_live_</code> and is shown once.
+          <code>mn_admin_</code> and is shown once.
         </p>
 
         <h2 className="tag-h" id="add" style={{ marginTop: 56 }}>
@@ -58,7 +58,7 @@ export default function ConnectHermes() {
   munin:
     url: "${mcpUrl}"
     headers:
-      Authorization: "Bearer mn_live_…"
+      Authorization: "Bearer mn_admin_…"
     enabled: true
     timeout: 120
     connect_timeout: 60`}</pre>
@@ -114,7 +114,7 @@ export default function ConnectHermes() {
   munin:
     url: "${mcpUrl}"
     headers:
-      Authorization: "Bearer mn_live_…"
+      Authorization: "Bearer mn_admin_…"
     tools:
       include:
         - "kb_*"

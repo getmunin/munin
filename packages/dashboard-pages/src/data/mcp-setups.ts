@@ -7,7 +7,7 @@ export interface McpSetup {
   docsLabel: string;
 }
 
-const TOKEN_PLACEHOLDER = 'mn_live_••••••••';
+const TOKEN_PLACEHOLDER = 'mn_admin_••••••••';
 
 export function buildMcpSetups(host: string, docsHost: string = DEFAULT_DOCS_HOST): McpSetup[] {
   const docs = docsHost.replace(/\/+$/, '');

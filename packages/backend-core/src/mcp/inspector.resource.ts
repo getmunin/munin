@@ -57,7 +57,7 @@ const INSPECTOR_HELLO_HTML = `<!DOCTYPE html>
       <button id="refresh" disabled>Refresh from server</button>
     </main>
     <script type="module">
-      import { App } from 'https://esm.sh/@modelcontextprotocol/ext-apps@1.7.4';
+      import { App } from 'https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@1.7.4/+esm';
 
       const statusEl = document.getElementById('status');
       const payloadEl = document.getElementById('payload');
@@ -109,8 +109,8 @@ export function inspectorHelloResource(): RegisteredSkill {
     meta: {
       ui: {
         csp: {
-          resourceDomains: ['https://esm.sh'],
-          connectDomains: ['https://esm.sh'],
+          resourceDomains: ['https://cdn.jsdelivr.net'],
+          connectDomains: ['https://cdn.jsdelivr.net'],
         },
       },
     },

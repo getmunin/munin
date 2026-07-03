@@ -68,15 +68,50 @@ When a Munin user replies in the conversation UI, `conversation.message.sent` fi
 
 Same webhook surface used elsewhere in Munin — no widget-specific events.
 
-## 4. Browser-direct integration (less secure)
+## 4. Verified identity (optional)
+
+By default widget visitors are anonymous — contacts are keyed on `metadata.sessionId` (or `visitor.email` if sent). To tie a widget session to a *known* user (and gate anonymous access), attach a signed identity: a `verifiedExternalId` + `userHash` pair the ingest endpoint verifies against the channel's identity-verification secret.
+
+`conv_widget_create_channel` returns `identityVerificationSecret` once (alongside `widgetKey`). Treat it like an OAuth client secret — store it server-side, never embed it in browser JS. Rotate with `conv_widget_rotate_identity_secret` (previously-issued hashes stop verifying immediately). This is a **separate secret from the analytics tracker's** — sign widget hashes with the widget channel's secret, never the tracker secret.
+
+Compute the hash server-side:
+
+```ts
+import { createHmac } from 'node:crypto';
+
+function userHash(externalId: string, secret: string): string {
+  return createHmac('sha256', secret).update(externalId).digest('hex');
+}
+```
+
+The widget hash covers `externalId` **only** — no visitor binding. That's a deliberate contrast with the analytics tracker, whose identify hash binds the visitor (`HMAC(\`${externalId}:${visitorId}\`)`, see `skill://analytics/identify-visitors`) and therefore needs a per-session browser round-trip. Because the widget hash is static per user, you can **server-render it** into the embed with no round-trip:
+
+```html
+<script async
+  src="https://munin.example/widget.js"
+  data-widget-key="mn_widget_…"
+  data-channel-id="cch_…"
+  data-external-id="user_42"
+  data-user-hash="<hex hmac from above>">
+</script>
+```
+
+`data-external-id` and `data-user-hash` are all-or-nothing: sending one without the other is rejected (`identity_partial`). Render them only for signed-in users; omit both for anonymous visitors. (On browser-direct calls, the same values are passed as the `verifiedExternalId` + `userHash` params.)
+
+Set `requireVerifiedIdentity: true` on the channel (`conv_widget_create_channel` / `conv_widget_update_channel`) to reject unverified sessions outright; the default (`false`) allows anonymous ingest alongside verified ones.
+
+Because the widget and the analytics tracker share the same `localStorage` visitor id (`mn.vid`), identifying a visitor to the widget also stitches their prior anonymous analytics history — no separate `window.mn.identify` call needed for that visitor.
+
+## 5. Browser-direct integration (less secure)
 
 If you must call the endpoint from browser JS, the channel's `originAllowlist` reflects allowed `Origin` headers and the endpoint sets the matching `Access-Control-Allow-Origin`. Anyone on a listed origin can use the key; rotation is one tool call. Server-side is strongly preferred.
 
-## 5. Operations
+## 6. Operations
 
 | Task | How |
 |---|---|
 | Disable the channel | Set `conv_channels.active=false`. Existing keys still auth but ingest returns 403. |
 | Rotate the widget key | `conv_widget_rotate_key`. Old key revoked; existing inflight requests with it 401. |
+| Rotate the identity secret | `conv_widget_rotate_identity_secret`. Previously-issued `data-user-hash` values stop verifying; re-render signed-in pages with freshly-computed hashes. |
 | Tighten `originAllowlist` | `conv_widget_update_channel`. |
 | Inspect a conversation | Standard `conv_*` tools. The `metadata.sessionId`, `metadata.providerMessageId`, and `metadata.url` fields tell you the visitor's session. |

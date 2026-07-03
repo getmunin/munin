@@ -25,6 +25,7 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@getmunin/dashboard-pages": "workspace:*",
     "@getmunin/ui": "workspace:*",
     "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@modelcontextprotocol/sdk": "^1.29.0",

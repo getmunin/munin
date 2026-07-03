@@ -8,6 +8,7 @@ import {
   type Proposal,
 } from '../types';
 import { Chrome } from '../chrome';
+import { useI18n, type Translator } from '../i18n';
 
 type CardState = {
   busy: 'approve' | 'dismiss' | null;
@@ -21,6 +22,7 @@ const DISPLAY_PAGE = 25;
 const REFRESH_LIMIT = 100;
 
 export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal[] }) {
+  const { t } = useI18n();
   const [proposals, setProposals] = useState<Proposal[]>(initial);
   const [openId, setOpenId] = useState<string | null>(initial[0]?.id ?? null);
   const [evidenceOpen, setEvidenceOpen] = useState<Record<string, boolean>>({});
@@ -94,20 +96,32 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
     }
   }
 
+  const foot =
+    pendingCount === 0
+      ? t('proposals.footClear')
+      : [
+          hiddenCount > 0
+            ? t('proposals.footShowing', { visible: visible.length, total: proposals.length })
+            : null,
+          t('proposals.footPending', { count: pendingCount }),
+        ]
+          .filter(Boolean)
+          .join(' · ');
+
   return (
-    <Chrome context="Outreach" tool="outreach_list_proposals">
+    <Chrome context={t('chrome.contextOutreach')} tool="outreach_list_proposals">
       <div className="ledger-head">
         <div>
-          <div className="eyebrow eyebrow-accent">Pending proposals</div>
-          <h1 className="ledger-title">Outreach proposals</h1>
+          <div className="eyebrow eyebrow-accent">{t('proposals.eyebrow')}</div>
+          <h1 className="ledger-title">{t('proposals.title')}</h1>
           <p className="subline">
             {pendingCount === 0
-              ? 'Nothing waiting — the queue is clear.'
-              : `${pendingCount} waiting for review — approving sends the email.`}
+              ? t('proposals.sublineEmpty')
+              : t('proposals.sublinePending', { count: pendingCount })}
           </p>
         </div>
         <button className="chip-btn" disabled={refreshing} onClick={() => void refresh()}>
-          {refreshing ? 'Refreshing…' : 'Refresh'}
+          {refreshing ? t('proposals.refreshing') : t('proposals.refresh')}
         </button>
       </div>
       {listError && <p className="list-error">{listError}</p>}
@@ -131,16 +145,13 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
           className="more-row"
           onClick={() => setVisibleCount((n) => n + DISPLAY_PAGE)}
         >
-          Show {Math.min(DISPLAY_PAGE, hiddenCount)} more ({hiddenCount} hidden)
+          {t('proposals.showMore', {
+            count: Math.min(DISPLAY_PAGE, hiddenCount),
+            hidden: hiddenCount,
+          })}
         </button>
       )}
-      <div className="ledger-foot">
-        {pendingCount === 0
-          ? 'Queue clear'
-          : `${
-              hiddenCount > 0 ? `showing ${visible.length} of ${proposals.length} · ` : ''
-            }${pendingCount} pending · approve sends immediately`}
-      </div>
+      <div className="ledger-foot">{foot}</div>
     </Chrome>
   );
 }
@@ -164,11 +175,12 @@ function ProposalRow({
   onApprove: () => void;
   onDismiss: () => void;
 }) {
+  const { locale, t } = useI18n();
   const contact = proposal.contact;
   const name = contact?.name || contact?.email || proposal.contactId;
   const campaignMeta = `${proposal.campaign?.name ?? proposal.campaignId} · ${proposal.kind}`;
   const hasEvidence = Object.keys(proposal.evidence ?? {}).length > 0;
-  const line = decidedLine(proposal, state.decidedNow);
+  const line = decidedLine(proposal, state.decidedNow, t);
 
   return (
     <div className="row">
@@ -186,16 +198,16 @@ function ProposalRow({
       >
         <span className={`pill pill-${proposal.status}`}>
           <span className="pill-dot" />
-          {proposal.status}
+          {t(`proposals.status.${proposal.status}`)}
         </span>
         <div className="row-main">
           <div className="row-who">
             <b>{name}</b>
             {contact?.email && contact.name && <span className="mute"> · {contact.email}</span>}
           </div>
-          <div className="row-subject">{proposal.draftSubject ?? '(no subject)'}</div>
+          <div className="row-subject">{proposal.draftSubject ?? t('proposals.noSubject')}</div>
         </div>
-        <span className="row-age">{age(proposal.createdAt)}</span>
+        <span className="row-age">{age(proposal.createdAt, locale, t)}</span>
         <span className="row-caret">{open ? '−' : '+'}</span>
       </div>
       {open && (
@@ -208,7 +220,7 @@ function ProposalRow({
           </div>
           {hasEvidence && (
             <button className="ev-toggle" onClick={onToggleEvidence}>
-              {evidenceOpen ? 'Evidence −' : 'Evidence +'}
+              {evidenceOpen ? t('proposals.evidenceHide') : t('proposals.evidenceShow')}
             </button>
           )}
           {hasEvidence && evidenceOpen && (
@@ -222,10 +234,10 @@ function ProposalRow({
                 disabled={state.busy !== null}
                 onClick={onApprove}
               >
-                {state.busy === 'approve' ? 'Sending…' : 'Approve & send'}
+                {state.busy === 'approve' ? t('proposals.approving') : t('proposals.approve')}
               </button>
               <button className="chip-btn" disabled={state.busy !== null} onClick={onDismiss}>
-                {state.busy === 'dismiss' ? 'Dismissing…' : 'Dismiss'}
+                {state.busy === 'dismiss' ? t('proposals.dismissing') : t('proposals.dismiss')}
               </button>
             </div>
           ) : (
@@ -240,22 +252,28 @@ function ProposalRow({
 function decidedLine(
   proposal: Proposal,
   decidedNow: boolean,
+  t: Translator,
 ): { text: string; className: string } | null {
   switch (proposal.status) {
     case 'sent':
-      return { text: decidedNow ? 'Sent just now.' : 'Sent.', className: 'line-accent' };
+      return {
+        text: decidedNow ? t('proposals.sentNow') : t('proposals.sent'),
+        className: 'line-accent',
+      };
     case 'approved':
-      return { text: 'Approved.', className: 'line-accent' };
+      return { text: t('proposals.approved'), className: 'line-accent' };
     case 'dismissed':
       return {
         text: proposal.dismissReason
-          ? `Dismissed — ${proposal.dismissReason}`
-          : 'Dismissed — nothing was sent.',
+          ? t('proposals.dismissedReason', { reason: proposal.dismissReason })
+          : t('proposals.dismissed'),
         className: 'line-mute',
       };
     case 'failed':
       return {
-        text: proposal.failureReason ? `Failed — ${proposal.failureReason}` : 'Failed.',
+        text: proposal.failureReason
+          ? t('proposals.failedReason', { reason: proposal.failureReason })
+          : t('proposals.failed'),
         className: 'line-error',
       };
     default:
@@ -263,13 +281,14 @@ function decidedLine(
   }
 }
 
-function age(iso: string): string {
+function age(iso: string, locale: string, t: Translator): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
   const mins = Math.max(0, Math.floor((Date.now() - then) / 60_000));
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
+  if (mins < 1) return t('proposals.ageNow');
+  const rtf = new Intl.RelativeTimeFormat(locale, { style: 'short' });
+  if (mins < 60) return rtf.format(-mins, 'minute');
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  if (hours < 24) return rtf.format(-hours, 'hour');
+  return rtf.format(-Math.floor(hours / 24), 'day');
 }

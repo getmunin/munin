@@ -1339,6 +1339,55 @@
       "signUp": "Sign up with GitHub"
     }
   },
+  "inspector": {
+    "chrome": {
+      "contextInspector": "Inspector",
+      "contextOutreach": "Outreach"
+    },
+    "connect": {
+      "connecting": "Connecting to host…",
+      "failed": "Could not connect to the host: {error}"
+    },
+    "fallback": {
+      "title": "Munin Inspector",
+      "waiting": "Connected — waiting for a tool result from the host.",
+      "raw": "Connected — showing the raw tool result."
+    },
+    "proposals": {
+      "eyebrow": "Pending proposals",
+      "title": "Outreach proposals",
+      "sublineEmpty": "Nothing waiting — the queue is clear.",
+      "sublinePending": "{count} waiting for review — approving sends the email.",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "noSubject": "(no subject)",
+      "evidenceShow": "Evidence +",
+      "evidenceHide": "Evidence −",
+      "approve": "Approve & send",
+      "approving": "Sending…",
+      "dismiss": "Dismiss",
+      "dismissing": "Dismissing…",
+      "sentNow": "Sent just now.",
+      "sent": "Sent.",
+      "approved": "Approved.",
+      "dismissed": "Dismissed — nothing was sent.",
+      "dismissedReason": "Dismissed — {reason}",
+      "failed": "Failed.",
+      "failedReason": "Failed — {reason}",
+      "showMore": "Show {count} more ({hidden} hidden)",
+      "footClear": "Queue clear",
+      "footPending": "{count} pending · approve sends immediately",
+      "footShowing": "showing {visible} of {total}",
+      "ageNow": "now",
+      "status": {
+        "pending": "pending",
+        "approved": "approved",
+        "sent": "sent",
+        "dismissed": "dismissed",
+        "failed": "failed"
+      }
+    }
+  },
   "legal": {
     "privacy": {
       "title": "Privacy Policy — Munin",

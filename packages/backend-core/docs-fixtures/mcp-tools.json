@@ -543,7 +543,7 @@
   {
     "name": "analytics_rotate_tracker_identity_secret",
     "title": "Analytics: Rotate tracker identity verification secret",
-    "description": "Mint a fresh HMAC secret for verifying visitor-identity claims sent to `/v1/a/identify`. Returns the plaintext secret once; store it server-side and use it to compute `userHash = HMAC_SHA256(externalId, secret)` before calling `window.mn.identify(externalId, userHash)` from the browser. The previous secret is replaced immediately — any in-flight identify calls signed with it will fail.",
+    "description": "Mint a fresh HMAC secret for verifying visitor-identity claims sent to `/v1/a/identify`. Returns the plaintext secret once; store it server-side and use it to compute `userHash = HMAC_SHA256('${externalId}:${visitorId}', secret)` — the hash binds the visitor, so read `visitorId` from `window.mn.getVisitorId()` first — before calling `window.mn.identify(externalId, userHash)` from the browser. The previous secret is replaced immediately — any in-flight identify calls signed with it will fail.",
     "audiences": [
       "admin"
     ],

@@ -1,10 +1,5 @@
 import type { Config } from 'tailwindcss';
 
-/**
- * Every color resolves through the CSS variables defined in
- * styles/tokens.css — consumers must import that file (and usually
- * styles/fonts.css) or the utilities produce empty values.
- */
 const muninPreset: Omit<Config, 'content'> = {
   darkMode: 'media',
   future: {

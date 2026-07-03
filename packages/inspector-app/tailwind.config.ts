@@ -3,12 +3,7 @@ import muninPreset from '@getmunin/ui/tailwind-preset';
 
 const config: Config = {
   presets: [muninPreset],
-  content: [
-    './app/**/*.{ts,tsx}',
-    './components/**/*.{ts,tsx}',
-    '../../packages/ui/src/**/*.{ts,tsx}',
-    '../../packages/dashboard-pages/src/**/*.{ts,tsx}',
-  ],
+  content: ['./index.html', './src/**/*.{ts,tsx}', '../ui/src/**/*.{ts,tsx}'],
 };
 
 export default config;

@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import '@getmunin/ui/styles/tokens.css';
-import './fonts.css';
+import '@getmunin/ui/styles/fonts.css';
+import './tailwind.css';
 import './styles.css';
 import { InspectorApp } from './app';
 

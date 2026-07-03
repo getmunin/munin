@@ -351,6 +351,13 @@
       "when": 1782807511913,
       "tag": "0049_outreach_campaign_auto_draft",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1783074481028,
+      "tag": "0050_slack_operator_bridge",
+      "breakpoints": true
     }
   ]
 }

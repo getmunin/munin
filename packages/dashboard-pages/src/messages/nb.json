@@ -1229,6 +1229,25 @@
         "failedSummary": "Kunne ikke nå {host}. Ingen sider ble importert. Agenten din er fortsatt aktiv — importer senere fra Innstillinger.",
         "retry": "Prøv import på nytt"
       }
+    },
+    "slack": {
+      "sectionTitle": "Integrasjoner",
+      "sectionBlurb": "Operatørflater lagt oppå samtalene dine.",
+      "title": "Slack",
+      "lede": "Speil samtaler inn i en Slack-kanal som tråder og varsle teamet ved eskaleringer. Svar til kunden går fortsatt ut via samtalens opprinnelige kanal.",
+      "notConfigured": "Denne installasjonen har ingen Slack-app konfigurert. Sett SLACK_CLIENT_ID og SLACK_CLIENT_SECRET på backenden — agentferdigheten «Connect Slack for human handoff» har app-manifestet og stegene.",
+      "connect": "Koble til Slack",
+      "connectedTo": "Koblet til {workspace}.",
+      "channelLabel": "Standard kanal-ID",
+      "channelHint": "Slack-kanalen samtaler speiles inn i (kanaldetaljer → Om → Kanal-ID, f.eks. C0123456789).",
+      "saveRouting": "Lagre kanal",
+      "routingSaved": "Slack-kanal lagret",
+      "inviteBot": "Boten er ikke i kanalen ennå — kjør /invite @Munin i Slack, og send deretter en test.",
+      "sendTest": "Send testmelding",
+      "testSent": "Testmelding sendt",
+      "disconnect": "Koble fra",
+      "disconnectConfirm": "Koble fra Slack? Trådkoblinger og ruting slettes; samtalene i Munin påvirkes ikke.",
+      "failedDeliveries": "{count} speilinger feilet siste 24 timer."
     }
   },
   "integrations": {

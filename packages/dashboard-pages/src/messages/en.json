@@ -1229,6 +1229,25 @@
         "failedSummary": "Couldn't reach {host}. No pages were imported. Your agent is still live — import later from Settings.",
         "retry": "Retry import"
       }
+    },
+    "slack": {
+      "sectionTitle": "Integrations",
+      "sectionBlurb": "Operator surfaces layered on top of your conversations.",
+      "title": "Slack",
+      "lede": "Mirror conversations into a Slack channel as threads and alert your team on handover requests. Replies to customers still go out over the conversation's original channel.",
+      "notConfigured": "This deployment has no Slack app configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET on the backend — the agent skill \"Connect Slack for human handoff\" has the app manifest and steps.",
+      "connect": "Connect Slack",
+      "connectedTo": "Connected to {workspace}.",
+      "channelLabel": "Default channel ID",
+      "channelHint": "The Slack channel conversations mirror into (channel details → About → Channel ID, e.g. C0123456789).",
+      "saveRouting": "Save channel",
+      "routingSaved": "Slack channel saved",
+      "inviteBot": "The bot is not in that channel yet — run /invite @Munin in Slack, then send a test.",
+      "sendTest": "Send test message",
+      "testSent": "Test message sent",
+      "disconnect": "Disconnect",
+      "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",
+      "failedDeliveries": "{count} mirror deliveries failed in the last 24 hours."
     }
   },
   "integrations": {

@@ -152,6 +152,15 @@ const userHash = crypto
         Without identity, the widget identifies the visitor by a UUID kept in <code>localStorage</code>{' '}
         (with a cookie fallback) — refreshes resume the same thread, but a different browser starts fresh.
       </p>
+      <p className="tag-blurb" style={{ marginTop: 16 }}>
+        Both <code>localStorage</code> and the fallback cookie are scoped to the exact host by default, so a
+        conversation started on <code>www.example.com</code> does <em>not</em> carry over to{' '}
+        <code>app.example.com</code>. To share one thread across sibling subdomains, set{' '}
+        <code>data-munin-cookie-domain=&quot;.example.com&quot;</code> on every page&rsquo;s embed — the
+        session and visitor cookies are then written with that <code>Domain</code> and the anonymous thread
+        is claimed when the visitor signs in on the app. The value must be a suffix of the page&rsquo;s host,
+        or it&rsquo;s ignored.
+      </p>
 
       <h3 className="tag-h" id="identify-after-load" style={{ marginTop: 32 }}>
         Identify after script load (SPAs)

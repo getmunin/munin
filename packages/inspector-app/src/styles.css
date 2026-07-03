@@ -34,6 +34,13 @@ button {
 .panel {
   background: var(--paper);
   border: 1px solid var(--ink);
+  border-radius: var(--border-radius-lg, 0);
+  overflow: hidden;
+}
+
+body.host-mobile .panel {
+  border: none;
+  border-radius: 0;
 }
 
 .chrome {
@@ -263,6 +270,10 @@ button {
 @media (max-width: 640px) {
   .row-detail {
     padding-left: 24px;
+  }
+
+  .row-age {
+    display: none;
   }
 }
 

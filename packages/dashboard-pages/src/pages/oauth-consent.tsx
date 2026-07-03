@@ -109,10 +109,9 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
 
   useEffect(() => {
     if (!isPending && !session) {
-      const next = encodeURIComponent(window.location.href);
-      window.location.assign(`/login?next=${next}`);
+      window.location.assign(oauthQuery ? `/login?${oauthQuery}` : '/login');
     }
-  }, [isPending, session]);
+  }, [isPending, session, oauthQuery]);
 
   if (isPending || !session) {
     return <PageSpinner className="min-h-screen bg-background" />;
@@ -174,9 +173,8 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
               onSubmit={(accept) => void submit(accept)}
               onSwitchAccount={() => {
                 void (async () => {
-                  const next = encodeURIComponent(window.location.href);
                   await authClient.signOut();
-                  window.location.assign(`/login?next=${next}`);
+                  window.location.assign(oauthQuery ? `/login?${oauthQuery}` : '/login');
                 })();
               }}
             />

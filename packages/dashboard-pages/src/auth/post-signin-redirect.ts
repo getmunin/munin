@@ -9,6 +9,21 @@ export function absoluteCallbackUrl(path: string): string {
   return new URL(path, window.location.origin).toString();
 }
 
+export function oauthResumeFromSearchParams(
+  sp: Record<string, string | string[] | undefined>,
+): string | null {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    } else {
+      params.append(key, value);
+    }
+  }
+  return resumeOauthAuthorizeUrl(params);
+}
+
 export function resumeOauthAuthorizeUrl(params: URLSearchParams): string | null {
   if (params.get('response_type') !== 'code') return null;
   if (!params.get('client_id')) return null;

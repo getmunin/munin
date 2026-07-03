@@ -1,7 +1,8 @@
 import 'server-only';
 import { cookies } from 'next/headers';
+import { redirect as externalRedirect } from 'next/navigation';
 import { redirect } from '../i18n-navigation';
-import { safeRedirect } from './post-signin-redirect';
+import { oauthResumeFromSearchParams, safeRedirect } from './post-signin-redirect';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -60,9 +61,12 @@ export async function getServerSession(): Promise<ServerSession | null> {
 export async function redirectIfAuthenticated(opts: {
   locale: string;
   redirectParam?: string | string[] | null;
+  searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<void> {
   const session = await getServerSession();
   if (!session) return;
+  const resume = opts.searchParams ? oauthResumeFromSearchParams(opts.searchParams) : null;
+  if (resume) externalRedirect(resume);
   const raw = Array.isArray(opts.redirectParam) ? opts.redirectParam[0] : opts.redirectParam;
   redirect({ href: safeRedirect(raw ?? null), locale: opts.locale });
 }

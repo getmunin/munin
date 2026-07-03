@@ -11,10 +11,10 @@ export default async function SignupPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ redirect?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ locale }, sp] = await Promise.all([params, searchParams]);
-  await redirectIfAuthenticated({ locale, redirectParam: sp.redirect });
+  await redirectIfAuthenticated({ locale, redirectParam: sp.redirect, searchParams: sp });
   const providers = await fetchAuthProviders();
   return (
     <Suspense fallback={null}>

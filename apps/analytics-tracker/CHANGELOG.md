@@ -1,5 +1,7 @@
 # @getmunin/analytics-tracker
 
+## 4.66.0
+
 ## 4.65.0
 
 ### Minor Changes

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { SkillRegistry } from '@getmunin/mcp-toolkit';
 import type { Audience } from '@getmunin/core';
 import { loadSkills, type SkillSource } from './skill-loader.ts';
-import { inspectorHelloResource } from './inspector.resource.ts';
+import { inspectorAppResource } from './inspector.resource.ts';
 import { mcpResourceOrigin } from '../oauth/oauth.constants.ts';
 
 @Injectable()
@@ -18,7 +18,7 @@ export class McpSkillRegistryService extends SkillRegistry implements OnModuleIn
     for (const skill of loadSkills(sources)) {
       this.register(skill);
     }
-    this.register(inspectorHelloResource());
+    this.register(inspectorAppResource());
     this.cachedInstructions = buildInstructions(
       this.list('admin').filter((s) => s.uri.startsWith('skill://')),
       mcpResourceOrigin(),

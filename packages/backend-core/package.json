@@ -46,6 +46,7 @@
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",
     "@getmunin/emails": "workspace:*",
+    "@getmunin/inspector-app": "workspace:*",
     "@getmunin/mcp-toolkit": "workspace:*",
     "@getmunin/types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",

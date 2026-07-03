@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { APP_RESOURCE_MIME_TYPE, type RegisteredSkill } from '@getmunin/mcp-toolkit';
 
-export const INSPECTOR_HELLO_URI = 'ui://inspector/hello';
-
-const INSPECTOR_HELLO_HTML = `<!DOCTYPE html>
+const FALLBACK_HTML = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -51,68 +52,67 @@ const INSPECTOR_HELLO_HTML = `<!DOCTYPE html>
   </head>
   <body>
     <main>
-      <h1>Hello from Munin 👋</h1>
+      <h1>Munin Inspector</h1>
       <p id="status">Connecting to host…</p>
       <pre id="payload">—</pre>
-      <button id="refresh" disabled>Refresh from server</button>
     </main>
     <script type="module">
       import { App } from 'https://cdn.jsdelivr.net/npm/@modelcontextprotocol/ext-apps@1.7.4/+esm';
 
       const statusEl = document.getElementById('status');
       const payloadEl = document.getElementById('payload');
-      const refreshBtn = document.getElementById('refresh');
-
-      function render(result) {
-        const text = result?.content?.find((c) => c.type === 'text')?.text;
-        payloadEl.textContent = text ?? JSON.stringify(result ?? {}, null, 2);
-      }
 
       const app = new App({ name: 'Munin Inspector', version: '0.1.0' });
 
-      app.ontoolresult = (params) => {
+      app.ontoolresult = (result) => {
         statusEl.textContent = 'Tool result pushed by host.';
-        render(params);
+        const text = result?.content?.find((c) => c.type === 'text')?.text;
+        payloadEl.textContent = text ?? JSON.stringify(result ?? {}, null, 2);
       };
 
       await app.connect();
-      statusEl.textContent = 'Connected — served by Munin over ui://inspector/hello.';
-      refreshBtn.disabled = false;
-
-      refreshBtn.addEventListener('click', async () => {
-        refreshBtn.disabled = true;
-        statusEl.textContent = 'Calling inspector_hello…';
-        try {
-          const result = await app.callServerTool({ name: 'inspector_hello', arguments: {} });
-          statusEl.textContent = 'Refreshed via tools/call round trip.';
-          render(result);
-        } catch (err) {
-          statusEl.textContent = 'Tool call failed: ' + (err?.message ?? err);
-        } finally {
-          refreshBtn.disabled = false;
-        }
-      });
+      statusEl.textContent =
+        'Connected — the interactive panel bundle is not built on this server (@getmunin/inspector-app).';
     </script>
   </body>
 </html>
 `;
 
-export function inspectorHelloResource(): RegisteredSkill {
+interface InspectorPayload {
+  content: string;
+  cspDomains: string[] | null;
+}
+
+function loadInspectorPayload(): InspectorPayload {
+  try {
+    const require = createRequire(import.meta.url);
+    const bundlePath = require.resolve('@getmunin/inspector-app/dist/index.html');
+    return { content: readFileSync(bundlePath, 'utf8'), cspDomains: null };
+  } catch {
+    return { content: FALLBACK_HTML, cspDomains: ['https://cdn.jsdelivr.net'] };
+  }
+}
+
+const inspectorPayload = loadInspectorPayload();
+
+export const INSPECTOR_APP_URI = `ui://munin/inspector@${createHash('sha256')
+  .update(inspectorPayload.content)
+  .digest('hex')
+  .slice(0, 8)}`;
+
+export function inspectorAppResource(): RegisteredSkill {
+  const { content, cspDomains } = inspectorPayload;
   return {
-    uri: INSPECTOR_HELLO_URI,
-    name: 'Inspector: Hello Munin',
-    description: 'Spike panel validating the MCP Apps round trip (issue #385).',
+    uri: INSPECTOR_APP_URI,
+    name: 'Munin Inspector',
+    description:
+      'Interactive panel rendered by MCP App hosts: outreach proposal review plus a hello diagnostics view (issue #385).',
     audiences: ['admin'],
     mimeType: APP_RESOURCE_MIME_TYPE,
-    content: INSPECTOR_HELLO_HTML,
+    content,
     public: false,
-    meta: {
-      ui: {
-        csp: {
-          resourceDomains: ['https://cdn.jsdelivr.net'],
-          connectDomains: ['https://cdn.jsdelivr.net'],
-        },
-      },
-    },
+    meta: cspDomains
+      ? { ui: { csp: { resourceDomains: cspDomains, connectDomains: cspDomains } } }
+      : { ui: { csp: { resourceDomains: [], connectDomains: [] } } },
   };
 }

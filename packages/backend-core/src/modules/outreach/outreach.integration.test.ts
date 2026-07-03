@@ -9,6 +9,7 @@ import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
+import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -139,13 +140,15 @@ const skipReason = TEST_URL
     return null;
   }
 
-  it('discovers all 9 outreach tools on tools/list', async () => {
+  it('discovers all 11 outreach tools on tools/list', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name).filter((n) => n.startsWith('outreach_')).sort();
       expect(names).toEqual(
         [
+          'outreach_approve_proposal',
           'outreach_create_campaign',
+          'outreach_dismiss_proposal',
           'outreach_export',
           'outreach_get_campaign',
           'outreach_import',
@@ -156,6 +159,20 @@ const skipReason = TEST_URL
           'outreach_update_campaign',
         ].sort(),
       );
+
+      const listProposals = tools.find((t) => t.name === 'outreach_list_proposals');
+      expect(
+        (listProposals as { _meta?: { ui?: { resourceUri?: string } } })._meta?.ui?.resourceUri,
+      ).toBe(INSPECTOR_APP_URI);
+      expect(INSPECTOR_APP_URI).toMatch(/^ui:\/\/munin\/inspector@[0-9a-f]{8}$/);
+
+      for (const name of ['outreach_approve_proposal', 'outreach_dismiss_proposal']) {
+        const tool = tools.find((t) => t.name === name);
+        expect(
+          (tool as { _meta?: { ui?: { visibility?: string[] } } })._meta?.ui?.visibility,
+          `${name} should be app-only`,
+        ).toEqual(['app']);
+      }
     });
   });
 
@@ -386,6 +403,68 @@ const skipReason = TEST_URL
       expect(allowed.isError).not.toBe(true);
       const proposal = firstJson(allowed as never) as { status: string };
       expect(proposal.status).toBe('pending');
+    });
+  });
+
+  it('dismiss_proposal decides a pending proposal; approve/dismiss refuse non-pending and unknown ids', async () => {
+    await withClient(adminKey, async (c) => {
+      const created = firstJson(
+        (await c.callTool({
+          name: 'outreach_create_campaign',
+          arguments: {
+            name: 'panel-review',
+            brief: 'Exercise the proposal review decision tools.',
+            segmentId,
+            channelId,
+          },
+        })) as never,
+      ) as { id: string };
+
+      const proposed = firstJson(
+        (await c.callTool({
+          name: 'outreach_propose_initial',
+          arguments: {
+            campaignId: created.id,
+            contactId,
+            draftSubject: 'Hi Jane',
+            draftBody: 'Reviewed in the panel.',
+          },
+        })) as never,
+      ) as { id: string };
+
+      const dismissed = await c.callTool({
+        name: 'outreach_dismiss_proposal',
+        arguments: { id: proposed.id, reason: 'not a fit' },
+      });
+      expect(dismissed.isError).not.toBe(true);
+      const dto = firstJson(dismissed as never) as {
+        status: string;
+        dismissReason: string | null;
+        decidedByActorType: string | null;
+      };
+      expect(dto.status).toBe('dismissed');
+      expect(dto.dismissReason).toBe('not a fit');
+      expect(dto.decidedByActorType).toBe('admin_agent');
+
+      const approveAfter = await c.callTool({
+        name: 'outreach_approve_proposal',
+        arguments: { id: proposed.id },
+      });
+      expect(approveAfter.isError).toBe(true);
+      expect(JSON.stringify(approveAfter)).toContain('not pending');
+
+      const dismissAgain = await c.callTool({
+        name: 'outreach_dismiss_proposal',
+        arguments: { id: proposed.id },
+      });
+      expect(dismissAgain.isError).toBe(true);
+      expect(JSON.stringify(dismissAgain)).toContain('not pending');
+
+      const missing = await c.callTool({
+        name: 'outreach_approve_proposal',
+        arguments: { id: 'op_doesnotexist' },
+      });
+      expect(missing.isError).toBe(true);
     });
   });
 

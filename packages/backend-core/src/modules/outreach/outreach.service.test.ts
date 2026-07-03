@@ -201,6 +201,8 @@ const skipReason = TEST_URL
       );
       expect(p.status).toBe('pending');
       expect(p.kind).toBe('initial');
+      expect(p.contact?.email).toBe('jane@acme.com');
+      expect(p.campaign?.name).toBe('launch');
 
       const pending = await run(() => svc.listProposals({ status: 'pending' }));
       expect(pending).toHaveLength(1);
@@ -213,6 +215,8 @@ const skipReason = TEST_URL
       expect(approved.status).toBe('sent');
       expect(approved.conversationId).toBeTruthy();
       expect(approved.sentMessageId).toBeTruthy();
+      expect(approved.contact?.email).toBe('jane@acme.com');
+      expect(approved.campaign?.name).toBe('launch');
 
       // Conversation has the campaign id stamped.
       const convRows = await db.execute<{ outreach_campaign_id: string | null }>(
@@ -452,6 +456,8 @@ const skipReason = TEST_URL
       );
       expect(dismissed.status).toBe('dismissed');
       expect(dismissed.dismissReason).toBe('tone is off');
+      expect(dismissed.contact?.id).toBe(contactId);
+      expect(dismissed.campaign?.name).toBe('d');
     });
   });
 

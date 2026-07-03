@@ -380,7 +380,11 @@ export class OutreachService {
           kind: row!.kind,
         },
       });
-      return toProposalDto(row!);
+      return toProposalDto(
+        row!,
+        { id: contact.id, name: contact.name, email: contact.email, companyId: contact.companyId },
+        { id: campaign.id, name: campaign.name },
+      );
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
         throw new ConflictException(
@@ -462,7 +466,16 @@ export class OutreachService {
           kind: row!.kind,
         },
       });
-      return toProposalDto(row!);
+      return toProposalDto(
+        row!,
+        {
+          id: crmContact.id,
+          name: crmContact.name,
+          email: crmContact.email,
+          companyId: crmContact.companyId,
+        },
+        { id: replyCampaign.id, name: replyCampaign.name },
+      );
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
         throw new ConflictException(
@@ -583,7 +596,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign);
   }
 
   private async approveInitialVoice(
@@ -672,7 +685,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign);
   }
 
   private async createVoiceStubConversation(args: {
@@ -814,7 +827,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign);
   }
 
   async updateProposal(input: {
@@ -846,7 +859,7 @@ export class OutreachService {
         contactId: proposal.contactId,
       },
     });
-    return toProposalDto(updated!);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign);
   }
 
   async dismissProposal(input: { id: string; reason?: string }): Promise<ProposalDto> {
@@ -877,7 +890,7 @@ export class OutreachService {
         reason: input.reason ?? null,
       },
     });
-    return toProposalDto(updated!);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign);
   }
 
   // ─── Internal helpers ───────────────────────────────────────────────────

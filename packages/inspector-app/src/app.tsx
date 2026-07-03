@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App as McpApp } from '@modelcontextprotocol/ext-apps';
+import { App as McpApp, applyHostStyleVariables } from '@modelcontextprotocol/ext-apps';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { isProposalList, parseToolResult } from './types';
 import { Chrome } from './chrome';
@@ -23,6 +23,7 @@ export function InspectorApp() {
     mcpApp.onhostcontextchanged = (params) => {
       console.log('[Munin Inspector] host context changed:', params);
       if (params.locale) setLocale(resolveLocale(params.locale));
+      if (params.styles?.variables) applyHostStyleVariables(params.styles.variables);
     };
     mcpApp
       .connect()
@@ -31,6 +32,7 @@ export function InspectorApp() {
         const context = mcpApp.getHostContext();
         console.log('[Munin Inspector] host context:', context);
         if (context?.locale) setLocale(resolveLocale(context.locale));
+        if (context?.styles?.variables) applyHostStyleVariables(context.styles.variables);
       })
       .catch((err: unknown) => {
         setConnection('failed');

@@ -34,6 +34,11 @@ button {
 .panel {
   background: var(--paper);
   border: 1px solid var(--ink);
+  /* Hosts clip the iframe with their own corner radius (claude.ai mobile
+     ~12px), slicing a square border off at the corners. Adopt the host's
+     radius token so the border follows the clip; 0 elsewhere. */
+  border-radius: var(--border-radius-lg, 0);
+  overflow: hidden;
 }
 
 .chrome {

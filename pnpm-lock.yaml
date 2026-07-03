@@ -820,6 +820,9 @@ importers:
 
   packages/inspector-app:
     dependencies:
+      '@getmunin/dashboard-pages':
+        specifier: workspace:*
+        version: link:../dashboard-pages
       '@getmunin/ui':
         specifier: workspace:*
         version: link:../ui

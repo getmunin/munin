@@ -17,7 +17,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./messages/*.json": "./src/messages/*.json"
   },
   "files": [
     "src"

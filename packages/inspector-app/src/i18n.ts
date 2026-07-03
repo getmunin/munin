@@ -2,8 +2,6 @@ import { createContext, useContext } from 'react';
 import { inspector as en } from '@getmunin/dashboard-pages/messages/en.json';
 import { inspector as nb } from '@getmunin/dashboard-pages/messages/nb.json';
 
-/* Browsers commonly report plain 'no' (Norwegian macrolanguage); route it
-   and nynorsk to the bokmål catalog. */
 const CATALOGS: Record<string, unknown> = { en, nb, no: nb, nn: nb };
 
 export const DEFAULT_LOCALE = 'en';

@@ -1,5 +1,15 @@
 # @getmunin/docs-pages
 
+## 4.66.0
+
+### Patch Changes
+
+- fb104ce: fix(docs): use the real `mn_admin_` admin key prefix in MCP connect guides and setup placeholder (was the non-existent `mn_live_`)
+- Updated dependencies [44a9d34]
+- Updated dependencies [abeb2ef]
+- Updated dependencies [37c95e9]
+  - @getmunin/backend-core@4.66.0
+
 ## 4.65.0
 
 ### Patch Changes

@@ -24,6 +24,9 @@ export function InspectorApp() {
       console.log('[Munin Inspector] host context changed:', params);
       if (params.locale) setLocale(resolveLocale(params.locale));
       if (params.styles?.variables) applyHostStyleVariables(params.styles.variables);
+      if (params.platform) {
+        document.body.classList.toggle('host-mobile', params.platform === 'mobile');
+      }
     };
     mcpApp
       .connect()
@@ -33,6 +36,7 @@ export function InspectorApp() {
         console.log('[Munin Inspector] host context:', context);
         if (context?.locale) setLocale(resolveLocale(context.locale));
         if (context?.styles?.variables) applyHostStyleVariables(context.styles.variables);
+        document.body.classList.toggle('host-mobile', context?.platform === 'mobile');
       })
       .catch((err: unknown) => {
         setConnection('failed');

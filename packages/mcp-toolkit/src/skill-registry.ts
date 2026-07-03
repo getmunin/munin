@@ -1,5 +1,7 @@
 import type { Audience } from '@getmunin/core';
 
+export const APP_RESOURCE_MIME_TYPE = 'text/html;profile=mcp-app';
+
 export interface RegisteredSkill {
   uri: string;
   name: string;
@@ -8,6 +10,7 @@ export interface RegisteredSkill {
   mimeType: string;
   content: string;
   public: boolean;
+  meta?: Record<string, unknown>;
 }
 
 export class SkillRegistry {

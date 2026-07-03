@@ -219,6 +219,32 @@ const skipReason = TEST_URL
     });
   });
 
+  it('exposes the inspector MCP App: tool _meta.ui.resourceUri + ui:// resource', async () => {
+    await withClient(adminKey, async (c) => {
+      const { tools } = await c.listTools();
+      const inspector = tools.find((t) => t.name === 'inspector_hello');
+      expect(inspector, 'inspector_hello tool missing').toBeDefined();
+      expect((inspector as { _meta?: { ui?: { resourceUri?: string } } })._meta?.ui?.resourceUri).toBe(
+        'ui://inspector/hello',
+      );
+
+      const { resources } = await c.listResources();
+      const panel = resources.find((r) => r.uri === 'ui://inspector/hello');
+      expect(panel, 'ui://inspector/hello not in resources/list').toBeDefined();
+      expect(panel!.mimeType).toBe('text/html;profile=mcp-app');
+
+      const read = await c.readResource({ uri: 'ui://inspector/hello' });
+      const first = read.contents[0];
+      expect(first?.mimeType).toBe('text/html;profile=mcp-app');
+      const html = first && 'text' in first ? first.text : '';
+      expect(html).toContain('Hello from Munin');
+      expect((first as { _meta?: { ui?: { csp?: unknown } } })._meta?.ui?.csp).toBeDefined();
+
+      const called = await c.callTool({ name: 'inspector_hello', arguments: {} });
+      expect(JSON.stringify(called)).toContain('Hello from Munin');
+    });
+  });
+
   it('end-user agent does not see admin-only skills', async () => {
     await withClient(endUserToken, async (c) => {
       const { resources } = await c.listResources();

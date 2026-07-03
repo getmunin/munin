@@ -5,11 +5,12 @@ import { McpRegistryService } from './mcp.registry.ts';
 import { McpSkillRegistryService } from './mcp.skill-registry.service.ts';
 import { McpBurstGuard } from './mcp-burst.guard.ts';
 import { PingMcpTool } from './ping.tool.ts';
+import { InspectorMcpTool } from './inspector.tool.ts';
 
 @Module({
   imports: [DiscoveryModule],
   controllers: [McpController],
-  providers: [McpRegistryService, McpSkillRegistryService, McpBurstGuard, PingMcpTool],
+  providers: [McpRegistryService, McpSkillRegistryService, McpBurstGuard, PingMcpTool, InspectorMcpTool],
   exports: [McpRegistryService, McpSkillRegistryService],
 })
 export class McpModule {}

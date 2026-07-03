@@ -1339,6 +1339,55 @@
       "signUp": "Opprett konto med GitHub"
     }
   },
+  "inspector": {
+    "chrome": {
+      "contextInspector": "Inspektør",
+      "contextOutreach": "Utgående"
+    },
+    "connect": {
+      "connecting": "Kobler til verten…",
+      "failed": "Kunne ikke koble til verten: {error}"
+    },
+    "fallback": {
+      "title": "Munin Inspector",
+      "waiting": "Tilkoblet — venter på et verktøyresultat fra verten.",
+      "raw": "Tilkoblet — viser det rå verktøyresultatet."
+    },
+    "proposals": {
+      "eyebrow": "Ventende forslag",
+      "title": "Utgående forslag",
+      "sublineEmpty": "Ingenting venter — køen er tom.",
+      "sublinePending": "{count} venter på gjennomgang — godkjenning sender e-posten.",
+      "refresh": "Oppdater",
+      "refreshing": "Oppdaterer…",
+      "noSubject": "(uten emne)",
+      "evidenceShow": "Grunnlag +",
+      "evidenceHide": "Grunnlag −",
+      "approve": "Godkjenn & send",
+      "approving": "Sender…",
+      "dismiss": "Avvis",
+      "dismissing": "Avviser…",
+      "sentNow": "Sendt akkurat nå.",
+      "sent": "Sendt.",
+      "approved": "Godkjent.",
+      "dismissed": "Avvist — ingenting ble sendt.",
+      "dismissedReason": "Avvist — {reason}",
+      "failed": "Mislyktes.",
+      "failedReason": "Mislyktes — {reason}",
+      "showMore": "Vis {count} til ({hidden} skjult)",
+      "footClear": "Køen er tom",
+      "footPending": "{count} ventende · godkjenning sender umiddelbart",
+      "footShowing": "viser {visible} av {total}",
+      "ageNow": "nå",
+      "status": {
+        "pending": "ventende",
+        "approved": "godkjent",
+        "sent": "sendt",
+        "dismissed": "avvist",
+        "failed": "mislyktes"
+      }
+    }
+  },
   "legal": {
     "privacy": {
       "title": "Personvernerklæring — Munin",

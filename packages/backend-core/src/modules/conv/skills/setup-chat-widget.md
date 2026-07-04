@@ -102,6 +102,21 @@ Set `requireVerifiedIdentity: true` on the channel (`conv_widget_create_channel`
 
 Because the widget and the analytics tracker share the same `localStorage` visitor id (`mn.vid`), identifying a visitor to the widget also stitches their prior anonymous analytics history — no separate `window.mn.identify` call needed for that visitor.
 
+### Sharing a session across subdomains
+
+The visitor id and session id live in `localStorage` (with a cookie fallback), both scoped to the exact host by default. A conversation started on `www.example.com` therefore does **not** carry over to `app.example.com`. To share one thread across sibling subdomains — e.g. an anonymous chat on the marketing site that continues (and gets claimed) once the visitor signs in on the app — set `data-munin-cookie-domain` to a shared parent domain on every embed:
+
+```html
+<script async
+  src="https://munin.example/widget.js"
+  data-widget-key="mn_widget_…"
+  data-channel-id="cch_…"
+  data-munin-cookie-domain=".example.com">
+</script>
+```
+
+The session + visitor cookies are then written with that `Domain`, so both subdomains read the same ids and the anonymous thread is claimed on identify. The value must be a suffix of the current host (`.example.com` on `app.example.com`); anything else is ignored client-side to avoid the browser silently dropping the cookie.
+
 ## 5. Browser-direct integration (less secure)
 
 If you must call the endpoint from browser JS, the channel's `originAllowlist` reflects allowed `Origin` headers and the endpoint sets the matching `Access-Control-Allow-Origin`. Anyone on a listed origin can use the key; rotation is one tool call. Server-side is strongly preferred.

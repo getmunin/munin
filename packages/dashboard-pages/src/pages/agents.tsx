@@ -32,7 +32,6 @@ type TokenStatus = 'active' | 'revoked' | 'expired';
 
 export function AgentsPage() {
   const t = useTranslations('dashboard.agents');
-  const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const format = useFormatter();
   const [tokens, setTokens] = useState<TokenDto[] | null>(null);
@@ -178,7 +177,7 @@ export function AgentsPage() {
                           pending={revokingId === token.id}
                           onClick={() => void revoke(token.id)}
                         >
-                          {tCommon('revoke')}
+                          {t('revoke')}
                         </Button>
                       )}
                     </td>

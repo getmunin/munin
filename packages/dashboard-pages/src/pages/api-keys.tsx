@@ -52,7 +52,6 @@ interface CreatedApiKey {
 
 export function ApiKeysPage() {
   const t = useTranslations('dashboard.apiKeys');
-  const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const format = useFormatter();
   const [keys, setKeys] = useState<ApiKeySummary[] | null>(null);
@@ -165,7 +164,7 @@ export function ApiKeysPage() {
                       pending={revokingId === k.id}
                       onClick={() => void revoke(k.id)}
                     >
-                      {tCommon('revoke')}
+                      {t('revoke')}
                     </Button>
                   </td>
                 </tr>

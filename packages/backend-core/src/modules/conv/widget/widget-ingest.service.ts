@@ -1107,9 +1107,10 @@ export function enforceOriginAllowlist(
   if (!allowed) throw new ForbiddenException('origin_not_allowed');
 }
 
-function requireWidgetAllowlist(): boolean {
+export function requireWidgetAllowlist(): boolean {
   const raw = process.env.MUNIN_WIDGET_REQUIRE_ALLOWLIST?.trim().toLowerCase();
-  return raw === '1' || raw === 'true';
+  if (raw === undefined || raw === '') return true;
+  return !(raw === '0' || raw === 'false' || raw === 'off' || raw === 'no');
 }
 
 export async function loadWidgetChannel(

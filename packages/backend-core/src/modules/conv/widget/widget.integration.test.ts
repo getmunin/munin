@@ -147,7 +147,25 @@ const skipReason = TEST_URL
     };
     if (headers.Origin === '') delete headers.Origin;
     if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch(`${baseUrl}${path}`, {
+    let finalPath = path;
+    if (method === 'GET') {
+      const url = new URL(path, baseUrl);
+      const sessionHeaderMap: Record<string, string> = {
+        sessionId: 'x-munin-session-id',
+        sessionIds: 'x-munin-session-ids',
+        verifiedExternalId: 'x-munin-verified-external-id',
+        userHash: 'x-munin-user-hash',
+      };
+      for (const [param, header] of Object.entries(sessionHeaderMap)) {
+        const value = url.searchParams.get(param);
+        if (value !== null && headers[header] === undefined) {
+          headers[header] = value;
+          url.searchParams.delete(param);
+        }
+      }
+      finalPath = url.pathname + url.search;
+    }
+    const res = await fetch(`${baseUrl}${finalPath}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -1044,6 +1062,41 @@ const skipReason = TEST_URL
     const bodyA = resA.json as { messages: Array<{ body: string }> };
     expect(bodyA.messages.map((m) => m.body)).not.toContain('b-only');
     expect(bodyA.messages.map((m) => m.body)).toContain('a-only');
+  });
+
+  it('does not accept a sessionId supplied only in the query string', async () => {
+    const sessionId = 'vis_query_only';
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'query-only-secret' }],
+    });
+
+    const queryOnly = await fetch(
+      `${baseUrl}/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      {
+        method: 'GET',
+        headers: {
+          Origin: 'https://customer.example',
+          Authorization: `Bearer ${widgetKey}`,
+        },
+      },
+    );
+    const queryOnlyText = await queryOnly.text();
+    expect(queryOnly.status).toBe(403);
+    expect(queryOnlyText).not.toContain('query-only-secret');
+
+    const viaHeader = await fetch(`${baseUrl}/v1/widget/messages?${qs({ channelId })}`, {
+      method: 'GET',
+      headers: {
+        Origin: 'https://customer.example',
+        Authorization: `Bearer ${widgetKey}`,
+        'x-munin-session-id': sessionId,
+      },
+    });
+    expect(viaHeader.status).toBe(200);
+    const body = (await viaHeader.json()) as { messages: Array<{ body: string }> };
+    expect(body.messages.map((m) => m.body)).toContain('query-only-secret');
   });
 
   it('returns empty when GET is verified but the contact is bound to a different externalId', async () => {

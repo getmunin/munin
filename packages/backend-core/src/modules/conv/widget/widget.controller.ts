@@ -44,6 +44,31 @@ import type {
 import { WidgetIngestService } from './widget-ingest.service.ts';
 import { WidgetVoiceService } from './widget-voice.service.ts';
 
+const WIDGET_SESSION_HEADER_MAP: Record<string, string> = {
+  'x-munin-session-id': 'sessionId',
+  'x-munin-session-ids': 'sessionIds',
+  'x-munin-verified-external-id': 'verifiedExternalId',
+  'x-munin-user-hash': 'userHash',
+};
+
+const WIDGET_SESSION_FIELDS = new Set(Object.values(WIDGET_SESSION_HEADER_MAP));
+
+function widgetQueryWithSessionHeaders(
+  rawQuery: Record<string, string>,
+  headers: Record<string, string | string[] | undefined>,
+): Record<string, string> {
+  const merged: Record<string, string> = {};
+  for (const [key, value] of Object.entries(rawQuery)) {
+    if (!WIDGET_SESSION_FIELDS.has(key)) merged[key] = value;
+  }
+  for (const [header, field] of Object.entries(WIDGET_SESSION_HEADER_MAP)) {
+    const value = headers[header];
+    const resolved = Array.isArray(value) ? value[0] : value;
+    if (resolved !== undefined) merged[field] = resolved;
+  }
+  return merged;
+}
+
 @Controller('v1/widget')
 @UseGuards(AuthGuard, WidgetThrottlerGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
@@ -88,6 +113,7 @@ export class WidgetController {
   @Get('messages')
   async list(
     @Query() rawQuery: Record<string, string>,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Headers('origin') origin: string | undefined,
   ): Promise<WidgetListMessagesResult> {
     const ctx = getCurrentContext();
@@ -104,7 +130,9 @@ export class WidgetController {
       throw new ForbiddenException('widget_key_required');
     }
 
-    const parsed = WidgetListMessagesQuery.safeParse(rawQuery);
+    const parsed = WidgetListMessagesQuery.safeParse(
+      widgetQueryWithSessionHeaders(rawQuery, headers),
+    );
     if (!parsed.success) {
       throw new ForbiddenException(`invalid_widget_query: ${parsed.error.message}`);
     }
@@ -120,6 +148,7 @@ export class WidgetController {
   @Get('conversations')
   async listConversations(
     @Query() rawQuery: Record<string, string>,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Headers('origin') origin: string | undefined,
   ): Promise<WidgetListConversationsResult> {
     const ctx = getCurrentContext();
@@ -136,7 +165,9 @@ export class WidgetController {
       throw new ForbiddenException('widget_key_required');
     }
 
-    const parsed = WidgetListConversationsQuery.safeParse(rawQuery);
+    const parsed = WidgetListConversationsQuery.safeParse(
+      widgetQueryWithSessionHeaders(rawQuery, headers),
+    );
     if (!parsed.success) {
       throw new ForbiddenException(`invalid_widget_query: ${parsed.error.message}`);
     }
@@ -248,6 +279,7 @@ export class WidgetController {
   @Get('voice/available')
   async voiceAvailable(
     @Query() rawQuery: Record<string, string>,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Headers('origin') origin: string | undefined,
   ): Promise<WidgetVoiceAvailabilityResult> {
     const ctx = getCurrentContext();
@@ -264,7 +296,9 @@ export class WidgetController {
       throw new ForbiddenException('widget_key_required');
     }
 
-    const parsed = WidgetVoiceAvailableQuery.safeParse(rawQuery);
+    const parsed = WidgetVoiceAvailableQuery.safeParse(
+      widgetQueryWithSessionHeaders(rawQuery, headers),
+    );
     if (!parsed.success) {
       throw new ForbiddenException(`invalid_widget_voice_available: ${parsed.error.message}`);
     }

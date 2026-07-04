@@ -1,5 +1,13 @@
 # @getmunin/dashboard-pages
 
+## 4.66.1
+
+### Patch Changes
+
+- 3e0b921: Polish Norwegian (nb) dashboard translations. Replace the stiff blanket "tilbakekalle" for _revoke_ with context-appropriate verbs (agents → "Koble fra", tokens/invitations → "Trekk tilbake", API keys → "Slett", tracker keys → "Deaktiver"), rename Trackers to "Sporing"/"Sporingskoder", and fix the anglicised "tokens" plural. Splits the shared `common.revoke` string into per-page `dashboard.agents.revoke` / `dashboard.apiKeys.revoke` keys so each surface can use its own verb.
+  - @getmunin/types@4.66.1
+  - @getmunin/ui@4.66.1
+
 ## 4.66.0
 
 ### Minor Changes

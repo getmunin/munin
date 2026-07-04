@@ -1,5 +1,24 @@
 # @getmunin/backend-core
 
+## 4.66.1
+
+### Patch Changes
+
+- d266e86: fix(crm): dismiss pending outreach proposals when a contact is merged
+
+  Applying a merge proposal archives the duplicate contact with `doNotContact: true` but previously left its pending outreach proposals bound to the now-suppressed tombstone. Approving one of those orphaned proposals then failed at the eligibility gate with `outreach_invalid: contact … is no longer eligible (suppression or consent withdrawn)`. The merge now dismisses the duplicate's pending proposals (with a `contact merged into <keeperId>` reason) and emits `outreach.proposal.dismissed` for each.
+
+- 47d67aa: widget: add `data-munin-cookie-domain` so a conversation can be shared across sibling subdomains
+
+  The session and visitor ids are kept in `localStorage` with a cookie fallback, and both were host-only — a chat started on `www.example.com` did not carry over to `app.example.com`. Setting `data-munin-cookie-domain=".example.com"` now writes the session + visitor cookies with that `Domain`, so both subdomains read the same ids and the anonymous thread is claimed when the visitor signs in on the app. The value must be a suffix of the page's host or it is ignored (a rejected `Domain` would silently break persistence). Default behavior is unchanged (host-only).
+  - @getmunin/inspector-app@4.66.1
+  - @getmunin/core@4.66.1
+  - @getmunin/db@4.66.1
+  - @getmunin/types@4.66.1
+  - @getmunin/mcp-toolkit@4.66.1
+  - @getmunin/agent-runtime@4.66.1
+  - @getmunin/emails@4.66.1
+
 ## 4.66.0
 
 ### Minor Changes

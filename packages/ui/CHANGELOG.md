@@ -1,5 +1,7 @@
 # @getmunin/ui
 
+## 4.66.1
+
 ## 4.66.0
 
 ### Minor Changes

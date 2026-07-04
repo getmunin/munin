@@ -96,7 +96,8 @@ function signInstallState(state: InstallState, secret: string): string {
   return `${payload}.${signHmac(payload, secret)}`;
 }
 
-export function verifyInstallState(raw: string, secret: string): InstallState | null {
+export function verifyInstallState(raw: unknown, secret: string): InstallState | null {
+  if (typeof raw !== 'string' || raw.length === 0 || raw.length > 4096) return null;
   const dot = raw.lastIndexOf('.');
   if (dot <= 0) return null;
   const payload = raw.slice(0, dot);

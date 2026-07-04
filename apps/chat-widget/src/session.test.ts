@@ -3,9 +3,29 @@ import {
   clearSessionId,
   getRecentSessionIds,
   getSessionId,
+  getVisitorId,
   mintNewSession,
   setCurrentSession,
 } from './session.ts';
+
+function captureCookieWrites(fn: () => void): string[] {
+  const writes: string[] = [];
+  const original = Object.getOwnPropertyDescriptor(document, 'cookie');
+  Object.defineProperty(document, 'cookie', {
+    configurable: true,
+    get: () => '',
+    set: (v: string) => {
+      writes.push(v);
+    },
+  });
+  try {
+    fn();
+  } finally {
+    if (original) Object.defineProperty(document, 'cookie', original);
+    else delete (document as unknown as { cookie?: string }).cookie;
+  }
+  return writes;
+}
 
 const CHANNEL = 'cnv_test';
 
@@ -58,6 +78,34 @@ describe('session', () => {
     setCurrentSession(ch, first);
     expect(getSessionId(ch)).toBe(first);
     expect(getRecentSessionIds(ch)).toContain(second);
+  });
+
+  it('appends Domain to the session + visitor cookies when cookieDomain is set', () => {
+    const ch = freshChannel();
+    const writes = captureCookieWrites(() => {
+      getSessionId(ch, '.example.com');
+      getVisitorId(ch, '.example.com');
+    });
+    expect(
+      writes.some(
+        (w) => w.startsWith(`munin-widget-session-${ch}=`) && w.includes('Domain=.example.com'),
+      ),
+    ).toBe(true);
+    expect(
+      writes.some(
+        (w) => w.startsWith(`munin-widget-visitor-${ch}=`) && w.includes('Domain=.example.com'),
+      ),
+    ).toBe(true);
+  });
+
+  it('writes host-only cookies (no Domain) when cookieDomain is omitted', () => {
+    const ch = freshChannel();
+    const writes = captureCookieWrites(() => {
+      getSessionId(ch);
+      getVisitorId(ch);
+    });
+    expect(writes.length).toBeGreaterThan(0);
+    expect(writes.every((w) => !w.includes('Domain='))).toBe(true);
   });
 
   it('survives localStorage throwing (cookie fallback)', () => {

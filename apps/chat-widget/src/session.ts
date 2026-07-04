@@ -13,44 +13,48 @@ interface SessionState {
 
 const memory = new Map<string, SessionState>();
 
-export function getSessionId(channelId: string): string {
-  return loadState(channelId).current;
+export function getSessionId(channelId: string, cookieDomain?: string): string {
+  return loadState(channelId, cookieDomain).current;
 }
 
-export function getRecentSessionIds(channelId: string): string[] {
-  const state = loadState(channelId);
+export function getRecentSessionIds(channelId: string, cookieDomain?: string): string[] {
+  const state = loadState(channelId, cookieDomain);
   return [state.current, ...state.recent];
 }
 
-export function mintNewSession(channelId: string): string {
-  const state = loadState(channelId);
+export function mintNewSession(channelId: string, cookieDomain?: string): string {
+  const state = loadState(channelId, cookieDomain);
   const fresh = randomId();
   const recent = [state.current, ...state.recent].filter((s) => s !== fresh).slice(0, RECENT_CAP);
   const next: SessionState = { current: fresh, recent };
-  saveState(channelId, next);
+  saveState(channelId, next, cookieDomain);
   return fresh;
 }
 
-export function setCurrentSession(channelId: string, sessionId: string): void {
-  const state = loadState(channelId);
+export function setCurrentSession(
+  channelId: string,
+  sessionId: string,
+  cookieDomain?: string,
+): void {
+  const state = loadState(channelId, cookieDomain);
   if (state.current === sessionId) return;
   const recent = [state.current, ...state.recent].filter((s) => s !== sessionId).slice(0, RECENT_CAP);
-  saveState(channelId, { current: sessionId, recent });
+  saveState(channelId, { current: sessionId, recent }, cookieDomain);
 }
 
-export function clearSessionId(channelId: string): void {
+export function clearSessionId(channelId: string, cookieDomain?: string): void {
   memory.delete(channelId);
   try {
     localStorage.removeItem(STORAGE_PREFIX + channelId);
   } catch (err) {
     console.warn('[munin-widget] clearSessionId localStorage:', err);
   }
-  writeCookie(channelId, '', 0);
+  writeCookie(channelId, '', 0, cookieDomain);
 }
 
 const visitorMemory = new Map<string, string>();
 
-export function getVisitorId(channelId: string): string {
+export function getVisitorId(channelId: string, cookieDomain?: string): string {
   const cached = visitorMemory.get(channelId);
   if (cached) return cached;
   const stored =
@@ -61,17 +65,23 @@ export function getVisitorId(channelId: string): string {
     visitorMemory.set(channelId, stored);
     writeStorage(VISITOR_STORAGE_PREFIX + channelId, stored);
     writeStorage(SHARED_VISITOR_KEY, stored);
+    writeVisitorCookie(channelId, stored, COOKIE_MAX_AGE_S, cookieDomain);
     return stored;
   }
   const fresh = randomId();
   visitorMemory.set(channelId, fresh);
   writeStorage(VISITOR_STORAGE_PREFIX + channelId, fresh);
   writeStorage(SHARED_VISITOR_KEY, fresh);
-  writeVisitorCookie(channelId, fresh, COOKIE_MAX_AGE_S);
+  writeVisitorCookie(channelId, fresh, COOKIE_MAX_AGE_S, cookieDomain);
   return fresh;
 }
 
-function writeVisitorCookie(channelId: string, value: string, maxAgeS: number): void {
+function writeVisitorCookie(
+  channelId: string,
+  value: string,
+  maxAgeS: number,
+  cookieDomain?: string,
+): void {
   try {
     const secure = typeof location !== 'undefined' && location.protocol === 'https:';
     const parts = [
@@ -79,6 +89,7 @@ function writeVisitorCookie(channelId: string, value: string, maxAgeS: number): 
       'Path=/',
       'SameSite=Lax',
     ];
+    if (cookieDomain) parts.push(`Domain=${cookieDomain}`);
     if (secure) parts.push('Secure');
     if (maxAgeS <= 0) parts.push('Max-Age=0');
     else parts.push(`Max-Age=${maxAgeS}`);
@@ -88,7 +99,7 @@ function writeVisitorCookie(channelId: string, value: string, maxAgeS: number): 
   }
 }
 
-function loadState(channelId: string): SessionState {
+function loadState(channelId: string, cookieDomain?: string): SessionState {
   const cached = memory.get(channelId);
   if (cached) return cached;
 
@@ -100,15 +111,15 @@ function loadState(channelId: string): SessionState {
   }
 
   const fresh: SessionState = { current: randomId(), recent: [] };
-  saveState(channelId, fresh);
+  saveState(channelId, fresh, cookieDomain);
   return fresh;
 }
 
-function saveState(channelId: string, state: SessionState): void {
+function saveState(channelId: string, state: SessionState, cookieDomain?: string): void {
   memory.set(channelId, state);
   const serialized = JSON.stringify(state);
   writeStorage(STORAGE_PREFIX + channelId, serialized);
-  writeCookie(channelId, serialized, COOKIE_MAX_AGE_S);
+  writeCookie(channelId, serialized, COOKIE_MAX_AGE_S, cookieDomain);
 }
 
 function parseState(raw: string | null): SessionState | null {
@@ -170,7 +181,12 @@ function readCookie(name: string): string | null {
   }
 }
 
-function writeCookie(channelId: string, value: string, maxAgeS: number): void {
+function writeCookie(
+  channelId: string,
+  value: string,
+  maxAgeS: number,
+  cookieDomain?: string,
+): void {
   try {
     const secure = typeof location !== 'undefined' && location.protocol === 'https:';
     const parts = [
@@ -178,6 +194,7 @@ function writeCookie(channelId: string, value: string, maxAgeS: number): void {
       'Path=/',
       'SameSite=Lax',
     ];
+    if (cookieDomain) parts.push(`Domain=${cookieDomain}`);
     if (secure) parts.push('Secure');
     if (maxAgeS <= 0) parts.push('Max-Age=0');
     else parts.push(`Max-Age=${maxAgeS}`);

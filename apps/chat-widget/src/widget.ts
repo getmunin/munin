@@ -39,8 +39,8 @@ function bootstrap(): void {
 }
 
 function start(config: WidgetConfig): void {
-  let sessionId = getSessionId(config.channelId);
-  const visitorId = getVisitorId(config.channelId);
+  let sessionId = getSessionId(config.channelId, config.cookieDomain);
+  const visitorId = getVisitorId(config.channelId, config.cookieDomain);
   let identity: { externalId: string; userHash: string } | undefined =
     config.externalId && config.userHash
       ? { externalId: config.externalId, userHash: config.userHash }
@@ -177,7 +177,7 @@ function start(config: WidgetConfig): void {
   async function refreshPastConversations(): Promise<void> {
     if (!config.showHistory) return;
     try {
-      const recent = getRecentSessionIds(config.channelId);
+      const recent = getRecentSessionIds(config.channelId, config.cookieDomain);
       const convs = await api.listConversations(recent);
       ui.setPastConversations(convs);
     } catch (err) {
@@ -217,7 +217,7 @@ function start(config: WidgetConfig): void {
 
   function startConversation(): void {
     ui.setChatKind('new');
-    switchToSession(mintNewSession(config.channelId));
+    switchToSession(mintNewSession(config.channelId, config.cookieDomain));
     api.startConversation().catch((err) => {
       if (err instanceof WidgetApiError) {
         console.warn(`[munin-widget] start conversation failed: ${err.status}`);
@@ -233,7 +233,7 @@ function start(config: WidgetConfig): void {
       ui.setView('chat');
       return;
     }
-    setCurrentSession(config.channelId, summary.sessionId);
+    setCurrentSession(config.channelId, summary.sessionId, config.cookieDomain);
     switchToSession(summary.sessionId);
   }
 

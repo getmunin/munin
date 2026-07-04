@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { parseConfig } from './config.ts';
 
 function makeScript(attrs: Record<string, string>): HTMLElement {
@@ -245,6 +245,58 @@ describe('parseConfig', () => {
     if (!result.ok) return;
     expect(result.config.visitor?.metadata).toBeUndefined();
     expect(result.warnings.some((w) => w.attr === 'data-munin-visitor-meta')).toBe(true);
+  });
+
+  it('parses a cookie domain that is a suffix of the current host', () => {
+    vi.stubGlobal('location', { hostname: 'app.getmunin.com', protocol: 'https:' });
+    try {
+      const el = makeScript({
+        'data-munin-host': 'https://h.example',
+        'data-widget-key': 'mn_widget_x',
+        'data-channel-id': 'c',
+        'data-munin-cookie-domain': '.getmunin.com',
+      });
+      const result = parseConfig(el);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.config.cookieDomain).toBe('.getmunin.com');
+      expect(result.warnings).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('drops a cookie domain the current host does not fall under', () => {
+    vi.stubGlobal('location', { hostname: 'app.example.org', protocol: 'https:' });
+    try {
+      const el = makeScript({
+        'data-munin-host': 'https://h.example',
+        'data-widget-key': 'mn_widget_x',
+        'data-channel-id': 'c',
+        'data-munin-cookie-domain': '.getmunin.com',
+      });
+      const result = parseConfig(el);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.config.cookieDomain).toBeUndefined();
+      expect(result.warnings.some((w) => w.attr === 'data-munin-cookie-domain')).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('drops a malformed cookie domain with a warning', () => {
+    const el = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-cookie-domain': 'https://getmunin.com/path',
+    });
+    const result = parseConfig(el);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.cookieDomain).toBeUndefined();
+    expect(result.warnings.some((w) => w.attr === 'data-munin-cookie-domain')).toBe(true);
   });
 
   it('truncates visitor name to 120 chars to match the BE schema', () => {

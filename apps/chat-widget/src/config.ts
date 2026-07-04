@@ -17,6 +17,7 @@
  *           data-munin-visitor-email="ada@example.com"
  *           data-munin-visitor-meta='{"plan":"pro"}'
  *           data-munin-meta-account-id="acc_42"
+ *           data-munin-cookie-domain=".getmunin.com"
  *           defer></script>
  *
  * Returns `{ ok: true, config }` or `{ ok: false, errors }`. The widget
@@ -40,8 +41,6 @@ type Fonts = (typeof VALID_FONTS)[number];
 
 const HEX64 = /^[0-9a-f]{64}$/i;
 const HEX_COLOR = /^#[0-9a-f]{3,8}$/i;
-// Loose RFC-5322ish; matches what the BE Zod `z.string().email()` accepts
-// for the most part. We re-validate server-side anyway.
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const VISITOR_META_MAX_BYTES = 4 * 1024;
@@ -53,14 +52,10 @@ export interface WidgetVisitor {
 }
 
 export interface WidgetConfig {
-  /** REST + WS host, e.g. `https://munin.example.com`. No trailing slash. */
   host: string;
-  /** `mn_widget_*` key bound to the channel below. */
   widgetKey: string;
   channelId: string;
-  /** Operator's user ID. Required iff `userHash` is set. */
   externalId?: string;
-  /** Hex sha-256 HMAC paired with `externalId`. Required iff `externalId` is set. */
   userHash?: string;
   themeColor: string;
   position: Position;
@@ -72,6 +67,7 @@ export interface WidgetConfig {
   fonts: Fonts;
   showHistory: boolean;
   visitor?: WidgetVisitor;
+  cookieDomain?: string;
 }
 
 export interface ParseError {
@@ -127,6 +123,7 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
     optBool(scriptEl, 'data-munin-show-history', warnings) ?? DEFAULTS.showHistory;
 
   const visitor = parseVisitor(scriptEl, warnings);
+  const cookieDomain = optCookieDomain(scriptEl, warnings);
 
   if (errors.length > 0) {
     return { ok: false, errors, warnings };
@@ -151,6 +148,7 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
       fonts,
       showHistory,
       visitor,
+      cookieDomain,
     },
   };
 }
@@ -172,6 +170,32 @@ function optColor(el: HTMLElement, attr: string, warnings: ParseError[]): string
     return undefined;
   }
   return v.trim();
+}
+
+const DOMAIN = /^\.?([a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i;
+
+function optCookieDomain(el: HTMLElement, warnings: ParseError[]): string | undefined {
+  const raw = el.getAttribute('data-munin-cookie-domain');
+  if (!raw) return undefined;
+  const v = raw.trim();
+  if (!DOMAIN.test(v)) {
+    warnings.push({
+      attr: 'data-munin-cookie-domain',
+      message: 'must be a bare domain like .example.com; ignoring',
+    });
+    return undefined;
+  }
+  const host = typeof location !== 'undefined' ? location.hostname : '';
+  const bare = v.replace(/^\./, '').toLowerCase();
+  const h = host.toLowerCase();
+  if (host && h !== bare && !h.endsWith(`.${bare}`)) {
+    warnings.push({
+      attr: 'data-munin-cookie-domain',
+      message: `"${v}" is not a suffix of ${host}; ignoring`,
+    });
+    return undefined;
+  }
+  return v;
 }
 
 function optPosition(el: HTMLElement, warnings: ParseError[]): Position | undefined {
@@ -243,7 +267,6 @@ function parseVisitorMetadata(
   el: HTMLElement,
   warnings: ParseError[],
 ): Record<string, string | number | boolean> | undefined {
-  // Sugar form first: every data-munin-meta-<key>=<value> attr.
   const sugar: Record<string, string | number | boolean> = {};
   for (const a of Array.from(el.attributes)) {
     const m = /^data-munin-meta-(.+)$/.exec(a.name);
@@ -252,7 +275,6 @@ function parseVisitorMetadata(
     sugar[key] = a.value;
   }
 
-  // Explicit JSON form. Wins on key collision with the sugar form.
   let explicit: Record<string, string | number | boolean> | null = null;
   const raw = el.getAttribute('data-munin-visitor-meta');
   if (raw) {

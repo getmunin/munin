@@ -40,4 +40,12 @@ describe('verifyInstallState', () => {
     expect(verifyInstallState('a.b.c', SECRET)).toBeNull();
     expect(verifyInstallState('', SECRET)).toBeNull();
   });
+
+  it('rejects non-string input (query parameter tampering)', () => {
+    const raw = makeState({ orgId: 'org_1', userId: null, exp: Date.now() + 60_000 });
+    expect(verifyInstallState([raw, raw], SECRET)).toBeNull();
+    expect(verifyInstallState({ toString: () => raw }, SECRET)).toBeNull();
+    expect(verifyInstallState(undefined, SECRET)).toBeNull();
+    expect(verifyInstallState('x'.repeat(5000), SECRET)).toBeNull();
+  });
 });

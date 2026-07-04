@@ -15,13 +15,19 @@ export class SlackOAuthController {
 
   @Get('callback')
   async callback(
-    @Query('code') code: string | undefined,
-    @Query('state') state: string | undefined,
-    @Query('error') error: string | undefined,
+    @Query('code') code: unknown,
+    @Query('state') state: unknown,
+    @Query('error') error: unknown,
     @Res() res: Response,
   ): Promise<void> {
     const target = `${readWebBaseUrl()}/dashboard/settings/ai`;
-    if (error || !code || !state) {
+    if (
+      error !== undefined ||
+      typeof code !== 'string' ||
+      code.length === 0 ||
+      typeof state !== 'string' ||
+      state.length === 0
+    ) {
       res.redirect(`${target}?slack=${error === 'access_denied' ? 'denied' : 'error'}`);
       return;
     }

@@ -51,6 +51,10 @@ const skipReason = TEST_URL
 
   beforeEach(async () => {
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    await db.execute(sql`DELETE FROM outreach_proposals WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM outreach_campaigns WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM conv_channels WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM crm_segments WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_merge_proposals WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_activities WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_deals WHERE org_id = ${orgId}`);
@@ -616,6 +620,82 @@ const skipReason = TEST_URL
           (r.toType === 'contact' && r.toId === dup.id),
       );
       expect(stillOnDup).toHaveLength(0);
+    });
+
+    it('applyMergeProposal dismisses pending outreach proposals bound to the duplicate', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
+      const dup = await run(() => svc.createContact({ name: 'Dup', email: 'k@y' }));
+      const other = await run(() => svc.createContact({ name: 'Other', email: 'o@y' }));
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [segment] = await db
+        .insert(schema.crmSegments)
+        .values({
+          orgId,
+          name: `seg-${Date.now()}`,
+          filterDefinition: {},
+          createdByActorType: 'agent',
+          createdByActorId: actor.id,
+        })
+        .returning();
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({ orgId, type: 'email', vendor: 'smtp', name: `ch-${Date.now()}` })
+        .returning();
+      const [campaign] = await db
+        .insert(schema.outreachCampaigns)
+        .values({
+          orgId,
+          name: `camp-${Date.now()}`,
+          brief: 'b',
+          segmentId: segment!.id,
+          channelId: channel!.id,
+          createdByActorType: 'agent',
+          createdByActorId: actor.id,
+        })
+        .returning();
+      const proposalRow = {
+        orgId,
+        campaignId: campaign!.id,
+        kind: 'initial',
+        draftBody: 'hi',
+        proposedByActorType: 'agent',
+        proposedByActorId: actor.id,
+      };
+      const [dupProposal] = await db
+        .insert(schema.outreachProposals)
+        .values({ ...proposalRow, contactId: dup.id })
+        .returning();
+      const [otherProposal] = await db
+        .insert(schema.outreachProposals)
+        .values({ ...proposalRow, contactId: other.id })
+        .returning();
+      const [dupSent] = await db
+        .insert(schema.outreachProposals)
+        .values({ ...proposalRow, contactId: dup.id, kind: 'reply', status: 'sent' })
+        .returning();
+
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: keeper.id,
+        }),
+      );
+      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+
+      const rows = await db
+        .select()
+        .from(schema.outreachProposals)
+        .where(eq(schema.outreachProposals.orgId, orgId));
+      const byId = (pid: string) => rows.find((r) => r.id === pid)!;
+      expect(byId(dupProposal!.id).status).toBe('dismissed');
+      expect(byId(dupProposal!.id).dismissReason).toBe(`contact merged into ${keeper.id}`);
+      expect(byId(dupProposal!.id).contactId).toBe(dup.id);
+      expect(byId(otherProposal!.id).status).toBe('pending');
+      expect(byId(dupSent!.id).status).toBe('sent');
     });
 
     it('applyMergeProposal transfers endUserId to keeper when keeper has none and clears duplicate', async () => {

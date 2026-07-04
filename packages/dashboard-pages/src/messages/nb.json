@@ -6,7 +6,7 @@
   "common": {
     "loading": "Laster…",
     "signOut": "Logg ut",
-    "revoke": "Tilbakekall",
+    "revoke": "Trekk tilbake",
     "save": "Lagre",
     "saveChanges": "Lagre endringer",
     "saved": "Lagret.",
@@ -71,7 +71,7 @@
       "haveAccount": "Har du allerede konto?",
       "signInLink": "Logg inn",
       "failed": "Registrering mislyktes",
-      "invitationInvalid": "Denne invitasjonen er ikke lenger gyldig (tilbakekalt eller utløpt).",
+      "invitationInvalid": "Denne invitasjonen er ikke lenger gyldig (trukket tilbake eller utløpt).",
       "invitationLookupFailed": "Kunne ikke slå opp invitasjonen."
     },
     "fields": {
@@ -173,7 +173,7 @@
     "agents": "Agenter",
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
-    "trackers": "Målepunkter",
+    "trackers": "Sporing",
     "endUsers": "Sluttbrukere",
     "usage": "Bruk",
     "auditLog": "Hendelseslogg",
@@ -400,9 +400,10 @@
     "agents": {
       "eyebrow": "Tilgang · Agenter",
       "title": "<em>Flokken</em>.",
-      "subtitle": "Alle OAuth-autoriserte agenter koblet til denne organisasjonen. Tilbakekall en for å kutte MCP-tilgangen umiddelbart.",
+      "subtitle": "Alle OAuth-autoriserte agenter koblet til denne organisasjonen. Koble fra en for å kutte MCP-tilgangen umiddelbart.",
       "agentsTitleCount": "Agenter · {count}",
       "agentsTitle": "Agenter",
+      "revoke": "Koble fra",
       "tableToken": "Token",
       "tableStatus": "Status",
       "tableIssued": "Utstedt",
@@ -417,13 +418,13 @@
       "expires": "Utløper {when}",
       "status": {
         "active": "aktiv",
-        "revoked": "tilbakekalt",
+        "revoked": "frakoblet",
         "expired": "utløpt"
       },
-      "revoked": "Token tilbakekalt.",
+      "revoked": "Agenten er koblet fra.",
       "errors": {
         "load": "Kunne ikke laste tilkoblede agenter.",
-        "revoke": "Kunne ikke tilbakekalle token."
+        "revoke": "Kunne ikke koble fra agenten."
       }
     },
     "channels": {
@@ -451,7 +452,7 @@
       "identitySecretHint": "Behold denne på serveren din. Bruk den til å beregne data-user-hash for verifiserte besøkende. Eksponer den aldri i nettleseren.",
       "rotateKey": "Roter nøkkel",
       "rotateConfirmTitle": "Rotere widget-nøkkel?",
-      "rotateConfirm": "Rotere widget-nøkkelen for {name}. Eksisterende nøkler tilbakekalles.",
+      "rotateConfirm": "Rotere widget-nøkkelen for {name}. Eksisterende nøkler trekkes tilbake.",
       "rotatedTitle": "Nøkkel rotert — kopier den nå",
       "rotatedDescription": "Ny widget-nøkkel for {name}. Oppdater widget-konfigurasjon og distribuer.",
       "rotateIdentity": "Roter identitetshemmelighet",
@@ -722,13 +723,13 @@
       }
     },
     "trackers": {
-      "eyebrow": "Arbeidsområde · Målepunkter",
+      "eyebrow": "Arbeidsområde · Sporing",
       "title": "Hva folk <em>faktisk</em> leser.",
       "subtitle": "Spor sidevisninger på tvers av dine nettsteder og apper.",
-      "trackersTitle": "Målepunkter",
-      "trackersTitleCount": "Målepunkter · {count}",
-      "addTracker": "Legg til målepunkt",
-      "createTitle": "Legg til et målepunkt",
+      "trackersTitle": "Sporingskoder",
+      "trackersTitleCount": "Sporingskoder · {count}",
+      "addTracker": "Legg til sporingskode",
+      "createTitle": "Legg til en sporingskode",
       "createDescription": "Lager en offentlig `mn_track_*`-nøkkel og en identitetshemmelighet for server-siden. Skriptet lastes på de konfigurerte opphavene og poster til /v1/a/t.",
       "nameLabel": "Internt navn",
       "nameHint": "Til intern referanse. Små bokstaver, ingen mellomrom.",
@@ -736,8 +737,8 @@
       "originsLabel": "Tillatte opphav",
       "originsHint": "Komma- eller mellomromseparerte opphav (fulle URL-er med scheme + vert).",
       "originsInvalid": "Ikke en gyldig URL: {invalid}. Hvert opphav må inneholde scheme + vert, f.eks. https://eksempel.no.",
-      "createSubmit": "Opprett målepunkt",
-      "createdTitle": "Målepunkt opprettet — kopier disse hemmelighetene nå",
+      "createSubmit": "Opprett sporingskode",
+      "createdTitle": "Sporingskode opprettet — kopier disse hemmelighetene nå",
       "createdDescription": "To verdier for {name}. Sporingsnøkkelen vises kun ved opprettelse, identitetshemmeligheten kun ved opprettelse og rotasjon.",
       "keyLabelTracker": "Sporingsnøkkel (mn_track_*)",
       "keyLabelIdentitySecret": "Identitetshemmelighet",
@@ -745,7 +746,7 @@
       "anyOrigin": "alle opphav",
       "rotateKey": "Roter sporingsnøkkel",
       "rotateKeyConfirmTitle": "Roter sporingsnøkkel?",
-      "rotateKeyConfirm": "Roter sporingsnøkkelen for {name}. Den gamle mn_track_*-nøkkelen blir tilbakekalt; sider som fortsatt bruker den slutter å registrere visninger uten varsel.",
+      "rotateKeyConfirm": "Roter sporingsnøkkelen for {name}. Den gamle mn_track_*-nøkkelen blir trukket tilbake; sider som fortsatt bruker den slutter å registrere visninger uten varsel.",
       "rotatedKeyTitle": "Sporingsnøkkel rotert — kopier den nå",
       "rotatedKeyDescription": "Ny sporingsnøkkel for {name}. Oppdater alle sider som bruker den gamle nøkkelen.",
       "rotateIdentity": "Roter identitetshemmelighet",
@@ -753,30 +754,30 @@
       "rotateIdentityConfirm": "Roter identitetshemmeligheten for {name}. Tidligere utstedte hasher slutter å verifisere umiddelbart.",
       "rotatedIdentityTitle": "Identitetshemmelighet rotert — kopier den nå",
       "rotatedIdentityDescription": "Ny identitetshemmelighet for {name}. Distribuer hash-beregnende kode med den nye verdien.",
-      "revoke": "Tilbakekall målepunkt",
-      "revokeConfirmTitle": "Tilbakekall målepunkt?",
-      "revokeConfirm": "Tilbakekall den offentlige nøkkelen for {name}. Sider som fortsatt bruker den vil slutte å registrere visninger uten varsel.",
+      "revoke": "Deaktiver sporingskode",
+      "revokeConfirmTitle": "Deaktiver sporingskode?",
+      "revokeConfirm": "Deaktiver den offentlige nøkkelen for {name}. Sider som fortsatt bruker den vil slutte å registrere visninger uten varsel.",
       "showEmbed": "Embed-snutt",
       "embed": {
         "title": "Embed-snutt — {name}",
         "description": "Lim inn på hver side hvor du vil registrere sidevisninger.",
         "scriptLabel": "Embed-snutt",
-        "scriptHint": "Erstatt [din sporingsnøkkel] med mn_track_* som ble vist da målepunktet ble opprettet. For å identifisere en kjent besøkende, les window.mn.getVisitorId(), signer den sammen med bruker- id-en din på serversiden (se under), og kall window.mn.identify(externalId, userHash).",
+        "scriptHint": "Erstatt [din sporingsnøkkel] med mn_track_* som ble vist da sporingskoden ble opprettet. For å identifisere en kjent besøkende, les window.mn.getVisitorId(), signer den sammen med bruker- id-en din på serversiden (se under), og kall window.mn.identify(externalId, userHash).",
         "copyScript": "Kopier snutt",
         "hashLabel": "Valgfritt · verifiser besøkendes identitet",
-        "hashHint": "Beregn en server-side HMAC av `externalId:visitorId` (besøkende-id-en kommer fra window.mn.getVisitorId()) med dette målepunktets identitetshemmelighet. Å binde besøkende-id-en hindrer at en lekket hash kan knytte en annen besøkende. Sidevisninger fra den besøkende blir merket med end_user_id.",
+        "hashHint": "Beregn en server-side HMAC av `externalId:visitorId` (besøkende-id-en kommer fra window.mn.getVisitorId()) med denne sporingskodens identitetshemmelighet. Å binde besøkende-id-en hindrer at en lekket hash kan knytte en annen besøkende. Sidevisninger fra den besøkende blir merket med end_user_id.",
         "copyHash": "Kopier kode"
       },
-      "emptyTitle": "Ingen målepunkter ennå",
-      "emptyBody": "Legg til et målepunkt for å begynne å samle sidevisning-analytikk.",
+      "emptyTitle": "Ingen sporingskoder ennå",
+      "emptyBody": "Legg til en sporingskode for å begynne å samle statistikk om sidevisninger.",
       "rotated": "Identitetshemmelighet rotert.",
-      "revoked": "Målepunkt tilbakekalt.",
+      "revoked": "Sporingskode deaktivert.",
       "errors": {
-        "load": "Kunne ikke laste målepunkter.",
-        "create": "Kunne ikke opprette målepunkt.",
+        "load": "Kunne ikke laste sporingskoder.",
+        "create": "Kunne ikke opprette sporingskode.",
         "rotate": "Kunne ikke rotere identitetshemmelighet.",
         "rotateKey": "Kunne ikke rotere sporingsnøkkel.",
-        "revoke": "Kunne ikke tilbakekalle målepunkt."
+        "revoke": "Kunne ikke deaktivere sporingskode."
       }
     },
     "apiKeys": {
@@ -785,6 +786,7 @@
       "subtitle": "Administratornøkler for Munin-API-et. Hver nøkkel vises i klartekst kun én gang — lagre den et trygt sted før du lukker dialogen.",
       "activeKeysTitleCount": "Aktive nøkler · {count}",
       "activeKeysTitle": "Aktive nøkler",
+      "revoke": "Slett",
       "mintNew": "Lag API-nøkkel",
       "mintModalTitle": "Lag API-nøkkel",
       "mintModalSub": "Klartekst vises én gang · kan ikke hentes igjen senere",
@@ -810,11 +812,11 @@
       "emptyBody": "Opprett din første nøkkel over for å komme i gang.",
       "createdTitle": "Nøkkel opprettet — kopier den nå",
       "createdDescription": "Munin lagrer bare hashen. Vi kan ikke vise deg denne nøkkelen igjen.",
-      "revoked": "API-nøkkel tilbakekalt.",
+      "revoked": "API-nøkkel slettet.",
       "errors": {
         "load": "Kunne ikke laste API-nøkler.",
         "create": "Kunne ikke opprette API-nøkkel.",
-        "revoke": "Kunne ikke tilbakekalle API-nøkkel."
+        "revoke": "Kunne ikke slette API-nøkkel."
       }
     },
     "oauthConsent": {
@@ -940,7 +942,7 @@
       "remove": "Fjern",
       "removeConfirmTitle": "Fjerne medlem?",
       "removeConfirm": "De mister tilgang til organisasjonen umiddelbart.",
-      "revokeInviteConfirmTitle": "Tilbakekalle invitasjon?",
+      "revokeInviteConfirmTitle": "Trekke tilbake invitasjonen?",
       "revokeInviteConfirm": "Lenken sendt til {email} slutter å virke umiddelbart. Du kan invitere dem på nytt senere.",
       "invitesTitle": "Ventende invitasjoner",
       "invitesTitleCount": "Ventende invitasjoner · {count}",
@@ -966,7 +968,7 @@
       "errors": {
         "load": "Kunne ikke laste team.",
         "invite": "Kunne ikke sende invitasjon.",
-        "revokeInvite": "Kunne ikke tilbakekalle invitasjon.",
+        "revokeInvite": "Kunne ikke trekke tilbake invitasjonen.",
         "remove": "Kunne ikke fjerne medlem.",
         "changeRole": "Kunne ikke endre rolle.",
         "rename": "Kunne ikke lagre navn."
@@ -987,13 +989,13 @@
       "tableExternalId": "Ekstern id",
       "tableContact": "Kontakt",
       "tableCreated": "Opprettet",
-      "revokeActive": "Tilbakekall aktive tokens",
-      "revoking": "Tilbakekaller…",
-      "revokedCount": "{count, plural, =1 {Tilbakekalte 1 token.} other {Tilbakekalte # tokens.}}",
-      "noTokensRevoked": "Ingen aktive tokens å tilbakekalle for denne sluttbrukeren.",
+      "revokeActive": "Trekk tilbake aktive token",
+      "revoking": "Trekker tilbake…",
+      "revokedCount": "{count, plural, =1 {Trakk tilbake 1 token.} other {Trakk tilbake # token.}}",
+      "noTokensRevoked": "Ingen aktive token å trekke tilbake for denne sluttbrukeren.",
       "errors": {
         "load": "Kunne ikke laste sluttbrukere.",
-        "revoke": "Kunne ikke tilbakekalle tokens."
+        "revoke": "Kunne ikke trekke tilbake token."
       }
     },
     "getStarted": {
@@ -1293,7 +1295,7 @@
     "errors": {
       "lookup": "Kunne ikke slå opp invitasjonen.",
       "accept": "Kunne ikke akseptere invitasjonen.",
-      "expired": "Denne invitasjonen er ikke lenger gyldig (tilbakekalt eller utløpt)."
+      "expired": "Denne invitasjonen er ikke lenger gyldig (trukket tilbake eller utløpt)."
     }
   },
   "errors": {
@@ -1302,7 +1304,7 @@
     "SIGNUP_INVITE_ONLY": "Registrering er kun ved invitasjon på denne Munin-installasjonen. Be en administrator om å sende en invitasjon.",
     "INVITATION_NOT_FOUND": "Invitasjon ikke funnet.",
     "INVITATION_EXPIRED": "Denne invitasjonen er utløpt.",
-    "INVITATION_REVOKED": "Denne invitasjonen er tilbakekalt.",
+    "INVITATION_REVOKED": "Denne invitasjonen er trukket tilbake.",
     "INVITATION_EMAIL_MISMATCH": "Denne invitasjonen er for en annen e-postadresse.",
     "UNAUTHORIZED": "Du må logge inn for å gjøre det.",
     "INVALID_CREDENTIAL": "Ugyldig eller utløpt påloggingsinformasjon.",

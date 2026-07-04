@@ -1200,6 +1200,39 @@ export class CrmService {
         ),
       );
 
+    const dismissReason = `contact merged into ${keeperId}`;
+    const dismissedProposals = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'dismissed',
+        dismissReason,
+        decidedByActorType: actor.type === 'user' ? 'user' : 'agent',
+        decidedByActorId: actor.id,
+        decidedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.outreachProposals.contactId, duplicateId),
+          eq(schema.outreachProposals.status, 'pending'),
+        ),
+      )
+      .returning({
+        id: schema.outreachProposals.id,
+        campaignId: schema.outreachProposals.campaignId,
+      });
+    for (const dismissed of dismissedProposals) {
+      await this.webhooks.emit({
+        type: 'outreach.proposal.dismissed',
+        payload: {
+          proposalId: dismissed.id,
+          campaignId: dismissed.campaignId,
+          contactId: duplicateId,
+          reason: dismissReason,
+        },
+      });
+    }
+
     const archiveTag = `dedup-archived-${archiveMonth(new Date())}`;
     const dupTags = duplicateRow.tags.includes(archiveTag)
       ? duplicateRow.tags

@@ -38,7 +38,7 @@ function bootstrap(): void {
   }
 }
 
-function start(config: WidgetConfig): void {
+export function start(config: WidgetConfig): void {
   let sessionId = getSessionId(config.channelId, config.cookieDomain);
   const visitorId = getVisitorId(config.channelId, config.cookieDomain);
   let identity: { externalId: string; userHash: string } | undefined =
@@ -46,6 +46,7 @@ function start(config: WidgetConfig): void {
       ? { externalId: config.externalId, userHash: config.userHash }
       : undefined;
   const getIdentity = (): { externalId: string; userHash: string } | undefined => identity;
+  let identityClaimed = false;
   const api = createApiClient({
     host: config.host,
     widgetKey: config.widgetKey,
@@ -72,9 +73,20 @@ function start(config: WidgetConfig): void {
     try {
       await api.identify(externalId, userHash);
       identity = { externalId, userHash };
+      identityClaimed = true;
       realtime.reconnect();
     } catch (err) {
       console.warn('[munin-widget] identify failed:', err);
+    }
+  }
+
+  async function claimConfiguredIdentity(): Promise<void> {
+    if (identityClaimed || !identity) return;
+    identityClaimed = true;
+    try {
+      await api.identify(identity.externalId, identity.userHash);
+    } catch (err) {
+      console.warn('[munin-widget] identify on boot failed:', err);
     }
   }
 
@@ -426,8 +438,11 @@ function start(config: WidgetConfig): void {
   realtime.onState((state) => {
     ui.setConnectionState(state);
     if (state === 'connected') {
-      void backfill();
-      void refreshPastConversations();
+      void (async () => {
+        await claimConfiguredIdentity();
+        void backfill();
+        void refreshPastConversations();
+      })();
     }
   });
 

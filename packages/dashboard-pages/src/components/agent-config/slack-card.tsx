@@ -37,7 +37,7 @@ interface SlackStatusDto {
 }
 
 export function SlackCard() {
-  const t = useTranslations('agentSetup.slack');
+  const t = useTranslations('integrations.slack');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
 

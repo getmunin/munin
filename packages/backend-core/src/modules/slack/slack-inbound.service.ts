@@ -11,6 +11,8 @@ import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { decryptSecretValue } from './slack.service.ts';
 
 const INTERNAL_NOTE_PREFIX = '!';
+const ASSIGN_COMMAND_RE = /^!assign\s+(?:<@([A-Z0-9]+)(?:\|[^>]*)?>|me)\s*$/i;
+const ALLOWED_SUBTYPES = new Set(['thread_broadcast', 'file_share']);
 
 const MessageEventSchema = z.object({
   type: z.literal('message'),
@@ -21,6 +23,7 @@ const MessageEventSchema = z.object({
   text: z.string().optional(),
   ts: z.string().min(1),
   thread_ts: z.string().optional(),
+  files: z.array(z.object({}).passthrough()).optional(),
 });
 
 const EventCallbackSchema = z.object({
@@ -55,11 +58,12 @@ export class SlackInboundService {
     if (!parsed.success) return;
     const event = parsed.data;
 
-    if (event.subtype !== undefined && event.subtype !== 'thread_broadcast') return;
+    if (event.subtype !== undefined && !ALLOWED_SUBTYPES.has(event.subtype)) return;
     if (!event.thread_ts || event.thread_ts === event.ts) return;
     if (event.bot_id || !event.user) return;
     const text = (event.text ?? '').trim();
-    if (text.length === 0) return;
+    const fileCount = event.files?.length ?? 0;
+    if (text.length === 0 && fileCount === 0) return;
 
     const [link] = await this.db
       .select()
@@ -100,6 +104,31 @@ export class SlackInboundService {
       return;
     }
 
+    // Slack files live on Slack's authenticated CDN; forwarding them to the
+    // customer would require download + re-hosting, which the bridge does not
+    // do yet. Loudly refuse rather than silently dropping them.
+    if (text.length === 0) {
+      await this.notify(
+        token,
+        event,
+        ':no_entry: Attachments are not forwarded to customers yet — your file was *not sent*. Add the content as text, or send it from the dashboard.',
+      );
+      return;
+    }
+
+    const assignMatch = ASSIGN_COMMAND_RE.exec(text);
+    if (assignMatch) {
+      await this.handleAssignCommand({
+        integration,
+        conversationId: link.conversationId,
+        event,
+        actorUserId: userId,
+        mentionedSlackUserId: assignMatch[1] ?? null,
+        token,
+      });
+      return;
+    }
+
     const internal = text.startsWith(INTERNAL_NOTE_PREFIX);
     const body = internal ? text.slice(INTERNAL_NOTE_PREFIX.length).trim() : text;
     if (body.length === 0) return;
@@ -136,19 +165,83 @@ export class SlackInboundService {
         });
       });
     });
+
+    if (fileCount > 0) {
+      await this.notify(
+        token,
+        event,
+        `:warning: Your message was sent *without* the ${fileCount} attached file${fileCount === 1 ? '' : 's'} — attachments are not forwarded to customers yet.`,
+      );
+    }
+  }
+
+  private async handleAssignCommand(input: {
+    integration: typeof schema.slackIntegrations.$inferSelect;
+    conversationId: string;
+    event: MessageEvent;
+    actorUserId: string;
+    mentionedSlackUserId: string | null;
+    token: string;
+  }): Promise<void> {
+    const { integration, conversationId, event, actorUserId, mentionedSlackUserId, token } = input;
+    let assigneeUserId = actorUserId;
+    if (mentionedSlackUserId) {
+      const mapped = await this.mapping.resolveMuninUser(integration, mentionedSlackUserId, token);
+      if (!mapped) {
+        await this.notify(
+          token,
+          event,
+          ':no_entry: That person is not linked to a Munin member — link them with slack_link_user, or have them reply in a thread once so the email match runs.',
+        );
+        return;
+      }
+      assigneeUserId = mapped;
+    }
+
+    const actor = new ActorIdentity(
+      'user',
+      actorUserId,
+      integration.orgId,
+      ['*'],
+      ['admin'],
+      undefined,
+      undefined,
+      undefined,
+      actorUserId,
+    );
+    try {
+      await this.db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+        const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+        await withContext(ctx, () =>
+          this.conv.assignConversation({ id: conversationId, assigneeUserId }),
+        );
+      });
+    } catch (err) {
+      this.logger.warn(`!assign failed for ${conversationId}: ${describeError(err)}`);
+      await this.notify(token, event, ':no_entry: Could not assign — try from the dashboard.');
+    }
   }
 
   private async rejectReply(token: string, event: MessageEvent): Promise<void> {
+    await this.notify(
+      token,
+      event,
+      ':no_entry: Your reply was *not sent to the customer* — your Slack account is not linked to a member of this Munin org. Ask an admin to add you with your Slack email, or reply from the Munin dashboard.',
+    );
+  }
+
+  private async notify(token: string, event: MessageEvent, text: string): Promise<void> {
     try {
       await this.api.postEphemeral({
         token,
         channel: event.channel,
         user: event.user!,
         threadTs: event.thread_ts,
-        text: ':no_entry: Your reply was *not sent to the customer* — your Slack account is not linked to a member of this Munin org. Ask an admin to add you with your Slack email, or reply from the Munin dashboard.',
+        text,
       });
     } catch (err) {
-      this.logger.warn(`ephemeral rejection notice failed: ${describeError(err)}`);
+      this.logger.warn(`ephemeral notice failed: ${describeError(err)}`);
     }
   }
 }

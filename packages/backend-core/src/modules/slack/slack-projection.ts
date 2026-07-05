@@ -18,11 +18,36 @@ export interface ConversationSnapshot {
   dashboardUrl: string;
 }
 
+export interface MessageAttachment {
+  name: string | null;
+  url: string | null;
+}
+
 export interface MessageSnapshot {
   authorKind: AuthorKind;
   authorName: string | null;
   internal: boolean;
   body: string;
+  attachments?: MessageAttachment[];
+}
+
+/**
+ * conv_messages.attachments is loosely-typed jsonb; read `{url, name}`-shaped
+ * entries best-effort and ignore the rest rather than assuming a schema.
+ */
+export function parseMessageAttachments(raw: unknown[]): MessageAttachment[] {
+  return raw.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null) return [];
+    const record = entry as Record<string, unknown>;
+    const url = typeof record.url === 'string' ? record.url : null;
+    const name =
+      typeof record.name === 'string'
+        ? record.name
+        : typeof record.filename === 'string'
+          ? record.filename
+          : null;
+    return url || name ? [{ name, url }] : [];
+  });
 }
 
 const MAX_BODY_CHARS = 2900;
@@ -79,8 +104,13 @@ export function messageText(msg: MessageSnapshot): string {
     .map((line) => `> ${line}`)
     .join('\n');
   const label = authorLabel(msg.authorKind, msg.authorName);
-  if (msg.internal) return `:lock: _Internal note_ — ${label}\n${quoted}`;
-  return `${label}\n${quoted}`;
+  const attachmentLines = (msg.attachments ?? []).map((a) => {
+    const name = escapeSlackText(a.name ?? 'attachment');
+    return a.url ? `:paperclip: <${a.url}|${name}>` : `:paperclip: ${name}`;
+  });
+  const suffix = attachmentLines.length > 0 ? `\n${attachmentLines.join('\n')}` : '';
+  if (msg.internal) return `:lock: _Internal note_ — ${label}\n${quoted}${suffix}`;
+  return `${label}\n${quoted}${suffix}`;
 }
 
 export function statusChangedText(status: string): string {

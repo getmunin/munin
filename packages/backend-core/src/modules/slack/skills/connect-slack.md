@@ -107,10 +107,12 @@ Call `slack_test` — it posts a hello message to the default channel. Then conf
 
 A reply in a mirrored thread is sent to the customer over the conversation's original channel and recorded in Munin as that teammate's message (it also claims the conversation, same as replying from the dashboard):
 
-- **Attribution is by email match**: the Slack profile email must belong to a member of the Munin org. The first reply creates the mapping; later replies use it.
-- **Unmapped users are rejected** — the reply is *not* sent, and only the sender sees an ephemeral notice in the thread. Fix by inviting them to the org with their Slack email (`invitations` on the dashboard team page), then have them reply again.
+- **Attribution is by email match**: the Slack profile email must belong to a member of the Munin org. The first reply creates the mapping; later replies use it. When emails differ, link manually: `slack_link_user` with the Slack member ID (profile → *Copy member ID*) and the Munin user ID; inspect with `slack_list_user_links`, revoke with `slack_unlink_user`.
+- **Unmapped users are rejected** — the reply is *not* sent, and only the sender sees an ephemeral notice in the thread. Fix by inviting them to the org with their Slack email, or link them manually with `slack_link_user`.
 - **Internal notes**: start the reply with `!` to keep it team-only (`!checking with billing`) — recorded as an internal note, never sent to the customer.
-- Only thread replies count; top-level channel messages, edits, and other bots are ignored.
+- **Assign from the thread**: `!assign @teammate` assigns the conversation to that (linked) teammate; `!assign me` assigns yourself. The assignment mirrors back into the thread and the parent status line.
+- **Attachments are not forwarded** — Slack files live on Slack's authenticated CDN, so a file-only reply is rejected and a reply with files goes out as text only; the sender is told either way. Send files from the dashboard instead.
+- Only thread replies count; top-level channel messages, edits, and other bots are ignored. Attachment links on mirrored Munin messages appear as :paperclip: lines in the thread.
 
 ## Troubleshooting
 

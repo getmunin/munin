@@ -5,6 +5,19 @@ import { SlackService } from './slack.service.ts';
 
 const EmptyInput = z.object({});
 
+const LinkUserInput = z.object({
+  slackUserId: z
+    .string()
+    .min(1)
+    .max(32)
+    .describe('Slack member ID (profile → three-dot menu → Copy member ID, e.g. U0123456789)'),
+  userId: z.string().min(1).max(64).describe('Munin user ID of the org member (usr_…)'),
+});
+
+const UnlinkUserInput = z.object({
+  slackUserId: z.string().min(1).max(32),
+});
+
 const SetRoutingInputSchema = z.object({
   slackChannelId: z
     .string()
@@ -95,6 +108,51 @@ export class SlackAdminTools {
   })
   sendTest() {
     return this.slack.sendTest();
+  }
+
+  @McpTool({
+    name: 'slack_list_user_links',
+    title: 'Slack: List user links',
+    description:
+      'List the Slack-user ↔ Munin-member links used to attribute thread replies and button clicks. Links are created automatically by profile-email match on first use, or manually with slack_link_user.',
+    audiences: ['admin'],
+    scopes: ['slack:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listUserLinks() {
+    return this.slack.listUserLinks();
+  }
+
+  @McpTool({
+    name: 'slack_link_user',
+    title: 'Slack: Link a user',
+    description:
+      'Manually link a Slack user (U… member ID) to a Munin org member so their thread replies and button clicks are attributed to that member. Use when the Slack profile email does not match the member email. Linking again replaces the previous mapping for that Slack user.',
+    audiences: ['admin'],
+    scopes: ['slack:write'],
+    input: LinkUserInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  linkUser(args: z.infer<typeof LinkUserInput>) {
+    return this.slack.linkUser(args);
+  }
+
+  @McpTool({
+    name: 'slack_unlink_user',
+    title: 'Slack: Unlink a user',
+    description:
+      'Remove a Slack-user ↔ Munin-member link. Their next thread reply or button click is rejected until re-linked (manually or by email auto-match).',
+    audiences: ['admin'],
+    scopes: ['slack:write'],
+    input: UnlinkUserInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  unlinkUser(args: z.infer<typeof UnlinkUserInput>) {
+    return this.slack.unlinkUser(args);
   }
 
   @McpTool({

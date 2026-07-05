@@ -44,6 +44,15 @@ export interface SlackIntegrationDto {
   updatedAt: string;
 }
 
+export interface SlackUserLinkDto {
+  id: string;
+  slackUserId: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string;
+  createdAt: string;
+}
+
 export interface SlackStatusDto {
   /** Whether this deployment has a Slack app configured (env credentials). */
   appConfigured: boolean;
@@ -446,6 +455,112 @@ export class SlackService {
       }
       throw err;
     }
+  }
+
+  async listUserLinks(): Promise<SlackUserLinkDto[]> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const rows = await ctx.db
+      .select({
+        id: schema.slackUserLinks.id,
+        slackUserId: schema.slackUserLinks.slackUserId,
+        userId: schema.slackUserLinks.userId,
+        userName: schema.users.name,
+        userEmail: schema.users.email,
+        createdAt: schema.slackUserLinks.createdAt,
+      })
+      .from(schema.slackUserLinks)
+      .innerJoin(schema.users, eq(schema.users.id, schema.slackUserLinks.userId))
+      .where(eq(schema.slackUserLinks.orgId, orgId));
+    return rows.map((row) => ({
+      id: row.id,
+      slackUserId: row.slackUserId,
+      userId: row.userId,
+      userName: row.userName,
+      userEmail: row.userEmail,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
+  async linkUser(input: { slackUserId: string; userId: string }): Promise<SlackUserLinkDto> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const [integration] = await ctx.db
+      .select({ id: schema.slackIntegrations.id })
+      .from(schema.slackIntegrations)
+      .where(and(eq(schema.slackIntegrations.orgId, orgId), eq(schema.slackIntegrations.active, true)))
+      .limit(1);
+    if (!integration) {
+      throw new NotFoundException('slack_not_connected: use slack_get_install_url first');
+    }
+
+    const [member] = await ctx.db
+      .select({ name: schema.users.name, email: schema.users.email })
+      .from(schema.users)
+      .innerJoin(schema.orgMembers, eq(schema.orgMembers.userId, schema.users.id))
+      .where(and(eq(schema.orgMembers.orgId, orgId), eq(schema.users.id, input.userId)))
+      .limit(1);
+    if (!member) {
+      throw new BadRequestException(
+        `slack_user_not_member: ${input.userId} is not a member of this org — invite them first`,
+      );
+    }
+
+    const [existing] = await ctx.db
+      .select({ id: schema.slackUserLinks.id })
+      .from(schema.slackUserLinks)
+      .where(
+        and(
+          eq(schema.slackUserLinks.integrationId, integration.id),
+          eq(schema.slackUserLinks.slackUserId, input.slackUserId),
+        ),
+      )
+      .limit(1);
+    let row;
+    if (existing) {
+      [row] = await ctx.db
+        .update(schema.slackUserLinks)
+        .set({ userId: input.userId, updatedAt: new Date() })
+        .where(eq(schema.slackUserLinks.id, existing.id))
+        .returning();
+    } else {
+      [row] = await ctx.db
+        .insert(schema.slackUserLinks)
+        .values({
+          orgId,
+          integrationId: integration.id,
+          slackUserId: input.slackUserId,
+          userId: input.userId,
+        })
+        .returning();
+    }
+    if (!row) throw new ConflictException('slack_user_link_write_failed');
+    return {
+      id: row.id,
+      slackUserId: row.slackUserId,
+      userId: row.userId,
+      userName: member.name,
+      userEmail: member.email,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  async unlinkUser(input: { slackUserId: string }): Promise<{ unlinked: true; slackUserId: string }> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const result = await ctx.db
+      .delete(schema.slackUserLinks)
+      .where(
+        and(
+          eq(schema.slackUserLinks.orgId, orgId),
+          eq(schema.slackUserLinks.slackUserId, input.slackUserId),
+        ),
+      )
+      .returning({ id: schema.slackUserLinks.id });
+    if (result.length === 0) {
+      throw new NotFoundException(`slack_user_link_not_found: ${input.slackUserId} is not linked`);
+    }
+    return { unlinked: true, slackUserId: input.slackUserId };
   }
 
   async disconnect(): Promise<{ disconnected: true; id: string }> {

@@ -1,5 +1,18 @@
 # @getmunin/backend-core
 
+## 4.67.2
+
+### Patch Changes
+
+- fbb276c: Fix chat-widget read-state loss on identity claim: when an anonymous session is claimed by a verified visitor (`identify`), the anonymous end-user's `conv_message_reads` rows are now migrated to the verified end-user before the anonymous end-user is deleted. Previously the read receipts were cascade-deleted with the anonymous end-user, so already-read agent replies resurfaced as unread (phantom unread badge) after logging in.
+  - @getmunin/core@4.67.2
+  - @getmunin/db@4.67.2
+  - @getmunin/types@4.67.2
+  - @getmunin/mcp-toolkit@4.67.2
+  - @getmunin/inspector-app@4.67.2
+  - @getmunin/agent-runtime@4.67.2
+  - @getmunin/emails@4.67.2
+
 ## 4.67.1
 
 ### Patch Changes

@@ -25,6 +25,10 @@ function mockFetch(
   return { fetchImpl, calls };
 }
 
+function headerOf(call: CapturedCall, name: string): string | undefined {
+  return (call.init.headers as Record<string, string> | undefined)?.[name];
+}
+
 describe('api: postMessage', () => {
   it('POSTs to /v1/widget/messages with channelId, sessionId, end_user role', async () => {
     const { fetchImpl, calls } = mockFetch(() => ({
@@ -168,8 +172,9 @@ describe('api: backfillSince', () => {
     expect(res.messages).toHaveLength(1);
     expect(res.hasMore).toBe(false);
     expect(calls[0]!.url).toContain('channelId=cnv_chan');
-    expect(calls[0]!.url).toContain('sessionId=sess_1');
+    expect(calls[0]!.url).not.toContain('sessionId');
     expect(calls[0]!.url).not.toContain('since=');
+    expect(headerOf(calls[0]!, 'x-munin-session-id')).toBe('sess_1');
     expect(calls[0]!.init.method).toBe('GET');
   });
 
@@ -190,7 +195,7 @@ describe('api: backfillSince', () => {
     expect(calls[0]!.url).toContain('since=2026-05-09T11%3A00%3A00.123Z');
   });
 
-  it('threads identity attrs as query params', async () => {
+  it('threads identity attrs as request headers', async () => {
     const { fetchImpl, calls } = mockFetch(() => ({
       status: 200,
       body: { messages: [], hasMore: false },
@@ -204,8 +209,10 @@ describe('api: backfillSince', () => {
       fetchImpl,
     });
     await client.backfillSince(undefined);
-    expect(calls[0]!.url).toContain('verifiedExternalId=user_42');
-    expect(calls[0]!.url).toContain(`userHash=${'b'.repeat(64)}`);
+    expect(calls[0]!.url).not.toContain('verifiedExternalId');
+    expect(calls[0]!.url).not.toContain('userHash');
+    expect(headerOf(calls[0]!, 'x-munin-verified-external-id')).toBe('user_42');
+    expect(headerOf(calls[0]!, 'x-munin-user-hash')).toBe('b'.repeat(64));
   });
 
   it('throws WidgetApiError on non-2xx response', async () => {

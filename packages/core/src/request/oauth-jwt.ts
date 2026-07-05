@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { decodeProtectedHeader, importJWK, jwtVerify, type JWTPayload } from 'jose';
 import { ActorIdentity } from './context.ts';
 import {
-  deriveAudiencesFromScopes,
+  gateOauthGrantsByRole,
   oauthMcpResourceAudience,
   readMembershipsForUser,
   resolvePinnedMembership,
@@ -96,13 +96,13 @@ export async function resolveOauthJwtAccessToken(
   );
   if (!active) return null;
 
-  const audiences = deriveAudiencesFromScopes(scopes);
+  const { scopes: grantedScopes, audiences } = gateOauthGrantsByRole(scopes, active.role);
 
   const actor = new ActorIdentity(
     'user',
     userId,
     active.orgId,
-    scopes,
+    grantedScopes,
     audiences,
     undefined,
     undefined,

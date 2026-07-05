@@ -72,6 +72,11 @@ describe('parseEnvBool', () => {
     ['false', false],
     ['TRUE', true],
     ['False', false],
+    ['yes', true],
+    ['no', false],
+    ['on', true],
+    ['off', false],
+    ['  On  ', true],
   ])('parses %j as %s', (raw, expected) => {
     process.env[ENV_KEY] = raw;
     expect(parseEnvBool({ name: ENV_KEY, default: !expected })).toBe(expected);
@@ -83,8 +88,9 @@ describe('parseEnvBool', () => {
   });
 
   it('returns default on unrecognized value', () => {
-    process.env[ENV_KEY] = 'yes';
+    process.env[ENV_KEY] = 'maybe';
     expect(parseEnvBool({ name: ENV_KEY, default: false })).toBe(false);
+    expect(parseEnvBool({ name: ENV_KEY, default: true })).toBe(true);
   });
 });
 

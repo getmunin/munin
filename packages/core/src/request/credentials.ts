@@ -106,8 +106,7 @@ export class CredentialResolver {
     const active = resolvePinnedMembership(memberships, tokenRow.referenceId);
     if (!active) return null;
 
-    const scopes = tokenRow.scopes;
-    const audiences = deriveAudiencesFromScopes(scopes);
+    const { scopes, audiences } = gateOauthGrantsByRole(tokenRow.scopes, active.role);
 
     const actor = new ActorIdentity(
       'user',
@@ -232,4 +231,17 @@ export function deriveAudiencesFromScopes(scopes: string[]): Audience[] {
     if (scope === 'mcp:admin') set.add('admin');
   }
   return Array.from(set);
+}
+
+const MCP_ADMIN_ELIGIBLE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+
+export function gateOauthGrantsByRole(
+  scopes: readonly string[],
+  role: string | null | undefined,
+): { scopes: string[]; audiences: Audience[] } {
+  const roleAllowsAdmin = !!role && MCP_ADMIN_ELIGIBLE_ROLES.has(role);
+  const effectiveScopes = roleAllowsAdmin
+    ? [...scopes]
+    : scopes.filter((scope) => scope !== 'mcp:admin');
+  return { scopes: effectiveScopes, audiences: deriveAudiencesFromScopes(effectiveScopes) };
 }

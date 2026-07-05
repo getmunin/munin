@@ -7,6 +7,7 @@ import { ActorIdentity, describeError, withContext, type RequestContext } from '
 import { DB } from '../../common/db/db.module.ts';
 import { ConvService } from '../conv/conv.service.ts';
 import { SlackApiClient } from './slack-api.client.ts';
+import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { decryptSecretValue } from './slack.service.ts';
 
 const INTERNAL_NOTE_PREFIX = '!';
@@ -27,7 +28,6 @@ const EventCallbackSchema = z.object({
   event: z.unknown(),
 });
 
-type IntegrationRow = typeof schema.slackIntegrations.$inferSelect;
 type MessageEvent = z.infer<typeof MessageEventSchema>;
 
 /**
@@ -45,6 +45,7 @@ export class SlackInboundService {
     @Inject(DB) private readonly db: Db,
     @Inject(SlackApiClient) private readonly api: SlackApiClient,
     @Inject(ConvService) private readonly conv: ConvService,
+    @Inject(SlackUserMappingService) private readonly mapping: SlackUserMappingService,
   ) {}
 
   async processEventCallback(payload: Record<string, unknown>): Promise<void> {
@@ -93,7 +94,7 @@ export class SlackInboundService {
     if (integration.botUserId && event.user === integration.botUserId) return;
 
     const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
-    const userId = await this.resolveMuninUser(integration, event.user, token);
+    const userId = await this.mapping.resolveMuninUser(integration, event.user, token);
     if (!userId) {
       await this.rejectReply(token, event);
       return;
@@ -135,73 +136,6 @@ export class SlackInboundService {
         });
       });
     });
-  }
-
-  /**
-   * slack_user_links is the cache; a hit is still re-checked against current
-   * org membership so removed members lose reply access immediately. On miss,
-   * auto-map via the Slack profile email ↔ org member email.
-   */
-  private async resolveMuninUser(
-    integration: IntegrationRow,
-    slackUserId: string,
-    token: string,
-  ): Promise<string | null> {
-    const [existing] = await this.db
-      .select({ userId: schema.slackUserLinks.userId })
-      .from(schema.slackUserLinks)
-      .where(
-        and(
-          eq(schema.slackUserLinks.integrationId, integration.id),
-          eq(schema.slackUserLinks.slackUserId, slackUserId),
-        ),
-      )
-      .limit(1);
-    if (existing) {
-      return (await this.isOrgMember(integration.orgId, existing.userId))
-        ? existing.userId
-        : null;
-    }
-
-    let info;
-    try {
-      info = await this.api.usersInfo({ token, user: slackUserId });
-    } catch (err) {
-      this.logger.warn(`users.info failed for ${slackUserId}: ${describeError(err)}`);
-      return null;
-    }
-    if (info.isBot || !info.email) return null;
-
-    const email = info.email.trim().toLowerCase();
-    const [member] = await this.db
-      .select({ userId: schema.users.id })
-      .from(schema.users)
-      .innerJoin(schema.orgMembers, eq(schema.orgMembers.userId, schema.users.id))
-      .where(
-        and(eq(schema.orgMembers.orgId, integration.orgId), sql`lower(${schema.users.email}) = ${email}`),
-      )
-      .limit(1);
-    if (!member) return null;
-
-    await this.db
-      .insert(schema.slackUserLinks)
-      .values({
-        orgId: integration.orgId,
-        integrationId: integration.id,
-        slackUserId,
-        userId: member.userId,
-      })
-      .onConflictDoNothing();
-    return member.userId;
-  }
-
-  private async isOrgMember(orgId: string, userId: string): Promise<boolean> {
-    const [row] = await this.db
-      .select({ userId: schema.orgMembers.userId })
-      .from(schema.orgMembers)
-      .where(and(eq(schema.orgMembers.orgId, orgId), eq(schema.orgMembers.userId, userId)))
-      .limit(1);
-    return row !== undefined;
   }
 
   private async rejectReply(token: string, event: MessageEvent): Promise<void> {

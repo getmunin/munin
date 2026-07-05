@@ -17,12 +17,14 @@ const skipReason = TEST_URL
 interface PostedMessage {
   channel: string;
   text: string;
+  blocks?: unknown[];
   threadTs?: string;
   ts: string;
 }
 
 class FakeSlackApi extends SlackApiClient {
   posted: PostedMessage[] = [];
+  updated: { channel: string; ts: string; text: string; blocks?: unknown[] }[] = [];
   failNextPosts = 0;
   private counter = 0;
 
@@ -30,6 +32,7 @@ class FakeSlackApi extends SlackApiClient {
     token: string;
     channel: string;
     text: string;
+    blocks?: unknown[];
     threadTs?: string;
   }): Promise<{ ts: string; channel: string }> {
     if (this.failNextPosts > 0) {
@@ -38,13 +41,43 @@ class FakeSlackApi extends SlackApiClient {
     }
     this.counter += 1;
     const ts = `1700000000.${String(this.counter).padStart(6, '0')}`;
-    this.posted.push({ channel: input.channel, text: input.text, threadTs: input.threadTs, ts });
+    this.posted.push({
+      channel: input.channel,
+      text: input.text,
+      blocks: input.blocks,
+      threadTs: input.threadTs,
+      ts,
+    });
     return Promise.resolve({ ts, channel: input.channel });
+  }
+
+  override updateMessage(input: {
+    token: string;
+    channel: string;
+    ts: string;
+    text: string;
+    blocks?: unknown[];
+  }): Promise<void> {
+    this.updated.push({
+      channel: input.channel,
+      ts: input.ts,
+      text: input.text,
+      blocks: input.blocks,
+    });
+    return Promise.resolve();
   }
 
   override conversationsInfo(input: { token: string; channel: string }) {
     return Promise.resolve({ id: input.channel, name: 'support', isMember: true });
   }
+}
+
+function actionIds(blocks: unknown[] | undefined): string[] {
+  const actions = (blocks ?? []).find(
+    (b): b is { type: string; elements: { action_id: string }[] } =>
+      typeof b === 'object' && b !== null && (b as { type?: string }).type === 'actions',
+  );
+  return actions?.elements.map((e) => e.action_id) ?? [];
 }
 
 (skipReason ? describe.skip : describe)('Slack bridge', () => {
@@ -195,6 +228,8 @@ class FakeSlackApi extends SlackApiClient {
     expect(parent!.channel).toBe('C_DEFAULT');
     expect(parent!.threadTs).toBeUndefined();
     expect(parent!.text).toContain('Ada Lovelace');
+    expect(parent!.text).toContain('*Status:* open');
+    expect(actionIds(parent!.blocks)).toEqual(['munin_claim', 'munin_close']);
     expect(reply!.threadTs).toBe(parent!.ts);
     expect(reply!.text).toContain('I need help with my order');
 
@@ -306,6 +341,53 @@ class FakeSlackApi extends SlackApiClient {
     expect(texts.indexOf('first')).toBeLessThan(texts.indexOf('second'));
   });
 
+  it('updates the parent message on status changes and swaps to a Reopen button', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api.asClient());
+    const conversationId = await seedConversation();
+    await db
+      .update(schema.convConversations)
+      .set({ status: 'closed' })
+      .where(eq(schema.convConversations.id, conversationId));
+    await enqueue('conversation.status_changed', conversationId, { conversationId, status: 'closed' });
+
+    await worker.tick();
+
+    const parent = api.posted.find((p) => !p.threadTs);
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.ts).toBe(parent!.ts);
+    expect(api.updated[0]!.text).toContain('*Status:* closed');
+    expect(actionIds(api.updated[0]!.blocks)).toEqual(['munin_reopen']);
+  });
+
+  it('mirrors into a source-channel override route when one matches', async () => {
+    const [smsChannel] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'sms', vendor: 'twilio', name: 'SMS line' })
+      .returning();
+    await db.insert(schema.slackChannelRoutes).values({
+      orgId,
+      integrationId,
+      teamId: 'T_TEST',
+      slackChannelId: 'C_SMS',
+      purpose: 'default',
+      convChannelId: smsChannel!.id,
+    });
+    displayIdSeq += 1;
+    const [conversation] = await db
+      .insert(schema.convConversations)
+      .values({ orgId, displayId: displayIdSeq, channelId: smsChannel!.id, contactId })
+      .returning();
+    await enqueue('conversation.created', conversation!.id, { conversationId: conversation!.id });
+
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api.asClient());
+    await worker.tick();
+
+    const parent = api.posted.find((p) => !p.threadTs);
+    expect(parent!.channel).toBe('C_SMS');
+  });
+
   it('enqueues deliveries from the event sink only for mirrored events', async () => {
     const dispatcher = new WebhookDispatcher();
     dispatcher.registerSink(new SlackEventSink());
@@ -379,6 +461,14 @@ class FakeSlackApi extends SlackApiClient {
     } finally {
       await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
     }
+  });
+
+  it('rejects reusing a slack channel across routes of the same org', async () => {
+    const api = new FakeSlackApi();
+    const service = new SlackService(db, api.asClient());
+    await expect(
+      run(() => service.setRouting({ slackChannelId: 'C_DEFAULT', purpose: 'escalations' })),
+    ).rejects.toThrow(ConflictException);
   });
 
   it('replaces the default route on repeat setRouting calls', async () => {

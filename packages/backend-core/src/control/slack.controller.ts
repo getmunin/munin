@@ -27,6 +27,7 @@ const RoutingDto = z.object({
   slackChannelId: z.string().min(1).max(32),
   purpose: z.enum(['default', 'escalations']).optional(),
   mention: z.string().max(64).nullish(),
+  convChannelId: z.string().max(64).nullish(),
 });
 
 @Controller('v1/slack')
@@ -54,6 +55,7 @@ export class SlackController {
       slackChannelId: parsed.data.slackChannelId,
       purpose: parsed.data.purpose,
       mention: parsed.data.mention ?? undefined,
+      convChannelId: parsed.data.convChannelId ?? undefined,
     });
   }
 

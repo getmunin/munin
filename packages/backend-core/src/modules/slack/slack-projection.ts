@@ -130,6 +130,60 @@ export function escalationAlertText(
   return lines.join('\n');
 }
 
+export interface ParentState {
+  status: string;
+  needsHumanAttention: boolean;
+  claimedBy: string | null;
+  assignedTo: string | null;
+}
+
+export interface SlackBlock {
+  type: string;
+  [key: string]: unknown;
+}
+
+export const CLAIM_ACTION_ID = 'munin_claim';
+export const CLOSE_ACTION_ID = 'munin_close';
+export const REOPEN_ACTION_ID = 'munin_reopen';
+
+export function parentStateLine(state: ParentState): string {
+  const parts = [`*Status:* ${escapeSlackText(state.status)}`];
+  if (state.claimedBy) parts.push(`claimed by *${escapeSlackText(state.claimedBy)}*`);
+  if (state.assignedTo) parts.push(`assigned to *${escapeSlackText(state.assignedTo)}*`);
+  if (state.needsHumanAttention) parts.push(':rotating_light: needs attention');
+  return parts.join(' · ');
+}
+
+function actionButton(actionId: string, label: string, value: string): Record<string, unknown> {
+  return {
+    type: 'button',
+    action_id: actionId,
+    text: { type: 'plain_text', text: label },
+    value,
+  };
+}
+
+export function threadParentBlocks(
+  conv: ConversationSnapshot,
+  state: ParentState,
+  conversationId: string,
+): SlackBlock[] {
+  const resolved = state.status === 'closed' || state.status === 'spam';
+  const buttons = resolved
+    ? [actionButton(REOPEN_ACTION_ID, 'Reopen', conversationId)]
+    : [
+        actionButton(CLAIM_ACTION_ID, 'Claim', conversationId),
+        actionButton(CLOSE_ACTION_ID, 'Close', conversationId),
+      ];
+  return [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `${threadParentText(conv)}\n${parentStateLine(state)}` },
+    },
+    { type: 'actions', elements: buttons },
+  ];
+}
+
 export function testMessageText(orgName: string | null): string {
   const scope = orgName ? ` for *${escapeSlackText(orgName)}*` : '';
   return `:wave: Munin is connected${scope}. New conversations will mirror into this channel as threads.`;

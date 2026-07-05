@@ -4,7 +4,9 @@ import {
   escalationAlertText,
   escapeSlackText,
   messageText,
+  parentStateLine,
   statusChangedText,
+  threadParentBlocks,
   threadParentText,
   type ConversationSnapshot,
 } from './slack-projection.ts';
@@ -97,6 +99,55 @@ describe('statusChangedText', () => {
   it('renders known and unknown statuses', () => {
     expect(statusChangedText('closed')).toContain('*closed*');
     expect(statusChangedText('weird')).toContain('*weird*');
+  });
+});
+
+describe('parentStateLine + threadParentBlocks', () => {
+  const openState = {
+    status: 'open',
+    needsHumanAttention: false,
+    claimedBy: null,
+    assignedTo: null,
+  };
+
+  function actionsOf(blocks: ReturnType<typeof threadParentBlocks>) {
+    const block = blocks.find((b) => b.type === 'actions');
+    return (block?.elements as { action_id: string; value: string }[] | undefined) ?? [];
+  }
+
+  function sectionTextOf(blocks: ReturnType<typeof threadParentBlocks>): string {
+    const block = blocks.find((b) => b.type === 'section');
+    return (block?.text as { text?: string } | undefined)?.text ?? '';
+  }
+
+  it('renders claim, assignment, and attention segments', () => {
+    const line = parentStateLine({
+      status: 'open',
+      needsHumanAttention: true,
+      claimedBy: 'Kim <ops>',
+      assignedTo: 'Ada',
+    });
+    expect(line).toContain('*Status:* open');
+    expect(line).toContain('claimed by *Kim &lt;ops&gt;*');
+    expect(line).toContain('assigned to *Ada*');
+    expect(line).toContain('needs attention');
+  });
+
+  it('shows Claim/Close buttons while open and Reopen once resolved', () => {
+    const openActions = actionsOf(threadParentBlocks(conv, openState, 'ccv_1'));
+    expect(openActions.map((e) => e.action_id)).toEqual(['munin_claim', 'munin_close']);
+    expect(openActions[0]!.value).toBe('ccv_1');
+
+    const closedActions = actionsOf(
+      threadParentBlocks(conv, { ...openState, status: 'closed' }, 'ccv_1'),
+    );
+    expect(closedActions.map((e) => e.action_id)).toEqual(['munin_reopen']);
+  });
+
+  it('embeds the parent text and state line in the section block', () => {
+    const text = sectionTextOf(threadParentBlocks(conv, openState, 'ccv_1'));
+    expect(text).toContain('#42');
+    expect(text).toContain('*Status:* open');
   });
 });
 

@@ -5084,6 +5084,21 @@
         "security": []
       }
     },
+    "/v1/slack/interactivity": {
+      "post": {
+        "operationId": "SlackEventsController_handleInteractivity",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SlackEvents"
+        ],
+        "security": []
+      }
+    },
     "/.well-known/oauth-protected-resource": {
       "get": {
         "operationId": "OAuthResourceController_metadata",

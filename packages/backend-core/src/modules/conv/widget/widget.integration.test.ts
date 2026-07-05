@@ -781,6 +781,59 @@ const skipReason = TEST_URL
     expect((followup.json as { contactId: string }).contactId).toBe(anonBody.contactId);
   });
 
+  it('verified GET surfaces an anonymous session only after identify claims it', async () => {
+    const sessionId = `vis_carryover_${Date.now()}`;
+    const externalId = 'user_carryover_7';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'started on marketing' }],
+    });
+
+    // Before identify the anonymous conversation is invisible to a verified
+    // caller (leak-protection) — this is exactly what breaks carry-over.
+    const before = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    expect(before.status).toBe(200);
+    expect((before.json as { messages: unknown[] }).messages).toEqual([]);
+
+    await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: externalId,
+      userHash,
+    });
+
+    // After identify the same verified caller sees the anonymous thread —
+    // the marketing chat carries into the logged-in dashboard.
+    const after = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    expect(after.status).toBe(200);
+    expect((after.json as { messages: Array<{ body: string }> }).messages.map((m) => m.body)).toContain(
+      'started on marketing',
+    );
+
+    const convs = await call(
+      'GET',
+      `/v1/widget/conversations?${qs({ channelId, sessionIds: sessionId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    expect(convs.status).toBe(200);
+    expect(
+      (convs.json as { conversations: Array<{ sessionId: string }> }).conversations.map(
+        (c) => c.sessionId,
+      ),
+    ).toContain(sessionId);
+  });
+
   it('identify is idempotent: re-claiming the same session returns the same refs', async () => {
     const sessionId = 'vis_claim_idem';
     const externalId = 'user_idem_99';

@@ -13,6 +13,7 @@ import {
   handoverResolvedText,
   messageText,
   parentStateLine,
+  parseMessageAttachments,
   releasedText,
   statusChangedText,
   takenOverText,
@@ -272,6 +273,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         authorName,
         internal: message.internal,
         body: message.body,
+        attachments: parseMessageAttachments(message.attachments),
       }),
     });
     await this.db

@@ -7727,6 +7727,89 @@
     }
   },
   {
+    "name": "slack_list_user_links",
+    "title": "Slack: List user links",
+    "description": "List the Slack-user ↔ Munin-member links used to attribute thread replies and button clicks. Links are created automatically by profile-email match on first use, or manually with slack_link_user.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "slack:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "slack_link_user",
+    "title": "Slack: Link a user",
+    "description": "Manually link a Slack user (U… member ID) to a Munin org member so their thread replies and button clicks are attributed to that member. Use when the Slack profile email does not match the member email. Linking again replaces the previous mapping for that Slack user.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "slack:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slackUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Slack member ID (profile → three-dot menu → Copy member ID, e.g. U0123456789)"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Munin user ID of the org member (usr_…)"
+        }
+      },
+      "required": [
+        "slackUserId",
+        "userId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "slack_unlink_user",
+    "title": "Slack: Unlink a user",
+    "description": "Remove a Slack-user ↔ Munin-member link. Their next thread reply or button click is rejected until re-linked (manually or by email auto-match).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "slack:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slackUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        }
+      },
+      "required": [
+        "slackUserId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "slack_disconnect",
     "title": "Slack: Disconnect workspace",
     "description": "Disconnect the org's Slack workspace. Deletes the stored bot token, channel routing, and all conversation/message thread links; existing Slack messages remain in Slack. Conversations in Munin are unaffected. Reconnect any time with slack_get_install_url.",

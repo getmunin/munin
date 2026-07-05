@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { sql, eq, and } from 'drizzle-orm';
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ActorIdentity, WebhookDispatcher, withContext, type RequestContext } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { SlackApiError, type SlackApiClient } from './slack-api.client.ts';
@@ -343,6 +343,68 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     expect(second.delivered + third.delivered).toBe(2);
     const texts = api.posted.map((p) => p.text).join('\n---\n');
     expect(texts.indexOf('first')).toBeLessThan(texts.indexOf('second'));
+  });
+
+  it('mirrors message attachments as paperclip links', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api.asClient());
+    const conversationId = await seedConversation();
+    const [message] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId,
+        authorType: 'end_user',
+        authorId: contactId,
+        body: 'invoice attached',
+        attachments: [
+          { url: 'https://files.example.com/invoice.pdf', name: 'invoice.pdf' },
+          { garbage: true },
+        ],
+      })
+      .returning();
+    await enqueue('conversation.message.received', conversationId, {
+      conversationId,
+      messageId: message!.id,
+    });
+
+    await worker.tick();
+
+    const reply = api.posted.find((p) => p.threadTs);
+    expect(reply!.text).toContain(':paperclip: <https://files.example.com/invoice.pdf|invoice.pdf>');
+  });
+
+  it('manages manual user links: link, relink, list, unlink', async () => {
+    const api = new FakeSlackApi();
+    const service = new SlackService(db, api.asClient());
+    const ts = Date.now();
+    const [member] = await db
+      .insert(schema.users)
+      .values({ email: `slack-linked-${ts}@example.com`, name: 'Linked Member' })
+      .returning();
+    await db.insert(schema.orgMembers).values({ orgId, userId: member!.id });
+    try {
+      const link = await run(() =>
+        service.linkUser({ slackUserId: 'U_MANUAL', userId: member!.id }),
+      );
+      expect(link.userId).toBe(member!.id);
+
+      await expect(
+        run(() => service.linkUser({ slackUserId: 'U_MANUAL', userId: 'usr_not_a_member' })),
+      ).rejects.toThrow(BadRequestException);
+
+      const links = await run(() => service.listUserLinks());
+      expect(links.map((l) => l.slackUserId)).toContain('U_MANUAL');
+
+      const unlinked = await run(() => service.unlinkUser({ slackUserId: 'U_MANUAL' }));
+      expect(unlinked).toMatchObject({ unlinked: true });
+      await expect(run(() => service.unlinkUser({ slackUserId: 'U_MANUAL' }))).rejects.toThrow(
+        NotFoundException,
+      );
+    } finally {
+      await db.execute(sql`DELETE FROM org_members WHERE user_id = ${member!.id}`);
+      await db.delete(schema.users).where(eq(schema.users.id, member!.id));
+    }
   });
 
   it('updates the parent message on status changes and swaps to a Reopen button', async () => {

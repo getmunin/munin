@@ -64,6 +64,7 @@ class FakeSlackApi {
   let db: ReturnType<typeof createDb>;
   let orgId: string;
   let memberUserId: string;
+  let secondMemberUserId: string;
   let channelId: string;
   let conversationId: string;
   let integrationId: string;
@@ -84,7 +85,15 @@ class FakeSlackApi {
       .values({ email: `slack-op-${ts}@example.com`, name: 'Olivia Operator' })
       .returning();
     memberUserId = member!.id;
-    await db.insert(schema.orgMembers).values({ orgId, userId: memberUserId });
+    const [secondMember] = await db
+      .insert(schema.users)
+      .values({ email: `slack-op2-${ts}@example.com`, name: 'Second Op' })
+      .returning();
+    secondMemberUserId = secondMember!.id;
+    await db.insert(schema.orgMembers).values([
+      { orgId, userId: memberUserId },
+      { orgId, userId: secondMemberUserId },
+    ]);
 
     const [channel] = await db
       .insert(schema.convChannels)
@@ -98,6 +107,7 @@ class FakeSlackApi {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       await db.delete(schema.orgs).where(sql`id = ${orgId}`);
       await db.delete(schema.users).where(eq(schema.users.id, memberUserId));
+      await db.delete(schema.users).where(eq(schema.users.id, secondMemberUserId));
     }
   });
 
@@ -294,6 +304,86 @@ class FakeSlackApi {
 
     expect(await messages()).toHaveLength(0);
     expect(api.ephemerals).toHaveLength(0);
+  });
+
+  it('rejects file-only replies and warns when files ride along with text', async () => {
+    const [member] = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, memberUserId));
+    api.usersById.set('U_OPERATOR', { email: member!.email });
+
+    await inbound.processEventCallback(
+      replyPayload({ text: '', subtype: 'file_share', files: [{ name: 'report.pdf' }] }),
+    );
+    expect(await messages()).toHaveLength(0);
+    expect(api.ephemerals).toHaveLength(1);
+    expect(api.ephemerals[0]!.text).toContain('not sent');
+
+    await inbound.processEventCallback(
+      replyPayload({
+        text: 'See attached',
+        subtype: 'file_share',
+        files: [{ name: 'report.pdf' }, { name: 'data.csv' }],
+      }),
+    );
+    const rows = await messages();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.body).toBe('See attached');
+    expect(api.ephemerals).toHaveLength(2);
+    expect(api.ephemerals[1]!.text).toContain('2 attached files');
+  });
+
+  it('assigns via !assign me and !assign @mention', async () => {
+    const [member] = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, memberUserId));
+    api.usersById.set('U_OPERATOR', { email: member!.email });
+    const [second] = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, secondMemberUserId));
+    api.usersById.set('USECOND1', { email: second!.email });
+
+    await inbound.processEventCallback(replyPayload({ text: '!assign me' }));
+    let [conv] = await db
+      .select({ assigneeUserId: schema.convConversations.assigneeUserId })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId));
+    expect(conv!.assigneeUserId).toBe(memberUserId);
+
+    await inbound.processEventCallback(replyPayload({ text: '!assign <@USECOND1>' }));
+    [conv] = await db
+      .select({ assigneeUserId: schema.convConversations.assigneeUserId })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId));
+    expect(conv!.assigneeUserId).toBe(secondMemberUserId);
+
+    expect(await messages()).toHaveLength(0);
+    const deliveries = await db
+      .select({ eventType: schema.slackDeliveries.eventType })
+      .from(schema.slackDeliveries)
+      .where(eq(schema.slackDeliveries.conversationId, conversationId));
+    expect(deliveries.filter((d) => d.eventType === 'conversation.assigned')).toHaveLength(2);
+  });
+
+  it('rejects !assign of an unmapped mention without changing assignment', async () => {
+    const [member] = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, memberUserId));
+    api.usersById.set('U_OPERATOR', { email: member!.email });
+    api.usersById.set('UNOBODY1', { email: 'nobody@example.com' });
+
+    await inbound.processEventCallback(replyPayload({ text: '!assign <@UNOBODY1>' }));
+
+    const [conv] = await db
+      .select({ assigneeUserId: schema.convConversations.assigneeUserId })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId));
+    expect(conv!.assigneeUserId).toBeNull();
+    expect(api.ephemerals).toHaveLength(1);
   });
 
   it('deduplicates redelivered events by slack ts', async () => {

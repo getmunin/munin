@@ -7747,6 +7747,478 @@
     }
   },
   {
+    "name": "connectors_list_vendors",
+    "title": "Connectors: List supported vendors",
+    "description": "List the third-party systems Munin can connect to, grouped by domain (commerce: Shopify, Magento 2; bookings: Gastroplanner) with the config fields each vendor requires. Use it to see what credentials are needed before creating a connection.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_list_connections",
+    "title": "Connectors: List connections",
+    "description": "List this org’s connections to third-party systems with domain, non-secret settings, active state, and the result of the last credential test. Secrets are never returned.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_create_connection",
+    "title": "Connectors: Connect a system",
+    "description": "Create a connection to a third-party system. `config` is vendor-shaped (Shopify: shopDomain + accessToken; Magento: baseUrl + accessToken; Gastroplanner: apiToken). The vendor determines the domain (commerce, bookings). Secrets are encrypted at rest and never returned. Connection names must be unique within the org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "vendor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "config": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "vendor",
+        "name",
+        "config"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_update_connection",
+    "title": "Connectors: Update a connection",
+    "description": "Rename, activate/deactivate, or reconfigure a connection. When passing `config`, supply the full vendor config; secret fields may be omitted to keep the stored values.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "config": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "active": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "connectionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_delete_connection",
+    "title": "Connectors: Delete a connection",
+    "description": "Delete a connection and its stored credentials. Lookups through this connection stop working immediately.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "connectionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_test_connection",
+    "title": "Connectors: Test a connection’s credentials",
+    "description": "Verify a connection’s stored credentials against the vendor with a read-only probe (no external data is changed). Records the result on the connection.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "connectionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "commerce_lookup_orders",
+    "title": "Commerce: Look up a customer’s orders",
+    "description": "List a customer’s recent store orders by email (newest first), e.g. while handling their support conversation. `connectionId` is only needed when multiple commerce connections are active.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      },
+      "required": [
+        "email",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "commerce_lookup_order",
+    "title": "Commerce: Look up one order with tracking",
+    "description": "Fetch one order for a customer email, including line items and shipment tracking. Identify the order by `orderRef` (from an order listing) or the human-facing `orderNumber` the customer knows. Returns not-found unless the order belongs to that email.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "orderRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "orderNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "commerce_get_my_orders",
+    "title": "Commerce: My recent orders",
+    "description": "List the calling end-user’s recent store orders (newest first). Scoped server-side to the email on the end-user’s own record — other customers’ orders are never visible. `connectionId` is only needed when the org has multiple active store connections.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "commerce_get_my_order",
+    "title": "Commerce: One of my orders, with tracking",
+    "description": "Fetch one of the calling end-user’s orders, including line items and shipment tracking. Identify it by `orderRef` (from an order listing) or the human-facing `orderNumber` on the order confirmation. Returns not-found unless the order belongs to the calling end-user.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "orderRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "orderNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_lookup_reservations",
+    "title": "Bookings: Look up a guest’s reservations",
+    "description": "List a guest’s reservations by email (most recent first), e.g. while handling their support conversation. `connectionId` is only needed when multiple booking connections are active.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "bookings:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      },
+      "required": [
+        "email",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_lookup_reservation",
+    "title": "Bookings: Look up one reservation",
+    "description": "Fetch one reservation for a guest email, including party size, time, venue, and note. Identify it by `reservationRef` (from a listing) or the `confirmationCode` the guest knows. Returns not-found unless the reservation belongs to that email.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "bookings:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reservationRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "confirmationCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_get_my_reservations",
+    "title": "Bookings: My reservations",
+    "description": "List the calling end-user’s restaurant/venue reservations (most recent first). Scoped server-side to the email on the end-user’s own record — other guests’ reservations are never visible. `connectionId` is only needed when the org has multiple active booking connections.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "bookings:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_get_my_reservation",
+    "title": "Bookings: One of my reservations",
+    "description": "Fetch one of the calling end-user’s reservations, including party size, time, venue, and note. Identify it by `reservationRef` (from a listing) or the `confirmationCode` on the booking confirmation. Returns not-found unless the reservation belongs to the calling end-user.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "bookings:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reservationRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "confirmationCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "feedback_create",
     "title": "Feedback: Create",
     "description": "Submit feedback about Munin. Stays local until an org admin approves it; dismissal deletes the item. Set includeOrgName / includeUserName to attach attribution; both default false.",

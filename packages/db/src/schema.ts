@@ -1876,6 +1876,36 @@ export const orgAlerts = pgTable(
   }),
 );
 
+// Connector connections: per-org credentials for third-party systems,
+// one row per connected vendor account. `domain` names the product surface
+// the connector feeds (commerce → orders, bookings → reservations); it is
+// derived from the vendor's adapter at create time. `config` is
+// vendor-shaped JSONB with pgcrypto-encrypted secrets — never returned raw
+// by MCP tools. Self-service lookup tools read these rows through the
+// service layer, so RLS permits end-user reads but blocks end-user writes.
+export const connectorConnections = pgTable(
+  'connector_connections',
+  {
+    id: id('cnc'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    vendor: varchar('vendor', { length: 32 }).notNull(),
+    domain: varchar('domain', { length: 32 }).notNull(),
+    name: text('name').notNull(),
+    config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
+    active: boolean('active').notNull().default(true),
+    lastTestedAt: timestamp('last_tested_at', { withTimezone: true }),
+    lastTestError: text('last_test_error'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('connector_connections_org_idx').on(t.orgId, t.domain),
+    orgNameUq: uniqueIndex('connector_connections_org_name_uq').on(t.orgId, t.name),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   orgs,
@@ -1940,6 +1970,7 @@ export const allTables = {
   systemConfig,
   feedbackOutbox,
   orgAlerts,
+  connectorConnections,
 };
 
 export type AllTables = typeof allTables;

@@ -19,7 +19,9 @@ import { RoleGuard } from './role.guard.ts';
 import { RequireActorType } from './role.decorator.ts';
 
 export const SELF_SERVICE_SCOPES = [
+  'bookings:read',
   'cms:read',
+  'commerce:read',
   'conv:read',
   'conv:write',
   'crm:read',

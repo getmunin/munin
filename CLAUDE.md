@@ -24,11 +24,21 @@ Monorepo on pnpm + Turborepo.
 | `crm` | `crm_*` | Contacts, companies, deals, pipelines, segments, merge proposals. |
 | `cms` | `cms_*` | Collections, entries, locales, assets, scheduled publishing, public delivery API. |
 | `outreach` | `outreach_*` | Propose-only outbound campaigns. Never auto-sends. |
+| `connectors` | `connectors_*` | Encrypted connections to third-party systems behind a vendor-adapter contract, with per-domain submodules: `commerce/` (`commerce_*`; Shopify, Magento 2 orders) and `bookings/` (`bookings_*`; Gastroplanner reservations). Self-service lookups are scoped server-side to the calling end-user's email. |
 | `curator` | — | Background job queue (`curator_jobs`) running `skill://*` and `task://*` URIs. |
 | `web` | — | Website scraper (single `task://web/scrape-website`). |
 | `playbooks` | — | Cross-module packaged workflows (skill markdown only, no tools). |
 
 Each module typically has `<mod>.module.ts`, `<mod>.service.ts`, `<mod>.tools.ts`, and a `skills/` directory of markdown procedures.
+
+### Third-party integrations — two families
+
+External integrations split into two distinct families; keep them apart rather than unifying under one "integrations" abstraction:
+
+- **Data connectors** (`connectors/`) — read external *systems of record* on behalf of the **customer**. Synchronous request/response, per-end-user identity scoping, self-service delegated tokens, typed domain DTOs behind a vendor-adapter contract. New data domains (payments, loyalty, …) become submodules here.
+- **Operator bridges** — mirror Munin into where the **team** already works (e.g. Slack; a future Teams). Bidirectional event bridges (durable queue + worker), org/operator-scoped (no end-user identity), conversation-projection contract — closer to `conv` than to connectors. First vendor lives in its own root module; extract a shared trunk when the second one lands (same rule connectors followed: build one, extract on the second consumer).
+
+The shared surface between the families is only the shallow stuff (OAuth/token storage, an "Integrations" dashboard card) — not enough to justify a common module.
 
 ## MCP surface
 

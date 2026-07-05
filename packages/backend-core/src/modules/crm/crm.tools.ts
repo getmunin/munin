@@ -10,6 +10,7 @@ import {
   RELATIONSHIP_TYPES,
 } from './crm.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
+import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 const ActivityType = z.enum(ACTIVITY_TYPES);
@@ -595,12 +596,13 @@ export class CrmAdminTools {
     name: 'crm_list_merge_proposals',
     title: 'CRM: List merge proposals',
     description:
-      'List CRM merge proposals, defaulting to `status: "pending"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: "dismissed"` once per curator pass to skip pairs the operator has already rejected.',
+      'List CRM merge proposals, defaulting to `status: "pending"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: "dismissed"` once per curator pass to skip pairs the operator has already rejected. In hosts that support MCP Apps this renders an interactive review panel with side-by-side contact comparison and per-proposal apply/dismiss actions.',
     audiences: ['admin'],
     scopes: ['crm:read'],
     input: ListMergeProposalsInput,
     readOnlyHint: true,
     destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   listMergeProposals(args: z.infer<typeof ListMergeProposalsInput>) {
     return this.crm.listMergeProposals(args);
@@ -616,6 +618,7 @@ export class CrmAdminTools {
     input: ApplyMergeProposalInput,
     readOnlyHint: false,
     destructiveHint: true,
+    _meta: { ui: { visibility: ['app'] } },
   })
   applyMergeProposal(args: z.infer<typeof ApplyMergeProposalInput>) {
     return this.crm.applyMergeProposal(args);
@@ -631,6 +634,7 @@ export class CrmAdminTools {
     input: DismissMergeProposalInput,
     readOnlyHint: false,
     destructiveHint: true,
+    _meta: { ui: { visibility: ['app'] } },
   })
   dismissMergeProposal(args: z.infer<typeof DismissMergeProposalInput>) {
     return this.crm.dismissMergeProposal(args);

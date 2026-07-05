@@ -1,48 +1,52 @@
 import { useState } from 'react';
 import type { App as McpApp } from '@modelcontextprotocol/ext-apps';
-import { errorText, isProposal, parseToolResult, type Proposal } from '../types';
+import {
+  errorText,
+  isMergeProposal,
+  parseToolResult,
+  type MergeContact,
+  type MergeProposal,
+} from '../types';
 import { Chrome } from '../chrome';
 import { formatAge } from '../format';
 import { useI18n, type Translator } from '../i18n';
 
 type CardState = {
-  busy: 'approve' | 'dismiss' | null;
+  busy: 'apply' | 'dismiss' | null;
   error: string | null;
   decidedNow: boolean;
 };
 
 const IDLE: CardState = { busy: null, error: null, decidedNow: false };
 
-const DISPLAY_PAGE = 25;
 const REFRESH_LIMIT = 100;
 
-export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal[] }) {
+const COMPARED_FIELDS = ['name', 'email', 'phone', 'companyId', 'endUserId'] as const;
+
+export function MergeProposalsView({ app, initial }: { app: McpApp; initial: MergeProposal[] }) {
   const { t } = useI18n();
-  const [proposals, setProposals] = useState<Proposal[]>(initial);
+  const [proposals, setProposals] = useState<MergeProposal[]>(initial);
   const [openId, setOpenId] = useState<string | null>(initial[0]?.id ?? null);
   const [evidenceOpen, setEvidenceOpen] = useState<Record<string, boolean>>({});
   const [cards, setCards] = useState<Record<string, CardState>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(DISPLAY_PAGE);
 
   const pendingCount = proposals.filter((p) => p.status === 'pending').length;
-  const visible = proposals.slice(0, visibleCount);
-  const hiddenCount = proposals.length - visible.length;
 
   function patchCard(id: string, patch: Partial<CardState>) {
     setCards((prev) => ({ ...prev, [id]: { ...(prev[id] ?? IDLE), ...patch } }));
   }
 
-  async function decide(proposal: Proposal, action: 'approve' | 'dismiss') {
+  async function decide(proposal: MergeProposal, action: 'apply' | 'dismiss') {
     patchCard(proposal.id, { busy: action, error: null });
     try {
       const result = await app.callServerTool({
-        name: action === 'approve' ? 'outreach_approve_proposal' : 'outreach_dismiss_proposal',
+        name: action === 'apply' ? 'crm_apply_merge_proposal' : 'crm_dismiss_merge_proposal',
         arguments: { id: proposal.id },
       });
       const parsed = parseToolResult(result);
-      if (result.isError || !isProposal(parsed)) {
+      if (result.isError || !isMergeProposal(parsed)) {
         patchCard(proposal.id, { busy: null, error: errorText(result) });
         return;
       }
@@ -53,11 +57,7 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
       const next =
         updated.slice(idx + 1).find((p) => p.status === 'pending') ??
         updated.slice(0, idx).find((p) => p.status === 'pending');
-      if (next) {
-        setOpenId(next.id);
-        const nextIdx = updated.findIndex((p) => p.id === next.id);
-        setVisibleCount((n) => (nextIdx >= n ? nextIdx + 1 : n));
-      }
+      if (next) setOpenId(next.id);
     } catch (err) {
       patchCard(proposal.id, {
         busy: null,
@@ -71,18 +71,17 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
     setListError(null);
     try {
       const result = await app.callServerTool({
-        name: 'outreach_list_proposals',
+        name: 'crm_list_merge_proposals',
         arguments: { status: 'pending', limit: REFRESH_LIMIT },
       });
       const parsed = parseToolResult(result);
-      if (result.isError || !Array.isArray(parsed) || !parsed.every(isProposal)) {
+      if (result.isError || !Array.isArray(parsed) || !parsed.every(isMergeProposal)) {
         setListError(errorText(result));
       } else {
         setProposals(parsed);
         setOpenId(parsed[0]?.id ?? null);
         setEvidenceOpen({});
         setCards({});
-        setVisibleCount(DISPLAY_PAGE);
       }
     } catch (err) {
       setListError(err instanceof Error ? err.message : String(err));
@@ -91,37 +90,25 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
     }
   }
 
-  const foot =
-    pendingCount === 0
-      ? t('proposals.footClear')
-      : [
-          hiddenCount > 0
-            ? t('proposals.footShowing', { visible: visible.length, total: proposals.length })
-            : null,
-          t('proposals.footPending', { count: pendingCount }),
-        ]
-          .filter(Boolean)
-          .join(' · ');
-
   return (
-    <Chrome context={t('chrome.contextOutreach')} tool="outreach_list_proposals">
+    <Chrome context={t('chrome.contextCrm')} tool="crm_list_merge_proposals">
       <div className="ledger-head">
         <div>
-          <div className="eyebrow eyebrow-accent">{t('proposals.eyebrow')}</div>
-          <h1 className="ledger-title">{t('proposals.title')}</h1>
+          <div className="eyebrow eyebrow-accent">{t('merge.eyebrow')}</div>
+          <h1 className="ledger-title">{t('merge.title')}</h1>
           <p className="subline">
             {pendingCount === 0
-              ? t('proposals.sublineEmpty')
-              : t('proposals.sublinePending', { count: pendingCount })}
+              ? t('merge.sublineEmpty')
+              : t('merge.sublinePending', { count: pendingCount })}
           </p>
         </div>
         <button className="chip-btn" disabled={refreshing} onClick={() => void refresh()}>
-          {refreshing ? t('proposals.refreshing') : t('proposals.refresh')}
+          {refreshing ? t('merge.refreshing') : t('merge.refresh')}
         </button>
       </div>
       {listError && <p className="list-error">{listError}</p>}
-      {visible.map((p) => (
-        <ProposalRow
+      {proposals.map((p) => (
+        <MergeRow
           key={p.id}
           proposal={p}
           state={cards[p.id] ?? IDLE}
@@ -131,50 +118,46 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
           onToggleEvidence={() =>
             setEvidenceOpen((prev) => ({ ...prev, [p.id]: !(prev[p.id] ?? false) }))
           }
-          onApprove={() => void decide(p, 'approve')}
+          onApply={() => void decide(p, 'apply')}
           onDismiss={() => void decide(p, 'dismiss')}
         />
       ))}
-      {hiddenCount > 0 && (
-        <button
-          className="more-row"
-          onClick={() => setVisibleCount((n) => n + DISPLAY_PAGE)}
-        >
-          {t('proposals.showMore', {
-            count: Math.min(DISPLAY_PAGE, hiddenCount),
-            hidden: hiddenCount,
-          })}
-        </button>
-      )}
-      <div className="ledger-foot">{foot}</div>
+      <div className="ledger-foot">
+        {pendingCount === 0 ? t('merge.footClear') : t('merge.footPending', { count: pendingCount })}
+      </div>
     </Chrome>
   );
 }
 
-function ProposalRow({
+function contactLabel(contact: MergeContact, t: Translator): string {
+  return contact.name || contact.email || contact.phone || t('merge.unnamedContact');
+}
+
+function MergeRow({
   proposal,
   state,
   open,
   evidenceOpen,
   onToggle,
   onToggleEvidence,
-  onApprove,
+  onApply,
   onDismiss,
 }: {
-  proposal: Proposal;
+  proposal: MergeProposal;
   state: CardState;
   open: boolean;
   evidenceOpen: boolean;
   onToggle: () => void;
   onToggleEvidence: () => void;
-  onApprove: () => void;
+  onApply: () => void;
   onDismiss: () => void;
 }) {
   const { locale, t } = useI18n();
-  const contact = proposal.contact;
-  const name = contact?.name || contact?.email || proposal.contactId;
-  const campaignMeta = `${proposal.campaign?.name ?? proposal.campaignId} · ${proposal.kind}`;
+  const keeper =
+    proposal.recommendedKeeperId === proposal.contactB.id ? proposal.contactB : proposal.contactA;
+  const duplicate = keeper === proposal.contactA ? proposal.contactB : proposal.contactA;
   const hasEvidence = Object.keys(proposal.evidence ?? {}).length > 0;
+  const patchEntries = Object.entries(proposal.recommendedPatch ?? {});
   const line = decidedLine(proposal, state.decidedNow, t);
 
   return (
@@ -193,29 +176,74 @@ function ProposalRow({
       >
         <span className={`pill pill-${proposal.status}`}>
           <span className="pill-dot" />
-          {t(`proposals.status.${proposal.status}`)}
+          {t(`merge.status.${proposal.status}`)}
         </span>
         <div className="row-main">
           <div className="row-who">
-            <b>{name}</b>
-            {contact?.email && contact.name && <span className="mute"> · {contact.email}</span>}
+            <b>{contactLabel(proposal.contactA, t)}</b>
+            <span className="mute"> × </span>
+            <b>{contactLabel(proposal.contactB, t)}</b>
           </div>
-          <div className="row-subject">{proposal.draftSubject ?? t('proposals.noSubject')}</div>
+          <div className="row-subject">
+            {t(`merge.confidence.${proposal.confidence}`)}
+            {proposal.contactA.email && proposal.contactB.email
+              ? ` · ${proposal.contactA.email} / ${proposal.contactB.email}`
+              : ''}
+          </div>
         </div>
-        <span className="row-age">{formatAge(proposal.createdAt, locale, t('proposals.ageNow'))}</span>
+        <span className="row-age">{formatAge(proposal.createdAt, locale, t('merge.ageNow'))}</span>
         <span className="row-caret">{open ? '−' : '+'}</span>
       </div>
       {open && (
         <div className="row-detail">
-          <div className="draft">
-            <div className="eyebrow">{campaignMeta}</div>
-            {proposal.draftBody.split(/\n+/).map((para, i) => (
-              <p key={i}>{para}</p>
-            ))}
-          </div>
+          <table className="compare">
+            <thead>
+              <tr>
+                <th />
+                <th className={keeper === proposal.contactA ? 'compare-keeper' : undefined}>
+                  {contactLabel(proposal.contactA, t)}
+                  {keeper === proposal.contactA && (
+                    <span className="keeper-tag">{t('merge.keeper')}</span>
+                  )}
+                </th>
+                <th className={keeper === proposal.contactB ? 'compare-keeper' : undefined}>
+                  {contactLabel(proposal.contactB, t)}
+                  {keeper === proposal.contactB && (
+                    <span className="keeper-tag">{t('merge.keeper')}</span>
+                  )}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARED_FIELDS.map((field) => {
+                const a = proposal.contactA[field];
+                const b = proposal.contactB[field];
+                const conflict = a !== null && b !== null && a !== b;
+                return (
+                  <tr key={field} className={conflict ? 'compare-conflict' : undefined}>
+                    <td className="compare-field">{t(`merge.field.${field}`)}</td>
+                    <td className={keeper === proposal.contactA ? 'compare-keeper' : undefined}>
+                      {a ?? <span className="mute">—</span>}
+                    </td>
+                    <td className={keeper === proposal.contactB ? 'compare-keeper' : undefined}>
+                      {b ?? <span className="mute">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {patchEntries.length > 0 && (
+            <p className="merge-patch">
+              {t('merge.patchIntro', { name: contactLabel(duplicate, t) })}{' '}
+              <span className="merge-patch-fields">
+                {patchEntries.map(([key]) => key).join(', ')}
+              </span>
+            </p>
+          )}
           {hasEvidence && (
             <button className="ev-toggle" onClick={onToggleEvidence}>
-              {evidenceOpen ? t('proposals.evidenceHide') : t('proposals.evidenceShow')}
+              {evidenceOpen ? t('merge.evidenceHide') : t('merge.evidenceShow')}
             </button>
           )}
           {hasEvidence && evidenceOpen && (
@@ -227,12 +255,12 @@ function ProposalRow({
               <button
                 className="chip-btn chip-btn-solid"
                 disabled={state.busy !== null}
-                onClick={onApprove}
+                onClick={onApply}
               >
-                {state.busy === 'approve' ? t('proposals.approving') : t('proposals.approve')}
+                {state.busy === 'apply' ? t('merge.applying') : t('merge.apply')}
               </button>
               <button className="chip-btn" disabled={state.busy !== null} onClick={onDismiss}>
-                {state.busy === 'dismiss' ? t('proposals.dismissing') : t('proposals.dismiss')}
+                {state.busy === 'dismiss' ? t('merge.dismissing') : t('merge.dismiss')}
               </button>
             </div>
           ) : (
@@ -245,31 +273,22 @@ function ProposalRow({
 }
 
 function decidedLine(
-  proposal: Proposal,
+  proposal: MergeProposal,
   decidedNow: boolean,
   t: Translator,
 ): { text: string; className: string } | null {
   switch (proposal.status) {
-    case 'sent':
+    case 'applied':
       return {
-        text: decidedNow ? t('proposals.sentNow') : t('proposals.sent'),
+        text: decidedNow ? t('merge.appliedNow') : t('merge.applied'),
         className: 'line-accent',
       };
-    case 'approved':
-      return { text: t('proposals.approved'), className: 'line-accent' };
     case 'dismissed':
       return {
         text: proposal.dismissReason
-          ? t('proposals.dismissedReason', { reason: proposal.dismissReason })
-          : t('proposals.dismissed'),
+          ? t('merge.dismissedReason', { reason: proposal.dismissReason })
+          : t('merge.dismissed'),
         className: 'line-mute',
-      };
-    case 'failed':
-      return {
-        text: proposal.failureReason
-          ? t('proposals.failedReason', { reason: proposal.failureReason })
-          : t('proposals.failed'),
-        className: 'line-error',
       };
     default:
       return null;

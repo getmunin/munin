@@ -1344,7 +1344,11 @@
   "inspector": {
     "chrome": {
       "contextInspector": "Inspektør",
-      "contextOutreach": "Utgående"
+      "contextOutreach": "Utgående",
+      "contextCrm": "CRM",
+      "contextKb": "Kunnskapsbase",
+      "contextAnalytics": "Statistikk",
+      "contextCms": "CMS"
     },
     "connect": {
       "connecting": "Kobler til verten…",
@@ -1353,7 +1357,8 @@
     "fallback": {
       "title": "Munin Inspector",
       "waiting": "Tilkoblet — venter på et verktøyresultat fra verten.",
-      "raw": "Tilkoblet — viser det rå verktøyresultatet."
+      "raw": "Tilkoblet — viser det rå verktøyresultatet.",
+      "empty": "Tilkoblet — resultatet er en tom liste."
     },
     "proposals": {
       "eyebrow": "Ventende forslag",
@@ -1388,6 +1393,126 @@
         "dismissed": "avvist",
         "failed": "mislyktes"
       }
+    },
+    "merge": {
+      "eyebrow": "Ventende flettinger",
+      "title": "Kontaktflettinger",
+      "sublineEmpty": "Ingenting venter — køen er tom.",
+      "sublinePending": "{count} venter på gjennomgang — å flette slår sammen kontaktene.",
+      "refresh": "Oppdater",
+      "refreshing": "Oppdaterer…",
+      "unnamedContact": "(uten navn)",
+      "keeper": "beholdes",
+      "patchIntro": "Felter som kopieres over fra {name}:",
+      "evidenceShow": "Grunnlag +",
+      "evidenceHide": "Grunnlag −",
+      "apply": "Flett kontaktene",
+      "applying": "Fletter…",
+      "dismiss": "Ikke samme person",
+      "dismissing": "Avviser…",
+      "appliedNow": "Flettet akkurat nå — duplikatet ble arkivert.",
+      "applied": "Flettet — duplikatet ble arkivert.",
+      "dismissed": "Avvist — beholdt som separate kontakter.",
+      "dismissedReason": "Avvist — {reason}",
+      "footClear": "Køen er tom",
+      "footPending": "{count} ventende · fletting skjer umiddelbart",
+      "ageNow": "nå",
+      "confidence": {
+        "high": "høy sikkerhet",
+        "medium": "middels sikkerhet"
+      },
+      "field": {
+        "name": "Navn",
+        "email": "E-post",
+        "phone": "Telefon",
+        "companyId": "Selskap",
+        "endUserId": "Sluttbruker"
+      },
+      "status": {
+        "pending": "ventende",
+        "applied": "flettet",
+        "dismissed": "avvist"
+      }
+    },
+    "curation": {
+      "eyebrow": "Innkurv for artikkelutkast",
+      "title": "Kunnskapskandidater",
+      "sublineEmpty": "Ingenting venter — innkurven er tom.",
+      "sublinePending": "{count} utkast venter på gjennomgang — publisering gjør dem synlige.",
+      "refresh": "Oppdater",
+      "refreshing": "Oppdaterer…",
+      "proposedTarget": "foreslått område: {space}",
+      "noProposedTarget": "uten foreslått område",
+      "fromConversation": "fra samtale {id}",
+      "draftEyebrow": "Utkast",
+      "loadingBody": "Henter utkastet…",
+      "bodyFailed": "Kunne ikke hente utkastet.",
+      "targetLabel": "Publiser til",
+      "targetPlaceholder": "område-slug",
+      "noTarget": "Velg et målområde først.",
+      "publish": "Publiser",
+      "publishing": "Publiserer…",
+      "dismiss": "Avvis",
+      "dismissing": "Avviser…",
+      "published": "Publisert til {space}.",
+      "dismissed": "Avvist — utkastet ble slettet.",
+      "footClear": "Innkurven er tom",
+      "footPending": "{count} utkast venter",
+      "ageNow": "nå",
+      "status": {
+        "pending": "ventende",
+        "published": "publisert",
+        "dismissed": "avvist"
+      }
+    },
+    "charts": {
+      "eyebrow": "Statistikk",
+      "title": {
+        "series": "Visninger over tid",
+        "sources": "Trafikk per kilde",
+        "funnel": "Konverteringstrakt",
+        "journey": "Kontaktreise"
+      },
+      "seriesSubline": "{views} visninger over {days} dager",
+      "sourcesSubline": "{sources} kilder · {views} visninger",
+      "funnelSubline": "{rate} % konvertering fra start til mål siste {days} dager",
+      "journeySubline": "{count} hendelser, eldste først",
+      "seriesLegend": "topp {max} visninger {peak}",
+      "directBucket": "direkte / organisk",
+      "viewsVisitors": "{views} visninger · {visitors} besøkende",
+      "funnelConversion": "{rate} % fra forrige",
+      "journeySearched": "søkte etter «{query}»",
+      "journeyViewed": "så på en side"
+    },
+    "entry": {
+      "versionLine": "Versjon {version}",
+      "publishedNow": "publisert akkurat nå",
+      "publishedAt": "publisert {at}",
+      "scheduledFor": "publiseres {at}",
+      "publish": "Publiser",
+      "publishing": "Publiserer…",
+      "unpublish": "Avpubliser",
+      "unpublishing": "Avpubliserer…",
+      "schedule": "Planlegg…",
+      "scheduleConfirm": "Bekreft tidspunkt",
+      "scheduling": "Planlegger…",
+      "scheduleMissing": "Velg dato og klokkeslett først.",
+      "status": {
+        "draft": "utkast",
+        "published": "publisert",
+        "scheduled": "planlagt",
+        "archived": "arkivert"
+      }
+    },
+    "assets": {
+      "eyebrow": "Mediebibliotek",
+      "title": "Filer",
+      "subline": "{count} filer, nyeste først — klikk på en for detaljer.",
+      "notUploaded": "ikke lastet opp",
+      "usageLoading": "Sjekker bruk…",
+      "usageNone": "Ikke referert av noen oppføringer.",
+      "usageCount": "Referert av {count} felt",
+      "foot": "{count} filer"
     }
   },
   "legal": {

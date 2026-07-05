@@ -100,19 +100,40 @@ export const INSPECTOR_APP_URI = `ui://munin/inspector@${createHash('sha256')
   .digest('hex')
   .slice(0, 8)}`;
 
+// Asset thumbnails in the media-library view load straight from the storage
+// provider's public URL, so its origin must be CSP-allowed inside the iframe.
+function assetStorageOrigin(): string | null {
+  const provider = (process.env.MUNIN_STORAGE_PROVIDER ?? 'local').toLowerCase();
+  const base =
+    provider === 's3'
+      ? (process.env.MUNIN_STORAGE_S3_PUBLIC_BASE_URL ??
+        (process.env.MUNIN_STORAGE_S3_ENDPOINT && process.env.MUNIN_STORAGE_S3_BUCKET
+          ? `${process.env.MUNIN_STORAGE_S3_ENDPOINT}/${process.env.MUNIN_STORAGE_S3_BUCKET}`
+          : null))
+      : (process.env.MUNIN_STORAGE_LOCAL_BASE_URL ?? 'http://localhost:3001/static/assets');
+  if (!base) return null;
+  try {
+    return new URL(base).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function inspectorAppResource(): RegisteredSkill {
   const { content, cspDomains } = inspectorPayload;
+  const assetOrigin = assetStorageOrigin();
+  const resourceDomains = [...(cspDomains ?? []), ...(assetOrigin ? [assetOrigin] : [])];
   return {
     uri: INSPECTOR_APP_URI,
     name: 'Munin Inspector',
     description:
-      'Interactive panel rendered by MCP App hosts: outreach proposal review plus a hello diagnostics view (issue #385).',
+      'Interactive panel rendered by MCP App hosts: outreach proposal review, CRM merge-proposal review, KB curation review, analytics charts, CMS entry preview, and the media-library gallery.',
     audiences: ['admin'],
     mimeType: APP_RESOURCE_MIME_TYPE,
     content,
     public: false,
-    meta: cspDomains
-      ? { ui: { csp: { resourceDomains: cspDomains, connectDomains: cspDomains } } }
-      : { ui: { csp: { resourceDomains: [], connectDomains: [] } } },
+    meta: {
+      ui: { csp: { resourceDomains, connectDomains: cspDomains ?? [] } },
+    },
   };
 }

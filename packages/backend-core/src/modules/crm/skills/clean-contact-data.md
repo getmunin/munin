@@ -19,7 +19,7 @@ Run periodically. Don't run inline per CRM mutation — batching is cheaper and 
 4. **Judge each pair.** Skip clearly-not-the-same (different companies, shared inbox like `info@acme.com`, ambiguous role/title combinations). Keep clearly-same (same email + phone, same email + similar name, same phone + same company).
 5. **Pick the keeper** for each kept pair (heuristics below) and build a `recommendedPatch` of fields to copy from the duplicate onto the keeper.
 6. **File each pair** with `crm_propose_merge`. Idempotent on the pair while pending — re-running next week without the operator acting just upserts the pending row with refreshed evidence.
-7. **Stop.** The operator's review flow takes over — they call `crm_apply_merge_proposal` or `crm_dismiss_merge_proposal` at their cadence.
+7. **Stop.** The operator's review flow takes over — they call `crm_apply_merge_proposal` or `crm_dismiss_merge_proposal` at their cadence. In hosts that support MCP Apps, `crm_list_merge_proposals` renders a side-by-side review panel and apply/dismiss happen as human clicks inside it (those two tools are panel-only there).
 
 ## Step 1 — fetch dismissed pairs
 

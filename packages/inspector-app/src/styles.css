@@ -413,3 +413,377 @@ body.host-mobile .panel {
   overflow: auto;
   white-space: pre-wrap;
 }
+
+/* Merge review */
+
+.pill-applied,
+.pill-published {
+  color: var(--ink);
+}
+
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--paper-deep);
+  font-size: 13px;
+}
+
+.compare th,
+.compare td {
+  text-align: left;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.compare th {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.compare-field {
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.compare .compare-keeper {
+  background: rgb(var(--munin-accent) / 0.07);
+}
+
+.compare-conflict td:not(.compare-field) {
+  font-weight: 500;
+}
+
+.keeper-tag {
+  font-family: var(--munin-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-left: 8px;
+}
+
+.merge-patch {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.merge-patch-fields {
+  font-family: var(--munin-mono);
+  font-size: 11px;
+}
+
+/* Curation review */
+
+.actions-wrap {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.target-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.target-select {
+  font: inherit;
+  font-family: var(--munin-sans);
+  font-size: 13px;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  padding: 7px 10px;
+  min-width: 140px;
+}
+
+/* Analytics charts */
+
+.chart-body {
+  padding: 4px 24px 20px;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart-bar {
+  fill: var(--ink);
+  opacity: 0.85;
+}
+
+.chart-bar:hover {
+  fill: var(--accent);
+  opacity: 1;
+}
+
+.chart-bar-peak {
+  fill: var(--accent);
+}
+
+.chart-label {
+  font-family: var(--munin-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  fill: var(--fg-3);
+}
+
+.chart-legend {
+  margin: 8px 0 0;
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.hbar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hbar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.hbar-label b {
+  font-weight: 500;
+}
+
+.hbar-value {
+  font-family: var(--munin-mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+.hbar-track {
+  height: 10px;
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+}
+
+.hbar-fill {
+  height: 100%;
+  background: var(--ink);
+  min-width: 1px;
+}
+
+.funnel-index {
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  color: var(--accent);
+  margin-right: 8px;
+}
+
+.journey {
+  display: flex;
+  flex-direction: column;
+}
+
+.journey-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+}
+
+.journey-row:first-child {
+  border-top: none;
+}
+
+.journey-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  justify-self: center;
+  align-self: center;
+}
+
+.journey-dot-view {
+  background: var(--ink);
+}
+
+.journey-dot-search {
+  background: var(--accent);
+}
+
+.journey-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journey-what b {
+  font-weight: 500;
+}
+
+.journey-at {
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+/* CMS entry preview */
+
+.pill-entry-draft {
+  color: var(--fg-3);
+}
+
+.pill-entry-published {
+  color: var(--accent);
+}
+
+.pill-entry-scheduled,
+.pill-entry-archived {
+  color: var(--fg-2);
+}
+
+.entry-body {
+  padding: 4px 24px 8px;
+}
+
+.entry-images {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.entry-image {
+  max-height: 140px;
+  max-width: 100%;
+  border: 1px solid var(--rule);
+}
+
+.entry-field {
+  margin-bottom: 16px;
+}
+
+.entry-field .eyebrow {
+  margin-bottom: 4px;
+}
+
+.entry-prose p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.entry-prose p:last-child {
+  margin-bottom: 0;
+}
+
+.entry-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 14px 24px 20px;
+  border-top: 1px solid var(--rule);
+}
+
+.schedule-controls {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Asset gallery */
+
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 14px;
+  padding: 4px 24px 18px;
+}
+
+.asset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  border: 1px solid var(--rule);
+  padding: 8px;
+  background: var(--paper);
+  transition: border-color 120ms var(--ease);
+}
+
+.asset-card:hover {
+  border-color: var(--ink);
+}
+
+.asset-card-open {
+  border-color: var(--accent);
+}
+
+.asset-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--paper-deep);
+  font-family: var(--munin-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.asset-name {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-meta {
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+}
+
+.asset-detail {
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--rule);
+}
+
+.asset-detail-line {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--fg-2);
+  word-break: break-all;
+}
+
+.asset-detail-line a {
+  color: var(--accent);
+}

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { AnalyticsService } from './analytics.service.ts';
 import { CursorInputSchema, IdMapSchema } from '../../common/transfer/transfer.types.ts';
+import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const AnalyticsImportInput = z.object({
   config: z
@@ -345,6 +346,7 @@ export class AnalyticsAdminTools {
     input: TrafficBySourceInput,
     readOnlyHint: true,
     destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   trafficBySource(args: z.infer<typeof TrafficBySourceInput>) {
     return this.analytics.trafficBySource(args);
@@ -369,12 +371,13 @@ export class AnalyticsAdminTools {
     name: 'analytics_get_views_over_time',
     title: 'Analytics: Daily view time-series',
     description:
-      'Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches.',
+      'Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches. In hosts that support MCP Apps this renders an inline time-series chart.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: ViewsOverTimeInput,
     readOnlyHint: true,
     destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   viewsOverTime(args: z.infer<typeof ViewsOverTimeInput>) {
     return this.analytics.viewsOverTime(args);
@@ -405,6 +408,7 @@ export class AnalyticsAdminTools {
     input: FunnelInput,
     readOnlyHint: true,
     destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   funnel(args: z.infer<typeof FunnelInput>) {
     return this.analytics.funnel(args);
@@ -420,6 +424,7 @@ export class AnalyticsAdminTools {
     input: ContactJourneyInput,
     readOnlyHint: true,
     destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   contactJourney(args: z.infer<typeof ContactJourneyInput>) {
     return this.analytics.contactJourney(args);

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { schema, type Tx } from '@getmunin/db';
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
-import { WebhookDispatcher, getCurrentContext, verifyHmac } from '@getmunin/core';
+import { WebhookDispatcher, getCurrentContext, parseEnvBool, verifyHmac } from '@getmunin/core';
 import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
@@ -1108,9 +1108,7 @@ export function enforceOriginAllowlist(
 }
 
 export function requireWidgetAllowlist(): boolean {
-  const raw = process.env.MUNIN_WIDGET_REQUIRE_ALLOWLIST?.trim().toLowerCase();
-  if (raw === undefined || raw === '') return true;
-  return !(raw === '0' || raw === 'false' || raw === 'off' || raw === 'no');
+  return parseEnvBool({ name: 'MUNIN_WIDGET_REQUIRE_ALLOWLIST', default: true });
 }
 
 export async function loadWidgetChannel(

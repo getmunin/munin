@@ -20,6 +20,7 @@ import {
   isWellFormedKey,
   keyPrefix,
   looksLikeBot,
+  parseEnvBool,
   verifyHmac,
 } from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
@@ -317,8 +318,7 @@ export function originIsAllowed(
 }
 
 function requireTrackerAllowlist(): boolean {
-  const raw = process.env.MUNIN_TRACKER_REQUIRE_ALLOWLIST?.trim().toLowerCase();
-  return raw === '1' || raw === 'true';
+  return parseEnvBool({ name: 'MUNIN_TRACKER_REQUIRE_ALLOWLIST', default: false });
 }
 
 function sendPixel(res: Response): void {

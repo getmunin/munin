@@ -12,8 +12,15 @@ describe('enforceOriginAllowlist', () => {
     else process.env.MUNIN_WIDGET_REQUIRE_ALLOWLIST = original;
   });
 
-  it('allows any origin when the allowlist is empty (dev default)', () => {
+  it('rejects all origins when the allowlist is empty (secure default)', () => {
     delete process.env.MUNIN_WIDGET_REQUIRE_ALLOWLIST;
+    expect(() =>
+      enforceOriginAllowlist({ originAllowlist: [] }, 'https://attacker.example'),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('allows an empty allowlist only when require-allowlist is explicitly disabled', () => {
+    process.env.MUNIN_WIDGET_REQUIRE_ALLOWLIST = '0';
     expect(() =>
       enforceOriginAllowlist({ originAllowlist: [] }, 'https://attacker.example'),
     ).not.toThrow();

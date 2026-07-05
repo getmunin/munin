@@ -37,12 +37,15 @@ export type ParseEnvBoolOptions = {
   default: boolean;
 };
 
+const TRUE_TOKENS: ReadonlySet<string> = new Set(['1', 'true', 'yes', 'on']);
+const FALSE_TOKENS: ReadonlySet<string> = new Set(['0', 'false', 'no', 'off']);
+
 export function parseEnvBool(opts: ParseEnvBoolOptions): boolean {
   const raw = process.env[opts.name];
   if (raw === undefined) return opts.default;
   const lower = raw.trim().toLowerCase();
-  if (lower === '1' || lower === 'true') return true;
-  if (lower === '0' || lower === 'false') return false;
+  if (TRUE_TOKENS.has(lower)) return true;
+  if (FALSE_TOKENS.has(lower)) return false;
   return opts.default;
 }
 

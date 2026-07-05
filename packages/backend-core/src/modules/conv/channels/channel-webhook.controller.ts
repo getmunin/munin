@@ -24,7 +24,7 @@ import {
 } from './adapter.ts';
 import { ChannelIngestService } from './channel-ingest.service.ts';
 
-@PublicController('v1/conversations/channels')
+@PublicController('v1/conversations/channels', { throttle: true })
 export class ChannelWebhookController {
   private readonly logger = new Logger(ChannelWebhookController.name);
   private readonly registry: ChannelAdapterRegistry;
@@ -45,14 +45,14 @@ export class ChannelWebhookController {
   ): Promise<void> {
     const channel = await this.loadChannel(channelId);
     if (!channel) {
-      throw new HttpException('channel not found', HttpStatus.NOT_FOUND);
+      throw new HttpException('webhook verification failed', HttpStatus.UNAUTHORIZED);
     }
     const adapter = this.registry.get(channel.type, channel.vendor);
     if (!adapter || adapter.inbound?.mode !== 'webhook') {
-      throw new HttpException(
-        `channel '${channel.type}:${channel.vendor}' is not webhook-mode`,
-        HttpStatus.BAD_REQUEST,
+      this.logger.warn(
+        `webhook rejected: channel=${channel.id} (${channel.type}:${channel.vendor}) is not webhook-mode`,
       );
+      throw new HttpException('webhook verification failed', HttpStatus.UNAUTHORIZED);
     }
 
     const incoming: IncomingWebhookRequest = {

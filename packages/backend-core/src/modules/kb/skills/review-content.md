@@ -21,7 +21,7 @@ Both modes share Steps 2–6 below. Don't refile a candidate that's already in `
 3. **Skip duplicates and fluff.** If a candidate is functionally identical to one you've already filed, skip. If the human reply is a one-off ("yes", "ok"), skip.
 4. **Draft each candidate** as a short FAQ-style markdown doc — plain prose, no headings (the `subject` is the title). Pass `sourceConversationId` and `proposedTargetSpaceSlug` as structured fields so the review UI can surface them.
 5. **File each candidate** with `kb_propose_curation_candidate`. They land in the `kb-curation-inbox` KB space (admin audience only — never visible to end-user agents).
-6. **Promote approved candidates** with `kb_publish_curation_candidate` once a human has reviewed them. That moves the doc into the org-facing space and removes the candidate from the inbox.
+6. **Promote approved candidates** with `kb_publish_curation_candidate` once a human has reviewed them. That moves the doc into the org-facing space and removes the candidate from the inbox. In hosts that support MCP Apps, `kb_list_curation_candidates` renders the review panel and publish/dismiss happen as human clicks inside it (the publish tool is panel-only there); elsewhere the operator's agent calls the tools directly.
 
 ## Step 1 — list candidates
 
@@ -112,10 +112,12 @@ After your pass, the operator reviews the inbox. They can list candidates with:
 
 ```jsonc
 {
-  "name": "kb_list_documents",
-  "arguments": { "tag": "candidate" }
+  "name": "kb_list_curation_candidates",
+  "arguments": {}
 }
 ```
+
+Each row includes `proposedTargetSpaceSlug` and `sourceConversationId` parsed from the tags. (`kb_list_documents({ tag: "candidate" })` returns the same docs without those fields.)
 
 Read each one (`kb_get_document`), edit if needed (`kb_update_document`), then promote:
 

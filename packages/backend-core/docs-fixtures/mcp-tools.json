@@ -780,7 +780,7 @@
   {
     "name": "analytics_get_views_over_time",
     "title": "Analytics: Daily view time-series",
-    "description": "Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches.",
+    "description": "Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches. In hosts that support MCP Apps this renders an inline time-series chart.",
     "audiences": [
       "admin"
     ],
@@ -1489,7 +1489,7 @@
   {
     "name": "cms_get_entry",
     "title": "CMS: Read entry",
-    "description": "Read one entry. Data is projected through the collection's current field schema.",
+    "description": "Read one entry. Data is projected through the collection's current field schema. In hosts that support MCP Apps this renders an inline entry preview with publish/unpublish/schedule actions.",
     "audiences": [
       "admin"
     ],
@@ -1820,7 +1820,7 @@
   {
     "name": "cms_list_assets",
     "title": "CMS: List assets",
-    "description": "List media-library assets in your org.",
+    "description": "List media-library assets in your org. In hosts that support MCP Apps this renders a thumbnail gallery with per-asset usage lookup.",
     "audiences": [
       "admin"
     ],
@@ -4865,7 +4865,7 @@
   {
     "name": "crm_list_merge_proposals",
     "title": "CRM: List merge proposals",
-    "description": "List CRM merge proposals, defaulting to `status: \"pending\"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: \"dismissed\"` once per curator pass to skip pairs the operator has already rejected.",
+    "description": "List CRM merge proposals, defaulting to `status: \"pending\"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: \"dismissed\"` once per curator pass to skip pairs the operator has already rejected. In hosts that support MCP Apps this renders an interactive review panel with side-by-side contact comparison and per-proposal apply/dismiss actions.",
     "audiences": [
       "admin"
     ],
@@ -6626,6 +6626,31 @@
         "subject",
         "draftBody"
       ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "kb_list_curation_candidates",
+    "title": "KB: List curation candidates",
+    "description": "List pending curation candidates — drafts filed into the `kb-curation-inbox` space by `kb_propose_curation_candidate`, awaiting review. Each row carries the proposed target space slug and source conversation id parsed from its tags. In hosts that support MCP Apps this renders an interactive review panel with per-candidate publish/dismiss actions.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "kb:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
       "additionalProperties": false
     }
   },

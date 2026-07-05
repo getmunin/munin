@@ -5,6 +5,7 @@ import { CmsService, ENTRY_STATUSES } from './cms.service.ts';
 import { CmsSearchService } from './cms.search.ts';
 import { FIELD_TYPES, type FieldDef } from './cms.fields.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
+import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const FieldSchema: z.ZodType<FieldDef> = z.lazy(() =>
   z.object({
@@ -319,12 +320,14 @@ export class CmsAdminTools {
   @McpTool({
     name: 'cms_get_entry',
     title: 'CMS: Read entry',
-    description: 'Read one entry. Data is projected through the collection\'s current field schema.',
+    description:
+      "Read one entry. Data is projected through the collection's current field schema. In hosts that support MCP Apps this renders an inline entry preview with publish/unpublish/schedule actions.",
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: GetEntryInput,
     readOnlyHint: true,
     destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   getEntry(args: z.infer<typeof GetEntryInput>) {
     return this.cms.getEntry(args.id, args.include);
@@ -449,12 +452,14 @@ export class CmsAdminTools {
   @McpTool({
     name: 'cms_list_assets',
     title: 'CMS: List assets',
-    description: 'List media-library assets in your org.',
+    description:
+      'List media-library assets in your org. In hosts that support MCP Apps this renders a thumbnail gallery with per-asset usage lookup.',
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: ListAssetsInput,
     readOnlyHint: true,
     destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   listAssets(args: z.infer<typeof ListAssetsInput>) {
     return this.cms.listAssets(args);

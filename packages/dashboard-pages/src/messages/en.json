@@ -1344,7 +1344,11 @@
   "inspector": {
     "chrome": {
       "contextInspector": "Inspector",
-      "contextOutreach": "Outreach"
+      "contextOutreach": "Outreach",
+      "contextCrm": "CRM",
+      "contextKb": "Knowledge base",
+      "contextAnalytics": "Analytics",
+      "contextCms": "CMS"
     },
     "connect": {
       "connecting": "Connecting to host…",
@@ -1353,7 +1357,8 @@
     "fallback": {
       "title": "Munin Inspector",
       "waiting": "Connected — waiting for a tool result from the host.",
-      "raw": "Connected — showing the raw tool result."
+      "raw": "Connected — showing the raw tool result.",
+      "empty": "Connected — the result is an empty list."
     },
     "proposals": {
       "eyebrow": "Pending proposals",
@@ -1388,6 +1393,126 @@
         "dismissed": "dismissed",
         "failed": "failed"
       }
+    },
+    "merge": {
+      "eyebrow": "Pending merge proposals",
+      "title": "Contact merges",
+      "sublineEmpty": "Nothing waiting — the queue is clear.",
+      "sublinePending": "{count} waiting for review — applying merges the contacts.",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "unnamedContact": "(unnamed contact)",
+      "keeper": "keeper",
+      "patchIntro": "Fields copied onto the keeper from {name}:",
+      "evidenceShow": "Evidence +",
+      "evidenceHide": "Evidence −",
+      "apply": "Apply merge",
+      "applying": "Merging…",
+      "dismiss": "Not the same person",
+      "dismissing": "Dismissing…",
+      "appliedNow": "Merged just now — the duplicate was archived.",
+      "applied": "Merged — the duplicate was archived.",
+      "dismissed": "Dismissed — kept as separate contacts.",
+      "dismissedReason": "Dismissed — {reason}",
+      "footClear": "Queue clear",
+      "footPending": "{count} pending · applying merges immediately",
+      "ageNow": "now",
+      "confidence": {
+        "high": "high confidence",
+        "medium": "medium confidence"
+      },
+      "field": {
+        "name": "Name",
+        "email": "Email",
+        "phone": "Phone",
+        "companyId": "Company",
+        "endUserId": "End user"
+      },
+      "status": {
+        "pending": "pending",
+        "applied": "merged",
+        "dismissed": "dismissed"
+      }
+    },
+    "curation": {
+      "eyebrow": "Curation inbox",
+      "title": "Knowledge candidates",
+      "sublineEmpty": "Nothing waiting — the inbox is clear.",
+      "sublinePending": "{count} drafts waiting for review — publishing makes them live.",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "proposedTarget": "proposed space: {space}",
+      "noProposedTarget": "no proposed space",
+      "fromConversation": "from conversation {id}",
+      "draftEyebrow": "Draft document",
+      "loadingBody": "Loading draft…",
+      "bodyFailed": "Could not load the draft body.",
+      "targetLabel": "Publish to",
+      "targetPlaceholder": "space slug",
+      "noTarget": "Pick a target space first.",
+      "publish": "Publish",
+      "publishing": "Publishing…",
+      "dismiss": "Dismiss",
+      "dismissing": "Dismissing…",
+      "published": "Published to {space}.",
+      "dismissed": "Dismissed — the draft was deleted.",
+      "footClear": "Inbox clear",
+      "footPending": "{count} drafts pending",
+      "ageNow": "now",
+      "status": {
+        "pending": "pending",
+        "published": "published",
+        "dismissed": "dismissed"
+      }
+    },
+    "charts": {
+      "eyebrow": "Analytics",
+      "title": {
+        "series": "Views over time",
+        "sources": "Traffic by source",
+        "funnel": "Conversion funnel",
+        "journey": "Contact journey"
+      },
+      "seriesSubline": "{views} views across {days} days",
+      "sourcesSubline": "{sources} sources · {views} views",
+      "funnelSubline": "{rate}% end-to-end conversion over the last {days} days",
+      "journeySubline": "{count} events, oldest first",
+      "seriesLegend": "peak {max} views on {peak}",
+      "directBucket": "direct / organic",
+      "viewsVisitors": "{views} views · {visitors} visitors",
+      "funnelConversion": "{rate}% from previous",
+      "journeySearched": "searched “{query}”",
+      "journeyViewed": "viewed a page"
+    },
+    "entry": {
+      "versionLine": "Version {version}",
+      "publishedNow": "published just now",
+      "publishedAt": "published {at}",
+      "scheduledFor": "goes live {at}",
+      "publish": "Publish",
+      "publishing": "Publishing…",
+      "unpublish": "Unpublish",
+      "unpublishing": "Unpublishing…",
+      "schedule": "Schedule…",
+      "scheduleConfirm": "Confirm schedule",
+      "scheduling": "Scheduling…",
+      "scheduleMissing": "Pick a date and time first.",
+      "status": {
+        "draft": "draft",
+        "published": "published",
+        "scheduled": "scheduled",
+        "archived": "archived"
+      }
+    },
+    "assets": {
+      "eyebrow": "Media library",
+      "title": "Assets",
+      "subline": "{count} assets, newest first — click one for details.",
+      "notUploaded": "not uploaded",
+      "usageLoading": "Checking usage…",
+      "usageNone": "Not referenced by any entry.",
+      "usageCount": "Referenced by {count} entry fields",
+      "foot": "{count} assets"
     }
   },
   "legal": {

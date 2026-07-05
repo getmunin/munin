@@ -223,11 +223,41 @@ const skipReason = TEST_URL
   it('exposes the inspector MCP App: tool _meta.ui.resourceUri + ui:// resource', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
-      const listProposals = tools.find((t) => t.name === 'outreach_list_proposals');
-      expect(listProposals, 'outreach_list_proposals tool missing').toBeDefined();
-      expect(
-        (listProposals as { _meta?: { ui?: { resourceUri?: string } } })._meta?.ui?.resourceUri,
-      ).toBe(INSPECTOR_APP_URI);
+      const panelWired = [
+        'outreach_list_proposals',
+        'crm_list_merge_proposals',
+        'kb_list_curation_candidates',
+        'analytics_get_views_over_time',
+        'analytics_get_funnel',
+        'analytics_get_traffic_by_source',
+        'analytics_get_contact_journey',
+        'cms_get_entry',
+        'cms_list_assets',
+      ];
+      for (const name of panelWired) {
+        const tool = tools.find((t) => t.name === name);
+        expect(tool, `${name} tool missing`).toBeDefined();
+        expect(
+          (tool as { _meta?: { ui?: { resourceUri?: string } } })._meta?.ui?.resourceUri,
+          `${name} is not wired to the inspector panel`,
+        ).toBe(INSPECTOR_APP_URI);
+      }
+
+      const appOnly = [
+        'outreach_approve_proposal',
+        'outreach_dismiss_proposal',
+        'crm_apply_merge_proposal',
+        'crm_dismiss_merge_proposal',
+        'kb_publish_curation_candidate',
+      ];
+      for (const name of appOnly) {
+        const tool = tools.find((t) => t.name === name);
+        expect(tool, `${name} tool missing`).toBeDefined();
+        expect(
+          (tool as { _meta?: { ui?: { visibility?: string[] } } })._meta?.ui?.visibility,
+          `${name} should be app-only`,
+        ).toEqual(['app']);
+      }
 
       const { resources } = await c.listResources();
       const panel = resources.find((r) => r.uri === INSPECTOR_APP_URI);

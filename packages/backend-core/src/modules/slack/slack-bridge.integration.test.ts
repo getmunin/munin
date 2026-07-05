@@ -2,7 +2,13 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { sql, eq, and } from 'drizzle-orm';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { ActorIdentity, WebhookDispatcher, withContext, type RequestContext } from '@getmunin/core';
+import {
+  ActorIdentity,
+  signHmac,
+  WebhookDispatcher,
+  withContext,
+  type RequestContext,
+} from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { SlackApiError, type SlackApiClient } from './slack-api.client.ts';
 import { SlackBridgeWorker } from './slack-bridge.worker.ts';
@@ -69,6 +75,17 @@ class FakeSlackApi {
 
   conversationsInfo(input: { token: string; channel: string }) {
     return Promise.resolve({ id: input.channel, name: 'support', isMember: true });
+  }
+
+  oauthTeamId = 'T_INSTALLED';
+  oauthAccess(_input: unknown) {
+    return Promise.resolve({
+      botToken: 'xoxb-installed-token',
+      botUserId: 'U_BOT',
+      appId: 'A_APP',
+      teamId: this.oauthTeamId,
+      teamName: 'Installed Space',
+    });
   }
 
   asClient(): SlackApiClient {
@@ -555,5 +572,83 @@ function actionIds(blocks: unknown[] | undefined): string[] {
       );
     expect(routes).toHaveLength(1);
     expect(routes[0]!.slackChannelId).toBe('C_NEW');
+  });
+
+  describe('completeInstall', () => {
+    const CLIENT_SECRET = 'test-slack-client-secret';
+    let priorId: string | undefined;
+    let priorSecret: string | undefined;
+
+    beforeAll(() => {
+      priorId = process.env.SLACK_CLIENT_ID;
+      priorSecret = process.env.SLACK_CLIENT_SECRET;
+      process.env.SLACK_CLIENT_ID = 'test-client-id';
+      process.env.SLACK_CLIENT_SECRET = CLIENT_SECRET;
+    });
+    afterAll(() => {
+      if (priorId === undefined) delete process.env.SLACK_CLIENT_ID;
+      else process.env.SLACK_CLIENT_ID = priorId;
+      if (priorSecret === undefined) delete process.env.SLACK_CLIENT_SECRET;
+      else process.env.SLACK_CLIENT_SECRET = priorSecret;
+    });
+
+    function makeState(fields: { orgId: string; userId: string | null; exp: number; nonce?: string }) {
+      const payload = Buffer.from(JSON.stringify(fields)).toString('base64url');
+      return `${payload}.${signHmac(payload, CLIENT_SECRET)}`;
+    }
+
+    async function integrationTeam(): Promise<string | undefined> {
+      const [row] = await db
+        .select({ teamId: schema.slackIntegrations.teamId })
+        .from(schema.slackIntegrations)
+        .where(eq(schema.slackIntegrations.orgId, orgId));
+      return row?.teamId;
+    }
+
+    it('rejects a session-bound state without the matching cookie nonce', async () => {
+      const api = new FakeSlackApi();
+      api.oauthTeamId = 'T_TEST';
+      const service = new SlackService(db, api.asClient());
+      const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000, nonce: 'good' });
+
+      await expect(service.completeInstall({ code: 'c', state })).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(
+        service.completeInstall({ code: 'c', state, sessionNonce: 'wrong' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('accepts a session-bound state with the matching cookie nonce', async () => {
+      const api = new FakeSlackApi();
+      api.oauthTeamId = 'T_TEST';
+      const service = new SlackService(db, api.asClient());
+      const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000, nonce: 'good' });
+
+      const result = await service.completeInstall({ code: 'c', state, sessionNonce: 'good' });
+      expect(result.orgId).toBe(orgId);
+    });
+
+    it('accepts an MCP-minted state (no nonce) without a cookie', async () => {
+      const api = new FakeSlackApi();
+      api.oauthTeamId = 'T_TEST';
+      const service = new SlackService(db, api.asClient());
+      const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000 });
+
+      const result = await service.completeInstall({ code: 'c', state });
+      expect(result.orgId).toBe(orgId);
+    });
+
+    it('refuses to repoint an existing org to a different workspace', async () => {
+      const api = new FakeSlackApi();
+      api.oauthTeamId = 'T_ATTACKER';
+      const service = new SlackService(db, api.asClient());
+      const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000 });
+
+      await expect(service.completeInstall({ code: 'c', state })).rejects.toThrow(
+        ConflictException,
+      );
+      expect(await integrationTeam()).toBe('T_TEST');
+    });
   });
 });

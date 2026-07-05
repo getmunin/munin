@@ -1,12 +1,12 @@
 ---
 title: Connect Slack for human handoff
-description: Connect a Slack workspace so conversations mirror into a channel as threads and handover alerts reach the team, then route channels and verify with a test message.
+description: Connect a Slack workspace so conversations mirror into a channel as threads, handover alerts reach the team, and operators reply to customers from the thread; then route channels and verify with a test message.
 audiences: [admin]
 ---
 
 # Connect Slack for human handoff
 
-Use this when the operator wants their team to triage Munin conversations from Slack. Every conversation becomes one Slack thread in a channel you pick: customer messages, AI replies, status changes, and claim/assign updates post into the thread, and handover requests raise a prominent alert. Slack is an operator surface — replies to the customer still travel over the conversation's original channel (email, widget, SMS, voice).
+Use this when the operator wants their team to triage Munin conversations from Slack. Every conversation becomes one Slack thread in a channel you pick: customer messages, AI replies, status changes, and claim/assign updates post into the thread, and handover requests raise a prominent alert. Operators reply to the customer by replying in the thread. Slack is an operator surface — replies travel to the customer over the conversation's original channel (email, widget, SMS, voice).
 
 ## TL;DR
 
@@ -34,10 +34,14 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
   "oauth_config": {
     "redirect_urls": ["https://YOUR_API_HOST/v1/slack/oauth/callback"],
     "scopes": {
-      "bot": ["chat:write", "channels:read", "users:read", "users:read.email"]
+      "bot": ["chat:write", "channels:read", "channels:history", "users:read", "users:read.email"]
     }
   },
   "settings": {
+    "event_subscriptions": {
+      "request_url": "https://YOUR_API_HOST/v1/slack/events",
+      "bot_events": ["message.channels"]
+    },
     "org_deploy_enabled": false,
     "socket_mode_enabled": false,
     "token_rotation_enabled": false
@@ -48,9 +52,11 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
 2. From the app's *Basic Information* page, set these env vars on the backend and restart it:
    - `SLACK_CLIENT_ID`
    - `SLACK_CLIENT_SECRET`
-   - `SLACK_SIGNING_SECRET` (not used yet; reserved for reply-from-Slack)
+   - `SLACK_SIGNING_SECRET` (signs the Events API requests that power reply-from-Slack)
 
-The redirect URL must exactly match `https://<api-base>/v1/slack/oauth/callback` — the same base that serves `/mcp`.
+The redirect URL must exactly match `https://<api-base>/v1/slack/oauth/callback`, and the events request URL `https://<api-base>/v1/slack/events` — the same base that serves `/mcp`. Slack verifies the events URL with a challenge when you save it; the backend must be reachable and have `SLACK_SIGNING_SECRET` set first.
+
+Workspaces installed before the `channels:history` scope was added must reinstall via a fresh `slack_get_install_url` link before thread replies reach Munin.
 
 ## Step 1 — install into the workspace
 
@@ -85,7 +91,14 @@ Call `slack_test` — it posts a hello message to the default channel. Then conf
 - Status changes, assignment, claim/release, and handover request/resolve as thread updates.
 - Handover requests additionally alert the escalations channel (or the default channel) with the reason and the configured mention.
 
-Replying from the Slack thread does not reach the customer yet — that is a planned follow-up. Operators reply from the dashboard or via `conv_send_message`.
+## Replying from Slack
+
+A reply in a mirrored thread is sent to the customer over the conversation's original channel and recorded in Munin as that teammate's message (it also claims the conversation, same as replying from the dashboard):
+
+- **Attribution is by email match**: the Slack profile email must belong to a member of the Munin org. The first reply creates the mapping; later replies use it.
+- **Unmapped users are rejected** — the reply is *not* sent, and only the sender sees an ephemeral notice in the thread. Fix by inviting them to the org with their Slack email (`invitations` on the dashboard team page), then have them reply again.
+- **Internal notes**: start the reply with `!` to keep it team-only (`!checking with billing`) — recorded as an internal note, never sent to the customer.
+- Only thread replies count; top-level channel messages, edits, and other bots are ignored.
 
 ## Troubleshooting
 

@@ -11,6 +11,7 @@ import {
   decryptSecretSql,
   encryptSecretSql,
   getCurrentContext,
+  randomToken,
   setEncryptionKeySql,
   signHmac,
   verifyHmac,
@@ -73,6 +74,25 @@ interface InstallState {
   orgId: string;
   userId: string | null;
   exp: number;
+  /**
+   * Present when the install was started from a browser session (the
+   * dashboard). The callback requires a matching `slack_install_nonce`
+   * cookie, so leaking the URL is not enough to complete the install.
+   * Absent for MCP-minted URLs, which a human opens in a fresh browser with
+   * no cookie continuity — those rely on the short TTL and the
+   * team-mismatch guard in completeInstall.
+   */
+  nonce?: string;
+}
+
+/** Cookie set by the dashboard install endpoint; consumed by the callback. */
+export const SLACK_INSTALL_NONCE_COOKIE = 'slack_install_nonce';
+
+export interface InstallUrlResult {
+  url: string;
+  expiresAt: string;
+  /** Set only when bindToSession — the caller stores it in the nonce cookie. */
+  sessionNonce?: string;
 }
 
 export function slackOAuthRedirectUri(): string {
@@ -128,6 +148,7 @@ export function verifyInstallState(raw: unknown, secret: string): InstallState |
     orgId: state.orgId,
     userId: typeof state.userId === 'string' ? state.userId : null,
     exp: state.exp,
+    nonce: typeof state.nonce === 'string' ? state.nonce : undefined,
   };
 }
 
@@ -218,7 +239,7 @@ export class SlackService {
     };
   }
 
-  installUrl(): { url: string; expiresAt: string } {
+  installUrl(options: { bindToSession?: boolean } = {}): InstallUrlResult {
     const config = readSlackAppConfig();
     if (!config) {
       throw new BadRequestException(
@@ -229,24 +250,39 @@ export class SlackService {
     const actor = ctx.actor!;
     const userId = actor.type === 'user' ? actor.id : (actor.userId ?? null);
     const exp = Date.now() + INSTALL_STATE_TTL_MS;
-    const state = signInstallState({ orgId: actor.orgId, userId, exp }, config.clientSecret);
+    const sessionNonce = options.bindToSession ? randomToken(24) : undefined;
+    const state = signInstallState(
+      { orgId: actor.orgId, userId, exp, nonce: sessionNonce },
+      config.clientSecret,
+    );
     const url = new URL('https://slack.com/oauth/v2/authorize');
     url.searchParams.set('client_id', config.clientId);
     url.searchParams.set('scope', SLACK_BOT_SCOPES.join(','));
     url.searchParams.set('redirect_uri', slackOAuthRedirectUri());
     url.searchParams.set('state', state);
-    return { url: url.toString(), expiresAt: new Date(exp).toISOString() };
+    return { url: url.toString(), expiresAt: new Date(exp).toISOString(), sessionNonce };
   }
 
   /**
    * Public OAuth callback path — no tenant context; org + installer come from
    * the signed state minted by installUrl(). Runs on the service-role DB.
    */
-  async completeInstall(input: { code: string; state: string }): Promise<{ orgId: string }> {
+  async completeInstall(input: {
+    code: string;
+    state: string;
+    sessionNonce?: string | null;
+  }): Promise<{ orgId: string }> {
     const config = readSlackAppConfig();
     if (!config) throw new BadRequestException('slack_not_configured');
     const state = verifyInstallState(input.state, config.clientSecret);
     if (!state) throw new BadRequestException('slack_invalid_state');
+
+    // Session binding: a state minted from the dashboard carries a nonce and
+    // is only completable by the same browser (matching httpOnly cookie), so
+    // a leaked/intercepted install URL cannot be redeemed by anyone else.
+    if (state.nonce && state.nonce !== input.sessionNonce) {
+      throw new BadRequestException('slack_invalid_state');
+    }
 
     const install = await this.api.oauthAccess({
       clientId: config.clientId,
@@ -257,10 +293,19 @@ export class SlackService {
     const encryptedBotToken = await encryptSecretValue(this.db, install.botToken);
 
     const [existing] = await this.db
-      .select({ id: schema.slackIntegrations.id })
+      .select({ id: schema.slackIntegrations.id, teamId: schema.slackIntegrations.teamId })
       .from(schema.slackIntegrations)
       .where(eq(schema.slackIntegrations.orgId, state.orgId))
       .limit(1);
+
+    // Never silently repoint an existing workspace to a different one — that
+    // would redirect all mirrored customer conversations elsewhere. Switching
+    // workspaces requires an explicit slack_disconnect first.
+    if (existing && existing.teamId !== install.teamId) {
+      throw new ConflictException(
+        'slack_workspace_mismatch: this org is already connected to a different Slack workspace — disconnect it first, then reinstall',
+      );
+    }
 
     if (existing) {
       await this.db

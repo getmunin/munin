@@ -834,6 +834,55 @@ const skipReason = TEST_URL
     ).toContain(sessionId);
   });
 
+  it('carries read-state from the anonymous session to the verified caller on identify', async () => {
+    const sessionId = `vis_read_carryover_${Date.now()}`;
+    const externalId = 'user_read_carryover';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+
+    const posted = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'anon question' }],
+    });
+    const conversationId = (posted.json as { conversationId: string }).conversationId;
+    const agentMessageId = await insertAgentMessage(conversationId, 'agent answer', sessionId);
+
+    const anonConv = (
+      await db
+        .select({ endUserId: schema.convConversations.endUserId })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, conversationId))
+        .limit(1)
+    )[0]!;
+    await db.insert(schema.convMessageReads).values({
+      orgId,
+      conversationId,
+      messageId: agentMessageId,
+      endUserId: anonConv.endUserId!,
+    });
+
+    await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: externalId,
+      userHash,
+    });
+
+    // The agent answer was read anonymously; after the claim the verified
+    // caller must still see it as read (no phantom unread badge).
+    const res = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const agent = (res.json as { messages: Array<{ id: string; readAt: string | null }> }).messages.find(
+      (m) => m.id === agentMessageId,
+    )!;
+    expect(agent).toBeDefined();
+    expect(agent.readAt).not.toBeNull();
+  });
+
   it('identify is idempotent: re-claiming the same session returns the same refs', async () => {
     const sessionId = 'vis_claim_idem';
     const externalId = 'user_idem_99';

@@ -1024,6 +1024,27 @@ export class WidgetIngestService {
       );
 
     if (sessionContact.endUserId && sessionContact.endUserId !== verifiedEndUserId) {
+      // Read receipts were recorded against the anonymous end-user. Move them
+      // to the verified one so the claimed conversation keeps its read-state —
+      // otherwise every already-read agent message resurfaces as unread after
+      // login. Skip messages the verified user has already read to respect the
+      // (message_id, end_user_id) unique index; those stale anon rows fall away
+      // with the cascade delete below.
+      await tx
+        .update(schema.convMessageReads)
+        .set({ endUserId: verifiedEndUserId })
+        .where(
+          and(
+            eq(schema.convMessageReads.orgId, orgId),
+            eq(schema.convMessageReads.endUserId, sessionContact.endUserId),
+            sql`${schema.convMessageReads.messageId} NOT IN (
+              SELECT ${schema.convMessageReads.messageId}
+              FROM ${schema.convMessageReads}
+              WHERE ${schema.convMessageReads.endUserId} = ${verifiedEndUserId}
+            )`,
+          ),
+        );
+
       await tx
         .delete(schema.endUsers)
         .where(

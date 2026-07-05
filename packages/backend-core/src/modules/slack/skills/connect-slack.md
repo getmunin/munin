@@ -42,6 +42,10 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
       "request_url": "https://YOUR_API_HOST/v1/slack/events",
       "bot_events": ["message.channels"]
     },
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "https://YOUR_API_HOST/v1/slack/interactivity"
+    },
     "org_deploy_enabled": false,
     "socket_mode_enabled": false,
     "token_rotation_enabled": false
@@ -80,13 +84,21 @@ Optional escalations channel — handover alerts land here instead of the defaul
 
 `mention` accepts Slack mention syntax: `<!here>`, `<!channel>`, or a user group like `<!subteam^S0123456789>`.
 
+Optional source-channel routing — mirror conversations from one Munin conversation channel (find IDs with `conv_list_channels`) into their own Slack channel, e.g. widget chats to `#support-chat` while email keeps the default:
+
+```json
+{ "slackChannelId": "C0789...", "convChannelId": "cch_..." }
+```
+
+Every route needs its own Slack channel (an escalations route pointing at the default channel is redundant — just leave it unset).
+
 ## Step 3 — verify
 
 Call `slack_test` — it posts a hello message to the default channel. Then confirm `slack_get_status` shows `connected: true` and the routes you expect. From now on, new conversation activity appears within a few seconds (the mirror worker polls its queue every 5 seconds).
 
 ## What mirrors
 
-- New conversation → thread parent with contact, source channel, subject, and a dashboard link.
+- New conversation → thread parent with contact, source channel, subject, a dashboard link, a live status line (status, claimed-by, assigned-to, needs-attention), and *Claim* / *Close* buttons (*Reopen* once closed). The buttons act as the clicking teammate — same account-linking rule as replies.
 - Customer messages (:bust_in_silhouette:), AI agent replies (:robot_face:), teammate replies (:technologist:), and internal notes (:lock:) as thread replies.
 - Status changes, assignment, claim/release, and handover request/resolve as thread updates.
 - Handover requests additionally alert the escalations channel (or the default channel) with the reason and the configured mention.

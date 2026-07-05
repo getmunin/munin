@@ -6,6 +6,8 @@ import { SlackService } from './slack.service.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackBridgeWorker } from './slack-bridge.worker.ts';
 import { SlackInboundService } from './slack-inbound.service.ts';
+import { SlackInteractionsService } from './slack-interactions.service.ts';
+import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackAdminTools } from './slack.tools.ts';
 import { SlackOAuthController } from './slack-oauth.controller.ts';
 import { SlackEventsController } from './slack-events.controller.ts';
@@ -18,6 +20,8 @@ import { SlackEventsController } from './slack-events.controller.ts';
     SlackEventSink,
     SlackBridgeWorker,
     SlackInboundService,
+    SlackInteractionsService,
+    SlackUserMappingService,
     SlackAdminTools,
   ],
   controllers: [SlackOAuthController, SlackEventsController],

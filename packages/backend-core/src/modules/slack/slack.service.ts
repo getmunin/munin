@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
   decryptSecretSql,
@@ -28,6 +28,7 @@ export interface SlackRouteDto {
   slackChannelId: string;
   slackChannelName: string | null;
   purpose: string;
+  convChannelId: string | null;
   mention: string | null;
 }
 
@@ -55,6 +56,8 @@ export interface SetRoutingInput {
   slackChannelId: string;
   purpose?: 'default' | 'escalations';
   mention?: string | null;
+  /** Source-channel override: conversations on this conv channel mirror here. */
+  convChannelId?: string | null;
 }
 
 interface InstallState {
@@ -125,6 +128,7 @@ function toRouteDto(row: typeof schema.slackChannelRoutes.$inferSelect): SlackRo
     slackChannelId: row.slackChannelId,
     slackChannelName: row.slackChannelName,
     purpose: row.purpose,
+    convChannelId: row.convChannelId,
     mention: row.mention,
   };
 }
@@ -281,6 +285,12 @@ export class SlackService {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const purpose = input.purpose ?? 'default';
+    const convChannelId = input.convChannelId ?? null;
+    if (convChannelId && purpose === 'escalations') {
+      throw new BadRequestException(
+        'slack_invalid_routing: escalations cannot be scoped to a source channel — omit convChannelId',
+      );
+    }
 
     const [integration] = await ctx.db
       .select()
@@ -291,6 +301,19 @@ export class SlackService {
       throw new NotFoundException(
         'slack_not_connected: no active Slack workspace for this org. Use slack_get_install_url first.',
       );
+    }
+
+    if (convChannelId) {
+      const [convChannel] = await ctx.db
+        .select({ id: schema.convChannels.id })
+        .from(schema.convChannels)
+        .where(and(eq(schema.convChannels.id, convChannelId), eq(schema.convChannels.orgId, orgId)))
+        .limit(1);
+      if (!convChannel) {
+        throw new BadRequestException(
+          `slack_conv_channel_not_found: ${convChannelId} is not a conversation channel in this org (see conv_list_channels)`,
+        );
+      }
     }
 
     const token = await decryptSecretValue(ctx.db, integration.encryptedBotToken);
@@ -306,38 +329,56 @@ export class SlackService {
       throw err;
     }
 
-    const [conflicting] = await this.db
-      .select({ orgId: schema.slackChannelRoutes.orgId })
-      .from(schema.slackChannelRoutes)
-      .where(
-        and(
-          eq(schema.slackChannelRoutes.teamId, integration.teamId),
-          eq(schema.slackChannelRoutes.slackChannelId, input.slackChannelId),
-          ne(schema.slackChannelRoutes.integrationId, integration.id),
-        ),
-      )
-      .limit(1);
-    if (conflicting) {
-      throw new ConflictException(
-        'slack_conflict: that Slack channel is already routed to a different Munin org — channels can only mirror one org',
-      );
-    }
-
     const [existing] = await ctx.db
       .select({ id: schema.slackChannelRoutes.id })
       .from(schema.slackChannelRoutes)
       .where(
         and(
           eq(schema.slackChannelRoutes.integrationId, integration.id),
-          eq(schema.slackChannelRoutes.purpose, purpose),
+          convChannelId
+            ? eq(schema.slackChannelRoutes.convChannelId, convChannelId)
+            : and(
+                eq(schema.slackChannelRoutes.purpose, purpose),
+                isNull(schema.slackChannelRoutes.convChannelId),
+              ),
         ),
       )
       .limit(1);
+
+    // One route row per Slack channel, globally: the (team, channel) unique
+    // index is both the multi-org invariant and what keeps thread→org
+    // resolution unambiguous. Pre-checked because a violation inside the
+    // request transaction would surface as a bare 500 at commit time.
+    const [conflicting] = await this.db
+      .select({
+        id: schema.slackChannelRoutes.id,
+        orgId: schema.slackChannelRoutes.orgId,
+        purpose: schema.slackChannelRoutes.purpose,
+      })
+      .from(schema.slackChannelRoutes)
+      .where(
+        and(
+          eq(schema.slackChannelRoutes.teamId, integration.teamId),
+          eq(schema.slackChannelRoutes.slackChannelId, channel.id),
+        ),
+      )
+      .limit(1);
+    if (conflicting && conflicting.id !== existing?.id) {
+      if (conflicting.orgId !== orgId) {
+        throw new ConflictException(
+          'slack_conflict: that Slack channel is already routed to a different Munin org — channels can only mirror one org',
+        );
+      }
+      throw new ConflictException(
+        `slack_conflict: that Slack channel is already used by this org's '${conflicting.purpose}' route — every route needs its own channel (escalations falls back to the default channel when unset)`,
+      );
+    }
 
     const values = {
       teamId: integration.teamId,
       slackChannelId: channel.id,
       slackChannelName: channel.name,
+      convChannelId,
       mention: input.mention ?? null,
       updatedAt: new Date(),
     };

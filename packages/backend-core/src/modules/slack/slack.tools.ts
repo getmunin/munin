@@ -24,6 +24,13 @@ const SetRoutingInputSchema = z.object({
     .describe(
       'Optional Slack mention prepended to escalation alerts, e.g. <!here> or <!subteam^S0123456789>',
     ),
+  convChannelId: z
+    .string()
+    .max(64)
+    .optional()
+    .describe(
+      'Optional source-channel override: conversations arriving on this Munin conversation channel (see conv_list_channels) mirror into the given Slack channel instead of the default',
+    ),
 });
 
 @Injectable()
@@ -64,7 +71,7 @@ export class SlackAdminTools {
     name: 'slack_set_routing',
     title: 'Slack: Set channel routing',
     description:
-      "Point conversation mirroring at a Slack channel. purpose 'default' receives every conversation as a thread; purpose 'escalations' receives handover alerts (optionally with a mention). One channel per purpose; calling again replaces the previous channel. A Slack channel can only serve one Munin org. The response includes botInChannel — when false, invite the bot in Slack (/invite) before messages can post.",
+      "Point conversation mirroring at a Slack channel. purpose 'default' receives every conversation as a thread; purpose 'escalations' receives handover alerts (optionally with a mention); convChannelId scopes a route to one source conversation channel (e.g. widget → #support-chat, email → #support-email). Calling again with the same purpose or convChannelId replaces that route. Every route needs its own Slack channel, and a Slack channel can only serve one Munin org. The response includes botInChannel — when false, invite the bot in Slack (/invite) before messages can post.",
     audiences: ['admin'],
     scopes: ['slack:write'],
     input: SetRoutingInputSchema,

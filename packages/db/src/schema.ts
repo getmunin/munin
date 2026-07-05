@@ -1914,8 +1914,10 @@ export const slackIntegrations = pgTable(
 
 // Which Slack channel an org's conversations mirror into. The
 // (team_id, slack_channel_id) unique constraint is the multi-org
-// invariant: a Slack channel belongs to exactly one org, so inbound
-// channel→org resolution is always unambiguous.
+// invariant: a Slack channel belongs to exactly one org (and one route),
+// so inbound channel→org resolution is always unambiguous. A non-null
+// conv_channel_id makes the row a source-channel override: conversations
+// arriving on that conv channel mirror there instead of the default.
 export const slackChannelRoutes = pgTable(
   'slack_channel_routes',
   {
@@ -1931,6 +1933,9 @@ export const slackChannelRoutes = pgTable(
     slackChannelName: text('slack_channel_name'),
     purpose: varchar('purpose', { length: 16 }).notNull().default('default'),
     // 'default' | 'escalations'
+    convChannelId: text('conv_channel_id').references(() => convChannels.id, {
+      onDelete: 'cascade',
+    }),
     /** Rendered verbatim in escalation alerts, e.g. `<!subteam^S123>` or `<!here>`. */
     mention: text('mention'),
     createdAt,
@@ -1941,7 +1946,12 @@ export const slackChannelRoutes = pgTable(
       t.teamId,
       t.slackChannelId,
     ),
-    purposeUq: uniqueIndex('slack_channel_routes_purpose_uq').on(t.integrationId, t.purpose),
+    purposeUq: uniqueIndex('slack_channel_routes_purpose_uq')
+      .on(t.integrationId, t.purpose)
+      .where(sql`conv_channel_id IS NULL`),
+    convChannelUq: uniqueIndex('slack_channel_routes_conv_channel_uq')
+      .on(t.integrationId, t.convChannelId)
+      .where(sql`conv_channel_id IS NOT NULL`),
     orgIdx: index('slack_channel_routes_org_idx').on(t.orgId),
   }),
 );

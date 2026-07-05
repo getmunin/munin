@@ -12,12 +12,15 @@ import {
   handoverRequestedText,
   handoverResolvedText,
   messageText,
+  parentStateLine,
   releasedText,
   statusChangedText,
   takenOverText,
+  threadParentBlocks,
   threadParentText,
   type AuthorKind,
   type ConversationSnapshot,
+  type ParentState,
 } from './slack-projection.ts';
 import { readWebBaseUrl } from './slack.constants.ts';
 
@@ -144,17 +147,13 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         .select()
         .from(schema.slackChannelRoutes)
         .where(eq(schema.slackChannelRoutes.integrationId, integration.id));
-      const defaultRoute = routes.find((r) => r.purpose === 'default');
-      if (!defaultRoute) throw new TerminalDeliveryError('no_default_route');
-      const escalationRoute = routes.find((r) => r.purpose === 'escalations') ?? defaultRoute;
 
       const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
       await this.handleEvent({
         row,
         integration,
         payload: eventRow.payload,
-        defaultRoute,
-        escalationRoute,
+        routes,
         token,
       });
       await this.finish(row, null);
@@ -173,16 +172,23 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     row: DeliveryRow;
     integration: IntegrationRow;
     payload: Record<string, unknown>;
-    defaultRoute: RouteRow;
-    escalationRoute: RouteRow;
+    routes: RouteRow[];
     token: string;
   }): Promise<void> {
-    const { row, payload, defaultRoute, escalationRoute, token } = input;
+    const { row, payload, routes, token } = input;
     if (!row.conversationId) return;
 
     const context = await this.loadConversation(row.conversationId);
     if (!context) throw new TerminalDeliveryError('conversation_missing');
-    const link = await this.ensureLink(input.integration, defaultRoute, context, token);
+
+    const mirrorRoute =
+      routes.find((r) => r.convChannelId === context.conversation.channelId) ??
+      routes.find((r) => r.purpose === 'default' && !r.convChannelId);
+    if (!mirrorRoute) throw new TerminalDeliveryError('no_default_route');
+    const escalationRoute =
+      routes.find((r) => r.purpose === 'escalations' && !r.convChannelId) ?? mirrorRoute;
+
+    const link = await this.ensureLink(input.integration, mirrorRoute, context, token);
 
     switch (row.eventType) {
       case 'conversation.created':
@@ -198,27 +204,32 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
           channel: escalationRoute.slackChannelId,
           text: escalationAlertText(context.snapshot, reason, escalationRoute.mention),
         });
-        return;
+        return await this.syncParent(link, context, token);
       }
       case 'conversation.handover_resolved':
-        return await this.postThreadReply(token, link, handoverResolvedText());
+        await this.postThreadReply(token, link, handoverResolvedText());
+        return await this.syncParent(link, context, token);
       case 'conversation.status_changed': {
         const status = typeof payload.status === 'string' ? payload.status : 'unknown';
-        return await this.postThreadReply(token, link, statusChangedText(status));
+        await this.postThreadReply(token, link, statusChangedText(status));
+        return await this.syncParent(link, context, token);
       }
       case 'conversation.assigned': {
         const assigneeUserId =
           typeof payload.assigneeUserId === 'string' ? payload.assigneeUserId : null;
         const name = assigneeUserId ? await this.userName(assigneeUserId) : null;
-        return await this.postThreadReply(token, link, assignedText(name));
+        await this.postThreadReply(token, link, assignedText(name));
+        return await this.syncParent(link, context, token);
       }
       case 'conversation.taken_over': {
         const name = await this.holderName(payload);
-        return await this.postThreadReply(token, link, takenOverText(name));
+        await this.postThreadReply(token, link, takenOverText(name));
+        return await this.syncParent(link, context, token);
       }
       case 'conversation.released': {
         const name = await this.holderName(payload);
-        return await this.postThreadReply(token, link, releasedText(name));
+        await this.postThreadReply(token, link, releasedText(name));
+        return await this.syncParent(link, context, token);
       }
       default:
         return;
@@ -289,12 +300,14 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       .limit(1);
     if (existing) return existing;
 
+    const state = await this.loadParentState(context);
     let posted;
     try {
       posted = await this.api.postMessage({
         token,
         channel: defaultRoute.slackChannelId,
-        text: threadParentText(context.snapshot),
+        text: `${threadParentText(context.snapshot)}\n${parentStateLine(state)}`,
+        blocks: threadParentBlocks(context.snapshot, state, context.conversation.id),
       });
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
@@ -321,6 +334,51 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       .limit(1);
     if (!reread) throw new Error('slack_conversation_link_vanished');
     return reread;
+  }
+
+  private async syncParent(
+    link: LinkRow,
+    context: ConversationContext,
+    token: string,
+  ): Promise<void> {
+    const state = await this.loadParentState(context);
+    await this.api.updateMessage({
+      token,
+      channel: link.slackChannelId,
+      ts: link.slackThreadTs,
+      text: `${threadParentText(context.snapshot)}\n${parentStateLine(state)}`,
+      blocks: threadParentBlocks(context.snapshot, state, context.conversation.id),
+    });
+  }
+
+  private async loadParentState(context: ConversationContext): Promise<ParentState> {
+    const conversation = context.conversation;
+    const [claim] = await this.db
+      .select({ userId: schema.claims.userId, agentId: schema.claims.agentId })
+      .from(schema.claims)
+      .where(
+        and(
+          eq(schema.claims.entityType, 'conversation'),
+          eq(schema.claims.entityId, conversation.id),
+          sql`${schema.claims.expiresAt} > now()`,
+        ),
+      )
+      .orderBy(sql`${schema.claims.expiresAt} DESC`)
+      .limit(1);
+    let claimedBy: string | null = null;
+    if (claim?.userId) claimedBy = (await this.userName(claim.userId)) ?? 'a teammate';
+    else if (claim?.agentId) claimedBy = 'AI agent';
+
+    const assignedTo = conversation.assigneeUserId
+      ? await this.userName(conversation.assigneeUserId)
+      : null;
+
+    return {
+      status: conversation.status,
+      needsHumanAttention: conversation.needsHumanAttention,
+      claimedBy,
+      assignedTo,
+    };
   }
 
   private async postThreadReply(token: string, link: LinkRow, text: string): Promise<void> {

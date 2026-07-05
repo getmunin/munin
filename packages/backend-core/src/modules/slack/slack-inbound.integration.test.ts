@@ -9,6 +9,7 @@ import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import type { SlackApiClient } from './slack-api.client.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInboundService } from './slack-inbound.service.ts';
+import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackBridgeWorker } from './slack-bridge.worker.ts';
 import { encryptSecretValue } from './slack.service.ts';
 
@@ -48,6 +49,10 @@ class FakeSlackApi {
     const ts = `1750000001.${String(this.counter).padStart(6, '0')}`;
     this.posted.push({ channel: input.channel, text: input.text, threadTs: input.threadTs, ts });
     return Promise.resolve({ ts, channel: input.channel });
+  }
+
+  updateMessage() {
+    return Promise.resolve();
   }
 
   asClient(): SlackApiClient {
@@ -147,7 +152,8 @@ class FakeSlackApi {
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
     );
-    inbound = new SlackInboundService(db, api.asClient(), conv);
+    const mapping = new SlackUserMappingService(db, api.asClient());
+    inbound = new SlackInboundService(db, api.asClient(), conv, mapping);
   });
 
   function replyPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {

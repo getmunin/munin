@@ -31,7 +31,7 @@
   "dependencies": {
     "@getmunin/types": "workspace:*",
     "@getmunin/ui": "workspace:*",
-    "better-auth": "^1.6.11",
+    "better-auth": "^1.6.13",
     "lucide-react": "^1.21.0",
     "sonner": "^2.0.7",
     "zod": "^4.3.6"

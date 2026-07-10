@@ -16,7 +16,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@better-auth/oauth-provider": "^1.6.10",
+    "@better-auth/oauth-provider": "^1.6.23",
     "@getmunin/agent-host": "workspace:*",
     "@getmunin/analytics-tracker": "workspace:*",
     "@getmunin/backend-core": "workspace:*",

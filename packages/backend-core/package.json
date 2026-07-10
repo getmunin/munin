@@ -41,7 +41,7 @@
     "mcp:sweep": "node --import @swc-node/register/esm-register ./scripts/mcp-sweep.ts"
   },
   "dependencies": {
-    "@better-auth/oauth-provider": "^1.6.10",
+    "@better-auth/oauth-provider": "^1.6.23",
     "@getmunin/agent-runtime": "workspace:*",
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",

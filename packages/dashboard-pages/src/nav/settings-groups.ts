@@ -16,6 +16,7 @@ export const OSS_SETTINGS_GROUPS: SettingsSubNavGroup[] = [
       { href: '/dashboard/settings/team', labelKey: 'team' },
       { href: '/dashboard/settings/ai', labelKey: 'ai' },
       { href: '/dashboard/settings/channels', labelKey: 'channels' },
+      { href: '/dashboard/settings/integrations', labelKey: 'integrations' },
       { href: '/dashboard/settings/trackers', labelKey: 'trackers' },
     ],
   },

@@ -10,6 +10,24 @@ export interface WebhookEventInput {
   hopCount?: number;
 }
 
+export interface EmittedEvent {
+  eventId: string;
+  orgId: string;
+  type: string;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * A delivery sink invoked synchronously inside `emit()` — i.e. inside the
+ * request's tenant transaction (`getCurrentContext().db`). Sinks enqueue
+ * durable work (queue-table inserts) transactionally with the event; the
+ * actual external I/O belongs in an out-of-band worker. The webhooks queue
+ * is the built-in sink; integrations (Slack, …) register additional ones.
+ */
+export interface EventSink {
+  onEvent(event: EmittedEvent): Promise<void>;
+}
+
 /**
  * Records a domain event in the `events` table and queues delivery to
  * every active webhook in the org subscribed to this event type.
@@ -19,18 +37,22 @@ export interface WebhookEventInput {
  * in-process via a setInterval (good enough for a solo-dev MVP).
  */
 export class WebhookDispatcher {
+  private readonly sinks: EventSink[] = [];
+
+  registerSink(sink: EventSink): void {
+    this.sinks.push(sink);
+  }
+
   async emit(input: WebhookEventInput): Promise<string> {
     const ctx = getCurrentContext();
     if (!ctx.actor) throw new Error('webhooks.emit requires an authenticated actor');
     const orgId = ctx.actor.orgId;
 
-    // Loop guard.
     const hopCount = input.hopCount ?? 0;
     if (hopCount >= 10) {
       throw new Error(`event hop count exceeded for ${input.type} (correlationId=${ctx.correlationId})`);
     }
 
-    // Persist the event.
     const [event] = await ctx.db
       .insert(schema.events)
       .values({
@@ -45,7 +67,6 @@ export class WebhookDispatcher {
 
     const eventId = event!.id;
 
-    // Find subscribed webhooks.
     const subs = await ctx.db
       .select()
       .from(schema.webhooks)
@@ -55,16 +76,19 @@ export class WebhookDispatcher {
       (w) => w.events.length === 0 || w.events.includes(input.type),
     );
 
-    if (matching.length === 0) return eventId;
+    if (matching.length > 0) {
+      await ctx.db.insert(schema.webhookDeliveries).values(
+        matching.map((w) => ({
+          webhookId: w.id,
+          eventId,
+          nextAttemptAt: new Date(),
+        })),
+      );
+    }
 
-    // Queue deliveries. The actual HTTP attempts are done by the worker.
-    await ctx.db.insert(schema.webhookDeliveries).values(
-      matching.map((w) => ({
-        webhookId: w.id,
-        eventId,
-        nextAttemptAt: new Date(),
-      })),
-    );
+    for (const sink of this.sinks) {
+      await sink.onEvent({ eventId, orgId, type: input.type, payload: input.payload });
+    }
 
     return eventId;
   }

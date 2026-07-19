@@ -37,8 +37,8 @@ function makeRepo(opts: {
 }
 
 function makeWebhooks(): WebhookDispatcher & { emit: ReturnType<typeof vi.fn> } {
-  const stub = { emit: vi.fn().mockResolvedValue('evt_stub') };
-  return stub;
+  const stub = { emit: vi.fn().mockResolvedValue('evt_stub'), registerSink: vi.fn() };
+  return stub as unknown as WebhookDispatcher & { emit: ReturnType<typeof vi.fn> };
 }
 
 function makeHealthStub(): AgentHealthRecorder & {

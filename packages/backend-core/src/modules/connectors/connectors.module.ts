@@ -11,7 +11,7 @@ import { ConnectorAdminTools } from './connectors.tools.ts';
  */
 @Module({
   providers: [
-    { provide: ConnectorRegistry, useValue: new ConnectorRegistry() },
+    { provide: ConnectorRegistry, useFactory: () => new ConnectorRegistry() },
     ConnectorsService,
     ConnectorAdminTools,
   ],

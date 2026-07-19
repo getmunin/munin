@@ -65,22 +65,23 @@ Create an integration token:
 
 ## Gastroplanner (bookings)
 
-Gastroplanner's partner API uses a token issued by their team:
+Gastroplanner's customer API (`https://api.gastroplanner.eu/docs/customer/`) uses a Bearer token plus an `X-RESTAURANT` header naming the restaurant every query runs against:
 
-1. Email **support@gastroplanner.no** and request an API token for your account.
-2. Create the connection with the token; `baseUrl` is only needed if Gastroplanner gives you a non-standard endpoint.
+1. Request an API token from Gastroplanner support for your account.
+2. Create the connection with the token and the restaurant URI (the `X-RESTAURANT` value for your venue). `baseUrl` is only needed for a non-standard endpoint.
 
 ```json
 {
   "vendor": "gastroplanner",
   "name": "Restaurant bookings",
   "config": {
-    "apiToken": "…"
+    "apiToken": "…",
+    "restaurantUri": "my-restaurant"
   }
 }
 ```
 
-Run `connectors_test_connection` after creating it — the partner API is not publicly documented, and the test probe is the fastest way to confirm the token and endpoint work for your account.
+Run `connectors_test_connection` after creating it — the probe lists the restaurants the token can access and fails with the available URIs if `restaurantUri` doesn't match one. Note: Gastroplanner bookings have no confirmation code; guests identify a booking by the `bookingRef` from a listing.
 
 ## Multiple connections
 

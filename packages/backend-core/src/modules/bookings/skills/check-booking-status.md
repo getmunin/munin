@@ -11,7 +11,7 @@ Booking questions ("when is my table?", "how many did I book for?", "is my booki
 ## Self-service (guest's own agent)
 
 - `bookings_get_my_bookings` — the guest's bookings, most recent first. No email parameter exists: the lookup is fixed to the calling end-user's own identity.
-- `bookings_get_my_booking` — one booking with venue, start time, duration, party size, and note. Pass `bookingRef` from a listing, or `confirmationCode` when the guest quotes the code from their booking confirmation.
+- `bookings_get_my_booking` — one booking with start time, duration, and party size. Pass `bookingRef` from a listing; `confirmationCode` works only where the venue's system issues codes (Gastroplanner does not — always list first and use the `bookingRef`).
 
 `startsAt` is venue-local time (the booking system does not expose a timezone) — present it as-is, don't convert it.
 

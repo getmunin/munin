@@ -13,17 +13,15 @@ import type {
   BookingSummary,
 } from './booking-adapter.ts';
 
-// Gastroplanner's partner API is not publicly documented (tokens are issued
-// by their support). The booking model below matches their published
-// integration adapters (id, date, time, seating duration, guest count,
-// enquiry flag, note); the endpoint paths are centralized here so they can
-// be corrected in one place against a live token, and `baseUrl` is
-// overridable per connection.
-const DEFAULT_BASE_URL = 'https://api.gastroplanner.no';
+// Customer API per https://api.gastroplanner.eu/docs/customer/ — every call
+// carries the Bearer token plus an X-RESTAURANT header naming the restaurant
+// the query runs against. GET customer/v1/bookings filters by email/id
+// server-side; the booking API (docs/booking/) only filters by date, so it is
+// deliberately not used here.
+const DEFAULT_BASE_URL = 'https://api.gastroplanner.eu';
 const ENDPOINTS = {
-  test: '/v1/venues',
-  bookings: '/v1/bookings',
-  booking: (id: string) => `/v1/bookings/${id}`,
+  restaurants: '/customer/v1/restaurants',
+  bookings: '/customer/v1/bookings',
 };
 
 export const GastroplannerConfigInput = z.object({
@@ -34,12 +32,15 @@ export const GastroplannerConfigInput = z.object({
     .refine((u) => u.startsWith('https://'), 'baseUrl must be https')
     .transform((u) => u.replace(/\/+$/, ''))
     .default(DEFAULT_BASE_URL),
+  /** Restaurant URI sent as the X-RESTAURANT header; connectors_test_connection lists the URIs the token can access. */
+  restaurantUri: z.string().trim().min(1).max(128),
   /** Partner API token (request via Gastroplanner support). Optional on update to keep the stored one. */
   apiToken: z.string().min(10).max(256).optional(),
 });
 
 const StoredGastroplannerConfig = z.object({
   baseUrl: z.string(),
+  restaurantUri: z.string(),
   encryptedApiToken: z.string(),
 });
 
@@ -48,14 +49,9 @@ interface GastroplannerBooking {
   date: string;
   time: string;
   seating_time?: number | null;
-  number_of_guests: number;
+  pax: number;
   status?: string | null;
-  note?: string | null;
-  confirmation_code?: string | null;
-  venue?: { name?: string | null } | null;
-  venue_name?: string | null;
   customer?: { email?: string | null } | null;
-  email?: string | null;
 }
 
 export class GastroplannerAdapter implements BookingAdapter {
@@ -66,9 +62,15 @@ export class GastroplannerAdapter implements BookingAdapter {
   readonly configFields: ConnectorConfigFieldInfo[] = [
     {
       key: 'apiToken',
-      label: 'Partner API token (request via support@gastroplanner.no)',
+      label: 'Partner API token (issued by Gastroplanner support)',
       required: true,
       secret: true,
+    },
+    {
+      key: 'restaurantUri',
+      label: 'Restaurant URI (X-RESTAURANT header value)',
+      required: true,
+      placeholder: 'my-restaurant',
     },
     {
       key: 'baseUrl',
@@ -97,34 +99,37 @@ export class GastroplannerAdapter implements BookingAdapter {
         'apiToken is required when creating a Gastroplanner connection',
       );
     }
-    return { baseUrl: parsed.baseUrl, encryptedApiToken };
+    return { baseUrl: parsed.baseUrl, restaurantUri: parsed.restaurantUri, encryptedApiToken };
   }
 
   publicConfig(stored: Record<string, unknown>): Record<string, unknown> {
     const parsed = StoredGastroplannerConfig.parse(stored);
-    return { baseUrl: parsed.baseUrl };
+    return { baseUrl: parsed.baseUrl, restaurantUri: parsed.restaurantUri };
   }
 
   async testConnection(ctx: ConnectorConnectionContext): Promise<ConnectorTestResult> {
-    const venues = await this.get<unknown[]>(ctx, ENDPOINTS.test);
-    return { ok: true, detail: `connected; ${venues.length} venue(s) visible` };
+    const config = StoredGastroplannerConfig.parse(ctx.config);
+    const restaurants = await this.get<string[]>(ctx, ENDPOINTS.restaurants);
+    if (!restaurants.includes(config.restaurantUri)) {
+      throw new ConnectorVendorError(
+        `token cannot access restaurant "${config.restaurantUri}"; available: ${restaurants.join(', ') || '(none)'}`,
+      );
+    }
+    return { ok: true, detail: `connected to ${config.restaurantUri}` };
   }
 
   async listBookingsForGuest(
     ctx: ConnectorConnectionContext,
     args: { email: string; limit: number },
   ): Promise<BookingSummary[]> {
-    const params = new URLSearchParams({
-      email: normalizeEmail(args.email),
-      limit: String(args.limit),
-      sort: '-date',
-    });
+    const params = new URLSearchParams({ email: normalizeEmail(args.email) });
     const bookings = await this.get<GastroplannerBooking[]>(
       ctx,
       `${ENDPOINTS.bookings}?${params.toString()}`,
     );
     return bookings
       .filter((b) => this.ownedBy(b, args.email))
+      .sort((a, b) => startsAt(b).localeCompare(startsAt(a)))
       .slice(0, args.limit)
       .map((b) => this.toSummary(b));
   }
@@ -133,65 +138,42 @@ export class GastroplannerAdapter implements BookingAdapter {
     ctx: ConnectorConnectionContext,
     args: { email: string; bookingRef?: string; confirmationCode?: string },
   ): Promise<BookingDetail | null> {
-    const booking = args.bookingRef
-      ? await this.bookingById(ctx, args.bookingRef)
-      : args.confirmationCode
-        ? await this.bookingByConfirmationCode(ctx, args.confirmationCode, args.email)
-        : null;
-    if (!booking || !this.ownedBy(booking, args.email)) return null;
-    return this.toDetail(booking);
-  }
-
-  private async bookingById(
-    ctx: ConnectorConnectionContext,
-    bookingRef: string,
-  ): Promise<GastroplannerBooking | null> {
-    if (!/^\d+$/.test(bookingRef)) return null;
-    try {
-      return await this.get<GastroplannerBooking>(ctx, ENDPOINTS.booking(bookingRef));
-    } catch (err) {
-      if (err instanceof ConnectorVendorError && err.notFound) return null;
-      throw err;
-    }
-  }
-
-  private async bookingByConfirmationCode(
-    ctx: ConnectorConnectionContext,
-    confirmationCode: string,
-    email: string,
-  ): Promise<GastroplannerBooking | null> {
-    const normalized = confirmationCode.trim();
-    if (!normalized) return null;
+    // Gastroplanner issues no confirmation code — bookings are identified by
+    // their numeric id (the bookingRef from a listing).
+    if (!args.bookingRef || !/^\d+$/.test(args.bookingRef)) return null;
     const params = new URLSearchParams({
-      email: normalizeEmail(email),
-      confirmation_code: normalized,
+      id: args.bookingRef,
+      email: normalizeEmail(args.email),
     });
     const bookings = await this.get<GastroplannerBooking[]>(
       ctx,
       `${ENDPOINTS.bookings}?${params.toString()}`,
     );
-    return bookings.find((b) => (b.confirmation_code ?? '').trim() === normalized) ?? null;
+    const booking = bookings.find(
+      (b) => String(b.id) === args.bookingRef && this.ownedBy(b, args.email),
+    );
+    return booking ? this.toDetail(booking) : null;
   }
 
   private ownedBy(booking: GastroplannerBooking, email: string): boolean {
-    const bookingEmail = booking.customer?.email ?? booking.email;
+    const bookingEmail = booking.customer?.email;
     return !!bookingEmail && normalizeEmail(bookingEmail) === normalizeEmail(email);
   }
 
   private toSummary(booking: GastroplannerBooking): BookingSummary {
     return {
       bookingRef: String(booking.id),
-      confirmationCode: booking.confirmation_code ?? null,
+      confirmationCode: null,
       status: booking.status?.toLowerCase() ?? 'confirmed',
-      venue: booking.venue?.name ?? booking.venue_name ?? null,
-      startsAt: `${booking.date}T${booking.time.length === 5 ? `${booking.time}:00` : booking.time}`,
+      venue: null,
+      startsAt: startsAt(booking),
       durationMinutes: booking.seating_time ?? null,
-      partySize: booking.number_of_guests,
+      partySize: booking.pax,
     };
   }
 
   private toDetail(booking: GastroplannerBooking): BookingDetail {
-    return { ...this.toSummary(booking), note: booking.note ?? null };
+    return { ...this.toSummary(booking), note: null };
   }
 
   private async get<T>(ctx: ConnectorConnectionContext, path: string): Promise<T> {
@@ -199,16 +181,14 @@ export class GastroplannerAdapter implements BookingAdapter {
     const apiToken = await ctx.decryptSecret(config.encryptedApiToken);
     const res = await this.fetchImpl(`${config.baseUrl}${path}`, {
       method: 'GET',
-      headers: { authorization: `Bearer ${apiToken}` },
+      headers: {
+        authorization: `Bearer ${apiToken}`,
+        'x-restaurant': config.restaurantUri,
+      },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (res.status === 401 || res.status === 403) {
       throw new ConnectorVendorError('gastroplanner rejected the API token (401/403)');
-    }
-    if (res.status === 404) {
-      throw Object.assign(new ConnectorVendorError('gastroplanner resource not found'), {
-        notFound: true,
-      });
     }
     if (!res.ok) {
       throw new ConnectorVendorError(`gastroplanner request failed with HTTP ${res.status}`);
@@ -216,6 +196,10 @@ export class GastroplannerAdapter implements BookingAdapter {
     const body = (await res.json()) as T | { data: T };
     return unwrapData(body);
   }
+}
+
+function startsAt(booking: GastroplannerBooking): string {
+  return `${booking.date}T${booking.time.length === 5 ? `${booking.time}:00` : booking.time}`;
 }
 
 /** Some Gastroplanner responses wrap payloads in { data: … }; accept both shapes. */

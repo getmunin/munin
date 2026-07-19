@@ -16,6 +16,7 @@ import { api } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
 import { notify } from '../../lib/notify';
 import { CardSkeleton } from '../skeleton';
+import { useConfirm } from '../confirm-dialog';
 
 interface SlackRouteDto {
   id: string;
@@ -40,6 +41,7 @@ export function SlackCard() {
   const t = useTranslations('integrations.slack');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
+  const confirm = useConfirm();
 
   const [status, setStatus] = useState<SlackStatusDto | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -103,8 +105,15 @@ export function SlackCard() {
     });
   }
 
-  function disconnect() {
-    if (!window.confirm(t('disconnectConfirm'))) return;
+  async function disconnect() {
+    const ok = await confirm({
+      title: t('disconnect'),
+      message: t('disconnectConfirm'),
+      confirmLabel: t('disconnect'),
+      cancelLabel: tCommon('cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
     void run(async () => {
       await api('/v1/slack', { method: 'DELETE' });
       setChannelId('');
@@ -177,7 +186,12 @@ export function SlackCard() {
               >
                 {t('sendTest')}
               </Button>
-              <Button type="button" variant="ghost" onClick={disconnect} disabled={busy}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void disconnect()}
+                disabled={busy}
+              >
                 {t('disconnect')}
               </Button>
             </div>

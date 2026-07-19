@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Hero } from '@getmunin/ui';
-import { SlackCard } from '../components/agent-config/slack-card';
+import { SlackCard } from '../components/integrations/slack-card';
 
 /**
  * Integrations hub: third-party systems connected to Munin, grouped by who

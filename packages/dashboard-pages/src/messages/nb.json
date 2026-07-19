@@ -1259,18 +1259,6 @@
       "failedDeliveries": "{count} speilinger feilet siste 24 timer."
     }
   },
-  "integrations": {
-    "hero": {
-      "eyebrow": "Integrasjoner",
-      "title": "Koble Munin til <em>verktøyene du allerede bruker</em>",
-      "lede": "Ta samtaler inn i flatene teamet og kundene dine allerede bruker."
-    },
-    "operatorBridges": {
-      "title": "Operatørbroer",
-      "blurb": "Triager og svar på samtaler fra teamets chatteverktøy.",
-      "empty": "Ingenting tilkoblet ennå."
-    }
-  },
   "assistants": {
     "list": {
       "persona": {

@@ -25,6 +25,7 @@ Monorepo on pnpm + Turborepo.
 | `cms` | `cms_*` | Collections, entries, locales, assets, scheduled publishing, public delivery API. |
 | `outreach` | `outreach_*` | Propose-only outbound campaigns. Never auto-sends. |
 | `connectors` | `connectors_*` | Plumbing trunk for customer-facing data connectors: encrypted connection storage, vendor-adapter registry, credential testing. Domain modules register adapters here and own the typed read surfaces; live reads only, no vendor data persisted. |
+| `commerce` | `commerce_*` | Connector-backed order lookups (Shopify, Magento 2): admin tools take an email; self-service tools bind to the calling end-user's email server-side. |
 | `curator` | — | Background job queue (`curator_jobs`) running `skill://*` and `task://*` URIs. |
 | `web` | — | Website scraper (single `task://web/scrape-website`). |
 | `playbooks` | — | Cross-module packaged workflows (skill markdown only, no tools). |

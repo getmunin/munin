@@ -7923,6 +7923,154 @@
     }
   },
   {
+    "name": "commerce_lookup_orders",
+    "title": "Commerce: Look up a customer’s orders",
+    "description": "List a customer’s recent store orders by email (newest first), e.g. while handling their support conversation. `connectionId` is only needed when multiple commerce connections are active.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      },
+      "required": [
+        "email",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "commerce_lookup_order",
+    "title": "Commerce: Look up one order with tracking",
+    "description": "Fetch one order for a customer email, including line items and shipment tracking. Identify the order by `orderRef` (from an order listing) or the human-facing `orderNumber` the customer knows. Returns not-found unless the order belongs to that email.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "orderRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "orderNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "commerce_get_my_orders",
+    "title": "Commerce: My recent orders",
+    "description": "List the calling end-user’s recent store orders (newest first). Scoped server-side to the email on the end-user’s own record — other customers’ orders are never visible. `connectionId` is only needed when the org has multiple active store connections.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "commerce_get_my_order",
+    "title": "Commerce: One of my orders, with tracking",
+    "description": "Fetch one of the calling end-user’s orders, including line items and shipment tracking. Identify it by `orderRef` (from an order listing) or the human-facing `orderNumber` on the order confirmation. Returns not-found unless the order belongs to the calling end-user.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "orderRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "orderNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "feedback_create",
     "title": "Feedback: Create",
     "description": "Submit feedback about Munin. Stays local until an org admin approves it; dismissal deletes the item. Set includeOrgName / includeUserName to attach attribution; both default false.",

@@ -44,12 +44,10 @@ const skipReason = TEST_URL
     date: '2026-07-10',
     time: '19:00',
     seating_time: 120,
-    number_of_guests: 4,
+    pax: 4,
+    customer_id: 7,
     status: 'confirmed',
-    note: null,
-    confirmation_code: 'GP-7F3K',
-    venue: { name: 'Bryggen Bistro' },
-    customer: { email: 'jane@example.com' },
+    customer: { id: 7, first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com' },
   };
 
   beforeAll(async () => {
@@ -123,7 +121,7 @@ const skipReason = TEST_URL
       connectors.createConnection({
         vendor: 'gastroplanner',
         name: 'Restaurant',
-        config: { apiToken: 'gp_partner_token' },
+        config: { apiToken: 'gp_partner_token', restaurantUri: 'bryggen-bistro' },
       }),
     );
   }
@@ -133,7 +131,8 @@ const skipReason = TEST_URL
 
     const result = await run(() => bookings.getMyBookings({ limit: 5 }), endUserActor);
 
-    expect(result.bookings[0]!.confirmationCode).toBe('GP-7F3K');
+    expect(result.bookings[0]!.bookingRef).toBe('512');
+    expect(result.bookings[0]!.partySize).toBe(4);
     expect(result.connection.vendor).toBe('gastroplanner');
     const url = new URL(calls[0]!);
     expect(url.searchParams.get('email')).toBe('jane@example.com');
@@ -159,11 +158,11 @@ const skipReason = TEST_URL
   it("reports not-found for another guest's booking", async () => {
     await createConnection();
     respond = () => ({
-      body: [{ ...gastroplannerBooking, customer: { email: 'mallory@example.com' } }],
+      body: [{ ...gastroplannerBooking, customer: { id: 8, email: 'mallory@example.com' } }],
     });
 
     await expect(
-      run(() => bookings.getMyBooking({ confirmationCode: 'GP-7F3K' }), endUserActor),
+      run(() => bookings.getMyBooking({ bookingRef: '512' }), endUserActor),
     ).rejects.toThrow(NotFoundException);
   });
 

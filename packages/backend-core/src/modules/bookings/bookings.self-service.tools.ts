@@ -37,7 +37,7 @@ export class BookingSelfServiceTools {
     name: 'bookings_get_my_booking',
     title: 'Bookings: One of my bookings',
     description:
-      'Fetch one of the calling end-user’s bookings, including party size, time, venue, and note. Identify it by `bookingRef` (from a listing) or the `confirmationCode` on the booking confirmation. Returns not-found unless the booking belongs to the calling end-user.',
+      'Fetch one of the calling end-user’s bookings, including party size, start time, and duration. Identify it by `bookingRef` from a listing, or `confirmationCode` where the venue’s system issues one. Returns not-found unless the booking belongs to the calling end-user.',
     audiences: ['self_service'],
     scopes: ['bookings:read'],
     input: GetMyBookingInput,

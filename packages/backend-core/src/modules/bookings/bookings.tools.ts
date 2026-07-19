@@ -39,7 +39,7 @@ export class BookingAdminTools {
     name: 'bookings_lookup_booking',
     title: 'Bookings: Look up one booking',
     description:
-      'Fetch one booking for a guest email, including party size, time, venue, and note. Identify it by `bookingRef` (from a listing) or the `confirmationCode` the guest knows. Returns not-found unless the booking belongs to that email.',
+      'Fetch one booking for a guest email, including party size, start time, and duration. Identify it by `bookingRef` from a listing, or `confirmationCode` where the venue’s system issues one. Returns not-found unless the booking belongs to that email.',
     audiences: ['admin'],
     scopes: ['bookings:read'],
     input: LookupBookingInput,

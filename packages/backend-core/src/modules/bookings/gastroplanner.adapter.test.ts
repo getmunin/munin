@@ -5,10 +5,12 @@ import type { ConnectorConnectionContext } from '../connectors/connector.ts';
 
 function stubRest(
   respond: (url: string) => { status?: number; body: unknown },
-): { fetch: ConnectorFetch; urls: string[] } {
+): { fetch: ConnectorFetch; urls: string[]; headers: Array<Record<string, string>> } {
   const urls: string[] = [];
-  const fetch: ConnectorFetch = (url) => {
+  const headers: Array<Record<string, string>> = [];
+  const fetch: ConnectorFetch = (url, init) => {
     urls.push(url);
+    headers.push((init.headers as Record<string, string>) ?? {});
     const { status = 200, body } = respond(url);
     return Promise.resolve({
       ok: status >= 200 && status < 300,
@@ -17,12 +19,16 @@ function stubRest(
       text: () => Promise.resolve(JSON.stringify(body)),
     });
   };
-  return { fetch, urls };
+  return { fetch, urls, headers };
 }
 
 function ctx(): ConnectorConnectionContext {
   return {
-    config: { baseUrl: 'https://api.gastroplanner.no', encryptedApiToken: 'ct_abc' },
+    config: {
+      baseUrl: 'https://api.gastroplanner.eu',
+      restaurantUri: 'bryggen-bistro',
+      encryptedApiToken: 'ct_abc',
+    },
     decryptSecret: () => Promise.resolve('partner_token'),
   };
 }
@@ -32,18 +38,22 @@ const booking = (over: Record<string, unknown> = {}) => ({
   date: '2026-07-10',
   time: '19:00',
   seating_time: 120,
-  number_of_guests: 4,
-  status: 'Confirmed',
-  note: 'Window table please',
-  confirmation_code: 'GP-7F3K',
-  venue: { name: 'Bryggen Bistro' },
-  customer: { email: 'jane@example.com' },
+  pax: 4,
+  area_id: 2,
+  session_id: 9,
+  customer_id: 7,
+  status: 'confirmed',
+  origin: 1,
+  lang: 'nb',
+  tables: [{ id: 3, name: 'T3' }],
+  products: [],
+  customer: { id: 7, first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com' },
   ...over,
 });
 
 describe('GastroplannerAdapter', () => {
-  it('lists bookings filtered by lowercased guest email', async () => {
-    const { fetch, urls } = stubRest(() => ({ body: [booking()] }));
+  it('lists bookings via the customer API with the lowercased guest email and restaurant header', async () => {
+    const { fetch, urls, headers } = stubRest(() => ({ body: [booking()] }));
     const adapter = new GastroplannerAdapter(fetch);
 
     const bookings = await adapter.listBookingsForGuest(ctx(), {
@@ -52,23 +62,43 @@ describe('GastroplannerAdapter', () => {
     });
 
     const url = new URL(urls[0]!);
-    expect(url.pathname).toBe('/v1/bookings');
+    expect(url.pathname).toBe('/customer/v1/bookings');
     expect(url.searchParams.get('email')).toBe('jane@example.com');
-    expect(url.searchParams.get('limit')).toBe('5');
+    expect(headers[0]!['x-restaurant']).toBe('bryggen-bistro');
     expect(bookings[0]).toEqual({
       bookingRef: '512',
-      confirmationCode: 'GP-7F3K',
+      confirmationCode: null,
       status: 'confirmed',
-      venue: 'Bryggen Bistro',
+      venue: null,
       startsAt: '2026-07-10T19:00:00',
       durationMinutes: 120,
       partySize: 4,
     });
   });
 
+  it('sorts newest-first and applies the limit client-side', async () => {
+    const { fetch } = stubRest(() => ({
+      body: [
+        booking({ id: 1, date: '2026-07-01' }),
+        booking({ id: 3, date: '2026-07-20' }),
+        booking({ id: 2, date: '2026-07-10' }),
+      ],
+    }));
+    const adapter = new GastroplannerAdapter(fetch);
+
+    const bookings = await adapter.listBookingsForGuest(ctx(), {
+      email: 'jane@example.com',
+      limit: 2,
+    });
+
+    expect(bookings.map((b) => b.bookingRef)).toEqual(['3', '2']);
+  });
+
   it('unwraps { data: … } envelopes and drops bookings owned by someone else', async () => {
     const { fetch } = stubRest(() => ({
-      body: { data: [booking(), booking({ customer: { email: 'mallory@example.com' } })] },
+      body: {
+        data: [booking(), booking({ customer: { id: 8, email: 'mallory@example.com' } })],
+      },
     }));
     const adapter = new GastroplannerAdapter(fetch);
 
@@ -80,8 +110,8 @@ describe('GastroplannerAdapter', () => {
     expect(bookings).toHaveLength(1);
   });
 
-  it('fetches one booking by ref with the note, enforcing ownership', async () => {
-    const { fetch, urls } = stubRest(() => ({ body: booking() }));
+  it('fetches one booking by ref, enforcing ownership', async () => {
+    const { fetch, urls } = stubRest(() => ({ body: [booking()] }));
     const adapter = new GastroplannerAdapter(fetch);
 
     const owned = await adapter.getBookingForGuest(ctx(), {
@@ -93,12 +123,14 @@ describe('GastroplannerAdapter', () => {
       bookingRef: '512',
     });
 
-    expect(urls[0]).toContain('/v1/bookings/512');
-    expect(owned?.note).toBe('Window table please');
+    const url = new URL(urls[0]!);
+    expect(url.pathname).toBe('/customer/v1/bookings');
+    expect(url.searchParams.get('id')).toBe('512');
+    expect(owned?.partySize).toBe(4);
     expect(foreign).toBeNull();
   });
 
-  it('finds a booking by confirmation code scoped to the guest email', async () => {
+  it('returns null for a confirmation-code lookup (Gastroplanner issues no codes)', async () => {
     const { fetch, urls } = stubRest(() => ({ body: [booking()] }));
     const adapter = new GastroplannerAdapter(fetch);
 
@@ -107,14 +139,12 @@ describe('GastroplannerAdapter', () => {
       confirmationCode: 'GP-7F3K',
     });
 
-    const url = new URL(urls[0]!);
-    expect(url.searchParams.get('confirmation_code')).toBe('GP-7F3K');
-    expect(url.searchParams.get('email')).toBe('jane@example.com');
-    expect(found?.confirmationCode).toBe('GP-7F3K');
+    expect(found).toBeNull();
+    expect(urls).toHaveLength(0);
   });
 
-  it('returns null when the booking id does not exist (404)', async () => {
-    const { fetch } = stubRest(() => ({ status: 404, body: { message: 'not found' } }));
+  it('returns null when the booking id does not exist', async () => {
+    const { fetch } = stubRest(() => ({ body: [] }));
     const adapter = new GastroplannerAdapter(fetch);
 
     const found = await adapter.getBookingForGuest(ctx(), {
@@ -126,16 +156,29 @@ describe('GastroplannerAdapter', () => {
   });
 
   it('rejects a non-numeric bookingRef without calling the vendor', async () => {
-    const { fetch, urls } = stubRest(() => ({ body: {} }));
+    const { fetch, urls } = stubRest(() => ({ body: [] }));
     const adapter = new GastroplannerAdapter(fetch);
 
     const found = await adapter.getBookingForGuest(ctx(), {
       email: 'jane@example.com',
-      bookingRef: '../venues',
+      bookingRef: '../restaurants',
     });
 
     expect(found).toBeNull();
     expect(urls).toHaveLength(0);
+  });
+
+  it('verifies the configured restaurant is accessible on testConnection', async () => {
+    const ok = new GastroplannerAdapter(
+      stubRest(() => ({ body: ['bryggen-bistro', 'other-place'] })).fetch,
+    );
+    await expect(ok.testConnection(ctx())).resolves.toEqual({
+      ok: true,
+      detail: 'connected to bryggen-bistro',
+    });
+
+    const wrong = new GastroplannerAdapter(stubRest(() => ({ body: ['other-place'] })).fetch);
+    await expect(wrong.testConnection(ctx())).rejects.toThrow(/cannot access restaurant/);
   });
 
   it('maps 401 responses to a vendor error', async () => {
@@ -149,26 +192,31 @@ describe('GastroplannerAdapter', () => {
     const adapter = new GastroplannerAdapter(stubRest(() => ({ body: {} })).fetch);
     const encrypt = (plain: string) => Promise.resolve(`enc(${plain})`);
 
-    it('defaults the base url and encrypts the token', async () => {
-      const stored = await adapter.buildStoredConfig({ apiToken: 'partner_token' }, encrypt);
+    it('defaults the base url, keeps the restaurant uri, and encrypts the token', async () => {
+      const stored = await adapter.buildStoredConfig(
+        { apiToken: 'partner_token', restaurantUri: 'bryggen-bistro' },
+        encrypt,
+      );
       expect(stored).toEqual({
-        baseUrl: 'https://api.gastroplanner.no',
+        baseUrl: 'https://api.gastroplanner.eu',
+        restaurantUri: 'bryggen-bistro',
         encryptedApiToken: 'enc(partner_token)',
       });
     });
 
     it('keeps the previous ciphertext when apiToken is omitted on update', async () => {
-      const stored = await adapter.buildStoredConfig({}, encrypt, {
-        baseUrl: 'https://api.gastroplanner.no',
+      const stored = await adapter.buildStoredConfig({ restaurantUri: 'bryggen-bistro' }, encrypt, {
+        baseUrl: 'https://api.gastroplanner.eu',
+        restaurantUri: 'bryggen-bistro',
         encryptedApiToken: 'ct_old',
       });
       expect(stored.encryptedApiToken).toBe('ct_old');
     });
 
     it('requires a token when there is no previous config', async () => {
-      await expect(adapter.buildStoredConfig({}, encrypt)).rejects.toBeInstanceOf(
-        ConnectorVendorError,
-      );
+      await expect(
+        adapter.buildStoredConfig({ restaurantUri: 'bryggen-bistro' }, encrypt),
+      ).rejects.toBeInstanceOf(ConnectorVendorError);
     });
   });
 });

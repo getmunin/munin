@@ -25,6 +25,7 @@ import { SystemAlertsModule } from './modules/system-alerts/system-alerts.module
 import { SlackModule } from './modules/slack/slack.module.ts';
 import { ConnectorsModule } from './modules/connectors/connectors.module.ts';
 import { CommerceModule } from './modules/commerce/commerce.module.ts';
+import { BookingsModule } from './modules/bookings/bookings.module.ts';
 
 export const BACKEND_FEATURE_MODULES = [
   DbModule,
@@ -47,6 +48,7 @@ export const BACKEND_FEATURE_MODULES = [
   SlackModule,
   ConnectorsModule,
   CommerceModule,
+  BookingsModule,
   AuditModule,
 ];
 

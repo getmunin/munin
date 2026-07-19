@@ -365,6 +365,13 @@
       "when": 1783236372032,
       "tag": "0051_slack_route_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1783243812891,
+      "tag": "0052_connector_connections",
+      "breakpoints": true
     }
   ]
 }

@@ -2083,6 +2083,37 @@
         ]
       }
     },
+    "/v1/conversations/channels/{id}/credentials": {
+      "post": {
+        "operationId": "ConvChannelsController_applyCredentials",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/channels/{id}/credential-link": {
       "post": {
         "operationId": "ConvChannelsController_requestCredentialLink",

@@ -44,6 +44,11 @@ import {
   ChannelVoiceCallBody,
   ChannelSendTestBody,
 } from '@getmunin/types';
+import { z } from 'zod';
+
+const ChannelCredentialsBody = z.object({
+  secrets: z.record(z.string(), z.string().min(1)),
+});
 
 interface ChannelListResponse {
   items: ChannelDto[];
@@ -83,6 +88,14 @@ export class ConvChannelsController {
   @HttpCode(200)
   async testChannel(@Param('id') id: string): Promise<unknown> {
     return this.channelAdmin.test(id);
+  }
+
+  @Post(':id/credentials')
+  @HttpCode(200)
+  applyCredentials(@Param('id') id: string, @Body() body: unknown): ReturnType<ChannelCredentialService['apply']> {
+    const parsed = ChannelCredentialsBody.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.channelCredentials.apply(id, parsed.data.secrets);
   }
 
   @Post(':id/credential-link')

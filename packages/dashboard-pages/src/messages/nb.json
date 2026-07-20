@@ -505,7 +505,19 @@
       "status": {
         "deactivatedMessage": "Auto-deaktivert etter {threshold} feilede henteforsøk",
         "failingMessage": "Innkommende henting feiler · {attempt}/{threshold} · deaktiveres ved {threshold}",
-        "activate": "Aktiver"
+        "activate": "Aktiver",
+        "awaitingCredentials": "Venter på tilgang"
+      },
+      "enterCredentials": {
+        "button": "Legg inn tilgang",
+        "title": "Legg inn tilgang for kanalen",
+        "description": "Legg inn postboks-passordene for {name}. De krypteres i hvile og vises aldri igjen.",
+        "smtpLabel": "SMTP-passord",
+        "imapLabel": "IMAP-passord",
+        "submit": "Lagre",
+        "saved": "Tilgang lagret",
+        "savedUntested": "Lagret — kunne ikke verifisere ennå: {error}",
+        "error": "Kunne ikke lagre tilgang."
       },
       "emptyTitle": "Ingen kanaler ennå",
       "emptyBody": "Legg til en chat-widget- eller e-post-kanal for å begynne å motta meldinger.",

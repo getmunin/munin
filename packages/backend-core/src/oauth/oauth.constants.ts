@@ -16,6 +16,7 @@ export const SUPPORTED_SCOPES = [
   'outreach:write',
   'connectors:read',
   'connectors:write',
+  'commerce:read',
   'analytics:read',
   'analytics:write',
   'webhooks:read',

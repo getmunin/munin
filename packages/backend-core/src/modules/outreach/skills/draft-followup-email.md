@@ -23,7 +23,7 @@ Campaigns may define an ordered follow-up sequence (`sequenceSteps` on the campa
 { "name": "outreach_list_due_followups", "arguments": {} }
 ```
 
-Each row carries `campaignId`, `campaignName`, `contactId`, `conversationId`, `nextStep` (1-based index into the campaign's `sequenceSteps`), `stepBrief`, `waitDays`, and `lastSentAt`. The server has already excluded: replied conversations, suppressed/unconsented contacts, disabled campaigns, closed or human-assigned conversations, contacts with a pending follow-up or reply draft, and sequences stopped by a dismissed step. Do not re-derive any of that — draft what you're given.
+Each row carries `campaignId`, `campaignName`, `contactId`, `conversationId`, `nextStep` (1-based index into the campaign's `sequenceSteps`), `stepBrief`, `waitDays`, and `lastSentAt`. The server has already excluded: replied conversations, suppressed/unconsented contacts, disabled campaigns, closed or human-assigned conversations, contacts with a pending follow-up or reply draft, sequences stopped by a dismissed step, and contacts held back by the campaign's cadence rules (`maxPerWeekPerContact` budget over the trailing 7 days, `blackoutDates`). Do not re-derive any of that — draft what you're given.
 
 ## Step 2 — read the thread and campaign
 

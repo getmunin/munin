@@ -24,6 +24,7 @@ Monorepo on pnpm + Turborepo.
 | `crm` | `crm_*` | Contacts, companies, deals, pipelines, segments, merge proposals. |
 | `cms` | `cms_*` | Collections, entries, locales, assets, scheduled publishing, public delivery API. |
 | `outreach` | `outreach_*` | Propose-only outbound campaigns. Never auto-sends. |
+| `slack` | `slack_*` | Operator bridge: mirrors conversations into Slack threads via a `WebhookDispatcher` sink + `slack_deliveries` queue. Not a `ChannelAdapter`. |
 | `curator` | — | Background job queue (`curator_jobs`) running `skill://*` and `task://*` URIs. |
 | `web` | — | Website scraper (single `task://web/scrape-website`). |
 | `playbooks` | — | Cross-module packaged workflows (skill markdown only, no tools). |

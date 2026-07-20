@@ -4728,6 +4728,114 @@
         "security": []
       }
     },
+    "/v1/slack": {
+      "get": {
+        "operationId": "SlackController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Slack"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "SlackController_disconnect",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Slack"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/slack/install-url": {
+      "get": {
+        "operationId": "SlackController_installUrl",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Slack"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/slack/routing": {
+      "put": {
+        "operationId": "SlackController_setRouting",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Slack"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/slack/test": {
+      "post": {
+        "operationId": "SlackController_sendTest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Slack"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/widget/messages": {
       "post": {
         "operationId": "WidgetController_ingest",
@@ -4942,6 +5050,21 @@
         },
         "tags": [
           "ChannelWebhook"
+        ],
+        "security": []
+      }
+    },
+    "/v1/slack/oauth/callback": {
+      "get": {
+        "operationId": "SlackOAuthController_callback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SlackOAuth"
         ],
         "security": []
       }

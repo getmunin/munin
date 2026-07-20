@@ -1122,7 +1122,7 @@ SOFTWARE.
 
 ---
 
-## @better-auth/core@1.6.11
+## @better-auth/core@1.6.23
 
 > The most comprehensive authentication framework for TypeScript.
 - Homepage: https://www.better-auth.com
@@ -1153,7 +1153,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/drizzle-adapter@1.6.11
+## @better-auth/drizzle-adapter@1.6.23
 
 > Drizzle adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/drizzle
@@ -1184,7 +1184,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/kysely-adapter@1.6.11
+## @better-auth/kysely-adapter@1.6.23
 
 > Kysely adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/kysely
@@ -1215,7 +1215,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/memory-adapter@1.6.11
+## @better-auth/memory-adapter@1.6.23
 
 > Memory adapter for Better Auth
 - Homepage: https://www.better-auth.com
@@ -1246,7 +1246,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/mongo-adapter@1.6.11
+## @better-auth/mongo-adapter@1.6.23
 
 > Mongo adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/mongodb
@@ -1277,7 +1277,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/oauth-provider@1.6.10
+## @better-auth/oauth-provider@1.6.23
 
 > An oauth provider plugin for Better Auth
 - Homepage: https://www.better-auth.com/docs/plugins/oauth-provider
@@ -1308,7 +1308,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/prisma-adapter@1.6.11
+## @better-auth/prisma-adapter@1.6.23
 
 > Prisma adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/prisma
@@ -1339,7 +1339,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/telemetry@1.6.11
+## @better-auth/telemetry@1.6.23
 
 > Telemetry package for Better Auth
 - Homepage: https://www.better-auth.com
@@ -1370,7 +1370,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/utils@0.4.0
+## @better-auth/utils@0.4.2
 
 > A collection of utilities for better-auth
 - Homepage: https://github.com/better-auth/utils#readme
@@ -1381,8 +1381,9 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## @better-fetch/fetch@1.1.21
+## @better-fetch/fetch@1.3.1
 
+- Homepage: https://github.com/better-auth/better-fetch#readme
 - License: MIT
 
 ```
@@ -18038,7 +18039,7 @@ Apache License
 
 ---
 
-## better-auth@1.6.11
+## better-auth@1.6.23
 
 > The most comprehensive authentication framework for TypeScript.
 - Homepage: https://better-auth.com
@@ -18069,7 +18070,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## better-call@1.3.5
+## better-call@1.3.7
 
 - Homepage: https://github.com/better-auth/better-call#readme
 - License: MIT

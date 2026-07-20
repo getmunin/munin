@@ -27,6 +27,7 @@ Monorepo on pnpm + Turborepo.
 | `slack` | `slack_*` | Operator bridge: mirrors conversations into Slack threads via a `WebhookDispatcher` sink + `slack_deliveries` queue. Not a `ChannelAdapter`. |
 | `connectors` | `connectors_*` | Plumbing trunk for customer-facing data connectors: encrypted connection storage, vendor-adapter registry, credential testing. Domain modules register adapters here and own the typed read surfaces; live reads only, no vendor data persisted. |
 | `commerce` | `commerce_*` | Connector-backed order lookups (Shopify, Magento 2): admin tools take an email; self-service tools bind to the calling end-user's email server-side. |
+| `bookings` | `bookings_*` | Connector-backed booking lookups (Gastroplanner): same admin/self-service split as commerce. |
 | `curator` | — | Background job queue (`curator_jobs`) running `skill://*` and `task://*` URIs. |
 | `web` | — | Website scraper (single `task://web/scrape-website`). |
 | `playbooks` | — | Cross-module packaged workflows (skill markdown only, no tools). |

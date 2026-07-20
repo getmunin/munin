@@ -5022,6 +5022,37 @@
         ]
       }
     },
+    "/v1/connectors/{id}/credentials": {
+      "post": {
+        "operationId": "ConnectorsController_applyCredentials",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Connectors"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/connectors/{id}/credential-link": {
       "post": {
         "operationId": "ConnectorsController_requestCredentials",

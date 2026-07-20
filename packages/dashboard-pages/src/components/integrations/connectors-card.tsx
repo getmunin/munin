@@ -59,6 +59,7 @@ export function ConnectorsCard() {
   const [connections, setConnections] = useState<Connection[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [entering, setEntering] = useState<Connection | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -79,6 +80,10 @@ export function ConnectorsCard() {
     void refresh();
   }, [refresh]);
 
+  function secretFieldsFor(vendor: string): VendorField[] {
+    return vendors.find((v) => v.vendor === vendor)?.configFields.filter((f) => f.secret) ?? [];
+  }
+
   async function test(conn: Connection) {
     setBusyId(conn.id);
     try {
@@ -89,22 +94,6 @@ export function ConnectorsCard() {
       if (res.ok) notify.success(t('testOk', { detail: res.detail ?? '' }));
       else notify.error(t('testFailed', { error: res.error ?? '' }));
       await refresh();
-    } catch (err) {
-      notify.error(translate(err));
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function copyLink(conn: Connection) {
-    setBusyId(conn.id);
-    try {
-      const { url } = await api<{ url: string; expiresAt: string }>(
-        `/v1/connectors/${conn.id}/credential-link`,
-        { method: 'POST' },
-      );
-      await navigator.clipboard.writeText(url);
-      notify.success(t('linkCopied'));
     } catch (err) {
       notify.error(translate(err));
     } finally {
@@ -163,10 +152,7 @@ export function ConnectorsCard() {
           <p className="text-sm text-muted-foreground">{t('empty')}</p>
         ) : (
           connections.map((conn) => (
-            <div
-              key={conn.id}
-              className="flex items-center justify-between rounded-lg border p-3"
-            >
+            <div key={conn.id} className="flex items-center justify-between rounded-lg border p-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{conn.name}</span>
@@ -182,10 +168,10 @@ export function ConnectorsCard() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => void copyLink(conn)}
+                    onClick={() => setEntering(conn)}
                     disabled={busyId === conn.id}
                   >
-                    {t('copyLink')}
+                    {t('enterCredentials')}
                   </Button>
                 ) : (
                   <Button
@@ -218,6 +204,17 @@ export function ConnectorsCard() {
           onClose={() => setAdding(false)}
           onDone={async () => {
             setAdding(false);
+            await refresh();
+          }}
+        />
+      )}
+      {entering && (
+        <EnterCredentialsDialog
+          connection={entering}
+          fields={secretFieldsFor(entering.vendor)}
+          onClose={() => setEntering(null)}
+          onDone={async () => {
+            setEntering(null);
             await refresh();
           }}
         />
@@ -262,26 +259,20 @@ function AddConnectorDialog({
   const [busy, setBusy] = useState(false);
 
   const selected = vendors.find((v) => v.vendor === vendor);
-  const nonSecret = selected?.configFields.filter((f) => !f.secret) ?? [];
-  const secret = selected?.configFields.filter((f) => f.secret) ?? [];
+  const fields = selected?.configFields ?? [];
+  const missingRequired = fields.some((f) => f.required && !values[f.key]);
 
-  async function submit(includeSecrets: boolean) {
+  async function submit() {
     if (!selected) return;
     setBusy(true);
     try {
       const config: Record<string, string> = {};
-      for (const f of nonSecret) if (values[f.key]) config[f.key] = values[f.key]!;
-      if (includeSecrets) for (const f of secret) if (values[f.key]) config[f.key] = values[f.key]!;
-      const created = await api<{ credentialLink?: { url: string } }>('/v1/connectors', {
+      for (const f of fields) if (values[f.key]) config[f.key] = values[f.key]!;
+      await api('/v1/connectors', {
         method: 'POST',
         body: JSON.stringify({ vendor, name, config }),
       });
-      if (created.credentialLink) {
-        await navigator.clipboard.writeText(created.credentialLink.url).catch(() => {});
-        notify.success(t('createdPending'));
-      } else {
-        notify.success(t('created'));
-      }
+      notify.success(t('created'));
       await onDone();
     } catch (err) {
       notify.error(translate(err));
@@ -318,40 +309,88 @@ function AddConnectorDialog({
             <Label>{t('name')}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('namePlaceholder')} />
           </div>
-          {nonSecret.map((f) => (
+          {fields.map((f) => (
             <div key={f.key} className="space-y-1.5">
               <Label>{f.label}</Label>
               <Input
+                type={f.secret ? 'password' : 'text'}
                 value={values[f.key] ?? ''}
                 placeholder={f.placeholder}
                 onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
               />
             </div>
           ))}
-          {secret.map((f) => (
+        </div>
+        <DialogFooter>
+          <Button type="button" onClick={() => void submit()} disabled={busy || !name || !vendor || missingRequired}>
+            {t('create')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EnterCredentialsDialog({
+  connection,
+  fields,
+  onClose,
+  onDone,
+}: {
+  connection: Connection;
+  fields: VendorField[];
+  onClose: () => void;
+  onDone: () => Promise<void>;
+}) {
+  const t = useTranslations('integrations.connectors');
+  const translate = useTranslateError();
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  const missingRequired = fields.some((f) => f.required && !values[f.key]);
+
+  async function submit() {
+    setBusy(true);
+    try {
+      const secrets: Record<string, string> = {};
+      for (const f of fields) if (values[f.key]) secrets[f.key] = values[f.key]!;
+      const res = await api<{ ok: boolean; detail?: string; error?: string }>(
+        `/v1/connectors/${connection.id}/credentials`,
+        { method: 'POST', body: JSON.stringify({ secrets }) },
+      );
+      if (res.ok) notify.success(t('testOk', { detail: res.detail ?? '' }));
+      else notify.info(t('savedUntested', { error: res.error ?? '' }));
+      await onDone();
+    } catch (err) {
+      notify.error(translate(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('enterCredentialsFor', { name: connection.name })}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {fields.map((f) => (
             <div key={f.key} className="space-y-1.5">
               <Label>{f.label}</Label>
               <Input
                 type="password"
+                autoComplete="off"
                 value={values[f.key] ?? ''}
                 placeholder={f.placeholder}
                 onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
               />
             </div>
           ))}
-          <p className="text-xs text-muted-foreground">{t('handoffHint')}</p>
         </div>
-        <DialogFooter className="flex-col gap-2 sm:flex-row">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void submit(false)}
-            disabled={busy || !name || !vendor}
-          >
-            {t('createPending')}
-          </Button>
-          <Button type="button" onClick={() => void submit(true)} disabled={busy || !name || !vendor}>
-            {t('create')}
+        <DialogFooter>
+          <Button type="button" onClick={() => void submit()} disabled={busy || missingRequired}>
+            {t('save')}
           </Button>
         </DialogFooter>
       </DialogContent>

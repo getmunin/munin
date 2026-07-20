@@ -1228,6 +1228,19 @@ export class OutreachService {
           WHERE d.campaign_id = a.campaign_id AND d.contact_id = a.contact_id
             AND d.kind = 'followup' AND d.status = 'dismissed'
             AND d.sequence_step = a.last_step + 1)
+        AND (
+          (c.cadence_rules ->> 'maxPerWeekPerContact') IS NULL
+          OR (
+            SELECT COUNT(*)
+            FROM outreach_proposals s
+            WHERE s.campaign_id = a.campaign_id AND s.contact_id = a.contact_id
+              AND s.status = 'sent' AND s.kind IN ('initial', 'followup')
+              AND s.sent_at > now() - interval '7 days'
+          ) < (c.cadence_rules ->> 'maxPerWeekPerContact')::int
+        )
+        AND NOT COALESCE(
+          jsonb_exists(c.cadence_rules -> 'blackoutDates', to_char(now(), 'YYYY-MM-DD')),
+          false)
       ORDER BY a.last_sent_at ASC
       LIMIT ${limit}
     `);

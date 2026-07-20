@@ -470,7 +470,15 @@ const skipReason = TEST_URL
     function createSeqCampaign(
       name: string,
       steps = STEPS,
-      extras: { enabled?: boolean } = {},
+      extras: {
+        enabled?: boolean;
+        cadenceRules?: {
+          maxPerWeekPerContact?: number;
+          quietHoursStart?: string;
+          quietHoursEnd?: string;
+          blackoutDates?: string[];
+        };
+      } = {},
     ) {
       return run(() =>
         svc.createCampaign({
@@ -479,6 +487,7 @@ const skipReason = TEST_URL
           segmentId,
           channelId,
           sequenceSteps: steps,
+          cadenceRules: extras.cadenceRules,
           enabled: extras.enabled ?? true,
         }),
       );
@@ -881,6 +890,57 @@ const skipReason = TEST_URL
           stepBrief: 'share a relevant case study',
           waitDays: 4,
         });
+      });
+
+      it('holds back contacts at their maxPerWeekPerContact budget until the window clears', async () => {
+        const c = await createSeqCampaign('due-weekly-cap', STEPS, {
+          cadenceRules: { maxPerWeekPerContact: 1 },
+        });
+        const sent = await sendInitial(c.id);
+        await backdateSent(sent.id, 4);
+        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
+
+        await backdateSent(sent.id, 8);
+        const due = await run(() => svc.listDueFollowups({}));
+        expect(due).toHaveLength(1);
+        expect(due[0]!.nextStep).toBe(1);
+      });
+
+      it('allows a follow-up when the weekly budget has headroom', async () => {
+        const c = await createSeqCampaign('due-weekly-headroom', STEPS, {
+          cadenceRules: { maxPerWeekPerContact: 2 },
+        });
+        const sent = await sendInitial(c.id);
+        await backdateSent(sent.id, 4);
+        expect(await run(() => svc.listDueFollowups({}))).toHaveLength(1);
+      });
+
+      it('excludes everything on a blackout date; other dates do not gate', async () => {
+        const todayRows = await db.execute<{ today: string }>(
+          sql`SELECT to_char(now(), 'YYYY-MM-DD') AS today`,
+        );
+        const today = todayRows[0]!.today;
+
+        const c = await createSeqCampaign('due-blackout', STEPS, {
+          cadenceRules: { blackoutDates: [today] },
+        });
+        const sent = await sendInitial(c.id);
+        await backdateSent(sent.id, 4);
+        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
+
+        await run(() =>
+          svc.updateCampaign({ id: c.id, patch: { cadenceRules: { blackoutDates: ['2020-01-01'] } } }),
+        );
+        expect(await run(() => svc.listDueFollowups({}))).toHaveLength(1);
+      });
+
+      it('quiet hours do not gate the due-scan (drafting is not sending)', async () => {
+        const c = await createSeqCampaign('due-quiet-hours', STEPS, {
+          cadenceRules: { quietHoursStart: '00:00', quietHoursEnd: '23:59' },
+        });
+        const sent = await sendInitial(c.id);
+        await backdateSent(sent.id, 4);
+        expect(await run(() => svc.listDueFollowups({}))).toHaveLength(1);
       });
 
       it('filters by campaignId', async () => {

@@ -1106,7 +1106,7 @@
     "settings": {
       "groups": {
         "workspace": "Workspace",
-        "access": "Access & integrations",
+        "access": "Access",
         "monitoring": "Monitoring"
       }
     },

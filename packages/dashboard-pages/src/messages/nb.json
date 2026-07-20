@@ -1106,7 +1106,7 @@
     "settings": {
       "groups": {
         "workspace": "Arbeidsområde",
-        "access": "Tilgang og integrasjoner",
+        "access": "Tilgang",
         "monitoring": "Overvåking"
       }
     },

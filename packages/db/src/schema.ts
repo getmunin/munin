@@ -1876,6 +1876,198 @@ export const orgAlerts = pgTable(
   }),
 );
 
+// ───────────────────────── Slack operator bridge ─────────────────────
+// Slack as an operator surface layered on existing conversations: each
+// conversation mirrors into one Slack thread; operators triage and (later
+// phases) reply from Slack. NOT a customer channel — the conversation's
+// original channel keeps handling the customer transport.
+
+// One row per (org, workspace) install. The Slack app itself is
+// deployment-level (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET /
+// SLACK_SIGNING_SECRET env); only the per-workspace bot token lives here,
+// pgcrypto-encrypted. `team_id` is deliberately NOT unique — one workspace
+// may serve several orgs; inbound routing resolves by channel, not team.
+export const slackIntegrations = pgTable(
+  'slack_integrations',
+  {
+    id: id('slk'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    teamId: text('team_id').notNull(),
+    teamName: text('team_name'),
+    encryptedBotToken: text('encrypted_bot_token').notNull(),
+    botUserId: text('bot_user_id'),
+    appId: text('app_id'),
+    installedByUserId: text('installed_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    active: boolean('active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgUq: uniqueIndex('slack_integrations_org_uq').on(t.orgId),
+    teamIdx: index('slack_integrations_team_idx').on(t.teamId),
+  }),
+);
+
+// Which Slack channel an org's conversations mirror into. The
+// (team_id, slack_channel_id) unique constraint is the multi-org
+// invariant: a Slack channel belongs to exactly one org, so inbound
+// channel→org resolution is always unambiguous.
+export const slackChannelRoutes = pgTable(
+  'slack_channel_routes',
+  {
+    id: id('slr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    teamId: text('team_id').notNull(),
+    slackChannelId: text('slack_channel_id').notNull(),
+    slackChannelName: text('slack_channel_name'),
+    purpose: varchar('purpose', { length: 16 }).notNull().default('default'),
+    // 'default' | 'escalations'
+    /** Rendered verbatim in escalation alerts, e.g. `<!subteam^S123>` or `<!here>`. */
+    mention: text('mention'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    teamChannelUq: uniqueIndex('slack_channel_routes_team_channel_uq').on(
+      t.teamId,
+      t.slackChannelId,
+    ),
+    purposeUq: uniqueIndex('slack_channel_routes_purpose_uq').on(t.integrationId, t.purpose),
+    orgIdx: index('slack_channel_routes_org_idx').on(t.orgId),
+  }),
+);
+
+// One Slack thread = one conversation. Created lazily by the bridge worker
+// on the first mirrored event for a conversation (the parent message's `ts`
+// becomes the thread anchor). Resolves both directions.
+export const slackConversationLinks = pgTable(
+  'slack_conversation_links',
+  {
+    id: id('scl'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    slackChannelId: text('slack_channel_id').notNull(),
+    slackThreadTs: text('slack_thread_ts').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    conversationUq: uniqueIndex('slack_conversation_links_conversation_uq').on(t.conversationId),
+    threadUq: uniqueIndex('slack_conversation_links_thread_uq').on(
+      t.slackChannelId,
+      t.slackThreadTs,
+    ),
+    orgIdx: index('slack_conversation_links_org_idx').on(t.orgId),
+  }),
+);
+
+// Message ↔ Slack ts mapping. Loop prevention in both directions: outbound
+// mirroring records the posted ts; inbound (phase 2) pre-records the link so
+// the resulting conversation.message.sent event is not re-mirrored, and
+// drops Slack events whose ts is already linked.
+export const slackMessageLinks = pgTable(
+  'slack_message_links',
+  {
+    id: id('sml'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => convMessages.id, { onDelete: 'cascade' }),
+    slackChannelId: text('slack_channel_id').notNull(),
+    slackTs: text('slack_ts').notNull(),
+    origin: varchar('origin', { length: 16 }).notNull(),
+    // 'mirrored' (Munin → Slack) | 'slack' (operator reply from Slack)
+    createdAt,
+  },
+  (t) => ({
+    messageUq: uniqueIndex('slack_message_links_message_uq').on(t.messageId),
+    tsUq: uniqueIndex('slack_message_links_ts_uq').on(t.slackChannelId, t.slackTs),
+    orgIdx: index('slack_message_links_org_idx').on(t.orgId),
+  }),
+);
+
+// Slack user → Munin user mapping for reply attribution (phase 2). Rows are
+// created by email auto-match (`users.info` → org member email) or manual
+// linking; replies from unmapped Slack users are rejected.
+export const slackUserLinks = pgTable(
+  'slack_user_links',
+  {
+    id: id('sul'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    slackUserId: text('slack_user_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    slackUserUq: uniqueIndex('slack_user_links_slack_user_uq').on(t.integrationId, t.slackUserId),
+    orgIdx: index('slack_user_links_org_idx').on(t.orgId),
+  }),
+);
+
+// Durable queue feeding the Slack bridge worker. Populated at
+// WebhookDispatcher.emit() time (in the request transaction) via the
+// registered event sink; drained out-of-band like webhook_deliveries.
+// `conversation_id` is denormalized so the worker can keep per-conversation
+// ordering (head-of-line: a due row waits while an earlier undelivered row
+// for the same conversation is still retrying).
+export const slackDeliveries = pgTable(
+  'slack_deliveries',
+  {
+    id: id('sld'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    eventType: text('event_type').notNull(),
+    conversationId: text('conversation_id').references(() => convConversations.id, {
+      onDelete: 'cascade',
+    }),
+    attempt: integer('attempt').notNull().default(0),
+    error: text('error'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => ({
+    pendingIdx: index('slack_deliveries_pending_idx').on(t.nextAttemptAt),
+    convIdx: index('slack_deliveries_conv_idx').on(t.conversationId, t.createdAt),
+    orgIdx: index('slack_deliveries_org_idx').on(t.orgId),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   orgs,
@@ -1940,6 +2132,12 @@ export const allTables = {
   systemConfig,
   feedbackOutbox,
   orgAlerts,
+  slackIntegrations,
+  slackChannelRoutes,
+  slackConversationLinks,
+  slackMessageLinks,
+  slackUserLinks,
+  slackDeliveries,
 };
 
 export type AllTables = typeof allTables;

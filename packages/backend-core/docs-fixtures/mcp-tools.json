@@ -7623,6 +7623,124 @@
     }
   },
   {
+    "name": "slack_get_install_url",
+    "title": "Slack: Get install link",
+    "description": "Return the Slack OAuth link that connects a Slack workspace to this org. The link must be opened and approved in a browser by a workspace admin; it expires after 10 minutes (call again for a fresh one). After installing, pick a channel with slack_set_routing. Fails when the deployment has no Slack app configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "slack:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "slack_get_status",
+    "title": "Slack: Get status",
+    "description": "Show the org's Slack connection: whether the deployment has a Slack app configured, the connected workspace, channel routing, and mirror-delivery counts (pending + failed in the last 24h). The bot token is never returned.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "slack:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "slack_set_routing",
+    "title": "Slack: Set channel routing",
+    "description": "Point conversation mirroring at a Slack channel. purpose 'default' receives every conversation as a thread; purpose 'escalations' receives handover alerts (optionally with a mention). One channel per purpose; calling again replaces the previous channel. A Slack channel can only serve one Munin org. The response includes botInChannel — when false, invite the bot in Slack (/invite) before messages can post.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "slack:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slackChannelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Slack channel ID (e.g. C0123456789), not the #name"
+        },
+        "purpose": {
+          "description": "'default' (all mirrored conversations; required before mirroring starts) or 'escalations' (handover alerts; falls back to the default channel when unset)",
+          "type": "string",
+          "enum": [
+            "default",
+            "escalations"
+          ]
+        },
+        "mention": {
+          "description": "Optional Slack mention prepended to escalation alerts, e.g. <!here> or <!subteam^S0123456789>",
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "slackChannelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "slack_test",
+    "title": "Slack: Send test message",
+    "description": "Post a test message to the configured default Slack channel to verify the connection end-to-end. Fails with a specific error when the workspace is not connected, no default route is set, or the bot has not been invited to the channel.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "slack:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "slack_disconnect",
+    "title": "Slack: Disconnect workspace",
+    "description": "Disconnect the org's Slack workspace. Deletes the stored bot token, channel routing, and all conversation/message thread links; existing Slack messages remain in Slack. Conversations in Munin are unaffected. Reconnect any time with slack_get_install_url.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "slack:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "system_alerts_list",
     "title": "System alerts: List",
     "description": "List operational alerts for the org. Defaults to open alerts only; pass includeResolved to see history.",

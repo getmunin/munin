@@ -22,6 +22,8 @@ export const SUPPORTED_SCOPES = [
   'feedback:write',
   'system_alerts:read',
   'system_alerts:write',
+  'slack:read',
+  'slack:write',
 ] as const;
 
 export type SupportedScope = (typeof SUPPORTED_SCOPES)[number];

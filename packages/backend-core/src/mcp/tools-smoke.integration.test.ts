@@ -25,6 +25,7 @@ const EXPECTED_BY_MODULE: Record<string, RegExp> = {
   analytics: /^analytics_/,
   system: /^system_/,
   webhooks: /^webhooks_/,
+  slack: /^slack_/,
 };
 
 const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
@@ -36,6 +37,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
   analytics: 6,
   system: 4,
   webhooks: 7,
+  slack: 5,
 };
 
 (skipReason ? describe.skip : describe)('MCP tools smoke: registry shape across all modules', () => {
@@ -129,6 +131,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
         analytics: 'Analytics:',
         system: 'System ',
         webhooks: 'Webhooks:',
+        slack: 'Slack:',
       };
       const tools = await admin.listTools();
       for (const t of tools) {

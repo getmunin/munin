@@ -172,4 +172,45 @@ const skipReason = TEST_URL
       BadRequestException,
     );
   });
+
+  it("creates a self-service booking bound to the caller's own email", async () => {
+    await createConnection();
+    respond = (url) =>
+      url.includes('/booking/v1/bookings')
+        ? { body: { id: 987 } }
+        : { body: [{ ...gastroplannerBooking, id: 987 }] };
+
+    const result = await run(
+      () => bookings.createMyBooking({ date: '2026-07-10', time: '19:00', partySize: 4 }),
+      endUserActor,
+    );
+
+    expect(result.bookingRef).toBe('987');
+    const createCall = calls.find((u) => u.includes('/booking/v1/bookings'));
+    expect(createCall).toBeTruthy();
+  });
+
+  it('cancels the end-user’s own booking after an ownership check', async () => {
+    await createConnection();
+    respond = (url) =>
+      url.includes('/cancel') ? { status: 204, body: undefined } : { body: [gastroplannerBooking] };
+
+    const result = await run(() => bookings.cancelMyBooking({ bookingRef: '512' }), endUserActor);
+
+    expect(result.cancelled).toBe(true);
+    expect(calls.some((u) => u.includes('/booking/v1/bookings/512/cancel'))).toBe(true);
+  });
+
+  it("refuses to cancel another guest's booking and never calls cancel", async () => {
+    await createConnection();
+    respond = (url) =>
+      url.includes('/cancel')
+        ? { status: 204, body: undefined }
+        : { body: [{ ...gastroplannerBooking, customer: { id: 8, email: 'mallory@example.com' } }] };
+
+    await expect(
+      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), endUserActor),
+    ).rejects.toThrow(NotFoundException);
+    expect(calls.some((u) => u.includes('/cancel'))).toBe(false);
+  });
 });

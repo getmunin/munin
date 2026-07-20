@@ -39,7 +39,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
   outreach: 7,
   connectors: 6,
   commerce: 2,
-  bookings: 2,
+  bookings: 6,
   analytics: 6,
   system: 4,
   webhooks: 7,

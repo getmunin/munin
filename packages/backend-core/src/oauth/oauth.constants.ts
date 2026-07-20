@@ -18,6 +18,7 @@ export const SUPPORTED_SCOPES = [
   'connectors:write',
   'commerce:read',
   'bookings:read',
+  'bookings:write',
   'analytics:read',
   'analytics:write',
   'webhooks:read',

@@ -3,23 +3,35 @@ import { GastroplannerAdapter } from './gastroplanner.adapter.ts';
 import { ConnectorVendorError, type ConnectorFetch } from '../connectors/http.ts';
 import type { ConnectorConnectionContext } from '../connectors/connector.ts';
 
+interface StubCall {
+  url: string;
+  method: string;
+  body: Record<string, unknown> | null;
+}
+
 function stubRest(
   respond: (url: string) => { status?: number; body: unknown },
-): { fetch: ConnectorFetch; urls: string[]; headers: Array<Record<string, string>> } {
+): { fetch: ConnectorFetch; urls: string[]; headers: Array<Record<string, string>>; calls: StubCall[] } {
   const urls: string[] = [];
   const headers: Array<Record<string, string>> = [];
+  const calls: StubCall[] = [];
   const fetch: ConnectorFetch = (url, init) => {
     urls.push(url);
     headers.push((init.headers as Record<string, string>) ?? {});
+    calls.push({
+      url,
+      method: init.method ?? 'GET',
+      body: init.body ? (JSON.parse(init.body) as Record<string, unknown>) : null,
+    });
     const { status = 200, body } = respond(url);
     return Promise.resolve({
       ok: status >= 200 && status < 300,
       status,
       json: () => Promise.resolve(body),
-      text: () => Promise.resolve(JSON.stringify(body)),
+      text: () => Promise.resolve(body === undefined ? '' : JSON.stringify(body)),
     });
   };
-  return { fetch, urls, headers };
+  return { fetch, urls, headers, calls };
 }
 
 function ctx(): ConnectorConnectionContext {
@@ -217,6 +229,102 @@ describe('GastroplannerAdapter', () => {
       await expect(
         adapter.buildStoredConfig({ restaurantUri: 'bryggen-bistro' }, encrypt),
       ).rejects.toBeInstanceOf(ConnectorVendorError);
+    });
+  });
+
+  describe('checkAvailability', () => {
+    it('flattens available hourly slots across sessions and areas', async () => {
+      const { fetch, calls } = stubRest(() => ({
+        body: [
+          {
+            id: 1,
+            name: 'Dinner',
+            areas: [
+              {
+                id: 3,
+                name: 'Main room',
+                hours: [
+                  { hour: '18:00', available: true, seating_time: 120 },
+                  { hour: '18:30', available: false, seating_time: 120 },
+                  { hour: '19:00', available: true, seating_time: 90 },
+                ],
+              },
+            ],
+          },
+        ],
+      }));
+      const adapter = new GastroplannerAdapter(fetch);
+      const slots = await adapter.checkAvailability(ctx(), { date: '2026-07-10', partySize: 4 });
+      const url = new URL(calls[0]!.url);
+      expect(url.pathname).toBe('/booking/v1/availability/day');
+      expect(url.searchParams.get('pax')).toBe('4');
+      expect(slots).toEqual([
+        { time: '18:00', available: true, seatingTime: 120, areaId: 3, areaName: 'Main room' },
+        { time: '19:00', available: true, seatingTime: 90, areaId: 3, areaName: 'Main room' },
+      ]);
+    });
+  });
+
+  describe('createBooking', () => {
+    it('posts to the booking API with pax, time, and split customer name', async () => {
+      const { fetch, calls } = stubRest(() => ({ body: { id: 987 } }));
+      const adapter = new GastroplannerAdapter(fetch);
+      const res = await adapter.createBooking(ctx(), {
+        email: 'Jane@Example.com',
+        date: '2026-07-10',
+        time: '19:00',
+        partySize: 4,
+        name: 'Jane Doe',
+        phone: '+4790000000',
+      });
+      expect(res).toEqual({ bookingRef: '987' });
+      const call = calls[0]!;
+      expect(call.method).toBe('POST');
+      expect(new URL(call.url).pathname).toBe('/booking/v1/bookings');
+      expect(call.body).toMatchObject({
+        date: '2026-07-10',
+        time: '19:00',
+        seating_time: 120,
+        pax: 4,
+        customer: {
+          email: 'jane@example.com',
+          first_name: 'Jane',
+          last_name: 'Doe',
+          phone: '+4790000000',
+        },
+      });
+    });
+
+    it('maps a 422 to a no-availability vendor error', async () => {
+      const { fetch } = stubRest(() => ({ status: 422, body: { message: 'no availability' } }));
+      const adapter = new GastroplannerAdapter(fetch);
+      await expect(
+        adapter.createBooking(ctx(), { email: 'j@x.com', date: '2026-07-10', time: '19:00', partySize: 4 }),
+      ).rejects.toBeInstanceOf(ConnectorVendorError);
+    });
+  });
+
+  describe('updateBooking', () => {
+    it('PUTs only the changed fields to the booking id', async () => {
+      const { fetch, calls } = stubRest(() => ({ body: { message: 'ok' } }));
+      const adapter = new GastroplannerAdapter(fetch);
+      await adapter.updateBooking(ctx(), { bookingRef: '512', partySize: 6 });
+      const call = calls[0]!;
+      expect(call.method).toBe('PUT');
+      expect(new URL(call.url).pathname).toBe('/booking/v1/bookings/512');
+      expect(call.body).toEqual({ pax: 6 });
+    });
+  });
+
+  describe('cancelBooking', () => {
+    it('PUTs to the cancel path with no body (204)', async () => {
+      const { fetch, calls } = stubRest(() => ({ status: 204, body: undefined }));
+      const adapter = new GastroplannerAdapter(fetch);
+      await adapter.cancelBooking(ctx(), { bookingRef: '512' });
+      const call = calls[0]!;
+      expect(call.method).toBe('PUT');
+      expect(new URL(call.url).pathname).toBe('/booking/v1/bookings/512/cancel');
+      expect(call.body).toBeNull();
     });
   });
 });

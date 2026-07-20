@@ -27,7 +27,7 @@ Monorepo on pnpm + Turborepo.
 | `slack` | `slack_*` | Operator bridge: mirrors conversations into Slack threads via a `WebhookDispatcher` sink + `slack_deliveries` queue. Not a `ChannelAdapter`. |
 | `connectors` | `connectors_*` | Plumbing trunk for customer-facing data connectors: encrypted connection storage, vendor-adapter registry, credential testing. Domain modules register adapters here and own the typed read surfaces; live reads only, no vendor data persisted. |
 | `commerce` | `commerce_*` | Connector-backed order lookups (Shopify, Magento 2): admin tools take an email; self-service tools bind to the calling end-user's email server-side. |
-| `bookings` | `bookings_*` | Connector-backed booking lookups (Gastroplanner): same admin/self-service split as commerce. |
+| `bookings` | `bookings_*` | Connector-backed bookings (Gastroplanner): read + write (availability, create/modify/cancel). Admin tools take an email; self-service tools bind to the calling end-user and enforce per-booking ownership. |
 | `curator` | — | Background job queue (`curator_jobs`) running `skill://*` and `task://*` URIs. |
 | `web` | — | Website scraper (single `task://web/scrape-website`). |
 | `playbooks` | — | Cross-module packaged workflows (skill markdown only, no tools). |
@@ -40,7 +40,7 @@ Three integration categories, three homes. Route new "integrate with X" work by 
 
 - **Messaging channel** — a surface customers write to us on (email, SMS, voice, widget). Implement a channel adapter in `conv` (contract: `packages/backend-core/src/modules/conv/CLAUDE.md`).
 - **Operator bridge** — where our team works (Slack; later Teams). One root module per vendor. Bridges subscribe to domain events by registering an `EventSink` on `WebhookDispatcher` (`packages/core/src/webhooks.ts`); sinks run inside the emitting transaction and must only enqueue durable work — external I/O belongs in the module's own out-of-band worker. Inbound vendor webhooks are signature-verified public controllers, and inbound actions run through existing module services as the mapped org member.
-- **Connector** — a customer's system of record we answer questions from (Shopify, Magento, Gastroplanner). Plumbing lives in the `connectors` trunk module (connection storage, credential encryption, vendor registry, `connectors_*` admin tools); typed read surfaces live in domain modules (`commerce`, `bookings`) whose vendor adapters register into the trunk registry. A domain module is a distinct customer-facing noun with its own read contract (orders, bookings, invoices) — never a vendor. Connector reads are live: no vendor data is persisted in Munin.
+- **Connector** — a customer's system of record we answer questions from (Shopify, Magento, Gastroplanner). Plumbing lives in the `connectors` trunk module (connection storage, credential encryption, vendor registry, `connectors_*` admin tools); typed read surfaces live in domain modules (`commerce`, `bookings`) whose vendor adapters register into the trunk registry. A domain module is a distinct customer-facing noun with its own contract (orders, bookings, invoices) — never a vendor. Connector data is live: nothing is persisted in Munin. Most domains are read-only; bookings also writes (availability + create/modify/cancel) directly to the vendor.
 
 Operator bridges and connectors both surface in the dashboard on the single Integrations page (`packages/dashboard-pages/src/pages/integrations.tsx`), one section per category, cards under `packages/dashboard-pages/src/components/integrations/`.
 

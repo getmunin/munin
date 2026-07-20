@@ -3,12 +3,13 @@
 import { useTranslations } from 'next-intl';
 import { Hero } from '@getmunin/ui';
 import { SlackCard } from '../components/integrations/slack-card';
+import { ConnectorsCard } from '../components/integrations/connectors-card';
 
 /**
  * Integrations hub: third-party systems connected to Munin, grouped by who
- * they serve. Operator bridges (Slack, later Teams) serve the team; a
- * "Connectors" section for customer-facing systems of record (Shopify,
- * Magento, …) slots in here once those grow a management surface.
+ * they serve. Operator bridges (Slack, later Teams) serve the team;
+ * connectors give agents read access to customers' systems of record
+ * (Shopify, Magento, Gastroplanner, …).
  */
 export function IntegrationsPage() {
   const t = useTranslations('integrations');
@@ -29,6 +30,14 @@ export function IntegrationsPage() {
         <div className="space-y-6">
           <SlackCard />
         </div>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">{t('dataConnectors.title')}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t('dataConnectors.blurb')}</p>
+        </div>
+        <ConnectorsCard />
       </section>
     </div>
   );

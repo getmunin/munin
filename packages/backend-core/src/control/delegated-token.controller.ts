@@ -20,6 +20,7 @@ import { RequireActorType } from './role.decorator.ts';
 
 export const SELF_SERVICE_SCOPES = [
   'cms:read',
+  'commerce:read',
   'conv:read',
   'conv:write',
   'crm:read',

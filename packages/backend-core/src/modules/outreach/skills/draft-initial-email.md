@@ -113,6 +113,7 @@ Out of scope for this skill — see `skill://outreach/review-proposals`. The ope
 
 ## Related
 
+- `skill://outreach/draft-followup-email` — drafts the next sequence step when an initial filed by this pass sits unanswered past a campaign's `sequenceSteps` wait period.
 - `skill://kb/review-content` — symmetric pattern (per-conversation curator that proposes, human approves) for KB instead of outreach.
 - `skill://crm/clean-contact-data` — population-level dedup that catches duplicates this and other curators create.
 - `skill://crm/extract-contact-from-message` — auto-applied (NOT propose-and-review) per-conversation contact creation. The asymmetry vs this skill: extracting what the user typed is faithful transcription; drafting outreach is generative — different risk profiles.

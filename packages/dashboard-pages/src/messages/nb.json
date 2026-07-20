@@ -333,6 +333,7 @@
         "feedbackApproveConfirm": "Ved godkjenning sendes tittelen og innholdet over til Munin-utviklerne.",
         "outreachKindReply": "SVAR",
         "outreachKindInitial": "FØRSTE",
+        "outreachKindFollowup": "OPPFØLGING {step}",
         "conversationFallback": "Samtale #{id}",
         "crmMergeBody": "Slå sammen <strong>{loser}</strong> inn i <strong>{keeper}</strong>.",
         "crmMergeExplain": "Beholder hovedoppføringen; flytter referanser; arkiverer den andre. Ingen samtaler går tapt.",

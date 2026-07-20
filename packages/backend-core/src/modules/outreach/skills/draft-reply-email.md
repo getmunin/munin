@@ -102,5 +102,6 @@ Behavior:
 ## Related
 
 - `skill://outreach/draft-initial-email` — the symmetric pattern for first-touch emails.
+- `skill://outreach/draft-followup-email` — drafts sequence follow-ups on silent threads. The inbound reply that triggered *this* skill permanently stops that sequence — once a prospect answers, follow-ups never resume.
 - `skill://kb/review-content` — the original "drafted candidates, human approves" pattern this skill follows.
 - `agentMode` on `conv_conversations` — `'draft_only'` is what gates the AI runner from auto-replying. Outreach conversations get this set automatically when their initial is approved.

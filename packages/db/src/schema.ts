@@ -1709,6 +1709,9 @@ export const curatorJobs = pgTable(
 // initials per (campaign, contact) → review → approve → send via the
 // existing email channel. Replies thread into normal conversations
 // (reply attribution via `conv_conversations.outreach_campaign_id`).
+// Campaigns may define `sequence_steps` (waitDays + brief per step); a
+// scheduled curator drafts `kind='followup'` proposals for silent
+// threads — stopped by any inbound reply, unsubscribe, or dismissal.
 export const outreachCampaigns = pgTable(
   'outreach_campaigns',
   {
@@ -1733,6 +1736,10 @@ export const outreachCampaigns = pgTable(
       }>()
       .notNull()
       .default({}),
+    sequenceSteps: jsonb('sequence_steps')
+      .$type<{ waitDays: number; brief: string }[]>()
+      .notNull()
+      .default([]),
     ctaUrl: text('cta_url'),
     enabled: boolean('enabled').notNull().default(false),
     autoDraftInitial: boolean('auto_draft_initial').notNull().default(false),
@@ -1769,7 +1776,8 @@ export const outreachProposals = pgTable(
       onDelete: 'set null',
     }),
     kind: varchar('kind', { length: 16 }).notNull(),
-    // 'initial' | 'reply'
+    // 'initial' | 'reply' | 'followup'
+    sequenceStep: integer('sequence_step'),
     draftSubject: text('draft_subject'),
     draftBody: text('draft_body').notNull(),
     evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),

@@ -6,9 +6,11 @@ audiences: [admin]
 
 # Review pending outreach proposals
 
-Every outbound email in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-initial-email`, `skill://outreach/draft-reply-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
+Every outbound email in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-initial-email`, `skill://outreach/draft-reply-email`, `skill://outreach/draft-followup-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
 
-**Approving sends.** `outreach_approve_proposal` is not a status flip: for an `initial` proposal it creates the outbound conversation and sends the first email through the campaign's channel (appending the CTA link and unsubscribe footer per campaign settings); for a `reply` it sends the draft verbatim on the existing conversation. There is no undo. Never approve in bulk without reading each draft.
+**Approving sends.** `outreach_approve_proposal` is not a status flip: for an `initial` proposal it creates the outbound conversation and sends the first email through the campaign's channel (appending the CTA link and unsubscribe footer per campaign settings); for a `reply` or `followup` it sends the draft verbatim on the existing conversation. There is no undo. Never approve in bulk without reading each draft.
+
+**Dismissing a follow-up stops the sequence.** A dismissed `followup` permanently ends the campaign's follow-up sequence for that contact — no later step will be drafted. That makes dismiss the right call for "stop chasing this person" and the wrong call for "reword this". If the operator just dislikes the wording, edit the draft in the dashboard review drawer and approve the edited version instead.
 
 ## In an MCP App host (Claude, Claude Desktop, …)
 
@@ -23,10 +25,10 @@ In hosts without MCP Apps support the decision tools appear normally, and the sa
 3. **Decide one at a time** on the operator's word:
    - `outreach_approve_proposal({ "id": "..." })` — sends immediately; the result carries `status: "sent"`, `conversationId`, `sentMessageId`.
    - `outreach_dismiss_proposal({ "id": "...", "reason": "..." })` — no send; the reason lands on the proposal for the curator's next pass.
-4. **Handle refusals cleanly.** Both tools reject non-`pending` proposals (someone else may have decided it since listing — refresh rather than retry). Approval also rejects when the campaign was disabled or the contact became suppressed since drafting; that is the suppression floor working, not an error to route around.
+4. **Handle refusals cleanly.** Both tools reject non-`pending` proposals (someone else may have decided it since listing — refresh rather than retry). Approval also rejects when the campaign was disabled or the contact became suppressed since drafting, and — for `followup` proposals — when the prospect replied after the draft was filed (dismiss it; the reply flow owns the conversation now). That is the suppression floor and stop-on-reply working, not an error to route around.
 
 ## What not to do
 
 - **Never approve on your own initiative.** A pending queue is not permission. The invariant that makes propose-only outreach safe is that a human read each draft.
-- **Don't edit-and-approve in one breath.** If a draft needs changes, dismiss with a reason (or have the operator edit it in the dashboard) and let a fresh proposal be filed.
+- **Don't edit-and-approve in one breath.** If a draft needs changes, dismiss with a reason (or have the operator edit it in the dashboard) and let a fresh proposal be filed. Exception: `followup` drafts — dismissing one ends the sequence for that contact, so wording fixes go through the dashboard edit, never dismiss.
 - **Don't loop approve over the whole list** ("approve all") unless the operator explicitly reviewed every draft and said exactly that.

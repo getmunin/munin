@@ -8358,6 +8358,202 @@
     }
   },
   {
+    "name": "bookings_check_availability",
+    "title": "Bookings: Check table availability",
+    "description": "List open time slots for a date and party size at the connected booking system, so you can offer real times before creating a booking. `connectionId` is only needed when multiple booking connections are active.",
+    "audiences": [
+      "admin",
+      "self_service"
+    ],
+    "scopes": [
+      "bookings:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "partySize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "seatingTime": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "date",
+        "partySize"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_create_booking",
+    "title": "Bookings: Book a table",
+    "description": "Create a booking in the connected booking system for a guest email at a date and time, for a given party size. Check bookings_check_availability first. Returns the new bookingRef.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "bookings:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "time": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "partySize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "seatingTime": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "areaId": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "phone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "email",
+        "date",
+        "time",
+        "partySize"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_update_booking",
+    "title": "Bookings: Modify a booking",
+    "description": "Change an existing booking (date, time, party size, or note) by `bookingRef`. Only the fields you pass are changed.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "bookings:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "bookingRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "time": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "partySize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "bookingRef"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_cancel_booking",
+    "title": "Bookings: Cancel a booking",
+    "description": "Cancel an existing booking by `bookingRef` in the connected booking system. This cannot be undone.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "bookings:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "bookingRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "bookingRef"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "bookings_get_my_bookings",
     "title": "Bookings: My bookings",
     "description": "List the calling end-user’s restaurant/venue bookings (most recent first). Scoped server-side to the email on the end-user’s own record — other guests’ bookings are never visible. `connectionId` is only needed when the org has multiple active booking connections.",
@@ -8421,6 +8617,153 @@
           "maxLength": 64
         }
       },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_create_my_booking",
+    "title": "Bookings: Book a table for me",
+    "description": "Create a booking for the calling end-user at a date and time for a party size. The booking is made under the end-user’s own email — you cannot book on behalf of anyone else. Check bookings_check_availability first.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "bookings:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "time": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "partySize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "seatingTime": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "areaId": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "phone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "date",
+        "time",
+        "partySize"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_update_my_booking",
+    "title": "Bookings: Modify my booking",
+    "description": "Change one of the calling end-user’s own bookings (date, time, party size, or note) by `bookingRef`. Returns not-found unless the booking belongs to the calling end-user.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "bookings:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "bookingRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "time": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "partySize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "bookingRef"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "bookings_cancel_my_booking",
+    "title": "Bookings: Cancel my booking",
+    "description": "Cancel one of the calling end-user’s own bookings by `bookingRef`. Returns not-found unless the booking belongs to the calling end-user. This cannot be undone.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "bookings:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "bookingRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "bookingRef"
+      ],
       "additionalProperties": false
     }
   },

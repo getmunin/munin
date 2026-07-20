@@ -32,6 +32,10 @@ const UpdateBody = z.object({
   active: z.boolean().optional(),
 });
 
+const CredentialsBody = z.object({
+  secrets: z.record(z.string(), z.string().min(1)),
+});
+
 @Controller('v1/connectors')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
@@ -72,6 +76,13 @@ export class ConnectorsController {
   @Post(':id/test')
   test(@Param('id') id: string) {
     return this.connectors.testConnection({ connectionId: id });
+  }
+
+  @Post(':id/credentials')
+  applyCredentials(@Param('id') id: string, @Body() body: unknown) {
+    const parsed = CredentialsBody.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.connectors.applyCredentials(id, parsed.data.secrets);
   }
 
   @Post(':id/credential-link')

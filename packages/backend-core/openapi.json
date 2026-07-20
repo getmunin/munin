@@ -2083,6 +2083,68 @@
         ]
       }
     },
+    "/v1/conversations/channels/{id}/credentials": {
+      "post": {
+        "operationId": "ConvChannelsController_applyCredentials",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/channels/{id}/credential-link": {
+      "post": {
+        "operationId": "ConvChannelsController_requestCredentialLink",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/channels/{id}/call": {
       "post": {
         "operationId": "ConvChannelsController_callChannel",
@@ -4963,6 +5025,37 @@
     "/v1/connectors/{id}/test": {
       "post": {
         "operationId": "ConnectorsController_test",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Connectors"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/connectors/{id}/credentials": {
+      "post": {
+        "operationId": "ConnectorsController_applyCredentials",
         "parameters": [
           {
             "name": "id",

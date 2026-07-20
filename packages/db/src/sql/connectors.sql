@@ -18,3 +18,16 @@ CREATE POLICY tenant_isolation ON connector_connections
     app_bypass_rls()
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   );
+
+-- Credential requests: one-time credential-handoff links. Minted by admins
+-- (WITH CHECK rejects end-user actors); the public completion path resolves
+-- and completes them under app_bypass_rls on a service-role connection.
+ALTER TABLE credential_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE credential_requests FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON credential_requests;
+CREATE POLICY tenant_isolation ON credential_requests
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  );

@@ -9,7 +9,7 @@ const EmptyInput = z.object({});
 const CreateConnectionInput = z.object({
   vendor: z.string().min(1).max(32),
   name: z.string().min(1).max(120),
-  config: sensitive(z.record(z.string(), z.unknown())),
+  config: sensitive(z.record(z.string(), z.unknown())).optional(),
 });
 
 const UpdateConnectionInput = z.object({
@@ -61,7 +61,7 @@ export class ConnectorAdminTools {
     name: 'connectors_create_connection',
     title: 'Connectors: Connect a system',
     description:
-      'Create a connection to a third-party system. `config` is vendor-shaped — connectors_list_vendors returns the exact fields each vendor needs. The vendor determines the domain (commerce, bookings). Secrets are encrypted at rest and never returned. Connection names must be unique within the org.',
+      'Create a connection to a third-party system. `config` is vendor-shaped — connectors_list_vendors returns the exact fields each vendor needs. The vendor determines the domain (commerce, bookings). Omit the secret fields to create a pending connection and get a one-time link for a human to enter them in the dashboard, instead of pasting secrets into this conversation. Secrets are encrypted at rest and never returned. Connection names must be unique within the org.',
     audiences: ['admin'],
     scopes: ['connectors:write'],
     input: CreateConnectionInput,
@@ -70,6 +70,21 @@ export class ConnectorAdminTools {
   })
   createConnection(args: z.infer<typeof CreateConnectionInput>) {
     return this.connectors.createConnection(args);
+  }
+
+  @McpTool({
+    name: 'connectors_request_credentials',
+    title: 'Connectors: Request a credential link',
+    description:
+      'Return a one-time link a human opens to enter a connection’s secret credentials in the dashboard, so the secret is never pasted into a conversation. Use it for a pending connection created without its secret. The link expires after 24 hours.',
+    audiences: ['admin'],
+    scopes: ['connectors:write'],
+    input: ConnectionIdInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  requestCredentials(args: z.infer<typeof ConnectionIdInput>) {
+    return this.connectors.requestCredentials(args);
   }
 
   @McpTool({

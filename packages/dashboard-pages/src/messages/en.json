@@ -1239,7 +1239,8 @@
     },
     "operatorBridges": {
       "title": "Operator bridges",
-      "blurb": "Triage and reply to conversations from your team's chat tool."
+      "blurb": "Triage and reply to conversations from your team's chat tool.",
+      "empty": "Nothing connected yet."
     },
     "slack": {
       "title": "Slack",
@@ -1257,7 +1258,51 @@
       "disconnect": "Disconnect",
       "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",
       "failedDeliveries": "{count} mirror deliveries failed in the last 24 hours."
+    },
+    "dataConnectors": {
+      "title": "Data connectors",
+      "blurb": "Let agents answer from customers' own systems of record — orders, bookings — read live, never copied into Munin."
+    },
+    "connectors": {
+      "title": "Connections",
+      "lede": "Connected commerce and booking systems agents can look up on a customer's behalf.",
+      "add": "Add connector",
+      "empty": "No connectors yet.",
+      "vendor": "System",
+      "name": "Name",
+      "namePlaceholder": "e.g. Main store",
+      "create": "Connect",
+      "createPending": "Create & send secret link",
+      "created": "Connector connected",
+      "createdPending": "Connector created — credential link copied to clipboard",
+      "handoffHint": "Enter the secret here to connect now, or leave it blank to create the connection and get a one-time link to enter it securely later.",
+      "test": "Test",
+      "testOk": "Connection works. {detail}",
+      "testFailed": "Test failed: {error}",
+      "copyLink": "Copy credential link",
+      "linkCopied": "Credential link copied to clipboard",
+      "delete": "Remove",
+      "deleteTitle": "Remove connector",
+      "deleteConfirm": "Remove {name}? Lookups through it stop working immediately.",
+      "statusActive": "Active",
+      "statusPending": "Awaiting credentials",
+      "statusError": "Test failed",
+      "statusInactive": "Inactive"
     }
+  },
+  "credentialEntry": {
+    "eyebrow": "Secure setup",
+    "title": "Enter your credentials",
+    "lede": "This one-time link lets you enter an integration's secret credentials directly, without sharing them in a chat.",
+    "loading": "Loading…",
+    "invalid": "This link is invalid or has expired.",
+    "for": "Credentials for {vendor}",
+    "submit": "Save credentials",
+    "reassurance": "Credentials are encrypted at rest and never shown again. This link works once.",
+    "success": "Done.",
+    "successBody": "Your credentials were saved and verified.",
+    "savedButUntested": "Credentials saved, but the test call didn't succeed — check them and try again from the dashboard.",
+    "failure": "Couldn't save."
   },
   "assistants": {
     "list": {

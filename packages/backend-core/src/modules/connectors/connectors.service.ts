@@ -22,8 +22,15 @@ import {
   type ConnectorDomain,
 } from './connector.ts';
 import { ConnectorVendorError } from './http.ts';
+import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
+import type {
+  CredentialApplyResult,
+  CredentialTargetDescription,
+} from '../credential-handoff/credential-target.ts';
 
 export type ConnectionRow = typeof schema.connectorConnections.$inferSelect;
+
+export type CredentialState = 'active' | 'pending';
 
 export interface ConnectorConnectionDto {
   id: string;
@@ -31,6 +38,7 @@ export interface ConnectorConnectionDto {
   domain: ConnectorDomain;
   name: string;
   active: boolean;
+  credentialState: CredentialState;
   settings: Record<string, unknown>;
   lastTestedAt: string | null;
   lastTestError: string | null;
@@ -68,7 +76,16 @@ export interface ConnectionScope {
  */
 @Injectable()
 export class ConnectorsService {
-  constructor(@Inject(ConnectorRegistry) private readonly registry: ConnectorRegistry) {}
+  constructor(
+    @Inject(ConnectorRegistry) private readonly registry: ConnectorRegistry,
+    @Inject(CredentialHandoffService)
+    private readonly handoff?: CredentialHandoffService,
+  ) {}
+
+  private requireHandoff(): CredentialHandoffService {
+    if (!this.handoff) throw new Error('credential handoff service not available');
+    return this.handoff;
+  }
 
   listVendors(): ConnectorVendorDto[] {
     return this.registry.list().map((adapter) => ({
@@ -91,12 +108,29 @@ export class ConnectorsService {
   async createConnection(args: {
     vendor: string;
     name: string;
-    config: Record<string, unknown>;
-  }): Promise<ConnectorConnectionDto> {
+    config?: Record<string, unknown>;
+  }): Promise<ConnectorConnectionDto & { credentialLink?: CredentialLink }> {
     const ctx = getCurrentContext();
     const adapter = this.requireAdapter(args.vendor);
     await this.assertNameFree(args.name);
-    const stored = await this.buildStored(adapter, args.config);
+    const config = args.config ?? {};
+
+    if (this.hasRequiredSecrets(adapter, config)) {
+      const stored = await this.buildStored(adapter, config);
+      const [row] = await ctx.db
+        .insert(schema.connectorConnections)
+        .values({
+          orgId: ctx.actor!.orgId,
+          vendor: adapter.vendor,
+          domain: adapter.domain,
+          name: args.name,
+          config: stored,
+          credentialState: 'active',
+        })
+        .returning();
+      return this.toDto(row!);
+    }
+
     const [row] = await ctx.db
       .insert(schema.connectorConnections)
       .values({
@@ -104,10 +138,116 @@ export class ConnectorsService {
         vendor: adapter.vendor,
         domain: adapter.domain,
         name: args.name,
-        config: stored,
+        config: this.pickNonSecret(adapter, config),
+        active: false,
+        credentialState: 'pending',
       })
       .returning();
-    return this.toDto(row!);
+    const credentialLink = await this.requireHandoff().mint({
+      targetType: 'connector',
+      targetId: row!.id,
+    });
+    return { ...this.toDto(row!), credentialLink };
+  }
+
+  /**
+   * Mint a fresh one-time credential link for a pending connection so the
+   * secret can be entered out-of-band (dashboard form) instead of pasted
+   * into an agent conversation.
+   */
+  async requestCredentials(args: { connectionId: string }): Promise<CredentialLink> {
+    const row = await this.requireConnection(args.connectionId);
+    if (row.credentialState !== 'pending') {
+      throw new BadRequestException(
+        'connectors_invalid: connection already has credentials; delete and recreate to rotate',
+      );
+    }
+    return this.requireHandoff().mint({ targetType: 'connector', targetId: row.id });
+  }
+
+  async describeCredentials(connectionId: string): Promise<CredentialTargetDescription | null> {
+    const rows = await getCurrentContext()
+      .db.select()
+      .from(schema.connectorConnections)
+      .where(eq(schema.connectorConnections.id, connectionId))
+      .limit(1);
+    const row = rows[0];
+    if (!row || row.credentialState !== 'pending') return null;
+    const adapter = this.requireAdapter(row.vendor);
+    return {
+      label: row.name,
+      vendor: adapter.vendor,
+      fields: adapter.configFields
+        .filter((f) => f.secret)
+        .map((f) => ({
+          key: f.key,
+          label: f.label,
+          required: f.required,
+          placeholder: f.placeholder,
+        })),
+    };
+  }
+
+  async applyCredentials(
+    connectionId: string,
+    secrets: Record<string, string>,
+  ): Promise<CredentialApplyResult> {
+    const ctx = getCurrentContext();
+    const row = await this.requireConnection(connectionId);
+    const adapter = this.requireAdapter(row.vendor);
+    const stored = await this.buildStored(adapter, { ...(row.config ?? {}), ...secrets });
+    const probe = await this.probe(adapter, stored);
+    await ctx.db
+      .update(schema.connectorConnections)
+      .set({
+        config: stored,
+        active: true,
+        credentialState: 'active',
+        lastTestedAt: new Date(),
+        lastTestError: probe.ok ? null : (probe.error ?? null),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.connectorConnections.id, row.id));
+    return probe;
+  }
+
+  private async probe(
+    adapter: ConnectorAdapter,
+    stored: Record<string, unknown>,
+  ): Promise<CredentialApplyResult> {
+    try {
+      const result = await adapter.testConnection(this.connectionContext({ config: stored } as ConnectionRow));
+      return { ok: true, detail: result.detail };
+    } catch (err) {
+      if (err instanceof ConnectorVendorError || err instanceof SsrfBlockedError) {
+        return { ok: false, error: err.message };
+      }
+      throw err;
+    }
+  }
+
+  private secretKeys(adapter: ConnectorAdapter): string[] {
+    return adapter.configFields.filter((f) => f.secret).map((f) => f.key);
+  }
+
+  private hasRequiredSecrets(adapter: ConnectorAdapter, config: Record<string, unknown>): boolean {
+    const required = adapter.configFields.filter((f) => f.secret && f.required);
+    return required.every((f) => {
+      const v = config[f.key];
+      return typeof v === 'string' && v.length > 0;
+    });
+  }
+
+  private pickNonSecret(
+    adapter: ConnectorAdapter,
+    config: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const secret = new Set(this.secretKeys(adapter));
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(config)) {
+      if (!secret.has(k)) out[k] = v;
+    }
+    return out;
   }
 
   async updateConnection(args: {
@@ -150,6 +290,11 @@ export class ConnectorsService {
   }): Promise<{ ok: boolean; detail?: string; error?: string }> {
     const ctx = getCurrentContext();
     const row = await this.requireConnection(args.connectionId);
+    if (row.credentialState === 'pending') {
+      throw new BadRequestException(
+        'connectors_invalid: connection is awaiting credentials — complete the credential link first',
+      );
+    }
     const adapter = this.requireAdapter(row.vendor);
     try {
       const result = await adapter.testConnection(this.connectionContext(row));
@@ -330,13 +475,15 @@ export class ConnectorsService {
 
   private toDto(row: ConnectionRow): ConnectorConnectionDto {
     const adapter = this.requireAdapter(row.vendor);
+    const state = row.credentialState as CredentialState;
     return {
       id: row.id,
       vendor: row.vendor,
       domain: row.domain as ConnectorDomain,
       name: row.name,
       active: row.active,
-      settings: adapter.publicConfig(row.config),
+      credentialState: state,
+      settings: state === 'pending' ? row.config : adapter.publicConfig(row.config),
       lastTestedAt: row.lastTestedAt?.toISOString() ?? null,
       lastTestError: row.lastTestError,
       createdAt: row.createdAt.toISOString(),

@@ -2097,6 +2097,7 @@ export const connectorConnections = pgTable(
     name: text('name').notNull(),
     config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
     active: boolean('active').notNull().default(true),
+    credentialState: varchar('credential_state', { length: 16 }).notNull().default('active'),
     lastTestedAt: timestamp('last_tested_at', { withTimezone: true }),
     lastTestError: text('last_test_error'),
     createdAt,
@@ -2105,6 +2106,30 @@ export const connectorConnections = pgTable(
   (t) => ({
     orgIdx: index('connector_connections_org_idx').on(t.orgId, t.domain),
     orgNameUq: uniqueIndex('connector_connections_org_name_uq').on(t.orgId, t.name),
+  }),
+);
+
+// One-time links for entering an integration's secret credentials out-of-band
+// (a dashboard form) instead of pasting them into an agent conversation.
+// target_type routes completion to the owning module's handler (connector,
+// channel, …); link_hash is the peppered hash of the returned token.
+export const credentialRequests = pgTable(
+  'credential_requests',
+  {
+    id: id('crq'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    targetType: varchar('target_type', { length: 32 }).notNull(),
+    targetId: text('target_id').notNull(),
+    linkHash: text('link_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => ({
+    linkIdx: index('credential_requests_link_idx').on(t.linkHash),
+    targetIdx: index('credential_requests_target_idx').on(t.targetType, t.targetId),
   }),
 );
 

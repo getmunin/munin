@@ -372,6 +372,13 @@
       "when": 1784586918174,
       "tag": "0052_connector_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1784587344170,
+      "tag": "0053_credential_handoff",
+      "breakpoints": true
     }
   ]
 }

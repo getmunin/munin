@@ -53,6 +53,8 @@ import { InboxController } from './inbox.controller.ts';
 import { AuthProvidersController } from './auth-providers.controller.ts';
 import { SlackController } from './slack.controller.ts';
 import { SlackModule } from '../modules/slack/slack.module.ts';
+import { ConnectorsController } from './connectors.controller.ts';
+import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
 
 /**
  * Control plane: server-to-server REST endpoints used by an org's backend
@@ -75,6 +77,7 @@ import { SlackModule } from '../modules/slack/slack.module.ts';
     RealtimeModule,
     WebhooksModule,
     SlackModule,
+    ConnectorsModule,
   ],
   controllers: [
     ApiKeysController,
@@ -120,6 +123,7 @@ import { SlackModule } from '../modules/slack/slack.module.ts';
     OutreachTransferController,
     AuthProvidersController,
     SlackController,
+    ConnectorsController,
   ],
   providers: [InvitationsService],
 })

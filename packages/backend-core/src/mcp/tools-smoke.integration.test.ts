@@ -37,7 +37,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
   crm: 25,
   cms: 20,
   outreach: 7,
-  connectors: 6,
+  connectors: 7,
   commerce: 2,
   bookings: 6,
   analytics: 6,

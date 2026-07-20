@@ -25,6 +25,7 @@ import { MessageBirdSmsAdminService } from '../modules/conv/messagebird/messageb
 import { VapiAdminService } from '../modules/conv/vapi/vapi-admin.service.ts';
 import { ThrellAdminService } from '../modules/conv/threll/threll-admin.service.ts';
 import { ChannelAdminService } from '../modules/conv/channels/channel-admin.service.ts';
+import { ChannelCredentialService } from '../modules/conv/channels/channel-credential.service.ts';
 import {
   CreateWidgetBody,
   UpdateWidgetBody,
@@ -43,6 +44,11 @@ import {
   ChannelVoiceCallBody,
   ChannelSendTestBody,
 } from '@getmunin/types';
+import { z } from 'zod';
+
+const ChannelCredentialsBody = z.object({
+  secrets: z.record(z.string(), z.string().min(1)),
+});
 
 interface ChannelListResponse {
   items: ChannelDto[];
@@ -62,6 +68,7 @@ export class ConvChannelsController {
     private readonly vapiTools: VapiAdminService,
     private readonly threllTools: ThrellAdminService,
     private readonly channelAdmin: ChannelAdminService,
+    private readonly channelCredentials: ChannelCredentialService,
   ) {}
 
   @Get('vendors')
@@ -81,6 +88,20 @@ export class ConvChannelsController {
   @HttpCode(200)
   async testChannel(@Param('id') id: string): Promise<unknown> {
     return this.channelAdmin.test(id);
+  }
+
+  @Post(':id/credentials')
+  @HttpCode(200)
+  applyCredentials(@Param('id') id: string, @Body() body: unknown): ReturnType<ChannelCredentialService['apply']> {
+    const parsed = ChannelCredentialsBody.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.channelCredentials.apply(id, parsed.data.secrets);
+  }
+
+  @Post(':id/credential-link')
+  @HttpCode(200)
+  requestCredentialLink(@Param('id') id: string): ReturnType<ChannelCredentialService['requestLink']> {
+    return this.channelCredentials.requestLink(id);
   }
 
   @Post(':id/call')

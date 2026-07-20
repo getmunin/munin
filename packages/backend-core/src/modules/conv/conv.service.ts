@@ -63,6 +63,7 @@ export interface ChannelDto {
   active: boolean;
   config: Record<string, unknown>;
   defaultAgentMode: AgentMode;
+  needsCredentials: boolean;
   createdAt: string;
 }
 
@@ -1570,8 +1571,20 @@ function toChannelDto(row: typeof schema.convChannels.$inferSelect): ChannelDto 
     active: row.active,
     config: row.config,
     defaultAgentMode: row.defaultAgentMode as AgentMode,
+    needsCredentials: channelNeedsCredentials(row),
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function channelNeedsCredentials(row: typeof schema.convChannels.$inferSelect): boolean {
+  if (row.type !== 'email') return false;
+  const config = row.config as {
+    outbound?: { provider?: string; encryptedPassword?: string };
+    inbound?: { encryptedPassword?: string };
+  };
+  const smtpMissing = config.outbound?.provider === 'smtp' && !config.outbound.encryptedPassword;
+  const imapMissing = !!config.inbound && !config.inbound.encryptedPassword;
+  return smtpMissing || imapMissing;
 }
 
 function toTopicDto(row: typeof schema.convTopics.$inferSelect): TopicDto {

@@ -7,6 +7,7 @@ import {
   getCurrentContext,
   hashSecret,
   randomToken,
+  setEncryptionKeySql,
   withContext,
   type RequestContext,
 } from '@getmunin/core';
@@ -105,6 +106,7 @@ export class CredentialHandoffService {
   private async inOrgContext<T>(orgId: string, fn: () => Promise<T>): Promise<T> {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      await tx.execute(setEncryptionKeySql());
       const actor = new ActorIdentity('system', 'credential-handoff', orgId, ['*'], ['admin']);
       const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
       return withContext(ctx, fn);

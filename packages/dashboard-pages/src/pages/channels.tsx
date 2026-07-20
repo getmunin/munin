@@ -68,6 +68,7 @@ interface ChannelDto {
   active: boolean;
   config: Record<string, unknown>;
   defaultAgentMode?: 'auto' | 'draft_only' | 'off';
+  needsCredentials?: boolean;
   createdAt: string;
 }
 
@@ -217,6 +218,7 @@ export function ChannelsPage() {
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
   const [sendTestFor, setSendTestFor] = useState<EmailChannelDto | null>(null);
+  const [enterCredsFor, setEnterCredsFor] = useState<EmailChannelDto | null>(null);
   const [sendSmsTestFor, setSendSmsTestFor] = useState<TwilioSmsChannelDto | null>(null);
   const [sendMessageBirdTestFor, setSendMessageBirdTestFor] =
     useState<MessageBirdSmsChannelDto | null>(null);
@@ -422,6 +424,17 @@ export function ChannelsPage() {
         <SendTestEmailDialog channel={sendTestFor} onClose={() => setSendTestFor(null)} />
       )}
 
+      {enterCredsFor && (
+        <EnterChannelCredentialsDialog
+          channel={enterCredsFor}
+          onClose={() => setEnterCredsFor(null)}
+          onDone={() => {
+            setEnterCredsFor(null);
+            void tryLoad();
+          }}
+        />
+      )}
+
       {sendSmsTestFor && (
         <SendTestSmsDialog
           channel={sendSmsTestFor}
@@ -544,6 +557,9 @@ export function ChannelsPage() {
                   void deleteChannel(c);
                 }}
                 onShowEmbed={() => setEmbedFor(c)}
+                onEnterCredentials={() => {
+                  if (c.type === 'email') setEnterCredsFor(c as EmailChannelDto);
+                }}
                 onEdit={() => {
                   if (c.type === 'sms' && c.vendor === 'twilio') {
                     setEditTwilioSms(c as TwilioSmsChannelDto);
@@ -588,6 +604,7 @@ function ChannelRow({
   onRotateIdentity,
   onDelete,
   onShowEmbed,
+  onEnterCredentials,
   onEdit,
   onSendTest,
 }: {
@@ -598,6 +615,7 @@ function ChannelRow({
   onRotateIdentity: () => void;
   onDelete: () => void;
   onShowEmbed: () => void;
+  onEnterCredentials: () => void;
   onEdit: () => void;
   onSendTest: () => void;
 }) {
@@ -646,6 +664,11 @@ function ChannelRow({
             <h3 className="font-serif text-lg leading-none text-ink dark:text-foreground">
               {channel.name}
             </h3>
+            {channel.needsCredentials && (
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                {t('status.awaitingCredentials')}
+              </span>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
@@ -729,6 +752,11 @@ function ChannelRow({
                 {tCommon('edit')}
               </Button>
             ) : null}
+            {channel.needsCredentials && (
+              <Button size="sm" onClick={onEnterCredentials}>
+                {t('enterCredentials.button')}
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -1604,6 +1632,111 @@ function EmailChannelDialog({
   );
 }
 
+
+function EnterChannelCredentialsDialog({
+  channel,
+  onClose,
+  onDone,
+}: {
+  channel: EmailChannelDto;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const config = channel.config as { outbound?: { provider?: string }; inbound?: unknown };
+  const showSmtp = config.outbound?.provider === 'smtp';
+  const showImap = !!config.inbound;
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [imapPassword, setImapPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const canSubmit = (showSmtp ? smtpPassword.trim() : true) && (showImap ? imapPassword.trim() : true);
+
+  async function submit() {
+    setSaving(true);
+    setError(null);
+    try {
+      const secrets: Record<string, string> = {};
+      if (showSmtp && smtpPassword) secrets.smtpPassword = smtpPassword;
+      if (showImap && imapPassword) secrets.imapPassword = imapPassword;
+      const res = await api<{ ok: boolean; detail?: string; error?: string }>(
+        `/v1/conversations/channels/${channel.id}/credentials`,
+        { method: 'POST', body: JSON.stringify({ secrets }) },
+      );
+      if (res.ok) notify.success(t('enterCredentials.saved'));
+      else notify.info(t('enterCredentials.savedUntested', { error: res.error ?? '' }));
+      onDone();
+    } catch (err) {
+      setError(translate(err) || t('enterCredentials.error'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('enterCredentials.title')}</DialogTitle>
+          <DialogDescription>
+            {t('enterCredentials.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          {showSmtp && (
+            <FormField label={t('enterCredentials.smtpLabel')}>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={smtpPassword}
+                onChange={(e) => setSmtpPassword(e.target.value)}
+              />
+            </FormField>
+          )}
+          {showImap && (
+            <FormField label={t('enterCredentials.imapLabel')} error={error ?? undefined}>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={imapPassword}
+                onChange={(e) => setImapPassword(e.target.value)}
+              />
+            </FormField>
+          )}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={saving}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving || !canSubmit}
+              pending={saving}
+            >
+              {t('enterCredentials.submit')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function SendTestEmailDialog({
   channel,

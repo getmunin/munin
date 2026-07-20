@@ -3602,6 +3602,33 @@
     }
   },
   {
+    "name": "conv_request_channel_credentials",
+    "title": "Conv: Request a channel credential link",
+    "description": "Return a one-time link a human opens to enter an email channel’s secret credentials (SMTP/IMAP passwords) in the dashboard, so the secret is never pasted into a conversation. Create the channel first (the password may be omitted), then share this link. The link expires after 24 hours.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "conv_request_callback",
     "title": "Conv: Place a phone call to the user in this conversation",
     "description": "Place an outbound phone call to the contact in this conversation. Use this only when the user has asked to be called — e.g. \"can you call me?\". The call goes to the phone number already on file for this conversation's contact; you cannot specify an arbitrary number. The org must have an active Vapi voice channel configured. After requesting the call, tell the user briefly that a call is on the way and stop replying — the rest of the conversation happens on the phone.",

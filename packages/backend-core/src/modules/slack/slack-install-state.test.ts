@@ -4,7 +4,12 @@ import { verifyInstallState } from './slack.service.ts';
 
 const SECRET = 'test-client-secret';
 
-function makeState(state: { orgId: string; userId: string | null; exp: number }): string {
+function makeState(state: {
+  orgId: string;
+  userId: string | null;
+  exp: number;
+  nonce?: string;
+}): string {
   const payload = Buffer.from(JSON.stringify(state)).toString('base64url');
   return `${payload}.${signHmac(payload, SECRET)}`;
 }
@@ -14,6 +19,12 @@ describe('verifyInstallState', () => {
     const raw = makeState({ orgId: 'org_1', userId: 'usr_1', exp: Date.now() + 60_000 });
     const state = verifyInstallState(raw, SECRET);
     expect(state).toMatchObject({ orgId: 'org_1', userId: 'usr_1' });
+    expect(state?.nonce).toBeUndefined();
+  });
+
+  it('carries a session nonce through when present', () => {
+    const raw = makeState({ orgId: 'org_1', userId: 'usr_1', exp: Date.now() + 60_000, nonce: 'abc' });
+    expect(verifyInstallState(raw, SECRET)?.nonce).toBe('abc');
   });
 
   it('rejects an expired state', () => {

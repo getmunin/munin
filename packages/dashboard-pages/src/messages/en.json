@@ -1229,10 +1229,19 @@
         "failedSummary": "Couldn't reach {host}. No pages were imported. Your agent is still live — import later from Settings.",
         "retry": "Retry import"
       }
+    }
+  },
+  "integrations": {
+    "hero": {
+      "eyebrow": "Integrations",
+      "title": "Connect Munin to <em>the tools you already use</em>",
+      "lede": "Bring conversations into the surfaces your team and customers live in."
+    },
+    "operatorBridges": {
+      "title": "Operator bridges",
+      "blurb": "Triage and reply to conversations from your team's chat tool."
     },
     "slack": {
-      "sectionTitle": "Integrations",
-      "sectionBlurb": "Operator surfaces layered on top of your conversations.",
       "title": "Slack",
       "lede": "Mirror conversations into a Slack channel as threads and alert your team on handover requests. Replies to customers still go out over the conversation's original channel.",
       "notConfigured": "This deployment has no Slack app configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET on the backend — the agent skill \"Connect Slack for human handoff\" has the app manifest and steps.",
@@ -1248,18 +1257,6 @@
       "disconnect": "Disconnect",
       "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",
       "failedDeliveries": "{count} mirror deliveries failed in the last 24 hours."
-    }
-  },
-  "integrations": {
-    "hero": {
-      "eyebrow": "Integrations",
-      "title": "Connect Munin to <em>the tools you already use</em>",
-      "lede": "Bring conversations into the surfaces your team and customers live in."
-    },
-    "operatorBridges": {
-      "title": "Operator bridges",
-      "blurb": "Triage and reply to conversations from your team's chat tool.",
-      "empty": "Nothing connected yet."
     }
   },
   "assistants": {

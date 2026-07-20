@@ -5,12 +5,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
   decryptSecretSql,
   encryptSecretSql,
   getCurrentContext,
+  randomToken,
   setEncryptionKeySql,
   signHmac,
   verifyHmac,
@@ -28,6 +29,7 @@ export interface SlackRouteDto {
   slackChannelId: string;
   slackChannelName: string | null;
   purpose: string;
+  convChannelId: string | null;
   mention: string | null;
 }
 
@@ -43,6 +45,15 @@ export interface SlackIntegrationDto {
   updatedAt: string;
 }
 
+export interface SlackUserLinkDto {
+  id: string;
+  slackUserId: string;
+  userId: string;
+  userName: string | null;
+  userEmail: string;
+  createdAt: string;
+}
+
 export interface SlackStatusDto {
   /** Whether this deployment has a Slack app configured (env credentials). */
   appConfigured: boolean;
@@ -55,12 +66,33 @@ export interface SetRoutingInput {
   slackChannelId: string;
   purpose?: 'default' | 'escalations';
   mention?: string | null;
+  /** Source-channel override: conversations on this conv channel mirror here. */
+  convChannelId?: string | null;
 }
 
 interface InstallState {
   orgId: string;
   userId: string | null;
   exp: number;
+  /**
+   * Present when the install was started from a browser session (the
+   * dashboard). The callback requires a matching `slack_install_nonce`
+   * cookie, so leaking the URL is not enough to complete the install.
+   * Absent for MCP-minted URLs, which a human opens in a fresh browser with
+   * no cookie continuity — those rely on the short TTL and the
+   * team-mismatch guard in completeInstall.
+   */
+  nonce?: string;
+}
+
+/** Cookie set by the dashboard install endpoint; consumed by the callback. */
+export const SLACK_INSTALL_NONCE_COOKIE = 'slack_install_nonce';
+
+export interface InstallUrlResult {
+  url: string;
+  expiresAt: string;
+  /** Set only when bindToSession — the caller stores it in the nonce cookie. */
+  sessionNonce?: string;
 }
 
 export function slackOAuthRedirectUri(): string {
@@ -116,6 +148,7 @@ export function verifyInstallState(raw: unknown, secret: string): InstallState |
     orgId: state.orgId,
     userId: typeof state.userId === 'string' ? state.userId : null,
     exp: state.exp,
+    nonce: typeof state.nonce === 'string' ? state.nonce : undefined,
   };
 }
 
@@ -125,6 +158,7 @@ function toRouteDto(row: typeof schema.slackChannelRoutes.$inferSelect): SlackRo
     slackChannelId: row.slackChannelId,
     slackChannelName: row.slackChannelName,
     purpose: row.purpose,
+    convChannelId: row.convChannelId,
     mention: row.mention,
   };
 }
@@ -205,7 +239,7 @@ export class SlackService {
     };
   }
 
-  installUrl(): { url: string; expiresAt: string } {
+  installUrl(options: { bindToSession?: boolean } = {}): InstallUrlResult {
     const config = readSlackAppConfig();
     if (!config) {
       throw new BadRequestException(
@@ -216,24 +250,39 @@ export class SlackService {
     const actor = ctx.actor!;
     const userId = actor.type === 'user' ? actor.id : (actor.userId ?? null);
     const exp = Date.now() + INSTALL_STATE_TTL_MS;
-    const state = signInstallState({ orgId: actor.orgId, userId, exp }, config.clientSecret);
+    const sessionNonce = options.bindToSession ? randomToken(24) : undefined;
+    const state = signInstallState(
+      { orgId: actor.orgId, userId, exp, nonce: sessionNonce },
+      config.clientSecret,
+    );
     const url = new URL('https://slack.com/oauth/v2/authorize');
     url.searchParams.set('client_id', config.clientId);
     url.searchParams.set('scope', SLACK_BOT_SCOPES.join(','));
     url.searchParams.set('redirect_uri', slackOAuthRedirectUri());
     url.searchParams.set('state', state);
-    return { url: url.toString(), expiresAt: new Date(exp).toISOString() };
+    return { url: url.toString(), expiresAt: new Date(exp).toISOString(), sessionNonce };
   }
 
   /**
    * Public OAuth callback path — no tenant context; org + installer come from
    * the signed state minted by installUrl(). Runs on the service-role DB.
    */
-  async completeInstall(input: { code: string; state: string }): Promise<{ orgId: string }> {
+  async completeInstall(input: {
+    code: string;
+    state: string;
+    sessionNonce?: string | null;
+  }): Promise<{ orgId: string }> {
     const config = readSlackAppConfig();
     if (!config) throw new BadRequestException('slack_not_configured');
     const state = verifyInstallState(input.state, config.clientSecret);
     if (!state) throw new BadRequestException('slack_invalid_state');
+
+    // Session binding: a state minted from the dashboard carries a nonce and
+    // is only completable by the same browser (matching httpOnly cookie), so
+    // a leaked/intercepted install URL cannot be redeemed by anyone else.
+    if (state.nonce && state.nonce !== input.sessionNonce) {
+      throw new BadRequestException('slack_invalid_state');
+    }
 
     const install = await this.api.oauthAccess({
       clientId: config.clientId,
@@ -244,10 +293,19 @@ export class SlackService {
     const encryptedBotToken = await encryptSecretValue(this.db, install.botToken);
 
     const [existing] = await this.db
-      .select({ id: schema.slackIntegrations.id })
+      .select({ id: schema.slackIntegrations.id, teamId: schema.slackIntegrations.teamId })
       .from(schema.slackIntegrations)
       .where(eq(schema.slackIntegrations.orgId, state.orgId))
       .limit(1);
+
+    // Never silently repoint an existing workspace to a different one — that
+    // would redirect all mirrored customer conversations elsewhere. Switching
+    // workspaces requires an explicit slack_disconnect first.
+    if (existing && existing.teamId !== install.teamId) {
+      throw new ConflictException(
+        'slack_workspace_mismatch: this org is already connected to a different Slack workspace — disconnect it first, then reinstall',
+      );
+    }
 
     if (existing) {
       await this.db
@@ -281,6 +339,12 @@ export class SlackService {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const purpose = input.purpose ?? 'default';
+    const convChannelId = input.convChannelId ?? null;
+    if (convChannelId && purpose === 'escalations') {
+      throw new BadRequestException(
+        'slack_invalid_routing: escalations cannot be scoped to a source channel — omit convChannelId',
+      );
+    }
 
     const [integration] = await ctx.db
       .select()
@@ -291,6 +355,19 @@ export class SlackService {
       throw new NotFoundException(
         'slack_not_connected: no active Slack workspace for this org. Use slack_get_install_url first.',
       );
+    }
+
+    if (convChannelId) {
+      const [convChannel] = await ctx.db
+        .select({ id: schema.convChannels.id })
+        .from(schema.convChannels)
+        .where(and(eq(schema.convChannels.id, convChannelId), eq(schema.convChannels.orgId, orgId)))
+        .limit(1);
+      if (!convChannel) {
+        throw new BadRequestException(
+          `slack_conv_channel_not_found: ${convChannelId} is not a conversation channel in this org (see conv_list_channels)`,
+        );
+      }
     }
 
     const token = await decryptSecretValue(ctx.db, integration.encryptedBotToken);
@@ -306,38 +383,56 @@ export class SlackService {
       throw err;
     }
 
-    const [conflicting] = await this.db
-      .select({ orgId: schema.slackChannelRoutes.orgId })
-      .from(schema.slackChannelRoutes)
-      .where(
-        and(
-          eq(schema.slackChannelRoutes.teamId, integration.teamId),
-          eq(schema.slackChannelRoutes.slackChannelId, input.slackChannelId),
-          ne(schema.slackChannelRoutes.integrationId, integration.id),
-        ),
-      )
-      .limit(1);
-    if (conflicting) {
-      throw new ConflictException(
-        'slack_conflict: that Slack channel is already routed to a different Munin org — channels can only mirror one org',
-      );
-    }
-
     const [existing] = await ctx.db
       .select({ id: schema.slackChannelRoutes.id })
       .from(schema.slackChannelRoutes)
       .where(
         and(
           eq(schema.slackChannelRoutes.integrationId, integration.id),
-          eq(schema.slackChannelRoutes.purpose, purpose),
+          convChannelId
+            ? eq(schema.slackChannelRoutes.convChannelId, convChannelId)
+            : and(
+                eq(schema.slackChannelRoutes.purpose, purpose),
+                isNull(schema.slackChannelRoutes.convChannelId),
+              ),
         ),
       )
       .limit(1);
+
+    // One route row per Slack channel, globally: the (team, channel) unique
+    // index is both the multi-org invariant and what keeps thread→org
+    // resolution unambiguous. Pre-checked because a violation inside the
+    // request transaction would surface as a bare 500 at commit time.
+    const [conflicting] = await this.db
+      .select({
+        id: schema.slackChannelRoutes.id,
+        orgId: schema.slackChannelRoutes.orgId,
+        purpose: schema.slackChannelRoutes.purpose,
+      })
+      .from(schema.slackChannelRoutes)
+      .where(
+        and(
+          eq(schema.slackChannelRoutes.teamId, integration.teamId),
+          eq(schema.slackChannelRoutes.slackChannelId, channel.id),
+        ),
+      )
+      .limit(1);
+    if (conflicting && conflicting.id !== existing?.id) {
+      if (conflicting.orgId !== orgId) {
+        throw new ConflictException(
+          'slack_conflict: that Slack channel is already routed to a different Munin org — channels can only mirror one org',
+        );
+      }
+      throw new ConflictException(
+        `slack_conflict: that Slack channel is already used by this org's '${conflicting.purpose}' route — every route needs its own channel (escalations falls back to the default channel when unset)`,
+      );
+    }
 
     const values = {
       teamId: integration.teamId,
       slackChannelId: channel.id,
       slackChannelName: channel.name,
+      convChannelId,
       mention: input.mention ?? null,
       updatedAt: new Date(),
     };
@@ -405,6 +500,112 @@ export class SlackService {
       }
       throw err;
     }
+  }
+
+  async listUserLinks(): Promise<SlackUserLinkDto[]> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const rows = await ctx.db
+      .select({
+        id: schema.slackUserLinks.id,
+        slackUserId: schema.slackUserLinks.slackUserId,
+        userId: schema.slackUserLinks.userId,
+        userName: schema.users.name,
+        userEmail: schema.users.email,
+        createdAt: schema.slackUserLinks.createdAt,
+      })
+      .from(schema.slackUserLinks)
+      .innerJoin(schema.users, eq(schema.users.id, schema.slackUserLinks.userId))
+      .where(eq(schema.slackUserLinks.orgId, orgId));
+    return rows.map((row) => ({
+      id: row.id,
+      slackUserId: row.slackUserId,
+      userId: row.userId,
+      userName: row.userName,
+      userEmail: row.userEmail,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
+  async linkUser(input: { slackUserId: string; userId: string }): Promise<SlackUserLinkDto> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const [integration] = await ctx.db
+      .select({ id: schema.slackIntegrations.id })
+      .from(schema.slackIntegrations)
+      .where(and(eq(schema.slackIntegrations.orgId, orgId), eq(schema.slackIntegrations.active, true)))
+      .limit(1);
+    if (!integration) {
+      throw new NotFoundException('slack_not_connected: use slack_get_install_url first');
+    }
+
+    const [member] = await ctx.db
+      .select({ name: schema.users.name, email: schema.users.email })
+      .from(schema.users)
+      .innerJoin(schema.orgMembers, eq(schema.orgMembers.userId, schema.users.id))
+      .where(and(eq(schema.orgMembers.orgId, orgId), eq(schema.users.id, input.userId)))
+      .limit(1);
+    if (!member) {
+      throw new BadRequestException(
+        `slack_user_not_member: ${input.userId} is not a member of this org — invite them first`,
+      );
+    }
+
+    const [existing] = await ctx.db
+      .select({ id: schema.slackUserLinks.id })
+      .from(schema.slackUserLinks)
+      .where(
+        and(
+          eq(schema.slackUserLinks.integrationId, integration.id),
+          eq(schema.slackUserLinks.slackUserId, input.slackUserId),
+        ),
+      )
+      .limit(1);
+    let row;
+    if (existing) {
+      [row] = await ctx.db
+        .update(schema.slackUserLinks)
+        .set({ userId: input.userId, updatedAt: new Date() })
+        .where(eq(schema.slackUserLinks.id, existing.id))
+        .returning();
+    } else {
+      [row] = await ctx.db
+        .insert(schema.slackUserLinks)
+        .values({
+          orgId,
+          integrationId: integration.id,
+          slackUserId: input.slackUserId,
+          userId: input.userId,
+        })
+        .returning();
+    }
+    if (!row) throw new ConflictException('slack_user_link_write_failed');
+    return {
+      id: row.id,
+      slackUserId: row.slackUserId,
+      userId: row.userId,
+      userName: member.name,
+      userEmail: member.email,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  async unlinkUser(input: { slackUserId: string }): Promise<{ unlinked: true; slackUserId: string }> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const result = await ctx.db
+      .delete(schema.slackUserLinks)
+      .where(
+        and(
+          eq(schema.slackUserLinks.orgId, orgId),
+          eq(schema.slackUserLinks.slackUserId, input.slackUserId),
+        ),
+      )
+      .returning({ id: schema.slackUserLinks.id });
+    if (result.length === 0) {
+      throw new NotFoundException(`slack_user_link_not_found: ${input.slackUserId} is not linked`);
+    }
+    return { unlinked: true, slackUserId: input.slackUserId };
   }
 
   async disconnect(): Promise<{ disconnected: true; id: string }> {

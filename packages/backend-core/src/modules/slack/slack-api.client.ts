@@ -33,12 +33,20 @@ export interface SlackChannelInfo {
   isMember: boolean;
 }
 
+export interface SlackUserInfo {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  isBot: boolean;
+}
+
 @Injectable()
 export class SlackApiClient {
   async postMessage(input: {
     token: string;
     channel: string;
     text: string;
+    blocks?: unknown[];
     threadTs?: string;
   }): Promise<{ ts: string; channel: string }> {
     const data = await this.call('chat.postMessage', input.token, {
@@ -46,9 +54,57 @@ export class SlackApiClient {
       text: input.text,
       unfurl_links: false,
       unfurl_media: false,
+      ...(input.blocks ? { blocks: input.blocks } : {}),
       ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
     });
     return { ts: data.ts as string, channel: data.channel as string };
+  }
+
+  async updateMessage(input: {
+    token: string;
+    channel: string;
+    ts: string;
+    text: string;
+    blocks?: unknown[];
+  }): Promise<void> {
+    await this.call('chat.update', input.token, {
+      channel: input.channel,
+      ts: input.ts,
+      text: input.text,
+      ...(input.blocks ? { blocks: input.blocks } : {}),
+    });
+  }
+
+  async postEphemeral(input: {
+    token: string;
+    channel: string;
+    user: string;
+    text: string;
+    threadTs?: string;
+  }): Promise<void> {
+    await this.call('chat.postEphemeral', input.token, {
+      channel: input.channel,
+      user: input.user,
+      text: input.text,
+      ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
+    });
+  }
+
+  async usersInfo(input: { token: string; user: string }): Promise<SlackUserInfo> {
+    const data = await this.call('users.info', input.token, { user: input.user });
+    const user = data.user as Record<string, unknown> | undefined;
+    const profile = user?.profile as Record<string, unknown> | undefined;
+    const displayName =
+      (typeof profile?.display_name === 'string' && profile.display_name) ||
+      (typeof user?.real_name === 'string' && user.real_name) ||
+      (typeof user?.name === 'string' && user.name) ||
+      null;
+    return {
+      id: (user?.id as string) ?? input.user,
+      email: typeof profile?.email === 'string' ? profile.email : null,
+      displayName,
+      isBot: user?.is_bot === true,
+    };
   }
 
   async conversationsInfo(input: { token: string; channel: string }): Promise<SlackChannelInfo> {

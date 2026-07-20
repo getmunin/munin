@@ -18,11 +18,36 @@ export interface ConversationSnapshot {
   dashboardUrl: string;
 }
 
+export interface MessageAttachment {
+  name: string | null;
+  url: string | null;
+}
+
 export interface MessageSnapshot {
   authorKind: AuthorKind;
   authorName: string | null;
   internal: boolean;
   body: string;
+  attachments?: MessageAttachment[];
+}
+
+/**
+ * conv_messages.attachments is loosely-typed jsonb; read `{url, name}`-shaped
+ * entries best-effort and ignore the rest rather than assuming a schema.
+ */
+export function parseMessageAttachments(raw: unknown[]): MessageAttachment[] {
+  return raw.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null) return [];
+    const record = entry as Record<string, unknown>;
+    const url = typeof record.url === 'string' ? record.url : null;
+    const name =
+      typeof record.name === 'string'
+        ? record.name
+        : typeof record.filename === 'string'
+          ? record.filename
+          : null;
+    return url || name ? [{ name, url }] : [];
+  });
 }
 
 const MAX_BODY_CHARS = 2900;
@@ -79,8 +104,13 @@ export function messageText(msg: MessageSnapshot): string {
     .map((line) => `> ${line}`)
     .join('\n');
   const label = authorLabel(msg.authorKind, msg.authorName);
-  if (msg.internal) return `:lock: _Internal note_ — ${label}\n${quoted}`;
-  return `${label}\n${quoted}`;
+  const attachmentLines = (msg.attachments ?? []).map((a) => {
+    const name = escapeSlackText(a.name ?? 'attachment');
+    return a.url ? `:paperclip: <${a.url}|${name}>` : `:paperclip: ${name}`;
+  });
+  const suffix = attachmentLines.length > 0 ? `\n${attachmentLines.join('\n')}` : '';
+  if (msg.internal) return `:lock: _Internal note_ — ${label}\n${quoted}${suffix}`;
+  return `${label}\n${quoted}${suffix}`;
 }
 
 export function statusChangedText(status: string): string {
@@ -128,6 +158,60 @@ export function escalationAlertText(
   if (contact) lines.push(contact);
   lines.push(`<${conv.dashboardUrl}|Open in Munin>`);
   return lines.join('\n');
+}
+
+export interface ParentState {
+  status: string;
+  needsHumanAttention: boolean;
+  claimedBy: string | null;
+  assignedTo: string | null;
+}
+
+export interface SlackBlock {
+  type: string;
+  [key: string]: unknown;
+}
+
+export const CLAIM_ACTION_ID = 'munin_claim';
+export const CLOSE_ACTION_ID = 'munin_close';
+export const REOPEN_ACTION_ID = 'munin_reopen';
+
+export function parentStateLine(state: ParentState): string {
+  const parts = [`*Status:* ${escapeSlackText(state.status)}`];
+  if (state.claimedBy) parts.push(`claimed by *${escapeSlackText(state.claimedBy)}*`);
+  if (state.assignedTo) parts.push(`assigned to *${escapeSlackText(state.assignedTo)}*`);
+  if (state.needsHumanAttention) parts.push(':rotating_light: needs attention');
+  return parts.join(' · ');
+}
+
+function actionButton(actionId: string, label: string, value: string): Record<string, unknown> {
+  return {
+    type: 'button',
+    action_id: actionId,
+    text: { type: 'plain_text', text: label },
+    value,
+  };
+}
+
+export function threadParentBlocks(
+  conv: ConversationSnapshot,
+  state: ParentState,
+  conversationId: string,
+): SlackBlock[] {
+  const resolved = state.status === 'closed' || state.status === 'spam';
+  const buttons = resolved
+    ? [actionButton(REOPEN_ACTION_ID, 'Reopen', conversationId)]
+    : [
+        actionButton(CLAIM_ACTION_ID, 'Claim', conversationId),
+        actionButton(CLOSE_ACTION_ID, 'Close', conversationId),
+      ];
+  return [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `${threadParentText(conv)}\n${parentStateLine(state)}` },
+    },
+    { type: 'actions', elements: buttons },
+  ];
 }
 
 export function testMessageText(orgName: string | null): string {

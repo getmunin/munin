@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Hero } from '@getmunin/ui';
+import { SlackCard } from '../components/integrations/slack-card';
 
 /**
  * Integrations hub: third-party systems connected to Munin, grouped by who
@@ -26,7 +27,7 @@ export function IntegrationsPage() {
           <p className="mt-1 text-sm text-muted-foreground">{t('operatorBridges.blurb')}</p>
         </div>
         <div className="space-y-6">
-          <p className="text-sm text-muted-foreground">{t('operatorBridges.empty')}</p>
+          <SlackCard />
         </div>
       </section>
     </div>

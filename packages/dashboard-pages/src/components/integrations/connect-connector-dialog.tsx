@@ -5,22 +5,18 @@ import { useTranslations } from 'next-intl';
 import { Button, Dialog, DialogContent, Input, Label } from '@getmunin/ui';
 import { api } from '../../api';
 import { notify } from '../../lib/notify';
+import { dialogLabelClass } from '../../lib/dialog-style';
 import { useTranslateError } from '../../i18n/translate-error';
 import { VendorIcon, vendorPresentation } from './vendor-catalog';
+import { VendorFieldRow, type VendorField } from './vendor-field-row';
 
 export interface ConnectVendor {
   vendor: string;
   domain: string;
   displayName: string;
-  configFields: Array<{ key: string; label: string; required: boolean; secret?: boolean; placeholder?: string }>;
+  configFields: VendorField[];
 }
 
-/**
- * App Store product-page connect dialog (design 1d): vendor header + Read-only
- * pill, a left "what agents get" capability panel, and the config form on the
- * right. Secrets are entered inline (no link button); the one-time link stays
- * the agent path.
- */
 export function ConnectConnectorDialog({
   vendor,
   onClose,
@@ -72,10 +68,6 @@ export function ConnectConnectorDialog({
               {tc(`category.${present.categoryKey}`)}
             </span>
           </div>
-          <span className="inline-flex flex-none items-center gap-1.5 px-1.5 py-1 font-mono text-[9px] uppercase tracking-eyebrow text-ink shadow-[inset_0_0_0_0.5px_currentColor] dark:text-foreground">
-            <span className="size-[5px] rounded-full bg-current" />
-            {t('readOnly')}
-          </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[260px_1fr]">
@@ -97,20 +89,17 @@ export function ConnectConnectorDialog({
 
           <div className="flex flex-col gap-4 px-8 py-6">
             <div className="flex flex-col gap-1.5">
-              <Label>{t('name')}</Label>
+              <Label className={dialogLabelClass}>{t('name')}</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('namePlaceholder')} />
             </div>
             {vendor.configFields.map((f) => (
-              <div key={f.key} className="flex flex-col gap-1.5">
-                <Label>{f.label}</Label>
-                <Input
-                  type={f.secret ? 'password' : 'text'}
-                  autoComplete="off"
-                  value={values[f.key] ?? ''}
-                  placeholder={f.placeholder}
-                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                />
-              </div>
+              <VendorFieldRow
+                key={f.key}
+                vendor={vendor.vendor}
+                field={f}
+                value={values[f.key] ?? ''}
+                onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))}
+              />
             ))}
           </div>
         </div>

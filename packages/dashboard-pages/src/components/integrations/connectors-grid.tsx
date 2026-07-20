@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label } from '@getmunin/ui';
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@getmunin/ui';
 import { api } from '../../api';
 import { notify } from '../../lib/notify';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useConfirm } from '../confirm-dialog';
 import { CardSkeleton } from '../skeleton';
-import { CardGrid, IntegrationCard, SectionHeading, StatusPill } from './integration-card';
+import { CardGrid, IntegrationCard, SectionHeading, StatusLine } from './integration-card';
 import { ConnectConnectorDialog, type ConnectVendor } from './connect-connector-dialog';
+import { VendorFieldRow, type VendorField } from './vendor-field-row';
 import { vendorPresentation } from './vendor-catalog';
 
 type Vendor = ConnectVendor;
@@ -144,25 +145,22 @@ export function DataConnectionsSection() {
               vendor={conn.vendor}
               name={displayName}
               instance={conn.name}
-              category={tc(`category.${present.categoryKey}`)}
+              meta={<StatusLine tone={s.tone} label={s.label} />}
               description={tc(`description.${present.descriptionKey}`)}
               footer={
                 <>
-                  <StatusPill tone={s.tone} label={s.label} />
-                  <div className="flex gap-1.5">
-                    {conn.credentialState === 'pending' ? (
-                      <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setEnterFor(conn)} disabled={busyId === conn.id}>
-                        {t('enterCredentials')}
-                      </Button>
-                    ) : (
-                      <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void test(conn)} disabled={busyId === conn.id}>
-                        {t('test')}
-                      </Button>
-                    )}
-                    <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void remove(conn)} disabled={busyId === conn.id}>
-                      {t('delete')}
+                  {conn.credentialState === 'pending' ? (
+                    <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setEnterFor(conn)} disabled={busyId === conn.id}>
+                      {t('enterCredentials')}
                     </Button>
-                  </div>
+                  ) : (
+                    <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void test(conn)} disabled={busyId === conn.id}>
+                      {t('test')}
+                    </Button>
+                  )}
+                  <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void remove(conn)} disabled={busyId === conn.id}>
+                    {t('delete')}
+                  </Button>
                 </>
               }
             />
@@ -175,7 +173,6 @@ export function DataConnectionsSection() {
               key={v.vendor}
               vendor={v.vendor}
               name={v.displayName}
-              category={tc(`category.${present.categoryKey}`)}
               description={tc(`description.${present.descriptionKey}`)}
               footer={
                 <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setConnectVendor(v)}>
@@ -219,7 +216,7 @@ function EnterCredentialsDialog({
   onDone,
 }: {
   connection: Connection;
-  fields: Array<{ key: string; label: string; required: boolean; placeholder?: string }>;
+  fields: VendorField[];
   onClose: () => void;
   onDone: () => Promise<void>;
 }) {
@@ -256,16 +253,13 @@ function EnterCredentialsDialog({
         </DialogHeader>
         <div className="space-y-4">
           {fields.map((f) => (
-            <div key={f.key} className="space-y-1.5">
-              <Label>{f.label}</Label>
-              <Input
-                type="password"
-                autoComplete="off"
-                value={values[f.key] ?? ''}
-                placeholder={f.placeholder}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-              />
-            </div>
+            <VendorFieldRow
+              key={f.key}
+              vendor={connection.vendor}
+              field={f}
+              value={values[f.key] ?? ''}
+              onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))}
+            />
           ))}
         </div>
         <DialogFooter>

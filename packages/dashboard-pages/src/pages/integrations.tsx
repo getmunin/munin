@@ -5,11 +5,6 @@ import { Hero } from '@getmunin/ui';
 import { OperatorBridgesSection } from '../components/integrations/operator-bridges-grid';
 import { DataConnectionsSection } from '../components/integrations/connectors-grid';
 
-/**
- * Integrations hub (App Store layout): third-party systems grouped by who they
- * serve. Operator bridges (Slack) are where the team works; data connections
- * give agents read access to customers' systems of record.
- */
 export function IntegrationsPage() {
   const t = useTranslations('integrations');
 

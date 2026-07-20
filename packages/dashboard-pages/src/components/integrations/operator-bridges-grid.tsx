@@ -8,7 +8,8 @@ import { notify } from '../../lib/notify';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useConfirm } from '../confirm-dialog';
 import { CardSkeleton } from '../skeleton';
-import { CardGrid, IntegrationCard, SectionHeading, StatusPill } from './integration-card';
+import { CardGrid, IntegrationCard, SectionHeading, StatusLine } from './integration-card';
+import { dialogLabelClass } from '../../lib/dialog-style';
 
 interface SlackRouteDto {
   id: string;
@@ -114,26 +115,31 @@ export function OperatorBridgesSection() {
           vendor="slack"
           name="Slack"
           instance={status.connected ? workspace : undefined}
-          category={tc('category.chatBridge')}
+          meta={
+            !status.appConfigured ? (
+              <StatusLine tone="inactive" label={t('notConfiguredShort')} />
+            ) : status.connected ? (
+              <StatusLine tone="active" label={tConn('statusActive')} />
+            ) : undefined
+          }
           description={tc('description.slack')}
           footer={
             !status.appConfigured ? (
-              <span className="text-xs text-ink-mute">{t('notConfiguredShort')}</span>
+              <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" disabled>
+                {tConn('connect')}
+              </Button>
             ) : !status.connected ? (
               <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={connect} disabled={busy}>
                 {tConn('connect')}
               </Button>
             ) : (
               <>
-                <StatusPill tone="active" label={tConn('statusActive')} />
-                <div className="flex gap-1.5">
-                  <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setConfiguring(true)}>
-                    {t('configure')}
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void disconnect()} disabled={busy}>
-                    {tConn('delete')}
-                  </Button>
-                </div>
+                <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setConfiguring(true)}>
+                  {t('configure')}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void disconnect()} disabled={busy}>
+                  {tConn('delete')}
+                </Button>
               </>
             )
           }
@@ -211,7 +217,7 @@ function SlackConfigureDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="slackChannelId">{t('channelLabel')}</Label>
+            <Label className={dialogLabelClass} htmlFor="slackChannelId">{t('channelLabel')}</Label>
             <Input id="slackChannelId" value={channelId} onChange={(e) => setChannelId(e.target.value)} placeholder="C0123456789" />
             <p className="text-xs text-muted-foreground">{t('channelHint')}</p>
           </div>

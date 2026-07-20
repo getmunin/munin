@@ -1,23 +1,13 @@
 import type { ComponentType, SVGProps } from 'react';
-import { SlackMark, ShopifyMark } from './integration-vendor-logos';
+import { SlackMark, ShopifyMark, MagentoMark, GastroplannerMark } from './integration-vendor-logos';
 
 export interface VendorPresentation {
-  /** i18n key under integrations.catalog.category for the mono category label. */
   categoryKey: string;
-  /** i18n key under integrations.catalog.description for the card blurb. */
   descriptionKey: string;
-  /** i18n keys under integrations.catalog.capability for the "what agents get" list. */
   capabilityKeys: string[];
   Mark?: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
-/**
- * Presentation-only metadata (icon, category, blurb, capabilities) for the
- * integrations catalog, keyed by vendor id. The set of *available* vendors is
- * still driven by the backend (`/v1/connectors/vendors` + the Slack module);
- * this map only supplies copy and marks for the ones we know. Unknown vendors
- * fall back to a monogram tile and their displayName.
- */
 export const VENDOR_PRESENTATION: Record<string, VendorPresentation> = {
   slack: {
     categoryKey: 'chatBridge',
@@ -35,11 +25,13 @@ export const VENDOR_PRESENTATION: Record<string, VendorPresentation> = {
     categoryKey: 'commerce',
     descriptionKey: 'magento',
     capabilityKeys: ['ordersLookup', 'customersLookup'],
+    Mark: MagentoMark,
   },
   gastroplanner: {
     categoryKey: 'booking',
     descriptionKey: 'gastroplanner',
     capabilityKeys: ['bookingsLookup'],
+    Mark: GastroplannerMark,
   },
 };
 
@@ -53,7 +45,6 @@ const DOMAIN_CAPABILITIES: Record<string, string[]> = {
   bookings: ['bookingsLookup'],
 };
 
-/** Presentation for a vendor, with a domain-derived fallback for unknown vendors. */
 export function vendorPresentation(vendor: string, domain?: string): VendorPresentation {
   return (
     VENDOR_PRESENTATION[vendor] ?? {
@@ -64,7 +55,6 @@ export function vendorPresentation(vendor: string, domain?: string): VendorPrese
   );
 }
 
-/** 40×40 (or given size) icon tile: brand mark when known, else a monogram. */
 export function VendorIcon({
   vendor,
   label,

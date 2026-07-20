@@ -1343,6 +1343,50 @@
         "customersLookup": "Match a conversation to a store customer.",
         "bookingsLookup": "Find a guest's bookings and details."
       }
+    },
+    "field": {
+      "shopify": {
+        "shopDomain": {
+          "label": "Shop domain",
+          "hint": "Your permanent *.myshopify.com domain, not a custom storefront domain.",
+          "placeholder": "your-store.myshopify.com"
+        },
+        "accessToken": {
+          "label": "Admin API access token",
+          "hint": "A custom-app token (starts with shpat_) with read_orders + read_customers."
+        },
+        "apiVersion": {
+          "label": "API version",
+          "hint": "Optional — defaults to a current stable version."
+        }
+      },
+      "magento": {
+        "baseUrl": {
+          "label": "Store base URL",
+          "hint": "The storefront base URL, without the /rest suffix.",
+          "placeholder": "https://store.example.com"
+        },
+        "accessToken": {
+          "label": "Integration access token",
+          "hint": "An integration token with read access to Sales + Customers."
+        }
+      },
+      "gastroplanner": {
+        "apiToken": {
+          "label": "Partner API token",
+          "hint": "Issued by Gastroplanner support for your account."
+        },
+        "restaurantUri": {
+          "label": "Restaurant URI",
+          "hint": "The value sent as the X-RESTAURANT header for your venue.",
+          "placeholder": "my-restaurant"
+        },
+        "baseUrl": {
+          "label": "API base URL",
+          "hint": "Optional — defaults to https://api.gastroplanner.eu.",
+          "placeholder": "https://api.gastroplanner.eu"
+        }
+      }
     }
   },
   "credentialEntry": {

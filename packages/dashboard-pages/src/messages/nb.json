@@ -1280,7 +1280,7 @@
     },
     "operatorBridges": {
       "title": "Operatørbroer",
-      "subtitle": "Triager og svar fra medarbeidernes chatteverktøy"
+      "subtitle": "Håndter og svar fra medarbeidernes chatteverktøy"
     },
     "dataConnectors": {
       "title": "Datakoblinger",
@@ -1341,7 +1341,7 @@
         "connection": "Kobling"
       },
       "description": {
-        "slack": "Triager innboksen og svar uten å forlate arbeidsområdet.",
+        "slack": "Håndter innboksen og svar uten å forlate arbeidsområdet.",
         "shopify": "Ordrer, kunder og leveringer — lest på vegne av en kunde.",
         "magento": "Les ordrer og kunder fra Magento-butikken din.",
         "gastroplanner": "Finn, bekreft og slå opp restaurantbookinger.",
@@ -1353,6 +1353,50 @@
         "ordersLookup": "Slå opp en kundes ordrer og status.",
         "customersLookup": "Koble en samtale til en butikkunde.",
         "bookingsLookup": "Finn en gjests bookinger og detaljer."
+      }
+    },
+    "field": {
+      "shopify": {
+        "shopDomain": {
+          "label": "Butikkdomene",
+          "hint": "Ditt permanente *.myshopify.com-domene, ikke et egendefinert domene.",
+          "placeholder": "din-butikk.myshopify.com"
+        },
+        "accessToken": {
+          "label": "Admin API-token",
+          "hint": "En token fra en egendefinert app (starter med shpat_) med read_orders + read_customers."
+        },
+        "apiVersion": {
+          "label": "API-versjon",
+          "hint": "Valgfritt — bruker en gjeldende stabil versjon som standard."
+        }
+      },
+      "magento": {
+        "baseUrl": {
+          "label": "Butikkens URL",
+          "hint": "Butikkens grunn-URL, uten /rest-suffiks.",
+          "placeholder": "https://butikk.eksempel.no"
+        },
+        "accessToken": {
+          "label": "Integrasjonstoken",
+          "hint": "En integrasjonstoken med lesetilgang til Sales + Customers."
+        }
+      },
+      "gastroplanner": {
+        "apiToken": {
+          "label": "Partner API-token",
+          "hint": "Utstedes av Gastroplanner-support for kontoen din."
+        },
+        "restaurantUri": {
+          "label": "Restaurant-URI",
+          "hint": "Verdien som sendes som X-RESTAURANT-header for stedet ditt.",
+          "placeholder": "min-restaurant"
+        },
+        "baseUrl": {
+          "label": "API-URL",
+          "hint": "Valgfritt — bruker https://api.gastroplanner.eu som standard.",
+          "placeholder": "https://api.gastroplanner.eu"
+        }
       }
     }
   },

@@ -1252,8 +1252,7 @@
     },
     "operatorBridges": {
       "title": "Operator bridges",
-      "blurb": "Triage and reply to conversations from your team's chat tool.",
-      "empty": "Nothing connected yet."
+      "subtitle": "Triage & reply from your team's chat tools"
     },
     "slack": {
       "title": "Slack",
@@ -1273,15 +1272,12 @@
       "failedDeliveries": "{count} mirror deliveries failed in the last 24 hours."
     },
     "dataConnectors": {
-      "title": "Data connectors",
-      "blurb": "Let agents answer from customers' own systems of record — orders, bookings — read live, never copied into Munin."
+      "title": "Data connections",
+      "subtitle": "Read directly — never copied into Munin"
     },
     "connectors": {
       "title": "Connections",
       "lede": "Connected commerce and booking systems agents can look up on a customer's behalf.",
-      "add": "Add connector",
-      "empty": "No connectors yet.",
-      "vendor": "System",
       "name": "Name",
       "namePlaceholder": "e.g. Main store",
       "create": "Connect",
@@ -1299,7 +1295,54 @@
       "statusActive": "Active",
       "statusPending": "Awaiting credentials",
       "statusError": "Test failed",
-      "statusInactive": "Inactive"
+      "statusInactive": "Inactive",
+      "connect": "Connect",
+      "connectVendor": "Connect {vendor}",
+      "readOnly": "Read-only",
+      "whatAgentsGet": "What agents get",
+      "readLive": "Read directly — never copied into Munin.",
+      "connectedCount": "{count} connected"
+    },
+    "slack": {
+      "title": "Slack",
+      "lede": "Mirror conversations into a Slack channel as threads and alert your team on handover requests. Replies to customers still go out over the conversation's original channel.",
+      "notConfigured": "This deployment has no Slack app configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET on the backend — the agent skill \"Connect Slack for human handoff\" has the app manifest and steps.",
+      "connect": "Connect Slack",
+      "connectedTo": "Connected to {workspace}.",
+      "channelLabel": "Default channel ID",
+      "channelHint": "The Slack channel conversations mirror into (channel details → About → Channel ID, e.g. C0123456789).",
+      "saveRouting": "Save channel",
+      "routingSaved": "Slack channel saved",
+      "inviteBot": "The bot is not in that channel yet — run /invite @Munin in Slack, then send a test.",
+      "sendTest": "Send test message",
+      "testSent": "Test message sent",
+      "disconnect": "Disconnect",
+      "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",
+      "failedDeliveries": "{count} mirror deliveries failed in the last 24 hours.",
+      "configure": "Configure",
+      "notConfiguredShort": "Slack app not configured"
+    },
+    "catalog": {
+      "category": {
+        "chatBridge": "Chat · Bridge",
+        "commerce": "Commerce",
+        "booking": "Booking",
+        "connection": "Connection"
+      },
+      "description": {
+        "slack": "Triage the inbox and reply without leaving your workspace.",
+        "shopify": "Orders, customers, and fulfillment — read on behalf of a customer.",
+        "magento": "Read orders and customers from your Magento store.",
+        "gastroplanner": "Find, confirm, and look up restaurant bookings.",
+        "generic": "Read directly on behalf of a customer."
+      },
+      "capability": {
+        "slackMirror": "Mirror conversations into Slack threads.",
+        "slackReply": "Reply to customers from the thread.",
+        "ordersLookup": "Look up a customer's orders and status.",
+        "customersLookup": "Match a conversation to a store customer.",
+        "bookingsLookup": "Find a guest's bookings and details."
+      }
     }
   },
   "credentialEntry": {

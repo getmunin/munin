@@ -1280,19 +1280,15 @@
     },
     "operatorBridges": {
       "title": "Operatørbroer",
-      "blurb": "Triager og svar på samtaler fra medarbeidernes chatteverktøy.",
-      "empty": "Ingenting tilkoblet ennå."
+      "subtitle": "Triager og svar fra medarbeidernes chatteverktøy"
     },
     "dataConnectors": {
       "title": "Datakoblinger",
-      "blurb": "La agenter svare ut fra kundenes egne fagsystemer — ordrer, bookinger — lest direkte, aldri kopiert inn i Munin."
+      "subtitle": "Leses direkte — aldri kopiert inn i Munin"
     },
     "connectors": {
       "title": "Koblinger",
       "lede": "Tilkoblede handels- og bookingsystemer agenter kan slå opp i på vegne av en kunde.",
-      "add": "Legg til kobling",
-      "empty": "Ingen koblinger ennå.",
-      "vendor": "System",
       "name": "Navn",
       "namePlaceholder": "f.eks. Hovedbutikk",
       "create": "Koble til",
@@ -1310,7 +1306,54 @@
       "statusActive": "Aktiv",
       "statusPending": "Venter på tilgang",
       "statusError": "Test feilet",
-      "statusInactive": "Inaktiv"
+      "statusInactive": "Inaktiv",
+      "connect": "Koble til",
+      "connectVendor": "Koble til {vendor}",
+      "readOnly": "Skrivebeskyttet",
+      "whatAgentsGet": "Hva agenter får",
+      "readLive": "Leses direkte — aldri kopiert inn i Munin.",
+      "connectedCount": "{count} tilkoblet"
+    },
+    "slack": {
+      "title": "Slack",
+      "lede": "Speil samtaler inn i en Slack-kanal som tråder og varsle teamet ved eskaleringer. Svar til kunden går fortsatt ut via samtalens opprinnelige kanal.",
+      "notConfigured": "Denne installasjonen har ingen Slack-app konfigurert. Sett SLACK_CLIENT_ID og SLACK_CLIENT_SECRET på backenden — agentferdigheten «Connect Slack for human handoff» har app-manifestet og stegene.",
+      "connect": "Koble til Slack",
+      "connectedTo": "Koblet til {workspace}.",
+      "channelLabel": "Standard kanal-ID",
+      "channelHint": "Slack-kanalen samtaler speiles inn i (kanaldetaljer → Om → Kanal-ID, f.eks. C0123456789).",
+      "saveRouting": "Lagre kanal",
+      "routingSaved": "Slack-kanal lagret",
+      "inviteBot": "Boten er ikke i kanalen ennå — kjør /invite @Munin i Slack, og send deretter en test.",
+      "sendTest": "Send testmelding",
+      "testSent": "Testmelding sendt",
+      "disconnect": "Koble fra",
+      "disconnectConfirm": "Koble fra Slack? Trådkoblinger og ruting slettes; samtalene i Munin påvirkes ikke.",
+      "failedDeliveries": "{count} speilinger feilet siste 24 timer.",
+      "configure": "Konfigurer",
+      "notConfiguredShort": "Slack-app ikke konfigurert"
+    },
+    "catalog": {
+      "category": {
+        "chatBridge": "Chat · Bro",
+        "commerce": "Handel",
+        "booking": "Booking",
+        "connection": "Kobling"
+      },
+      "description": {
+        "slack": "Triager innboksen og svar uten å forlate arbeidsområdet.",
+        "shopify": "Ordrer, kunder og leveringer — lest på vegne av en kunde.",
+        "magento": "Les ordrer og kunder fra Magento-butikken din.",
+        "gastroplanner": "Finn, bekreft og slå opp restaurantbookinger.",
+        "generic": "Leses direkte på vegne av en kunde."
+      },
+      "capability": {
+        "slackMirror": "Speil samtaler inn i Slack-tråder.",
+        "slackReply": "Svar kunder fra tråden.",
+        "ordersLookup": "Slå opp en kundes ordrer og status.",
+        "customersLookup": "Koble en samtale til en butikkunde.",
+        "bookingsLookup": "Finn en gjests bookinger og detaljer."
+      }
     }
   },
   "credentialEntry": {

@@ -38,6 +38,10 @@ const ImportBody = z.object({
             blackoutDates: z.array(z.string()).optional(),
           })
           .default({}),
+        sequenceSteps: z
+          .array(z.object({ waitDays: z.number().int().min(1).max(90), brief: z.string().min(1).max(2000) }))
+          .max(5)
+          .default([]),
         ctaUrl: z.string().nullable().optional(),
         autoDraftInitial: z.boolean().default(false),
         autoDraftReplies: z.boolean().default(true),
@@ -51,6 +55,7 @@ const ImportBody = z.object({
         contactId: z.string(),
         conversationId: z.string().nullable().optional(),
         kind: z.enum(PROPOSAL_KINDS),
+        sequenceStep: z.number().int().min(1).max(5).nullable().optional(),
         draftSubject: z.string().nullable().optional(),
         draftBody: z.string().min(1),
         evidence: z.record(z.string(), z.unknown()).default({}),
@@ -83,6 +88,7 @@ export class OutreachTransferController {
       proposals: parsed.data.records.proposals.map((p) => ({
         ...p,
         conversationId: p.conversationId ?? null,
+        sequenceStep: p.sequenceStep ?? null,
         draftSubject: p.draftSubject ?? null,
         proposedSendAt: p.proposedSendAt ?? null,
       })),

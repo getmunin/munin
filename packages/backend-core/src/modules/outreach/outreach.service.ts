@@ -26,7 +26,7 @@ export class OutreachInvalidError extends Error {
   }
 }
 
-export const PROPOSAL_KINDS = ['initial', 'reply'] as const;
+export const PROPOSAL_KINDS = ['initial', 'reply', 'followup'] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
 export const PROPOSAL_STATUSES = ['pending', 'approved', 'sent', 'failed', 'dismissed'] as const;
@@ -39,6 +39,22 @@ export interface CadenceRules {
   blackoutDates?: string[];
 }
 
+export interface SequenceStep {
+  waitDays: number;
+  brief: string;
+}
+
+export interface DueFollowupDto {
+  campaignId: string;
+  campaignName: string;
+  contactId: string;
+  conversationId: string;
+  nextStep: number;
+  stepBrief: string;
+  waitDays: number;
+  lastSentAt: string;
+}
+
 export interface CampaignDto {
   id: string;
   name: string;
@@ -46,6 +62,7 @@ export interface CampaignDto {
   segmentId: string;
   channelId: string;
   cadenceRules: CadenceRules;
+  sequenceSteps: SequenceStep[];
   ctaUrl: string | null;
   enabled: boolean;
   autoDraftInitial: boolean;
@@ -73,6 +90,7 @@ export interface ProposalDto {
   contactId: string;
   conversationId: string | null;
   kind: ProposalKind;
+  sequenceStep: number | null;
   draftSubject: string | null;
   draftBody: string;
   evidence: Record<string, unknown>;
@@ -100,6 +118,7 @@ export interface OutreachCampaignExport {
   segmentId: string;
   channelId: string;
   cadenceRules: CadenceRules;
+  sequenceSteps: SequenceStep[];
   ctaUrl: string | null;
   autoDraftInitial: boolean;
   autoDraftReplies: boolean;
@@ -112,6 +131,7 @@ export interface OutreachProposalExport {
   contactId: string;
   conversationId: string | null;
   kind: ProposalKind;
+  sequenceStep: number | null;
   draftSubject: string | null;
   draftBody: string;
   evidence: Record<string, unknown>;
@@ -163,6 +183,7 @@ export class OutreachService {
     segmentId: string;
     channelId: string;
     cadenceRules?: CadenceRules;
+    sequenceSteps?: SequenceStep[];
     ctaUrl?: string | null;
     enabled?: boolean;
     autoDraftInitial?: boolean;
@@ -175,7 +196,12 @@ export class OutreachService {
     if (!input.brief.trim()) throw new OutreachInvalidError('brief must be non-empty');
     // Validate FK targets in this org.
     await this.assertSegmentExists(input.segmentId);
-    await this.loadOutreachChannel(input.channelId);
+    const channel = await this.loadOutreachChannel(input.channelId);
+    if (input.sequenceSteps?.length && channel.type !== 'email') {
+      throw new OutreachInvalidError(
+        'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
+      );
+    }
     try {
       const [row] = await ctx.db
         .insert(schema.outreachCampaigns)
@@ -186,6 +212,7 @@ export class OutreachService {
           segmentId: input.segmentId,
           channelId: input.channelId,
           cadenceRules: input.cadenceRules ?? {},
+          sequenceSteps: input.sequenceSteps ?? [],
           ctaUrl: input.ctaUrl ?? null,
           enabled: input.enabled ?? false,
           autoDraftInitial: input.autoDraftInitial ?? false,
@@ -212,6 +239,7 @@ export class OutreachService {
       segmentId: string;
       channelId: string;
       cadenceRules: CadenceRules;
+      sequenceSteps: SequenceStep[];
       ctaUrl: string | null;
       enabled: boolean;
       autoDraftInitial: boolean;
@@ -222,6 +250,18 @@ export class OutreachService {
     const ctx = getCurrentContext();
     if (input.patch.segmentId) await this.assertSegmentExists(input.patch.segmentId);
     if (input.patch.channelId) await this.loadOutreachChannel(input.patch.channelId);
+    if (input.patch.sequenceSteps?.length || input.patch.channelId) {
+      const current = await this.getCampaign(input.id);
+      const steps = input.patch.sequenceSteps ?? current.sequenceSteps;
+      if (steps.length > 0) {
+        const channel = await this.loadOutreachChannel(input.patch.channelId ?? current.channelId);
+        if (channel.type !== 'email') {
+          throw new OutreachInvalidError(
+            'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
+          );
+        }
+      }
+    }
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     for (const [k, v] of Object.entries(input.patch)) {
       if (v !== undefined) updates[k] = v;
@@ -486,6 +526,158 @@ export class OutreachService {
     }
   }
 
+  async proposeFollowup(input: {
+    conversationId: string;
+    step: number;
+    draftBody: string;
+    evidence?: Record<string, unknown>;
+  }): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!input.draftBody.trim()) throw new OutreachInvalidError('draftBody must be non-empty');
+    const conv = await this.conv.getConversation(input.conversationId);
+    if (!conv.outreachCampaignId) {
+      throw new OutreachInvalidError(
+        `conversation ${input.conversationId} is not outreach-originated (no campaign attached)`,
+      );
+    }
+    const campaign = await this.getCampaign(conv.outreachCampaignId);
+    const channel = await this.loadOutreachChannel(campaign.channelId);
+    if (channel.type !== 'email') {
+      throw new OutreachInvalidError(
+        `follow-ups are only supported on email campaigns; this conversation is on ${channel.type}:${channel.vendor}`,
+      );
+    }
+    if (!campaign.enabled) {
+      throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
+    }
+    const anchor = await this.findSequenceAnchor(input.conversationId);
+    if (!anchor) {
+      throw new OutreachInvalidError(
+        `conversation ${input.conversationId} has no sent initial — nothing to follow up on`,
+      );
+    }
+    const lastStep = anchor.kind === 'followup' ? (anchor.sequenceStep ?? 0) : 0;
+    if (input.step !== lastStep + 1) {
+      throw new OutreachInvalidError(
+        `step ${input.step} is out of order — the next step for this conversation is ${lastStep + 1}`,
+      );
+    }
+    const stepDef = campaign.sequenceSteps[input.step - 1];
+    if (!stepDef) {
+      throw new OutreachInvalidError(
+        `campaign ${campaign.id} has no sequence step ${input.step} (${campaign.sequenceSteps.length} defined)`,
+      );
+    }
+    const dueAt = new Date(anchor.sentAt.getTime() + stepDef.waitDays * 24 * 60 * 60 * 1000);
+    if (dueAt > new Date()) {
+      throw new OutreachInvalidError(
+        `step ${input.step} is not due until ${dueAt.toISOString()} (waitDays: ${stepDef.waitDays})`,
+      );
+    }
+    const [inbound] = await ctx.db
+      .select({ id: schema.convMessages.id })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, input.conversationId),
+          eq(schema.convMessages.authorType, 'end_user'),
+        ),
+      )
+      .limit(1);
+    if (inbound) {
+      throw new ConflictException(
+        `outreach_conflict: the prospect has replied — the sequence is stopped and the reply flow owns this conversation`,
+      );
+    }
+    const [dismissed] = await ctx.db
+      .select({ id: schema.outreachProposals.id })
+      .from(schema.outreachProposals)
+      .where(
+        and(
+          eq(schema.outreachProposals.campaignId, campaign.id),
+          eq(schema.outreachProposals.contactId, anchor.contactId),
+          eq(schema.outreachProposals.kind, 'followup'),
+          eq(schema.outreachProposals.status, 'dismissed'),
+          eq(schema.outreachProposals.sequenceStep, input.step),
+        ),
+      )
+      .limit(1);
+    if (dismissed) {
+      throw new ConflictException(
+        `outreach_conflict: step ${input.step} was dismissed — the sequence is stopped for this contact`,
+      );
+    }
+    const [queued] = await ctx.db
+      .select({ id: schema.outreachProposals.id, kind: schema.outreachProposals.kind })
+      .from(schema.outreachProposals)
+      .where(
+        and(
+          eq(schema.outreachProposals.campaignId, campaign.id),
+          eq(schema.outreachProposals.contactId, anchor.contactId),
+          eq(schema.outreachProposals.status, 'pending'),
+          inArray(schema.outreachProposals.kind, ['followup', 'reply']),
+        ),
+      )
+      .limit(1);
+    if (queued) {
+      throw new ConflictException(
+        `outreach_conflict: a pending ${queued.kind} proposal already exists for this contact`,
+      );
+    }
+    const contact = await this.crm.getContact(anchor.contactId).catch((err) => {
+      if (err instanceof CrmInvalidError) throw new OutreachInvalidError(err.message);
+      throw err;
+    });
+    if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
+      throw new OutreachInvalidError(
+        `contact ${anchor.contactId} is suppressed or has no recorded lawful basis`,
+      );
+    }
+    try {
+      const [row] = await ctx.db
+        .insert(schema.outreachProposals)
+        .values({
+          orgId: actor.orgId,
+          campaignId: campaign.id,
+          contactId: anchor.contactId,
+          conversationId: input.conversationId,
+          kind: 'followup',
+          sequenceStep: input.step,
+          draftSubject: null,
+          draftBody: input.draftBody,
+          evidence: input.evidence ?? {},
+          status: 'pending',
+          proposedByActorType: actor.type,
+          proposedByActorId: actor.id,
+        })
+        .returning();
+      await this.webhooks.emit({
+        type: 'outreach.proposal.created',
+        payload: {
+          proposalId: row!.id,
+          campaignId: row!.campaignId,
+          contactId: row!.contactId,
+          conversationId: row!.conversationId,
+          kind: row!.kind,
+          sequenceStep: row!.sequenceStep,
+        },
+      });
+      return toProposalDto(
+        row!,
+        { id: contact.id, name: contact.name, email: contact.email, companyId: contact.companyId },
+        { id: campaign.id, name: campaign.name },
+      );
+    } catch (err) {
+      if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
+        throw new ConflictException(
+          `outreach_conflict: a pending follow-up proposal already exists for (campaign, contact)`,
+        );
+      }
+      throw err;
+    }
+  }
+
   async approveProposal(id: string, opts: { publicBaseUrl: string }): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -495,6 +687,9 @@ export class OutreachService {
     }
     if (proposal.kind === 'initial') {
       return this.approveInitial(proposal, actor, opts);
+    }
+    if (proposal.kind === 'followup') {
+      return this.approveFollowup(proposal, actor);
     }
     return this.approveReply(proposal, actor);
   }
@@ -830,6 +1025,82 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign);
   }
 
+  private async approveFollowup(
+    proposal: ProposalDto,
+    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    if (!proposal.conversationId) {
+      throw new OutreachInvalidError(
+        `follow-up proposal ${proposal.id} has no conversationId — cannot send`,
+      );
+    }
+    const campaign = await this.getCampaign(proposal.campaignId);
+    if (!campaign.enabled) {
+      throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
+    }
+    const contact = await this.crm.getContact(proposal.contactId);
+    if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
+      throw new OutreachInvalidError(
+        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
+      );
+    }
+    const [inbound] = await ctx.db
+      .select({ id: schema.convMessages.id })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, proposal.conversationId),
+          eq(schema.convMessages.authorType, 'end_user'),
+        ),
+      )
+      .limit(1);
+    if (inbound) {
+      throw new OutreachInvalidError(
+        `the prospect replied after this follow-up was drafted — dismiss it; the reply flow owns this conversation now`,
+      );
+    }
+    const sent = await this.conv.sendMessage({
+      conversationId: proposal.conversationId,
+      body: proposal.draftBody,
+      authorType: 'agent',
+      authorId: actor.id,
+    });
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'sent',
+        sentMessageId: sent.id,
+        sentAt: new Date(),
+        decidedByActorType: actor.type,
+        decidedByActorId: actor.id,
+        decidedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.crmContacts.id, proposal.contactId));
+
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: proposal.campaignId,
+        contactId: proposal.contactId,
+        conversationId: proposal.conversationId,
+        messageId: sent.id,
+        sequenceStep: proposal.sequenceStep,
+      },
+    });
+
+    return toProposalDto(updated!, proposal.contact, proposal.campaign);
+  }
+
   async updateProposal(input: {
     id: string;
     draftSubject?: string | null;
@@ -893,6 +1164,119 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign);
   }
 
+  // ─── Sequences ──────────────────────────────────────────────────────────
+
+  async listDueFollowups(input: { campaignId?: string; limit?: number }): Promise<DueFollowupDto[]> {
+    const ctx = getCurrentContext();
+    const limit = clampLimit(input.limit, 50, 200);
+    const campaignFilter = input.campaignId
+      ? sql`AND a.campaign_id = ${input.campaignId}`
+      : sql``;
+    const rows = await ctx.db.execute<{
+      campaign_id: string;
+      campaign_name: string;
+      contact_id: string;
+      conversation_id: string;
+      next_step: number;
+      step_brief: string;
+      wait_days: number;
+      last_sent_at: Date;
+    }>(sql`
+      WITH anchors AS (
+        SELECT DISTINCT ON (p.conversation_id)
+               p.campaign_id, p.contact_id, p.conversation_id,
+               p.sent_at AS last_sent_at,
+               CASE WHEN p.kind = 'followup' THEN p.sequence_step ELSE 0 END AS last_step
+        FROM outreach_proposals p
+        WHERE p.status = 'sent'
+          AND p.kind IN ('initial', 'followup')
+          AND p.conversation_id IS NOT NULL
+        ORDER BY p.conversation_id, p.sent_at DESC
+      )
+      SELECT a.campaign_id, c.name AS campaign_name, a.contact_id, a.conversation_id,
+             a.last_step + 1                                       AS next_step,
+             c.sequence_steps -> a.last_step ->> 'brief'           AS step_brief,
+             (c.sequence_steps -> a.last_step ->> 'waitDays')::int AS wait_days,
+             a.last_sent_at
+      FROM anchors a
+      JOIN outreach_campaigns c
+        ON c.id = a.campaign_id
+       AND c.enabled = true
+       AND jsonb_array_length(c.sequence_steps) > a.last_step
+      JOIN conv_conversations cv
+        ON cv.id = a.conversation_id
+       AND cv.status = 'open'
+       AND cv.assignee_user_id IS NULL
+      JOIN crm_contacts ct
+        ON ct.id = a.contact_id
+       AND ct.do_not_contact = false
+       AND ct.unsubscribed_at IS NULL
+       AND ct.consent_lawful_basis IS NOT NULL
+      WHERE a.last_sent_at
+            + make_interval(days => (c.sequence_steps -> a.last_step ->> 'waitDays')::int)
+            <= now()
+        ${campaignFilter}
+        AND NOT EXISTS (
+          SELECT 1 FROM conv_messages m
+          WHERE m.conversation_id = a.conversation_id AND m.author_type = 'end_user')
+        AND NOT EXISTS (
+          SELECT 1 FROM outreach_proposals q
+          WHERE q.campaign_id = a.campaign_id AND q.contact_id = a.contact_id
+            AND q.status = 'pending' AND q.kind IN ('followup', 'reply'))
+        AND NOT EXISTS (
+          SELECT 1 FROM outreach_proposals d
+          WHERE d.campaign_id = a.campaign_id AND d.contact_id = a.contact_id
+            AND d.kind = 'followup' AND d.status = 'dismissed'
+            AND d.sequence_step = a.last_step + 1)
+      ORDER BY a.last_sent_at ASC
+      LIMIT ${limit}
+    `);
+    return [...rows].map((r) => ({
+      campaignId: r.campaign_id,
+      campaignName: r.campaign_name,
+      contactId: r.contact_id,
+      conversationId: r.conversation_id,
+      nextStep: r.next_step,
+      stepBrief: r.step_brief,
+      waitDays: r.wait_days,
+      lastSentAt: new Date(r.last_sent_at).toISOString(),
+    }));
+  }
+
+  private async findSequenceAnchor(conversationId: string): Promise<{
+    kind: ProposalKind;
+    sequenceStep: number | null;
+    sentAt: Date;
+    contactId: string;
+  } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({
+        kind: schema.outreachProposals.kind,
+        sequenceStep: schema.outreachProposals.sequenceStep,
+        sentAt: schema.outreachProposals.sentAt,
+        contactId: schema.outreachProposals.contactId,
+      })
+      .from(schema.outreachProposals)
+      .where(
+        and(
+          eq(schema.outreachProposals.conversationId, conversationId),
+          eq(schema.outreachProposals.status, 'sent'),
+          inArray(schema.outreachProposals.kind, ['initial', 'followup']),
+        ),
+      )
+      .orderBy(desc(schema.outreachProposals.sentAt))
+      .limit(1);
+    const row = rows[0];
+    if (!row || !row.sentAt) return null;
+    return {
+      kind: row.kind as ProposalKind,
+      sequenceStep: row.sequenceStep,
+      sentAt: row.sentAt,
+      contactId: row.contactId,
+    };
+  }
+
   // ─── Internal helpers ───────────────────────────────────────────────────
 
   private async assertSegmentExists(segmentId: string): Promise<void> {
@@ -939,6 +1323,7 @@ export class OutreachService {
         segmentId: c.segmentId,
         channelId: c.channelId,
         cadenceRules: c.cadenceRules,
+        sequenceSteps: c.sequenceSteps,
         ctaUrl: c.ctaUrl,
         autoDraftInitial: c.autoDraftInitial,
         autoDraftReplies: c.autoDraftReplies,
@@ -950,6 +1335,7 @@ export class OutreachService {
         contactId: p.contactId,
         conversationId: p.conversationId,
         kind: p.kind as ProposalKind,
+        sequenceStep: p.sequenceStep,
         draftSubject: p.draftSubject,
         draftBody: p.draftBody,
         evidence: p.evidence,
@@ -987,6 +1373,7 @@ export class OutreachService {
         segmentId,
         channelId,
         cadenceRules: campaign.cadenceRules,
+        sequenceSteps: campaign.sequenceSteps,
         ctaUrl: campaign.ctaUrl,
         enabled: false,
         autoDraftInitial: campaign.autoDraftInitial,
@@ -1010,7 +1397,12 @@ export class OutreachService {
         result.skipped++;
         continue;
       }
-      const existing = await this.findProposalByKey(campaignId, contactId, proposal.kind);
+      const existing = await this.findProposalByKey(
+        campaignId,
+        contactId,
+        proposal.kind,
+        proposal.sequenceStep,
+      );
       if (existing) {
         result.idMap[proposal.id] = existing.id;
         result.skipped++;
@@ -1025,6 +1417,7 @@ export class OutreachService {
           contactId,
           conversationId,
           kind: proposal.kind,
+          sequenceStep: proposal.sequenceStep ?? null,
           draftSubject: proposal.draftSubject,
           draftBody: proposal.draftBody,
           evidence: proposal.evidence,
@@ -1057,18 +1450,21 @@ export class OutreachService {
     campaignId: string,
     contactId: string,
     kind: ProposalKind,
+    sequenceStep?: number | null,
   ): Promise<{ id: string } | null> {
     const ctx = getCurrentContext();
+    const filters: SQL[] = [
+      eq(schema.outreachProposals.campaignId, campaignId),
+      eq(schema.outreachProposals.contactId, contactId),
+      eq(schema.outreachProposals.kind, kind),
+    ];
+    if (kind === 'followup' && sequenceStep != null) {
+      filters.push(eq(schema.outreachProposals.sequenceStep, sequenceStep));
+    }
     const rows = await ctx.db
       .select({ id: schema.outreachProposals.id })
       .from(schema.outreachProposals)
-      .where(
-        and(
-          eq(schema.outreachProposals.campaignId, campaignId),
-          eq(schema.outreachProposals.contactId, contactId),
-          eq(schema.outreachProposals.kind, kind),
-        ),
-      )
+      .where(and(...filters))
       .limit(1);
     return rows[0] ?? null;
   }
@@ -1084,6 +1480,7 @@ function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): Campa
     segmentId: row.segmentId,
     channelId: row.channelId,
     cadenceRules: row.cadenceRules,
+    sequenceSteps: row.sequenceSteps,
     ctaUrl: row.ctaUrl,
     enabled: row.enabled,
     autoDraftInitial: row.autoDraftInitial,
@@ -1105,6 +1502,7 @@ function toProposalDto(
     contactId: row.contactId,
     conversationId: row.conversationId,
     kind: row.kind as ProposalKind,
+    sequenceStep: row.sequenceStep,
     draftSubject: row.draftSubject,
     draftBody: row.draftBody,
     evidence: row.evidence,

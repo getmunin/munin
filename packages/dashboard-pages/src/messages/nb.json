@@ -38,7 +38,7 @@
   },
   "home": {
     "title": "Kundeplattformen med åpen kildekode – for den <accent>agentiske</accent> æraen.",
-    "subtitle": "CRM, kunnskap, innhold, oppsøk og samtaler i ett MCP-først-system. Agenter jobber mot de samme verktøyene og dataene som teamet ditt — med vurdering og overlevering der det betyr noe.",
+    "subtitle": "CRM, kunnskap, innhold, oppsøk og samtaler i ett MCP-først-system. Agenter jobber mot de samme verktøyene og dataene som medarbeiderne dine — med vurdering og overlevering der det betyr noe.",
     "getStarted": "Kom i gang",
     "signIn": "Logg inn",
     "readTheDocs": "Les dokumentasjonen"
@@ -168,7 +168,7 @@
     "overview": "Oversikt",
     "settings": "Innstillinger",
     "account": "Konto",
-    "team": "Team",
+    "team": "Medarbeidere",
     "ai": "AI",
     "agents": "Agenter",
     "apiKeys": "API-nøkler",
@@ -883,7 +883,7 @@
       },
       "reassurance": {
         "lead": "Avgrenset, ikke total tilgang.",
-        "body": "<client></client> opptrer som <user></user> — den arver din rolle og kan ikke gjøre mer enn deg. Den kan ikke styre teamet, fakturering eller API-nøkler, og kan heller ikke slette organisasjonen. Tilgangen varer i 90 dager og fornyes automatisk så lenge den brukes. Du kan trekke tilbake tilgangen når som helst fra <settings>Innstillinger → Agenter</settings>."
+        "body": "<client></client> opptrer som <user></user> — den arver din rolle og kan ikke gjøre mer enn deg. Den kan ikke administrere medarbeidere, fakturering eller API-nøkler, og kan heller ikke slette organisasjonen. Tilgangen varer i 90 dager og fornyes automatisk så lenge den brukes. Du kan trekke tilbake tilgangen når som helst fra <settings>Innstillinger → Agenter</settings>."
       },
       "authorize": "Gi tilgang",
       "authorizing": "Gir tilgang …",
@@ -913,10 +913,10 @@
       }
     },
     "team": {
-      "eyebrow": "Arbeidsområde · Team",
+      "eyebrow": "Arbeidsområde · Medarbeidere",
       "title": "<em>Rådet</em>.",
-      "subtitle": "Inviter teammedlemmer og styr hva de ser.",
-      "inviteTitle": "Inviter et teammedlem",
+      "subtitle": "Inviter medarbeidere og styr hva de ser.",
+      "inviteTitle": "Inviter en medarbeider",
       "inviteDescription": "De får en e-post med en lenke for å akseptere. Lenken utløper om 7 dager.",
       "emailLabel": "E-post",
       "emailPlaceholder": "kollega@eksempel.no",
@@ -957,7 +957,7 @@
       "invitesSent": "{when}",
       "invitesExpires": "{when}",
       "resend": "Send på nytt",
-      "inviteModalTitle": "Inviter teammedlem",
+      "inviteModalTitle": "Inviter medarbeider",
       "inviteModalSub": "Sender en innloggingslenke, utløper om 7 dager",
       "inviteModalRoleHint": "Medlemmer kan lese innboksen og svare. Admins kan i tillegg styre kanaler og nøkler.",
       "inviteModalSubmit": "Send invitasjon",
@@ -966,7 +966,7 @@
       "editNameSubtitle": "Oppdater visningsnavnet som vises i Munin.",
       "editNameLabel": "Visningsnavn",
       "errors": {
-        "load": "Kunne ikke laste team.",
+        "load": "Kunne ikke laste medarbeidere.",
         "invite": "Kunne ikke sende invitasjon.",
         "revokeInvite": "Kunne ikke trekke tilbake invitasjonen.",
         "remove": "Kunne ikke fjerne medlem.",

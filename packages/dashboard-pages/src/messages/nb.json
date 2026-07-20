@@ -511,7 +511,7 @@
       "enterCredentials": {
         "button": "Legg inn tilgang",
         "title": "Legg inn tilgang for kanalen",
-        "description": "Legg inn postboks-passordene for {name}. De krypteres i hvile og vises aldri igjen.",
+        "description": "Legg inn passordene for {name}. De krypteres i hvile og vises aldri igjen.",
         "smtpLabel": "SMTP-passord",
         "imapLabel": "IMAP-passord",
         "submit": "Lagre",

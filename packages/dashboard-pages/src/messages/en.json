@@ -484,7 +484,7 @@
       "enterCredentials": {
         "button": "Enter credentials",
         "title": "Enter channel credentials",
-        "description": "Add the mailbox passwords for {name}. They're encrypted at rest and never shown again.",
+        "description": "Enter the passwords for {name}. They're encrypted at rest and never shown again.",
         "smtpLabel": "SMTP password",
         "imapLabel": "IMAP password",
         "submit": "Save",

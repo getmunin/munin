@@ -333,6 +333,7 @@
         "feedbackApproveConfirm": "Approve sends the title and body above to Munin developers.",
         "outreachKindReply": "REPLY",
         "outreachKindInitial": "INITIAL",
+        "outreachKindFollowup": "FOLLOW-UP {step}",
         "conversationFallback": "Conversation #{id}",
         "crmMergeBody": "Merge <strong>{loser}</strong> into <strong>{keeper}</strong>.",
         "crmMergeExplain": "Keeps the primary; rewrites foreign keys; archives the loser. No conversations are lost.",

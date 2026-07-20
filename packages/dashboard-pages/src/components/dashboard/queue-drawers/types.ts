@@ -28,7 +28,8 @@ export interface OutreachProposalDto {
   campaignId: string;
   contactId: string;
   conversationId: string | null;
-  kind: 'initial' | 'reply';
+  kind: 'initial' | 'reply' | 'followup';
+  sequenceStep?: number | null;
   draftSubject: string | null;
   draftBody: string;
   campaign?: { name: string } | null;

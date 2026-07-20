@@ -62,7 +62,12 @@ export function OutreachQueueDrawer({
     return () => window.removeEventListener('keydown', onKey);
   }, [editing, cancelEdit]);
 
-  const kind = item.raw.kind === 'reply' ? t('outreachKindReply') : t('outreachKindInitial');
+  const kind =
+    item.raw.kind === 'reply'
+      ? t('outreachKindReply')
+      : item.raw.kind === 'followup'
+        ? t('outreachKindFollowup', { step: item.raw.sequenceStep ?? 1 })
+        : t('outreachKindInitial');
   const handle = item.raw.contact?.email ?? item.raw.campaign?.name ?? t('handleFallback');
 
   return (

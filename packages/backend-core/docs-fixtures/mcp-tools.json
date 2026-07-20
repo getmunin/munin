@@ -7529,7 +7529,7 @@
   {
     "name": "outreach_list_due_followups",
     "title": "Outreach: List due follow-ups",
-    "description": "List outreach conversations whose next sequence step is due now. A row is returned when the campaign is enabled with a `sequenceSteps` entry beyond the last sent outbound, the wait period has elapsed with zero inbound replies, the conversation is open and unassigned, the contact is not suppressed, and no pending follow-up/reply or dismissed step blocks it. Each row carries `conversationId`, `nextStep`, and the step brief — everything needed to draft and file the follow-up via `outreach_propose_followup`. An empty result means no sequence work is due.",
+    "description": "List outreach conversations whose next sequence step is due now. A row is returned when the campaign is enabled with a `sequenceSteps` entry beyond the last sent outbound, the wait period has elapsed with zero inbound replies, the conversation is open and unassigned, the contact is not suppressed, and no pending follow-up/reply or dismissed step blocks it. Campaign cadence rules are also honored: a contact at their `maxPerWeekPerContact` budget of sent touches in the trailing 7 days is held back, and nothing is due on a `blackoutDates` day (quiet hours are a send-time concern and do not gate drafting). Each row carries `conversationId`, `nextStep`, and the step brief — everything needed to draft and file the follow-up via `outreach_propose_followup`. An empty result means no sequence work is due.",
     "audiences": [
       "admin"
     ],

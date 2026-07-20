@@ -4,7 +4,7 @@ import { sql, eq, and } from 'drizzle-orm';
 import { ConflictException } from '@nestjs/common';
 import { ActorIdentity, WebhookDispatcher, withContext, type RequestContext } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { SlackApiError, type SlackApiClient } from './slack-api.client.ts';
+import { SlackApiError, SlackApiClient } from './slack-api.client.ts';
 import { SlackBridgeWorker } from './slack-bridge.worker.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackService, encryptSecretValue } from './slack.service.ts';
@@ -21,12 +21,12 @@ interface PostedMessage {
   ts: string;
 }
 
-class FakeSlackApi {
+class FakeSlackApi extends SlackApiClient {
   posted: PostedMessage[] = [];
   failNextPosts = 0;
   private counter = 0;
 
-  postMessage(input: {
+  override postMessage(input: {
     token: string;
     channel: string;
     text: string;
@@ -42,12 +42,8 @@ class FakeSlackApi {
     return Promise.resolve({ ts, channel: input.channel });
   }
 
-  conversationsInfo(input: { token: string; channel: string }) {
+  override conversationsInfo(input: { token: string; channel: string }) {
     return Promise.resolve({ id: input.channel, name: 'support', isMember: true });
-  }
-
-  asClient(): SlackApiClient {
-    return this as unknown as SlackApiClient;
   }
 }
 
@@ -179,7 +175,7 @@ class FakeSlackApi {
 
   it('mirrors a conversation into a lazily-created thread', async () => {
     const api = new FakeSlackApi();
-    const worker = new SlackBridgeWorker(db, api.asClient());
+    const worker = new SlackBridgeWorker(db, api);
     const conversationId = await seedConversation();
     const messageId = await seedMessage(conversationId, 'I need help with my order');
 
@@ -217,7 +213,7 @@ class FakeSlackApi {
 
   it('never posts a message that already has a slack ts (loop prevention)', async () => {
     const api = new FakeSlackApi();
-    const worker = new SlackBridgeWorker(db, api.asClient());
+    const worker = new SlackBridgeWorker(db, api);
     const conversationId = await seedConversation();
     const messageId = await seedMessage(conversationId, 'hello');
     await db.insert(schema.slackConversationLinks).values({
@@ -252,7 +248,7 @@ class FakeSlackApi {
       mention: '<!here>',
     });
     const api = new FakeSlackApi();
-    const worker = new SlackBridgeWorker(db, api.asClient());
+    const worker = new SlackBridgeWorker(db, api);
     const conversationId = await seedConversation();
     await enqueue('conversation.handover_requested', conversationId, {
       conversationId,
@@ -271,7 +267,7 @@ class FakeSlackApi {
   it('keeps per-conversation ordering when a delivery fails (head-of-line)', async () => {
     const api = new FakeSlackApi();
     api.failNextPosts = 1;
-    const worker = new SlackBridgeWorker(db, api.asClient());
+    const worker = new SlackBridgeWorker(db, api);
     const conversationId = await seedConversation();
     const firstId = await seedMessage(conversationId, 'first');
     const secondId = await seedMessage(conversationId, 'second');
@@ -357,7 +353,7 @@ class FakeSlackApi {
 
   it('rejects routing a channel already claimed by another org', async () => {
     const api = new FakeSlackApi();
-    const service = new SlackService(db, api.asClient());
+    const service = new SlackService(db, api);
 
     const [otherOrg] = await db
       .insert(schema.orgs)
@@ -387,7 +383,7 @@ class FakeSlackApi {
 
   it('replaces the default route on repeat setRouting calls', async () => {
     const api = new FakeSlackApi();
-    const service = new SlackService(db, api.asClient());
+    const service = new SlackService(db, api);
     const route = await run(() => service.setRouting({ slackChannelId: 'C_NEW' }));
     expect(route.slackChannelId).toBe('C_NEW');
     expect(route.botInChannel).toBe(true);

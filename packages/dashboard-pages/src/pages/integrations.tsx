@@ -2,43 +2,21 @@
 
 import { useTranslations } from 'next-intl';
 import { Hero } from '@getmunin/ui';
-import { SlackCard } from '../components/integrations/slack-card';
-import { ConnectorsCard } from '../components/integrations/connectors-card';
+import { OperatorBridgesSection } from '../components/integrations/operator-bridges-grid';
+import { DataConnectionsSection } from '../components/integrations/connectors-grid';
 
-/**
- * Integrations hub: third-party systems connected to Munin, grouped by who
- * they serve. Operator bridges (Slack, later Teams) serve the team;
- * connectors give agents read access to customers' systems of record
- * (Shopify, Magento, Gastroplanner, …).
- */
 export function IntegrationsPage() {
   const t = useTranslations('integrations');
 
   return (
-    <div className="max-w-3xl space-y-10">
+    <div className="max-w-5xl space-y-11">
       <Hero
         eyebrow={t('hero.eyebrow')}
         title={t.rich('hero.title', { em: (chunks) => <em>{chunks}</em> })}
         lede={t('hero.lede')}
       />
-
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold">{t('operatorBridges.title')}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t('operatorBridges.blurb')}</p>
-        </div>
-        <div className="space-y-6">
-          <SlackCard />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold">{t('dataConnectors.title')}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t('dataConnectors.blurb')}</p>
-        </div>
-        <ConnectorsCard />
-      </section>
+      <OperatorBridgesSection />
+      <DataConnectionsSection />
     </div>
   );
 }

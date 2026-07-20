@@ -151,15 +151,15 @@ export function DataConnectionsSection() {
                   <StatusPill tone={s.tone} label={s.label} />
                   <div className="flex gap-1.5">
                     {conn.credentialState === 'pending' ? (
-                      <Button type="button" variant="outline" size="sm" onClick={() => setEnterFor(conn)} disabled={busyId === conn.id}>
+                      <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setEnterFor(conn)} disabled={busyId === conn.id}>
                         {t('enterCredentials')}
                       </Button>
                     ) : (
-                      <Button type="button" variant="outline" size="sm" onClick={() => void test(conn)} disabled={busyId === conn.id}>
+                      <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void test(conn)} disabled={busyId === conn.id}>
                         {t('test')}
                       </Button>
                     )}
-                    <Button type="button" variant="ghost" size="sm" onClick={() => void remove(conn)} disabled={busyId === conn.id}>
+                    <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void remove(conn)} disabled={busyId === conn.id}>
                       {t('delete')}
                     </Button>
                   </div>
@@ -178,7 +178,7 @@ export function DataConnectionsSection() {
               category={tc(`category.${present.categoryKey}`)}
               description={tc(`description.${present.descriptionKey}`)}
               footer={
-                <Button type="button" variant="outline" size="sm" onClick={() => setConnectVendor(v)}>
+                <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setConnectVendor(v)}>
                   {t('connect')}
                 </Button>
               }

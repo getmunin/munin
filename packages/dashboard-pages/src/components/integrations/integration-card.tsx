@@ -17,9 +17,7 @@ export function SectionHeading({
     <div className="flex items-end justify-between gap-4 border-b-[0.5px] border-rule-soft pb-3 dark:border-rule-on-dark">
       <div className="flex flex-col gap-1">
         <h2 className="font-serif text-xl leading-none text-ink dark:text-foreground">{title}</h2>
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-          {subtitle}
-        </span>
+        <span className="font-serif text-sm italic text-ink-mute">{subtitle}</span>
       </div>
       {countLabel ? (
         <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
@@ -60,18 +58,18 @@ export function IntegrationCard({
     <div className="flex flex-col gap-3 border-[0.5px] border-rule-soft bg-paper p-5 dark:border-rule-on-dark dark:bg-card">
       <div className="flex items-center gap-3">
         <VendorIcon vendor={vendor} label={name} />
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-sm font-medium text-ink dark:text-foreground">
             {name}
             {instance ? <span className="text-ink-mute"> · {instance}</span> : null}
           </span>
-          <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+          <span className="font-serif text-[13px] italic leading-none text-ink-mute">
             {category}
           </span>
         </div>
       </div>
-      <p className="flex-1 text-[13px] leading-snug text-ink-mute">{description}</p>
-      <div className="flex items-center justify-between gap-2">{footer}</div>
+      <p className="flex-1 font-serif text-[15px] leading-snug text-ink-mute">{description}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">{footer}</div>
     </div>
   );
 }
@@ -94,7 +92,7 @@ export function StatusPill({
           : 'text-cobalt';
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-eyebrow shadow-[inset_0_0_0_0.5px_currentColor] ${color}`}
+      className={`inline-flex flex-none items-center gap-1.5 whitespace-nowrap px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-eyebrow shadow-[inset_0_0_0_0.5px_currentColor] ${color}`}
     >
       <span className="size-[5px] rounded-full bg-current" />
       {label}

@@ -120,17 +120,17 @@ export function OperatorBridgesSection() {
             !status.appConfigured ? (
               <span className="text-xs text-ink-mute">{t('notConfiguredShort')}</span>
             ) : !status.connected ? (
-              <Button type="button" variant="outline" size="sm" onClick={connect} disabled={busy}>
+              <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={connect} disabled={busy}>
                 {tConn('connect')}
               </Button>
             ) : (
               <>
                 <StatusPill tone="active" label={tConn('statusActive')} />
                 <div className="flex gap-1.5">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setConfiguring(true)}>
+                  <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setConfiguring(true)}>
                     {t('configure')}
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => void disconnect()} disabled={busy}>
+                  <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void disconnect()} disabled={busy}>
                     {tConn('delete')}
                   </Button>
                 </div>

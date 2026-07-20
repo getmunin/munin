@@ -184,7 +184,8 @@
     "partner": "Partner",
     "openMenu": "Åpne meny",
     "closeMenu": "Lukk meny",
-    "organization": "Organisasjon"
+    "organization": "Organisasjon",
+    "integrations": "Integrasjoner"
   },
   "dashboard": {
     "runnerStatusBanner": {
@@ -1105,7 +1106,7 @@
     "settings": {
       "groups": {
         "workspace": "Arbeidsområde",
-        "access": "Tilgang og integrasjoner",
+        "access": "Tilgang",
         "monitoring": "Overvåking"
       }
     },
@@ -1228,6 +1229,18 @@
         "failedSummary": "Kunne ikke nå {host}. Ingen sider ble importert. Agenten din er fortsatt aktiv — importer senere fra Innstillinger.",
         "retry": "Prøv import på nytt"
       }
+    }
+  },
+  "integrations": {
+    "hero": {
+      "eyebrow": "Integrasjoner",
+      "title": "Koble Munin til <em>verktøyene du allerede bruker</em>",
+      "lede": "Ta samtaler inn i flatene medarbeiderne og kundene dine allerede bruker."
+    },
+    "operatorBridges": {
+      "title": "Operatørbroer",
+      "blurb": "Triager og svar på samtaler fra medarbeidernes chatteverktøy.",
+      "empty": "Ingenting tilkoblet ennå."
     }
   },
   "assistants": {

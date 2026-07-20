@@ -1,6 +1,6 @@
 # Munin — agent guide
 
-MCP-first customer platform made for the agentic era (KB, Conversations, CRM, CMS, Outreach). The agent is the UI: every action runs through MCP tools served at `/mcp`. There is no admin REST API for app data — the dashboard at `apps/web` is a thin shell that drives the same MCP endpoint.
+MCP-first customer platform made for the agentic era (KB, Conversations, CRM, CMS, Outreach). The agent is the primary UI: agents act through MCP tools served at `/mcp`. The dashboard at `apps/web` is a thin shell over the `/v1/*` control plane; `/v1` controllers and MCP tools must both stay thin wrappers over the same service methods — logic lives in the service, never in a controller or tool handler.
 
 ## Repository layout
 
@@ -29,6 +29,16 @@ Monorepo on pnpm + Turborepo.
 | `playbooks` | — | Cross-module packaged workflows (skill markdown only, no tools). |
 
 Each module typically has `<mod>.module.ts`, `<mod>.service.ts`, `<mod>.tools.ts`, and a `skills/` directory of markdown procedures.
+
+## Integration architecture
+
+Three integration categories, three homes. Route new "integrate with X" work by asking what X is:
+
+- **Messaging channel** — a surface customers write to us on (email, SMS, voice, widget). Implement a channel adapter in `conv` (contract: `packages/backend-core/src/modules/conv/CLAUDE.md`).
+- **Operator bridge** — where our team works (Slack; later Teams). One root module per vendor. Bridges subscribe to domain events by registering an `EventSink` on `WebhookDispatcher` (`packages/core/src/webhooks.ts`); sinks run inside the emitting transaction and must only enqueue durable work — external I/O belongs in the module's own out-of-band worker. Inbound vendor webhooks are signature-verified public controllers, and inbound actions run through existing module services as the mapped org member.
+- **Connector** — a customer's system of record we answer questions from (Shopify, Magento, Gastroplanner). Plumbing lives in the `connectors` trunk module (connection storage, credential encryption, vendor registry, `connectors_*` admin tools); typed read surfaces live in domain modules (`commerce`, `bookings`) whose vendor adapters register into the trunk registry. A domain module is a distinct customer-facing noun with its own read contract (orders, bookings, invoices) — never a vendor. Connector reads are live: no vendor data is persisted in Munin.
+
+Operator bridges and connectors both surface in the dashboard on the single Integrations page (`packages/dashboard-pages/src/pages/integrations.tsx`), one section per category, cards under `packages/dashboard-pages/src/components/integrations/`.
 
 ## MCP surface
 

@@ -99,7 +99,12 @@ export {
   type ParseEnvIntOptions,
 } from './env/index.ts';
 
-export { WebhookDispatcher, type WebhookEventInput } from './webhooks.ts';
+export {
+  WebhookDispatcher,
+  type WebhookEventInput,
+  type EventSink,
+  type EmittedEvent,
+} from './webhooks.ts';
 export {
   chunkDocument,
   estimateTokens,

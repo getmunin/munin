@@ -6,7 +6,7 @@ import { ConvService } from '../conv/conv.service.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
-import type { SlackApiClient } from './slack-api.client.ts';
+import { SlackApiClient } from './slack-api.client.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInboundService } from './slack-inbound.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
@@ -21,14 +21,14 @@ const skipReason = TEST_URL
 const THREAD_TS = '1750000000.000100';
 const CHANNEL = 'C_INBOUND';
 
-class FakeSlackApi {
+class FakeSlackApi extends SlackApiClient {
   usersById = new Map<string, { email: string | null; isBot?: boolean }>();
   usersInfoCalls = 0;
   ephemerals: { channel: string; user: string; text: string }[] = [];
   posted: { channel: string; text: string; threadTs?: string; ts: string }[] = [];
   private counter = 0;
 
-  usersInfo(input: { token: string; user: string }) {
+  override usersInfo(input: { token: string; user: string }) {
     this.usersInfoCalls += 1;
     const entry = this.usersById.get(input.user);
     return Promise.resolve({
@@ -39,24 +39,20 @@ class FakeSlackApi {
     });
   }
 
-  postEphemeral(input: { token: string; channel: string; user: string; text: string }) {
+  override postEphemeral(input: { token: string; channel: string; user: string; text: string }) {
     this.ephemerals.push({ channel: input.channel, user: input.user, text: input.text });
     return Promise.resolve();
   }
 
-  postMessage(input: { token: string; channel: string; text: string; threadTs?: string }) {
+  override postMessage(input: { token: string; channel: string; text: string; threadTs?: string }) {
     this.counter += 1;
     const ts = `1750000001.${String(this.counter).padStart(6, '0')}`;
     this.posted.push({ channel: input.channel, text: input.text, threadTs: input.threadTs, ts });
     return Promise.resolve({ ts, channel: input.channel });
   }
 
-  updateMessage() {
+  override updateMessage() {
     return Promise.resolve();
-  }
-
-  asClient(): SlackApiClient {
-    return this as unknown as SlackApiClient;
   }
 }
 
@@ -162,8 +158,8 @@ class FakeSlackApi {
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
     );
-    const mapping = new SlackUserMappingService(db, api.asClient());
-    inbound = new SlackInboundService(db, api.asClient(), conv, mapping);
+    const mapping = new SlackUserMappingService(db, api);
+    inbound = new SlackInboundService(db, api, conv, mapping);
   });
 
   function replyPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -224,7 +220,7 @@ class FakeSlackApi {
       );
     expect(userLink?.userId).toBe(memberUserId);
 
-    const worker = new SlackBridgeWorker(db, api.asClient());
+    const worker = new SlackBridgeWorker(db, api);
     await worker.tick();
     const remirrored = api.posted.filter((p) => p.text.includes('Hello from Slack'));
     expect(remirrored).toHaveLength(0);

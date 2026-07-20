@@ -365,7 +365,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
 
   it('mirrors message attachments as paperclip links', async () => {
     const api = new FakeSlackApi();
-    const worker = new SlackBridgeWorker(db, api.asClient());
+    const worker = new SlackBridgeWorker(db, api);
     const conversationId = await seedConversation();
     const [message] = await db
       .insert(schema.convMessages)
@@ -394,7 +394,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
 
   it('manages manual user links: link, relink, list, unlink', async () => {
     const api = new FakeSlackApi();
-    const service = new SlackService(db, api.asClient());
+    const service = new SlackService(db, api);
     const ts = Date.now();
     const [member] = await db
       .insert(schema.users)
@@ -427,7 +427,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
 
   it('updates the parent message on status changes and swaps to a Reopen button', async () => {
     const api = new FakeSlackApi();
-    const worker = new SlackBridgeWorker(db, api.asClient());
+    const worker = new SlackBridgeWorker(db, api);
     const conversationId = await seedConversation();
     await db
       .update(schema.convConversations)
@@ -465,7 +465,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     await enqueue('conversation.created', conversation!.id, { conversationId: conversation!.id });
 
     const api = new FakeSlackApi();
-    const worker = new SlackBridgeWorker(db, api.asClient());
+    const worker = new SlackBridgeWorker(db, api);
     await worker.tick();
 
     const parent = api.posted.find((p) => !p.threadTs);
@@ -549,7 +549,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
 
   it('rejects reusing a slack channel across routes of the same org', async () => {
     const api = new FakeSlackApi();
-    const service = new SlackService(db, api.asClient());
+    const service = new SlackService(db, api);
     await expect(
       run(() => service.setRouting({ slackChannelId: 'C_DEFAULT', purpose: 'escalations' })),
     ).rejects.toThrow(ConflictException);
@@ -609,7 +609,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     it('rejects a session-bound state without the matching cookie nonce', async () => {
       const api = new FakeSlackApi();
       api.oauthTeamId = 'T_TEST';
-      const service = new SlackService(db, api.asClient());
+      const service = new SlackService(db, api);
       const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000, nonce: 'good' });
 
       await expect(service.completeInstall({ code: 'c', state })).rejects.toThrow(
@@ -623,7 +623,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     it('accepts a session-bound state with the matching cookie nonce', async () => {
       const api = new FakeSlackApi();
       api.oauthTeamId = 'T_TEST';
-      const service = new SlackService(db, api.asClient());
+      const service = new SlackService(db, api);
       const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000, nonce: 'good' });
 
       const result = await service.completeInstall({ code: 'c', state, sessionNonce: 'good' });
@@ -633,7 +633,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     it('accepts an MCP-minted state (no nonce) without a cookie', async () => {
       const api = new FakeSlackApi();
       api.oauthTeamId = 'T_TEST';
-      const service = new SlackService(db, api.asClient());
+      const service = new SlackService(db, api);
       const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000 });
 
       const result = await service.completeInstall({ code: 'c', state });
@@ -643,7 +643,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     it('refuses to repoint an existing org to a different workspace', async () => {
       const api = new FakeSlackApi();
       api.oauthTeamId = 'T_ATTACKER';
-      const service = new SlackService(db, api.asClient());
+      const service = new SlackService(db, api);
       const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000 });
 
       await expect(service.completeInstall({ code: 'c', state })).rejects.toThrow(

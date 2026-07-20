@@ -6,7 +6,7 @@ import { ConvService } from '../conv/conv.service.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
-import type { SlackApiClient } from './slack-api.client.ts';
+import { SlackApiClient } from './slack-api.client.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInteractionsService } from './slack-interactions.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
@@ -20,11 +20,11 @@ const skipReason = TEST_URL
 const THREAD_TS = '1750000000.000200';
 const CHANNEL = 'C_ACTIONS';
 
-class FakeSlackApi {
+class FakeSlackApi extends SlackApiClient {
   usersById = new Map<string, { email: string | null }>();
   ephemerals: { user: string; text: string }[] = [];
 
-  usersInfo(input: { token: string; user: string }) {
+  override usersInfo(input: { token: string; user: string }) {
     const entry = this.usersById.get(input.user);
     return Promise.resolve({
       id: input.user,
@@ -34,13 +34,9 @@ class FakeSlackApi {
     });
   }
 
-  postEphemeral(input: { token: string; channel: string; user: string; text: string }) {
+  override postEphemeral(input: { token: string; channel: string; user: string; text: string }) {
     this.ephemerals.push({ user: input.user, text: input.text });
     return Promise.resolve();
-  }
-
-  asClient(): SlackApiClient {
-    return this as unknown as SlackApiClient;
   }
 }
 
@@ -137,10 +133,10 @@ class FakeSlackApi {
     const conv = new ConvService(dispatcher, claims, new CuratorJobsService(dispatcher), new AlertsService(dispatcher));
     interactions = new SlackInteractionsService(
       db,
-      api.asClient(),
+      api,
       conv,
       claims,
-      new SlackUserMappingService(db, api.asClient()),
+      new SlackUserMappingService(db, api),
     );
   });
 

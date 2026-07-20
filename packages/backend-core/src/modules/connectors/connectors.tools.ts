@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
+import { sensitive } from '@getmunin/types';
 import { ConnectorsService } from './connectors.service.ts';
 
 const EmptyInput = z.object({});
@@ -8,14 +9,13 @@ const EmptyInput = z.object({});
 const CreateConnectionInput = z.object({
   vendor: z.string().min(1).max(32),
   name: z.string().min(1).max(120),
-  config: z.record(z.string(), z.unknown()),
+  config: sensitive(z.record(z.string(), z.unknown())),
 });
 
 const UpdateConnectionInput = z.object({
   connectionId: z.string().min(1),
   name: z.string().min(1).max(120).optional(),
-  /** Full vendor config; secret fields may be omitted to keep the stored values. */
-  config: z.record(z.string(), z.unknown()).optional(),
+  config: sensitive(z.record(z.string(), z.unknown())).optional(),
   active: z.boolean().optional(),
 });
 

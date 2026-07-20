@@ -25,6 +25,7 @@ import { MessageBirdSmsAdminService } from '../modules/conv/messagebird/messageb
 import { VapiAdminService } from '../modules/conv/vapi/vapi-admin.service.ts';
 import { ThrellAdminService } from '../modules/conv/threll/threll-admin.service.ts';
 import { ChannelAdminService } from '../modules/conv/channels/channel-admin.service.ts';
+import { ChannelCredentialService } from '../modules/conv/channels/channel-credential.service.ts';
 import {
   CreateWidgetBody,
   UpdateWidgetBody,
@@ -62,6 +63,7 @@ export class ConvChannelsController {
     private readonly vapiTools: VapiAdminService,
     private readonly threllTools: ThrellAdminService,
     private readonly channelAdmin: ChannelAdminService,
+    private readonly channelCredentials: ChannelCredentialService,
   ) {}
 
   @Get('vendors')
@@ -81,6 +83,12 @@ export class ConvChannelsController {
   @HttpCode(200)
   async testChannel(@Param('id') id: string): Promise<unknown> {
     return this.channelAdmin.test(id);
+  }
+
+  @Post(':id/credential-link')
+  @HttpCode(200)
+  requestCredentialLink(@Param('id') id: string): ReturnType<ChannelCredentialService['requestLink']> {
+    return this.channelCredentials.requestLink(id);
   }
 
   @Post(':id/call')

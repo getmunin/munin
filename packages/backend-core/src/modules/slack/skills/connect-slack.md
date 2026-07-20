@@ -1,12 +1,12 @@
 ---
 title: Connect Slack for human handoff
-description: Connect a Slack workspace so conversations mirror into a channel as threads and handover alerts reach the team, then route channels and verify with a test message.
+description: Connect a Slack workspace so conversations mirror into a channel as threads, handover alerts reach the team, and operators reply to customers from the thread; then route channels and verify with a test message.
 audiences: [admin]
 ---
 
 # Connect Slack for human handoff
 
-Use this when the operator wants their team to triage Munin conversations from Slack. Every conversation becomes one Slack thread in a channel you pick: customer messages, AI replies, status changes, and claim/assign updates post into the thread, and handover requests raise a prominent alert. Slack is an operator surface — replies to the customer still travel over the conversation's original channel (email, widget, SMS, voice).
+Use this when the operator wants their team to triage Munin conversations from Slack. Every conversation becomes one Slack thread in a channel you pick: customer messages, AI replies, status changes, and claim/assign updates post into the thread, and handover requests raise a prominent alert. Operators reply to the customer by replying in the thread. Slack is an operator surface — replies travel to the customer over the conversation's original channel (email, widget, SMS, voice).
 
 ## TL;DR
 
@@ -34,10 +34,18 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
   "oauth_config": {
     "redirect_urls": ["https://YOUR_API_HOST/v1/slack/oauth/callback"],
     "scopes": {
-      "bot": ["chat:write", "channels:read", "users:read", "users:read.email"]
+      "bot": ["chat:write", "channels:read", "channels:history", "users:read", "users:read.email"]
     }
   },
   "settings": {
+    "event_subscriptions": {
+      "request_url": "https://YOUR_API_HOST/v1/slack/events",
+      "bot_events": ["message.channels"]
+    },
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "https://YOUR_API_HOST/v1/slack/interactivity"
+    },
     "org_deploy_enabled": false,
     "socket_mode_enabled": false,
     "token_rotation_enabled": false
@@ -48,9 +56,11 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
 2. From the app's *Basic Information* page, set these env vars on the backend and restart it:
    - `SLACK_CLIENT_ID`
    - `SLACK_CLIENT_SECRET`
-   - `SLACK_SIGNING_SECRET` (not used yet; reserved for reply-from-Slack)
+   - `SLACK_SIGNING_SECRET` (signs the Events API requests that power reply-from-Slack)
 
-The redirect URL must exactly match `https://<api-base>/v1/slack/oauth/callback` — the same base that serves `/mcp`.
+The redirect URL must exactly match `https://<api-base>/v1/slack/oauth/callback`, and the events request URL `https://<api-base>/v1/slack/events` — the same base that serves `/mcp`. Slack verifies the events URL with a challenge when you save it; the backend must be reachable and have `SLACK_SIGNING_SECRET` set first.
+
+Workspaces installed before the `channels:history` scope was added must reinstall via a fresh `slack_get_install_url` link before thread replies reach Munin.
 
 ## Step 1 — install into the workspace
 
@@ -74,18 +84,35 @@ Optional escalations channel — handover alerts land here instead of the defaul
 
 `mention` accepts Slack mention syntax: `<!here>`, `<!channel>`, or a user group like `<!subteam^S0123456789>`.
 
+Optional source-channel routing — mirror conversations from one Munin conversation channel (find IDs with `conv_list_channels`) into their own Slack channel, e.g. widget chats to `#support-chat` while email keeps the default:
+
+```json
+{ "slackChannelId": "C0789...", "convChannelId": "cch_..." }
+```
+
+Every route needs its own Slack channel (an escalations route pointing at the default channel is redundant — just leave it unset).
+
 ## Step 3 — verify
 
 Call `slack_test` — it posts a hello message to the default channel. Then confirm `slack_get_status` shows `connected: true` and the routes you expect. From now on, new conversation activity appears within a few seconds (the mirror worker polls its queue every 5 seconds).
 
 ## What mirrors
 
-- New conversation → thread parent with contact, source channel, subject, and a dashboard link.
+- New conversation → thread parent with contact, source channel, subject, a dashboard link, a live status line (status, claimed-by, assigned-to, needs-attention), and *Claim* / *Close* buttons (*Reopen* once closed). The buttons act as the clicking teammate — same account-linking rule as replies.
 - Customer messages (:bust_in_silhouette:), AI agent replies (:robot_face:), teammate replies (:technologist:), and internal notes (:lock:) as thread replies.
 - Status changes, assignment, claim/release, and handover request/resolve as thread updates.
 - Handover requests additionally alert the escalations channel (or the default channel) with the reason and the configured mention.
 
-Replying from the Slack thread does not reach the customer yet — that is a planned follow-up. Operators reply from the dashboard or via `conv_send_message`.
+## Replying from Slack
+
+A reply in a mirrored thread is sent to the customer over the conversation's original channel and recorded in Munin as that teammate's message (it also claims the conversation, same as replying from the dashboard):
+
+- **Attribution is by email match**: the Slack profile email must belong to a member of the Munin org. The first reply creates the mapping; later replies use it. When emails differ, link manually: `slack_link_user` with the Slack member ID (profile → *Copy member ID*) and the Munin user ID; inspect with `slack_list_user_links`, revoke with `slack_unlink_user`.
+- **Unmapped users are rejected** — the reply is *not* sent, and only the sender sees an ephemeral notice in the thread. Fix by inviting them to the org with their Slack email, or link them manually with `slack_link_user`.
+- **Internal notes**: start the reply with `!` to keep it team-only (`!checking with billing`) — recorded as an internal note, never sent to the customer.
+- **Assign from the thread**: `!assign @teammate` assigns the conversation to that (linked) teammate; `!assign me` assigns yourself. The assignment mirrors back into the thread and the parent status line.
+- **Attachments are not forwarded** — Slack files live on Slack's authenticated CDN, so a file-only reply is rejected and a reply with files goes out as text only; the sender is told either way. Send files from the dashboard instead.
+- Only thread replies count; top-level channel messages, edits, and other bots are ignored. Attachment links on mirrored Munin messages appear as :paperclip: lines in the thread.
 
 ## Troubleshooting
 

@@ -13,6 +13,7 @@ export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = [
 export const SLACK_BOT_SCOPES = [
   'chat:write',
   'channels:read',
+  'channels:history',
   'users:read',
   'users:read.email',
 ] as const;
@@ -32,6 +33,10 @@ export function readSlackAppConfig(): SlackAppConfig | null {
   const clientSecret = process.env.SLACK_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret };
+}
+
+export function readSlackSigningSecret(): string | null {
+  return process.env.SLACK_SIGNING_SECRET || null;
 }
 
 export function readWebBaseUrl(): string {

@@ -1229,10 +1229,19 @@
         "failedSummary": "Kunne ikke nå {host}. Ingen sider ble importert. Agenten din er fortsatt aktiv — importer senere fra Innstillinger.",
         "retry": "Prøv import på nytt"
       }
+    }
+  },
+  "integrations": {
+    "hero": {
+      "eyebrow": "Integrasjoner",
+      "title": "Koble Munin til <em>verktøyene du allerede bruker</em>",
+      "lede": "Ta samtaler inn i flatene teamet og kundene dine allerede bruker."
+    },
+    "operatorBridges": {
+      "title": "Operatørbroer",
+      "blurb": "Triager og svar på samtaler fra teamets chatteverktøy."
     },
     "slack": {
-      "sectionTitle": "Integrasjoner",
-      "sectionBlurb": "Operatørflater lagt oppå samtalene dine.",
       "title": "Slack",
       "lede": "Speil samtaler inn i en Slack-kanal som tråder og varsle teamet ved eskaleringer. Svar til kunden går fortsatt ut via samtalens opprinnelige kanal.",
       "notConfigured": "Denne installasjonen har ingen Slack-app konfigurert. Sett SLACK_CLIENT_ID og SLACK_CLIENT_SECRET på backenden — agentferdigheten «Connect Slack for human handoff» har app-manifestet og stegene.",

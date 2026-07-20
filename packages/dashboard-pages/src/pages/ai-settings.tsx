@@ -7,7 +7,6 @@ import type { ProviderPreset } from '../components/agent-config/types';
 import { useAgentConfig } from '../components/agent-config/use-agent-config';
 import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
-import { SlackCard } from '../components/agent-config/slack-card';
 import { ChatAssistantCard } from '../components/assistants/chat-assistant-card';
 import { BackgroundSkillCard } from '../components/assistants/background-skill-card';
 import { IdentityCard } from '../components/assistants/identity-card';
@@ -161,16 +160,6 @@ export function AiSettingsPage({
                 <BackgroundSkillCard key={skill.uri} skill={skill} />
               ))
             )}
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <SectionHeader
-            title={t('slack.sectionTitle')}
-            blurb={t('slack.sectionBlurb')}
-          />
-          <div className="space-y-6">
-            <SlackCard />
           </div>
         </section>
       </div>

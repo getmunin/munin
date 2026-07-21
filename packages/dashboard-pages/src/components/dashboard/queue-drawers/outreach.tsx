@@ -102,11 +102,11 @@ export function OutreachQueueDrawer({
               value={editedBody}
               onChange={(e) => setEditedBody(e.target.value)}
               rows={14}
-              className="w-full resize-y rounded-input border-[0.5px] border-cobalt bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:text-foreground"
+              className="w-full resize-y rounded-input border-[1px] border-cobalt bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:text-foreground"
               autoFocus
             />
           ) : (
-            <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
+            <div className="border-[1px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
               {item.raw.draftSubject && (
                 <p className="mb-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
                   {t('subject', { subject: item.raw.draftSubject })}

@@ -34,7 +34,7 @@ export function CopyableSecret({ label, value, hint }: CopyableSecretProps) {
     <div className="space-y-2">
       <Label className={dialogLabelClass}>{label}</Label>
       <div className="flex items-center gap-2">
-        <code className="flex-1 truncate border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-3 py-2 font-mono text-sm text-ink dark:text-foreground">
+        <code className="flex-1 truncate border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-3 py-2 font-mono text-sm text-ink dark:text-foreground">
           {value}
         </code>
         <Button variant="outline" size="sm" onClick={copy} className="gap-1.5">

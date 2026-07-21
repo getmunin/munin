@@ -28,8 +28,8 @@
   --munin-invite-bad-bg: 236 211 203;    /* #ECD3CB */
   --munin-invite-bad-ink: 138 42 26;     /* #8A2A1A */
 
-  --munin-rule-soft-alpha: 0.145;   /* hairline rule alpha on light */
-  --munin-rule-on-dark-alpha: 0.2;  /* hairline rule alpha on dark */
+  --munin-rule-soft-alpha: 0.09;    /* hairline rule alpha on light — tuned for 1px rules */
+  --munin-rule-on-dark-alpha: 0.13; /* hairline rule alpha on dark — tuned for 1px rules */
 
   --munin-serif: 'Instrument Serif', 'Times New Roman', serif;
   --munin-sans: 'Inter', 'Helvetica Neue', system-ui, sans-serif;

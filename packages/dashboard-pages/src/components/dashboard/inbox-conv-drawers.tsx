@@ -23,7 +23,7 @@ export function InlineActionError({
   const reason = isConnectionMessage(message) ? t('actionFailedReasonConnection') : message;
   return (
     <div
-      className="flex items-center gap-[14px] whitespace-nowrap border-[0.5px] border-cobalt bg-[oklch(0.98_0.025_25)] px-3 py-1.5 text-[13px] font-medium text-cobalt dark:border-cobalt-soft dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
+      className="flex items-center gap-[14px] whitespace-nowrap border-[1px] border-cobalt bg-[oklch(0.98_0.025_25)] px-3 py-1.5 text-[13px] font-medium text-cobalt dark:border-cobalt-soft dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
       role="alert"
     >
       <span
@@ -185,11 +185,11 @@ export function SimplifiedConvDrawer({
               value={draftBody}
               onChange={(e) => setDraftEdit(e.target.value)}
               rows={8}
-              className="w-full rounded-input border-[0.5px] border-ink bg-paper px-4 py-3 text-base md:text-sm leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark dark:text-foreground"
+              className="w-full rounded-input border-[1px] border-ink bg-paper px-4 py-3 text-base md:text-sm leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark dark:text-foreground"
               autoFocus
             />
           ) : (
-            <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
+            <div className="border-[1px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
               <Markdown>{draft?.body ?? ''}</Markdown>
             </div>
           )}
@@ -199,13 +199,13 @@ export function SimplifiedConvDrawer({
       <div
         className={
           actionError
-            ? 'border-t-[0.5px] border-cobalt dark:border-cobalt-soft'
+            ? 'border-t-[1px] border-cobalt dark:border-cobalt-soft'
             : undefined
         }
       >
         {actionError && (
           <div
-            className="flex items-center gap-3 border-b-[0.5px] border-rule-soft bg-[oklch(0.98_0.025_25)] px-[26px] py-3 text-[13px] font-medium text-cobalt dark:border-rule-on-dark dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
+            className="flex items-center gap-3 border-b-[1px] border-rule-soft bg-[oklch(0.98_0.025_25)] px-[26px] py-3 text-[13px] font-medium text-cobalt dark:border-rule-on-dark dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
             role="alert"
           >
             <span
@@ -317,13 +317,13 @@ export function FullConvDrawer({
       <div
         className={
           actionError
-            ? 'border-t-[0.5px] border-cobalt dark:border-cobalt-soft'
-            : 'border-t-[0.5px] border-rule-soft dark:border-rule-on-dark'
+            ? 'border-t-[1px] border-cobalt dark:border-cobalt-soft'
+            : 'border-t-[1px] border-rule-soft dark:border-rule-on-dark'
         }
       >
         {actionError && (
           <div
-            className="flex items-center gap-3 border-b-[0.5px] border-rule-soft bg-[oklch(0.98_0.025_25)] px-[26px] py-3 text-[13px] font-medium text-cobalt dark:border-rule-on-dark dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
+            className="flex items-center gap-3 border-b-[1px] border-rule-soft bg-[oklch(0.98_0.025_25)] px-[26px] py-3 text-[13px] font-medium text-cobalt dark:border-rule-on-dark dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
             role="alert"
           >
             <span
@@ -357,7 +357,7 @@ export function FullConvDrawer({
             }}
             rows={3}
             placeholder={t('replyPlaceholder')}
-            className="w-full rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 text-base md:text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
+            className="w-full rounded-input border-[1px] border-rule-soft bg-paper px-3 py-2 text-base md:text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
           />
           <div className="mt-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">

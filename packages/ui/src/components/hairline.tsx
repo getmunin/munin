@@ -11,7 +11,7 @@ function Hairline({ variant = 'soft', className, ...props }: HairlineProps) {
     <hr
       data-slot="hairline"
       className={cn(
-        'border-0 border-t-[0.5px]',
+        'border-0 border-t-[1px]',
         variant === 'hard'
           ? 'border-ink dark:border-foreground'
           : 'border-rule-soft dark:border-rule-on-dark',

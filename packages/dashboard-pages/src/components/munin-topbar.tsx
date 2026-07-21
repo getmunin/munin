@@ -6,6 +6,10 @@ import { Settings as SettingsIcon, ArrowLeft, Menu } from 'lucide-react';
 import { Button } from '@getmunin/ui';
 import type { ReactNode } from 'react';
 
+/* Marketing-topbar treatment: translucent blurred bar with a soft hairline. */
+const topbarChromeBase =
+  'sticky top-0 z-40 group-has-[.agent-banner]:top-12 border-b-[1px] border-rule-soft bg-paper/85 backdrop-blur-xl backdrop-saturate-150 dark:border-rule-on-dark dark:bg-[color-mix(in_srgb,var(--card)_85%,transparent)]';
+
 export interface DashboardTopbarProps {
   brand: string;
   brandHref?: string;
@@ -26,7 +30,7 @@ export function DashboardTopbar({
   settingsLabel,
 }: DashboardTopbarProps) {
   return (
-    <header className="sticky top-0 z-40 group-has-[.agent-banner]:top-12 flex h-14 items-stretch gap-6 border-b-[0.5px] border-ink bg-paper px-4 dark:border-rule-on-dark dark:bg-card md:px-10">
+    <header className={`${topbarChromeBase} flex h-14 items-stretch gap-6 px-4 md:px-10`}>
       <Link
         href={brandHref}
         className="flex items-center gap-1 self-center text-ink dark:text-foreground"
@@ -84,7 +88,7 @@ export function SettingsTopbar({
   openMenuLabel,
 }: SettingsTopbarProps) {
   return (
-    <header className="sticky top-0 z-40 group-has-[.agent-banner]:top-12 flex h-14 items-stretch gap-4 border-b-[0.5px] border-ink bg-paper px-4 dark:border-rule-on-dark dark:bg-card md:gap-5 md:px-10">
+    <header className={`${topbarChromeBase} flex h-14 items-stretch gap-4 px-4 md:gap-5 md:px-10`}>
       <Link
         href={backHref}
         aria-label={backLabel}

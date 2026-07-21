@@ -30,7 +30,7 @@ export const VENDOR_PRESENTATION: Record<string, VendorPresentation> = {
   gastroplanner: {
     categoryKey: 'booking',
     descriptionKey: 'gastroplanner',
-    capabilityKeys: ['bookingsLookup'],
+    capabilityKeys: ['bookingsLookup', 'bookingsAvailability', 'bookingsManage'],
     Mark: GastroplannerMark,
   },
 };
@@ -42,7 +42,7 @@ const DOMAIN_CATEGORY: Record<string, string> = {
 
 const DOMAIN_CAPABILITIES: Record<string, string[]> = {
   commerce: ['ordersLookup', 'customersLookup'],
-  bookings: ['bookingsLookup'],
+  bookings: ['bookingsLookup', 'bookingsAvailability', 'bookingsManage'],
 };
 
 export function vendorPresentation(vendor: string, domain?: string): VendorPresentation {
@@ -69,7 +69,7 @@ export function VendorIcon({
   const Mark = VENDOR_PRESENTATION[vendor]?.Mark;
   return (
     <div
-      className="flex flex-none items-center justify-center border-[0.5px] border-rule-soft bg-paper-deep dark:border-rule-on-dark dark:bg-secondary"
+      className="flex flex-none items-center justify-center border-[1px] border-rule-soft bg-paper-deep dark:border-rule-on-dark dark:bg-secondary"
       style={{ width: size, height: size }}
     >
       {Mark ? (

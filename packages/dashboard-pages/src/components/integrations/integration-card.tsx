@@ -13,7 +13,7 @@ export function SectionHeading({
   countLabel?: string;
 }) {
   return (
-    <div className="flex items-end justify-between gap-4 border-b-[0.5px] border-rule-soft pb-3 dark:border-rule-on-dark">
+    <div className="flex items-end justify-between gap-4 border-b-[1px] border-rule-soft pb-3 dark:border-rule-on-dark">
       <div className="flex flex-col gap-1">
         <h2 className="font-serif text-xl leading-none text-ink dark:text-foreground">{title}</h2>
         <span className="text-[13px] text-ink-mute">{subtitle}</span>
@@ -49,7 +49,7 @@ export function IntegrationCard({
   footer: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-[0.5px] border-rule-soft bg-paper p-5 dark:border-rule-on-dark dark:bg-card">
+    <div className="flex flex-col gap-3 border-[1px] border-rule-soft bg-paper p-5 dark:border-rule-on-dark dark:bg-card">
       <div className="flex items-center gap-3">
         <VendorIcon vendor={vendor} label={name} />
         <div className="flex min-w-0 flex-col gap-1">

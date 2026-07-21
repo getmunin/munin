@@ -207,7 +207,7 @@ export function TeamPage() {
           <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full min-w-[640px]">
             <thead>
-              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[1px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('membersTableName')}</Th>
                 <Th>{t('membersTableEmail')}</Th>
                 <Th>{t('membersTableRole')}</Th>
@@ -217,7 +217,7 @@ export function TeamPage() {
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m.userId} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+                <tr key={m.userId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
                   <td className="py-4 pr-4 text-sm font-medium text-ink dark:text-foreground">
                     {m.name ?? '—'}
                   </td>
@@ -279,7 +279,7 @@ export function TeamPage() {
           <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full min-w-[640px]">
             <thead>
-              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[1px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('invitesTable.email')}</Th>
                 <Th>{t('invitesTable.role')}</Th>
                 <Th>{t('invitesTable.sent')}</Th>
@@ -289,7 +289,7 @@ export function TeamPage() {
             </thead>
             <tbody>
               {invites.map((inv) => (
-                <tr key={inv.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+                <tr key={inv.id} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
                   <td className="py-4 pr-4 font-mono text-xs text-ink dark:text-foreground">
                     {inv.email}
                   </td>
@@ -406,7 +406,7 @@ function RoleSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as MemberRole)}
-        className="appearance-none shadow-[inset_0_0_0_0.5px_rgb(var(--munin-ink)/0.145)] dark:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-fg-on-dark-2)/0.2)] focus-visible:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-accent))] bg-paper dark:bg-card font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:outline-none"
+        className="appearance-none border-[1px] border-rule-soft dark:border-rule-on-dark focus-visible:border-cobalt bg-paper dark:bg-card font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:outline-none"
       >
         <option value="owner">{labelOwner}</option>
         <option value="admin">{labelAdmin}</option>
@@ -429,7 +429,7 @@ function RoleChip({
 }) {
   const label = role === 'owner' ? t('roleOwner') : role === 'admin' ? t('roleAdmin') : t('roleMember');
   return (
-    <span className="inline-block border-[0.5px] border-rule-soft dark:border-rule-on-dark font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute py-1 px-2.5">
+    <span className="inline-block border-[1px] border-rule-soft dark:border-rule-on-dark font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute py-1 px-2.5">
       {label}
     </span>
   );

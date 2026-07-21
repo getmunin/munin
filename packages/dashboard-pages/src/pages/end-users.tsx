@@ -126,7 +126,7 @@ export function EndUsersPage() {
           <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full">
             <thead>
-              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[1px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tablePerson')}</Th>
                 <Th className="hidden md:table-cell">{t('tableExternalId')}</Th>
                 <Th>{t('tableLastContact')}</Th>
@@ -135,7 +135,7 @@ export function EndUsersPage() {
             </thead>
             <tbody>
               {filtered.map((eu) => (
-                <tr key={eu.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+                <tr key={eu.id} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
                   <td className="py-4 pr-4">
                     <div className="flex items-center gap-3">
                       <Avatar name={eu.name} email={eu.email} />

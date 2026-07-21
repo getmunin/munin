@@ -97,9 +97,9 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
       />
 
       <div className="flex min-h-[calc(100vh_-_3.5rem)] group-has-[.agent-banner]:min-h-[calc(100vh_-_6.5rem)]">
-        <aside className="sticky top-14 hidden h-[calc(100vh_-_3.5rem)] w-72 shrink-0 flex-col self-start border-r-[0.5px] border-rule-soft bg-bone group-has-[.agent-banner]:top-[6.5rem] group-has-[.agent-banner]:h-[calc(100vh_-_6.5rem)] md:flex dark:border-rule-on-dark dark:bg-secondary">
+        <aside className="sticky top-14 hidden h-[calc(100vh_-_3.5rem)] w-72 shrink-0 flex-col self-start border-r-[1px] border-rule-soft bg-bone group-has-[.agent-banner]:top-[6.5rem] group-has-[.agent-banner]:h-[calc(100vh_-_6.5rem)] md:flex dark:border-rule-on-dark dark:bg-secondary">
           <div className="flex-1 overflow-y-auto px-6 py-10">{navTree}</div>
-          <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+          <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
             {signOutButton}
           </div>
         </aside>
@@ -113,7 +113,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
         <SheetContent side="left" className="max-w-[320px] p-0">
           <div className="flex h-full flex-col">
             <div className="flex-1 overflow-y-auto px-6 py-8">{navTree}</div>
-            <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+            <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
               {signOutButton}
             </div>
           </div>

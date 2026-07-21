@@ -102,7 +102,7 @@ export function AgentsPage() {
           <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full table-fixed">
             <thead>
-              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[1px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th className="w-[40%]">{t('tableToken')}</Th>
                 <Th className="w-[10%]">{t('tableStatus')}</Th>
                 <Th className="hidden md:table-cell w-[14%]">{t('tableIssued')}</Th>
@@ -142,7 +142,7 @@ export function AgentsPage() {
                 return (
                   <tr
                     key={token.id}
-                    className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark align-middle"
+                    className="border-b-[1px] border-rule-soft dark:border-rule-on-dark align-middle"
                   >
                     <td className="py-4 pr-4 align-top">
                       <div className="flex items-center gap-2 text-sm font-medium text-ink dark:text-foreground">
@@ -196,7 +196,7 @@ export function AgentsPage() {
 function ClientGlyph({ iconUrl, name }: { iconUrl: string | null; name: string }) {
   const glyph = (name.trim()[0] ?? '?').toUpperCase();
   return (
-    <span className="flex size-[18px] shrink-0 items-center justify-center overflow-hidden rounded-[4px] border-[0.5px] border-rule-soft bg-white font-serif text-[10px] leading-none text-ink dark:border-rule-on-dark">
+    <span className="flex size-[18px] shrink-0 items-center justify-center overflow-hidden rounded-[4px] border-[1px] border-rule-soft bg-white font-serif text-[10px] leading-none text-ink dark:border-rule-on-dark">
       {iconUrl ? (
         <img
           src={iconUrl}
@@ -240,7 +240,7 @@ function StatusChip({
         'inline-block px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow',
         status === 'active'
           ? 'bg-cobalt/15 text-cobalt-deep dark:bg-cobalt-soft/20 dark:text-cobalt-soft'
-          : 'border-[0.5px] border-rule-soft dark:border-rule-on-dark text-ink-mute',
+          : 'border-[1px] border-rule-soft dark:border-rule-on-dark text-ink-mute',
       )}
     >
       {label}

@@ -49,12 +49,12 @@ export const MD_COMPONENTS: Components = {
     </div>
   ),
   th: ({ children }) => (
-    <th className="border-[0.5px] border-rule-soft px-2 py-1 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute dark:border-rule-on-dark">
+    <th className="border-[1px] border-rule-soft px-2 py-1 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute dark:border-rule-on-dark">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="border-[0.5px] border-rule-soft px-2 py-1 align-top dark:border-rule-on-dark">
+    <td className="border-[1px] border-rule-soft px-2 py-1 align-top dark:border-rule-on-dark">
       {children}
     </td>
   ),
@@ -138,7 +138,7 @@ export function DrawerHeader({
   closeLabel: string;
 }) {
   return (
-    <div className="border-b-[0.5px] border-rule-soft px-6 pb-4 pt-5 dark:border-rule-on-dark">
+    <div className="border-b-[1px] border-rule-soft px-6 pb-4 pt-5 dark:border-rule-on-dark">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-2">
@@ -182,7 +182,7 @@ export function DrawerFooter({
     <div
       className={cn(
         'flex items-center justify-between gap-2 px-6 py-3',
-        bordered && 'border-t-[0.5px] border-rule-soft dark:border-rule-on-dark',
+        bordered && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark',
       )}
     >
       <div className="flex items-center gap-2">

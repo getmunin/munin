@@ -656,7 +656,7 @@ function ChannelRow({
   const isDeactivated = !channel.active;
 
   return (
-    <li className="border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
+    <li className="border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
       <div className="flex items-start justify-between gap-6">
         <div className={cn('min-w-0 flex-1 space-y-3', isDeactivated && 'opacity-50')}>
           <div className="flex items-center gap-3 flex-wrap">
@@ -855,7 +855,7 @@ function AlertFooter({
     ? t('status.deactivatedMessage', { threshold })
     : t('status.failingMessage', { attempt, threshold });
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t-[0.5px] border-rule-soft pt-3 dark:border-rule-on-dark">
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t-[1px] border-rule-soft pt-3 dark:border-rule-on-dark">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <span className={cn('size-[7px] shrink-0 rounded-full', dotClass)} aria-hidden />
         <span className="truncate text-[13px] text-ink dark:text-foreground">{message}</span>
@@ -932,7 +932,7 @@ function VendorPicker<V extends ChannelVendor>({
   onChange: (next: V) => void;
 }) {
   return (
-    <div className="flex border-[0.5px] border-ink dark:border-foreground">
+    <div className="flex border-[1px] border-ink dark:border-foreground">
       {options.map((opt) => {
         const selected = value === opt.id;
         return (
@@ -942,7 +942,7 @@ function VendorPicker<V extends ChannelVendor>({
             onClick={() => onChange(opt.id)}
             aria-pressed={selected}
             className={cn(
-              'flex flex-1 items-center justify-center gap-2 border-r-[0.5px] border-rule-soft px-3 py-2 text-sm transition-colors last:border-r-0',
+              'flex flex-1 items-center justify-center gap-2 border-r-[1px] border-rule-soft px-3 py-2 text-sm transition-colors last:border-r-0',
               selected
                 ? 'bg-cobalt/5 text-ink dark:text-foreground'
                 : 'text-muted-foreground hover:text-ink dark:hover:text-foreground',
@@ -966,7 +966,7 @@ function OriginChip({ text, muted }: { text: string; muted?: boolean }) {
   return (
     <span
       className={cn(
-        'inline-block border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
+        'inline-block border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
         muted ? 'text-ink-mute italic' : 'text-ink dark:text-foreground',
       )}
     >
@@ -1420,7 +1420,7 @@ function EmailChannelDialog({
             </FormField>
           </div>
 
-          <fieldset className="space-y-3 rounded-md border-[0.5px] px-3 pb-3">
+          <fieldset className="space-y-3 rounded-md border-[1px] px-3 pb-3">
             <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.outboundLabel')}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField label={t('email.host')} error={fieldErrors.smtpHost}>
@@ -1516,7 +1516,7 @@ function EmailChannelDialog({
             </div>
           </fieldset>
 
-          <fieldset className="space-y-3 rounded-md border-[0.5px] px-3 pb-3">
+          <fieldset className="space-y-3 rounded-md border-[1px] px-3 pb-3">
             <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.inboundLabel')}</legend>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -1890,7 +1890,7 @@ function CopyableSecret({ label, value, hint }: { label: string; value: string; 
     <div className="space-y-1">
       <Label>{label}</Label>
       <div className="flex items-center gap-2">
-        <code className="flex-1 truncate rounded-md border-[0.5px] bg-background px-3 py-2 font-mono text-sm">
+        <code className="flex-1 truncate rounded-md border-[1px] bg-background px-3 py-2 font-mono text-sm">
           {value}
         </code>
         <Button variant="outline" size="sm" onClick={copy}>
@@ -1941,7 +1941,7 @@ function WebhookSecretField({
     <div className="flex flex-col gap-2">
       {value ? (
         <div className="flex items-center gap-2">
-          <code className="flex-1 truncate rounded-md border-[0.5px] bg-background px-3 py-2 font-mono text-sm">
+          <code className="flex-1 truncate rounded-md border-[1px] bg-background px-3 py-2 font-mono text-sm">
             {value}
           </code>
           <Button type="button" variant="outline" size="sm" onClick={copy}>
@@ -1955,7 +1955,7 @@ function WebhookSecretField({
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <div className="flex-1 truncate rounded-md border-[0.5px] border-dashed bg-background px-3 py-2 font-mono text-sm text-muted-foreground">
+          <div className="flex-1 truncate rounded-md border-[1px] border-dashed bg-background px-3 py-2 font-mono text-sm text-muted-foreground">
             {emptyHint ?? '••••'}
           </div>
           <Button type="button" variant="outline" size="sm" onClick={regenerate}>
@@ -2056,7 +2056,7 @@ function EmbedSnippetDialog({
         <div className="space-y-8 py-2">
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.scriptLabel')}</Label>
-            <pre className="overflow-x-auto rounded-md border-[0.5px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
               {scriptSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copySnippet}>
@@ -2072,7 +2072,7 @@ function EmbedSnippetDialog({
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.hashLabel')}</Label>
             <p className={dialogHintClass}>{t('embed.hashHint')}</p>
-            <div className="flex w-fit border-[0.5px] border-ink dark:border-foreground">
+            <div className="flex w-fit border-[1px] border-ink dark:border-foreground">
               {HASH_SNIPPETS.map((s) => {
                 const active = s.language === language;
                 return (
@@ -2081,7 +2081,7 @@ function EmbedSnippetDialog({
                     type="button"
                     onClick={() => setLanguage(s.language)}
                     className={cn(
-                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r-[0.5px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
+                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r-[1px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
                       active
                         ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
                         : 'bg-paper hover:bg-paper-deep dark:bg-card dark:hover:bg-secondary',
@@ -2092,7 +2092,7 @@ function EmbedSnippetDialog({
                 );
               })}
             </div>
-            <pre className="overflow-x-auto rounded-md border-[0.5px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
               {hashSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copyHash}>

@@ -94,7 +94,7 @@ export function SystemAlertsBanner() {
     <div
       role="alert"
       aria-live="polite"
-      className="agent-banner sticky top-0 z-50 h-12 overflow-hidden border-b-[0.5px] border-ink bg-amber-100 text-ink dark:bg-amber-200/90 dark:text-ink"
+      className="agent-banner sticky top-0 z-50 h-12 overflow-hidden border-b-[1px] border-ink/20 bg-amber-100 text-ink dark:bg-amber-200/90 dark:text-ink"
     >
       <div className="mx-auto flex h-full items-center gap-4 px-4 md:px-10">
         <span className="flex shrink-0 items-center gap-2 whitespace-nowrap border-r border-ink/25 pr-3.5 font-mono text-[10px] uppercase leading-none tracking-[0.16em]">

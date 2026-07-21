@@ -58,7 +58,7 @@ export function ConnectConnectorDialog({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[720px] p-0">
-        <div className="flex items-center gap-4 border-b-[0.5px] border-rule-soft px-8 py-6 dark:border-rule-on-dark">
+        <div className="flex items-center gap-4 border-b-[1px] border-rule-soft px-8 py-6 dark:border-rule-on-dark">
           <VendorIcon vendor={vendor.vendor} label={vendor.displayName} size={56} markSize={28} />
           <div className="flex flex-1 flex-col gap-1">
             <h2 className="font-serif text-2xl leading-none text-ink dark:text-foreground">
@@ -71,20 +71,20 @@ export function ConnectConnectorDialog({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-[260px_1fr]">
-          <div className="flex flex-col gap-4 border-b-[0.5px] border-rule-soft bg-paper-deep px-7 py-6 dark:border-rule-on-dark dark:bg-secondary sm:border-b-0 sm:border-r-[0.5px]">
+          <div className="flex flex-col gap-4 border-b-[1px] border-rule-soft bg-paper-deep px-7 py-6 dark:border-rule-on-dark dark:bg-secondary sm:border-b-0 sm:border-r-[1px]">
             <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
               {t('whatAgentsGet')}
             </span>
             <div className="flex flex-col">
               {present.capabilityKeys.map((k) => (
-                <div key={k} className="border-b-[0.5px] border-rule-soft py-2.5 last:border-0 dark:border-rule-on-dark">
+                <div key={k} className="border-b-[1px] border-rule-soft py-2.5 last:border-0 dark:border-rule-on-dark">
                   <span className="block text-[13px] leading-snug text-ink dark:text-foreground">
                     {tc(`capability.${k}`)}
                   </span>
                 </div>
               ))}
             </div>
-            <p className="font-serif text-sm italic text-ink-mute">{t('readLive')}</p>
+            <p className="font-serif text-sm italic text-ink-mute">{t('liveData')}</p>
           </div>
 
           <div className="flex flex-col gap-4 px-8 py-6">
@@ -104,7 +104,7 @@ export function ConnectConnectorDialog({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2.5 border-t-[0.5px] border-rule-soft bg-paper-deep px-8 py-3.5 dark:border-rule-on-dark dark:bg-secondary">
+        <div className="flex justify-end gap-2.5 border-t-[1px] border-rule-soft bg-paper-deep px-8 py-3.5 dark:border-rule-on-dark dark:bg-secondary">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
             {tCommon('cancel')}
           </Button>

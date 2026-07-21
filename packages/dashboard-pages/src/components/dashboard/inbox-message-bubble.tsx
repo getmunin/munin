@@ -56,7 +56,7 @@ export function MessageBubble({ message }: { message: MessageDto }) {
     return (
       <div
         className={cn(
-          'max-w-[85%] border-[0.5px] border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-500/30 dark:bg-amber-500/10',
+          'max-w-[85%] border-[1px] border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-500/30 dark:bg-amber-500/10',
           isOutbound
             ? 'ml-auto rounded-bubble rounded-tr-[2px]'
             : 'mr-auto rounded-bubble rounded-tl-[2px]',

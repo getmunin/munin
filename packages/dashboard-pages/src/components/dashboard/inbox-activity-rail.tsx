@@ -48,7 +48,7 @@ export function ActivityRail({
   });
 
   return (
-    <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+    <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

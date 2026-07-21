@@ -85,7 +85,7 @@ export function QueueSection({ controller }: { controller: InboxController }) {
 
   return (
     <section>
-      <div className="flex items-baseline justify-between gap-4 border-b-[0.5px] border-rule-soft pb-2.5 dark:border-rule-on-dark">
+      <div className="flex items-baseline justify-between gap-4 border-b-[1px] border-rule-soft pb-2.5 dark:border-rule-on-dark">
         <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground">
           {t('eyebrow')} · {queue.length}
         </h2>
@@ -275,7 +275,7 @@ function LiveCard({
   return (
     <li className="space-y-0">
       <div
-        className="group/livecard flex flex-col gap-4 border-[0.5px] border-ink bg-paper px-5 py-4 cursor-pointer transition-colors duration-fast ease-munin hover:border-cobalt sm:flex-row sm:items-stretch dark:border-rule-on-dark dark:bg-card dark:hover:border-cobalt-soft"
+        className="group/livecard flex flex-col gap-4 border-[1px] border-ink bg-paper px-5 py-4 cursor-pointer transition-colors duration-fast ease-munin hover:border-cobalt sm:flex-row sm:items-stretch dark:border-rule-on-dark dark:bg-card dark:hover:border-cobalt-soft"
         onClick={handleCardClick}
         role="button"
         tabIndex={0}
@@ -356,7 +356,7 @@ function QueueRow({
   const tone = queueTone(item);
   const labelKey = queueLabelKey(item);
   return (
-    <li className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+    <li className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
       <div
         className="group/qrow flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
         onClick={onOpen}

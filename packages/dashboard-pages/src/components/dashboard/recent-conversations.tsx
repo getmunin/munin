@@ -69,7 +69,7 @@ export function RecentConversationsSection({
 
   return (
     <section>
-      <div className="flex items-baseline justify-between gap-4 border-b-[0.5px] border-rule-soft pb-2.5 dark:border-rule-on-dark">
+      <div className="flex items-baseline justify-between gap-4 border-b-[1px] border-rule-soft pb-2.5 dark:border-rule-on-dark">
         <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground">
           {t('eyebrow')} · {visible.length}
         </h2>
@@ -104,7 +104,7 @@ function ConversationRow({
   const ts = conv.lastMessageAt ?? conv.updatedAt;
 
   return (
-    <li className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+    <li className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
       <div
         className="group/cnvrow relative flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
         onClick={onOpen}

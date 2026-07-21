@@ -9,12 +9,12 @@ const sheetVariants = cva(
   {
     variants: {
       side: {
-        top: "inset-x-0 top-0 border-b-[0.5px] border-ink data-[starting-style]:-translate-y-full data-[ending-style]:-translate-y-full dark:border-rule-on-dark",
+        top: "inset-x-0 top-0 border-b-[1px] border-ink data-[starting-style]:-translate-y-full data-[ending-style]:-translate-y-full dark:border-rule-on-dark",
         bottom:
-          "inset-x-0 bottom-0 border-t-[0.5px] border-ink data-[starting-style]:translate-y-full data-[ending-style]:translate-y-full dark:border-rule-on-dark",
-        left: "inset-y-0 left-0 h-full w-full max-w-[560px] border-r-[0.5px] border-ink data-[starting-style]:-translate-x-full data-[ending-style]:-translate-x-full dark:border-rule-on-dark",
+          "inset-x-0 bottom-0 border-t-[1px] border-ink data-[starting-style]:translate-y-full data-[ending-style]:translate-y-full dark:border-rule-on-dark",
+        left: "inset-y-0 left-0 h-full w-full max-w-[560px] border-r-[1px] border-ink data-[starting-style]:-translate-x-full data-[ending-style]:-translate-x-full dark:border-rule-on-dark",
         right:
-          "inset-y-0 right-0 h-full w-full max-w-[560px] border-l-[0.5px] border-ink data-[starting-style]:translate-x-full data-[ending-style]:translate-x-full dark:border-rule-on-dark",
+          "inset-y-0 right-0 h-full w-full max-w-[560px] border-l-[1px] border-ink data-[starting-style]:translate-x-full data-[ending-style]:translate-x-full dark:border-rule-on-dark",
       },
     },
     defaultVariants: { side: "right" },
@@ -68,7 +68,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn("flex flex-col gap-2 px-6 py-5 border-b-[0.5px] border-rule-soft dark:border-rule-on-dark", className)}
+      className={cn("flex flex-col gap-2 px-6 py-5 border-b-[1px] border-rule-soft dark:border-rule-on-dark", className)}
       {...props}
     />
   )

@@ -231,7 +231,7 @@ export function CmsQueueDrawer({
           shortcut={t('shortcutSave')}
         />
       ) : (
-        <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+        <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
           <Dialog
             open={schedulerOpen}
             onOpenChange={(o) => {
@@ -262,7 +262,7 @@ export function CmsQueueDrawer({
                       setScheduledAt(e.target.value);
                       if (scheduleError) setScheduleError(null);
                     }}
-                    className="rounded-input border-[0.5px] border-rule-soft bg-paper px-3 py-2 font-sans text-sm text-ink outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:border-rule-on-dark dark:bg-card dark:text-foreground"
+                    className="rounded-input border-[1px] border-rule-soft bg-paper px-3 py-2 font-sans text-sm text-ink outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:border-rule-on-dark dark:bg-card dark:text-foreground"
                     autoFocus
                   />
                 </label>
@@ -424,13 +424,13 @@ function FieldEditor({
   replaceLabel: string;
 }) {
   const inputClass = cn(
-    'w-full rounded-input border-[0.5px] bg-paper px-4 py-2 font-sans text-[15px] leading-7 outline-none focus-visible:ring-1 dark:bg-card dark:text-foreground',
+    'w-full rounded-input border-[1px] bg-paper px-4 py-2 font-sans text-[15px] leading-7 outline-none focus-visible:ring-1 dark:bg-card dark:text-foreground',
     invalid
       ? 'border-destructive focus-visible:ring-destructive'
       : 'border-cobalt focus-visible:ring-cobalt',
   );
   const textareaClass = cn(
-    'w-full resize-y rounded-input border-[0.5px] bg-paper px-4 py-3 font-sans text-[15px] leading-7 outline-none focus-visible:ring-1 dark:bg-card dark:text-foreground',
+    'w-full resize-y rounded-input border-[1px] bg-paper px-4 py-3 font-sans text-[15px] leading-7 outline-none focus-visible:ring-1 dark:bg-card dark:text-foreground',
     invalid
       ? 'border-destructive focus-visible:ring-destructive'
       : 'border-cobalt focus-visible:ring-cobalt',
@@ -594,7 +594,7 @@ function FieldEditor({
       );
     default:
       return (
-        <pre className="w-full overflow-x-auto rounded-input border-[0.5px] border-rule-soft bg-paper-deep px-3 py-2 font-mono text-xs text-ink-mute dark:border-rule-on-dark dark:bg-secondary">
+        <pre className="w-full overflow-x-auto rounded-input border-[1px] border-rule-soft bg-paper-deep px-3 py-2 font-mono text-xs text-ink-mute dark:border-rule-on-dark dark:bg-secondary">
           {JSON.stringify(value, null, 2)}
         </pre>
       );
@@ -655,7 +655,7 @@ function FieldViewer({
 
 function ValueBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="border-[0.5px] border-ink bg-paper px-4 py-3 font-sans text-[15px] leading-7 text-ink dark:bg-card dark:border-rule-on-dark dark:text-foreground">
+    <div className="border-[1px] border-ink bg-paper px-4 py-3 font-sans text-[15px] leading-7 text-ink dark:bg-card dark:border-rule-on-dark dark:text-foreground">
       {children}
     </div>
   );
@@ -679,7 +679,7 @@ function BlockCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3 border-[0.5px] border-rule-soft bg-paper-deep/50 p-3 dark:border-rule-on-dark dark:bg-secondary/40">
+    <div className="space-y-3 border-[1px] border-rule-soft bg-paper-deep/50 p-3 dark:border-rule-on-dark dark:bg-secondary/40">
       <div className="flex items-center justify-between gap-2">
         <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
           {label}
@@ -836,7 +836,7 @@ function ListEditor({
 
   if (!itemDef) {
     return (
-      <pre className="w-full overflow-x-auto rounded-input border-[0.5px] border-rule-soft bg-paper-deep px-3 py-2 font-mono text-xs text-ink-mute dark:border-rule-on-dark dark:bg-secondary">
+      <pre className="w-full overflow-x-auto rounded-input border-[1px] border-rule-soft bg-paper-deep px-3 py-2 font-mono text-xs text-ink-mute dark:border-rule-on-dark dark:bg-secondary">
         {JSON.stringify(value, null, 2)}
       </pre>
     );
@@ -1074,7 +1074,7 @@ function AssetFigure({
   aspectLabel: string;
 }) {
   return (
-    <figure className="border-[0.5px] border-ink bg-paper dark:border-rule-on-dark dark:bg-card">
+    <figure className="border-[1px] border-ink bg-paper dark:border-rule-on-dark dark:bg-card">
       <div className="relative aspect-[16/9] w-full overflow-hidden">
         <img
           src={asset.publicUrl}
@@ -1145,7 +1145,7 @@ function AssetDropZone({
   const interactionsDisabled = disabled || uploading;
   return (
     <>
-      <figure className="border-[0.5px] border-rule-soft bg-paper dark:border-rule-on-dark dark:bg-card">
+      <figure className="border-[1px] border-rule-soft bg-paper dark:border-rule-on-dark dark:bg-card">
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -1165,7 +1165,7 @@ function AssetDropZone({
           aria-label={asset ? replaceLabel : hintLabel}
           aria-invalid={invalid || undefined}
           className={cn(
-            'group relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden border-[0.5px] border-dashed text-center transition',
+            'group relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden border-[1px] border-dashed text-center transition',
             invalid
               ? 'border-destructive bg-destructive/5'
               : dragging

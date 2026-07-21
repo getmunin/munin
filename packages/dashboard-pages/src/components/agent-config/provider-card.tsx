@@ -162,7 +162,7 @@ export function ProviderCard({
               type="button"
               onClick={() => selectPreset(p.id)}
               className={
-                'flex items-center gap-3 rounded-input border-[0.5px] px-4 py-3 text-left transition-colors ' +
+                'flex items-center gap-3 rounded-input border-[1px] px-4 py-3 text-left transition-colors ' +
                 (preset === p.id
                   ? 'border-cobalt bg-cobalt/5 ring-1 ring-inset ring-cobalt'
                   : 'border-rule-soft hover:border-ink/30')
@@ -243,7 +243,7 @@ export function ProviderCard({
               type="button"
               onClick={() => selectPreset(managedPreset.id)}
               className={
-                'flex w-full items-center gap-4 rounded-input border-[0.5px] px-4 py-3.5 text-left transition-colors ' +
+                'flex w-full items-center gap-4 rounded-input border-[1px] px-4 py-3.5 text-left transition-colors ' +
                 (preset === managedPreset.id
                   ? 'border-cobalt bg-cobalt/5 ring-1 ring-inset ring-cobalt'
                   : 'border-rule-soft hover:border-ink/30')

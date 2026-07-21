@@ -579,6 +579,7 @@
         "messagingServiceSidLabel": "Messaging Service SID (valgfritt)",
         "messagingServiceSidHint": "Starter med «MG». Bruk denne i stedet for avsendernummer hvis du har en Messaging Service.",
         "fromOrServiceHint": "Enten avsendernummer eller Messaging Service SID er påkrevd — begge er også OK.",
+        "fromOrServiceRequired": "Oppgi et avsendernummer eller en Messaging Service SID.",
         "sendTest": "Send test-SMS",
         "messagingService": "messaging service · {sid}",
         "accountSidChip": "account · {sid}",
@@ -713,6 +714,8 @@
         "load": "Kunne ikke laste kanaler.",
         "create": "Kunne ikke opprette kanal.",
         "required": "Påkrevd.",
+        "phoneNumberInvalid": "Bruk internasjonalt format, f.eks. +4791234567.",
+        "valueInvalid": "Verdien er ikke gyldig.",
         "createEmail": "Kunne ikke opprette e-postkanal.",
         "updateEmail": "Kunne ikke oppdatere e-postkanal.",
         "createTwilioSms": "Kunne ikke opprette Twilio SMS-kanal.",
@@ -1248,34 +1251,6 @@
     "hero": {
       "eyebrow": "Integrasjoner",
       "title": "Koble Munin til <em>verktøyene du allerede bruker</em>",
-      "lede": "Ta samtaler inn i flatene teamet og kundene dine allerede bruker."
-    },
-    "operatorBridges": {
-      "title": "Operatørbroer",
-      "blurb": "Triager og svar på samtaler fra teamets chatteverktøy."
-    },
-    "slack": {
-      "title": "Slack",
-      "lede": "Speil samtaler inn i en Slack-kanal som tråder og varsle teamet ved eskaleringer. Svar til kunden går fortsatt ut via samtalens opprinnelige kanal.",
-      "notConfigured": "Denne installasjonen har ingen Slack-app konfigurert. Sett SLACK_CLIENT_ID og SLACK_CLIENT_SECRET på backenden — agentferdigheten «Connect Slack for human handoff» har app-manifestet og stegene.",
-      "connect": "Koble til Slack",
-      "connectedTo": "Koblet til {workspace}.",
-      "channelLabel": "Standard kanal-ID",
-      "channelHint": "Slack-kanalen samtaler speiles inn i (kanaldetaljer → Om → Kanal-ID, f.eks. C0123456789).",
-      "saveRouting": "Lagre kanal",
-      "routingSaved": "Slack-kanal lagret",
-      "inviteBot": "Boten er ikke i kanalen ennå — kjør /invite @Munin i Slack, og send deretter en test.",
-      "sendTest": "Send testmelding",
-      "testSent": "Testmelding sendt",
-      "disconnect": "Koble fra",
-      "disconnectConfirm": "Koble fra Slack? Trådkoblinger og ruting slettes; samtalene i Munin påvirkes ikke.",
-      "failedDeliveries": "{count} speilinger feilet siste 24 timer."
-    }
-  },
-  "integrations": {
-    "hero": {
-      "eyebrow": "Integrasjoner",
-      "title": "Koble Munin til <em>verktøyene du allerede bruker</em>",
       "lede": "Ta samtaler inn i flatene medarbeiderne og kundene dine allerede bruker."
     },
     "operatorBridges": {
@@ -1362,42 +1337,50 @@
         "shopDomain": {
           "label": "Butikkdomene",
           "hint": "Ditt permanente *.myshopify.com-domene, ikke et egendefinert domene.",
-          "placeholder": "din-butikk.myshopify.com"
+          "placeholder": "din-butikk.myshopify.com",
+          "invalid": "Oppgi *.myshopify.com-domenet ditt, uten https:// eller sti."
         },
         "accessToken": {
           "label": "Admin API-token",
-          "hint": "En token fra en egendefinert app (starter med shpat_) med read_orders + read_customers."
+          "hint": "En token fra en egendefinert app (starter med shpat_) med read_orders + read_customers.",
+          "invalid": "Dette ser ikke ut som en gyldig token — lim inn hele shpat_…-tokenen."
         },
         "apiVersion": {
           "label": "API-versjon",
-          "hint": "Valgfritt — bruker en gjeldende stabil versjon som standard."
+          "hint": "Valgfritt — bruker en gjeldende stabil versjon som standard.",
+          "invalid": "Bruk formatet ÅÅÅÅ-MM, f.eks. 2025-01."
         }
       },
       "magento": {
         "baseUrl": {
           "label": "Butikkens URL",
           "hint": "Butikkens grunn-URL, uten /rest-suffiks.",
-          "placeholder": "https://butikk.eksempel.no"
+          "placeholder": "https://butikk.eksempel.no",
+          "invalid": "Oppgi en fullstendig https://-adresse til butikken."
         },
         "accessToken": {
           "label": "Integrasjonstoken",
-          "hint": "En integrasjonstoken med lesetilgang til Sales + Customers."
+          "hint": "En integrasjonstoken med lesetilgang til Sales + Customers.",
+          "invalid": "Dette ser ikke ut som en gyldig token — lim inn hele integrasjonstokenen."
         }
       },
       "gastroplanner": {
         "apiToken": {
           "label": "Partner API-token",
-          "hint": "Utstedes av Gastroplanner-support for kontoen din."
+          "hint": "Utstedes av Gastroplanner-support for kontoen din.",
+          "invalid": "Dette ser ikke ut som en gyldig token — lim inn hele tokenen fra Gastroplanner."
         },
         "restaurantUri": {
           "label": "Restaurant-URI",
           "hint": "Verdien som sendes som X-RESTAURANT-header for stedet ditt.",
-          "placeholder": "min-restaurant"
+          "placeholder": "min-restaurant",
+          "invalid": "Oppgi X-RESTAURANT-verdien for stedet ditt."
         },
         "baseUrl": {
           "label": "API-URL",
           "hint": "Valgfritt — bruker https://api.gastroplanner.eu som standard.",
-          "placeholder": "https://api.gastroplanner.eu"
+          "placeholder": "https://api.gastroplanner.eu",
+          "invalid": "Oppgi en fullstendig https://-adresse, eller la feltet stå tomt for standardverdien."
         }
       }
     }
@@ -1431,7 +1414,7 @@
         "blurb": "Snakker direkte med kundene dine, i den konfigurerte personaen."
       },
       "background": {
-        "tierLabel": "{tier}",
+        "tierLabel": "{tier, select, smart {smart} fast {rask} other {{tier}}}",
         "neverRan": "Aldri kjørt for denne organisasjonen ennå.",
         "statuses": {
           "pending": "venter",
@@ -1454,7 +1437,7 @@
       "chatAssistant": {
         "title": "Chatassistent",
         "description": "Svarer kundene i chat, e-post, og alle andre samtalekanaler.",
-        "tierLabel": "{tier}"
+        "tierLabel": "{tier, select, smart {smart} fast {rask} other {{tier}}}"
       }
     },
     "identity": {

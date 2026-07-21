@@ -1168,9 +1168,22 @@ function zodIssuesToFieldErrors(
     } else if (last === 'port') {
       if (parent === 'outbound') errors.smtpPort = t('email.portInvalid');
       else if (parent === 'inbound') errors.imapPort = t('email.portInvalid');
+    } else if (last === 'fromNumber' || last === 'to') {
+      errors[last] = t('errors.phoneNumberInvalid');
+    } else if (typeof last === 'string') {
+      errors[last] = t('errors.valueInvalid');
     }
   }
   return errors;
+}
+
+function zodIssuesToErrorMessage(
+  issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey> }>,
+  t: ReturnType<typeof useTranslations<'dashboard.channels'>>,
+): string {
+  return issues.some((i) => i.path[i.path.length - 1] === 'to')
+    ? t('errors.phoneNumberInvalid')
+    : t('errors.valueInvalid');
 }
 
 function widgetAllowlistRequired(): boolean {
@@ -2315,7 +2328,7 @@ function SendTestSmsDialog({
     if (body.trim()) payload.body = body.trim();
     const parsed = SendTwilioSmsTestBody.safeParse(payload);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
       return;
     }
     setSending(true);
@@ -2593,7 +2606,7 @@ function SendTestMessageBirdSmsDialog({
     if (body.trim()) payload.body = body.trim();
     const parsed = SendMessageBirdSmsTestBody.safeParse(payload);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
       return;
     }
     setSending(true);
@@ -2729,6 +2742,13 @@ function AddSmsDialog({
   }, [open]);
 
   async function submitTwilio(): Promise<void> {
+    if (!fromNumber.trim() && !messagingServiceSid.trim()) {
+      setFieldErrors({
+        fromNumber: t('twilioSms.fromOrServiceRequired'),
+        messagingServiceSid: t('twilioSms.fromOrServiceRequired'),
+      });
+      return;
+    }
     const payload: Record<string, unknown> = {
       ...(name.trim() ? { name: name.trim() } : {}),
       ...(accountSid.trim() ? { accountSid: accountSid.trim() } : {}),
@@ -3638,7 +3658,7 @@ function PlaceVapiCallDialog({
     if (customerName.trim()) payload.customerName = customerName.trim();
     const parsed = VapiCallInitiateBody.safeParse(payload);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
       return;
     }
     setPlacing(true);
@@ -3998,7 +4018,7 @@ function PlaceThrellCallDialog({
     if (customerName.trim()) payload.customerName = customerName.trim();
     const parsed = ThrellCallInitiateBody.safeParse(payload);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
       return;
     }
     setPlacing(true);

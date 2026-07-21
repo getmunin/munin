@@ -455,9 +455,17 @@ export class ConnectorsService {
   ): Promise<Record<string, unknown>> {
     const parsed = adapter.configInput.safeParse(config);
     if (!parsed.success) {
-      throw new BadRequestException(
-        `connectors_invalid: config for ${adapter.vendor}: ${parsed.error.message}`,
-      );
+      const fieldErrors = parsed.error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+        message: issue.message,
+      }));
+      const summary = fieldErrors
+        .map((fe) => (fe.field ? `${fe.field}: ${fe.message}` : fe.message))
+        .join('; ');
+      throw new BadRequestException({
+        message: `connectors_invalid: config for ${adapter.vendor}: ${summary}`,
+        fieldErrors,
+      });
     }
     try {
       return await adapter.buildStoredConfig(

@@ -84,7 +84,7 @@ export function UsagePage({ slot }: { slot?: ReactNode } = {}) {
         <UsageSkeleton />
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 border-l-[0.5px] border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 border-l-[1px] border-t-[1px] border-rule-soft dark:border-rule-on-dark">
             <Tile
               label={t('tiles.mcpCalls')}
               period={t('tiles.thisMonth')}
@@ -133,11 +133,11 @@ function UsageSkeleton() {
   return (
     <div role="status" aria-busy="true" className="space-y-10">
       <span className="sr-only">Loading…</span>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 border-l-[0.5px] border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 border-l-[1px] border-t-[1px] border-rule-soft dark:border-rule-on-dark">
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
-            className="flex min-h-[180px] flex-col gap-4 border-b-[0.5px] border-r-[0.5px] border-rule-soft bg-paper p-6 dark:border-rule-on-dark dark:bg-card"
+            className="flex min-h-[180px] flex-col gap-4 border-b-[1px] border-r-[1px] border-rule-soft bg-paper p-6 dark:border-rule-on-dark dark:bg-card"
           >
             <Skeleton className="h-2.5 w-24" />
             <Skeleton className="h-9 w-20" />
@@ -147,11 +147,11 @@ function UsageSkeleton() {
       </div>
       <div className="space-y-6">
         <Skeleton className="h-6 w-56" />
-        <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+        <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="flex items-center justify-between gap-12 border-b-[0.5px] border-rule-soft px-1 py-5 dark:border-rule-on-dark"
+              className="flex items-center justify-between gap-12 border-b-[1px] border-rule-soft px-1 py-5 dark:border-rule-on-dark"
             >
               <Skeleton className="h-4 w-48" />
               <Skeleton className="h-4 w-16" />
@@ -180,7 +180,7 @@ function Tile({
   const delta = useMemo(() => computeDelta(tile, mode), [tile, mode]);
 
   return (
-    <div className="bg-paper dark:bg-card p-6 flex flex-col gap-4 min-h-[180px] border-r-[0.5px] border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+    <div className="bg-paper dark:bg-card p-6 flex flex-col gap-4 min-h-[180px] border-r-[1px] border-b-[1px] border-rule-soft dark:border-rule-on-dark">
       <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
         {label} · {period}
       </p>
@@ -217,8 +217,8 @@ function ByAgentSection({ data }: { data: UsageByAgentDto | null }) {
         </p>
       </div>
 
-      <div className="border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
-        <div className="grid grid-cols-[1fr_auto_auto] gap-x-12 px-1 py-3 border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+      <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-x-12 px-1 py-3 border-b-[1px] border-rule-soft dark:border-rule-on-dark">
           <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
             {t('colAgent')}
           </span>
@@ -237,7 +237,7 @@ function ByAgentSection({ data }: { data: UsageByAgentDto | null }) {
         {data?.agents.map((agent) => (
           <div
             key={agent.id}
-            className="grid grid-cols-[1fr_auto_auto] gap-x-12 items-baseline px-1 py-5 border-b-[0.5px] border-rule-soft dark:border-rule-on-dark"
+            className="grid grid-cols-[1fr_auto_auto] gap-x-12 items-baseline px-1 py-5 border-b-[1px] border-rule-soft dark:border-rule-on-dark"
           >
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-semibold text-ink dark:text-foreground">{agent.name}</span>

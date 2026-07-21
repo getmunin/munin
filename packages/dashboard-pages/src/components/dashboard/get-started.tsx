@@ -65,7 +65,7 @@ export function GetStarted() {
       <div className="grid gap-9 md:grid-cols-[1.05fr_1fr] items-start">
         {/* MCP setup column */}
         <div className="min-w-0">
-          <div className="flex justify-between items-baseline border-b-[0.5px] border-ink pb-2.5 mb-4 dark:border-foreground">
+          <div className="flex justify-between items-baseline border-b-[1px] border-ink pb-2.5 mb-4 dark:border-foreground">
             <Eyebrow tone="ink" size="sm" className="font-medium">
               {t('connectMcp')}
             </Eyebrow>
@@ -74,7 +74,7 @@ export function GetStarted() {
             </Eyebrow>
           </div>
 
-          <div className="flex border-[0.5px] border-ink mb-3.5 dark:border-foreground">
+          <div className="flex border-[1px] border-ink mb-3.5 dark:border-foreground">
             {setups.map((s) => {
               const active = s.id === activeId;
               return (
@@ -86,7 +86,7 @@ export function GetStarted() {
                     setCopied(false);
                   }}
                   className={cn(
-                    'flex-1 cursor-pointer px-3.5 py-2.5 flex flex-col items-start gap-0.5 border-r-[0.5px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
+                    'flex-1 cursor-pointer px-3.5 py-2.5 flex flex-col items-start gap-0.5 border-r-[1px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
                     active
                       ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
                       : 'bg-paper hover:bg-paper-deep dark:bg-card dark:hover:bg-secondary',
@@ -106,11 +106,11 @@ export function GetStarted() {
             })}
           </div>
 
-          <div className="bg-paper-deep border-[0.5px] border-ink dark:bg-card dark:border-rule-on-dark">
+          <div className="bg-paper-deep border-[1px] border-ink dark:bg-card dark:border-rule-on-dark">
             <pre className="m-0 px-4 py-4 overflow-x-auto font-mono text-xs leading-[1.6] text-ink dark:text-foreground">
               <code>{setup.snippet}</code>
             </pre>
-            <div className="flex justify-between items-center px-3.5 py-2 border-t-[0.5px] border-rule-soft bg-paper dark:bg-secondary dark:border-rule-on-dark">
+            <div className="flex justify-between items-center px-3.5 py-2 border-t-[1px] border-rule-soft bg-paper dark:bg-secondary dark:border-rule-on-dark">
               <a
                 href={setup.docsHref}
                 target="_blank"
@@ -137,7 +137,7 @@ export function GetStarted() {
               link: (chunks) => (
                 <Link
                   href="/dashboard/settings/api-keys"
-                  className="text-cobalt no-underline border-b-[0.5px] border-current dark:text-cobalt-soft"
+                  className="text-cobalt no-underline border-b-[1px] border-current dark:text-cobalt-soft"
                 >
                   {chunks}
                 </Link>
@@ -148,7 +148,7 @@ export function GetStarted() {
 
         {/* Recipes column */}
         <div className="min-w-0">
-          <div className="flex justify-between items-baseline border-b-[0.5px] border-ink pb-2.5 mb-4 dark:border-foreground">
+          <div className="flex justify-between items-baseline border-b-[1px] border-ink pb-2.5 mb-4 dark:border-foreground">
             <Eyebrow tone="ink" size="sm" className="font-medium">
               {t('recipesEyebrow')}
             </Eyebrow>
@@ -157,9 +157,9 @@ export function GetStarted() {
             </Eyebrow>
           </div>
 
-          <ul className="list-none m-0 p-0 border-t-[0.5px] border-rule-soft dark:border-rule-on-dark">
+          <ul className="list-none m-0 p-0 border-t-[1px] border-rule-soft dark:border-rule-on-dark">
             {RECIPES.map((r) => (
-              <li key={r.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+              <li key={r.id} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
                 <a
                   href={`${docsHost}/guides/recipe-${r.id}`}
                   target="_blank"

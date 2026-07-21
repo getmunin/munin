@@ -1284,11 +1284,11 @@
     },
     "dataConnectors": {
       "title": "Datakoblinger",
-      "subtitle": "Leses direkte — aldri kopiert inn i Munin"
+      "subtitle": "Direkte mot leverandøren — ingenting lagres i Munin"
     },
     "connectors": {
       "title": "Koblinger",
-      "lede": "Tilkoblede handels- og bookingsystemer agenter kan slå opp i på vegne av en kunde.",
+      "lede": "Tilkoblede handels- og bookingsystemer agenter kan bruke på vegne av en kunde.",
       "name": "Navn",
       "namePlaceholder": "f.eks. Hovedbutikk",
       "create": "Koble til",
@@ -1311,7 +1311,7 @@
       "connectVendor": "Koble til {vendor}",
       "readOnly": "Skrivebeskyttet",
       "whatAgentsGet": "Hva agenter får",
-      "readLive": "Leses direkte — aldri kopiert inn i Munin.",
+      "liveData": "Direkte mot leverandøren — ingenting lagres i Munin.",
       "connectedCount": "{count} tilkoblet"
     },
     "slack": {
@@ -1344,7 +1344,7 @@
         "slack": "Håndter innboksen og svar uten å forlate arbeidsområdet.",
         "shopify": "Ordrer, kunder og leveringer — lest på vegne av en kunde.",
         "magento": "Les ordrer og kunder fra Magento-butikken din.",
-        "gastroplanner": "Finn, bekreft og slå opp restaurantbookinger.",
+        "gastroplanner": "Sjekk ledige tider, book bord og håndter restaurantbookinger.",
         "generic": "Leses direkte på vegne av en kunde."
       },
       "capability": {
@@ -1352,7 +1352,9 @@
         "slackReply": "Svar kunder fra tråden.",
         "ordersLookup": "Slå opp en kundes ordrer og status.",
         "customersLookup": "Koble en samtale til en butikkunde.",
-        "bookingsLookup": "Finn en gjests bookinger og detaljer."
+        "bookingsLookup": "Finn en gjests bookinger og detaljer.",
+        "bookingsAvailability": "Sjekk ledige tider og book bord.",
+        "bookingsManage": "Endre eller avbestill en gjests booking."
       }
     },
     "field": {

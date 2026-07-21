@@ -1273,11 +1273,11 @@
     },
     "dataConnectors": {
       "title": "Data connections",
-      "subtitle": "Read directly — never copied into Munin"
+      "subtitle": "Live against the vendor — nothing is stored in Munin"
     },
     "connectors": {
       "title": "Connections",
-      "lede": "Connected commerce and booking systems agents can look up on a customer's behalf.",
+      "lede": "Connected commerce and booking systems agents can use on a customer's behalf.",
       "name": "Name",
       "namePlaceholder": "e.g. Main store",
       "create": "Connect",
@@ -1300,7 +1300,7 @@
       "connectVendor": "Connect {vendor}",
       "readOnly": "Read-only",
       "whatAgentsGet": "What agents get",
-      "readLive": "Read directly — never copied into Munin.",
+      "liveData": "Live against the vendor — nothing is stored in Munin.",
       "connectedCount": "{count} connected"
     },
     "slack": {
@@ -1333,7 +1333,7 @@
         "slack": "Triage the inbox and reply without leaving your workspace.",
         "shopify": "Orders, customers, and fulfillment — read on behalf of a customer.",
         "magento": "Read orders and customers from your Magento store.",
-        "gastroplanner": "Find, confirm, and look up restaurant bookings.",
+        "gastroplanner": "Check availability, book tables, and manage restaurant bookings.",
         "generic": "Read directly on behalf of a customer."
       },
       "capability": {
@@ -1341,7 +1341,9 @@
         "slackReply": "Reply to customers from the thread.",
         "ordersLookup": "Look up a customer's orders and status.",
         "customersLookup": "Match a conversation to a store customer.",
-        "bookingsLookup": "Find a guest's bookings and details."
+        "bookingsLookup": "Find a guest's bookings and details.",
+        "bookingsAvailability": "Check availability and book a table.",
+        "bookingsManage": "Change or cancel a guest's booking."
       }
     },
     "field": {

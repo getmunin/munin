@@ -44,7 +44,7 @@ function VerifyEmailInner({ footer }: VerifyEmailPageProps) {
           <Link
             href="/login"
             autoFocus
-            className="mt-2 inline-flex w-full items-center justify-center gap-2 bg-ink px-[18px] py-4 text-[15px] font-medium text-paper shadow-[inset_0_0_0_0.5px_rgb(var(--munin-ink))] transition-colors duration-fast ease-munin hover:bg-cobalt-deep hover:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-accent-deep))] active:translate-y-px"
+            className="mt-2 inline-flex w-full items-center justify-center gap-2 border-[1px] border-ink bg-ink px-[18px] py-4 text-[15px] font-medium text-paper transition-colors duration-fast ease-munin hover:border-cobalt-deep hover:bg-cobalt-deep active:translate-y-px"
           >
             {cta}
           </Link>

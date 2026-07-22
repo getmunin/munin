@@ -8,7 +8,7 @@ import type {
   Provider,
 } from './types.ts';
 import type { PromptResolver } from './prompt-resolver.ts';
-import { MuninRestError, type ConversationDetail, type MuninRestClient } from './munin-rest.ts';
+import type { ConversationDetail, MuninRestClient } from './munin-rest.ts';
 import { FALLBACK_GREET, FALLBACK_HANDOVER, pickFallback } from './fallback-messages.ts';
 
 export interface HandlerConfig {
@@ -25,6 +25,11 @@ export interface HandlerConfig {
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 const TERMINAL_SKIP_CODES = new Set(['handover_active', 'agent_reply_race']);
+
+function errorCode(err: Error): string | null {
+  const code = (err as { code?: unknown }).code;
+  return typeof code === 'string' ? code : null;
+}
 const HANDOVER_TOOL_NAME = 'conv_request_human';
 
 export interface OpenedMcp extends McpToolHandle {
@@ -319,11 +324,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       } catch (err) {
         if (signal.aborted) return;
         lastError = err instanceof Error ? err : new Error(String(err));
-        if (
-          lastError instanceof MuninRestError &&
-          lastError.code !== null &&
-          TERMINAL_SKIP_CODES.has(lastError.code)
-        ) {
+        const skipCode = errorCode(lastError);
+        if (skipCode !== null && TERMINAL_SKIP_CODES.has(skipCode)) {
           log.info(`${conversationId} reply superseded, skipping: ${lastError.message}`);
           return;
         }

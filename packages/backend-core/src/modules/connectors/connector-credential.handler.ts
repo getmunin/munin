@@ -17,6 +17,10 @@ export class ConnectorCredentialHandler implements CredentialTargetHandler {
   }
 
   apply(targetId: string, secrets: Record<string, string>): Promise<CredentialApplyResult> {
-    return this.connectors.applyCredentials(targetId, secrets);
+    return this.connectors.saveCredentials(targetId, secrets);
+  }
+
+  verify(targetId: string): Promise<CredentialApplyResult> {
+    return this.connectors.verifyConnection(targetId);
   }
 }

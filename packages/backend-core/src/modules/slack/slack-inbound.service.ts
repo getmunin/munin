@@ -9,6 +9,7 @@ import { ConvService } from '../conv/conv.service.ts';
 import { SlackApiClient } from './slack-api.client.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { decryptSecretValue } from './slack.service.ts';
+import { routePromptBlocks, routePromptText } from './slack-projection.ts';
 
 const INTERNAL_NOTE_PREFIX = '!';
 const ASSIGN_COMMAND_RE = /^!assign\s+(?:<@([A-Z0-9]+)(?:\|[^>]*)?>|me)\s*$/i;
@@ -26,12 +27,20 @@ const MessageEventSchema = z.object({
   files: z.array(z.object({}).passthrough()).optional(),
 });
 
+const MemberJoinedEventSchema = z.object({
+  type: z.literal('member_joined_channel'),
+  user: z.string().min(1),
+  channel: z.string().min(1),
+  team: z.string().optional(),
+});
+
 const EventCallbackSchema = z.object({
   type: z.literal('event_callback'),
   event: z.unknown(),
 });
 
 type MessageEvent = z.infer<typeof MessageEventSchema>;
+type MemberJoinedEvent = z.infer<typeof MemberJoinedEventSchema>;
 
 /**
  * Slack → Munin direction of the bridge. A reply in a mirrored thread is
@@ -54,6 +63,11 @@ export class SlackInboundService {
   async processEventCallback(payload: Record<string, unknown>): Promise<void> {
     const callback = EventCallbackSchema.safeParse(payload);
     if (!callback.success) return;
+    const joined = MemberJoinedEventSchema.safeParse(callback.data.event);
+    if (joined.success) {
+      await this.handleBotJoinedChannel(joined.data);
+      return;
+    }
     const parsed = MessageEventSchema.safeParse(callback.data.event);
     if (!parsed.success) return;
     const event = parsed.data;
@@ -172,6 +186,55 @@ export class SlackInboundService {
         event,
         `:warning: Your message was sent *without* the ${fileCount} attached file${fileCount === 1 ? '' : 's'} — attachments are not forwarded to customers yet.`,
       );
+    }
+  }
+
+  /**
+   * Skipped when several orgs share the workspace — the same bot user joins
+   * for all of them, so the prompt could not know which org to configure.
+   */
+  private async handleBotJoinedChannel(event: MemberJoinedEvent): Promise<void> {
+    const integrations = await this.db
+      .select()
+      .from(schema.slackIntegrations)
+      .where(
+        and(
+          eq(schema.slackIntegrations.botUserId, event.user),
+          eq(schema.slackIntegrations.active, true),
+          ...(event.team ? [eq(schema.slackIntegrations.teamId, event.team)] : []),
+        ),
+      );
+    if (integrations.length !== 1) return;
+    const integration = integrations[0]!;
+
+    const [existingRoute] = await this.db
+      .select({ id: schema.slackChannelRoutes.id })
+      .from(schema.slackChannelRoutes)
+      .where(
+        and(
+          eq(schema.slackChannelRoutes.teamId, integration.teamId),
+          eq(schema.slackChannelRoutes.slackChannelId, event.channel),
+        ),
+      )
+      .limit(1);
+    if (existingRoute) return;
+
+    const [org] = await this.db
+      .select({ name: schema.orgs.name })
+      .from(schema.orgs)
+      .where(eq(schema.orgs.id, integration.orgId))
+      .limit(1);
+
+    const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
+    try {
+      await this.api.postMessage({
+        token,
+        channel: event.channel,
+        text: routePromptText(org?.name ?? null),
+        blocks: routePromptBlocks(integration.id, org?.name ?? null),
+      });
+    } catch (err) {
+      this.logger.warn(`route prompt failed for ${event.channel}: ${describeError(err)}`);
     }
   }
 

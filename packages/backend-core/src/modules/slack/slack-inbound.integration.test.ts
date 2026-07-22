@@ -395,4 +395,63 @@ class FakeSlackApi extends SlackApiClient {
 
     expect(await messages()).toHaveLength(1);
   });
+
+  describe('bot invited to a channel', () => {
+    function joinPayload(overrides: Record<string, unknown> = {}) {
+      return {
+        type: 'event_callback',
+        event: {
+          type: 'member_joined_channel',
+          user: 'U_MUNIN_BOT',
+          channel: 'C_JOINED',
+          team: 'T_INBOUND',
+          ...overrides,
+        },
+      };
+    }
+
+    it('posts a routing prompt when the bot joins an unrouted channel', async () => {
+      await inbound.processEventCallback(joinPayload());
+
+      expect(api.posted).toHaveLength(1);
+      expect(api.posted[0]!.channel).toBe('C_JOINED');
+      expect(api.posted[0]!.text).toContain('mirror in here');
+    });
+
+    it('stays silent for non-bot joins and already-routed channels', async () => {
+      await inbound.processEventCallback(joinPayload({ user: 'U_SOMEONE' }));
+      expect(api.posted).toHaveLength(0);
+
+      await db.insert(schema.slackChannelRoutes).values({
+        orgId,
+        integrationId,
+        teamId: 'T_INBOUND',
+        slackChannelId: 'C_JOINED',
+        purpose: 'escalations',
+      });
+      await inbound.processEventCallback(joinPayload());
+      expect(api.posted).toHaveLength(0);
+    });
+
+    it('stays silent when several orgs share the workspace', async () => {
+      const [otherOrg] = await db
+        .insert(schema.orgs)
+        .values({ name: 'Second Slack Org' })
+        .returning();
+      try {
+        const encrypted = await encryptSecretValue(db, 'xoxb-second-org');
+        await db.insert(schema.slackIntegrations).values({
+          orgId: otherOrg!.id,
+          teamId: 'T_INBOUND',
+          encryptedBotToken: encrypted,
+          botUserId: 'U_MUNIN_BOT',
+        });
+
+        await inbound.processEventCallback(joinPayload());
+        expect(api.posted).toHaveLength(0);
+      } finally {
+        await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
+      }
+    });
+  });
 });

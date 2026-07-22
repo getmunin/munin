@@ -218,3 +218,39 @@ export function testMessageText(orgName: string | null): string {
   const scope = orgName ? ` for *${escapeSlackText(orgName)}*` : '';
   return `:wave: Munin is connected${scope}. New conversations will mirror into this channel as threads.`;
 }
+
+export const ROUTE_DEFAULT_ACTION_ID = 'munin_route_default';
+export const ROUTE_ESCALATIONS_ACTION_ID = 'munin_route_escalations';
+export const ROUTE_DISMISS_ACTION_ID = 'munin_route_dismiss';
+
+export function routePromptText(orgName: string | null): string {
+  const scope = orgName ? ` for *${escapeSlackText(orgName)}*` : '';
+  return `:wave: Munin joined this channel. Should conversations${scope} mirror in here?`;
+}
+
+export function routePromptBlocks(integrationId: string, orgName: string | null): SlackBlock[] {
+  return [
+    { type: 'section', text: { type: 'mrkdwn', text: routePromptText(orgName) } },
+    {
+      type: 'actions',
+      elements: [
+        actionButton(ROUTE_DEFAULT_ACTION_ID, 'Mirror all conversations', integrationId),
+        actionButton(ROUTE_ESCALATIONS_ACTION_ID, 'Escalation alerts only', integrationId),
+        actionButton(ROUTE_DISMISS_ACTION_ID, 'Not now', integrationId),
+      ],
+    },
+  ];
+}
+
+export function routeConfirmedText(
+  purpose: 'default' | 'escalations',
+  slackUserId: string,
+): string {
+  return purpose === 'default'
+    ? `:white_check_mark: This channel now receives all mirrored conversations — set by <@${slackUserId}>.`
+    : `:white_check_mark: This channel now receives handover escalation alerts — set by <@${slackUserId}>.`;
+}
+
+export function routeDismissedText(): string {
+  return 'Ok — routing can be configured any time from the dashboard (Settings → Integrations) or with slack_set_routing.';
+}

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
-import { schema } from '@getmunin/db';
+import { schema, type Db, type Tx } from '@getmunin/db';
 import {
   decryptSecretSql,
   encryptSecretSql,
@@ -22,6 +22,7 @@ import {
   type ConnectorDomain,
 } from './connector.ts';
 import { ConnectorVendorError } from './http.ts';
+import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
 import type {
   CredentialApplyResult,
@@ -80,11 +81,17 @@ export class ConnectorsService {
     @Inject(ConnectorRegistry) private readonly registry: ConnectorRegistry,
     @Inject(CredentialHandoffService)
     private readonly handoff?: CredentialHandoffService,
+    @Inject(DB) private readonly rootDb?: Db,
   ) {}
 
   private requireHandoff(): CredentialHandoffService {
     if (!this.handoff) throw new Error('credential handoff service not available');
     return this.handoff;
+  }
+
+  private requireRootDb(): Db {
+    if (!this.rootDb) throw new Error('root db not available');
+    return this.rootDb;
   }
 
   listVendors(): ConnectorVendorDto[] {
@@ -188,7 +195,7 @@ export class ConnectorsService {
     };
   }
 
-  async applyCredentials(
+  async saveCredentials(
     connectionId: string,
     secrets: Record<string, string>,
   ): Promise<CredentialApplyResult> {
@@ -196,27 +203,70 @@ export class ConnectorsService {
     const row = await this.requireConnection(connectionId);
     const adapter = this.requireAdapter(row.vendor);
     const stored = await this.buildStored(adapter, { ...(row.config ?? {}), ...secrets });
-    const probe = await this.probe(adapter, stored);
     await ctx.db
       .update(schema.connectorConnections)
       .set({
         config: stored,
         active: true,
         credentialState: 'active',
-        lastTestedAt: new Date(),
-        lastTestError: probe.ok ? null : (probe.error ?? null),
+        lastTestedAt: null,
+        lastTestError: null,
         updatedAt: new Date(),
       })
       .where(eq(schema.connectorConnections.id, row.id));
+    return { ok: true, detail: 'credentials saved' };
+  }
+
+  async applyCredentials(
+    connectionId: string,
+    secrets: Record<string, string>,
+  ): Promise<CredentialApplyResult> {
+    await this.saveCredentials(connectionId, secrets);
+    return this.testConnection({ connectionId });
+  }
+
+  async verifyConnection(connectionId: string): Promise<CredentialApplyResult> {
+    const rootDb = this.requireRootDb();
+    const orgId = getCurrentContext().actor?.orgId;
+    const applyScope = async (tx: Tx): Promise<void> => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
+      if (orgId) await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
+    };
+    const row = await rootDb.transaction(async (tx) => {
+      await applyScope(tx);
+      const rows = await tx
+        .select()
+        .from(schema.connectorConnections)
+        .where(eq(schema.connectorConnections.id, connectionId))
+        .limit(1);
+      return rows[0] ?? null;
+    });
+    if (!row) return { ok: false, error: 'connection no longer exists' };
+    const adapter = this.requireAdapter(row.vendor);
+    const probe = await this.probeDetached(adapter, row.config);
+    await rootDb.transaction(async (tx) => {
+      await applyScope(tx);
+      await tx
+        .update(schema.connectorConnections)
+        .set({
+          lastTestedAt: new Date(),
+          lastTestError: probe.ok ? null : (probe.error ?? null),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.connectorConnections.id, row.id));
+    });
     return probe;
   }
 
-  private async probe(
+  private async probeDetached(
     adapter: ConnectorAdapter,
     stored: Record<string, unknown>,
   ): Promise<CredentialApplyResult> {
     try {
-      const result = await adapter.testConnection(this.connectionContext({ config: stored } as ConnectionRow));
+      const result = await adapter.testConnection({
+        config: stored,
+        decryptSecret: (ciphertext) => this.decryptDetached(ciphertext),
+      });
       return { ok: true, detail: result.detail };
     } catch (err) {
       if (err instanceof ConnectorVendorError || err instanceof SsrfBlockedError) {
@@ -224,6 +274,20 @@ export class ConnectorsService {
       }
       throw err;
     }
+  }
+
+  private async decryptDetached(ciphertext: string): Promise<string> {
+    return this.requireRootDb().transaction(async (tx) => {
+      await tx.execute(setEncryptionKeySql());
+      const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
+        sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
+      );
+      const pt = rows[0]?.pt;
+      if (pt === undefined || pt === null) {
+        throw new ConnectorVendorError('stored credential could not be decrypted');
+      }
+      return pt;
+    });
   }
 
   private secretKeys(adapter: ConnectorAdapter): string[] {

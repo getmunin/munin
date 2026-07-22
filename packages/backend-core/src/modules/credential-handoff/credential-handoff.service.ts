@@ -75,12 +75,13 @@ export class CredentialHandoffService {
     const req = await this.resolve(token);
     const handler = this.registry.get(req.targetType);
     if (!handler) throw new NotFoundException('credential_handoff_not_found: link no longer valid');
-    const result = await this.inOrgContext(req.orgId, () => handler.apply(req.targetId, secrets));
+    const applied = await this.inOrgContext(req.orgId, () => handler.apply(req.targetId, secrets));
     await this.db
       .update(schema.credentialRequests)
       .set({ completedAt: new Date() })
       .where(eq(schema.credentialRequests.id, req.id));
-    return result;
+    if (!applied.ok || !handler.verify) return applied;
+    return this.inOrgActor(req.orgId, () => handler.verify!(req.targetId));
   }
 
   private async resolve(token: string) {
@@ -111,5 +112,11 @@ export class CredentialHandoffService {
       const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
       return withContext(ctx, fn);
     });
+  }
+
+  private async inOrgActor<T>(orgId: string, fn: () => Promise<T>): Promise<T> {
+    const actor = new ActorIdentity('system', 'credential-handoff', orgId, ['*'], ['admin']);
+    const ctx: RequestContext = { db: this.db, actor, correlationId: randomUUID() };
+    return withContext(ctx, fn);
   }
 }

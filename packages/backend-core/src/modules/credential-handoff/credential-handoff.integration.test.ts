@@ -50,7 +50,7 @@ const skipReason = TEST_URL
     const registry = new ConnectorRegistry([new ShopifyAdapter(stubFetch)]);
     const targets = new CredentialTargetRegistry();
     handoff = new CredentialHandoffService(db, targets);
-    connectors = new ConnectorsService(registry, handoff);
+    connectors = new ConnectorsService(registry, handoff, db);
     targets.register(new ConnectorCredentialHandler(connectors));
   });
 
@@ -134,6 +134,26 @@ const skipReason = TEST_URL
     await expect(handoff.complete(token, { accessToken: 'shpat_again' })).rejects.toThrow(
       /invalid or expired/,
     );
+  });
+
+  it('saves credentials then surfaces a failed vendor probe and records the error', async () => {
+    const created = await asAdmin(() =>
+      connectors.createConnection({
+        vendor: 'shopify',
+        name: 'Main store',
+        config: { shopDomain: 'acme.myshopify.com' },
+      }),
+    );
+    const token = tokenFromUrl(created.credentialLink!.url);
+    respond = () => ({ status: 401, body: {} });
+
+    const result = await handoff.complete(token, { accessToken: 'shpat_bad_token' });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/401|403/);
+
+    const listed = await asAdmin(() => connectors.listConnections());
+    expect(listed[0]!.credentialState).toBe('active');
+    expect(listed[0]!.lastTestError).toMatch(/401|403/);
   });
 
   it('rejects an expired link', async () => {

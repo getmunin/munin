@@ -194,6 +194,30 @@ class FakeAdapter implements ConnectorAdapter {
       ).rejects.toThrow(/unknown vendor/);
     });
 
+    it('rejects invalid config with per-field errors and a readable summary', async () => {
+      const err = await run(() =>
+        connectors.createConnection({
+          vendor: 'fakeshop',
+          name: 'Bad config',
+          config: { host: '', apiToken: 'tok_plaintext_secret' },
+        }),
+      ).then(
+        () => null,
+        (e: unknown) => e,
+      );
+
+      expect(err).toBeInstanceOf(BadRequestException);
+      const response = (err as BadRequestException).getResponse() as {
+        message: string;
+        fieldErrors: Array<{ field: string; message: string }>;
+      };
+      expect(response.message).toMatch(/^connectors_invalid: config for fakeshop: host: /);
+      expect(response.message).not.toMatch(/[[{]/);
+      expect(response.fieldErrors).toHaveLength(1);
+      expect(response.fieldErrors[0]!.field).toBe('host');
+      expect(response.fieldErrors[0]!.message.length).toBeGreaterThan(0);
+    });
+
     it('keeps the stored secret when config is updated without the token', async () => {
       const dto = await createConnection('fakeshop', 'Main store');
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);

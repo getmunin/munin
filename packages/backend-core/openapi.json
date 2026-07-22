@@ -5333,6 +5333,34 @@
         "security": []
       }
     },
+    "/v1/credentials": {
+      "get": {
+        "operationId": "CredentialHandoffController_describe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CredentialHandoff"
+        ],
+        "security": []
+      },
+      "post": {
+        "operationId": "CredentialHandoffController_complete",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CredentialHandoff"
+        ],
+        "security": []
+      }
+    },
     "/v1/slack/oauth/callback": {
       "get": {
         "operationId": "SlackOAuthController_callback",
@@ -5374,34 +5402,6 @@
         },
         "tags": [
           "SlackEvents"
-        ],
-        "security": []
-      }
-    },
-    "/v1/credentials": {
-      "get": {
-        "operationId": "CredentialHandoffController_describe",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "CredentialHandoff"
-        ],
-        "security": []
-      },
-      "post": {
-        "operationId": "CredentialHandoffController_complete",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "CredentialHandoff"
         ],
         "security": []
       }

@@ -579,6 +579,7 @@
         "messagingServiceSidLabel": "Messaging Service SID (optional)",
         "messagingServiceSidHint": "Starts with \"MG\". Use this instead of From number if you have a Messaging Service.",
         "fromOrServiceHint": "Either From number or Messaging Service SID is required — providing both is allowed.",
+        "fromOrServiceRequired": "Provide a From number or a Messaging Service SID.",
         "sendTest": "Send test SMS",
         "messagingService": "messaging service · {sid}",
         "accountSidChip": "account · {sid}",
@@ -713,6 +714,8 @@
         "load": "Could not load channels.",
         "create": "Could not create channel.",
         "required": "Required.",
+        "phoneNumberInvalid": "Use the international format, e.g. +15551234567.",
+        "valueInvalid": "This value isn't valid.",
         "createEmail": "Could not create email channel.",
         "updateEmail": "Could not update email channel.",
         "createTwilioSms": "Could not create Twilio SMS channel.",
@@ -1254,23 +1257,6 @@
       "title": "Operator bridges",
       "subtitle": "Triage & reply from your team's chat tools"
     },
-    "slack": {
-      "title": "Slack",
-      "lede": "Mirror conversations into a Slack channel as threads and alert your team on handover requests. Replies to customers still go out over the conversation's original channel.",
-      "notConfigured": "This deployment has no Slack app configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET on the backend — the agent skill \"Connect Slack for human handoff\" has the app manifest and steps.",
-      "connect": "Connect Slack",
-      "connectedTo": "Connected to {workspace}.",
-      "channelLabel": "Default channel ID",
-      "channelHint": "The Slack channel conversations mirror into (channel details → About → Channel ID, e.g. C0123456789).",
-      "saveRouting": "Save channel",
-      "routingSaved": "Slack channel saved",
-      "inviteBot": "The bot is not in that channel yet — run /invite @Munin in Slack, then send a test.",
-      "sendTest": "Send test message",
-      "testSent": "Test message sent",
-      "disconnect": "Disconnect",
-      "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",
-      "failedDeliveries": "{count} mirror deliveries failed in the last 24 hours."
-    },
     "dataConnectors": {
       "title": "Data connections",
       "subtitle": "Live against the vendor — nothing is stored in Munin"
@@ -1351,42 +1337,50 @@
         "shopDomain": {
           "label": "Shop domain",
           "hint": "Your permanent *.myshopify.com domain, not a custom storefront domain.",
-          "placeholder": "your-store.myshopify.com"
+          "placeholder": "your-store.myshopify.com",
+          "invalid": "Enter your *.myshopify.com domain, without https:// or a path."
         },
         "accessToken": {
           "label": "Admin API access token",
-          "hint": "A custom-app token (starts with shpat_) with read_orders + read_customers."
+          "hint": "A custom-app token (starts with shpat_) with read_orders + read_customers.",
+          "invalid": "This doesn't look like a valid token — paste the full shpat_… token."
         },
         "apiVersion": {
           "label": "API version",
-          "hint": "Optional — defaults to a current stable version."
+          "hint": "Optional — defaults to a current stable version.",
+          "invalid": "Use the YYYY-MM format, e.g. 2025-01."
         }
       },
       "magento": {
         "baseUrl": {
           "label": "Store base URL",
           "hint": "The storefront base URL, without the /rest suffix.",
-          "placeholder": "https://store.example.com"
+          "placeholder": "https://store.example.com",
+          "invalid": "Enter a full https:// URL to the store."
         },
         "accessToken": {
           "label": "Integration access token",
-          "hint": "An integration token with read access to Sales + Customers."
+          "hint": "An integration token with read access to Sales + Customers.",
+          "invalid": "This doesn't look like a valid token — paste the full integration token."
         }
       },
       "gastroplanner": {
         "apiToken": {
           "label": "Partner API token",
-          "hint": "Issued by Gastroplanner support for your account."
+          "hint": "Issued by Gastroplanner support for your account.",
+          "invalid": "This doesn't look like a valid token — paste the full token from Gastroplanner."
         },
         "restaurantUri": {
           "label": "Restaurant URI",
           "hint": "The value sent as the X-RESTAURANT header for your venue.",
-          "placeholder": "my-restaurant"
+          "placeholder": "my-restaurant",
+          "invalid": "Enter the X-RESTAURANT value for your venue."
         },
         "baseUrl": {
           "label": "API base URL",
           "hint": "Optional — defaults to https://api.gastroplanner.eu.",
-          "placeholder": "https://api.gastroplanner.eu"
+          "placeholder": "https://api.gastroplanner.eu",
+          "invalid": "Enter a full https:// URL, or leave the field empty for the default."
         }
       }
     }
@@ -1420,7 +1414,7 @@
         "blurb": "Speaks to your customers directly, in the configured persona."
       },
       "background": {
-        "tierLabel": "{tier}",
+        "tierLabel": "{tier, select, smart {smart} fast {fast} other {{tier}}}",
         "neverRan": "Never run for this org yet.",
         "statuses": {
           "pending": "pending",
@@ -1443,7 +1437,7 @@
       "chatAssistant": {
         "title": "Chat assistant",
         "description": "Replies to customers across chat, email, and any other conversation channel.",
-        "tierLabel": "{tier}"
+        "tierLabel": "{tier, select, smart {smart} fast {fast} other {{tier}}}"
       }
     },
     "identity": {

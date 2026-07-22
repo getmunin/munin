@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, Dialog, DialogContent, Input, Label } from '@getmunin/ui';
-import { api } from '../../api';
+import { api, ApiError } from '../../api';
 import { notify } from '../../lib/notify';
 import { dialogLabelClass } from '../../lib/dialog-style';
 import { useTranslateError } from '../../i18n/translate-error';
@@ -33,6 +33,7 @@ export function ConnectConnectorDialog({
   const present = vendorPresentation(vendor.vendor, vendor.domain);
   const [name, setName] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   const missingRequired = vendor.configFields.some((f) => f.required && !values[f.key]);
@@ -46,10 +47,17 @@ export function ConnectConnectorDialog({
         method: 'POST',
         body: JSON.stringify({ vendor: vendor.vendor, name, config }),
       });
+      setFieldErrors({});
       notify.success(t('created'));
       await onDone();
     } catch (err) {
-      notify.error(translate(err));
+      if (err instanceof ApiError && err.fieldErrors.length > 0) {
+        const next: Record<string, string> = {};
+        for (const fe of err.fieldErrors) next[fe.field] = fe.message;
+        setFieldErrors(next);
+      } else {
+        notify.error(translate(err));
+      }
     } finally {
       setBusy(false);
     }
@@ -98,7 +106,15 @@ export function ConnectConnectorDialog({
                 vendor={vendor.vendor}
                 field={f}
                 value={values[f.key] ?? ''}
-                onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))}
+                onChange={(val) => {
+                  setValues((v) => ({ ...v, [f.key]: val }));
+                  setFieldErrors((prev) => {
+                    if (!prev[f.key]) return prev;
+                    const { [f.key]: _, ...rest } = prev;
+                    return rest;
+                  });
+                }}
+                error={fieldErrors[f.key]}
               />
             ))}
           </div>

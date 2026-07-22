@@ -1,5 +1,34 @@
 # @getmunin/db
 
+## 4.68.0
+
+### Minor Changes
+
+- 1482bbe: Connectors trunk: encrypted `connector_connections` storage behind a vendor-adapter registry, `connectors_*` admin MCP tools (list vendors, CRUD, credential test), `connectors:read`/`connectors:write` scopes, and the shared scope/identity helpers domain modules (commerce, bookings) build their typed read surfaces on.
+- 8da0e90: Connectors management UI and secure credential handoff. The Integrations settings page gains a Data connectors section to list, add, test, and remove connections. Secrets can be entered inline or handed off: creating a connection without its secret returns a one-time link (`/connect/credentials`) a human opens to enter credentials in the dashboard, so secrets never pass through an agent conversation. Backed by a generic `credential_requests` handoff primitive (reusable by other MCP-set-up integrations) and a `/v1/connectors` control-plane API.
+- 491186c: Multi-step outreach sequences. Campaigns can define ordered `sequenceSteps` (wait period + drafting brief per step, email campaigns only); a daily curator sweep (`skill://outreach/draft-followup-email`, `MUNIN_CURATOR_OUTREACH_FOLLOWUP_CRON`) finds conversations whose next step is due via the new `outreach_list_due_followups` tool and files `kind: 'followup'` proposals with `outreach_propose_followup` into the existing human review queue. Any inbound reply permanently stops a sequence (the reply flow takes over), as does unsubscribe/suppression or dismissing a follow-up draft. Follow-ups thread into the initial's conversation with no subject or unsubscribe footer, and export/import round-trips sequences.
+- cdff1ad: Slack integration phase 3: claim/close buttons, live parent state, source-channel routing
+
+  The thread parent message becomes interactive: Claim and Close buttons (Reopen once resolved) plus a live status line (status, claimed-by, assigned-to, needs-attention) that updates via `chat.update` as conversation events flow through the mirror. A signed interactivity endpoint (`POST /v1/slack/interactivity`) maps button clicks onto the existing service paths — `ConversationClaimsService.claim` and `conv_change_status` — as the clicking teammate, with the same account-linking rule and ephemeral rejections as thread replies (including "already claimed by someone else").
+
+  Routing gains source-channel overrides: `slack_set_routing` with `convChannelId` mirrors conversations from one Munin conversation channel into their own Slack channel (widget → #support-chat, email → #support-email) while everything else keeps the default. Migration `0051_slack_route_overrides` adds the column and reworks the route uniques. Also fixes a phase-1 gap where routing two purposes at the same Slack channel surfaced as a bare 500 instead of a conflict.
+
+  The Slack app manifest gains the interactivity request URL (`/v1/slack/interactivity`).
+
+- 8037e74: Slack integration phase 1: mirror conversations into Slack threads (operator surface)
+
+  - New `slack` module: per-org workspace connection via Slack OAuth (deployment-level app credentials in `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`), channel routing, and a bridge worker that projects conversation events (`created`, messages, status, assign/claim, handover) into one Slack thread per conversation. Handover requests additionally alert a configurable escalations channel with an optional mention.
+  - The bridge registers an `EventSink` on `WebhookDispatcher` (contract introduced in the integration foundations release) — deliveries are enqueued transactionally with the emitted event; the webhooks queue and the Slack bridge are peer consumers.
+  - New tables (`slack_integrations`, `slack_channel_routes`, `slack_conversation_links`, `slack_message_links`, `slack_user_links`, `slack_deliveries`) with RLS; a Slack channel can only mirror one org (`(team_id, slack_channel_id)` unique), so one workspace can serve multiple orgs.
+  - Admin MCP tools `slack_get_install_url`, `slack_get_status`, `slack_set_routing`, `slack_test`, `slack_disconnect` (scopes `slack:read`/`slack:write`), the `skill://slack/connect-slack` setup skill with the app manifest, `/v1/slack` control endpoints, and a Slack card under AI settings → Integrations.
+
+  Reply-from-Slack and interactive claim/close buttons are follow-up phases; message links already dedupe both directions to keep the loop-prevention invariant.
+
+### Patch Changes
+
+- Updated dependencies [491186c]
+  - @getmunin/types@4.68.0
+
 ## 4.67.2
 
 ### Patch Changes

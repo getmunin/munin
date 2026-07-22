@@ -1,5 +1,22 @@
 # @getmunin/inspector-app
 
+## 4.68.0
+
+### Patch Changes
+
+- Updated dependencies [8da0e90]
+- Updated dependencies [d4bfeb7]
+- Updated dependencies [a66d454]
+- Updated dependencies [cdff1ad]
+- Updated dependencies [ed38e6c]
+- Updated dependencies [47f509d]
+- Updated dependencies [491186c]
+- Updated dependencies [8037e74]
+- Updated dependencies [3677620]
+- Updated dependencies [8788bd4]
+  - @getmunin/dashboard-pages@4.68.0
+  - @getmunin/ui@4.68.0
+
 ## 4.67.2
 
 ### Patch Changes

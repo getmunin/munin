@@ -48,6 +48,9 @@ export class SlackApiClient {
     text: string;
     blocks?: unknown[];
     threadTs?: string;
+    username?: string;
+    iconEmoji?: string;
+    iconUrl?: string;
   }): Promise<{ ts: string; channel: string }> {
     const data = await this.call('chat.postMessage', input.token, {
       channel: input.channel,
@@ -56,6 +59,9 @@ export class SlackApiClient {
       unfurl_media: false,
       ...(input.blocks ? { blocks: input.blocks } : {}),
       ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
+      ...(input.username ? { username: input.username } : {}),
+      ...(input.iconEmoji ? { icon_emoji: input.iconEmoji } : {}),
+      ...(input.iconUrl ? { icon_url: input.iconUrl } : {}),
     });
     return { ts: data.ts as string, channel: data.channel as string };
   }

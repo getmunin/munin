@@ -7,7 +7,7 @@ const BACKEND = { host: '127.0.0.1', port: Number(process.env.BACKEND_PORT ?? 30
 // Paths the backend owns; everything else is the Next web app. claude.ai
 // requires OAuth discovery, the /mcp endpoint, and the login/consent pages
 // to share one https origin, which is why a path router sits in front.
-const BACKEND_PREFIXES = ['/mcp', '/auth', '/.well-known', '/v1', '/icon.png', '/widget.js', '/tracker.js'];
+const BACKEND_PREFIXES = ['/mcp', '/auth', '/.well-known', '/v1', '/icon.png', '/widget.js', '/widget', '/tracker.js'];
 
 function pick(url) {
   return BACKEND_PREFIXES.some((p) => url === p || url.startsWith(p + '/') || url.startsWith(p + '?'))

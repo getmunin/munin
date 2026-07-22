@@ -66,7 +66,7 @@ export function authorLabel(kind: AuthorKind, name: string | null): string {
     case 'end_user':
       return `:bust_in_silhouette: *${escapeSlackText(name ?? 'Customer')}* (customer)`;
     case 'agent':
-      return ':robot_face: *AI agent*';
+      return `:robot_face: *${escapeSlackText(name ?? 'AI agent')}*`;
     case 'user':
       return `:technologist: *${escapeSlackText(name ?? 'Teammate')}* (teammate)`;
     case 'system':
@@ -113,6 +113,41 @@ export function messageText(msg: MessageSnapshot): string {
   return `${label}\n${quoted}${suffix}`;
 }
 
+export interface SpeakerIdentity {
+  username: string;
+  iconEmoji?: string;
+  avatarKey?: string;
+}
+
+export function avatarKey(name: string | null): string {
+  const initial = (name ?? '').match(/[A-Za-z0-9]/)?.[0];
+  return initial ? initial.toUpperCase() : 'default';
+}
+
+export function speakerIdentity(kind: AuthorKind, name: string | null): SpeakerIdentity {
+  switch (kind) {
+    case 'end_user':
+      return { username: name ?? 'Customer', avatarKey: avatarKey(name) };
+    case 'agent':
+      return { username: name ?? 'Munin' };
+    case 'user':
+      return { username: name ?? 'Teammate', iconEmoji: ':technologist:' };
+    case 'system':
+      return { username: 'System', iconEmoji: ':gear:' };
+  }
+}
+
+export function messageBodyText(msg: MessageSnapshot): string {
+  const body = truncate(escapeSlackText(msg.body));
+  const attachmentLines = (msg.attachments ?? []).map((a) => {
+    const name = escapeSlackText(a.name ?? 'attachment');
+    return a.url ? `:paperclip: <${a.url}|${name}>` : `:paperclip: ${name}`;
+  });
+  const suffix = attachmentLines.length > 0 ? `\n${attachmentLines.join('\n')}` : '';
+  if (msg.internal) return `:lock: _Internal note_\n${body}${suffix}`;
+  return `${body}${suffix}`;
+}
+
 export function statusChangedText(status: string): string {
   const emoji: Record<string, string> = {
     open: ':leftwards_arrow_with_hook:',
@@ -129,11 +164,11 @@ export function assignedText(assigneeName: string | null): string {
 }
 
 export function takenOverText(holderName: string): string {
-  return `:raised_hand: Claimed by *${escapeSlackText(holderName)}*`;
+  return `:raised_hand: *${escapeSlackText(holderName)}* took over`;
 }
 
 export function releasedText(holderName: string): string {
-  return `:door: Released by *${escapeSlackText(holderName)}*`;
+  return `:door: *${escapeSlackText(holderName)}* released the conversation`;
 }
 
 export function handoverRequestedText(reason: string | null): string {
@@ -175,21 +210,28 @@ export interface SlackBlock {
 export const CLAIM_ACTION_ID = 'munin_claim';
 export const CLOSE_ACTION_ID = 'munin_close';
 export const REOPEN_ACTION_ID = 'munin_reopen';
+export const RELEASE_ACTION_ID = 'munin_release';
 
 export function parentStateLine(state: ParentState): string {
   const parts = [`*Status:* ${escapeSlackText(state.status)}`];
-  if (state.claimedBy) parts.push(`claimed by *${escapeSlackText(state.claimedBy)}*`);
+  if (state.claimedBy) parts.push(`taken over by *${escapeSlackText(state.claimedBy)}*`);
   if (state.assignedTo) parts.push(`assigned to *${escapeSlackText(state.assignedTo)}*`);
   if (state.needsHumanAttention) parts.push(':rotating_light: needs attention');
   return parts.join(' · ');
 }
 
-function actionButton(actionId: string, label: string, value: string): Record<string, unknown> {
+function actionButton(
+  actionId: string,
+  label: string,
+  value: string,
+  style?: 'primary' | 'danger',
+): Record<string, unknown> {
   return {
     type: 'button',
     action_id: actionId,
     text: { type: 'plain_text', text: label },
     value,
+    ...(style ? { style } : {}),
   };
 }
 
@@ -202,8 +244,10 @@ export function threadParentBlocks(
   const buttons = resolved
     ? [actionButton(REOPEN_ACTION_ID, 'Reopen', conversationId)]
     : [
-        actionButton(CLAIM_ACTION_ID, 'Claim', conversationId),
-        actionButton(CLOSE_ACTION_ID, 'Close', conversationId),
+        state.claimedBy
+          ? actionButton(RELEASE_ACTION_ID, 'Release', conversationId)
+          : actionButton(CLAIM_ACTION_ID, 'Take over', conversationId),
+        actionButton(CLOSE_ACTION_ID, 'Close', conversationId, 'danger'),
       ];
   return [
     {

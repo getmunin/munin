@@ -168,6 +168,7 @@ export class SlackInboundService {
           internal,
           authorType: 'user',
           authorId: userId,
+          claim: false,
         });
         await tx.insert(schema.slackMessageLinks).values({
           orgId: integration.orgId,
@@ -189,10 +190,6 @@ export class SlackInboundService {
     }
   }
 
-  /**
-   * Skipped when several orgs share the workspace — the same bot user joins
-   * for all of them, so the prompt could not know which org to configure.
-   */
   private async handleBotJoinedChannel(event: MemberJoinedEvent): Promise<void> {
     const integrations = await this.db
       .select()

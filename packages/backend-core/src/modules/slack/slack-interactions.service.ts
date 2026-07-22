@@ -13,6 +13,7 @@ import { SlackService, decryptSecretValue } from './slack.service.ts';
 import {
   CLAIM_ACTION_ID,
   CLOSE_ACTION_ID,
+  RELEASE_ACTION_ID,
   REOPEN_ACTION_ID,
   ROUTE_DEFAULT_ACTION_ID,
   ROUTE_DISMISS_ACTION_ID,
@@ -31,7 +32,12 @@ const BlockActionsSchema = z.object({
     .min(1),
 });
 
-const HANDLED_ACTIONS = new Set([CLAIM_ACTION_ID, CLOSE_ACTION_ID, REOPEN_ACTION_ID]);
+const HANDLED_ACTIONS = new Set([
+  CLAIM_ACTION_ID,
+  CLOSE_ACTION_ID,
+  REOPEN_ACTION_ID,
+  RELEASE_ACTION_ID,
+]);
 const ROUTE_ACTIONS = new Set([
   ROUTE_DEFAULT_ACTION_ID,
   ROUTE_ESCALATIONS_ACTION_ID,
@@ -124,6 +130,9 @@ export class SlackInteractionsService {
             case CLAIM_ACTION_ID:
               await this.claims.claim({ conversationId });
               return;
+            case RELEASE_ACTION_ID:
+              await this.claims.release({ conversationId });
+              return;
             case CLOSE_ACTION_ID:
               await this.conv.changeStatus({ id: conversationId, status: 'closed' });
               return;
@@ -141,7 +150,9 @@ export class SlackInteractionsService {
           token,
           link,
           slackUserId,
-          ':raised_hand: Someone else already claimed this conversation.',
+          action.action_id === RELEASE_ACTION_ID
+            ? ':raised_hand: Only the person who took over this conversation can release it.'
+            : ':raised_hand: Someone else has already taken over this conversation.',
         );
         return;
       }

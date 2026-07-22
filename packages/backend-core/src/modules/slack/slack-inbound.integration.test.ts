@@ -220,6 +220,12 @@ class FakeSlackApi extends SlackApiClient {
       );
     expect(userLink?.userId).toBe(memberUserId);
 
+    const claims = await db
+      .select()
+      .from(schema.claims)
+      .where(and(eq(schema.claims.entityType, 'conversation'), eq(schema.claims.entityId, conversationId)));
+    expect(claims).toHaveLength(0);
+
     const worker = new SlackBridgeWorker(db, api);
     await worker.tick();
     const remirrored = api.posted.filter((p) => p.text.includes('Hello from Slack'));

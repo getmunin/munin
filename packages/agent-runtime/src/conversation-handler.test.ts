@@ -406,6 +406,41 @@ describe('createConversationHandler', () => {
     expect(call[2]?.sinceMessageId).toBe(lastMessageId);
   });
 
+  it('skips without retry or handover when the post is rejected because a human took over', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation())),
+    });
+    const postSpy = vi.fn(() =>
+      Promise.reject(
+        new Error('munin POST /v1/conversations/conv_1/messages → 409: handover_active: a human has taken over conversation conv_1'),
+      ),
+    );
+    rest.postAgentMessage = postSpy;
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.requestHandover = handoverSpy;
+    const stubProvider: Provider = () =>
+      Promise.resolve({
+        message: { role: 'assistant', content: 'sure thing' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(handoverSpy).not.toHaveBeenCalled();
+  });
+
   it('calls rest.requestHandover with a public fallback message after MAX_RETRIES provider failures', async () => {
     const rest = buildRest();
     const postSpy = vi.fn(() => Promise.resolve());

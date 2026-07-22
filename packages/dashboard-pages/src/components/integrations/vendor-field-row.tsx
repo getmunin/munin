@@ -17,11 +17,13 @@ export function VendorFieldRow({
   field,
   value,
   onChange,
+  error,
 }: {
   vendor: string;
   field: VendorField;
   value: string;
   onChange: (value: string) => void;
+  error?: string | null;
 }) {
   const tf = useTranslations('integrations.field');
   const base = `${vendor}.${field.key}`;
@@ -30,6 +32,7 @@ export function VendorFieldRow({
   const placeholder = tf.has(`${base}.placeholder`)
     ? tf(`${base}.placeholder`)
     : field.placeholder;
+  const errorText = error ? (tf.has(`${base}.invalid`) ? tf(`${base}.invalid`) : error) : null;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -40,8 +43,15 @@ export function VendorFieldRow({
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        aria-invalid={errorText ? true : undefined}
       />
-      {hint ? <p className={dialogHintClass}>{hint}</p> : null}
+      {errorText ? (
+        <p className="text-sm text-destructive" role="alert">
+          {errorText}
+        </p>
+      ) : hint ? (
+        <p className={dialogHintClass}>{hint}</p>
+      ) : null}
     </div>
   );
 }

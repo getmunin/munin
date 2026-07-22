@@ -21,11 +21,14 @@ export interface CredentialApplyResult {
  * A domain's plug into the credential-handoff flow. `describe` and `apply`
  * run inside a system-actor request context (org resolved from the link), so
  * implementations use the ambient `getCurrentContext()` db like any tool.
+ * `apply` must be DB-only; put any vendor round-trip in `verify`, which runs
+ * after commit and outside any transaction.
  */
 export interface CredentialTargetHandler {
   readonly targetType: string;
   describe(targetId: string): Promise<CredentialTargetDescription | null>;
   apply(targetId: string, secrets: Record<string, string>): Promise<CredentialApplyResult>;
+  verify?(targetId: string): Promise<CredentialApplyResult>;
 }
 
 export class CredentialTargetRegistry {

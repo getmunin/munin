@@ -40,7 +40,7 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
   "settings": {
     "event_subscriptions": {
       "request_url": "https://YOUR_API_HOST/v1/slack/events",
-      "bot_events": ["message.channels"]
+      "bot_events": ["message.channels", "member_joined_channel"]
     },
     "interactivity": {
       "is_enabled": true,
@@ -64,15 +64,19 @@ Workspaces installed before the `channels:history` scope was added must reinstal
 
 ## Step 1 — install into the workspace
 
-Call `slack_get_install_url` and give the operator the returned URL. They open it in a browser, pick the Slack workspace, and approve. The link expires after 10 minutes — mint a fresh one if they were slow. On success the browser lands back on the dashboard's AI settings page with `slack=connected`.
+Call `slack_get_install_url` and give the operator the returned URL. They open it in a browser, pick the Slack workspace, and approve. The link expires after 10 minutes — mint a fresh one if they were slow. On success the browser lands back on the dashboard's Integrations page with `slack=connected`.
 
 One workspace can serve multiple Munin orgs, but each Slack **channel** belongs to exactly one org.
 
 ## Step 2 — route a channel
 
-Conversations do not mirror until a default channel is routed:
+Conversations do not mirror until a default channel is routed. Two paths:
 
-1. Ask the operator which channel (they need its ID: channel details → *About* → Channel ID, e.g. `C0123456789`).
+**From Slack (simplest):** the operator runs `/invite @Munin` in the channel they want. The bot posts a prompt with buttons (*Mirror all conversations* / *Escalation alerts only* / *Not now*); an org owner or admin clicks one and routing is set — no channel ID needed. The prompt is skipped when the channel is already routed or when several Munin orgs share the workspace.
+
+**From here:**
+
+1. Call `slack_list_channels` and ask the operator which channel to use (public channels only — for a private channel, ask for its ID: channel details → *About* → Channel ID, e.g. `C0123456789`).
 2. Call `slack_set_routing` with `{ "slackChannelId": "C0123456789" }`.
 3. If the response has `botInChannel: false`, the operator must run `/invite @Munin` in that channel — the bot cannot post until invited.
 

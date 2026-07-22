@@ -4854,6 +4854,28 @@
         ]
       }
     },
+    "/v1/slack/channels": {
+      "get": {
+        "operationId": "SlackController_listChannels",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Slack"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/slack/routing": {
       "put": {
         "operationId": "SlackController_setRouting",

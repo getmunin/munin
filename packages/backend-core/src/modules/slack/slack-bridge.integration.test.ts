@@ -77,6 +77,19 @@ class FakeSlackApi extends SlackApiClient {
     return Promise.resolve({ id: input.channel, name: 'support', isMember: true });
   }
 
+  channelPages: Array<{
+    channels: { id: string; name: string | null; isMember: boolean }[];
+    nextCursor: string | null;
+  }> | null = [];
+  private pageIdx = 0;
+
+  override conversationsList(_input: { token: string; cursor?: string }) {
+    if (this.channelPages === null) throw new SlackApiError('internal_error');
+    const page = this.channelPages[this.pageIdx] ?? { channels: [], nextCursor: null };
+    this.pageIdx += 1;
+    return Promise.resolve(page);
+  }
+
   oauthTeamId = 'T_INSTALLED';
   override oauthAccess(_input: {
     clientId: string;
@@ -573,6 +586,34 @@ function actionIds(blocks: unknown[] | undefined): string[] {
       );
     expect(routes).toHaveLength(1);
     expect(routes[0]!.slackChannelId).toBe('C_NEW');
+  });
+
+  it('lists workspace channels across pages, sorted by name', async () => {
+    const api = new FakeSlackApi();
+    api.channelPages = [
+      {
+        channels: [
+          { id: 'C_Z', name: 'zulu', isMember: false },
+          { id: 'C_M', name: 'mid', isMember: true },
+        ],
+        nextCursor: 'page2',
+      },
+      {
+        channels: [{ id: 'C_A', name: 'alpha', isMember: true }],
+        nextCursor: null,
+      },
+    ];
+    const service = new SlackService(db, api);
+    const { channels } = await run(() => service.listChannels());
+    expect(channels.map((c) => c.name)).toEqual(['alpha', 'mid', 'zulu']);
+    expect(channels.find((c) => c.id === 'C_Z')?.isMember).toBe(false);
+  });
+
+  it('maps a Slack API failure during channel listing to a 400', async () => {
+    const api = new FakeSlackApi();
+    api.channelPages = null;
+    const service = new SlackService(db, api);
+    await expect(run(() => service.listChannels())).rejects.toThrow(/slack_api_error/);
   });
 
   describe('completeInstall', () => {

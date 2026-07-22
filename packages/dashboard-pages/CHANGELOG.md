@@ -1,5 +1,47 @@
 # @getmunin/dashboard-pages
 
+## 4.68.0
+
+### Minor Changes
+
+- 8da0e90: Connectors management UI and secure credential handoff. The Integrations settings page gains a Data connectors section to list, add, test, and remove connections. Secrets can be entered inline or handed off: creating a connection without its secret returns a one-time link (`/connect/credentials`) a human opens to enter credentials in the dashboard, so secrets never pass through an agent conversation. Backed by a generic `credential_requests` handoff primitive (reusable by other MCP-set-up integrations) and a `/v1/connectors` control-plane API.
+- a66d454: Integration foundations: `EventSink` contract on `WebhookDispatcher` for transactional event fan-out to integration bridges, and the Integrations settings hub page that operator bridges and connectors slot into.
+- cdff1ad: Move the Slack card to the Integrations settings page
+
+  Slack was parked on the AI settings page for lack of a better home. It now lives on the **Integrations** page (`/dashboard/settings/integrations`, introduced in the integration foundations release) under the "Operator bridges" section, keeping AI settings to model/persona/skill config. The card moved to `components/integrations/`, its disconnect flow uses the shared confirm dialog, and its i18n moved from `agentSetup.slack.*` to `integrations.slack.*` (en + nb).
+
+- 8037e74: Slack integration phase 1: mirror conversations into Slack threads (operator surface)
+
+  - New `slack` module: per-org workspace connection via Slack OAuth (deployment-level app credentials in `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`), channel routing, and a bridge worker that projects conversation events (`created`, messages, status, assign/claim, handover) into one Slack thread per conversation. Handover requests additionally alert a configurable escalations channel with an optional mention.
+  - The bridge registers an `EventSink` on `WebhookDispatcher` (contract introduced in the integration foundations release) — deliveries are enqueued transactionally with the emitted event; the webhooks queue and the Slack bridge are peer consumers.
+  - New tables (`slack_integrations`, `slack_channel_routes`, `slack_conversation_links`, `slack_message_links`, `slack_user_links`, `slack_deliveries`) with RLS; a Slack channel can only mirror one org (`(team_id, slack_channel_id)` unique), so one workspace can serve multiple orgs.
+  - Admin MCP tools `slack_get_install_url`, `slack_get_status`, `slack_set_routing`, `slack_test`, `slack_disconnect` (scopes `slack:read`/`slack:write`), the `skill://slack/connect-slack` setup skill with the app manifest, `/v1/slack` control endpoints, and a Slack card under AI settings → Integrations.
+
+  Reply-from-Slack and interactive claim/close buttons are follow-up phases; message links already dedupe both directions to keep the loop-prevention invariant.
+
+- 3677620: Slack routing without channel IDs: the configure dialog lists the channels the bot has been invited to (new `GET /v1/slack/channels` + `slack_list_channels` tool), and inviting @Munin to an unrouted channel posts an interactive prompt where an org owner/admin can set default or escalations routing directly from Slack. Also fixes the Slack Web API client to form-encode requests (read methods rejected JSON bodies with invalid_arguments, surfacing as a 500 when saving a route) and sends the OAuth install back to the Integrations page instead of AI settings.
+
+### Patch Changes
+
+- d4bfeb7: 1px hairlines everywhere, tuned rule weight, and honest bookings connector copy:
+
+  - All `0.5px` borders and inset-shadow outlines are now `1px` — sub-pixel widths rendered inconsistently across devices.
+  - Rule alpha compensates for the doubled width (light `0.145 → 0.09`, dark `0.2 → 0.13`) and is now single-sourced from the `--munin-rule-*-alpha` tokens; the tailwind preset, Button, and the team-page role select reference the tokens instead of hardcoding alphas.
+  - Buttons, pills, auth-shell CTAs, and the team role select draw their outline with a real `border` again instead of the inset box-shadow workaround (iOS Safari only dropped sub-pixel borders; integer widths are safe). Pill padding compensates so rendered size is unchanged; pill outlines soften to 55% `currentColor`.
+  - Dashboard/settings topbars adopt the marketing-site chrome: translucent blurred bar with a soft always-on hairline instead of a full-ink border. System-alerts banner border softens from full ink to `ink/20`.
+  - Dialog field hints are smaller and grayer (`text-xs text-ink-mute`) to read as metadata next to labels.
+  - Gastroplanner connect dialog now advertises the full bookings surface (check availability + book, change/cancel) instead of lookup only, and the "read directly — never copied" note is reworded to "live against the vendor — nothing stored in Munin" since bookings writes. Sonner toasts get their intended ink border (the CSS var name was previously mistyped and ignored).
+
+- ed38e6c: Stack the Live now card actions below the text on small screens so the quote no longer collapses into a narrow column on mobile.
+- 47f509d: Norwegian localization: replace the anglicism "team"/"teammedlem" with "medarbeider(e)" across the nav, team page, landing subtitle, and OAuth consent copy.
+- 491186c: Multi-step outreach sequences. Campaigns can define ordered `sequenceSteps` (wait period + drafting brief per step, email campaigns only); a daily curator sweep (`skill://outreach/draft-followup-email`, `MUNIN_CURATOR_OUTREACH_FOLLOWUP_CRON`) finds conversations whose next step is due via the new `outreach_list_due_followups` tool and files `kind: 'followup'` proposals with `outreach_propose_followup` into the existing human review queue. Any inbound reply permanently stops a sequence (the reply flow takes over), as does unsubscribe/suppression or dismissing a follow-up draft. Follow-ups thread into the initial's conversation with no subject or unsubscribe footer, and export/import round-trips sequences.
+- 8788bd4: Localize the smart/fast model-tier badges (nb: "rask") and surface connector config validation as inline field errors: invalid connector config now returns structured `fieldErrors` instead of a raw zod JSON blob, and the connect dialog highlights the offending inputs with localized per-field messages instead of toasting. The Tailwind preset now defines the `aria-invalid` variant (absent from Tailwind v3 defaults), so the destructive border/ring on invalid inputs actually renders.
+- Updated dependencies [d4bfeb7]
+- Updated dependencies [491186c]
+- Updated dependencies [8788bd4]
+  - @getmunin/ui@4.68.0
+  - @getmunin/types@4.68.0
+
 ## 4.67.2
 
 ### Patch Changes

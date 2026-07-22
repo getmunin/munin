@@ -445,6 +445,41 @@ describe('createConversationHandler', () => {
     expect(handoverSpy).not.toHaveBeenCalled();
   });
 
+  it('skips on a coded in-process error too (backend runner bypasses the REST client)', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation())),
+    });
+    const inProcessError = Object.assign(
+      new Error('handover_active: a human has taken over conversation conv_1'),
+      { code: 'handover_active' },
+    );
+    const postSpy = vi.fn(() => Promise.reject(inProcessError));
+    rest.postAgentMessage = postSpy;
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.requestHandover = handoverSpy;
+    const stubProvider: Provider = () =>
+      Promise.resolve({
+        message: { role: 'assistant', content: 'sure thing' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(handoverSpy).not.toHaveBeenCalled();
+  });
+
   it('calls rest.requestHandover with a public fallback message after MAX_RETRIES provider failures', async () => {
     const rest = buildRest();
     const postSpy = vi.fn(() => Promise.resolve());

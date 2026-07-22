@@ -4,7 +4,7 @@ import {
   type HandlerConfig,
   type OpenedMcp,
 } from './conversation-handler.ts';
-import type { ConversationDetail, MuninRestClient } from './munin-rest.ts';
+import { MuninRestError, type ConversationDetail, type MuninRestClient } from './munin-rest.ts';
 import type { PromptResolver } from './prompt-resolver.ts';
 import type { McpToolResult, Provider, ProviderResponse } from './types.ts';
 
@@ -412,7 +412,11 @@ describe('createConversationHandler', () => {
     });
     const postSpy = vi.fn(() =>
       Promise.reject(
-        new Error('munin POST /v1/conversations/conv_1/messages → 409: handover_active: a human has taken over conversation conv_1'),
+        new MuninRestError(
+          'munin POST /v1/conversations/conv_1/messages → 409: handover_active: a human has taken over conversation conv_1',
+          409,
+          'handover_active',
+        ),
       ),
     );
     rest.postAgentMessage = postSpy;

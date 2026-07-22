@@ -46,3 +46,46 @@ describe('toRuntimeHistory', () => {
     expect(history[0]?.authorType).toBe('end_user');
   });
 });
+
+describe('MuninRestError code extraction', () => {
+  function clientRespondingWith(status: number, body: string) {
+    return createMuninRestClient({
+      baseUrl: 'http://munin.test',
+      adminApiKey: 'mn_admin_test',
+      fetch: () =>
+        Promise.resolve(
+          new Response(body, { status, headers: { 'content-type': 'application/json' } }),
+        ),
+    });
+  }
+
+  it('reads a structured code field from the error body', async () => {
+    const client = clientRespondingWith(
+      409,
+      JSON.stringify({ message: 'handover_active: a human has taken over', code: 'handover_active' }),
+    );
+    await expect(client.getConversation('conv_1')).rejects.toMatchObject({
+      name: 'MuninRestError',
+      status: 409,
+      code: 'handover_active',
+    });
+  });
+
+  it('falls back to the message prefix when the body has no code field', async () => {
+    const client = clientRespondingWith(
+      409,
+      JSON.stringify({ message: 'agent_reply_race: another reply was posted', statusCode: 409 }),
+    );
+    await expect(client.getConversation('conv_1')).rejects.toMatchObject({
+      code: 'agent_reply_race',
+    });
+  });
+
+  it('yields a null code for non-JSON bodies without a prefix', async () => {
+    const client = clientRespondingWith(500, 'Internal server error');
+    await expect(client.getConversation('conv_1')).rejects.toMatchObject({
+      status: 500,
+      code: null,
+    });
+  });
+});

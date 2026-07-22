@@ -128,7 +128,7 @@ describe('parentStateLine + threadParentBlocks', () => {
       assignedTo: 'Ada',
     });
     expect(line).toContain('*Status:* open');
-    expect(line).toContain('claimed by *Kim &lt;ops&gt;*');
+    expect(line).toContain('taken over by *Kim &lt;ops&gt;*');
     expect(line).toContain('assigned to *Ada*');
     expect(line).toContain('needs attention');
   });

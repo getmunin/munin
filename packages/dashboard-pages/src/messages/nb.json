@@ -1297,8 +1297,12 @@
       "connectedTo": "Koblet til {workspace}.",
       "channelLabel": "Standard kanal-ID",
       "channelHint": "Slack-kanalen samtaler speiles inn i (kanaldetaljer → Om → Kanal-ID, f.eks. C0123456789).",
+      "channelsLoading": "Henter kanaler…",
+      "channelSelectPlaceholder": "Velg en kanal…",
+      "channelListHint": "Bare kanaler Munin er invitert til vises. Kjør /invite @Munin i kanalen i Slack for å få den med i listen.",
+      "channelsNoneInvited": "Munin er ikke i noen kanaler ennå. Kjør /invite @Munin i Slack-kanalen du vil bruke, og åpne denne dialogen på nytt.",
+      "channelsLoadFailed": "Kunne ikke hente kanallisten — lim inn kanal-ID-en manuelt.",
       "saveRouting": "Lagre kanal",
-      "routingSaved": "Slack-kanal lagret",
       "inviteBot": "Boten er ikke i kanalen ennå — kjør /invite @Munin i Slack, og send deretter en test.",
       "sendTest": "Send testmelding",
       "testSent": "Testmelding sendt",
@@ -1316,7 +1320,7 @@
         "connection": "Kobling"
       },
       "description": {
-        "slack": "Håndter innboksen og svar uten å forlate arbeidsområdet.",
+        "slack": "Håndter innboksen og svar kundene rett fra Slack.",
         "shopify": "Ordrer, kunder og leveringer — lest på vegne av en kunde.",
         "magento": "Les ordrer og kunder fra Magento-butikken din.",
         "gastroplanner": "Sjekk ledige tider, book bord og håndter restaurantbookinger.",

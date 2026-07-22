@@ -9,6 +9,7 @@ import { useTranslateError } from '../../i18n/translate-error';
 import { useConfirm } from '../confirm-dialog';
 import { CardSkeleton } from '../skeleton';
 import { CardGrid, IntegrationCard, SectionHeading, StatusLine } from './integration-card';
+import { NativeSelect } from '../native-select';
 import { dialogLabelClass } from '../../lib/dialog-style';
 
 interface SlackRouteDto {
@@ -24,6 +25,12 @@ interface SlackStatusDto {
   connected: boolean;
   integration: { teamId: string; teamName: string | null; routes: SlackRouteDto[] } | null;
   deliveries: { pending: number; failedLastDay: number };
+}
+
+interface SlackChannelOption {
+  id: string;
+  name: string | null;
+  isMember: boolean;
 }
 
 export function OperatorBridgesSection() {
@@ -171,9 +178,26 @@ function SlackConfigureDialog({
   const translate = useTranslateError();
   const defaultRoute = status.integration?.routes.find((r) => r.purpose === 'default');
   const [channelId, setChannelId] = useState(defaultRoute?.slackChannelId ?? '');
+  const [channels, setChannels] = useState<SlackChannelOption[] | null>(null);
+  const [channelsFailed, setChannelsFailed] = useState(false);
   const [botMissing, setBotMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await api<{ channels: SlackChannelOption[] }>('/v1/slack/channels');
+        if (!cancelled) setChannels(res.channels.filter((c) => c.isMember));
+      } catch {
+        if (!cancelled) setChannelsFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -193,9 +217,12 @@ function SlackConfigureDialog({
         method: 'PUT',
         body: JSON.stringify({ slackChannelId: channelId.trim() }),
       });
-      setBotMissing(!route.botInChannel);
-      notify.success(t('routingSaved'));
       onChanged();
+      if (route.botInChannel) {
+        onClose();
+        return;
+      }
+      setBotMissing(true);
     });
   }
 
@@ -218,8 +245,39 @@ function SlackConfigureDialog({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label className={dialogLabelClass} htmlFor="slackChannelId">{t('channelLabel')}</Label>
-            <Input id="slackChannelId" value={channelId} onChange={(e) => setChannelId(e.target.value)} placeholder="C0123456789" />
-            <p className="text-xs text-muted-foreground">{t('channelHint')}</p>
+            {channelsFailed ? (
+              <>
+                <Input id="slackChannelId" value={channelId} onChange={(e) => setChannelId(e.target.value)} placeholder="C0123456789" />
+                <p className="text-xs text-muted-foreground">{t('channelsLoadFailed')}</p>
+                <p className="text-xs text-muted-foreground">{t('channelHint')}</p>
+              </>
+            ) : channels !== null && channels.length === 0 && !channelId ? (
+              <p className="text-sm text-muted-foreground">{t('channelsNoneInvited')}</p>
+            ) : (
+              <>
+                <NativeSelect
+                  id="slackChannelId"
+                  value={channels === null ? '' : channelId}
+                  onChange={(e) => setChannelId(e.target.value)}
+                  disabled={channels === null}
+                >
+                  <option value="" disabled>
+                    {channels === null ? t('channelsLoading') : t('channelSelectPlaceholder')}
+                  </option>
+                  {channelId && channels !== null && !channels.some((c) => c.id === channelId) && (
+                    <option value={channelId}>
+                      #{defaultRoute?.slackChannelName ?? channelId}
+                    </option>
+                  )}
+                  {(channels ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      #{c.name ?? c.id}
+                    </option>
+                  ))}
+                </NativeSelect>
+                <p className="text-xs text-muted-foreground">{t('channelListHint')}</p>
+              </>
+            )}
           </div>
           {botMissing && <p className="text-sm text-amber-600">{t('inviteBot')}</p>}
           {status.deliveries.failedLastDay > 0 && (

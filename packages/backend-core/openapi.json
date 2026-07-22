@@ -4854,6 +4854,28 @@
         ]
       }
     },
+    "/v1/slack/channels": {
+      "get": {
+        "operationId": "SlackController_listChannels",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Slack"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/slack/routing": {
       "put": {
         "operationId": "SlackController_setRouting",
@@ -5402,6 +5424,30 @@
         },
         "tags": [
           "SlackEvents"
+        ],
+        "security": []
+      }
+    },
+    "/v1/slack/avatars/{file}": {
+      "get": {
+        "operationId": "SlackAvatarsController_serve",
+        "parameters": [
+          {
+            "name": "file",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SlackAvatars"
         ],
         "security": []
       }

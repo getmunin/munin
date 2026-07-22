@@ -12,6 +12,7 @@ export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = [
 
 export const SLACK_BOT_SCOPES = [
   'chat:write',
+  'chat:write.customize',
   'channels:read',
   'channels:history',
   'users:read',

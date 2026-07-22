@@ -38,7 +38,7 @@ export class SlackOAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    const target = `${readWebBaseUrl()}/dashboard/settings/ai`;
+    const target = `${readWebBaseUrl()}/dashboard/settings/integrations`;
     res.clearCookie(SLACK_INSTALL_NONCE_COOKIE, { path: '/v1/slack/oauth' });
     const parsed = CallbackQuery.safeParse(query);
     const q = parsed.success ? parsed.data : null;

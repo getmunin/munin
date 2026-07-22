@@ -380,6 +380,11 @@ export class SlackService {
           `slack_channel_not_found: ${input.slackChannelId} does not exist in workspace ${integration.teamId} (pass the channel ID, e.g. C0123456789, not the #name)`,
         );
       }
+      if (err instanceof SlackApiError) {
+        throw new BadRequestException(
+          `slack_api_error: Slack rejected the channel lookup (${err.apiError})`,
+        );
+      }
       throw err;
     }
 
@@ -451,6 +456,44 @@ export class SlackService {
     }
     if (!row) throw new ConflictException('slack_route_write_failed');
     return { ...toRouteDto(row), botInChannel: channel.isMember };
+  }
+
+  async listChannels(): Promise<{
+    channels: Array<{ id: string; name: string | null; isMember: boolean }>;
+  }> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const [integration] = await ctx.db
+      .select()
+      .from(schema.slackIntegrations)
+      .where(and(eq(schema.slackIntegrations.orgId, orgId), eq(schema.slackIntegrations.active, true)))
+      .limit(1);
+    if (!integration) {
+      throw new NotFoundException(
+        'slack_not_connected: no active Slack workspace for this org. Use slack_get_install_url first.',
+      );
+    }
+    const token = await decryptSecretValue(ctx.db, integration.encryptedBotToken);
+    const channels: Array<{ id: string; name: string | null; isMember: boolean }> = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 10; page++) {
+      let res;
+      try {
+        res = await this.api.conversationsList({ token, cursor });
+      } catch (err) {
+        if (err instanceof SlackApiError) {
+          throw new BadRequestException(
+            `slack_api_error: could not list channels (${err.apiError})`,
+          );
+        }
+        throw err;
+      }
+      channels.push(...res.channels);
+      if (!res.nextCursor) break;
+      cursor = res.nextCursor;
+    }
+    channels.sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id));
+    return { channels };
   }
 
   async sendTest(): Promise<{ ok: true; slackChannelId: string; ts: string }> {

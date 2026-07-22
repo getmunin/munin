@@ -48,6 +48,9 @@ export class SlackApiClient {
     text: string;
     blocks?: unknown[];
     threadTs?: string;
+    username?: string;
+    iconEmoji?: string;
+    iconUrl?: string;
   }): Promise<{ ts: string; channel: string }> {
     const data = await this.call('chat.postMessage', input.token, {
       channel: input.channel,
@@ -56,6 +59,9 @@ export class SlackApiClient {
       unfurl_media: false,
       ...(input.blocks ? { blocks: input.blocks } : {}),
       ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
+      ...(input.username ? { username: input.username } : {}),
+      ...(input.iconEmoji ? { icon_emoji: input.iconEmoji } : {}),
+      ...(input.iconUrl ? { icon_url: input.iconUrl } : {}),
     });
     return { ts: data.ts as string, channel: data.channel as string };
   }
@@ -117,6 +123,36 @@ export class SlackApiClient {
     };
   }
 
+  async conversationsList(input: {
+    token: string;
+    cursor?: string;
+  }): Promise<{ channels: SlackChannelInfo[]; nextCursor: string | null }> {
+    const data = await this.call('conversations.list', input.token, {
+      types: 'public_channel',
+      exclude_archived: true,
+      limit: 200,
+      ...(input.cursor ? { cursor: input.cursor } : {}),
+    });
+    const raw = Array.isArray(data.channels)
+      ? (data.channels as Array<Record<string, unknown>>)
+      : [];
+    const meta = data.response_metadata as Record<string, unknown> | undefined;
+    const nextCursor =
+      typeof meta?.next_cursor === 'string' && meta.next_cursor.length > 0
+        ? meta.next_cursor
+        : null;
+    return {
+      channels: raw
+        .filter((c) => typeof c.id === 'string')
+        .map((c) => ({
+          id: c.id as string,
+          name: typeof c.name === 'string' ? c.name : null,
+          isMember: c.is_member === true,
+        })),
+      nextCursor,
+    };
+  }
+
   async oauthAccess(input: {
     clientId: string;
     clientSecret: string;
@@ -157,13 +193,18 @@ export class SlackApiClient {
     token: string,
     body: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
+    const form = new URLSearchParams();
+    for (const [key, value] of Object.entries(body)) {
+      if (value === undefined || value === null) continue;
+      form.set(key, typeof value === 'string' ? value : JSON.stringify(value));
+    }
     const res = await fetch(`${SLACK_API_BASE}/${method}`, {
       method: 'POST',
       headers: {
-        'content-type': 'application/json; charset=utf-8',
+        'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
         authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(body),
+      body: form.toString(),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (res.status === 429) {

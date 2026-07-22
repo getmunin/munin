@@ -11,6 +11,7 @@ import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackAdminTools } from './slack.tools.ts';
 import { SlackOAuthController } from './slack-oauth.controller.ts';
 import { SlackEventsController } from './slack-events.controller.ts';
+import { SlackAvatarsController } from './slack-avatars.controller.ts';
 
 @Module({
   imports: [ConvModule],
@@ -24,7 +25,7 @@ import { SlackEventsController } from './slack-events.controller.ts';
     SlackUserMappingService,
     SlackAdminTools,
   ],
-  controllers: [SlackOAuthController, SlackEventsController],
+  controllers: [SlackOAuthController, SlackEventsController, SlackAvatarsController],
   exports: [SlackService],
 })
 export class SlackModule implements OnModuleInit {

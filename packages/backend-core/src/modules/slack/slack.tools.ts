@@ -81,6 +81,21 @@ export class SlackAdminTools {
   }
 
   @McpTool({
+    name: 'slack_list_channels',
+    title: 'Slack: List channels',
+    description:
+      "List the public channels in the org's connected Slack workspace (id, #name, and whether the bot is already a member). Use to pick a channel ID for slack_set_routing without asking the operator to look it up in Slack. Archived and private channels are not included.",
+    audiences: ['admin'],
+    scopes: ['slack:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listChannels() {
+    return this.slack.listChannels();
+  }
+
+  @McpTool({
     name: 'slack_set_routing',
     title: 'Slack: Set channel routing',
     description:

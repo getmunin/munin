@@ -11,10 +11,12 @@ import {
   escalationAlertText,
   handoverRequestedText,
   handoverResolvedText,
+  messageBodyText,
   messageText,
   parentStateLine,
   parseMessageAttachments,
   releasedText,
+  speakerIdentity,
   statusChangedText,
   takenOverText,
   threadParentBlocks,
@@ -24,6 +26,7 @@ import {
   type ParentState,
 } from './slack-projection.ts';
 import { readWebBaseUrl } from './slack.constants.ts';
+import { mcpResourceOrigin } from '../../oauth/oauth.constants.ts';
 
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_SLACK_POLL_MS', default: 5000 });
 const MAX_ATTEMPTS = 5;
@@ -264,18 +267,36 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     const authorKind = message.authorType as AuthorKind;
     const authorName = await this.authorName(authorKind, message.authorId, context);
-    const posted = await this.api.postMessage({
-      token,
-      channel: link.slackChannelId,
-      threadTs: link.slackThreadTs,
-      text: messageText({
-        authorKind,
-        authorName,
-        internal: message.internal,
-        body: message.body,
-        attachments: parseMessageAttachments(message.attachments),
-      }),
-    });
+    const snapshot = {
+      authorKind,
+      authorName,
+      internal: message.internal,
+      body: message.body,
+      attachments: parseMessageAttachments(message.attachments),
+    };
+    const identity = speakerIdentity(authorKind, authorName);
+    let posted;
+    try {
+      posted = await this.api.postMessage({
+        token,
+        channel: link.slackChannelId,
+        threadTs: link.slackThreadTs,
+        text: messageBodyText(snapshot),
+        username: identity.username,
+        iconEmoji: identity.iconEmoji,
+        iconUrl: identity.avatarKey
+          ? `${mcpResourceOrigin()}/v1/slack/avatars/${identity.avatarKey}.png`
+          : undefined,
+      });
+    } catch (err) {
+      if (!(err instanceof SlackApiError) || err.apiError !== 'missing_scope') throw err;
+      posted = await this.api.postMessage({
+        token,
+        channel: link.slackChannelId,
+        threadTs: link.slackThreadTs,
+        text: messageText(snapshot),
+      });
+    }
     await this.db
       .insert(schema.slackMessageLinks)
       .values({
@@ -436,6 +457,14 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     if (kind === 'user') return await this.userName(authorId);
     if (kind === 'end_user') {
       return context.contact?.name ?? context.contact?.email ?? context.contact?.phone ?? null;
+    }
+    if (kind === 'agent') {
+      const [assistant] = await this.db
+        .select({ name: schema.assistants.name })
+        .from(schema.assistants)
+        .where(eq(schema.assistants.orgId, context.conversation.orgId))
+        .limit(1);
+      return assistant?.name ?? null;
     }
     return null;
   }

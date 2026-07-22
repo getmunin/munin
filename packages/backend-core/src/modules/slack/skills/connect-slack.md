@@ -6,7 +6,7 @@ audiences: [admin]
 
 # Connect Slack for human handoff
 
-Use this when the operator wants their team to triage Munin conversations from Slack. Every conversation becomes one Slack thread in a channel you pick: customer messages, AI replies, status changes, and claim/assign updates post into the thread, and handover requests raise a prominent alert. Operators reply to the customer by replying in the thread. Slack is an operator surface — replies travel to the customer over the conversation's original channel (email, widget, SMS, voice).
+Use this when the operator wants their team to triage Munin conversations from Slack. Every conversation becomes one Slack thread in a channel you pick: customer messages, AI replies, status changes, and takeover/assign updates post into the thread, and handover requests raise a prominent alert. Operators reply to the customer by replying in the thread. Slack is an operator surface — replies travel to the customer over the conversation's original channel (email, widget, SMS, voice).
 
 ## TL;DR
 
@@ -34,13 +34,13 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
   "oauth_config": {
     "redirect_urls": ["https://YOUR_API_HOST/v1/slack/oauth/callback"],
     "scopes": {
-      "bot": ["chat:write", "channels:read", "channels:history", "users:read", "users:read.email"]
+      "bot": ["chat:write", "chat:write.customize", "channels:read", "channels:history", "users:read", "users:read.email"]
     }
   },
   "settings": {
     "event_subscriptions": {
       "request_url": "https://YOUR_API_HOST/v1/slack/events",
-      "bot_events": ["message.channels"]
+      "bot_events": ["message.channels", "member_joined_channel"]
     },
     "interactivity": {
       "is_enabled": true,
@@ -60,19 +60,23 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
 
 The redirect URL must exactly match `https://<api-base>/v1/slack/oauth/callback`, and the events request URL `https://<api-base>/v1/slack/events` — the same base that serves `/mcp`. Slack verifies the events URL with a challenge when you save it; the backend must be reachable and have `SLACK_SIGNING_SECRET` set first.
 
-Workspaces installed before the `channels:history` scope was added must reinstall via a fresh `slack_get_install_url` link before thread replies reach Munin.
+Workspaces installed before the `channels:history` scope was added must reinstall via a fresh `slack_get_install_url` link before thread replies reach Munin. Likewise, workspaces installed before `chat:write.customize` was added show mirrored messages with a text author label instead of per-speaker names/icons until reinstalled.
 
 ## Step 1 — install into the workspace
 
-Call `slack_get_install_url` and give the operator the returned URL. They open it in a browser, pick the Slack workspace, and approve. The link expires after 10 minutes — mint a fresh one if they were slow. On success the browser lands back on the dashboard's AI settings page with `slack=connected`.
+Call `slack_get_install_url` and give the operator the returned URL. They open it in a browser, pick the Slack workspace, and approve. The link expires after 10 minutes — mint a fresh one if they were slow. On success the browser lands back on the dashboard's Integrations page with `slack=connected`.
 
 One workspace can serve multiple Munin orgs, but each Slack **channel** belongs to exactly one org.
 
 ## Step 2 — route a channel
 
-Conversations do not mirror until a default channel is routed:
+Conversations do not mirror until a default channel is routed. Two paths:
 
-1. Ask the operator which channel (they need its ID: channel details → *About* → Channel ID, e.g. `C0123456789`).
+**From Slack (simplest):** the operator runs `/invite @Munin` in the channel they want. The bot posts a prompt with buttons (*Mirror all conversations* / *Escalation alerts only* / *Not now*); an org owner or admin clicks one and routing is set — no channel ID needed. The prompt is skipped when the channel is already routed or when several Munin orgs share the workspace.
+
+**From here:**
+
+1. Call `slack_list_channels` and ask the operator which channel to use (public channels only — for a private channel, ask for its ID: channel details → *About* → Channel ID, e.g. `C0123456789`).
 2. Call `slack_set_routing` with `{ "slackChannelId": "C0123456789" }`.
 3. If the response has `botInChannel: false`, the operator must run `/invite @Munin` in that channel — the bot cannot post until invited.
 
@@ -98,14 +102,14 @@ Call `slack_test` — it posts a hello message to the default channel. Then conf
 
 ## What mirrors
 
-- New conversation → thread parent with contact, source channel, subject, a dashboard link, a live status line (status, claimed-by, assigned-to, needs-attention), and *Claim* / *Close* buttons (*Reopen* once closed). The buttons act as the clicking teammate — same account-linking rule as replies.
+- New conversation → thread parent with contact, source channel, subject, a dashboard link, a live status line (status, taken-over-by, assigned-to, needs-attention), and *Take over* / *Close* buttons (*Release* while taken over, *Reopen* once closed). The buttons act as the clicking teammate — same account-linking rule as replies.
 - Customer messages (:bust_in_silhouette:), AI agent replies (:robot_face:), teammate replies (:technologist:), and internal notes (:lock:) as thread replies.
 - Status changes, assignment, claim/release, and handover request/resolve as thread updates.
 - Handover requests additionally alert the escalations channel (or the default channel) with the reason and the configured mention.
 
 ## Replying from Slack
 
-A reply in a mirrored thread is sent to the customer over the conversation's original channel and recorded in Munin as that teammate's message (it also claims the conversation, same as replying from the dashboard):
+A reply in a mirrored thread is sent to the customer over the conversation's original channel and recorded in Munin as that teammate's message. Replying does not take over the conversation — the AI stays in the loop; use the *Take over* button on the thread parent to take control (and *Release* to hand back):
 
 - **Attribution is by email match**: the Slack profile email must belong to a member of the Munin org. The first reply creates the mapping; later replies use it. When emails differ, link manually: `slack_link_user` with the Slack member ID (profile → *Copy member ID*) and the Munin user ID; inspect with `slack_list_user_links`, revoke with `slack_unlink_user`.
 - **Unmapped users are rejected** — the reply is *not* sent, and only the sender sees an ephemeral notice in the thread. Fix by inviting them to the org with their Slack email, or link them manually with `slack_link_user`.

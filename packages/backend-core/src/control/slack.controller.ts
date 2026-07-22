@@ -62,6 +62,13 @@ export class SlackController {
     return { url: result.url, expiresAt: result.expiresAt };
   }
 
+  @Get('channels')
+  listChannels(): Promise<{
+    channels: Array<{ id: string; name: string | null; isMember: boolean }>;
+  }> {
+    return this.slack.listChannels();
+  }
+
   @Put('routing')
   setRouting(@Body() body: unknown): Promise<SlackRouteDto & { botInChannel: boolean }> {
     const parsed = RoutingDto.safeParse(body);

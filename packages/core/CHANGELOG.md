@@ -1,5 +1,21 @@
 # @getmunin/core
 
+## 4.68.0
+
+### Minor Changes
+
+- a66d454: Integration foundations: `EventSink` contract on `WebhookDispatcher` for transactional event fan-out to integration bridges, and the Integrations settings hub page that operator bridges and connectors slot into.
+
+### Patch Changes
+
+- Updated dependencies [1482bbe]
+- Updated dependencies [8da0e90]
+- Updated dependencies [491186c]
+- Updated dependencies [cdff1ad]
+- Updated dependencies [8037e74]
+  - @getmunin/db@4.68.0
+  - @getmunin/types@4.68.0
+
 ## 4.67.2
 
 ### Patch Changes

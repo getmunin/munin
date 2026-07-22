@@ -228,7 +228,45 @@ class FakeSlackApi extends SlackApiClient {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.userId).toBe(otherUserId);
     expect(api.ephemerals).toHaveLength(1);
-    expect(api.ephemerals[0]!.text).toContain('already claimed');
+    expect(api.ephemerals[0]!.text).toContain('already taken over');
+  });
+
+  it('release button hands the conversation back when clicked by the holder', async () => {
+    await interactions.processBlockActions(actionPayload('munin_claim'));
+    await interactions.processBlockActions(actionPayload('munin_release'));
+
+    const rows = await db
+      .select()
+      .from(schema.claims)
+      .where(and(eq(schema.claims.entityType, 'conversation'), eq(schema.claims.entityId, conversationId)));
+    expect(rows).toHaveLength(0);
+    expect(api.ephemerals).toHaveLength(0);
+
+    const deliveries = await db
+      .select({ eventType: schema.slackDeliveries.eventType })
+      .from(schema.slackDeliveries)
+      .where(eq(schema.slackDeliveries.conversationId, conversationId));
+    expect(deliveries.map((d) => d.eventType)).toContain('conversation.released');
+  });
+
+  it('release by a non-holder is rejected with an ephemeral and keeps the claim', async () => {
+    await db.insert(schema.claims).values({
+      orgId,
+      entityType: 'conversation',
+      entityId: conversationId,
+      userId: otherUserId,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    await interactions.processBlockActions(actionPayload('munin_release'));
+
+    const rows = await db
+      .select()
+      .from(schema.claims)
+      .where(and(eq(schema.claims.entityType, 'conversation'), eq(schema.claims.entityId, conversationId)));
+    expect(rows).toHaveLength(1);
+    expect(api.ephemerals).toHaveLength(1);
+    expect(api.ephemerals[0]!.text).toContain('release');
   });
 
   it('ignores payloads whose channel does not match the thread link', async () => {

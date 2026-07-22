@@ -318,6 +318,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       } catch (err) {
         if (signal.aborted) return;
         lastError = err instanceof Error ? err : new Error(String(err));
+        if (/handover_active|agent_reply_race/.test(lastError.message)) {
+          log.info(`${conversationId} reply superseded, skipping: ${lastError.message}`);
+          return;
+        }
         const classified = classifyProviderError(err);
         if (classified.status !== undefined) {
           deps.onProviderError?.(classified.code, classified.message);

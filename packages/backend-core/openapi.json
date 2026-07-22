@@ -5428,6 +5428,30 @@
         "security": []
       }
     },
+    "/v1/slack/avatars/{file}": {
+      "get": {
+        "operationId": "SlackAvatarsController_serve",
+        "parameters": [
+          {
+            "name": "file",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SlackAvatars"
+        ],
+        "security": []
+      }
+    },
     "/.well-known/oauth-protected-resource": {
       "get": {
         "operationId": "OAuthResourceController_metadata",

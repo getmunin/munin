@@ -7860,6 +7860,25 @@
     }
   },
   {
+    "name": "slack_list_channels",
+    "title": "Slack: List channels",
+    "description": "List the public channels in the org's connected Slack workspace (id, #name, and whether the bot is already a member). Use to pick a channel ID for slack_set_routing without asking the operator to look it up in Slack. Archived and private channels are not included.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "slack:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "slack_set_routing",
     "title": "Slack: Set channel routing",
     "description": "Point conversation mirroring at a Slack channel. purpose 'default' receives every conversation as a thread; purpose 'escalations' receives handover alerts (optionally with a mention); convChannelId scopes a route to one source conversation channel (e.g. widget → #support-chat, email → #support-email). Calling again with the same purpose or convChannelId replaces that route. Every route needs its own Slack channel, and a Slack channel can only serve one Munin org. The response includes botInChannel — when false, invite the bot in Slack (/invite) before messages can post.",

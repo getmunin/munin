@@ -1,5 +1,6 @@
 export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = [
   'conversation.created',
+  'conversation.subject_changed',
   'conversation.message.received',
   'conversation.message.sent',
   'conversation.status_changed',

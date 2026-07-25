@@ -102,9 +102,9 @@ Call `slack_test` — it posts a hello message to the default channel. Then conf
 
 ## What mirrors
 
-- New conversation → thread parent with contact, source channel, subject, a dashboard link, a live status line (status, taken-over-by, assigned-to, needs-attention), and *Take over* / *Close* buttons (*Release* while taken over, *Reopen* once closed). The buttons act as the clicking teammate — same account-linking rule as replies.
+- New conversation → thread parent with contact, source channel, a dashboard link, a live status line (status, taken-over-by, assigned-to, needs-attention), and *Take over* / *Close* buttons (*Release* while taken over, *Reopen* once closed). The headline starts as "New conversation #N" and switches to the subject once one is set (the AI titles new conversations shortly after the first message). The buttons act as the clicking teammate — same account-linking rule as replies.
 - Customer messages (:bust_in_silhouette:), AI agent replies (:robot_face:), teammate replies (:technologist:), and internal notes (:lock:) as thread replies.
-- Status changes, assignment, claim/release, and handover request/resolve as thread updates.
+- Status changes, assignment, claim/release, and handover request/resolve as thread updates. When a conversation is closed, the parent's status line becomes a ":white_check_mark: *Conversation is resolved.*" banner (":no_entry_sign: *Marked as spam.*" for spam) until it is reopened.
 - Handover requests additionally alert the escalations channel (or the default channel) with the reason and the configured mention.
 
 ## Replying from Slack

@@ -366,6 +366,10 @@ export class ConvService {
     if (!updated) {
       throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
     }
+    await this.webhooks.emit({
+      type: 'conversation.subject_changed',
+      payload: { conversationId: input.conversationId, subject: input.subject },
+    });
     return toConversationSummary(updated);
   }
 

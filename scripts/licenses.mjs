@@ -177,6 +177,28 @@ if (mode === 'check') {
       console.error(
         `THIRD_PARTY_LICENSES.md is out of date. Run \`pnpm licenses:generate\` and commit.`,
       );
+      const tmp = join(REPO_ROOT, 'node_modules', '.THIRD_PARTY_LICENSES.generated.md');
+      writeFileSync(tmp, notices);
+      try {
+        execFileSync('git', ['diff', '--no-index', '--stat', NOTICES_PATH, tmp], {
+          cwd: REPO_ROOT,
+          stdio: 'inherit',
+        });
+      } catch {
+        /* git diff --no-index exits 1 on difference; stat already printed */
+      }
+      try {
+        execFileSync(
+          'git',
+          ['diff', '--no-index', '--unified=1', NOTICES_PATH, tmp],
+          { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+        );
+      } catch (err) {
+        const out = err.stdout ?? '';
+        const lines = out.split('\n');
+        console.error(lines.slice(0, 200).join('\n'));
+        if (lines.length > 200) console.error(`… ${lines.length - 200} more diff lines`);
+      }
     }
   } else {
     failed = true;

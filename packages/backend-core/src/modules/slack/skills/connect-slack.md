@@ -20,7 +20,7 @@ Use this when the operator wants their team to triage Munin conversations from S
 
 Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_get_status`: if `appConfigured` is `false`, the operator must create a Slack app once for the deployment:
 
-1. Go to https://api.slack.com/apps → *Create New App* → *From an app manifest* and paste (replace the redirect URL host with the deployment's public API base URL):
+1. Go to https://api.slack.com/apps → *Create New App* → *From an app manifest* and paste (replace `YOUR_API_HOST` with the deployment's public API base URL; also available as `slack-app-manifest.json` in the repo root):
 
 ```json
 {

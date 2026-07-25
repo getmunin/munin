@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { getCurrentContext, type EmittedEvent, type EventSink } from '@getmunin/core';
-import { SLACK_MIRRORED_EVENT_TYPES } from './slack.constants.ts';
+import {
+  SLACK_APPROVAL_EVENT_TYPES,
+  SLACK_MIRRORED_EVENT_TYPES,
+  approvalSubjectRef,
+} from './slack.constants.ts';
 
 /**
  * Registered on the WebhookDispatcher; runs inside the emitting request's
@@ -12,7 +16,8 @@ import { SLACK_MIRRORED_EVENT_TYPES } from './slack.constants.ts';
 @Injectable()
 export class SlackEventSink implements EventSink {
   async onEvent(event: EmittedEvent): Promise<void> {
-    if (!SLACK_MIRRORED_EVENT_TYPES.includes(event.type)) return;
+    const isApproval = SLACK_APPROVAL_EVENT_TYPES.includes(event.type);
+    if (!isApproval && !SLACK_MIRRORED_EVENT_TYPES.includes(event.type)) return;
     const ctx = getCurrentContext();
     const [integration] = await ctx.db
       .select({ id: schema.slackIntegrations.id })
@@ -26,14 +31,19 @@ export class SlackEventSink implements EventSink {
       .limit(1);
     if (!integration) return;
 
+    const subject = isApproval ? approvalSubjectRef(event.type, event.payload) : null;
+    if (isApproval && !subject) return;
     const conversationId =
-      typeof event.payload.conversationId === 'string' ? event.payload.conversationId : null;
+      !isApproval && typeof event.payload.conversationId === 'string'
+        ? event.payload.conversationId
+        : null;
     await ctx.db.insert(schema.slackDeliveries).values({
       orgId: event.orgId,
       integrationId: integration.id,
       eventId: event.eventId,
       eventType: event.type,
       conversationId,
+      subjectKey: subject ? `${subject.subjectType}:${subject.subjectId}` : null,
       nextAttemptAt: new Date(),
     });
   }

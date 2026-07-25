@@ -1,11 +1,18 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
-import { WebhookDispatcher } from '@getmunin/core';
+import { StubEmbeddingProvider, WebhookDispatcher } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { ConvService } from '../conv/conv.service.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
+import { CrmService } from '../crm/crm.service.ts';
+import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
+import { KbService } from '../kb/kb.service.ts';
+import { EmailService } from '../conv/email/email.service.ts';
+import { OutreachService } from '../outreach/outreach.service.ts';
+import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
+import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { SlackApiClient } from './slack-api.client.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInteractionsService } from './slack-interactions.service.ts';
@@ -141,6 +148,21 @@ class FakeSlackApi extends SlackApiClient {
     dispatcher.registerSink(new SlackEventSink());
     const claims = new ConversationClaimsService(dispatcher);
     const conv = new ConvService(dispatcher, claims, new CuratorJobsService(dispatcher), new AlertsService(dispatcher));
+    const crm = new CrmService(dispatcher, new DefaultQuotasService());
+    const outreach = new OutreachService(
+      dispatcher,
+      conv,
+      crm,
+      new EmailService(),
+      new VapiClientService(db),
+      db,
+    );
+    const embeddingHolder = new (class extends EmbeddingProviderHolder {
+      override get() {
+        return new StubEmbeddingProvider();
+      }
+    })();
+    const kb = new KbService(embeddingHolder, new DefaultQuotasService(), dispatcher);
     interactions = new SlackInteractionsService(
       db,
       api,
@@ -148,6 +170,9 @@ class FakeSlackApi extends SlackApiClient {
       claims,
       new SlackUserMappingService(db, api),
       new SlackService(db, api),
+      crm,
+      outreach,
+      kb,
     );
   });
 
@@ -376,6 +401,294 @@ class FakeSlackApi extends SlackApiClient {
 
       expect(api.ephemerals).toHaveLength(1);
       expect(api.ephemerals[0]!.text).toContain('slack_conflict');
+    });
+  });
+  describe('approval buttons', () => {
+    const APPROVAL_CHANNEL = 'C_APPROVALS';
+    const APPROVAL_TS = '1750000000.000500';
+
+    beforeEach(async () => {
+      await db.execute(sql`DELETE FROM crm_merge_proposals WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM outreach_proposals WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM outreach_campaigns WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM crm_segments WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM crm_contacts WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM kb_documents WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM kb_spaces WHERE org_id = ${orgId}`);
+    });
+
+    async function linkSubject(subjectType: string, subjectId: string) {
+      await db.insert(schema.slackNotificationLinks).values({
+        orgId,
+        integrationId,
+        subjectType,
+        subjectId,
+        slackChannelId: APPROVAL_CHANNEL,
+        slackTs: APPROVAL_TS,
+      });
+    }
+
+    function approvalPayload(
+      actionId: string,
+      value: string,
+      overrides: Record<string, unknown> = {},
+    ) {
+      return {
+        type: 'block_actions',
+        user: { id: 'U_BELLA' },
+        channel: { id: APPROVAL_CHANNEL },
+        actions: [{ action_id: actionId, value }],
+        ...overrides,
+      };
+    }
+
+    async function seedMergeProposal(): Promise<string> {
+      const [a] = await db
+        .insert(schema.crmContacts)
+        .values({ orgId, name: 'Ada Lovelace', email: 'ada@example.com' })
+        .returning();
+      const [b] = await db
+        .insert(schema.crmContacts)
+        .values({ orgId, name: 'A. Lovelace', email: 'ada.l@example.com' })
+        .returning();
+      const [proposal] = await db
+        .insert(schema.crmMergeProposals)
+        .values({
+          orgId,
+          contactAId: a!.id,
+          contactBId: b!.id,
+          confidence: 'high',
+          recommendedKeeperId: a!.id,
+          proposedByActorType: 'agent',
+          proposedByActorId: 'agt_test',
+        })
+        .returning();
+      return proposal!.id;
+    }
+
+    async function seedOutreachProposal(status = 'pending'): Promise<string> {
+      const [contact] = await db
+        .insert(schema.crmContacts)
+        .values({ orgId, name: 'Grace Hopper', email: 'grace@example.com' })
+        .returning();
+      const [segment] = await db
+        .insert(schema.crmSegments)
+        .values({
+          orgId,
+          name: 'Prospects',
+          createdByActorType: 'agent',
+          createdByActorId: 'agt_test',
+        })
+        .returning();
+      const [campaign] = await db
+        .insert(schema.outreachCampaigns)
+        .values({
+          orgId,
+          name: 'Launch',
+          brief: 'Announce',
+          segmentId: segment!.id,
+          channelId,
+          createdByActorType: 'agent',
+          createdByActorId: 'agt_test',
+        })
+        .returning();
+      const [proposal] = await db
+        .insert(schema.outreachProposals)
+        .values({
+          orgId,
+          campaignId: campaign!.id,
+          contactId: contact!.id,
+          kind: 'initial',
+          draftSubject: 'Hi',
+          draftBody: 'Want a demo?',
+          status,
+          proposedByActorType: 'agent',
+          proposedByActorId: 'agt_test',
+        })
+        .returning();
+      return proposal!.id;
+    }
+
+    async function seedKbCandidate(tags: string[]): Promise<string> {
+      const [space] = await db
+        .insert(schema.kbSpaces)
+        .values({ orgId, name: 'Curation inbox', slug: 'curation-inbox' })
+        .returning();
+      const [doc] = await db
+        .insert(schema.kbDocuments)
+        .values({
+          orgId,
+          spaceId: space!.id,
+          title: 'Weekend hours',
+          body: 'We open 10-16 Saturdays.',
+          contentHash: 'x'.repeat(64),
+          tags,
+          createdByType: 'agent',
+          createdById: 'agt_test',
+          updatedByType: 'agent',
+          updatedById: 'agt_test',
+        })
+        .returning();
+      return doc!.id;
+    }
+
+    it('apply-merge button applies the proposal as the mapped member and enqueues the resolution', async () => {
+      const proposalId = await seedMergeProposal();
+      await linkSubject('crm_merge_proposal', proposalId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `crm_merge_proposal:${proposalId}`),
+      );
+
+      const [proposal] = await db
+        .select()
+        .from(schema.crmMergeProposals)
+        .where(eq(schema.crmMergeProposals.id, proposalId));
+      expect(proposal!.status).toBe('applied');
+      expect(proposal!.decidedByActorType).toBe('user');
+      expect(proposal!.decidedByActorId).toBe(memberUserId);
+      expect(api.ephemerals).toHaveLength(0);
+
+      const deliveries = await db
+        .select({ eventType: schema.slackDeliveries.eventType, subjectKey: schema.slackDeliveries.subjectKey })
+        .from(schema.slackDeliveries)
+        .where(eq(schema.slackDeliveries.integrationId, integrationId));
+      const resolution = deliveries.find((d) => d.eventType === 'crm.merge_proposal.applied');
+      expect(resolution?.subjectKey).toBe(`crm_merge_proposal:${proposalId}`);
+    });
+
+    it('dismiss button dismisses an outreach proposal', async () => {
+      const proposalId = await seedOutreachProposal();
+      await linkSubject('outreach_proposal', proposalId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_dismiss', `outreach_proposal:${proposalId}`),
+      );
+
+      const [proposal] = await db
+        .select()
+        .from(schema.outreachProposals)
+        .where(eq(schema.outreachProposals.id, proposalId));
+      expect(proposal!.status).toBe('dismissed');
+      expect(proposal!.decidedByActorId).toBe(memberUserId);
+      expect(api.ephemerals).toHaveLength(0);
+    });
+
+    it('surfaces a service rejection (already dismissed) as an ephemeral', async () => {
+      const proposalId = await seedOutreachProposal('dismissed');
+      await linkSubject('outreach_proposal', proposalId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `outreach_proposal:${proposalId}`),
+      );
+
+      const [proposal] = await db
+        .select()
+        .from(schema.outreachProposals)
+        .where(eq(schema.outreachProposals.id, proposalId));
+      expect(proposal!.status).toBe('dismissed');
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain(':no_entry:');
+    });
+
+    it('publishes a KB candidate to its proposed target space', async () => {
+      const candidateId = await seedKbCandidate(['curation', 'candidate', 'target:faq']);
+      await linkSubject('kb_curation_candidate', candidateId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `kb_curation_candidate:${candidateId}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(0);
+      const [candidate] = await db
+        .select()
+        .from(schema.kbDocuments)
+        .where(eq(schema.kbDocuments.id, candidateId));
+      expect(candidate).toBeUndefined();
+
+      const published = await db
+        .select({ title: schema.kbDocuments.title, slug: schema.kbSpaces.slug })
+        .from(schema.kbDocuments)
+        .innerJoin(schema.kbSpaces, eq(schema.kbSpaces.id, schema.kbDocuments.spaceId))
+        .where(eq(schema.kbDocuments.orgId, orgId));
+      expect(published).toEqual([{ title: 'Weekend hours', slug: 'faq' }]);
+    });
+
+    it('asks for a target space when the candidate has none, leaving it untouched', async () => {
+      const candidateId = await seedKbCandidate(['curation', 'candidate']);
+      await linkSubject('kb_curation_candidate', candidateId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `kb_curation_candidate:${candidateId}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('no proposed target space');
+      const [candidate] = await db
+        .select()
+        .from(schema.kbDocuments)
+        .where(eq(schema.kbDocuments.id, candidateId));
+      expect(candidate).toBeDefined();
+    });
+
+    it('dismiss button deletes a KB candidate', async () => {
+      const candidateId = await seedKbCandidate(['curation', 'candidate', 'target:faq']);
+      await linkSubject('kb_curation_candidate', candidateId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_dismiss', `kb_curation_candidate:${candidateId}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(0);
+      const [candidate] = await db
+        .select()
+        .from(schema.kbDocuments)
+        .where(eq(schema.kbDocuments.id, candidateId));
+      expect(candidate).toBeUndefined();
+    });
+
+    it('rejects an unmapped clicker with an ephemeral and no state change', async () => {
+      const proposalId = await seedMergeProposal();
+      await linkSubject('crm_merge_proposal', proposalId);
+      api.usersById.set('U_NOBODY', { email: 'nobody@example.com' });
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `crm_merge_proposal:${proposalId}`, {
+          user: { id: 'U_NOBODY' },
+        }),
+      );
+
+      const [proposal] = await db
+        .select()
+        .from(schema.crmMergeProposals)
+        .where(eq(schema.crmMergeProposals.id, proposalId));
+      expect(proposal!.status).toBe('pending');
+      expect(api.ephemerals).toHaveLength(1);
+    });
+
+    it('ignores clicks from a channel that does not match the notification link', async () => {
+      const proposalId = await seedMergeProposal();
+      await linkSubject('crm_merge_proposal', proposalId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `crm_merge_proposal:${proposalId}`, {
+          channel: { id: 'C_ELSEWHERE' },
+        }),
+      );
+
+      const [proposal] = await db
+        .select()
+        .from(schema.crmMergeProposals)
+        .where(eq(schema.crmMergeProposals.id, proposalId));
+      expect(proposal!.status).toBe('pending');
+      expect(api.ephemerals).toHaveLength(0);
+    });
+
+    it('ignores malformed approval values', async () => {
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', 'bogus_subject:cmp_x'),
+      );
+      expect(api.ephemerals).toHaveLength(0);
     });
   });
 });

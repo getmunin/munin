@@ -25,10 +25,10 @@ const SetRoutingInputSchema = z.object({
     .max(32)
     .describe('Slack channel ID (e.g. C0123456789), not the #name'),
   purpose: z
-    .enum(['default', 'escalations'])
+    .enum(['default', 'escalations', 'approvals'])
     .optional()
     .describe(
-      "'default' (all mirrored conversations; required before mirroring starts) or 'escalations' (handover alerts; falls back to the default channel when unset)",
+      "'default' (all mirrored conversations; required before mirroring starts), 'escalations' (handover alerts; falls back to the default channel when unset), or 'approvals' (approval-queue notifications: CRM merge proposals, outreach drafts, KB curation candidates; falls back to escalations, then default)",
     ),
   mention: z
     .string()
@@ -99,7 +99,7 @@ export class SlackAdminTools {
     name: 'slack_set_routing',
     title: 'Slack: Set channel routing',
     description:
-      "Point conversation mirroring at a Slack channel. purpose 'default' receives every conversation as a thread; purpose 'escalations' receives handover alerts (optionally with a mention); convChannelId scopes a route to one source conversation channel (e.g. widget → #support-chat, email → #support-email). Calling again with the same purpose or convChannelId replaces that route. Every route needs its own Slack channel, and a Slack channel can only serve one Munin org. The response includes botInChannel — when false, invite the bot in Slack (/invite) before messages can post.",
+      "Point conversation mirroring at a Slack channel. purpose 'default' receives every conversation as a thread; purpose 'escalations' receives handover alerts (optionally with a mention); purpose 'approvals' receives approval-queue notifications (CRM merge proposals, outreach drafts, KB curation candidates) with approve/dismiss buttons; convChannelId scopes a route to one source conversation channel (e.g. widget → #support-chat, email → #support-email). Calling again with the same purpose or convChannelId replaces that route. Every route needs its own Slack channel, and a Slack channel can only serve one Munin org. The response includes botInChannel — when false, invite the bot in Slack (/invite) before messages can post.",
     audiences: ['admin'],
     scopes: ['slack:write'],
     input: SetRoutingInputSchema,

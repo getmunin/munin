@@ -27,6 +27,7 @@ export const KB_EVENT_TYPES = [
 
 export const CONVERSATION_EVENT_TYPES = [
   'conversation.created',
+  'conversation.subject_changed',
   'conversation.status_changed',
   'conversation.assigned',
   'conversation.released',

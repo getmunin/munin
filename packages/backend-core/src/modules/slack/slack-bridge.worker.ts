@@ -197,6 +197,8 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     switch (row.eventType) {
       case 'conversation.created':
         return;
+      case 'conversation.subject_changed':
+        return await this.syncParent(link, context, token);
       case 'conversation.message.received':
       case 'conversation.message.sent':
         return await this.mirrorMessage({ row, payload, context, link, token });

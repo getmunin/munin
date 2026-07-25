@@ -88,12 +88,12 @@ function sourceLabel(conv: ConversationSnapshot): string {
 }
 
 export function threadParentText(conv: ConversationSnapshot): string {
-  const lines = [
-    `:speech_balloon: *New conversation #${conv.displayId}* — via ${sourceLabel(conv)}`,
-  ];
+  const headline = conv.subject
+    ? `:speech_balloon: *${escapeSlackText(conv.subject)}* — #${conv.displayId} via ${sourceLabel(conv)}`
+    : `:speech_balloon: *New conversation #${conv.displayId}* — via ${sourceLabel(conv)}`;
+  const lines = [headline];
   const contact = contactLine(conv);
   if (contact) lines.push(contact);
-  if (conv.subject) lines.push(`*Subject:* ${escapeSlackText(conv.subject)}`);
   lines.push(`<${conv.dashboardUrl}|Open in Munin>`);
   return lines.join('\n');
 }
@@ -149,13 +149,18 @@ export function messageBodyText(msg: MessageSnapshot): string {
 }
 
 export function statusChangedText(status: string): string {
-  const emoji: Record<string, string> = {
-    open: ':leftwards_arrow_with_hook:',
-    snoozed: ':zzz:',
-    closed: ':white_check_mark:',
-    spam: ':no_entry_sign:',
-  };
-  return `${emoji[status] ?? ':information_source:'} Status changed to *${escapeSlackText(status)}*`;
+  switch (status) {
+    case 'closed':
+      return ':white_check_mark: *Conversation is resolved.*';
+    case 'open':
+      return ':leftwards_arrow_with_hook: Conversation reopened';
+    case 'snoozed':
+      return ':zzz: Conversation snoozed';
+    case 'spam':
+      return ':no_entry_sign: Marked as spam';
+    default:
+      return `:information_source: Status changed to *${escapeSlackText(status)}*`;
+  }
 }
 
 export function assignedText(assigneeName: string | null): string {
@@ -213,6 +218,8 @@ export const REOPEN_ACTION_ID = 'munin_reopen';
 export const RELEASE_ACTION_ID = 'munin_release';
 
 export function parentStateLine(state: ParentState): string {
+  if (state.status === 'closed') return ':white_check_mark: *Conversation is resolved.*';
+  if (state.status === 'spam') return ':no_entry_sign: *Marked as spam.*';
   const parts = [`*Status:* ${escapeSlackText(state.status)}`];
   if (state.claimedBy) parts.push(`taken over by *${escapeSlackText(state.claimedBy)}*`);
   if (state.assignedTo) parts.push(`assigned to *${escapeSlackText(state.assignedTo)}*`);

@@ -471,8 +471,30 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     const parent = api.posted.find((p) => !p.threadTs);
     expect(api.updated).toHaveLength(1);
     expect(api.updated[0]!.ts).toBe(parent!.ts);
-    expect(api.updated[0]!.text).toContain('*Status:* closed');
+    expect(api.updated[0]!.text).toContain(':white_check_mark: *Conversation is resolved.*');
     expect(actionIds(api.updated[0]!.blocks)).toEqual(['munin_reopen']);
+  });
+
+  it('refreshes the parent headline on subject changes without a thread reply', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const conversationId = await seedConversation();
+    await db
+      .update(schema.convConversations)
+      .set({ subject: 'Broken checkout on mobile' })
+      .where(eq(schema.convConversations.id, conversationId));
+    await enqueue('conversation.subject_changed', conversationId, {
+      conversationId,
+      subject: 'Broken checkout on mobile',
+    });
+
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(1);
+    expect(api.posted[0]!.threadTs).toBeUndefined();
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.text).toContain('*Broken checkout on mobile* — #');
+    expect(api.updated[0]!.text).not.toContain('New conversation');
   });
 
   it('posts agent messages as the configured assistant name, falling back to Munin', async () => {

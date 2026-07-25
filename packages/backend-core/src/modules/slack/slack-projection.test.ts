@@ -29,25 +29,24 @@ describe('escapeSlackText', () => {
 });
 
 describe('threadParentText', () => {
-  it('includes display id, source, contact, subject, and link', () => {
+  it('headlines the subject when set', () => {
     const text = threadParentText(conv);
-    expect(text).toContain('#42');
-    expect(text).toContain('email (Support inbox)');
+    expect(text).toContain('*Refund for order &lt;#1001&gt;* — #42 via email (Support inbox)');
+    expect(text).not.toContain('New conversation');
     expect(text).toContain('Ada Lovelace');
     expect(text).toContain('ada@example.com');
-    expect(text).toContain('Refund for order &lt;#1001&gt;');
     expect(text).toContain('<https://app.example.com/dashboard|Open in Munin>');
   });
 
-  it('omits contact and subject lines when absent', () => {
+  it('falls back to a generic headline and omits contact when absent', () => {
     const text = threadParentText({
       ...conv,
       subject: null,
       contactName: null,
       contactEmail: null,
     });
+    expect(text).toContain('*New conversation #42* — via email (Support inbox)');
     expect(text).not.toContain('*From:*');
-    expect(text).not.toContain('*Subject:*');
   });
 });
 
@@ -97,7 +96,8 @@ describe('authorLabel', () => {
 
 describe('statusChangedText', () => {
   it('renders known and unknown statuses', () => {
-    expect(statusChangedText('closed')).toContain('*closed*');
+    expect(statusChangedText('closed')).toBe(':white_check_mark: *Conversation is resolved.*');
+    expect(statusChangedText('open')).toContain('Conversation reopened');
     expect(statusChangedText('weird')).toContain('*weird*');
   });
 });
@@ -131,6 +131,16 @@ describe('parentStateLine + threadParentBlocks', () => {
     expect(line).toContain('taken over by *Kim &lt;ops&gt;*');
     expect(line).toContain('assigned to *Ada*');
     expect(line).toContain('needs attention');
+  });
+
+  it('replaces the status line with a resolved banner once closed', () => {
+    const line = parentStateLine({
+      status: 'closed',
+      needsHumanAttention: false,
+      claimedBy: null,
+      assignedTo: 'Ada',
+    });
+    expect(line).toBe(':white_check_mark: *Conversation is resolved.*');
   });
 
   it('shows Claim/Close buttons while open and Reopen once resolved', () => {

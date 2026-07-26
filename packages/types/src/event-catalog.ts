@@ -17,12 +17,17 @@ export const CRM_EVENT_TYPES = [
   'crm.deal.stage_changed',
   'crm.activity.logged',
   'crm.merge_proposal.proposed',
+  'crm.merge_proposal.applied',
+  'crm.merge_proposal.dismissed',
 ] as const;
 
 export const KB_EVENT_TYPES = [
   'kb.document.created',
   'kb.document.updated',
   'kb.document.deleted',
+  'kb.curation_candidate.proposed',
+  'kb.curation_candidate.published',
+  'kb.curation_candidate.dismissed',
 ] as const;
 
 export const CONVERSATION_EVENT_TYPES = [

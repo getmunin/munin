@@ -62,3 +62,13 @@ DROP POLICY IF EXISTS tenant_isolation ON slack_deliveries;
 CREATE POLICY tenant_isolation ON slack_deliveries
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+ALTER TABLE slack_notification_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE slack_notification_links FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON slack_notification_links;
+CREATE POLICY tenant_isolation ON slack_notification_links
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

@@ -1940,7 +1940,7 @@ export const slackChannelRoutes = pgTable(
     slackChannelId: text('slack_channel_id').notNull(),
     slackChannelName: text('slack_channel_name'),
     purpose: varchar('purpose', { length: 16 }).notNull().default('default'),
-    // 'default' | 'escalations'
+    // 'default' | 'escalations' | 'approvals'
     convChannelId: text('conv_channel_id').references(() => convChannels.id, {
       onDelete: 'cascade',
     }),
@@ -2073,6 +2073,10 @@ export const slackDeliveries = pgTable(
     conversationId: text('conversation_id').references(() => convConversations.id, {
       onDelete: 'cascade',
     }),
+    // Serializes approval-notification rows the same way conversation_id
+    // serializes mirror rows (head-of-line per subject); null for both on the
+    // other kind of row. Format: '<subject_type>:<subject_id>'.
+    subjectKey: text('subject_key'),
     attempt: integer('attempt').notNull().default(0),
     error: text('error'),
     deliveredAt: timestamp('delivered_at', { withTimezone: true }),
@@ -2082,7 +2086,40 @@ export const slackDeliveries = pgTable(
   (t) => ({
     pendingIdx: index('slack_deliveries_pending_idx').on(t.nextAttemptAt),
     convIdx: index('slack_deliveries_conv_idx').on(t.conversationId, t.createdAt),
+    subjectIdx: index('slack_deliveries_subject_idx').on(t.subjectKey, t.createdAt),
     orgIdx: index('slack_deliveries_org_idx').on(t.orgId),
+  }),
+);
+
+// One Slack message = one approval item (CRM merge proposal, outreach
+// proposal, KB curation candidate). Created by the bridge worker when the
+// pending notification posts; resolution events chat.update the same message
+// and stamp resolved_at so late or duplicate resolutions are no-ops.
+export const slackNotificationLinks = pgTable(
+  'slack_notification_links',
+  {
+    id: id('snl'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    subjectType: varchar('subject_type', { length: 32 }).notNull(),
+    // 'crm_merge_proposal' | 'outreach_proposal' | 'kb_curation_candidate'
+    subjectId: text('subject_id').notNull(),
+    slackChannelId: text('slack_channel_id').notNull(),
+    slackTs: text('slack_ts').notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => ({
+    subjectUq: uniqueIndex('slack_notification_links_subject_uq').on(
+      t.integrationId,
+      t.subjectType,
+      t.subjectId,
+    ),
+    orgIdx: index('slack_notification_links_org_idx').on(t.orgId),
   }),
 );
 

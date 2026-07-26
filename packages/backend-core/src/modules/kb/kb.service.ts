@@ -349,7 +349,6 @@ export class KbService {
   }
 
   async deleteDocument(input: { id: string; ifVersion: number }): Promise<{ deleted: true }> {
-    const ctx = getCurrentContext();
     const existing = await this.loadForUpdate(input.id);
     if (existing.isSystem) {
       throw new KbInvalidError(
@@ -359,7 +358,18 @@ export class KbService {
     if (existing.version !== input.ifVersion) {
       throw new KbConflictError(existing.version, input.ifVersion);
     }
-    await ctx.db.delete(schema.kbDocuments).where(eq(schema.kbDocuments.id, input.id));
+    return this.removeDocument(existing, { emitCandidateDismissed: true });
+  }
+
+  // Publishing a candidate deletes its inbox row through here too — with
+  // emitCandidateDismissed off, so the publish doesn't also announce a
+  // dismissal.
+  private async removeDocument(
+    existing: typeof schema.kbDocuments.$inferSelect,
+    opts: { emitCandidateDismissed: boolean },
+  ): Promise<{ deleted: true }> {
+    const ctx = getCurrentContext();
+    await ctx.db.delete(schema.kbDocuments).where(eq(schema.kbDocuments.id, existing.id));
     await this.webhooks.emit({
       type: 'kb.document.deleted',
       payload: {
@@ -368,6 +378,16 @@ export class KbService {
         slug: existing.slug,
       },
     });
+    if (opts.emitCandidateDismissed && existing.tags.includes('candidate')) {
+      await this.webhooks.emit({
+        type: 'kb.curation_candidate.dismissed',
+        payload: {
+          candidateDocumentId: existing.id,
+          title: existing.title,
+          ...extractCandidateRefs(existing.tags),
+        },
+      });
+    }
     return { deleted: true };
   }
 
@@ -394,7 +414,7 @@ export class KbService {
     proposedTargetSpaceSlug?: string;
   }): Promise<DocumentDto> {
     const space = await this.ensureCurationInboxSpace();
-    return this.createDocument({
+    const doc = await this.createDocument({
       spaceId: space.id,
       title: input.subject,
       body: input.draftBody,
@@ -406,6 +426,17 @@ export class KbService {
         ...(input.proposedTargetSpaceSlug ? [`target:${input.proposedTargetSpaceSlug}`] : []),
       ]),
     });
+    await this.webhooks.emit({
+      type: 'kb.curation_candidate.proposed',
+      payload: {
+        candidateDocumentId: doc.id,
+        title: doc.title,
+        proposedTargetSpaceSlug: input.proposedTargetSpaceSlug ?? null,
+        sourceConversationId: input.sourceConversationId ?? null,
+        spaceId: doc.spaceId,
+      },
+    });
+    return doc;
   }
 
   async publishCurationCandidate(input: {
@@ -458,7 +489,17 @@ export class KbService {
       audiences,
       tags: carriedTags,
     });
-    await this.deleteDocument({ id: candidate.id, ifVersion: candidate.version });
+    await this.removeDocument(candidate, { emitCandidateDismissed: false });
+    await this.webhooks.emit({
+      type: 'kb.curation_candidate.published',
+      payload: {
+        candidateDocumentId: candidate.id,
+        publishedDocumentId: published.id,
+        targetSpaceSlug: input.targetSpaceSlug,
+        targetSpaceId: targetSpace.id,
+        title: candidate.title,
+      },
+    });
     return published;
   }
 

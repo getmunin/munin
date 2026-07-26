@@ -305,3 +305,145 @@ export function routeConfirmedText(
 export function routeDismissedText(): string {
   return 'Ok — routing can be configured any time from the dashboard (Settings → Integrations) or with slack_set_routing.';
 }
+
+// ─── Approval notifications ─────────────────────────────────────────────────
+
+export const APPROVAL_APPROVE_ACTION_ID = 'munin_approval_approve';
+export const APPROVAL_DISMISS_ACTION_ID = 'munin_approval_dismiss';
+
+const APPROVAL_SUBJECT_TYPES = [
+  'crm_merge_proposal',
+  'outreach_proposal',
+  'kb_curation_candidate',
+] as const;
+
+export type ApprovalSubjectType = (typeof APPROVAL_SUBJECT_TYPES)[number];
+
+export function encodeApprovalValue(subjectType: ApprovalSubjectType, subjectId: string): string {
+  return `${subjectType}:${subjectId}`;
+}
+
+export function parseApprovalValue(
+  value: string,
+): { subjectType: ApprovalSubjectType; subjectId: string } | null {
+  const sep = value.indexOf(':');
+  if (sep <= 0) return null;
+  const subjectType = value.slice(0, sep) as ApprovalSubjectType;
+  const subjectId = value.slice(sep + 1);
+  if (!APPROVAL_SUBJECT_TYPES.includes(subjectType) || subjectId.length === 0) return null;
+  return { subjectType, subjectId };
+}
+
+export interface MergeProposalApprovalSnapshot {
+  contactALabel: string;
+  contactBLabel: string;
+  keeperLabel: string;
+  confidence: string;
+  dashboardUrl: string;
+}
+
+export function mergeProposalApprovalText(snap: MergeProposalApprovalSnapshot): string {
+  return [
+    ':busts_in_silhouette: *Duplicate contacts — merge proposed*',
+    `*A:* ${escapeSlackText(snap.contactALabel)}`,
+    `*B:* ${escapeSlackText(snap.contactBLabel)}`,
+    `*Keep:* ${escapeSlackText(snap.keeperLabel)} · ${escapeSlackText(snap.confidence)} confidence`,
+    `<${snap.dashboardUrl}|Review in Munin>`,
+  ].join('\n');
+}
+
+export interface OutreachProposalApprovalSnapshot {
+  kind: string;
+  campaignName: string;
+  contactLabel: string;
+  draftSubject: string | null;
+  draftBodyPreview: string;
+  dashboardUrl: string;
+}
+
+export function outreachProposalApprovalText(snap: OutreachProposalApprovalSnapshot): string {
+  const lines = [
+    `:outbox_tray: *Outreach draft awaiting approval* — ${escapeSlackText(snap.kind)} for *${escapeSlackText(snap.campaignName)}*`,
+    `*To:* ${escapeSlackText(snap.contactLabel)}`,
+  ];
+  if (snap.draftSubject) lines.push(`*Subject:* ${escapeSlackText(snap.draftSubject)}`);
+  lines.push(
+    ...truncate(escapeSlackText(snap.draftBodyPreview), 500)
+      .split('\n')
+      .map((line) => `> ${line}`),
+  );
+  lines.push(`<${snap.dashboardUrl}|Review in Munin>`);
+  return lines.join('\n');
+}
+
+export interface KbCandidateApprovalSnapshot {
+  title: string;
+  proposedTargetSpaceSlug: string | null;
+  sourceConversationId: string | null;
+  dashboardUrl: string;
+}
+
+export function kbCandidateApprovalText(snap: KbCandidateApprovalSnapshot): string {
+  const lines = [`:books: *KB draft awaiting review* — *${escapeSlackText(snap.title)}*`];
+  lines.push(
+    snap.proposedTargetSpaceSlug
+      ? `*Proposed space:* ${escapeSlackText(snap.proposedTargetSpaceSlug)}`
+      : '_No target space proposed — pick one when publishing._',
+  );
+  if (snap.sourceConversationId) lines.push('_Drafted from a resolved conversation._');
+  lines.push(`<${snap.dashboardUrl}|Review in Munin>`);
+  return lines.join('\n');
+}
+
+export type ApprovalOutcome = 'applied' | 'sent' | 'published' | 'dismissed';
+
+export function approvalResolvedLine(
+  outcome: ApprovalOutcome,
+  decidedByName: string | null,
+): string {
+  const by = decidedByName ? ` by *${escapeSlackText(decidedByName)}*` : '';
+  switch (outcome) {
+    case 'applied':
+      return `:white_check_mark: *Merge applied*${by}`;
+    case 'sent':
+      return `:white_check_mark: *Approved — email sent*${by}`;
+    case 'published':
+      return `:white_check_mark: *Published to the knowledge base*${by}`;
+    case 'dismissed':
+      return `:no_entry_sign: *Dismissed*${by}`;
+  }
+}
+
+export interface ApprovalResolution {
+  outcome: ApprovalOutcome;
+  decidedByName: string | null;
+}
+
+export function approvalBlocks(
+  text: string,
+  value: string,
+  opts: { approveLabel: string | null },
+  resolution: ApprovalResolution | null,
+): SlackBlock[] {
+  if (resolution) {
+    return [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `${text}\n${approvalResolvedLine(resolution.outcome, resolution.decidedByName)}`,
+        },
+      },
+    ];
+  }
+  const buttons = [
+    ...(opts.approveLabel
+      ? [actionButton(APPROVAL_APPROVE_ACTION_ID, opts.approveLabel, value, 'primary')]
+      : []),
+    actionButton(APPROVAL_DISMISS_ACTION_ID, 'Dismiss', value, 'danger'),
+  ];
+  return [
+    { type: 'section', text: { type: 'mrkdwn', text } },
+    { type: 'actions', elements: buttons },
+  ];
+}

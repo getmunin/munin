@@ -1,10 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import {
+  APPROVAL_DISMISS_ACTION_ID,
+  approvalBlocks,
+  approvalResolvedLine,
   authorLabel,
+  encodeApprovalValue,
   escalationAlertText,
   escapeSlackText,
+  kbCandidateApprovalText,
+  mergeProposalApprovalText,
   messageText,
+  outreachProposalApprovalText,
   parentStateLine,
+  parseApprovalValue,
   statusChangedText,
   threadParentBlocks,
   threadParentText,
@@ -173,5 +181,115 @@ describe('escalationAlertText', () => {
     const text = escalationAlertText(conv, null, null);
     expect(text).not.toContain('null');
     expect(text).toContain('*Human attention needed*');
+  });
+});
+
+describe('approval value codec', () => {
+  it('roundtrips subject refs', () => {
+    const value = encodeApprovalValue('crm_merge_proposal', 'cmp_abc123');
+    expect(value).toBe('crm_merge_proposal:cmp_abc123');
+    expect(parseApprovalValue(value)).toEqual({
+      subjectType: 'crm_merge_proposal',
+      subjectId: 'cmp_abc123',
+    });
+  });
+
+  it('rejects unknown subject types and malformed values', () => {
+    expect(parseApprovalValue('unknown_thing:xyz')).toBeNull();
+    expect(parseApprovalValue('crm_merge_proposal:')).toBeNull();
+    expect(parseApprovalValue('no-separator')).toBeNull();
+    expect(parseApprovalValue(':orphan')).toBeNull();
+  });
+});
+
+describe('approval texts', () => {
+  it('renders a merge proposal with escaped labels', () => {
+    const text = mergeProposalApprovalText({
+      contactALabel: 'Ada <ada@example.com>',
+      contactBLabel: 'A. Lovelace <ada.l@example.com>',
+      keeperLabel: 'Ada <ada@example.com>',
+      confidence: 'high',
+      dashboardUrl: 'https://app.example.com/dashboard',
+    });
+    expect(text).toContain('*Duplicate contacts — merge proposed*');
+    expect(text).toContain('Ada &lt;ada@example.com&gt;');
+    expect(text).toContain('high confidence');
+    expect(text).toContain('<https://app.example.com/dashboard|Review in Munin>');
+  });
+
+  it('renders an outreach draft with subject and truncated quoted preview', () => {
+    const text = outreachProposalApprovalText({
+      kind: 'initial',
+      campaignName: 'Spring launch',
+      contactLabel: 'Ada Lovelace',
+      draftSubject: 'Hello there',
+      draftBodyPreview: 'x'.repeat(600),
+      dashboardUrl: 'https://app.example.com/dashboard',
+    });
+    expect(text).toContain('*Outreach draft awaiting approval* — initial for *Spring launch*');
+    expect(text).toContain('*Subject:* Hello there');
+    expect(text).toContain('> x');
+    expect(text).toContain('truncated');
+    expect(text).not.toContain('x'.repeat(600));
+  });
+
+  it('renders a KB candidate with and without a proposed target', () => {
+    const withTarget = kbCandidateApprovalText({
+      title: 'Weekend hours',
+      proposedTargetSpaceSlug: 'support-faq',
+      sourceConversationId: 'ccv_1',
+      dashboardUrl: 'https://app.example.com/dashboard',
+    });
+    expect(withTarget).toContain('*KB draft awaiting review* — *Weekend hours*');
+    expect(withTarget).toContain('*Proposed space:* support-faq');
+    expect(withTarget).toContain('Drafted from a resolved conversation');
+
+    const withoutTarget = kbCandidateApprovalText({
+      title: 'Weekend hours',
+      proposedTargetSpaceSlug: null,
+      sourceConversationId: null,
+      dashboardUrl: 'https://app.example.com/dashboard',
+    });
+    expect(withoutTarget).toContain('No target space proposed');
+    expect(withoutTarget).not.toContain('resolved conversation');
+  });
+});
+
+describe('approvalBlocks', () => {
+  const value = encodeApprovalValue('outreach_proposal', 'oprp_1');
+
+  it('shows approve + dismiss buttons while pending', () => {
+    const blocks = approvalBlocks('body', value, { approveLabel: 'Approve & send' }, null);
+    expect(blocks).toHaveLength(2);
+    const actions = blocks[1] as unknown as { elements: Array<Record<string, unknown>> };
+    expect(actions.elements.map((e) => (e.text as { text: string }).text)).toEqual([
+      'Approve & send',
+      'Dismiss',
+    ]);
+    expect(actions.elements.every((e) => e.value === value)).toBe(true);
+  });
+
+  it('omits the approve button when no label is given', () => {
+    const blocks = approvalBlocks('body', value, { approveLabel: null }, null);
+    const actions = blocks[1] as unknown as { elements: Array<Record<string, unknown>> };
+    expect(actions.elements.map((e) => e.action_id)).toEqual([APPROVAL_DISMISS_ACTION_ID]);
+  });
+
+  it('drops buttons and appends the outcome line once resolved', () => {
+    const blocks = approvalBlocks(
+      'body',
+      value,
+      { approveLabel: 'Approve & send' },
+      { outcome: 'sent', decidedByName: 'Kjell' },
+    );
+    expect(blocks).toHaveLength(1);
+    const section = blocks[0] as unknown as { text: { text: string } };
+    expect(section.text.text).toContain('*Approved — email sent* by *Kjell*');
+  });
+
+  it('covers every outcome line', () => {
+    expect(approvalResolvedLine('applied', null)).toContain('Merge applied');
+    expect(approvalResolvedLine('published', 'A')).toContain('Published to the knowledge base');
+    expect(approvalResolvedLine('dismissed', null)).toContain('Dismissed');
   });
 });

@@ -7,12 +7,18 @@ import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
 import { decryptSecretValue } from './slack.service.ts';
 import {
+  approvalBlocks,
+  approvalResolvedLine,
   assignedText,
+  encodeApprovalValue,
   escalationAlertText,
   handoverRequestedText,
   handoverResolvedText,
+  kbCandidateApprovalText,
+  mergeProposalApprovalText,
   messageBodyText,
   messageText,
+  outreachProposalApprovalText,
   parentStateLine,
   parseMessageAttachments,
   releasedText,
@@ -21,11 +27,18 @@ import {
   takenOverText,
   threadParentBlocks,
   threadParentText,
+  type ApprovalOutcome,
+  type ApprovalResolution,
   type AuthorKind,
   type ConversationSnapshot,
   type ParentState,
+  type SlackBlock,
 } from './slack-projection.ts';
-import { readWebBaseUrl } from './slack.constants.ts';
+import {
+  SLACK_APPROVAL_EVENT_TYPES,
+  approvalSubjectRef,
+  readWebBaseUrl,
+} from './slack.constants.ts';
 import { mcpResourceOrigin } from '../../oauth/oauth.constants.ts';
 
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_SLACK_POLL_MS', default: 5000 });
@@ -108,7 +121,8 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
             lte(schema.slackDeliveries.nextAttemptAt, new Date()),
             sql`NOT EXISTS (
               SELECT 1 FROM slack_deliveries earlier
-              WHERE earlier.conversation_id = slack_deliveries.conversation_id
+              WHERE (earlier.conversation_id = slack_deliveries.conversation_id
+                     OR earlier.subject_key = slack_deliveries.subject_key)
                 AND earlier.delivered_at IS NULL
                 AND earlier.attempt < ${MAX_ATTEMPTS}
                 AND earlier.created_at < slack_deliveries.created_at
@@ -157,6 +171,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         row,
         integration,
         payload: eventRow.payload,
+        actorId: eventRow.actorId,
         routes,
         token,
       });
@@ -176,10 +191,14 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     row: DeliveryRow;
     integration: IntegrationRow;
     payload: Record<string, unknown>;
+    actorId: string | null;
     routes: RouteRow[];
     token: string;
   }): Promise<void> {
     const { row, payload, routes, token } = input;
+    if (SLACK_APPROVAL_EVENT_TYPES.includes(row.eventType)) {
+      return await this.handleNotification(input);
+    }
     if (!row.conversationId) return;
 
     const context = await this.loadConversation(row.conversationId);
@@ -310,6 +329,259 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         origin: 'mirrored',
       })
       .onConflictDoNothing();
+  }
+
+  /**
+   * Approval events post standalone channel notifications rather than thread
+   * replies. Pending events post (or refresh) the message; resolution events
+   * chat.update it in place, drop the buttons, and stamp resolved_at so late
+   * or duplicate resolutions are no-ops. A resolution whose pending message
+   * never surfaced (e.g. the feature shipped mid-lifecycle, or the pending
+   * head perma-failed) posts nothing.
+   */
+  private async handleNotification(input: {
+    row: DeliveryRow;
+    integration: IntegrationRow;
+    payload: Record<string, unknown>;
+    actorId: string | null;
+    token: string;
+    routes: RouteRow[];
+  }): Promise<void> {
+    const { row, integration, payload, actorId, routes, token } = input;
+    const route =
+      routes.find((r) => r.purpose === 'approvals' && !r.convChannelId) ??
+      routes.find((r) => r.purpose === 'escalations' && !r.convChannelId) ??
+      routes.find((r) => r.purpose === 'default' && !r.convChannelId);
+    if (!route) throw new TerminalDeliveryError('no_route');
+
+    const subject = approvalSubjectRef(row.eventType, payload);
+    if (!subject) throw new TerminalDeliveryError('subject_ref_missing');
+
+    const [link] = await this.db
+      .select()
+      .from(schema.slackNotificationLinks)
+      .where(
+        and(
+          eq(schema.slackNotificationLinks.integrationId, integration.id),
+          eq(schema.slackNotificationLinks.subjectType, subject.subjectType),
+          eq(schema.slackNotificationLinks.subjectId, subject.subjectId),
+        ),
+      )
+      .limit(1);
+
+    const outcome = approvalOutcomeFor(row.eventType);
+    if (outcome) {
+      if (!link || link.resolvedAt) return;
+      const rendering = await this.renderApproval(subject, payload, actorId, outcome);
+      await this.api.updateMessage({
+        token,
+        channel: link.slackChannelId,
+        ts: link.slackTs,
+        text: rendering.text,
+        blocks: rendering.blocks,
+      });
+      await this.db
+        .update(schema.slackNotificationLinks)
+        .set({ resolvedAt: new Date() })
+        .where(eq(schema.slackNotificationLinks.id, link.id));
+      return;
+    }
+
+    const rendering = await this.renderApproval(subject, payload, actorId, null);
+    if (link) {
+      await this.api.updateMessage({
+        token,
+        channel: link.slackChannelId,
+        ts: link.slackTs,
+        text: rendering.text,
+        blocks: rendering.blocks,
+      });
+      if (rendering.resolved && !link.resolvedAt) {
+        await this.db
+          .update(schema.slackNotificationLinks)
+          .set({ resolvedAt: new Date() })
+          .where(eq(schema.slackNotificationLinks.id, link.id));
+      }
+      return;
+    }
+    if (row.eventType === 'outreach.proposal.updated') return;
+
+    let posted;
+    try {
+      posted = await this.api.postMessage({
+        token,
+        channel: route.slackChannelId,
+        text: rendering.text,
+        blocks: rendering.blocks,
+      });
+    } catch (err) {
+      if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
+        throw new TerminalDeliveryError('bot_not_in_channel');
+      }
+      throw err;
+    }
+    await this.db
+      .insert(schema.slackNotificationLinks)
+      .values({
+        orgId: integration.orgId,
+        integrationId: integration.id,
+        subjectType: subject.subjectType,
+        subjectId: subject.subjectId,
+        slackChannelId: posted.channel,
+        slackTs: posted.ts,
+        resolvedAt: rendering.resolved ? new Date() : null,
+      })
+      .onConflictDoNothing();
+  }
+
+  /**
+   * Rebuilds the full message for a subject. Pending renders load the subject
+   * fresh so re-proposals refresh in place; a subject that resolved before its
+   * pending row delivered renders the resolved state directly. KB candidates
+   * are deleted on resolve, so their resolution render comes from the event
+   * payload + actor instead of the row.
+   */
+  private async renderApproval(
+    subject: { subjectType: string; subjectId: string },
+    payload: Record<string, unknown>,
+    actorId: string | null,
+    outcome: ApprovalOutcome | null,
+  ): Promise<{ text: string; blocks: SlackBlock[]; resolved: boolean }> {
+    const dashboardUrl = `${readWebBaseUrl()}/dashboard`;
+    const value = encodeApprovalValue(
+      subject.subjectType as Parameters<typeof encodeApprovalValue>[0],
+      subject.subjectId,
+    );
+    const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+
+    let text: string;
+    let approveLabel: string | null;
+    let resolution: ApprovalResolution | null;
+
+    if (subject.subjectType === 'crm_merge_proposal') {
+      const [proposal] = await this.db
+        .select()
+        .from(schema.crmMergeProposals)
+        .where(eq(schema.crmMergeProposals.id, subject.subjectId))
+        .limit(1);
+      if (!proposal && !outcome) throw new TerminalDeliveryError('subject_missing');
+      const contactAId = proposal?.contactAId ?? str(payload.contactAId);
+      const contactBId = proposal?.contactBId ?? str(payload.contactBId);
+      const keeperId = proposal?.recommendedKeeperId ?? str(payload.recommendedKeeperId);
+      const labelA = contactAId ? await this.contactLabel(contactAId) : 'unknown contact';
+      const labelB = contactBId ? await this.contactLabel(contactBId) : 'unknown contact';
+      text = mergeProposalApprovalText({
+        contactALabel: labelA,
+        contactBLabel: labelB,
+        keeperLabel: keeperId === contactBId ? labelB : labelA,
+        confidence: proposal?.confidence ?? str(payload.confidence) ?? 'unknown',
+        dashboardUrl,
+      });
+      approveLabel = 'Apply merge';
+      const status = proposal?.status ?? str(payload.status);
+      const derived: ApprovalOutcome | null =
+        outcome ?? (status === 'applied' ? 'applied' : status === 'dismissed' ? 'dismissed' : null);
+      resolution = derived
+        ? {
+            outcome: derived,
+            decidedByName: await this.decidedByName(
+              proposal?.decidedByActorType ?? null,
+              proposal?.decidedByActorId ?? null,
+            ),
+          }
+        : null;
+    } else if (subject.subjectType === 'outreach_proposal') {
+      const [proposal] = await this.db
+        .select()
+        .from(schema.outreachProposals)
+        .where(eq(schema.outreachProposals.id, subject.subjectId))
+        .limit(1);
+      if (!proposal && !outcome) throw new TerminalDeliveryError('subject_missing');
+      const [campaign] = proposal
+        ? await this.db
+            .select({ name: schema.outreachCampaigns.name })
+            .from(schema.outreachCampaigns)
+            .where(eq(schema.outreachCampaigns.id, proposal.campaignId))
+            .limit(1)
+        : [];
+      text = outreachProposalApprovalText({
+        kind: proposal?.kind ?? 'draft',
+        campaignName: campaign?.name ?? 'a campaign',
+        contactLabel: proposal
+          ? await this.contactLabel(proposal.contactId)
+          : 'unknown contact',
+        draftSubject: proposal?.draftSubject ?? null,
+        draftBodyPreview: proposal?.draftBody ?? '',
+        dashboardUrl,
+      });
+      approveLabel = 'Approve & send';
+      const derived: ApprovalOutcome | null =
+        outcome ??
+        (proposal?.status === 'sent'
+          ? 'sent'
+          : proposal?.status === 'dismissed'
+            ? 'dismissed'
+            : null);
+      resolution = derived
+        ? {
+            outcome: derived,
+            decidedByName: await this.decidedByName(
+              proposal?.decidedByActorType ?? null,
+              proposal?.decidedByActorId ?? null,
+            ),
+          }
+        : null;
+    } else {
+      const [doc] = await this.db
+        .select()
+        .from(schema.kbDocuments)
+        .where(eq(schema.kbDocuments.id, subject.subjectId))
+        .limit(1);
+      if (!doc && !outcome) throw new TerminalDeliveryError('subject_missing');
+      const tags = doc?.tags ?? [];
+      const targetTag = tags.find((t) => t.startsWith('target:'))?.slice('target:'.length) ?? null;
+      const sourceTag = tags.find((t) => t.startsWith('source:'))?.slice('source:'.length) ?? null;
+      const target =
+        targetTag ?? str(payload.proposedTargetSpaceSlug) ?? str(payload.targetSpaceSlug);
+      text = kbCandidateApprovalText({
+        title: doc?.title ?? str(payload.title) ?? 'Untitled draft',
+        proposedTargetSpaceSlug: target,
+        sourceConversationId: sourceTag ?? str(payload.sourceConversationId),
+        dashboardUrl,
+      });
+      approveLabel = target ? `Publish to ${target}` : null;
+      resolution = outcome
+        ? { outcome, decidedByName: actorId ? await this.userName(actorId) : null }
+        : null;
+    }
+
+    return {
+      text: resolution
+        ? `${text}\n${approvalResolvedLine(resolution.outcome, resolution.decidedByName)}`
+        : text,
+      blocks: approvalBlocks(text, value, { approveLabel }, resolution),
+      resolved: resolution !== null,
+    };
+  }
+
+  private async contactLabel(contactId: string): Promise<string> {
+    const [contact] = await this.db
+      .select({ name: schema.crmContacts.name, email: schema.crmContacts.email })
+      .from(schema.crmContacts)
+      .where(eq(schema.crmContacts.id, contactId))
+      .limit(1);
+    if (!contact) return 'unknown contact';
+    if (contact.name && contact.email) return `${contact.name} (${contact.email})`;
+    return contact.name ?? contact.email ?? 'unknown contact';
+  }
+
+  private async decidedByName(
+    actorType: string | null,
+    decidedByActorId: string | null,
+  ): Promise<string | null> {
+    if (!decidedByActorId) return null;
+    if (actorType === 'user') return await this.userName(decidedByActorId);
+    return 'the AI agent';
   }
 
   private async ensureLink(
@@ -526,6 +798,23 @@ interface ConversationContext {
   conversation: typeof schema.convConversations.$inferSelect;
   contact: typeof schema.convContacts.$inferSelect | null;
   snapshot: ConversationSnapshot;
+}
+
+function approvalOutcomeFor(eventType: string): ApprovalOutcome | null {
+  switch (eventType) {
+    case 'crm.merge_proposal.applied':
+      return 'applied';
+    case 'outreach.proposal.sent':
+      return 'sent';
+    case 'kb.curation_candidate.published':
+      return 'published';
+    case 'crm.merge_proposal.dismissed':
+    case 'outreach.proposal.dismissed':
+    case 'kb.curation_candidate.dismissed':
+      return 'dismissed';
+    default:
+      return null;
+  }
 }
 
 export { POLL_INTERVAL_MS as SLACK_POLL_INTERVAL_MS };

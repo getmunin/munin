@@ -64,7 +64,7 @@ export interface SlackStatusDto {
 
 export interface SetRoutingInput {
   slackChannelId: string;
-  purpose?: 'default' | 'escalations';
+  purpose?: 'default' | 'escalations' | 'approvals';
   mention?: string | null;
   /** Source-channel override: conversations on this conv channel mirror here. */
   convChannelId?: string | null;
@@ -340,9 +340,9 @@ export class SlackService {
     const orgId = ctx.actor!.orgId;
     const purpose = input.purpose ?? 'default';
     const convChannelId = input.convChannelId ?? null;
-    if (convChannelId && purpose === 'escalations') {
+    if (convChannelId && purpose !== 'default') {
       throw new BadRequestException(
-        'slack_invalid_routing: escalations cannot be scoped to a source channel — omit convChannelId',
+        `slack_invalid_routing: ${purpose} cannot be scoped to a source channel — omit convChannelId`,
       );
     }
 

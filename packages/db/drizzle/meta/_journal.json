@@ -386,6 +386,13 @@
       "when": 1784587787527,
       "tag": "0054_outreach_sequence_steps",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1785018440518,
+      "tag": "0055_slack_approval_notifications",
+      "breakpoints": true
     }
   ]
 }

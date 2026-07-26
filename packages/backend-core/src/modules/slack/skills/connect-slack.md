@@ -107,6 +107,22 @@ Call `slack_test` — it posts a hello message to the default channel. Then conf
 - Status changes, assignment, claim/release, and handover request/resolve as thread updates. When a conversation is closed, the parent's status line becomes a ":white_check_mark: *Conversation is resolved.*" banner (":no_entry_sign: *Marked as spam.*" for spam) until it is reopened.
 - Handover requests additionally alert the escalations channel (or the default channel) with the reason and the configured mention.
 
+## Approval notifications
+
+Items waiting on a human decision post as standalone messages (not threads) with approve/dismiss buttons, and the message updates in place once the item is decided — from Slack, the dashboard, or an agent:
+
+- **CRM merge proposals** — duplicate contacts with the recommended keeper and confidence. *Apply merge* / *Dismiss*.
+- **Outreach drafts** — pending proposals with campaign, recipient, subject, and a body preview. *Approve & send* (this sends the real email) / *Dismiss*. Draft edits refresh the message.
+- **KB curation candidates** — drafted knowledge-base articles awaiting review. *Publish to \<space\>* when the draft proposes a target space, otherwise only *Dismiss* (deletes the draft) plus a dashboard link for picking a space.
+
+Routing: they land in the `approvals` channel when routed (`slack_set_routing` with `purpose: "approvals"`), otherwise fall back to the escalations channel, then the default channel:
+
+```json
+{ "slackChannelId": "C0999...", "purpose": "approvals" }
+```
+
+Buttons act as the clicking teammate — the same account-linking rule as replies applies, and any linked org member can decide (matching the dashboard). Once resolved, the buttons disappear and the message shows the outcome and who decided.
+
 ## Replying from Slack
 
 A reply in a mirrored thread is sent to the customer over the conversation's original channel and recorded in Munin as that teammate's message. Replying does not take over the conversation — the AI stays in the loop; use the *Take over* button on the thread parent to take control (and *Release* to hand back):

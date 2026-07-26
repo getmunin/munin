@@ -1,5 +1,13 @@
 # @getmunin/dashboard-pages
 
+## 4.69.2
+
+### Patch Changes
+
+- 5b82be8: Auth: link Google/GitHub sign-ins to an existing account with the same verified email instead of failing with `account_not_linked`. OAuth errors now redirect to the app's login/signup page (via `errorCallbackURL`) instead of the API origin root, which returned a 404.
+  - @getmunin/types@4.69.2
+  - @getmunin/ui@4.69.2
+
 ## 4.69.1
 
 ### Patch Changes

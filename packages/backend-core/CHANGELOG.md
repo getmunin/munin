@@ -1,5 +1,18 @@
 # @getmunin/backend-core
 
+## 4.69.2
+
+### Patch Changes
+
+- 5b82be8: Auth: link Google/GitHub sign-ins to an existing account with the same verified email instead of failing with `account_not_linked`. OAuth errors now redirect to the app's login/signup page (via `errorCallbackURL`) instead of the API origin root, which returned a 404.
+  - @getmunin/inspector-app@4.69.2
+  - @getmunin/core@4.69.2
+  - @getmunin/db@4.69.2
+  - @getmunin/types@4.69.2
+  - @getmunin/mcp-toolkit@4.69.2
+  - @getmunin/agent-runtime@4.69.2
+  - @getmunin/emails@4.69.2
+
 ## 4.69.1
 
 ### Patch Changes

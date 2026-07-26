@@ -1,5 +1,18 @@
 # @getmunin/backend-core
 
+## 4.69.1
+
+### Patch Changes
+
+- 2d118b3: Build the Slack OAuth redirect URI from the auth origin (`NEXT_PUBLIC_AUTH_URL`) instead of the MCP resource origin, so browser-facing install flows land on the `api.*` host that Slack apps register as the callback. Falls back to the MCP origin when no auth URL is set, matching single-origin self-host deployments.
+  - @getmunin/core@4.69.1
+  - @getmunin/db@4.69.1
+  - @getmunin/types@4.69.1
+  - @getmunin/mcp-toolkit@4.69.1
+  - @getmunin/inspector-app@4.69.1
+  - @getmunin/agent-runtime@4.69.1
+  - @getmunin/emails@4.69.1
+
 ## 4.69.0
 
 ### Minor Changes
@@ -8,7 +21,7 @@
 - 18dc6a6: Slack approval notifications: pending CRM merge proposals, outreach drafts, and KB curation candidates now post to Slack with approve/dismiss buttons, and the message updates in place once the item is decided anywhere. New optional `approvals` channel route (`slack_set_routing` with `purpose: "approvals"`), falling back to escalations, then default. KB curation now emits `kb.curation_candidate.proposed/published/dismissed` events, and the CRM merge events `crm.merge_proposal.applied/dismissed` join the public event catalog. Adds the `slack_notification_links` table and a `subject_key` ordering column on `slack_deliveries` (migration 0055).
 - 6f31549: Slack thread parents now headline the conversation subject once it is set. `conv_set_subject` emits a new `conversation.subject_changed` event, the Slack bridge mirrors it by refreshing the thread root in place (no thread reply), and the parent headline switches from "New conversation #N" to the subject.
 
-  Resolved conversations are now unmistakable in Slack: the parent's status line becomes a ":white_check_mark: _Conversation is resolved._" banner (":no_entry_sign: _Marked as spam._" for spam), and status-change thread replies use human phrasing ("Conversation is resolved.", "Conversation reopened", "Conversation snoozed") instead of "Status changed to _closed_".
+  Resolved conversations are now unmistakable in Slack: the parent's status line becomes a ":white*check_mark: \_Conversation is resolved.*" banner (":no*entry_sign: \_Marked as spam.*" for spam), and status-change thread replies use human phrasing ("Conversation is resolved.", "Conversation reopened", "Conversation snoozed") instead of "Status changed to _closed_".
 
 ### Patch Changes
 

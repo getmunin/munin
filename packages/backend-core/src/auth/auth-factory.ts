@@ -157,7 +157,13 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         }
       : undefined,
     socialProviders,
-    account: { encryptOAuthTokens: true },
+    account: {
+      encryptOAuthTokens: true,
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ['google', 'github'],
+      },
+    },
     user: opts.deleteUser
       ? {
           deleteUser: {

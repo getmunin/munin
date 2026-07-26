@@ -1,3 +1,5 @@
+import type { ApprovalSubjectType } from './slack-projection.ts';
+
 export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = [
   'conversation.created',
   'conversation.subject_changed',
@@ -10,6 +12,46 @@ export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = [
   'conversation.handover_requested',
   'conversation.handover_resolved',
 ];
+
+/**
+ * Approval-queue events delivered as standalone channel notifications (not
+ * conversation threads). Some payloads carry a conversationId (outreach
+ * replies) — the sink must NOT treat these as mirror events, or the worker
+ * would open a bogus conversation thread for them.
+ */
+export const SLACK_APPROVAL_EVENT_TYPES: readonly string[] = [
+  'crm.merge_proposal.proposed',
+  'crm.merge_proposal.applied',
+  'crm.merge_proposal.dismissed',
+  'outreach.proposal.created',
+  'outreach.proposal.updated',
+  'outreach.proposal.sent',
+  'outreach.proposal.dismissed',
+  'kb.curation_candidate.proposed',
+  'kb.curation_candidate.published',
+  'kb.curation_candidate.dismissed',
+];
+
+/** Derives the per-subject ordering key + link identity from an approval event. */
+export function approvalSubjectRef(
+  eventType: string,
+  payload: Record<string, unknown>,
+): { subjectType: ApprovalSubjectType; subjectId: string } | null {
+  const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
+  if (eventType.startsWith('crm.merge_proposal.')) {
+    const id = str(payload.id);
+    return id ? { subjectType: 'crm_merge_proposal', subjectId: id } : null;
+  }
+  if (eventType.startsWith('outreach.proposal.')) {
+    const id = str(payload.proposalId);
+    return id ? { subjectType: 'outreach_proposal', subjectId: id } : null;
+  }
+  if (eventType.startsWith('kb.curation_candidate.')) {
+    const id = str(payload.candidateDocumentId);
+    return id ? { subjectType: 'kb_curation_candidate', subjectId: id } : null;
+  }
+  return null;
+}
 
 export const SLACK_BOT_SCOPES = [
   'chat:write',

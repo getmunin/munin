@@ -1,5 +1,32 @@
 # @getmunin/backend-core
 
+## 4.69.0
+
+### Minor Changes
+
+- 7078b30: CMS draft preview links: drafts can now be viewed rendered by the customer frontend before publishing. `cms_get_preview_link` (and `POST /v1/cms/drafts/:id/preview-link`, plus a Preview action in the inbox drawer) mints a signed, entry-scoped token valid for 1 hour; the public delivery API's single-entry route accepts it as `?preview=<token>` and returns the entry regardless of status with `Cache-Control: no-store` and a `status` field. Reference expansion under preview includes draft-status referenced entries so the previewed page is truthful. Collections can carry a `settings.previewUrl` template (`{token}`, `{slug}`, `{locale}`, `{collection}` placeholders) pointing at the frontend's draft-mode endpoint; the full frontend contract is documented in the new `skill://cms/preview-entry`. List and search delivery routes never accept preview tokens.
+- 18dc6a6: Slack approval notifications: pending CRM merge proposals, outreach drafts, and KB curation candidates now post to Slack with approve/dismiss buttons, and the message updates in place once the item is decided anywhere. New optional `approvals` channel route (`slack_set_routing` with `purpose: "approvals"`), falling back to escalations, then default. KB curation now emits `kb.curation_candidate.proposed/published/dismissed` events, and the CRM merge events `crm.merge_proposal.applied/dismissed` join the public event catalog. Adds the `slack_notification_links` table and a `subject_key` ordering column on `slack_deliveries` (migration 0055).
+- 6f31549: Slack thread parents now headline the conversation subject once it is set. `conv_set_subject` emits a new `conversation.subject_changed` event, the Slack bridge mirrors it by refreshing the thread root in place (no thread reply), and the parent headline switches from "New conversation #N" to the subject.
+
+  Resolved conversations are now unmistakable in Slack: the parent's status line becomes a ":white_check_mark: _Conversation is resolved._" banner (":no_entry_sign: _Marked as spam._" for spam), and status-change thread replies use human phrasing ("Conversation is resolved.", "Conversation reopened", "Conversation snoozed") instead of "Status changed to _closed_".
+
+### Patch Changes
+
+- 352ba3e: Bumped three more dependencies flagged by Dependabot: `next` to 16.2.12 (nine advisories fixed in 16.2.11 — SSRF in Server Actions on custom servers and in rewrites, App Router DoS via Server Actions, middleware bypass with Turbopack and a single locale, image-optimization DoS via SVG, response-body cache confusion, unbounded Edge Server Action payloads, and disclosure of internal Server Function endpoints), `postcss` to 8.5.23 (path traversal in previous-source-map auto-loading), and `brace-expansion` to 5.0.8 (DoS via unbounded expansion length). Declared ranges moved to the patched floor; `next` peer ranges stay at `^16.0.0` so consumers are not narrowed.
+- dcf7022: Bumped four transitively-pulled dependencies flagged by Dependabot: `fast-uri` to 3.1.4 (host confusion via backslash authority delimiter and failed IDN canonicalization), `linkify-it` to 5.0.2 (quadratic-complexity DoS in the `mailto:` validator), `hono` to 4.12.32 (per-request JSX context isolation, `cx()` escaping bypass, header de-duplication), and `sharp` to 0.35.3 (libvips 8.18.3, covering CVE-2026-33327/33328/35590/35591). The `hono` and `fast-uri` overrides already allowed the patched versions and only needed re-resolution; `linkify-it` was pinned at the now-vulnerable floor. `sharp` moves ahead of the `^0.34.5` that `next` still declares as an optional dependency.
+- 2f2ea9e: Fix merged contacts being re-proposed for merge on every dedup pass. `crm_propose_merge` now rejects a pair with `crm_conflict` when either contact carries `customFields.mergedInto` or the pair already has an `applied` proposal on record, so a merge the operator approved stays approved instead of reappearing in the review queue. `crm_apply_merge_proposal` also dismisses any other pending proposals that reference the archived duplicate (reason `contact merged into <keeperId>`), and contact lookup by email/phone (`crm_find_contact`, bulk-create and import dedup) now prefers the surviving row over an archived duplicate. `skill://crm/clean-contact-data` tells the curator to drop merged-away rows from the candidate buffer and to skim applied proposals alongside dismissed ones.
+- 277080c: The Slack app manifest for self-hosters is now also checked in as `slack-app-manifest.json` at the repo root; the connect-slack skill points to it and a test keeps the two copies in sync.
+- Updated dependencies [7078b30]
+- Updated dependencies [18dc6a6]
+- Updated dependencies [6f31549]
+  - @getmunin/core@4.69.0
+  - @getmunin/types@4.69.0
+  - @getmunin/db@4.69.0
+  - @getmunin/agent-runtime@4.69.0
+  - @getmunin/mcp-toolkit@4.69.0
+  - @getmunin/inspector-app@4.69.0
+  - @getmunin/emails@4.69.0
+
 ## 4.68.0
 
 ### Minor Changes

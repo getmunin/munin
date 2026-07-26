@@ -153,7 +153,11 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      # Branch tip, not the merge commit, so the regen step can push back. Fork PRs
+      # fall back to the default ref: their head branch does not exist here.
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
 
       - uses: pnpm/action-setup@v5
 
@@ -166,6 +170,21 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
+
+      # Dependabot cannot run licenses:generate, so its bumps failed this job by
+      # construction. The check below still runs, so an unapproved license blocks merge.
+      - name: Regenerate notices for Dependabot
+        if: startsWith(github.head_ref, 'dependabot/')
+        run: |
+          pnpm licenses:generate
+          if git diff --quiet -- THIRD_PARTY_LICENSES.md; then
+            echo 'THIRD_PARTY_LICENSES.md already up to date'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'chore: regenerate THIRD_PARTY_LICENSES.md' -- THIRD_PARTY_LICENSES.md
+            git push origin HEAD:"$GITHUB_HEAD_REF"
+          fi
 
       - name: Check licenses
         run: pnpm licenses:check

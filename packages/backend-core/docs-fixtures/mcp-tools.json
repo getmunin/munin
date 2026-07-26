@@ -1523,6 +1523,32 @@
     }
   },
   {
+    "name": "cms_get_preview_link",
+    "title": "CMS: Get preview link",
+    "description": "Mint a signed, short-lived (1 hour) preview link for one entry so a draft can be viewed on the customer frontend before publishing. Returns `url` (the collection's settings.previewUrl template with {slug}, {locale}, {token}, {collection} substituted; null when no template is configured) and `deliveryUrl` (the raw delivery-API JSON URL with ?preview=).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "cms:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "cms_create_entry",
     "title": "CMS: Create entry",
     "description": "Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: \"published\"` to publish on creation; default is draft.",

@@ -1098,6 +1098,37 @@
         ]
       }
     },
+    "/v1/cms/drafts/{id}/preview-link": {
+      "post": {
+        "operationId": "CmsDraftsController_previewLink",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CmsDrafts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/cms/drafts/{id}/dismiss": {
       "post": {
         "operationId": "CmsDraftsController_dismiss",
@@ -1387,6 +1418,14 @@
           },
           {
             "name": "include",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "preview",
             "required": true,
             "in": "query",
             "schema": {

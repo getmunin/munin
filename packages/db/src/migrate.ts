@@ -8,22 +8,6 @@ import { dirname, resolve } from 'node:path';
 const REQUIRED_EXTENSIONS = ['vector', 'pg_trgm', 'citext', 'pgcrypto'];
 const APP_ROLE = 'munin_app';
 
-/**
- * Run Drizzle migrations against the given Postgres connection string.
- *
- * Steps, in order:
- *   1. Ensure required Postgres extensions exist (pgvector, pg_trgm, citext, pgcrypto).
- *   2. Apply Drizzle SQL migrations from packages/db/drizzle/.
- *   3. Apply RLS policies from packages/db/src/sql/rls.sql.
- *   4. Ensure a non-superuser application role `munin_app` exists with
- *      CRUD privileges on the public schema. Application traffic should
- *      connect as this role so RLS policies are enforced (Postgres
- *      superusers always bypass RLS by design, regardless of FORCE).
- *
- * Idempotent: each step is safe to re-run. Should be invoked with
- * credentials that can CREATE EXTENSION and CREATE ROLE — typically the
- * database owner or a superuser.
- */
 export async function runMigrations(connectionString: string, migrationsFolder?: string) {
   const here = dirname(fileURLToPath(import.meta.url));
   const folder = migrationsFolder ?? resolve(here, '..', 'drizzle');
@@ -42,17 +26,12 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   const client = postgres(connectionString, { max: 1 });
   const db = drizzle(client);
 
-  // 1. Extensions.
   for (const ext of REQUIRED_EXTENSIONS) {
     await client.unsafe(`CREATE EXTENSION IF NOT EXISTS ${ext};`);
   }
 
-  // 2. Schema migrations.
   await migrate(db, { migrationsFolder: folder });
 
-  // 3. RLS policies and module post-migration SQL (FTS columns, HNSW indexes,
-  //    per-module RLS, helper functions). postgres-js client.unsafe supports
-  //    multi-statement scripts.
   await client.unsafe(readFileSync(rlsPath, 'utf8'));
   await client.unsafe(readFileSync(kbPath, 'utf8'));
   await client.unsafe(readFileSync(convPath, 'utf8'));
@@ -64,8 +43,6 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   await client.unsafe(readFileSync(slackPath, 'utf8'));
   await client.unsafe(readFileSync(connectorsPath, 'utf8'));
 
-  // 4. App role (idempotent). Password defaults to the role name; override
-  //    via MUNIN_APP_PASSWORD for non-dev deployments.
   const appPassword = process.env.MUNIN_APP_PASSWORD ?? APP_ROLE;
   await client.unsafe(`
     DO $$
@@ -94,9 +71,6 @@ function escapeSqlLiteral(s: string): string {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  // Migrations need owner privileges (CREATE EXTENSION, CREATE ROLE).
-  // Prefer the privileged MUNIN_MIGRATE_URL when present; fall back to
-  // DATABASE_URL for dev where they're often the same.
   const url = process.env.MUNIN_MIGRATE_URL ?? process.env.DATABASE_URL;
   if (!url) {
     console.error('MUNIN_MIGRATE_URL or DATABASE_URL is required');

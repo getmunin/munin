@@ -55,7 +55,6 @@ export interface SlackUserLinkDto {
 }
 
 export interface SlackStatusDto {
-  /** Whether this deployment has a Slack app configured (env credentials). */
   appConfigured: boolean;
   connected: boolean;
   integration: SlackIntegrationDto | null;
@@ -66,7 +65,6 @@ export interface SetRoutingInput {
   slackChannelId: string;
   purpose?: 'default' | 'escalations' | 'approvals';
   mention?: string | null;
-  /** Source-channel override: conversations on this conv channel mirror here. */
   convChannelId?: string | null;
 }
 
@@ -74,24 +72,14 @@ interface InstallState {
   orgId: string;
   userId: string | null;
   exp: number;
-  /**
-   * Present when the install was started from a browser session (the
-   * dashboard). The callback requires a matching `slack_install_nonce`
-   * cookie, so leaking the URL is not enough to complete the install.
-   * Absent for MCP-minted URLs, which a human opens in a fresh browser with
-   * no cookie continuity — those rely on the short TTL and the
-   * team-mismatch guard in completeInstall.
-   */
   nonce?: string;
 }
 
-/** Cookie set by the dashboard install endpoint; consumed by the callback. */
 export const SLACK_INSTALL_NONCE_COOKIE = 'slack_install_nonce';
 
 export interface InstallUrlResult {
   url: string;
   expiresAt: string;
-  /** Set only when bindToSession — the caller stores it in the nonce cookie. */
   sessionNonce?: string;
 }
 
@@ -263,10 +251,6 @@ export class SlackService {
     return { url: url.toString(), expiresAt: new Date(exp).toISOString(), sessionNonce };
   }
 
-  /**
-   * Public OAuth callback path — no tenant context; org + installer come from
-   * the signed state minted by installUrl(). Runs on the service-role DB.
-   */
   async completeInstall(input: {
     code: string;
     state: string;
@@ -277,9 +261,6 @@ export class SlackService {
     const state = verifyInstallState(input.state, config.clientSecret);
     if (!state) throw new BadRequestException('slack_invalid_state');
 
-    // Session binding: a state minted from the dashboard carries a nonce and
-    // is only completable by the same browser (matching httpOnly cookie), so
-    // a leaked/intercepted install URL cannot be redeemed by anyone else.
     if (state.nonce && state.nonce !== input.sessionNonce) {
       throw new BadRequestException('slack_invalid_state');
     }
@@ -298,9 +279,6 @@ export class SlackService {
       .where(eq(schema.slackIntegrations.orgId, state.orgId))
       .limit(1);
 
-    // Never silently repoint an existing workspace to a different one — that
-    // would redirect all mirrored customer conversations elsewhere. Switching
-    // workspaces requires an explicit slack_disconnect first.
     if (existing && existing.teamId !== install.teamId) {
       throw new ConflictException(
         'slack_workspace_mismatch: this org is already connected to a different Slack workspace — disconnect it first, then reinstall',
@@ -404,10 +382,6 @@ export class SlackService {
       )
       .limit(1);
 
-    // One route row per Slack channel, globally: the (team, channel) unique
-    // index is both the multi-org invariant and what keeps thread→org
-    // resolution unambiguous. Pre-checked because a violation inside the
-    // request transaction would surface as a bare 500 at commit time.
     const [conflicting] = await this.db
       .select({
         id: schema.slackChannelRoutes.id,

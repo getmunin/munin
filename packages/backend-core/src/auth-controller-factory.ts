@@ -4,13 +4,6 @@ interface BetterAuthLike {
   handler: (req: globalThis.Request) => Promise<globalThis.Response>;
 }
 
-/**
- * Marshal an Express request → Fetch Request, hand it to a BetterAuth-like
- * `handler`, then pipe the Fetch Response back to Express. This is the only
- * boilerplate the OSS and cloud auth controllers actually share — each
- * edition wraps it with its own controller class so Nest decorators can
- * mount the routes at `@Controller('auth')`.
- */
 export async function handleAuthRequest(
   auth: BetterAuthLike,
   req: ExpressRequest,

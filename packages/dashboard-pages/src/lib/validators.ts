@@ -1,11 +1,3 @@
-/**
- * Lightweight client-side validators for use inside dialog forms.
- * Each returns `true` when the input is acceptable, `false` otherwise.
- * They are intentionally permissive — the backend's Zod schemas are the
- * source of truth; these just filter out clearly-malformed input so we
- * don't waste a network round-trip on it.
- */
-
 const HOST_RE =
   /^(localhost|(?:\d{1,3}\.){3}\d{1,3}|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -13,12 +13,6 @@ export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = [
   'conversation.handover_resolved',
 ];
 
-/**
- * Approval-queue events delivered as standalone channel notifications (not
- * conversation threads). Some payloads carry a conversationId (outreach
- * replies) — the sink must NOT treat these as mirror events, or the worker
- * would open a bogus conversation thread for them.
- */
 export const SLACK_APPROVAL_EVENT_TYPES: readonly string[] = [
   'crm.merge_proposal.proposed',
   'crm.merge_proposal.applied',
@@ -32,7 +26,6 @@ export const SLACK_APPROVAL_EVENT_TYPES: readonly string[] = [
   'kb.curation_candidate.dismissed',
 ];
 
-/** Derives the per-subject ordering key + link identity from an approval event. */
 export function approvalSubjectRef(
   eventType: string,
   payload: Record<string, unknown>,
@@ -67,11 +60,6 @@ export interface SlackAppConfig {
   clientSecret: string;
 }
 
-/**
- * The Slack app itself is deployment-level: cloud ships one app, self-hosters
- * register their own from the manifest in skill://slack/connect-slack and set
- * these env vars. Returns null when the deployment has no Slack app.
- */
 export function readSlackAppConfig(): SlackAppConfig | null {
   const clientId = process.env.SLACK_CLIENT_ID;
   const clientSecret = process.env.SLACK_CLIENT_SECRET;

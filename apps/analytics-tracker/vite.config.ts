@@ -1,20 +1,8 @@
 import { defineConfig } from 'vite';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, renameSync, readdirSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, renameSync, readdirSync, unlinkSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 
-/**
- * Builds a single IIFE bundle the analytics tracker loads as
- * `<script src=…>`. Mirrors the chat-widget pipeline.
- *
- * Output:
- *   dist/tracker.<sha>.js       – the bundle, content-hashed for
- *                                 immutable CDN caching.
- *   dist/tracker.<sha>.js.map   – source map.
- *   dist/manifest.json          – { current: "tracker.<sha>.js", sha,
- *                                 builtAt }; the backend reads this at
- *                                 boot to wire the unhashed redirect.
- */
 export default defineConfig(({ mode }) => ({
   resolve: {
     conditions: mode === 'development' ? ['development'] : [],
@@ -55,15 +43,13 @@ export default defineConfig(({ mode }) => ({
         const targetMap = join(distDir, `tracker.${sha}.js.map`);
 
         renameSync(sourceJs, targetJs);
-        try {
+        if (existsSync(sourceMap)) {
           const patched = readFileSync(targetJs, 'utf8').replace(
             /\/\/# sourceMappingURL=tracker\.js\.map/,
             `//# sourceMappingURL=tracker.${sha}.js.map`,
           );
           writeFileSync(targetJs, patched);
           renameSync(sourceMap, targetMap);
-        } catch {
-          // sourcemap may be disabled; ignore
         }
 
         const manifest = {

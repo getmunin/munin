@@ -1,15 +1,6 @@
 import { isSensitiveSchema } from '@getmunin/types';
 import type { z } from 'zod';
 
-/**
- * Vendor-agnostic admin surface for configurable channels.
- *
- * Each configurable vendor registers a `ChannelAdminProvider` (under the
- * `CHANNEL_ADMIN_PROVIDERS` multi-token); the generic `conv_channel_*` MCP
- * tools and `/v1/conversations/channels` endpoints dispatch to it by vendor.
- * Adding a voice/SMS vendor means registering one provider — no new tools,
- * endpoints, or types.
- */
 export type ChannelAdminKind = 'voice' | 'sms';
 
 export interface ChannelConfigFieldInfo {
@@ -60,9 +51,7 @@ export interface ChannelAdminProvider {
   readonly kind: ChannelAdminKind;
   readonly vendor: string;
   readonly displayName: string;
-  /** Validates the `config` blob (no channelId/name). */
   readonly configInput: z.ZodType;
-  /** Field metadata derived from `configInput`, for discovery. */
   readonly configFields: ChannelConfigFieldInfo[];
   readonly capabilities: { call: boolean; sendTest: boolean };
   configure(input: ConfigureChannelInput): Promise<ChannelAdminDto>;

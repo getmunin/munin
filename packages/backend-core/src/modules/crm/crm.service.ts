@@ -257,8 +257,6 @@ export class CrmService {
     @Inject(QUOTAS_SERVICE) private readonly quotas: QuotasService,
   ) {}
 
-  // ─── Contacts ───────────────────────────────────────────────────────────
-
   async listContacts(input: {
     companyId?: string;
     tag?: string;
@@ -532,8 +530,6 @@ export class CrmService {
     return toContactDto(result[0]);
   }
 
-  // ─── Segments ───────────────────────────────────────────────────────────
-
   async listSegments(): Promise<SegmentDto[]> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -629,15 +625,6 @@ export class CrmService {
     return { deleted: true };
   }
 
-  /**
-   * Resolve a segment to the contacts it currently targets.
-   *
-   * Always excludes contacts that are suppressed (`do_not_contact = true` or
-   * `unsubscribed_at IS NOT NULL`) or that have no recorded lawful basis for
-   * outreach (`consent_lawful_basis IS NULL`). These floors are non-overridable
-   * from the public surface — they live here so every caller (operator UI,
-   * curator skill, future automation) inherits the same compliance posture.
-   */
   async listContactsInSegment(input: { id: string; limit?: number }): Promise<ContactDto[]> {
     const segment = await this.getSegment(input.id);
     const limit = clampLimit(input.limit, 100, 500);
@@ -683,8 +670,6 @@ export class CrmService {
       .limit(limit);
     return rows.map(toContactDto);
   }
-
-  // ─── Companies ──────────────────────────────────────────────────────────
 
   async listCompanies(input: { limit?: number }): Promise<CompanyDto[]> {
     const ctx = getCurrentContext();
@@ -732,8 +717,6 @@ export class CrmService {
     });
     return toCompanyDto(row!);
   }
-
-  // ─── Pipelines / stages / deals ─────────────────────────────────────────
 
   async listPipelines(): Promise<PipelineDto[]> {
     const ctx = getCurrentContext();
@@ -903,8 +886,6 @@ export class CrmService {
     return toDealDto(result[0]);
   }
 
-  // ─── Activities ─────────────────────────────────────────────────────────
-
   async logActivity(input: {
     type: ActivityType;
     subject?: string;
@@ -976,8 +957,6 @@ export class CrmService {
     return rows.map(toActivityDto);
   }
 
-  // ─── Search ─────────────────────────────────────────────────────────────
-
   async searchContacts(input: { query: string; limit?: number }): Promise<ContactDto[]> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 25, 100);
@@ -998,8 +977,6 @@ export class CrmService {
       .limit(limit);
     return rows.map(toContactDto);
   }
-
-  // ─── Merge proposals ────────────────────────────────────────────────────
 
   async proposeMerge(input: {
     contactAId: string;
@@ -1317,8 +1294,6 @@ export class CrmService {
     await this.emitMergeEvent('crm.merge_proposal.dismissed', dto);
     return dto;
   }
-
-  // ─── Transfer (import / export) ──────────────────────────────────────────
 
   async exportCrm(): Promise<CrmExportData> {
     const ctx = getCurrentContext();
@@ -1786,8 +1761,6 @@ export class CrmService {
     });
   }
 }
-
-// ─── DTO mappers / helpers ─────────────────────────────────────────────────
 
 export function computeBackfillPatch(
   existing: Record<string, unknown>,

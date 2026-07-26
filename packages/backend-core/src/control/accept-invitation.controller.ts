@@ -32,12 +32,6 @@ interface AcceptRequest {
   userId?: string;
 }
 
-/**
- * Resolve the calling user from a session cookie WITHOUT going through the
- * normal AuthGuard (which calls TenancyInterceptor and would fail because
- * the user isn't a member of the target org yet). We just need the user_id
- * from the session.
- */
 @Injectable()
 class SessionOnlyGuard implements CanActivate {
   private readonly resolver: CredentialResolver;
@@ -52,8 +46,6 @@ class SessionOnlyGuard implements CanActivate {
     if (!sessionToken) {
       throw new ForbiddenException('not_signed_in');
     }
-    // Resolve the session even if there's no membership yet — invitee may
-    // be brand new with no orgs, or have a personal org and be joining a team.
     const userId = await resolveUserIdFromSession(this.resolver, sessionToken);
     if (!userId) throw new ForbiddenException('invalid_session');
     req.userId = userId;
@@ -61,12 +53,6 @@ class SessionOnlyGuard implements CanActivate {
   }
 }
 
-/**
- * Anonymous-cookie accept endpoint. The invitee has signed up or signed
- * in (they have a session cookie) but isn't yet a member of the inviting
- * org, so the regular AuthGuard + TenancyInterceptor pair would fail to
- * route them.
- */
 @Controller('v1/invitations')
 export class AcceptInvitationController {
   constructor(@Inject(InvitationsService) private readonly invites: InvitationsService) {}
@@ -110,15 +96,7 @@ async function resolveUserIdFromSession(
   resolver: CredentialResolver,
   rawToken: string,
 ): Promise<string | null> {
-  // CredentialResolver.resolveSessionToken returns null when the user has
-  // no membership; for the accept flow we want the user_id even then.
-  // Use the underlying `sessions` table lookup directly via a small private
-  // helper exposed as the inner db access. Cleanest: extend CredentialResolver
-  // with a session→user-id helper. For now, call the public API; if it
-  // returns null and the cookie was present, fall back to a direct sessions
-  // lookup.
   const credential = await resolver.resolveSessionToken(rawToken);
   if (credential) return credential.actor.userId ?? credential.actor.id;
-  // Fallback: directly look up the session row.
   return resolver.resolveSessionUserId(rawToken);
 }

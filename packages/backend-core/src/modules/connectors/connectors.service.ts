@@ -70,11 +70,6 @@ export interface ConnectionScope {
   adapter: ConnectorAdapter;
 }
 
-/**
- * Domain-agnostic trunk: connection storage and lifecycle, plus the shared
- * helpers domain services (commerce, bookings, …) build their typed read
- * surfaces on. Deliberately knows nothing about orders or reservations.
- */
 @Injectable()
 export class ConnectorsService {
   constructor(
@@ -157,11 +152,6 @@ export class ConnectorsService {
     return { ...this.toDto(row!), credentialLink };
   }
 
-  /**
-   * Mint a fresh one-time credential link for a pending connection so the
-   * secret can be entered out-of-band (dashboard form) instead of pasted
-   * into an agent conversation.
-   */
   async requestCredentials(args: { connectionId: string }): Promise<CredentialLink> {
     const row = await this.requireConnection(args.connectionId);
     if (row.credentialState !== 'pending') {
@@ -378,11 +368,6 @@ export class ConnectorsService {
     }
   }
 
-  /**
-   * Pick the connection a domain read runs against: an explicit id (which
-   * must belong to `domain` and be active), or the single active connection
-   * in that domain.
-   */
   async resolveScope(domain: ConnectorDomain, connectionId?: string): Promise<ConnectionScope> {
     const ctx = getCurrentContext();
     if (connectionId) {
@@ -420,11 +405,6 @@ export class ConnectorsService {
     return { connection: rows[0]!, adapter: this.requireAdapter(rows[0]!.vendor) };
   }
 
-  /**
-   * The identity a self-service lookup runs as. Always the calling end-user's
-   * own email — never caller-supplied — so a delegated token can only ever see
-   * the records of the person the org minted it for.
-   */
   async requireEndUserEmail(): Promise<string> {
     const ctx = getCurrentContext();
     const endUserId = ctx.actor?.endUserId;

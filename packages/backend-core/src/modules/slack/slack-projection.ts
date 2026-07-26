@@ -1,10 +1,3 @@
-/**
- * Provider-neutral projection of conversation events into operator-surface
- * message text. Kept free of Slack API and DB concerns so a future bridge
- * (Teams, …) can lift this layer and only swap the rendering/transport —
- * the mrkdwn dialect is the one Slack-specific ingredient.
- */
-
 export type AuthorKind = 'user' | 'agent' | 'end_user' | 'system';
 
 export interface ConversationSnapshot {
@@ -31,10 +24,6 @@ export interface MessageSnapshot {
   attachments?: MessageAttachment[];
 }
 
-/**
- * conv_messages.attachments is loosely-typed jsonb; read `{url, name}`-shaped
- * entries best-effort and ignore the rest rather than assuming a schema.
- */
 export function parseMessageAttachments(raw: unknown[]): MessageAttachment[] {
   return raw.flatMap((entry) => {
     if (typeof entry !== 'object' || entry === null) return [];
@@ -305,8 +294,6 @@ export function routeConfirmedText(
 export function routeDismissedText(): string {
   return 'Ok — routing can be configured any time from the dashboard (Settings → Integrations) or with slack_set_routing.';
 }
-
-// ─── Approval notifications ─────────────────────────────────────────────────
 
 export const APPROVAL_APPROVE_ACTION_ID = 'munin_approval_approve';
 export const APPROVAL_DISMISS_ACTION_ID = 'munin_approval_dismiss';

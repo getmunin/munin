@@ -36,11 +36,6 @@ const PAGE_SIZE_MAX = 200;
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 @RequireRole('owner', 'admin')
 export class AuditLogController {
-  /**
-   * Newest-first cursor pagination. `before` is the createdAt of the last
-   * item from the previous page (ISO string); omit for the first page.
-   * Optional filters: tool, actorType, correlationId.
-   */
   @Get()
   async list(
     @Query('limit') limit?: string,

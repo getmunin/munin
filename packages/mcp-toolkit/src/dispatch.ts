@@ -204,9 +204,6 @@ export async function callTool(
     content: [
       {
         type: 'text' as const,
-        // JSON.stringify(undefined) returns undefined (not a string), which fails
-        // the MCP CallToolResult schema. Coalesce so a void-returning tool still
-        // yields a valid result instead of a transport-level -32602 error.
         text: typeof value === 'string' ? value : JSON.stringify(value ?? null),
       },
     ],

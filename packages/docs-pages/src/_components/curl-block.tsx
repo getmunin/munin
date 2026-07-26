@@ -12,7 +12,6 @@ export function CurlBlock({ command, label }: { command: string; label?: string 
         setTimeout(() => setCopied(false), 1200);
       })
       .catch(() => {
-        /* noop */
       });
   };
   return (

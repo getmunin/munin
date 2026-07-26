@@ -1,43 +1,18 @@
-/**
- * Transactional email abstraction.
- *
- * Pluggable so self-hosters can pick Resend, Postmark, SES, or a local
- * SMTP. Defaults to Resend since that's the lowest-friction option.
- */
-
 export interface MailMessage {
   to: string;
   subject: string;
-  /** Plain-text body. At least one of `text` or `html` is required. */
   text?: string;
-  /** HTML body. */
   html?: string;
   replyTo?: string;
-  /**
-   * Override the Mailer's default sender for this message. Used by the
-   * email-channel outbound worker so per-channel `from` addresses (e.g.
-   * "Acme Support <support@acme.com>") flow through the same Mailer
-   * instance the rest of the app uses for verify / reset / invite mail.
-   */
   from?: string;
-  /**
-   * Extra headers to stamp on the outgoing message. The email-channel
-   * worker uses this for `Message-ID`, `In-Reply-To`, `References`.
-   * Mailers that don't support custom headers (e.g. some hosted APIs)
-   * should pass through the ones they can and ignore the rest.
-   */
   headers?: Record<string, string>;
 }
 
 export interface Mailer {
-  /** Identifier for telemetry / logs. */
   readonly name: string;
-  /** Default `from` address; senders may override per-message later if needed. */
   readonly from: string;
   send(msg: MailMessage): Promise<void>;
 }
-
-// ─── Resend ──────────────────────────────────────────────────────────────────
 
 export interface ResendMailerOptions {
   apiKey: string;
@@ -86,8 +61,6 @@ export class ResendMailer implements Mailer {
   }
 }
 
-// ─── Generic SMTP (covers Scaleway TEM, Postmark, Mailgun, etc.) ────────────
-
 import { createTransport, type Transporter, type SendMailOptions } from 'nodemailer';
 import { parseEnvBool } from '../env/index.ts';
 
@@ -97,7 +70,6 @@ export interface SmtpMailerOptions {
   user: string;
   password: string;
   from: string;
-  /** When true, uses TLS from the start (implicit TLS, typically port 465). When false (default), starts plain and upgrades via STARTTLS. */
   secure?: boolean;
 }
 
@@ -133,17 +105,10 @@ export class SmtpMailer implements Mailer {
   }
 }
 
-// ─── Stub (collects in-memory; for tests + offline dev) ──────────────────────
-
 export interface SentMessage extends MailMessage {
   sentAt: Date;
 }
 
-/**
- * Collects messages in memory instead of sending. Used in tests and as the
- * default when no email provider is configured (so dev-mode signups don't
- * blow up just because RESEND_API_KEY isn't set yet).
- */
 export class StubMailer implements Mailer {
   readonly name = 'stub';
   readonly from: string;
@@ -168,21 +133,6 @@ export class StubMailer implements Mailer {
   }
 }
 
-// ─── Env-based factory ───────────────────────────────────────────────────────
-
-/**
- * Resolve a Mailer from environment.
- *
- * `MUNIN_MAIL_PROVIDER`:
- *   `resend` — HTTP send via Resend (requires RESEND_API_KEY).
- *   `smtp`   — Generic SMTP (Scaleway TEM, Postmark, Mailgun, …). Requires
- *              MUNIN_SMTP_HOST, MUNIN_SMTP_PORT, MUNIN_SMTP_USER,
- *              MUNIN_SMTP_PASSWORD. Optional MUNIN_SMTP_SECURE=1 forces
- *              implicit TLS (port 465); otherwise STARTTLS is used.
- *   `stub`   — in-memory; default when no provider is configured.
- *
- * `MUNIN_MAIL_FROM` — sender address (e.g. "Munin <hello@getmunin.com>").
- */
 export function readMailerFromEnv(): Mailer {
   const provider = process.env.MUNIN_MAIL_PROVIDER?.toLowerCase();
   const from = process.env.MUNIN_MAIL_FROM ?? 'Munin <no-reply@getmunin.com>';

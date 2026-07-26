@@ -188,9 +188,7 @@ const skipReason = TEST_URL
             ws.off('message', onMessage);
             resolve(msg);
           }
-        } catch {
-          // ignore
-        }
+        } catch {}
       };
       ws.on('message', onMessage);
     });
@@ -214,9 +212,7 @@ const skipReason = TEST_URL
             ws.off('message', onMessage);
             reject(new Error(`unexpected event: ${JSON.stringify(msg)}`));
           }
-        } catch {
-          // ignore
-        }
+        } catch {}
       };
       ws.on('message', onMessage);
     });

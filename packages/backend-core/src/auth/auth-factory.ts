@@ -66,7 +66,6 @@ export interface MuninAuthCoreOptions {
 
   crossSubDomainCookies?: { domain: string };
 
-  /** Defaults to MUNIN_AUTH_COOKIE_PREFIX, falling back to better-auth's default. */
   cookiePrefix?: string;
 
   rateLimit?: BetterAuthOptions['rateLimit'];

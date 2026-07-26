@@ -1,20 +1,5 @@
 import type { WidgetVisitor } from './config.ts';
 
-/**
- * Thin REST client for the widget's two endpoints:
- *   POST /v1/widget/messages   — visitor sends a message
- *   GET  /v1/widget/messages   — one-shot reconnect backfill
- *
- * The client is **not** a polling primitive. The realtime client calls
- * `backfillSince()` exactly once per (re)connect; live updates flow over
- * the WebSocket. If you find yourself adding `setInterval` on a method
- * here, stop — the design says no polling.
- *
- * The channel + identity attributes are baked into the client at
- * construction so the rest of the widget code doesn't have to thread
- * them through every call.
- */
-
 export interface ApiIdentity {
   externalId: string;
   userHash: string;

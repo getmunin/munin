@@ -31,7 +31,6 @@ const CreateApiKeyDto = z.object({
 interface CreatedApiKey {
   id: string;
   name: string;
-  /** Plaintext API key — shown ONCE at creation time. */
   key: string;
   prefix: string;
   scopes: string[];

@@ -25,7 +25,7 @@ describe('parseConfig', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.config).toMatchObject({
-      host: 'https://munin.example.com', // trailing slash stripped
+      host: 'https://munin.example.com',
       widgetKey: 'mn_widget_abc',
       channelId: 'cnv_001',
       themeColor: '#0066FF',
@@ -181,8 +181,8 @@ describe('parseConfig', () => {
       'data-munin-host': 'https://h.example',
       'data-widget-key': 'mn_widget_x',
       'data-channel-id': 'c',
-      'data-munin-meta-plan': 'free', // sugar
-      'data-munin-visitor-meta': JSON.stringify({ plan: 'pro', tier: 5, beta: true }), // explicit
+      'data-munin-meta-plan': 'free',
+      'data-munin-visitor-meta': JSON.stringify({ plan: 'pro', tier: 5, beta: true }),
     });
     const result = parseConfig(el);
     expect(result.ok).toBe(true);

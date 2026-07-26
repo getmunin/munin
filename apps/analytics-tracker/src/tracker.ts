@@ -1,23 +1,3 @@
-/**
- * Munin analytics tracker — drop-in browser script.
- *
- * Embedded as `<script async src="…/tracker.js" data-key="mn_track_…">`.
- * Auto-fires a page view on DOMContentLoaded, captures referrer + UTM +
- * locale, persists a random visitor id in localStorage, and reports
- * best-effort dwell time on `pagehide`. Optional SPA mode hooks
- * `history.pushState` / `replaceState` so route changes fire fresh
- * views.
- *
- * Exposes `window.mn.track(subjectId, attrs)` for custom events. Once the
- * public API is installed it sets `window.mn.ready = true` and dispatches a
- * `munin:ready` CustomEvent on `document`, so consumers can run
- * initialization code without polling:
- *
- *   window.mn?.ready
- *     ? go()
- *     : document.addEventListener('munin:ready', go, { once: true });
- */
-
 interface TrackAttrs {
   subjectType?: string;
   path?: string;
@@ -104,10 +84,6 @@ const VISITOR_KEY = 'mn.vid';
       localStorage.setItem(VISITOR_KEY, visitorId);
     }
   } catch {
-    // localStorage threw (private window, embedded WebView, locked-down
-    // enterprise browser, storage quota). Fall back to a page-scoped id so
-    // pageviews within the same page lifetime still dedup to one visitor.
-    // Lost on reload — that's the inherent cost of no persistent storage.
     visitorId = freshVisitorId();
   }
 
@@ -118,12 +94,6 @@ const VISITOR_KEY = 'mn.vid';
   function send(payload: BeaconPayload): void {
     try {
       const body = JSON.stringify(payload);
-      // text/plain is in the CORS "safelisted" Content-Type set, so neither
-      // sendBeacon (which always sends cookies) nor fetch trigger a preflight.
-      // application/json would force a preflight that fails because the
-      // beacon endpoint is a public-CORS path and does not return
-      // Access-Control-Allow-Credentials. The server JSON-parses text/plain
-      // bodies on the beacon route — see bootstrap-app.ts body-parser config.
       if (navigator.sendBeacon) {
         const blob = new Blob([body], { type: 'text/plain;charset=UTF-8' });
         navigator.sendBeacon(beaconUrl, blob);

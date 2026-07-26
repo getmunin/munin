@@ -9,7 +9,6 @@ export interface WebhookDto {
   url: string;
   events: string[];
   active: boolean;
-  /** Plaintext shared secret — returned ONCE at creation time. */
   secret?: string;
   createdAt: string;
   updatedAt: string;

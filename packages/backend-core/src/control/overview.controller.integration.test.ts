@@ -139,7 +139,6 @@ const skipReason = TEST_URL
   });
 
   it('counts conversations needing attention scoped to caller org', async () => {
-    // Seed channels + conversations directly (service-role).
     const [chanA] = await db
       .insert(schema.convChannels)
       .values({ orgId: orgAId, type: 'chat', vendor: 'munin', name: 'A chat', config: {} })
@@ -163,7 +162,6 @@ const skipReason = TEST_URL
     const a = await getBacklog(adminKeyA);
     expect(a.conversationsNeedingAttention).toBe(1);
 
-    // org B sees zero — RLS isolation.
     const b = await getBacklog(adminKeyB);
     expect(b.conversationsNeedingAttention).toBe(0);
   });

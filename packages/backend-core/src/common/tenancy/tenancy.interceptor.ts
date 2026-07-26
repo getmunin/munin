@@ -32,12 +32,6 @@ export async function applyTenancyGUCs(tx: Db | Tx, actor: ActorIdentity): Promi
   }
 }
 
-/**
- * Set `app.crypt_key` for the current transaction so SQL fragments wrapping
- * pgcrypto's pgp_sym_encrypt / pgp_sym_decrypt can pick it up via
- * current_setting. Silently no-ops when MUNIN_ENCRYPTION_KEY is unset —
- * encryption-aware code paths surface a clear error at use time.
- */
 async function applyEncryptionKeyGUC(tx: Db | Tx): Promise<void> {
   const key = process.env.MUNIN_ENCRYPTION_KEY;
   if (!key) return;

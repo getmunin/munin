@@ -26,11 +26,6 @@ const skipReason = TEST_URL
   ? null
   : 'Set TEST_DATABASE_URL to a Postgres URL to run connectors service tests.';
 
-/**
- * Vendor-free fake covering the full adapter contract: one secret field
- * (apiToken) and one plain field (host), so encryption round-trips and
- * secret-retention-on-update are exercised without any real vendor code.
- */
 class FakeAdapter implements ConnectorAdapter {
   test: (ctx: ConnectorConnectionContext) => Promise<ConnectorTestResult> = () =>
     Promise.resolve({ ok: true, detail: 'connected' });

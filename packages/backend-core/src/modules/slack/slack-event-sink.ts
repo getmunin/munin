@@ -8,11 +8,6 @@ import {
   approvalSubjectRef,
 } from './slack.constants.ts';
 
-/**
- * Registered on the WebhookDispatcher; runs inside the emitting request's
- * tenant transaction, so the queue row commits (or rolls back) together with
- * the event itself. Only enqueues — the bridge worker does the Slack I/O.
- */
 @Injectable()
 export class SlackEventSink implements EventSink {
   async onEvent(event: EmittedEvent): Promise<void> {

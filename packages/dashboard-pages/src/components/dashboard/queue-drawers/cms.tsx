@@ -55,6 +55,7 @@ export function CmsQueueDrawer({
   onSaveData,
   onUploadAsset,
   onSchedule,
+  onPreview,
   onClose,
 }: {
   item: { id: string; title: string; createdAt: string; raw: CmsDraftSummaryDto };
@@ -67,6 +68,7 @@ export function CmsQueueDrawer({
   onSaveData: (data: EditableData) => Promise<void>;
   onUploadAsset: (file: File) => Promise<CmsAssetExpanded>;
   onSchedule: (scheduledAt: string) => Promise<void>;
+  onPreview: () => void;
   onClose: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
@@ -320,6 +322,9 @@ export function CmsQueueDrawer({
                   </DropdownMenuItem>
                   <DropdownMenuItem disabled={blocked} onClick={openScheduler}>
                     {t('cmsSchedule')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={pending} onClick={onPreview}>
+                    {t('cmsPreview')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

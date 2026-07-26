@@ -310,6 +310,7 @@
         "cmsApprove": "Godkjenn ↵",
         "cmsMoreMenu": "Flere handlinger",
         "cmsSchedule": "Planlegg",
+        "cmsPreview": "Forhåndsvis",
         "cmsScheduleTitle": "Planlegg publisering",
         "cmsScheduleDescription": "Velg når utkastet skal publiseres. Munin publiserer det automatisk på det tidspunktet — ingen videre godkjenning kreves.",
         "cmsScheduleConfirm": "Godkjenn & planlegg",

@@ -118,6 +118,7 @@ export interface InboxController {
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
   saveCmsDraft: (item: QueueItem, data: Record<string, unknown>) => Promise<void>;
   uploadCmsAsset: (item: QueueItem, file: File) => Promise<CmsAssetExpanded>;
+  previewCmsDraft: (item: QueueItem) => Promise<void>;
   dismissQueue: (item: QueueItem) => Promise<void>;
   scheduleQueue: (item: QueueItem, scheduledAt: string) => Promise<void>;
 }

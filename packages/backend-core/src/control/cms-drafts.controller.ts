@@ -22,6 +22,7 @@ import {
   CmsService,
   type AssetDto,
   type EntryDto,
+  type PreviewLinkDto,
 } from '../modules/cms/cms.service.ts';
 import type { FieldDef } from '../modules/cms/cms.fields.ts';
 
@@ -109,6 +110,12 @@ export class CmsDraftsController {
       await this.cms.getEntry(id);
       return this.cms.uploadAssetFromBase64(parsed.data);
     });
+  }
+
+  @Post(':id/preview-link')
+  @HttpCode(200)
+  async previewLink(@Param('id') id: string): Promise<PreviewLinkDto> {
+    return translate(() => this.cms.createPreviewLink(id));
   }
 
   @Post(':id/dismiss')

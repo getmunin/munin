@@ -17,7 +17,7 @@ import {
   verifyHmac,
 } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
-import { mcpResourceOrigin } from '../../oauth/oauth.constants.ts';
+import { authorizationServerUrl } from '../../oauth/oauth.constants.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
 import { testMessageText } from './slack-projection.ts';
 import { readSlackAppConfig, SLACK_BOT_SCOPES } from './slack.constants.ts';
@@ -84,7 +84,7 @@ export interface InstallUrlResult {
 }
 
 export function slackOAuthRedirectUri(): string {
-  return `${mcpResourceOrigin()}/v1/slack/oauth/callback`;
+  return `${authorizationServerUrl()}/v1/slack/oauth/callback`;
 }
 
 export async function encryptSecretValue(db: Db | Tx, plaintext: string): Promise<string> {

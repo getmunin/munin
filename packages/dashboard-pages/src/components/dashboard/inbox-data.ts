@@ -461,6 +461,23 @@ export function useInboxData(): InboxController {
     [],
   );
 
+  const previewCmsDraft = useCallback(async (item: QueueItem) => {
+    if (item.kind !== 'cms') return;
+    const w = window.open('about:blank', '_blank');
+    try {
+      const link = await api<{ url: string | null; deliveryUrl: string }>(
+        `/v1/cms/drafts/${item.id}/preview-link`,
+        { method: 'POST', body: '{}' },
+      );
+      const target = link.url ?? link.deliveryUrl;
+      if (w) w.location.href = target;
+      else window.open(target, '_blank');
+    } catch (err) {
+      w?.close();
+      notify.error(messageOf(err));
+    }
+  }, []);
+
   const dismissQueue = useCallback(
     async (item: QueueItem) => {
       setPending(true);
@@ -548,6 +565,7 @@ export function useInboxData(): InboxController {
     saveQueue,
     saveCmsDraft,
     uploadCmsAsset,
+    previewCmsDraft,
     dismissQueue,
     scheduleQueue,
   };

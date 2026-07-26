@@ -182,7 +182,7 @@ This is where every coding agent gets stuck. The CMS delivery API is public, ano
 - List entries: `GET {{API_URL}}/v1/cms/{{ORG_ID}}/{collectionSlug}?locale=en&limit=20`
 - Single entry by slug: `GET {{API_URL}}/v1/cms/{{ORG_ID}}/{collectionSlug}/{entrySlug}?locale=en`
 
-Returns plain JSON: `{ data: [...] }` for the list, `{ data: {...} }` for one entry. No auth header.
+Returns plain JSON: `{ collection, items: [...] }` for the list, a flat entry object (`{ slug, locale, data, version, publishedAt, updatedAt, ... }`) for one entry. No auth header.
 
 `{{ORG_ID}}` above is your tenant's `org_…` id, already substituted from your authenticated session — no need to ask for it. Store it in env too — `MUNIN_ORG_ID` / `NEXT_PUBLIC_MUNIN_ORG_ID` / `VITE_MUNIN_ORG_ID` per the framework convention above.
 
@@ -204,6 +204,10 @@ ISR / edge caching is fine and recommended (revalidate on the order of 60s). The
 ### Option B — your own server-side proxy
 
 If the frontend has no server runtime (static export, client-only SPA), stand up a one-line proxy endpoint on a Worker, Lambda, or Node server that forwards to the Munin delivery API and sets its own CORS headers. Same end result — the browser only ever talks to your origin.
+
+### Previewing drafts
+
+The delivery API only serves published entries — except the single-entry route, which accepts `?preview=<token>`: a signed, entry-scoped, 1-hour token minted with `cms_get_preview_link`. The standard wiring is a draft-mode route handler on the frontend (receive token → enable draft mode → redirect; the server-side fetch appends `&preview=` while draft mode is on) plus a `previewUrl` template on the collection so Munin can build the link. Full recipe: `skill://cms/preview-entry`.
 
 ### What NOT to do
 

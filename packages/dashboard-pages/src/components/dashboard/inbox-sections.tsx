@@ -139,6 +139,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     saveQueue,
     saveCmsDraft,
     uploadCmsAsset,
+    previewCmsDraft,
     dismissQueue,
     scheduleQueue,
   } = controller;
@@ -219,6 +220,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
               onSaveCmsDraft={(data) => saveCmsDraft(queueDrawer, data)}
               onUploadCmsAsset={(file) => uploadCmsAsset(queueDrawer, file)}
               onSchedule={(scheduledAt) => scheduleQueue(queueDrawer, scheduledAt)}
+              onPreview={() => void previewCmsDraft(queueDrawer)}
               onClose={() => setQueueDrawer(null)}
             />
           )}

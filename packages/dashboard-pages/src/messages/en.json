@@ -310,6 +310,7 @@
         "cmsApprove": "Approve ↵",
         "cmsMoreMenu": "More actions",
         "cmsSchedule": "Schedule",
+        "cmsPreview": "Preview",
         "cmsScheduleTitle": "Schedule publish",
         "cmsScheduleDescription": "Pick when this draft should go live. Munin will publish it automatically at that time — no further approval needed.",
         "cmsScheduleConfirm": "Approve & schedule",

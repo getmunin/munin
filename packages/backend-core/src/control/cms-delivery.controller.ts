@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Get,
   Header,
   Inject,
@@ -11,7 +12,12 @@ import {
 import type { Request, Response } from 'express';
 import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
-import { readApiBaseUrl, signViewToken } from '@getmunin/core';
+import {
+  readApiBaseUrl,
+  signViewToken,
+  verifyPreviewToken,
+  type PreviewTokenPayload,
+} from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 import { CmsSearchService } from '../modules/cms/cms.search.ts';
@@ -36,8 +42,13 @@ import { loadEntryMap } from '../modules/cms/cms.entry-loader.ts';
  * apps / external integrations. Routes open with `{orgId}` so a CDN can
  * cache cleanly per (org, collection) without per-request auth.
  *
- * Always returns `status='published'`. Drafts and scheduled entries
- * are visible only via the admin MCP surface or `/preview`.
+ * Always returns `status='published'`, with one exception: the
+ * single-entry route accepts `?preview=<token>` — a signed, short-lived,
+ * entry-scoped token (minted via `cms_get_preview_link` or
+ * `POST /v1/cms/drafts/:id/preview-link`) that returns the entry
+ * regardless of status with `Cache-Control: no-store`. List and search
+ * routes never accept it. Everything else about drafts stays on the
+ * admin MCP surface.
  *
  * Service-role DB is used because RLS only knows the GUC-scoped tenant
  * context, and there's no auth here. Every SELECT hard-filters
@@ -148,7 +159,9 @@ export class CmsDeliveryController {
     }));
     const assets = await this.fetchAssets(org.id, fields, projected.map((p) => p.data));
     const entryMap = includeReferences(include)
-      ? await this.fetchReferencedEntries(org.id, fields, projected.map((p) => p.data))
+      ? await this.fetchReferencedEntries(org.id, fields, projected.map((p) => p.data), {
+          publishedOnly: true,
+        })
       : null;
     const items = projected.map(({ id, ...p }) => {
       const expanded = applyAssetExpansion(fields, p.data, assets);
@@ -181,8 +194,12 @@ export class CmsDeliveryController {
     @Query('locale') locale?: string,
     @Query('tracking') tracking?: string,
     @Query('include') include?: string,
+    @Query('preview') preview?: string,
   ) {
     const { org, collection } = await this.resolveOrgCollection(orgId, collectionSlug);
+    if (preview !== undefined) {
+      return this.getEntryPreview(org, collection, entrySlug, preview, res, locale, include);
+    }
     const filters: SQL[] = [
       eq(schema.cmsEntries.orgId, org.id),
       eq(schema.cmsEntries.collectionId, collection.id),
@@ -200,18 +217,78 @@ export class CmsDeliveryController {
     const row = rows[0];
     if (!row) throw new NotFoundException(`cms_not_found: entry ${entrySlug}`);
 
-    const fields = collection.fields as FieldDef[];
     const etag = computeEtag([row.updatedAt.getTime()]);
     if (handleEtag(req, res, etag)) return;
     setCdnHeaders(res);
+    const body = await this.renderEntry(org.id, collection, row, include, {
+      publishedOnly: true,
+    });
+    return {
+      ...body,
+      ...(trackingEnabled(tracking) ? { _tracking: buildTracking(org.id, row.id) } : {}),
+    };
+  }
+
+  private async getEntryPreview(
+    org: { id: string },
+    collection: typeof schema.cmsCollections.$inferSelect,
+    entrySlug: string,
+    token: string,
+    res: Response,
+    locale?: string,
+    include?: string,
+  ) {
+    let payload: PreviewTokenPayload;
+    try {
+      payload = verifyPreviewToken(token);
+    } catch (err) {
+      throw new ForbiddenException(
+        err instanceof Error ? err.message : 'preview_token_invalid: token rejected',
+      );
+    }
+    if (payload.orgId !== org.id) {
+      throw new ForbiddenException('preview_token_invalid: token is for another org');
+    }
+
+    const rows = await this.db
+      .select()
+      .from(schema.cmsEntries)
+      .where(
+        and(
+          eq(schema.cmsEntries.orgId, org.id),
+          eq(schema.cmsEntries.collectionId, collection.id),
+          eq(schema.cmsEntries.id, payload.entryId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row || row.slug !== entrySlug || (locale && row.locale !== locale)) {
+      throw new NotFoundException(`cms_not_found: entry ${entrySlug}`);
+    }
+
+    res.setHeader('cache-control', 'no-store');
+    const body = await this.renderEntry(org.id, collection, row, include, {
+      publishedOnly: false,
+    });
+    return { ...body, status: row.status };
+  }
+
+  private async renderEntry(
+    orgId: string,
+    collection: typeof schema.cmsCollections.$inferSelect,
+    row: typeof schema.cmsEntries.$inferSelect,
+    include: string | undefined,
+    opts: { publishedOnly: boolean },
+  ) {
+    const fields = collection.fields as FieldDef[];
     const projected = projectData(fields, row.data);
-    const assets = await this.fetchAssets(org.id, fields, [projected]);
+    const assets = await this.fetchAssets(orgId, fields, [projected]);
     const expanded = applyAssetExpansion(fields, projected, assets);
     const assetSidecar = buildInlineAssetSidecar(fields, expanded, assets);
     let data = rewriteInlineAssets(fields, expanded, assets);
     let refSidecar: Record<string, unknown> = {};
     if (includeReferences(include)) {
-      const entryMap = await this.fetchReferencedEntries(org.id, fields, [data]);
+      const entryMap = await this.fetchReferencedEntries(orgId, fields, [data], opts);
       refSidecar = buildReferenceSidecar(fields, data, entryMap);
       data = applyReferenceExpansion(fields, data, entryMap);
     }
@@ -224,7 +301,6 @@ export class CmsDeliveryController {
       version: row.version,
       publishedAt: row.publishedAt?.toISOString() ?? null,
       updatedAt: row.updatedAt.toISOString(),
-      ...(trackingEnabled(tracking) ? { _tracking: buildTracking(org.id, row.id) } : {}),
     };
   }
 
@@ -244,13 +320,14 @@ export class CmsDeliveryController {
     orgId: string,
     fields: FieldDef[],
     datas: Array<Record<string, unknown>>,
+    opts: { publishedOnly: boolean },
   ) {
     const ids = new Set<string>();
     for (const data of datas) {
       for (const id of collectReferenceIds(fields, data)) ids.add(id);
       for (const id of collectInlineReferenceIds(fields, data)) ids.add(id);
     }
-    return loadEntryMap(this.db, orgId, ids, { publishedOnly: true });
+    return loadEntryMap(this.db, orgId, ids, { publishedOnly: opts.publishedOnly });
   }
 
   private async resolveOrg(orgId: string): Promise<{ id: string }> {

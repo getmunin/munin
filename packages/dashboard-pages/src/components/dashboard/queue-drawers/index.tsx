@@ -20,6 +20,7 @@ export function QueueDrawer({
   onSaveCmsDraft,
   onUploadCmsAsset,
   onSchedule,
+  onPreview,
   onClose,
 }: {
   item: QueueItem;
@@ -34,6 +35,7 @@ export function QueueDrawer({
   onSaveCmsDraft: (data: Record<string, unknown>) => Promise<void>;
   onUploadCmsAsset: (file: File) => Promise<CmsAssetExpanded>;
   onSchedule: (scheduledAt: string) => Promise<void>;
+  onPreview: () => void;
   onClose: () => void;
 }) {
   switch (item.kind) {
@@ -95,6 +97,7 @@ export function QueueDrawer({
           onSaveData={onSaveCmsDraft}
           onUploadAsset={onUploadCmsAsset}
           onSchedule={onSchedule}
+          onPreview={onPreview}
           onClose={onClose}
         />
       );

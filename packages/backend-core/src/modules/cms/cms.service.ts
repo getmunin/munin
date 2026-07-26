@@ -11,7 +11,10 @@ import {
   contentHash,
   describeError,
   getCurrentContext,
+  PREVIEW_TOKEN_MAX_AGE_SECONDS,
+  readApiBaseUrl,
   safeFetch,
+  signPreviewToken,
   SsrfBlockedError,
   WebhookDispatcher,
   type AssetStorage,
@@ -110,6 +113,13 @@ export interface CmsDraftEntrySummary {
   wordCount: number | null;
   version: number;
   updatedAt: string;
+}
+
+export interface PreviewLinkDto {
+  url: string | null;
+  deliveryUrl: string;
+  token: string;
+  expiresAt: string;
 }
 
 export interface VersionDto {
@@ -433,6 +443,53 @@ export class CmsService {
       { expandReferences: wantsReferences(include) },
     );
     return dto;
+  }
+
+  async createPreviewLink(entryId: string): Promise<PreviewLinkDto> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ entry: schema.cmsEntries, collection: schema.cmsCollections })
+      .from(schema.cmsEntries)
+      .innerJoin(
+        schema.cmsCollections,
+        eq(schema.cmsCollections.id, schema.cmsEntries.collectionId),
+      )
+      .where(eq(schema.cmsEntries.id, entryId))
+      .limit(1);
+    if (!rows[0]) throw new NotFoundException(`cms_not_found: entry ${entryId}`);
+    const { entry, collection } = rows[0];
+    const orgId = ctx.actor!.orgId;
+
+    const token = signPreviewToken({ orgId, entryId: entry.id });
+    const expiresAt = new Date(Date.now() + PREVIEW_TOKEN_MAX_AGE_SECONDS * 1000).toISOString();
+    const deliveryUrl =
+      `${readApiBaseUrl()}/v1/cms/${orgId}/${collection.slug}/${encodeURIComponent(entry.slug)}` +
+      `?locale=${encodeURIComponent(entry.locale)}&preview=${token}`;
+
+    const template = readPreviewUrlTemplate(collection.settings);
+    let url: string | null = null;
+    if (template) {
+      url = template
+        .replaceAll('{slug}', encodeURIComponent(entry.slug))
+        .replaceAll('{locale}', encodeURIComponent(entry.locale))
+        .replaceAll('{token}', encodeURIComponent(token))
+        .replaceAll('{collection}', encodeURIComponent(collection.slug));
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new CmsInvalidError(
+          `collection settings.previewUrl did not produce a valid URL: ${url}`,
+        );
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new CmsInvalidError(
+          `collection settings.previewUrl must be an http(s) URL, got ${parsed.protocol}`,
+        );
+      }
+    }
+
+    return { url, deliveryUrl, token, expiresAt };
   }
 
   private async expandAssetsInDtos(
@@ -1726,6 +1783,11 @@ function validateFieldsShape(fields: FieldDef[], allowBlocks = true): void {
       }
     }
   }
+}
+
+function readPreviewUrlTemplate(settings: Record<string, unknown>): string | undefined {
+  const v = (settings as { previewUrl?: unknown }).previewUrl;
+  return typeof v === 'string' && v.trim() !== '' ? v : undefined;
 }
 
 function readSearchableFieldsOverride(settings: Record<string, unknown>): string[] | undefined {

@@ -44,17 +44,6 @@ const FAVICON_MIME_ALLOWLIST = new Set([
 const FAVICON_MAX_BYTES = 256 * 1024;
 const FAVICON_BROWSER_TTL_SECONDS = 60 * 60 * 24;
 
-/**
- * Public lookup for the disclosure fields of a registered OAuth client.
- * The consent page renders the client's human-facing name + URL + logo
- * instead of the random RFC 7591 `client_id`. Strictly disclosure-only:
- * we never return `clientSecret`, the full `redirectUris`, or anything
- * else the caller could weaponize — only the host portion of the first
- * redirect URI so the page can render "Returning to claude.ai/...".
- *
- * Anonymous on purpose — the consent page is rendered for any user
- * mid-authorization, before the OAuth flow has issued any credential.
- */
 @PublicController('v1/oauth/clients')
 export class OAuthClientInfoController {
   constructor(@Inject(DB) private readonly db: Db) {}
@@ -156,7 +145,6 @@ function deriveFallbackName(host: string | null): string | null {
   if (!host) return null;
   const known = KNOWN_HOST_NAMES[host];
   if (known) return known;
-  // strip leading www. and return the host so the user sees *something* identifiable
   return host.replace(/^www\./, '');
 }
 

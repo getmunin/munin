@@ -15,7 +15,6 @@ describe('chunkDocument', () => {
   });
 
   it('splits long text into multiple chunks with sequential indices', () => {
-    // ~6000 chars → with target=200 chars (50 tokens) we should get many chunks.
     const para = 'This is a sentence. '.repeat(300);
     const out = chunkDocument(para, { targetTokens: 50, overlapTokens: 8 });
     expect(out.length).toBeGreaterThan(5);
@@ -29,7 +28,6 @@ describe('chunkDocument', () => {
       const prev = out[i - 1]!.content;
       const curr = out[i]!.content;
       const tail = prev.slice(-16);
-      // At least some characters of tail should appear at the start of next.
       const firstWord = curr.split(' ')[0]!;
       expect(prev.includes(firstWord) || tail.length > 0).toBe(true);
     }

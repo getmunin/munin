@@ -139,7 +139,7 @@ describe('api: postMessage', () => {
       body: { conversationId: 'c', displayId: 1, contactId: 'ctc', inserted: 1, skipped: 0 },
     }));
     const client = createApiClient({
-      host: 'https://munin.example', // already stripped by parseConfig but verify here
+      host: 'https://munin.example',
       widgetKey: 'mn_widget_abc',
       channelId: 'cnv_chan',
       sessionId: 'sess_1',

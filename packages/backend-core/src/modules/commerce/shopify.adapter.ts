@@ -22,7 +22,6 @@ export const ShopifyConfigInput = z.object({
     .trim()
     .toLowerCase()
     .regex(SHOP_DOMAIN_RE, 'expected a *.myshopify.com domain (no protocol, no path)'),
-  /** Admin API access token (shpat_…). Optional on update to keep the stored one. */
   accessToken: z.string().min(10).max(256).optional(),
   apiVersion: z
     .string()
@@ -297,7 +296,6 @@ function numericGid(gid: string): string | null {
   return match ? match[1]! : null;
 }
 
-/** Quote a value for the Shopify search query syntax. */
 function searchTerm(value: string): string {
   return `"${value.replace(/(["\\])/g, '\\$1')}"`;
 }

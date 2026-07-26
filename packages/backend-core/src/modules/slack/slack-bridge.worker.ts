@@ -52,17 +52,8 @@ type RouteRow = typeof schema.slackChannelRoutes.$inferSelect;
 type DeliveryRow = typeof schema.slackDeliveries.$inferSelect;
 type LinkRow = typeof schema.slackConversationLinks.$inferSelect;
 
-/** Thrown for conditions retrying can't fix — marks the delivery done with a note. */
 class TerminalDeliveryError extends Error {}
 
-/**
- * Drains `slack_deliveries` and projects conversation events into Slack
- * threads (one thread per conversation, created lazily on the first event).
- * Same shape as WebhookWorker: service-role DB, advisory-lock singleton,
- * exponential backoff. Per-conversation ordering is head-of-line: a due row
- * waits while an earlier undelivered, still-retryable row for the same
- * conversation exists.
- */
 @Injectable()
 export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
@@ -97,15 +88,6 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * The NOT EXISTS clause means a batch only ever contains the *head* row of
-   * each conversation's queue — a failed head keeps its successors queued
-   * (ordering), and a delivered head releases the next row. Iterating lets a
-   * chain of events for one conversation drain within a single tick instead
-   * of one per poll interval; a failing head leaves the loop naturally
-   * because its backoff pushes it (and, via NOT EXISTS, its successors) out
-   * of the due set.
-   */
   private async drain(): Promise<{ attempted: number; delivered: number; failed: number }> {
     let attempted = 0;
     let delivered = 0;
@@ -331,14 +313,6 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       .onConflictDoNothing();
   }
 
-  /**
-   * Approval events post standalone channel notifications rather than thread
-   * replies. Pending events post (or refresh) the message; resolution events
-   * chat.update it in place, drop the buttons, and stamp resolved_at so late
-   * or duplicate resolutions are no-ops. A resolution whose pending message
-   * never surfaced (e.g. the feature shipped mid-lifecycle, or the pending
-   * head perma-failed) posts nothing.
-   */
   private async handleNotification(input: {
     row: DeliveryRow;
     integration: IntegrationRow;
@@ -434,13 +408,6 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       .onConflictDoNothing();
   }
 
-  /**
-   * Rebuilds the full message for a subject. Pending renders load the subject
-   * fresh so re-proposals refresh in place; a subject that resolved before its
-   * pending row delivered renders the resolved state directly. KB candidates
-   * are deleted on resolve, so their resolution render comes from the event
-   * payload + actor instead of the row.
-   */
   private async renderApproval(
     subject: { subjectType: string; subjectId: string },
     payload: Record<string, unknown>,

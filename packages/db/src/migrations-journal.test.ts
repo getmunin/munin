@@ -29,13 +29,6 @@ describe('drizzle migration journal', () => {
     });
   });
 
-  // The bug this guards against: drizzle's migrator applies a migration only when
-  // its `when` is greater than the newest timestamp already recorded in the target
-  // database. A migration whose `when` is *lower* than an earlier one is therefore
-  // silently skipped on any DB that is already past that earlier timestamp — while
-  // a fresh DB (CI) applies everything in idx order and looks fine. So an out-of-order
-  // timestamp only breaks real, already-migrated deployments. Keep `when` strictly
-  // increasing with idx and CI catches it before release.
   it('`when` timestamps are strictly increasing with idx', () => {
     for (let i = 1; i < entries.length; i++) {
       const prev = entries[i - 1]!;

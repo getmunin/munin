@@ -1,13 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-/**
- * Fetch helper for control-plane endpoints. Sends the BetterAuth session
- * cookie automatically via `credentials: 'include'`; the backend's AuthGuard
- * resolves it to a user-typed actor scoped to that user's org.
- *
- * Throws `ApiError` with a usable message on non-2xx responses so pages can
- * decide between toast vs full-page error.
- */
 export interface ApiFieldError {
   field: string;
   message: string;
@@ -44,8 +36,6 @@ export class ApiError extends Error {
 }
 
 export interface ApiOptions extends RequestInit {
-  /** Don't send the BetterAuth session cookie. For `@PublicController` endpoints
-   *  that would otherwise trip the credentials-mode CORS preflight check. */
   anonymous?: boolean;
 }
 

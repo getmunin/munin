@@ -57,13 +57,6 @@ const ROUTE_ACTIONS = new Set([
 ]);
 const APPROVAL_ACTIONS = new Set([APPROVAL_APPROVE_ACTION_ID, APPROVAL_DISMISS_ACTION_ID]);
 
-/**
- * Button clicks on the thread parent, mapped onto the same service paths the
- * dashboard uses: Claim → ConversationClaimsService.claim, Close/Reopen →
- * ConvService.changeStatus. The resulting conversation events flow back
- * through the mirror worker, which posts the thread update and refreshes the
- * parent message — no state is written from here directly.
- */
 @Injectable()
 export class SlackInteractionsService {
   private readonly logger = new Logger(SlackInteractionsService.name);
@@ -188,13 +181,6 @@ export class SlackInteractionsService {
     }
   }
 
-  /**
-   * Approve/Dismiss clicks on approval notifications, mapped onto the same
-   * service paths as the dashboard and MCP tools. Success posts nothing from
-   * here — the resolution event loops back through the bridge worker, which
-   * chat.updates the notification in place. Failures surface as ephemeral
-   * messages to the clicker.
-   */
   private async handleApprovalAction(input: {
     actionId: string;
     value: string;

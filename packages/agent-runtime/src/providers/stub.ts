@@ -6,7 +6,6 @@ export interface StubScript {
 
 export interface StubProviderHandle {
   provider: Provider;
-  /** Captured calls in order. */
   calls: Array<{ messages: ChatMessage[]; toolNames: string[] }>;
 }
 

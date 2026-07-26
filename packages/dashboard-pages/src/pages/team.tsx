@@ -482,9 +482,7 @@ function EditMemberDialog({
       if (isSelf) {
         try {
           await authClient.updateUser({ name: trimmed });
-        } catch {
-          /* Better Auth session refresh is best-effort */
-        }
+        } catch {}
       }
       onClose();
     } catch (err) {

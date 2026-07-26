@@ -58,10 +58,6 @@ interface EndUserDto {
 export class EndUsersController {
   constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
 
-  /**
-   * Find or create an EndUser by externalId / email / phone.
-   * Returns 200 + the row (whether existing or just-created).
-   */
   @Post('lookup')
   @HttpCode(200)
   async lookup(@Body() body: unknown): Promise<EndUserDto> {

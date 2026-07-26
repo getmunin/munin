@@ -63,7 +63,7 @@ export function GetStarted() {
       </header>
 
       <div className="grid gap-9 md:grid-cols-[1.05fr_1fr] items-start">
-        {/* MCP setup column */}
+        {}
         <div className="min-w-0">
           <div className="flex justify-between items-baseline border-b-[1px] border-ink pb-2.5 mb-4 dark:border-foreground">
             <Eyebrow tone="ink" size="sm" className="font-medium">
@@ -146,7 +146,7 @@ export function GetStarted() {
           </div>
         </div>
 
-        {/* Recipes column */}
+        {}
         <div className="min-w-0">
           <div className="flex justify-between items-baseline border-b-[1px] border-ink pb-2.5 mb-4 dark:border-foreground">
             <Eyebrow tone="ink" size="sm" className="font-medium">

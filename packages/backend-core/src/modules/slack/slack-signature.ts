@@ -3,12 +3,6 @@ import { timingSafeEqual } from '@getmunin/core';
 
 const MAX_SKEW_SECONDS = 300;
 
-/**
- * Slack request signing (v0): hex HMAC-SHA256 of `v0:{timestamp}:{rawBody}`
- * with the app's signing secret, compared constant-time. The ±5 min
- * timestamp window bounds replay. Header values arrive untyped because
- * Node header lookups can yield arrays.
- */
 export function verifySlackSignature(input: {
   signingSecret: string;
   timestamp: unknown;

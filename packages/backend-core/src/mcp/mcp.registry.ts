@@ -2,11 +2,6 @@ import { Injectable, OnModuleInit, type Type } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner, ModuleRef } from '@nestjs/core';
 import { McpToolRegistry, MCP_TOOL_META, type McpToolMeta } from '@getmunin/mcp-toolkit';
 
-/**
- * Walks every NestJS provider at boot and registers every method that
- * carries @McpTool metadata. The bound handler is the method with `this`
- * fixed to the provider instance.
- */
 @Injectable()
 export class McpRegistryService extends McpToolRegistry implements OnModuleInit {
   constructor(
@@ -39,5 +34,4 @@ export class McpRegistryService extends McpToolRegistry implements OnModuleInit 
   }
 }
 
-/** Re-export for typing convenience in modules that wire MCP services. */
 export type { Type };

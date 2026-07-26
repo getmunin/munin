@@ -6,7 +6,6 @@ import { Settings as SettingsIcon, ArrowLeft, Menu } from 'lucide-react';
 import { Button } from '@getmunin/ui';
 import type { ReactNode } from 'react';
 
-/* Marketing-topbar treatment: translucent blurred bar with a soft hairline. */
 const topbarChromeBase =
   'sticky top-0 z-40 group-has-[.agent-banner]:top-12 border-b-[1px] border-rule-soft bg-paper/85 backdrop-blur-xl backdrop-saturate-150 dark:border-rule-on-dark dark:bg-[color-mix(in_srgb,var(--card)_85%,transparent)]';
 

@@ -82,7 +82,6 @@ const skipReason = TEST_URL
     await db.execute(sql`DELETE FROM crm_contacts WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_segments WHERE org_id = ${orgId}`);
 
-    // Seed: one email channel, one segment with one consenting contact.
     const [ch] = await db
       .insert(schema.convChannels)
       .values({
@@ -218,19 +217,16 @@ const skipReason = TEST_URL
       expect(approved.contact?.email).toBe('jane@acme.com');
       expect(approved.campaign?.name).toBe('launch');
 
-      // Conversation has the campaign id stamped.
       const convRows = await db.execute<{ outreach_campaign_id: string | null }>(
         sql`SELECT outreach_campaign_id FROM conv_conversations WHERE id = ${approved.conversationId!}`,
       );
       expect(convRows[0]!.outreach_campaign_id).toBe(c.id);
 
-      // Message body contains the unsubscribe footer with our public base url.
       const msgRows = await db.execute<{ body: string }>(
         sql`SELECT body FROM conv_messages WHERE id = ${approved.sentMessageId!}`,
       );
       expect(msgRows[0]!.body).toContain('[Unsubscribe](https://test.local/v1/outreach/unsubscribe?token=');
 
-      // An outbound delivery row was queued (email channel + agent author).
       const delivery = await db.execute<{ count: number }>(
         sql`SELECT COUNT(*)::int AS count FROM conv_message_deliveries WHERE message_id = ${approved.sentMessageId!}`,
       );
@@ -255,7 +251,6 @@ const skipReason = TEST_URL
           draftBody: 'body',
         }),
       );
-      // Suppress the contact AFTER the draft.
       await run(() =>
         crm.updateContact({ id: contactId, patch: { doNotContact: true } }),
       );
@@ -419,7 +414,7 @@ const skipReason = TEST_URL
       const ch = await run(() =>
         svc.createCampaign({ name: 'plain', brief: 'b', segmentId, channelId, enabled: true }),
       );
-      void ch; // not used; we want a bare conversation
+      void ch;
       const [plain] = await db
         .insert(schema.convConversations)
         .values({

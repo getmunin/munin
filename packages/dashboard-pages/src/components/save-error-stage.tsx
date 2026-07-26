@@ -26,11 +26,6 @@ export interface SaveErrorStageProps {
   retrying?: boolean;
 }
 
-/**
- * Drop-in "save failed" stage for dialog forms. Replaces the form view while
- * preserving the parent component's input state — clicking Back returns to the
- * form with values intact, Retry re-attempts the same submit.
- */
 export function SaveErrorStage({
   detail,
   onBack,

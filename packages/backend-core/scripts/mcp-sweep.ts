@@ -1,21 +1,3 @@
-/**
- * Calls every tool exposed by a live MCP server and reports pass/fail.
- *
- * Run against a populated test org to mimic what Anthropic's directory
- * reviewers do — they call every tool and verify each returns a structured
- * response (not "Internal Server Error" / generic "Bad Request").
- *
- *   MCP_URL=https://mcp.getmunin.com/mcp \
- *   MCP_TOKEN=mn_... \
- *   pnpm -F @getmunin/backend-core mcp:sweep
- *
- * Flags (env vars):
- *   MCP_URL          required — full URL of the /mcp endpoint
- *   MCP_TOKEN        required — bearer token (admin API key or session token)
- *   MCP_INCLUDE_WRITES=1   also exercise destructive tools (default: skip)
- *   MCP_ONLY=foo,bar       limit the sweep to a comma-separated allowlist
- *   MCP_SKIP=foo,bar       exclude a comma-separated denylist
- */
 import 'reflect-metadata';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';

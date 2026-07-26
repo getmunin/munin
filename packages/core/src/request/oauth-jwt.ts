@@ -25,9 +25,6 @@ interface JwksRow {
 
 const jwksCache = new Map<string, VerificationKey>();
 
-// Asymmetric algorithms only. Symmetric HMAC (HS*) is deliberately excluded so a
-// stored/injected `oct` key can never enable an alg-confusion bypass where an
-// HS256 token is verified against public-key bytes. BetterAuth mints EdDSA.
 const ALLOWED_JWT_ALGS = new Set([
   'EdDSA',
   'ES256',

@@ -6,8 +6,6 @@ test.describe('OSS locale switching', () => {
     const page = await ctx.newPage();
     try {
       await page.goto('/');
-      // Norwegian translations live in messages/nb.json — assert the
-      // tagline differs from the English version.
       const englishTagline = 'The open source customer platform for the agentic era.';
       const tagline = await page.locator('main').first().innerText();
       expect(tagline).not.toContain(englishTagline);

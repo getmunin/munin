@@ -1,25 +1,5 @@
 import type { ApiIdentity } from './api.ts';
 
-/**
- * WebSocket client for the widget.
- *
- * Lifecycle: `connect()` opens a WebSocket to /v1/realtime, sends a
- * `subscribe` for `widget:<channelId>:<sessionId>`, and emits the
- * `connected` state. Consumers run their one-shot REST backfill in
- * response — the realtime client itself never polls REST.
- *
- * Reconnect: on close (and the network errors that lead there) the
- * client schedules another connect with exponential backoff
- * (250 ms → 30 s, jittered). It re-emits `connected` on each successful
- * (re)open so consumers can re-run the backfill bringing it back in
- * sync with anything they missed during the disconnect.
- *
- * Typing: visitor calls `sendTyping(true)` / `sendTyping(false)`. The
- * client throttles outbound `typing:true` to one frame per 1.5 s
- * (matches the server's throttle so we don't waste frames). Inbound
- * `typing` events from operators surface via `onTyping`.
- */
-
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
 export interface IncomingEvent {
@@ -45,9 +25,7 @@ export interface RealtimeClientDeps {
   channelId: string;
   sessionId: string;
   getIdentity?: () => ApiIdentity | undefined;
-  /** Override the WebSocket constructor for tests. */
   webSocketCtor?: WebSocketConstructor;
-  /** Override the schedule API for tests. */
   setTimeoutImpl?: typeof setTimeout;
   clearTimeoutImpl?: typeof clearTimeout;
 }
@@ -62,10 +40,6 @@ export interface WebSocketLike {
   readyState: number;
   send(data: string): void;
   close(code?: number, reason?: string): void;
-  /** Native browser WebSocket dispatches `Event`, `MessageEvent`, etc.
-   *  We only read `event.data` for messages; everything else is fire-only.
-   *  Listener parameter is `unknown` so a single permissive implementation
-   *  satisfies all event types. */
   addEventListener(type: 'open' | 'message' | 'close' | 'error', listener: (arg?: unknown) => void): void;
 }
 
@@ -120,7 +94,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
         }),
       );
     } catch {
-      // socket mid-close; re-queue so the next flush retries
       for (const id of messageIds) pendingReadIds.add(id);
     }
   }
@@ -174,7 +147,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     try {
       socket = new WS(buildUrl(), ['bearer', deps.widgetKey]);
     } catch {
-      // Construction can throw on some browsers if the URL is bad.
       scheduleReconnect();
       return;
     }
@@ -182,8 +154,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     socket.addEventListener('open', () => {
       attempt = 0;
       setState('connected');
-      // Subscribe to our (channelId, sessionId) tuple so the gateway
-      // routes operator-side events back to us.
       try {
         socket.send(
           JSON.stringify({
@@ -222,7 +192,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
           }
         }
       }
-      // ready / pong / unknown: ignore
     });
     socket.addEventListener('close', () => {
       ws = null;
@@ -233,8 +202,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
       }
     });
     socket.addEventListener('error', () => {
-      // The browser fires `error` then `close`; the close handler
-      // schedules the reconnect. No-op here so we don't double-schedule.
     });
   }
 
@@ -285,8 +252,6 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
         if (now - lastTypingSentAt < TYPING_MIN_INTERVAL_MS) return;
         lastTypingSentAt = now;
       } else {
-        // Allow explicit retract regardless of throttle so the operator's
-        // bubble clears immediately.
         lastTypingSentAt = 0;
       }
       try {

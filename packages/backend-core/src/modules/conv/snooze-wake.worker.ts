@@ -46,7 +46,6 @@ export class SnoozeWakeWorker implements OnModuleInit, OnModuleDestroy {
     this.timer = null;
   }
 
-  /** Public so tests can drive a single tick directly. */
   async tick(): Promise<{ woken: number }> {
     if (this.running) return { woken: 0 };
     this.running = true;

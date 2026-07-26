@@ -17,13 +17,6 @@ export interface CredentialApplyResult {
   error?: string;
 }
 
-/**
- * A domain's plug into the credential-handoff flow. `describe` and `apply`
- * run inside a system-actor request context (org resolved from the link), so
- * implementations use the ambient `getCurrentContext()` db like any tool.
- * `apply` must be DB-only; put any vendor round-trip in `verify`, which runs
- * after commit and outside any transaction.
- */
 export interface CredentialTargetHandler {
   readonly targetType: string;
   describe(targetId: string): Promise<CredentialTargetDescription | null>;

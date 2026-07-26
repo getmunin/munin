@@ -39,10 +39,6 @@ export class CredentialHandoffService {
     @Inject(CredentialTargetRegistry) private readonly registry: CredentialTargetRegistry,
   ) {}
 
-  /**
-   * Mint a one-time link for a target that already exists. Runs in the
-   * caller's authed context; the target's owning module validates targetId.
-   */
   async mint(args: { targetType: string; targetId: string }): Promise<CredentialLink> {
     const ctx = getCurrentContext();
     if (!this.registry.get(args.targetType)) {

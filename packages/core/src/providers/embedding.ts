@@ -1,21 +1,8 @@
-/**
- * Embedding providers used by KB hybrid search.
- *
- * Pluggable so self-hosters can swap OpenAI for a local model (Ollama,
- * Llamafile) or an OpenAI-compatible vendor (Scaleway Generative APIs,
- * vLLM) without forking. The interface returns vectors of a known
- * dimension; the KB / CMS schema commits to a single dim per deployment,
- * controlled by `MUNIN_EMBEDDING_DIMENSIONS` (default 1536).
- */
-
 import { parseEnvInt } from '../env/index.ts';
 
 export interface EmbeddingProvider {
-  /** Vector dimension this provider produces. Must match the kb schema. */
   readonly dimensions: number;
-  /** Human-readable identifier for telemetry / audit. */
   readonly name: string;
-  /** Embed a batch of texts. Order of returned vectors matches input order. */
   embed(texts: readonly string[]): Promise<number[][]>;
 }
 
@@ -25,21 +12,10 @@ export function embeddingColumnType(): EmbeddingColumnType {
   return process.env.MUNIN_EMBEDDING_COLUMN_TYPE === 'halfvec' ? 'halfvec' : 'vector';
 }
 
-// ─── OpenAI ──────────────────────────────────────────────────────────────────
-
 export interface OpenAIEmbeddingOptions {
   apiKey: string;
   model?: string;
   baseUrl?: string;
-  /**
-   * Request a specific vector dimension. When set:
-   *   1. sent as `dimensions` in the request body (honored by
-   *      text-embedding-3-* and by Scaleway's `qwen3-embedding-8b`),
-   *   2. used as the canonical `this.dimensions`,
-   *   3. enforced after the response: vectors longer than this are
-   *      Matryoshka-truncated and L2-renormalized, vectors shorter
-   *      throw a clear error.
-   */
   dimensions?: number;
 }
 
@@ -102,13 +78,6 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
-// ─── Stub (deterministic, for tests / local dev without a key) ──────────────
-
-/**
- * Hash-based deterministic vector. Same input → same output. Intentionally
- * cheap; not a real embedding. Useful when running tests offline or in CI
- * where calling out to OpenAI would burn credits and be flaky.
- */
 export class StubEmbeddingProvider implements EmbeddingProvider {
   readonly dimensions: number;
   readonly name = 'stub';
@@ -149,25 +118,6 @@ function l2Normalize(vec: number[]): number[] {
   return out;
 }
 
-// ─── Env-based factory ───────────────────────────────────────────────────────
-
-/**
- * Resolve an EmbeddingProvider from environment.
- *
- * `MUNIN_EMBEDDING_PROVIDER`:
- *   `openai` (default if `OPENAI_API_KEY` is set) — uses OpenAI-compatible API.
- *   `stub`   (default if no key) — deterministic in-process embeddings.
- *
- * `OPENAI_API_KEY` / `OPENAI_EMBEDDING_MODEL` / `OPENAI_BASE_URL` configure
- * the OpenAI-compatible provider. Point `OPENAI_BASE_URL` at any
- * OpenAI-protocol server (LM Studio, vLLM, Scaleway Generative APIs, etc.).
- *
- * `OPENAI_EMBEDDING_DIMENSIONS` requests a specific output dimension when
- * the upstream model supports Matryoshka truncation (text-embedding-3-*,
- * qwen3-embedding-*). Must match the schema's `EMBEDDING_DIMENSIONS`
- * (the `MUNIN_EMBEDDING_DIMENSIONS` env var) — the factory cross-validates
- * to surface mismatches at boot rather than as silent corruption later.
- */
 export function readEmbeddingProviderFromEnv(): EmbeddingProvider {
   const explicit = process.env.MUNIN_EMBEDDING_PROVIDER?.toLowerCase();
   const expectedDim = readSchemaDimensionsFromEnv();

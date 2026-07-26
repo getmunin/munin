@@ -144,12 +144,6 @@ export class InvitationsService {
     return { revoked: true };
   }
 
-  /**
-   * Accept an invite. Service-role-DB path: the invitee isn't a member of
-   * the target org yet, so RLS would reject. We bypass RLS and validate by
-   * matching the supplied token's hash against an unaccepted, unrevoked,
-   * unexpired row.
-   */
   async lookupByToken(token: string): Promise<{ email: string; role: string; expiresAt: string } | null> {
     if (!token) return null;
     const tokenHash = hashSecret(token);

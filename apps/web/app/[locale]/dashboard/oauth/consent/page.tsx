@@ -12,7 +12,6 @@ async function fetchClientInfo(clientId: string): Promise<OAuthClientInfo | null
   if (!clientId) return null;
   try {
     const res = await fetch(`${API_URL}/v1/oauth/clients/${encodeURIComponent(clientId)}`, {
-      // anonymous lookup — no session cookies. Server-to-server, no CORS.
       cache: 'no-store',
     });
     if (!res.ok) return null;

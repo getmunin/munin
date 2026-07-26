@@ -1,13 +1,3 @@
-/**
- * Built-in prompt defaults. Each prompt lives in its own file so PR diffs and
- * git-blame stay scoped. This index assembles the seedable registry that
- * agent-host writes to the `agent-runtime` KB space on first boot.
- *
- * Adding a new prompt: drop a new file alongside the others exporting
- * `<NAME>_SLUG`, `<NAME>_TITLE`, `DEFAULT_<NAME>`; re-export here; append to
- * `SEEDABLE_PROMPTS`. No other plumbing needed.
- */
-
 import {
   SYSTEM_PROMPT_SLUG,
   SYSTEM_PROMPT_TITLE,
@@ -49,7 +39,6 @@ import {
   DEFAULT_VOICE_OPENER_CONTINUATION,
 } from './voice-opener-continuation.ts';
 
-// ── Slug / body / title constants ───────────────────────────────────
 export {
   SYSTEM_PROMPT_SLUG,
   SYSTEM_PROMPT_TITLE,
@@ -77,13 +66,11 @@ export {
   DEFAULT_VOICE_OPENER_CONTINUATION,
 };
 
-// ── Shared space / namespace constants ──────────────────────────────
 export const AGENT_RUNTIME_PROMPT_SPACE_SLUG = 'agent-runtime';
 export const COMPANY_PROFILE_SPACE_SLUG = 'website-import';
 export const CHANNEL_PROMPT_PREFIX = 'channel-';
 export const COMPANY_PROFILE_SLUG = 'company-profile';
 
-// ── Cache primitives ────────────────────────────────────────────────
 export {
   createPromptCache,
   type KbDocLocation,
@@ -93,18 +80,12 @@ export {
   type PromptCacheOptions,
 } from './cache.ts';
 
-// ── Registry ────────────────────────────────────────────────────────
 export interface SeedablePrompt {
   slug: string;
   title: string;
   body: string;
 }
 
-/**
- * Every prompt that `agent-host` seeds into the `agent-runtime` KB space on
- * first boot. Both runtimes use the same bodies as fallbacks when a KB
- * lookup returns nothing.
- */
 export const SEEDABLE_PROMPTS: readonly SeedablePrompt[] = [
   { slug: SYSTEM_PROMPT_SLUG, title: SYSTEM_PROMPT_TITLE, body: DEFAULT_SYSTEM_PROMPT },
   { slug: CHANNEL_CHAT_SLUG, title: CHANNEL_CHAT_TITLE, body: DEFAULT_CHANNEL_CHAT_PROMPT },

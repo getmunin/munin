@@ -216,9 +216,7 @@ async function classifyDocLiveness(urls: string[]): Promise<'alive' | 'gone' | '
       } else {
         return 'alive';
       }
-    } catch {
-      // transient/network error — inconclusive for this candidate, fall through
-    }
+    } catch {}
   }
   return sawGone ? 'gone' : 'unknown';
 }

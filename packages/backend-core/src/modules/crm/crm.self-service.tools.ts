@@ -7,7 +7,6 @@ import { getCurrentContext } from '@getmunin/core';
 const EmptyInput = z.object({});
 
 const UpdateMyContactInput = z.object({
-  /** Self-service callers can only edit basic personal fields, not tags / owner / custom-fields / AI fields. */
   name: z.string().min(1).max(200).optional(),
   phone: z.string().max(40).optional(),
   address: z.string().max(500).optional(),

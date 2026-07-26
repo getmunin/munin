@@ -33,15 +33,6 @@ const MAX_ATTEMPTS = 5;
 const BATCH_SIZE = 25;
 const BACKOFF_BASE_MS = 30_000;
 
-/**
- * Drains `conv_message_deliveries` (status='queued' or 'failed' due) and
- * dispatches each row to the adapter that matches the channel's `type`.
- * Handles attempt counting, exponential backoff, terminal 'dead' state, and
- * webhook emission. Adapter only implements `send()`.
- *
- * Disabled in tests via `MUNIN_OUTBOUND_DELIVERY_WORKER_DISABLED=1` (or
- * legacy `MUNIN_EMAIL_OUTBOUND_WORKER_DISABLED=1`) or `NODE_ENV=test`.
- */
 type AttemptOutcome = 'sent' | 'deferred' | 'failed';
 
 @Injectable()

@@ -37,23 +37,6 @@ import {
 import { loadAssetMap } from '../modules/cms/cms.asset-loader.ts';
 import { loadEntryMap } from '../modules/cms/cms.entry-loader.ts';
 
-/**
- * Public delivery API — anonymous JSON for external websites / mobile
- * apps / external integrations. Routes open with `{orgId}` so a CDN can
- * cache cleanly per (org, collection) without per-request auth.
- *
- * Always returns `status='published'`, with one exception: the
- * single-entry route accepts `?preview=<token>` — a signed, short-lived,
- * entry-scoped token (minted via `cms_get_preview_link` or
- * `POST /v1/cms/drafts/:id/preview-link`) that returns the entry
- * regardless of status with `Cache-Control: no-store`. List and search
- * routes never accept it. Everything else about drafts stays on the
- * admin MCP surface.
- *
- * Service-role DB is used because RLS only knows the GUC-scoped tenant
- * context, and there's no auth here. Every SELECT hard-filters
- * `org_id` and `status='published'` so cross-org leakage is impossible.
- */
 @PublicController('v1/cms', { throttle: true })
 export class CmsDeliveryController {
   constructor(

@@ -6,12 +6,6 @@ import { ConnectorCredentialHandler } from './connector-credential.handler.ts';
 import { CredentialHandoffModule } from '../credential-handoff/credential-handoff.module.ts';
 import { CredentialTargetRegistry } from '../credential-handoff/credential-target.ts';
 
-/**
- * Domain-agnostic connector trunk: encrypted connection storage, the
- * connectors_* admin CRUD tools, and the vendor registry. Domain modules
- * (commerce, bookings) import this module and register their adapters into
- * the registry — the trunk never imports a vendor.
- */
 @Module({
   imports: [CredentialHandoffModule],
   providers: [

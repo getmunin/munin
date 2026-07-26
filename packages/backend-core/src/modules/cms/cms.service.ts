@@ -70,8 +70,6 @@ export class CmsConflictError extends Error {
 export const ENTRY_STATUSES = ['draft', 'published', 'scheduled', 'archived'] as const;
 export type EntryStatus = (typeof ENTRY_STATUSES)[number];
 
-// ─── DTOs ───────────────────────────────────────────────────────────────
-
 export interface CollectionDto {
   id: string;
   name: string;
@@ -160,8 +158,6 @@ export interface LocaleDto {
   position: number;
 }
 
-// ─── Transfer shapes ─────────────────────────────────────────────────────
-
 export interface CmsLocaleExport {
   id: string;
   code: string;
@@ -217,8 +213,6 @@ export class CmsService {
     @Inject(STORAGE) private readonly storage: AssetStorage,
     @Inject(EmbeddingProviderHolder) private readonly embeddings: EmbeddingProviderHolder,
   ) {}
-
-  // ─── Collections ─────────────────────────────────────────────────────
 
   async listCollections(): Promise<CollectionDto[]> {
     const ctx = getCurrentContext();
@@ -331,8 +325,6 @@ export class CmsService {
     await ctx.db.delete(schema.cmsCollections).where(eq(schema.cmsCollections.id, collection.id));
     return { deleted: true };
   }
-
-  // ─── Entries ─────────────────────────────────────────────────────────
 
   async listEntries(input: {
     collection?: string;
@@ -768,8 +760,6 @@ export class CmsService {
     return result;
   }
 
-  // ─── Assets ──────────────────────────────────────────────────────────
-
   async listAssets(input: { limit?: number }): Promise<AssetDto[]> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
@@ -981,8 +971,6 @@ export class CmsService {
     }
 
     await this.storage.delete(rows[0].storageKey).catch(() => {
-      // Storage delete failure shouldn't block row deletion — log via audit
-      // and let an operator GC the orphan later.
     });
     await ctx.db.delete(schema.cmsAssets).where(eq(schema.cmsAssets.id, input.id));
     return { deleted: true };
@@ -1002,8 +990,6 @@ export class CmsService {
       .where(eq(schema.cmsAssetReferences.assetId, assetId))
       .orderBy(desc(schema.cmsAssetReferences.createdAt));
   }
-
-  // ─── Locales ─────────────────────────────────────────────────────────
 
   async listLocales(): Promise<LocaleDto[]> {
     const ctx = getCurrentContext();
@@ -1074,8 +1060,6 @@ export class CmsService {
     return toLocaleDto(row!);
   }
 
-  // ─── References ──────────────────────────────────────────────────────
-
   async listInboundReferences(entryId: string): Promise<{ fromEntryId: string; fieldName: string }[]> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -1088,8 +1072,6 @@ export class CmsService {
       .orderBy(desc(schema.cmsReferences.createdAt));
     return rows;
   }
-
-  // ─── Transfer (import / export) ──────────────────────────────────────
 
   async exportCms(): Promise<CmsExportData> {
     const ctx = getCurrentContext();
@@ -1373,9 +1355,6 @@ export class CmsService {
     return toAssetDto(row!);
   }
 
-  // ─── Internals ───────────────────────────────────────────────────────
-
-  /** Used by the schedule worker to flip due entries to published. */
   async publishById(id: string): Promise<EntryDto> {
     const existing = await this.loadEntryRow(id);
     return this.transition({ id, ifVersion: existing.version }, 'published');
@@ -1473,7 +1452,6 @@ export class CmsService {
       .where(and(eq(schema.cmsLocales.orgId, orgId), eq(schema.cmsLocales.isDefault, true)))
       .limit(1);
     if (rows[0]) return rows[0].code;
-    // Fall back to the first locale or 'en' if none configured.
     const any = await ctx.db
       .select()
       .from(schema.cmsLocales)
@@ -1604,8 +1582,6 @@ export class CmsService {
   }
 }
 
-// ─── DTO mappers ───────────────────────────────────────────────────────
-
 function toCollectionDto(row: typeof schema.cmsCollections.$inferSelect): CollectionDto {
   return {
     id: row.id,
@@ -1677,8 +1653,6 @@ function toLocaleDto(row: typeof schema.cmsLocales.$inferSelect): LocaleDto {
     position: row.position,
   };
 }
-
-// ─── helpers ───────────────────────────────────────────────────────────
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);

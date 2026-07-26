@@ -20,7 +20,6 @@ export const MagentoConfigInput = z.object({
     .url()
     .refine((u) => u.startsWith('https://'), 'baseUrl must be https')
     .transform((u) => u.replace(/\/+$/, '')),
-  /** Integration access token. Optional on update to keep the stored one. */
   accessToken: z.string().min(10).max(256).optional(),
 });
 
@@ -197,7 +196,6 @@ export class MagentoAdapter implements CommerceAdapter {
   private toDetail(order: MagentoOrder, shipments: MagentoShipment[]): CommerceOrderDetail {
     return {
       ...this.toSummary(order),
-      // Child rows of configurable/bundle products duplicate the parent line.
       items: (order.items ?? [])
         .filter((item) => item.parent_item_id == null)
         .map((item) => ({
@@ -262,7 +260,6 @@ function orderSearchParams(email: string, limit: number): string {
   return params.toString();
 }
 
-/** Magento timestamps are "YYYY-MM-DD HH:MM:SS" in UTC without a zone marker. */
 function magentoDateToIso(value: string): string {
   return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
     ? `${value.replace(' ', 'T')}Z`

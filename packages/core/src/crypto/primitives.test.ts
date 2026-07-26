@@ -76,7 +76,6 @@ const skipPgcrypto = TEST_URL ? null : 'Set TEST_DATABASE_URL to run pgcrypto te
   });
 
   afterAll(() => {
-    // Drizzle wraps a postgres-js Sql client; close via $client.
     void db?.$client.end();
   });
 
@@ -115,7 +114,6 @@ const skipPgcrypto = TEST_URL ? null : 'Set TEST_DATABASE_URL to run pgcrypto te
         const enc = await tx.execute<{ ct: string }>(
           sql`SELECT ${encryptSecretSql('hello')} AS ct`,
         );
-        // Flip a byte mid-payload.
         const original = enc[0]!.ct;
         const flipChar = original.charAt(20) === 'A' ? 'B' : 'A';
         const bad = original.slice(0, 20) + flipChar + original.slice(21);

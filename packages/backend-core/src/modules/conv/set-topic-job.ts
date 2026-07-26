@@ -2,12 +2,6 @@ import type { EnqueueInput } from '../curator/curator-jobs.service.ts';
 
 export const SET_TOPIC_AND_TITLE_SKILL_URI = 'skill://conv/set-topic-and-title';
 
-/**
- * Build the curator job that classifies a freshly-created inbound
- * conversation into a topic and gives it a short title. Enqueue this once,
- * at the point the conversation is created from its first end-user message —
- * the `dedupeKey` keeps repeated calls (retries, batched inbound) idempotent.
- */
 export function buildSetTopicAndTitleJob(input: {
   conversationId: string;
   channelType?: string;

@@ -28,17 +28,6 @@ import {
 import { deriveMcpAudience } from './mcp.audience.ts';
 import { mcpResourceOrigin } from '../oauth/oauth.constants.ts';
 
-/**
- * Streamable HTTP entry point for the MCP server.
- *
- * Stateless mode: each POST request constructs a fresh Server + transport,
- * processes the JSON-RPC payload, and tears down. This way each call is
- * audience-filtered to exactly the authenticated actor and there's no
- * cross-session state to lose.
- *
- * GET is used for SSE streaming; DELETE terminates a session id when the
- * SDK exposes one (currently a no-op for stateless mode).
- */
 @Controller('mcp')
 @UseGuards(AuthGuard, McpBurstGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
@@ -90,7 +79,7 @@ export class McpController {
     });
 
     const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // stateless
+      sessionIdGenerator: undefined,
       enableJsonResponse: true,
     });
 

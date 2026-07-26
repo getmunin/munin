@@ -317,8 +317,6 @@ const CrmImportInput = z.object({
 export class CrmAdminTools {
   constructor(@Inject(CrmService) private readonly crm: CrmService) {}
 
-  // Contacts ────────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_list_contacts',
     title: 'CRM: List contacts',
@@ -421,8 +419,6 @@ export class CrmAdminTools {
     return this.crm.searchContacts(args);
   }
 
-  // Companies ───────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_list_companies',
     title: 'CRM: List companies',
@@ -450,8 +446,6 @@ export class CrmAdminTools {
   createCompany(args: z.infer<typeof CreateCompanyInput>) {
     return this.crm.createCompany(args);
   }
-
-  // Pipelines + deals ───────────────────────────────────────────────────
 
   @McpTool({
     name: 'crm_list_pipelines',
@@ -526,8 +520,6 @@ export class CrmAdminTools {
     return this.crm.changeStage(args);
   }
 
-  // Activities ──────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_log_activity',
     title: 'CRM: Log activity',
@@ -557,8 +549,6 @@ export class CrmAdminTools {
     return this.crm.listActivities(args);
   }
 
-  // AI fields ───────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_set_ai_summary',
     title: 'CRM: Set AI summary or next action',
@@ -573,8 +563,6 @@ export class CrmAdminTools {
   setAiSummary(args: z.infer<typeof SetAiSummaryInput>) {
     return this.crm.setAiSummary(args);
   }
-
-  // Merge proposals ─────────────────────────────────────────────────────
 
   @McpTool({
     name: 'crm_propose_merge',
@@ -635,8 +623,6 @@ export class CrmAdminTools {
   dismissMergeProposal(args: z.infer<typeof DismissMergeProposalInput>) {
     return this.crm.dismissMergeProposal(args);
   }
-
-  // Segments ────────────────────────────────────────────────────────────
 
   @McpTool({
     name: 'crm_list_segments',
@@ -725,8 +711,6 @@ export class CrmAdminTools {
     return this.crm.listContactsInSegment(args);
   }
 
-  // Consent ─────────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_set_contact_consent',
     title: 'CRM: Set contact consent',
@@ -741,8 +725,6 @@ export class CrmAdminTools {
   setContactConsent(args: z.infer<typeof SetContactConsentInput>) {
     return this.crm.setContactConsent(args);
   }
-
-  // Transfer ────────────────────────────────────────────────────────────
 
   @McpTool({
     name: 'crm_export',

@@ -14,11 +14,6 @@ const JSON_BODY_LIMIT = '4mb';
 
 const DEFAULT_DEV_WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
-/**
- * Hashed widget / tracker bundles match `<name>.<12-hex-sha>.js[.map]?`.
- * Anything else hitting `/widget/...` or `/tracker/...` is rejected with
- * 404 — no path traversal surface, no accidental directory listing.
- */
 const HASHED_WIDGET_FILE_RE = /^widget\.[a-f0-9]{12}\.js(\.map)?$/;
 const HASHED_TRACKER_FILE_RE = /^tracker\.[a-f0-9]{12}\.js(\.map)?$/;
 
@@ -46,49 +41,11 @@ export function readTrustProxySetting(): boolean | number | string | null {
 }
 
 export interface CreateAppOptions extends NestApplicationOptions {
-  /**
-   * Absolute path to the directory holding the chat-widget's hashed
-   * bundle + manifest.json. Defaults to `<cwd>/public/widget` which
-   * matches `apps/backend/public/widget/` after the prebuild copy step.
-   * Pass an explicit path for tests or alternative layouts. If the
-   * directory doesn't exist at boot, the routes log a one-line warning
-   * and serve 503 — the rest of the API still boots.
-   */
   widgetAssetDir?: string;
-  /**
-   * Absolute path to the directory holding the analytics-tracker's hashed
-   * bundle + manifest.json. Defaults to `<cwd>/public/tracker` which
-   * matches `apps/backend/public/tracker/` after the prebuild copy step.
-   * Same shape as `widgetAssetDir`. Missing manifest → 503 on
-   * `/tracker.js`, rest of API still boots.
-   */
   trackerAssetDir?: string;
-  /**
-   * Absolute path to the directory holding the MCP host's brand icons —
-   * `favicon.ico`, `icon.png`, `apple-icon.png`. Served at the root paths
-   * `/favicon.ico`, `/icon.png`, `/apple-icon.png` with a long cache.
-   * Defaults to `<cwd>/public/icons`. Missing files silently 404; this
-   * is what claude.ai web (and similar MCP UIs) fetches to render the
-   * custom-integration tile.
-   */
   iconAssetDir?: string;
 }
 
-/**
- * Boot the Nest app with all the Express-level concerns wired up:
- *   - CORS for the dashboard origins.
- *   - Static-asset GET handler for self-host (LocalFsStorage) — read by
- *     external clients via the URL the storage provider returns from
- *     `publicUrlFor()`.
- *   - Chat-widget bundle: `/widget/<sha>.js` (immutable, year-long cache)
- *     and `/widget.js` (302 redirect to the current sha, short cache).
- *   - Analytics-tracker bundle: same shape at `/tracker/<sha>.js` and
- *     `/tracker.js`.
- *
- * The caller supplies their AppModule (single-tenant for OSS, multi-tenant
- * for cloud). Both editions go through this factory so tests, prod, and
- * dev all share the same boot shape.
- */
 export async function createApp(
   appModule: Type<unknown>,
   opts: CreateAppOptions = {},
@@ -98,11 +55,6 @@ export async function createApp(
     rawBody: true,
     ...nestOpts,
   });
-  // The `text/plain` opt-in lets the analytics-tracker bundle send its JSON
-  // payload via `navigator.sendBeacon` (which always sends cookies) without
-  // triggering a CORS preflight that would fail on public-CORS paths.
-  // Other endpoints still send `application/json`; this just widens what the
-  // JSON parser accepts.
   app.useBodyParser('json', { limit: JSON_BODY_LIMIT, type: ['application/json', 'text/plain'] });
   app.useBodyParser('urlencoded', { extended: true, limit: JSON_BODY_LIMIT });
   const trustProxy = readTrustProxySetting();
@@ -153,15 +105,6 @@ export function isPublicCorsPath(path: string): boolean {
   );
 }
 
-/**
- * Maps the canonical MCP URL onto the internal `/mcp` Nest mount.
- *
- * A cloud deploy can advertise `https://mcp.getmunin.com` (no path) and
- * the middleware rewrites root requests on that host to `/mcp` so the
- * MCP controller sees them. OSS dev keeps `/mcp` → `/mcp` (no-op since
- * `NEXT_PUBLIC_MCP_URL=http://localhost:3001/mcp` matches the internal
- * path verbatim).
- */
 export function publicUrlRewriteMiddleware() {
   const mcp = parseRewriteSource(process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp');
   return (req: Request, _res: Response, next: NextFunction): void => {
@@ -293,7 +236,6 @@ function staticAssetsMiddleware(storage: LocalFsStorage) {
       next();
       return;
     }
-    // Skip the upload endpoint — handled by the StaticAssetsController.
     if (req.path === '/upload' || req.path.startsWith('/upload?')) {
       next();
       return;
@@ -330,12 +272,6 @@ function staticAssetsMiddleware(storage: LocalFsStorage) {
   };
 }
 
-/**
- * In-memory cache of `manifest.json`. Refreshes when the file's mtime
- * changes so a deploy that swaps the manifest in-place picks up without
- * a server restart. Returns `null` if the manifest is missing or
- * malformed — the route handlers translate that to a 503.
- */
 function manifestReader(
   bundleDir: string,
   hashedFileRe: RegExp,

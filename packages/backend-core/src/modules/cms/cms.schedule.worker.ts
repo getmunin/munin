@@ -16,19 +16,6 @@ import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_CMS_SCHEDULE_POLL_MS', default: 60_000 });
 const BATCH_SIZE = 50;
 
-/**
- * In-process worker that flips `status='scheduled'` entries to
- * `published` when their `scheduled_at` is reached, stamps
- * `published_at`, and fires `cms.entry.published`.
- *
- * Service-role DB so we can read across orgs without a tenant context.
- * For each due entry we open a transaction with `app.bypass_rls=on` and
- * an actor synthesized from the entry's row (so the audit chain has
- * something to attribute), then perform the flip.
- *
- * Disabled in tests via MUNIN_CMS_SCHEDULE_WORKER_DISABLED=1 or
- * NODE_ENV=test; tests call worker.tick() directly.
- */
 @Injectable()
 export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
@@ -54,7 +41,6 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
     this.timer = null;
   }
 
-  /** Drain a batch of due entries. Public so tests can call directly. */
   async tick(): Promise<{ promoted: number }> {
     if (this.running) return { promoted: 0 };
     this.running = true;
@@ -93,16 +79,12 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async promoteOne(entry: typeof schema.cmsEntries.$inferSelect): Promise<void> {
-    // Look up the collection's slug for the webhook payload.
     const [collection] = await this.db
       .select({ slug: schema.cmsCollections.slug })
       .from(schema.cmsCollections)
       .where(eq(schema.cmsCollections.id, entry.collectionId))
       .limit(1);
 
-    // Synthesize a system actor for the audit chain. The flip runs in a
-    // service-role transaction (bypass=on session-level), so RLS doesn't
-    // gate it; the actor just attributes the audit row.
     const actor = new ActorIdentity('system', 'cms-schedule-worker', entry.orgId, ['*'], ['admin']);
 
     await this.db.transaction(async (tx) => {

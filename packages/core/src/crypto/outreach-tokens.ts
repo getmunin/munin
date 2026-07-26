@@ -2,8 +2,6 @@ import { signHmac, timingSafeEqual } from './primitives.ts';
 
 const VERSION = 'v1';
 
-// Unsubscribe links must keep working well after the campaign ships, so this is
-// deliberately generous — it only exists to stop a leaked link replaying forever.
 const DEFAULT_MAX_AGE_SECONDS = 2 * 365 * 24 * 60 * 60;
 const FUTURE_SKEW_SECONDS = 5 * 60;
 

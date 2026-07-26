@@ -18,7 +18,6 @@ export function CopyPromptButton({ prompt, label }: CopyPromptButtonProps) {
         setTimeout(() => setCopied(false), 1400);
       })
       .catch(() => {
-        /* noop */
       });
   }
 

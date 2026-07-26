@@ -1,10 +1,3 @@
-/**
- * Seed a dev org + admin API key against MUNIN_MIGRATE_URL (or DATABASE_URL).
- *
- *   pnpm --filter @getmunin/backend exec tsx src/scripts/seed-dev.ts
- *
- * Prints the API key once. Save it; we don't store the plaintext.
- */
 import { createDb, schema } from '@getmunin/db';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { sql } from 'drizzle-orm';
@@ -17,9 +10,6 @@ async function main() {
   }
   const db = createDb(url);
 
-  // Seed runs as the migration superuser, so RLS doesn't apply and we
-  // freely create rows in any org. Still, set the bypass GUC to make
-  // intent explicit.
   await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
 
   const [org] = await db

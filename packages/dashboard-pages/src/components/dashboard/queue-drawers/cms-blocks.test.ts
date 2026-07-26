@@ -35,15 +35,11 @@ const bodyField: CmsFieldDef = {
   options: { blockTypes: [CALLOUT, HEADING] },
 };
 
-// Mirrors the sidecar the draft API returns: asset id → public URL,
-// reversed here to public URL → asset:// URI for save serialization.
 const reverse = new Map<string, string>([
   ['https://cdn.example.com/logo.png', 'asset://asset_logo'],
   ['https://cdn.example.com/icon.png', 'asset://asset_1'],
 ]);
 
-// How the drawer receives a blocks body: asset props expanded to objects,
-// inline asset:// rewritten to public URLs.
 function loadedBlocks(): SBlock[] {
   return [
     {
@@ -244,7 +240,6 @@ describe('computePatch', () => {
     expect(Object.keys(patch)).toEqual(['body']);
     const body = patch.body as SBlock[];
     expect(body[1]?.props.text).toBe('Introduction');
-    // Untouched callout is still normalized: asset object → id, public URL → asset://.
     expect(body[0]?.props.icon).toBe('asset_1');
     expect(body[0]?.props.text).toBe('See ![logo](asset://asset_logo)');
   });

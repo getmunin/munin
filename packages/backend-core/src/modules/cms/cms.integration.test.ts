@@ -136,7 +136,6 @@ const skipReason = TEST_URL
       );
       expect(collections.find((c) => c.slug === 'pages')).toBeTruthy();
 
-      // Create + publish an entry.
       const entry = parseToolResult<{ id: string; slug: string; version: number; status: string }>(
         await c.callTool({
           name: 'cms_create_entry',
@@ -151,9 +150,6 @@ const skipReason = TEST_URL
       expect(entry.status).toBe('published');
     });
 
-    // Fetch anonymously via the public delivery API. waitFor absorbs the
-    // commit-visibility race between the MCP request transaction and the
-    // controller's separate service-role connection.
     const single = await fetchUntil(
       `${baseUrl}/v1/cms/${orgId}/pages/hello-world`,
       (r) => r.status === 200,
@@ -164,13 +160,11 @@ const skipReason = TEST_URL
     expect(singleJson.slug).toBe('hello-world');
     expect(singleJson.data.title).toBe('Hello, world');
 
-    // ETag round-trip.
     const cached = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/hello-world`, {
       headers: { 'if-none-match': single.headers.get('etag')! },
     });
     expect(cached.status).toBe(304);
 
-    // List works.
     const list = await fetch(`${baseUrl}/v1/cms/${orgId}/pages`);
     expect(list.status).toBe(200);
     const listJson = (await list.json()) as { items: Array<{ slug: string }> };
@@ -189,7 +183,6 @@ const skipReason = TEST_URL
         },
       });
 
-      // Admin search includes drafts.
       const adminHits = parseToolResult<Array<{ slug: string }>>(
         await c.callTool({
           name: 'cms_search',
@@ -199,7 +192,6 @@ const skipReason = TEST_URL
       expect(adminHits.find((h) => h.slug === 'draft-only')).toBeTruthy();
     });
 
-    // Public search hides drafts.
     const search = await fetch(
       `${baseUrl}/v1/cms/${orgId}/search?q=${encodeURIComponent('secret')}&collection=pages`,
     );
@@ -207,16 +199,11 @@ const skipReason = TEST_URL
     const hits = (await search.json()) as Array<{ slug: string }>;
     expect(hits.find((h) => h.slug === 'draft-only')).toBeFalsy();
 
-    // GET on the draft entry returns 404 publicly.
     const fetched = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/draft-only`);
     expect(fetched.status).toBe(404);
   }, 30_000);
 
   it('admin drafts route is not shadowed by the public delivery wildcard', async () => {
-    // `GET /v1/cms/drafts/:id` and the public `GET /v1/cms/:orgId/:collectionSlug`
-    // are both 4-segment routes; `/v1/cms/drafts/<id>` matches both. If the public
-    // controller is registered first it wins (first-match-wins) and 404s with
-    // `cms_not_found: org drafts`, never reaching the auth-guarded drafts route.
     let draftId = '';
     await withClient(adminKey, async (c) => {
       const created = parseToolResult<{ id: string }>(
@@ -233,12 +220,9 @@ const skipReason = TEST_URL
       draftId = created.id;
     });
 
-    // Unauthenticated: must reach the guarded drafts controller (401), NOT the
-    // anonymous public wildcard (which would 404 on org "drafts").
     const anon = await fetch(`${baseUrl}/v1/cms/drafts/${draftId}`);
     expect(anon.status).toBe(401);
 
-    // Authenticated admin: the draft is served for review.
     const authed = await fetch(`${baseUrl}/v1/cms/drafts/${draftId}`, {
       headers: { Authorization: `Bearer ${adminKey}` },
     });
@@ -456,7 +440,6 @@ const skipReason = TEST_URL
       entryVersion = scheduled.version;
     });
 
-    // Push the scheduled time into the past (avoids waiting), then run the worker.
     await db
       .update(schema.cmsEntries)
       .set({ scheduledAt: new Date(Date.now() - 1000) })
@@ -472,7 +455,6 @@ const skipReason = TEST_URL
 
   it('delivery: a locale-specific draft is 404; published siblings in another locale are not silently substituted', async () => {
     await withClient(adminKey, async (c) => {
-      // Add a second locale and create same-slug entries: en=published, es=draft.
       await c.callTool({
         name: 'cms_create_locale',
         arguments: { code: 'es', name: 'Spanish' },
@@ -499,18 +481,13 @@ const skipReason = TEST_URL
       });
     });
 
-    // Without a locale param, the controller picks any published row — should
-    // be the en entry (the es one is a draft and must not appear).
     const noLocale = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/localized`);
     expect(noLocale.status).toBe(200);
     expect(((await noLocale.json()) as { locale: string }).locale).toBe('en');
 
-    // With locale=es: there's no published es entry, so 404 — never a silent
-    // fallback to the en entry.
     const esQuery = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/localized?locale=es`);
     expect(esQuery.status).toBe(404);
 
-    // With locale=en: returns the en entry as expected.
     const enQuery = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/localized?locale=en`);
     expect(enQuery.status).toBe(200);
     expect(((await enQuery.json()) as { locale: string }).locale).toBe('en');

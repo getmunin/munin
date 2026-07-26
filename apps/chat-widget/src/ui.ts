@@ -399,10 +399,6 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
 
   function setConnectionState(state: ConnectionLabel): void {
     if (state === 'connecting') {
-      // Part of an in-flight (re)connect. Leave the bar and any pending grace
-      // timer untouched: a first connect shows nothing, and a mid-outage bounce
-      // (reconnecting → connecting → reconnecting) must not reset the grace clock,
-      // otherwise the bar would never appear during a sustained outage.
       return;
     }
     if (state === 'connected' || state === 'idle') {
@@ -414,9 +410,6 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       panel.statusEl.textContent = '';
       connectionDisabled = false;
     } else if (state === 'reconnecting') {
-      // Defer the status bar by a grace period so a quick reconnect doesn't flash
-      // the bar and shift the layout. If we're already showing it (or already
-      // waiting), keep the existing timer running.
       if (!panel.statusEl.hidden || reconnectGraceTimer) return;
       reconnectGraceTimer = setTimeout(() => {
         reconnectGraceTimer = null;

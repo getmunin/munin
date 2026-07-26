@@ -175,7 +175,6 @@ const REPLY_DOMAIN = 'reply.example.test';
     expect(body).not.toContain('sent you');
     expect(body).not.toContain('Reply to this email');
     expect(body).not.toContain('Best regards,');
-    // No assistants row for this org → agent signoff falls back to the channel fromName.
     expect(body).toContain('— Acme Support');
     expect(body).toContain('> Hi, I need help.');
     expect(body.indexOf('— Acme Support')).toBeGreaterThan(body.indexOf('Sure — what are you stuck on?'));
@@ -267,13 +266,6 @@ const REPLY_DOMAIN = 'reply.example.test';
     expect(r1.sent).toBe(1);
     expect(mailer.outbox[0]!.text!).toContain('Old agent reply.');
 
-    // Engage via a new end-user message (resetting the quiet period) and
-    // an agent reply. The old reply remains unread server-side. The
-    // end-user message must be later than `conv_created_at` so r2's
-    // engagement timestamp differs from r1's (otherwise the unique
-    // `(conversation_id, last_engagement_at)` constraint blocks the
-    // second fallback row). The agent message gets a small age so its
-    // `created_at` lands reliably before `tick`'s cutoff.
     await insertMsg(convId, 'end_user', 'Followup question.', 0);
     await insertMsg(convId, 'agent', 'Fresh agent reply.', 50);
 

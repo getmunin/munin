@@ -58,7 +58,6 @@ interface ImapMessageMin {
   source: Buffer | string;
 }
 
-/** IMAP fetcher boundary. Tests inject a stub; production uses imapflow. */
 export interface ImapFetcher {
   fetchSince(opts: {
     host: string;
@@ -128,12 +127,6 @@ class ImapFlowFetcher implements ImapFetcher {
   }
 }
 
-/**
- * Email adapter — IMAP poll inbound, SMTP/Mailer outbound. Behavior matches
- * the prior `EmailInboundWorker` + `EmailOutboundWorker.attemptOne` — they
- * are now thin wrappers over this adapter via `InboundPollWorker` and
- * `OutboundDeliveryWorker`.
- */
 @Injectable()
 export class EmailAdapter implements ChannelAdapter {
   readonly kind = 'email' as const;
@@ -150,7 +143,6 @@ export class EmailAdapter implements ChannelAdapter {
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
   ) {}
 
-  /** Test-only: swap the IMAP boundary. */
   setFetcher(f: ImapFetcher): void {
     this.fetcher = f;
   }
@@ -220,7 +212,6 @@ export class EmailAdapter implements ChannelAdapter {
       });
       transport.close();
     } else {
-      // Mailer fallback (Resend / Stub).
       await this.mailer.send({
         from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
         to: recipient,
@@ -235,8 +226,6 @@ export class EmailAdapter implements ChannelAdapter {
 
     return { providerMessageId: built.messageId };
   }
-
-  // ─── inbound poll ───────────────────────────────────────────────────────
 
   private async pollOne(channel: ChannelRow): Promise<PollTickResult> {
     const config = jsonbToStored(channel.config);
@@ -460,8 +449,6 @@ export class EmailAdapter implements ChannelAdapter {
     return `${local}+conv-${conversationId}@${replyDomain}`;
   }
 }
-
-// ─── helpers ────────────────────────────────────────────────────────────────
 
 export async function parseMessage(source: Buffer | string): Promise<ParsedInboundEmail> {
   const parsed: ParsedMail = await simpleParser(source);

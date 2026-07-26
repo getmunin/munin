@@ -155,8 +155,6 @@ export class OutreachService {
     @Inject(DB) private readonly db: Db,
   ) {}
 
-  // ─── Campaigns ──────────────────────────────────────────────────────────
-
   async listCampaigns(): Promise<CampaignDto[]> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -194,7 +192,6 @@ export class OutreachService {
     const actor = ctx.actor!;
     if (!input.name.trim()) throw new OutreachInvalidError('name must be non-empty');
     if (!input.brief.trim()) throw new OutreachInvalidError('brief must be non-empty');
-    // Validate FK targets in this org.
     await this.assertSegmentExists(input.segmentId);
     const channel = await this.loadOutreachChannel(input.channelId);
     if (input.sequenceSteps?.length && channel.type !== 'email') {
@@ -274,8 +271,6 @@ export class OutreachService {
     if (!result[0]) throw new NotFoundException(`outreach_not_found: campaign ${input.id}`);
     return toCampaignDto(result[0]);
   }
-
-  // ─── Proposals ──────────────────────────────────────────────────────────
 
   async listProposals(input: {
     status?: ProposalStatus;
@@ -461,8 +456,6 @@ export class OutreachService {
         `conversation ${input.conversationId} has no contact bound — cannot file reply draft`,
       );
     }
-    // The conversation's contactId is conv_contacts.id, but the proposal's
-    // contactId is crm_contacts.id. Resolve via email match.
     const convContactRows = await ctx.db
       .select({ email: schema.convContacts.email })
       .from(schema.convContacts)
@@ -707,8 +700,6 @@ export class OutreachService {
 
     const channel = await this.loadOutreachChannel(campaign.channelId);
 
-    // Re-check suppression+consent at approve-time (the contact may have
-    // unsubscribed between draft generation and operator approval).
     const contact = await this.crm.getContact(proposal.contactId);
     if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
       throw new OutreachInvalidError(
@@ -724,8 +715,6 @@ export class OutreachService {
       throw new OutreachInvalidError(`contact ${contact.id} has no email — cannot send`);
     }
 
-    // Find or create a conv_contacts row keyed on email so the email
-    // adapter's reply-threading can link inbound replies back here.
     const convContact = await ctx.db.transaction(async (tx) => {
       return this.email.findOrCreateContactByEmail(tx, actor.orgId, contact.email!, contact.name ?? undefined);
     });
@@ -743,9 +732,6 @@ export class OutreachService {
       unsubscribeRequired: campaign.unsubscribeRequired,
     });
 
-    // Create the conversation in `agentMode='draft_only'` so the AI runner
-    // defers on subsequent inbound messages — replies should be drafted by
-    // `skill://outreach/draft-reply-email` and human-approved, not auto-sent.
     const conversation = await this.conv.createConversation({
       channelId: campaign.channelId,
       body,
@@ -983,8 +969,6 @@ export class OutreachService {
         `reply proposal ${proposal.id} has no conversationId — cannot send`,
       );
     }
-    // No unsubscribe footer on replies — the original initial already
-    // carries the link, and replies thread inside the same conversation.
     const sent = await this.conv.sendMessage({
       conversationId: proposal.conversationId,
       body: proposal.draftBody,
@@ -1164,8 +1148,6 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign);
   }
 
-  // ─── Sequences ──────────────────────────────────────────────────────────
-
   async listDueFollowups(input: { campaignId?: string; limit?: number }): Promise<DueFollowupDto[]> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
@@ -1290,8 +1272,6 @@ export class OutreachService {
     };
   }
 
-  // ─── Internal helpers ───────────────────────────────────────────────────
-
   private async assertSegmentExists(segmentId: string): Promise<void> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -1319,8 +1299,6 @@ export class OutreachService {
       `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email or voice:vapi channel`,
     );
   }
-
-  // ─── Transfer (import / export) ───────────────────────────────────────────
 
   async exportOutreach(): Promise<OutreachExportData> {
     const ctx = getCurrentContext();
@@ -1482,8 +1460,6 @@ export class OutreachService {
     return rows[0] ?? null;
   }
 }
-
-// ─── DTO mappers / helpers ────────────────────────────────────────────────
 
 function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): CampaignDto {
   return {

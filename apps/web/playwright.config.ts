@@ -17,8 +17,6 @@ export default defineConfig({
   webServer: process.env.MUNIN_E2E_BASE_URL
     ? undefined
     : {
-        // Run Next directly rather than `pnpm dev`: the dev script waits for the
-        // backend on tcp:3001, which the web-only e2e job never starts.
         command: `pnpm exec next dev --port ${PORT}`,
         url: BASE_URL,
         reuseExistingServer: !process.env.CI,

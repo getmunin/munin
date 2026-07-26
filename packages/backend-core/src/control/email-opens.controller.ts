@@ -78,10 +78,7 @@ export class EmailOpensController {
           },
         });
       });
-    } catch {
-      // Open tracking is best-effort — swallow DB / webhook errors so the
-      // mail client never sees a broken image.
-    }
+    } catch {}
   }
 }
 

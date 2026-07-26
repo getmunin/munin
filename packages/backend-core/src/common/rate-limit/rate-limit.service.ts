@@ -47,13 +47,6 @@ type BucketCountRow = {
   count: number;
 } & Record<string, unknown>;
 
-/**
- * Postgres-backed sliding-window counters keyed by `(org, bucket, window_start)`.
- * Each `record(bucket)` upserts the current window and returns the post-bump
- * count. Limit enforcement is the caller's responsibility — `consume()` packages
- * the MCP-tool-call recipe (record + check day). Per-minute burst protection
- * lives in `McpBurstGuard` (in-memory, per replica).
- */
 @Injectable()
 export class RateLimitService {
   async record(bucket: Bucket, amount = 1): Promise<number> {

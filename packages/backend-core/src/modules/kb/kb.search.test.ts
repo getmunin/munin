@@ -120,9 +120,6 @@ const skipReason = TEST_URL
   });
 
   it('returns vector hits when FTS misses', async () => {
-    // FTS won't match because the query has no surface-form overlap with the
-    // doc; the stub embedding is deterministic per-string so the same query
-    // and doc hash to the same neighborhood.
     await runAs(admin, () =>
       kb.createDocument({ spaceId, title: 'Apple', body: 'Apple is a fruit.' }),
     );

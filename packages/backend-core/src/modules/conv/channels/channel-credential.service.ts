@@ -13,12 +13,6 @@ import type {
   CredentialTargetHandler,
 } from '../../credential-handoff/credential-target.ts';
 
-/**
- * Wires conversation channels into the credential-handoff flow so a human can
- * enter a channel's secrets (SMTP/IMAP passwords) through a one-time dashboard
- * link instead of pasting them into an agent conversation. Email today; other
- * vendors as their providers gain secret-only application.
- */
 @Injectable()
 export class ChannelCredentialService implements CredentialTargetHandler {
   readonly targetType = 'channel';

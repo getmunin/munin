@@ -9,13 +9,6 @@ interface Window {
 
 const WINDOW_MS = 60_000;
 
-/**
- * Per-replica burst limiter for /mcp. Each pod keeps its own (org || ip) →
- * (count, resetAt) map in memory; entries auto-expire at the end of their
- * minute window. Multi-replica fleets don't enforce a global cap — each
- * pod independently allows up to `MUNIN_MCP_BURST_PER_MIN` (default 60).
- * Adequate for runaway-agent protection; deliberately not a billing gate.
- */
 @Injectable()
 export class McpBurstGuard implements CanActivate {
   private readonly windows = new Map<string, Window>();

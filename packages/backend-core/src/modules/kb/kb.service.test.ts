@@ -315,7 +315,6 @@ const skipReason = TEST_URL
       const after = await run(() => svc.listSpaces());
       expect(after.find((s) => s.slug === CURATION_INBOX_SLUG)).toBeDefined();
 
-      // A second proposal reuses the same inbox space.
       const second = await run(() =>
         svc.proposeCurationCandidate({
           subject: 'Refunds policy',
@@ -344,7 +343,6 @@ const skipReason = TEST_URL
       expect(published.tags).not.toEqual(expect.arrayContaining(['candidate', 'curation']));
       expect(published.title).toBe('How to reset password');
 
-      // The candidate doc is gone from the inbox.
       await expect(run(() => svc.getDocument(candidate.id))).rejects.toThrow(KbNotFoundError);
     });
 

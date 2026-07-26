@@ -20,14 +20,6 @@ function readCookie(header: string | undefined, name: string): string | null {
   return null;
 }
 
-/**
- * Public landing for Slack's OAuth redirect. The org and installing user
- * travel in the HMAC-signed `state` minted by SlackService.installUrl().
- * Dashboard-initiated installs also carry a nonce bound to the
- * `slack_install_nonce` cookie set on the same browser, which the service
- * checks. Always redirects back to the dashboard AI settings page with a
- * `slack=` outcome flag.
- */
 @Controller('v1/slack/oauth')
 export class SlackOAuthController {
   constructor(private readonly slack: SlackService) {}

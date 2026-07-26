@@ -143,6 +143,7 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
                 void authClient.signIn.social({
                   provider: 'google',
                   callbackURL: socialCallbackUrl(params, redirectTo),
+                  errorCallbackURL: absoluteCallbackUrl('/signup'),
                 });
               }}
             >
@@ -157,6 +158,7 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
                 void authClient.signIn.social({
                   provider: 'github',
                   callbackURL: socialCallbackUrl(params, redirectTo),
+                  errorCallbackURL: absoluteCallbackUrl('/signup'),
                 });
               }}
             >

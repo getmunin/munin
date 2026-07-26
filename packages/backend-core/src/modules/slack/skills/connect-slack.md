@@ -58,7 +58,7 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
    - `SLACK_CLIENT_SECRET`
    - `SLACK_SIGNING_SECRET` (signs the Events API requests that power reply-from-Slack)
 
-The redirect URL must exactly match `https://<api-base>/v1/slack/oauth/callback`, and the events request URL `https://<api-base>/v1/slack/events` — the same base that serves `/mcp`. Slack verifies the events URL with a challenge when you save it; the backend must be reachable and have `SLACK_SIGNING_SECRET` set first.
+The redirect URL must exactly match `https://<api-base>/v1/slack/oauth/callback`, and the events request URL `https://<api-base>/v1/slack/events` — where `<api-base>` is the backend's auth origin (`NEXT_PUBLIC_AUTH_URL`, or the origin of `NEXT_PUBLIC_MCP_URL` when unset). Slack verifies the events URL with a challenge when you save it; the backend must be reachable and have `SLACK_SIGNING_SECRET` set first.
 
 Workspaces installed before the `channels:history` scope was added must reinstall via a fresh `slack_get_install_url` link before thread replies reach Munin. Likewise, workspaces installed before `chat:write.customize` was added show mirrored messages with a text author label instead of per-speaker names/icons until reinstalled.
 

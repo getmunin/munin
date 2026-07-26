@@ -1,1 +1,2 @@
+node scripts/check-added-comments.mjs
 pnpm exec lint-staged

@@ -22704,7 +22704,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## fast-uri@3.1.2
+## fast-uri@3.1.4
 
 > Dependency-free RFC 3986 URI toolbox
 - Homepage: https://github.com/fastify/fast-uri
@@ -23986,7 +23986,7 @@ SOFTWARE.
 
 ---
 
-## hono@4.12.26
+## hono@4.12.32
 
 > Web framework built on Web Standards
 - Homepage: https://hono.dev
@@ -26446,7 +26446,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## linkify-it@5.0.1
+## linkify-it@5.0.2
 
 > Links recognition library with FULL unicode support
 - Homepage: https://github.com/markdown-it/linkify-it#readme
@@ -32579,7 +32579,7 @@ SOFTWARE.
 
 ---
 
-## sharp@0.34.5
+## sharp@0.35.3
 
 > High performance Node.js image processing, the fastest module to resize JPEG, PNG, WebP, GIF, AVIF and TIFF images
 - Homepage: https://sharp.pixelplumbing.com

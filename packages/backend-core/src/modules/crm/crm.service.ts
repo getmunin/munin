@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
@@ -314,6 +314,7 @@ export class CrmService {
       .select()
       .from(schema.crmContacts)
       .where(or(...filters))
+      .orderBy(MERGED_AWAY_LAST, desc(schema.crmContacts.updatedAt))
       .limit(1);
     return rows[0] ? toContactDto(rows[0]) : null;
   }
@@ -1004,6 +1005,32 @@ export class CrmService {
       throw new CrmInvalidError('recommendedKeeperId must be one of the two contacts');
     }
 
+    for (const contact of [contactA, contactB]) {
+      const mergedInto = mergedIntoId(contact.customFields);
+      if (mergedInto) {
+        throw new ConflictException(
+          `crm_conflict: contact ${contact.id} was already merged into ${mergedInto} and cannot be re-proposed`,
+        );
+      }
+    }
+
+    const alreadyApplied = await ctx.db
+      .select({ id: schema.crmMergeProposals.id })
+      .from(schema.crmMergeProposals)
+      .where(
+        and(
+          eq(schema.crmMergeProposals.contactAId, a),
+          eq(schema.crmMergeProposals.contactBId, b),
+          eq(schema.crmMergeProposals.status, 'applied'),
+        ),
+      )
+      .limit(1);
+    if (alreadyApplied[0]) {
+      throw new ConflictException(
+        `crm_conflict: contacts ${a} and ${b} were already merged by proposal ${alreadyApplied[0].id}`,
+      );
+    }
+
     const existingPending = await ctx.db
       .select()
       .from(schema.crmMergeProposals)
@@ -1232,6 +1259,31 @@ export class CrmService {
       .update(schema.crmContacts)
       .set(dupUpdates)
       .where(eq(schema.crmContacts.id, duplicateId));
+
+    const supersededProposals = await ctx.db
+      .update(schema.crmMergeProposals)
+      .set({
+        status: 'dismissed',
+        dismissReason,
+        decidedByActorType: actor.type === 'user' ? 'user' : 'agent',
+        decidedByActorId: actor.id,
+        decidedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          ne(schema.crmMergeProposals.id, input.id),
+          eq(schema.crmMergeProposals.status, 'pending'),
+          or(
+            eq(schema.crmMergeProposals.contactAId, duplicateId),
+            eq(schema.crmMergeProposals.contactBId, duplicateId),
+          ),
+        ),
+      )
+      .returning();
+    for (const superseded of supersededProposals) {
+      await this.emitMergeRowEvent('crm.merge_proposal.dismissed', superseded);
+    }
 
     const [updatedProposal] = await ctx.db
       .update(schema.crmMergeProposals)
@@ -1634,6 +1686,7 @@ export class CrmService {
       .select({ id: schema.crmContacts.id })
       .from(schema.crmContacts)
       .where(eq(schema.crmContacts.email, email))
+      .orderBy(MERGED_AWAY_LAST, desc(schema.crmContacts.updatedAt))
       .limit(1);
     return rows[0] ?? null;
   }
@@ -1742,7 +1795,7 @@ export class CrmService {
   }
 
   private async emitMergeEvent(
-    type: 'crm.merge_proposal.proposed' | 'crm.merge_proposal.applied' | 'crm.merge_proposal.dismissed',
+    type: MergeProposalEventType,
     proposal: MergeProposalDto,
   ): Promise<void> {
     await this.webhooks.emit({
@@ -1757,6 +1810,26 @@ export class CrmService {
         decidedByActorType: proposal.decidedByActorType,
         decidedByActorId: proposal.decidedByActorId,
         decidedAt: proposal.decidedAt,
+      },
+    });
+  }
+
+  private async emitMergeRowEvent(
+    type: MergeProposalEventType,
+    row: typeof schema.crmMergeProposals.$inferSelect,
+  ): Promise<void> {
+    await this.webhooks.emit({
+      type,
+      payload: {
+        id: row.id,
+        contactAId: row.contactAId,
+        contactBId: row.contactBId,
+        recommendedKeeperId: row.recommendedKeeperId,
+        confidence: row.confidence,
+        status: row.status,
+        decidedByActorType: row.decidedByActorType,
+        decidedByActorId: row.decidedByActorId,
+        decidedAt: row.decidedAt?.toISOString() ?? null,
       },
     });
   }
@@ -1912,6 +1985,18 @@ function toMergeProposalDto(
 
 function canonicalizePair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
+}
+
+type MergeProposalEventType =
+  | 'crm.merge_proposal.proposed'
+  | 'crm.merge_proposal.applied'
+  | 'crm.merge_proposal.dismissed';
+
+const MERGED_AWAY_LAST = sql`(${schema.crmContacts.customFields} ? 'mergedInto') asc`;
+
+export function mergedIntoId(customFields: Record<string, unknown>): string | null {
+  const value = customFields['mergedInto'];
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 const MERGE_PATCH_TIMESTAMP_FIELDS = new Set([

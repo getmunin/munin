@@ -580,7 +580,7 @@ export class CrmAdminTools {
     name: 'crm_propose_merge',
     title: 'CRM: Propose a merge candidate',
     description:
-      'File a structured proposal that two contacts are the same person. Pass `confidence` ("high" | "medium"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.',
+      'File a structured proposal that two contacts are the same person. Pass `confidence` ("high" | "medium"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. Rejects with a conflict when the pair has already been merged: either side carrying `customFields.mergedInto`, or an `applied` proposal already on record for the pair. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: ProposeMergeInput,
@@ -610,7 +610,7 @@ export class CrmAdminTools {
     name: 'crm_apply_merge_proposal',
     title: 'CRM: Apply a merge proposal',
     description:
-      "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), and marks the proposal `applied`. Activities and deals stay on whichever contactId they were originally logged under — that's a documented v1 limitation. Throws if the proposal is not in `pending` status.",
+      "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, reassigns the duplicate's activities, deals and relationships onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), dismisses any other pending proposals that reference the duplicate, and marks the proposal `applied`. Throws if the proposal is not in `pending` status.",
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: ApplyMergeProposalInput,

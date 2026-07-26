@@ -13,21 +13,22 @@ Run periodically. Don't run inline per CRM mutation — batching is cheaper and 
 
 ## TL;DR
 
-1. **Skim known dismissals** with `crm_list_merge_proposals({ status: "dismissed" })` — build a Set of dismissed `(contactA, contactB)` pairs to skip.
-2. **List contacts** with `crm_list_contacts`, paginating until you've seen the population (filter by `tag` or `companyId` for very large orgs).
-3. **Find suspect pairs** in your buffer: same lowercased email, same E.164 phone, very-similar name, or same name + company.
+1. **Skim already-decided pairs** with `crm_list_merge_proposals({ status: "dismissed" })` *and* `crm_list_merge_proposals({ status: "applied" })` — build a Set of decided `(contactA, contactB)` pairs to skip.
+2. **List contacts** with `crm_list_contacts`, paginating until you've seen the population (filter by `tag` or `companyId` for very large orgs). Drop every contact with `customFields.mergedInto` set — those rows are already merged away and are not merge candidates.
+3. **Find suspect pairs** in your remaining buffer: same lowercased email, same E.164 phone, very-similar name, or same name + company.
 4. **Judge each pair.** Skip clearly-not-the-same (different companies, shared inbox like `info@acme.com`, ambiguous role/title combinations). Keep clearly-same (same email + phone, same email + similar name, same phone + same company).
 5. **Pick the keeper** for each kept pair (heuristics below) and build a `recommendedPatch` of fields to copy from the duplicate onto the keeper.
 6. **File each pair** with `crm_propose_merge`. Idempotent on the pair while pending — re-running next week without the operator acting just upserts the pending row with refreshed evidence.
 7. **Stop.** The operator's review flow takes over — they call `crm_apply_merge_proposal` or `crm_dismiss_merge_proposal` at their cadence.
 
-## Step 1 — fetch dismissed pairs
+## Step 1 — fetch already-decided pairs
 
 ```jsonc
 { "name": "crm_list_merge_proposals", "arguments": { "status": "dismissed", "limit": 200 } }
+{ "name": "crm_list_merge_proposals", "arguments": { "status": "applied", "limit": 200 } }
 ```
 
-Build a lookup keyed by canonical pair (sorted contact-id tuple). Skip these in step 4. The unique-pending-pair index at the database level prevents *pending* duplicates automatically; this step prevents you from re-proposing pairs the operator already said no to.
+Build a lookup keyed by canonical pair (sorted contact-id tuple) from **both** lists. Skip these in step 4. The unique-pending-pair index at the database level prevents *pending* duplicates automatically; this step prevents you from re-proposing pairs the operator already said no to, and from re-proposing pairs that were already merged.
 
 ## Step 2 — pull contacts
 
@@ -36,6 +37,8 @@ Build a lookup keyed by canonical pair (sorted contact-id tuple). Skip these in 
 ```
 
 `limit` is capped at 200. For larger orgs, narrow by `tag` or `companyId` to keep batches tractable, or run multiple passes scoped to different segments.
+
+`crm_list_contacts` still returns rows that a previous merge archived. Discard any contact whose `customFields.mergedInto` is set before you build clusters — it kept its email and phone, so leaving it in the buffer re-derives every pair that was already merged. `crm_propose_merge` rejects those pairs with `crm_conflict`, so a pass that skips this step burns tool calls on guaranteed failures.
 
 ## Step 3 — group and find pairs
 
@@ -113,7 +116,7 @@ After the curator's pass, the operator (human or admin agent acting on their aut
 
 For each pending proposal, the operator either:
 
-- **Applies it:** `crm_apply_merge_proposal({ id })`. In a single transaction: copies `recommendedPatch` onto the keeper; reassigns the duplicate's `crm_activities`, `crm_deals` (primary contact), and `crm_relationships` (contact-typed `from_id` / `to_id`) onto the keeper; transfers the duplicate's `endUserId` to the keeper if the keeper had none; archives the duplicate (`dedup-archived-YYYY-MM` tag + `customFields.mergedInto: <keeperId>` + `doNotContact: true`, `endUserId` cleared); marks the proposal `applied`.
+- **Applies it:** `crm_apply_merge_proposal({ id })`. In a single transaction: copies `recommendedPatch` onto the keeper; reassigns the duplicate's `crm_activities`, `crm_deals` (primary contact), and `crm_relationships` (contact-typed `from_id` / `to_id`) onto the keeper; transfers the duplicate's `endUserId` to the keeper if the keeper had none; archives the duplicate (`dedup-archived-YYYY-MM` tag + `customFields.mergedInto: <keeperId>` + `doNotContact: true`, `endUserId` cleared); dismisses every other pending proposal that references the duplicate; marks the proposal `applied`.
 - **Dismisses it:** `crm_dismiss_merge_proposal({ id, reason })`. Records the rejection so the next curator pass skips this pair.
 
 The dashboard "Needs attention" backlog card surfaces the count of pending proposals via `/v1/overview/backlog`.
@@ -121,7 +124,8 @@ The dashboard "Needs attention" backlog card surfaces the count of pending propo
 ## What NOT to do
 
 - **Don't auto-apply.** v1 is propose-only. The cost of a wrong merge (lost activity history, wrong `endUserId` link) is much higher than the cost of one extra human review per pair.
-- **Don't propose pairs the operator already dismissed.** Step 1 exists for a reason. If you skip it, you'll churn the operator's review queue with noise.
+- **Don't propose pairs the operator already decided.** Step 1 exists for a reason — dismissed *and* applied. If you skip it, you'll churn the operator's review queue with pairs they already resolved; a merged pair re-proposed next week looks like the merge never happened.
+- **Don't treat an archived duplicate as a merge candidate.** A row with `customFields.mergedInto` set is the losing side of a completed merge. It keeps its email and phone forever, so it matches every dedup key it originally matched.
 - **Don't include private end-user data in `evidence` beyond what's needed to decide.** No payment info, no internal account states, no health/legal/financial details. The matched email, the matched phone, the names, the companyId — that's enough.
 - **Don't run on every conversation.** This is a periodic batch pass — your scheduler triggers it. If you're being asked to do it inline as part of a chat reply, push back — that's the wrong shape.
 - **Don't use `crm_update_contact` to "manually merge" instead of proposing.** The proposals table is the audit trail and the operator's review queue. Bypassing it loses both.

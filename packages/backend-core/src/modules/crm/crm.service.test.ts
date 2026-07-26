@@ -698,6 +698,135 @@ const skipReason = TEST_URL
       expect(byId(dupSent!.id).status).toBe('sent');
     });
 
+    it('applyMergeProposal dismisses other pending merge proposals referencing the duplicate', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
+      const dup = await run(() => svc.createContact({ name: 'Dup', email: 'k@y' }));
+      const third = await run(() => svc.createContact({ name: 'Third', email: 'k@y' }));
+      const unrelatedA = await run(() => svc.createContact({ name: 'U1', email: 'u@y' }));
+      const unrelatedB = await run(() => svc.createContact({ name: 'U2', email: 'u@y' }));
+
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: keeper.id,
+        }),
+      );
+      const dupThird = await run(() =>
+        svc.proposeMerge({
+          contactAId: dup.id,
+          contactBId: third.id,
+          confidence: 'medium',
+          evidence: {},
+          recommendedKeeperId: third.id,
+        }),
+      );
+      const unrelated = await run(() =>
+        svc.proposeMerge({
+          contactAId: unrelatedA.id,
+          contactBId: unrelatedB.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: unrelatedA.id,
+        }),
+      );
+
+      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+
+      const superseded = await run(() => svc.getMergeProposal(dupThird.id));
+      expect(superseded.status).toBe('dismissed');
+      expect(superseded.dismissReason).toBe(`contact merged into ${keeper.id}`);
+      const stillPending = await run(() => svc.getMergeProposal(unrelated.id));
+      expect(stillPending.status).toBe('pending');
+      const applied = await run(() => svc.getMergeProposal(proposal.id));
+      expect(applied.status).toBe('applied');
+    });
+
+    it('proposeMerge rejects a pair that was already merged', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
+      const dup = await run(() => svc.createContact({ name: 'Dup', email: 'k@y' }));
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: { sameEmail: 'k@y' },
+          recommendedKeeperId: keeper.id,
+        }),
+      );
+      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+
+      await expect(
+        run(() =>
+          svc.proposeMerge({
+            contactAId: dup.id,
+            contactBId: keeper.id,
+            confidence: 'high',
+            evidence: { sameEmail: 'k@y' },
+            recommendedKeeperId: keeper.id,
+          }),
+        ),
+      ).rejects.toThrow(ConflictException);
+      const pending = await run(() => svc.listMergeProposals({ status: 'pending' }));
+      expect(pending).toHaveLength(0);
+    });
+
+    it('proposeMerge rejects a pair whose duplicate was merged away into a third contact', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
+      const dup = await run(() => svc.createContact({ name: 'Dup', email: 'k@y' }));
+      const other = await run(() => svc.createContact({ name: 'Other', email: 'k@y' }));
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: keeper.id,
+        }),
+      );
+      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+
+      await expect(
+        run(() =>
+          svc.proposeMerge({
+            contactAId: dup.id,
+            contactBId: other.id,
+            confidence: 'high',
+            evidence: {},
+            recommendedKeeperId: other.id,
+          }),
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('proposeMerge still allows re-proposing a dismissed pair', async () => {
+      const a = await run(() => svc.createContact({ name: 'A', email: 'x@y' }));
+      const b = await run(() => svc.createContact({ name: 'B', email: 'x@y' }));
+      const first = await run(() =>
+        svc.proposeMerge({
+          contactAId: a.id,
+          contactBId: b.id,
+          confidence: 'medium',
+          evidence: {},
+          recommendedKeeperId: a.id,
+        }),
+      );
+      await run(() => svc.dismissMergeProposal({ id: first.id, reason: 'not the same person' }));
+      const second = await run(() =>
+        svc.proposeMerge({
+          contactAId: a.id,
+          contactBId: b.id,
+          confidence: 'high',
+          evidence: {},
+          recommendedKeeperId: a.id,
+        }),
+      );
+      expect(second.id).not.toBe(first.id);
+      expect(second.status).toBe('pending');
+    });
+
     it('applyMergeProposal transfers endUserId to keeper when keeper has none and clears duplicate', async () => {
       const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
       const dup = await run(() =>

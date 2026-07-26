@@ -7,13 +7,6 @@ import { SlackApiClient } from './slack-api.client.ts';
 
 type IntegrationRow = typeof schema.slackIntegrations.$inferSelect;
 
-/**
- * Slack user → Munin org member resolution, shared by thread replies and
- * button clicks. slack_user_links is the cache; a hit is still re-checked
- * against current org membership so removed members lose access
- * immediately. On miss, auto-map via the Slack profile email ↔ org member
- * email. Returns null for anyone unmappable — callers reject, never guess.
- */
 @Injectable()
 export class SlackUserMappingService {
   private readonly logger = new Logger(SlackUserMappingService.name);

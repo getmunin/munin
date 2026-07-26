@@ -171,7 +171,6 @@ const skipReason = TEST_URL
       );
       expect(list.find((row) => row.id === startedConv.id)).toBeTruthy();
 
-      // Drop a private internal note (should NOT appear in end-user's view).
       await c.callTool({
         name: 'conv_send_message',
         arguments: {
@@ -180,7 +179,6 @@ const skipReason = TEST_URL
           internal: true,
         },
       });
-      // Then a public reply (should appear).
       return parseToolResult<{ id: string; body: string; internal: boolean }>(
         await c.callTool({
           name: 'conv_send_message',
@@ -218,7 +216,6 @@ const skipReason = TEST_URL
     expect(bodies.find((b) => /2FA/.test(b))).toBeUndefined();
     expect(detail.messages.every((m) => m.internal === false)).toBe(true);
 
-    // Cross-end-user isolation: Bob can't see Alice's conversation.
     const otherList = await rest<{ items: Array<{ id: string }> }>(
       otherEndUserToken,
       'GET',
@@ -453,9 +450,6 @@ const skipReason = TEST_URL
       });
     });
 
-    // The MCP transport's HTTP response can land before postgres-js has
-    // surfaced the just-committed transaction to other pool sessions; give
-    // the read-side a brief moment in the parallel-test case.
     await new Promise((r) => setTimeout(r, 100));
 
     const afterReply = (await db.execute(
@@ -465,8 +459,6 @@ const skipReason = TEST_URL
     expect(afterReply[0]!.payload.conversationId).toBe(conv.id);
     expect(afterReply[0]!.payload.authorType).toBe('agent');
 
-    // A second admin message on the same conversation should NOT re-emit the
-    // event; the flag is already cleared.
     await withClient(adminKey, async (c) => {
       await c.callTool({
         name: 'conv_send_message',

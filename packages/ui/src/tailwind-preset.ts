@@ -7,8 +7,6 @@ const muninPreset: Omit<Config, 'content'> = {
   },
   theme: {
     extend: {
-      // Tailwind v3 ships no default `invalid` aria variant (v4 does), so
-      // `aria-invalid:*` utilities compile to nothing without this.
       aria: {
         invalid: 'invalid="true"',
       },

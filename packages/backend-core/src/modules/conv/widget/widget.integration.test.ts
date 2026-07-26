@@ -66,8 +66,6 @@ const skipReason = TEST_URL
       scopes: ['*'],
     });
 
-    // Stage a fake widget bundle + manifest in a tmp dir so the static-
-    // asset routes have something to serve from createApp().
     widgetAssetDir = mkdtempSync(join(tmpdir(), 'munin-widget-asset-'));
     writeFileSync(join(widgetAssetDir, FIXTURE_BUNDLE), FIXTURE_BUNDLE_BODY);
     writeFileSync(
@@ -86,7 +84,6 @@ const skipReason = TEST_URL
     if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
     baseUrl = `http://127.0.0.1:${address.port}`;
 
-    // Mint a widget channel + key via the admin MCP tool.
     const created = await withClient(adminKey, async (c) => {
       return parseToolResult<{
         id: string;
@@ -416,8 +413,6 @@ const skipReason = TEST_URL
     expect(rotated.widgetKey).toMatch(/^mn_widget_/);
     expect(rotated.widgetKey).not.toEqual(oldKey);
 
-    // Old key revoked. Retry briefly: revocation visibility through the
-    // server's connection pool can lag the rotate tx's commit by a tick.
     let staleStatus = 0;
     await waitFor(async () => {
       const r = await call('POST', '/v1/widget/messages', oldKey, {
@@ -430,7 +425,6 @@ const skipReason = TEST_URL
     });
     expect(staleStatus).toBe(401);
 
-    // New key works.
     const fresh = await call('POST', '/v1/widget/messages', rotated.widgetKey, {
       channelId,
       sessionId: 'vis_post_rotation',
@@ -444,9 +438,6 @@ const skipReason = TEST_URL
     expect(identityVerificationSecret).toBeTruthy();
     expect(identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
 
-    // The secret persists in the channel config (RLS-protected JSONB).
-    // waitFor absorbs commit-visibility races between the MCP tool's
-    // commit and this separate connection's snapshot.
     await waitFor(async () => {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       const rows = await db
@@ -463,7 +454,6 @@ const skipReason = TEST_URL
       );
     });
 
-    // An update never echoes the secret back through the response.
     const updated = await withClient(adminKey, async (c) => {
       return parseToolResult<{
         config: Record<string, unknown> & { hasIdentityVerificationSecret: boolean };
@@ -515,11 +505,6 @@ const skipReason = TEST_URL
     expect(rotated.identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
     expect(rotated.identityVerificationSecret).not.toEqual(oldSecret);
 
-    // Update the closure's secret BEFORE asserting DB persistence, so a
-    // transient stale-read on this separate connection (commit visibility
-    // can lag the MCP tool response by a tick under load) doesn't poison
-    // every subsequent test that signs with this secret. We then waitFor
-    // the DB to converge.
     identityVerificationSecret = rotated.identityVerificationSecret;
     await waitFor(async () => {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
@@ -533,7 +518,6 @@ const skipReason = TEST_URL
   });
 
   it('rejects identity rotation across tenants', async () => {
-    // Mint a fresh org with its own admin key, channel, and secret.
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const [otherOrg] = await db
       .insert(schema.orgs)
@@ -549,9 +533,6 @@ const skipReason = TEST_URL
       scopes: ['*'],
     });
 
-    // Org B's admin attempts to rotate Org A's channel secret. NotFound (404)
-    // because the channel lookup is org-scoped — we must never leak the
-    // existence of another tenant's channel via a different status code.
     let threw: unknown = null;
     try {
       await withClient(otherAdminKey, async (c) => {
@@ -568,7 +549,6 @@ const skipReason = TEST_URL
     expect(threw).toBeTruthy();
     expect(String(threw)).toMatch(/not found|tool error/i);
 
-    // Secret on Org A's channel must be unchanged.
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const rows = await db
       .select({ config: schema.convChannels.config })
@@ -642,7 +622,6 @@ const skipReason = TEST_URL
   it('rejects a tampered userHash with 403', async () => {
     const externalId = 'user_tamper';
     const good = signHmac(externalId, identityVerificationSecret);
-    // Flip the last hex char.
     const last = good[good.length - 1]!;
     const flipped = last === 'a' ? 'b' : 'a';
     const tampered = good.slice(0, -1) + flipped;
@@ -657,7 +636,6 @@ const skipReason = TEST_URL
   });
 
   it('rejects a userHash signed with a different channels secret (cross-channel replay)', async () => {
-    // Mint a second widget channel within the same org.
     const second = await withClient(adminKey, async (c) => {
       return parseToolResult<{
         id: string;
@@ -673,7 +651,6 @@ const skipReason = TEST_URL
         }),
       );
     });
-    // Sign with channel-2 secret, send to channel-1.
     const externalId = 'user_replay';
     const cross = signHmac(externalId, second.identityVerificationSecret);
     const res = await call('POST', '/v1/widget/messages', widgetKey, {
@@ -792,8 +769,6 @@ const skipReason = TEST_URL
       messages: [{ role: 'end_user', body: 'started on marketing' }],
     });
 
-    // Before identify the anonymous conversation is invisible to a verified
-    // caller (leak-protection) — this is exactly what breaks carry-over.
     const before = await call(
       'GET',
       `/v1/widget/messages?${qs({ channelId, sessionId, verifiedExternalId: externalId, userHash })}`,
@@ -809,8 +784,6 @@ const skipReason = TEST_URL
       userHash,
     });
 
-    // After identify the same verified caller sees the anonymous thread —
-    // the marketing chat carries into the logged-in dashboard.
     const after = await call(
       'GET',
       `/v1/widget/messages?${qs({ channelId, sessionId, verifiedExternalId: externalId, userHash })}`,
@@ -868,8 +841,6 @@ const skipReason = TEST_URL
       userHash,
     });
 
-    // The agent answer was read anonymously; after the claim the verified
-    // caller must still see it as read (no phantom unread badge).
     const res = await call(
       'GET',
       `/v1/widget/messages?${qs({ channelId, sessionId, verifiedExternalId: externalId, userHash })}`,
@@ -1092,13 +1063,11 @@ const skipReason = TEST_URL
     expect(allBody.hasMore).toBe(false);
     expect(allBody.messages.map((m) => m.body)).toEqual(['one', 'two', 'three']);
     expect(allBody.messages.map((m) => m.role)).toEqual(['end_user', 'agent', 'end_user']);
-    // Strictly ascending timestamps (or equal — they were inserted in one tx).
     const times = allBody.messages.map((m) => Date.parse(m.at));
     for (let i = 1; i < times.length; i++) {
       expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]!);
     }
 
-    // since filter: exclude rows with createdAt <= since.
     const since = allBody.messages[0]!.at;
     const after = await call(
       'GET',
@@ -1206,7 +1175,6 @@ const skipReason = TEST_URL
     const otherExt = 'user_other';
     const otherHash = signHmac(otherExt, identityVerificationSecret);
 
-    // Bind the conversation/contact via verified ingest as user_other.
     await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
@@ -1215,9 +1183,6 @@ const skipReason = TEST_URL
       messages: [{ role: 'end_user', body: 'belongs to other' }],
     });
 
-    // Now request as a different verified user — same sessionId but
-    // different externalId. Empty response (don't leak that the session
-    // exists for someone else).
     const requesterExt = 'user_requester';
     const requesterHash = signHmac(requesterExt, identityVerificationSecret);
     const res = await call(
@@ -1287,7 +1252,7 @@ const skipReason = TEST_URL
     const res = await call(
       'GET',
       `/v1/widget/messages?${qs({ channelId: second.id, sessionId: 'vis_other' })}`,
-      widgetKey, // wrong key for that channel
+      widgetKey,
     );
     expect(res.status).toBe(403);
   });
@@ -1459,7 +1424,6 @@ const skipReason = TEST_URL
     };
     const agent = body.messages.find((m) => m.role === 'agent')!;
     expect(agent.authorKind).toBe('ai');
-    // No assistants row for this org → falls back to 'Munin'.
     expect(agent.authorName).toBe('Munin');
     expect(body.conversation?.status).toBe('open');
   });

@@ -118,7 +118,6 @@ export async function createPromptResolver(
     refresh: (slug) => cache.refresh(slug),
     refreshAll: () => cache.refreshAll(),
     async close(): Promise<void> {
-      // Owned by the caller; close the mcp from main.ts.
     },
   };
 }

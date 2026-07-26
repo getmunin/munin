@@ -13,11 +13,6 @@ const CompleteBody = z.object({
   secrets: z.record(z.string(), z.string().min(1)),
 });
 
-/**
- * Public credential-handoff endpoints — no session. The one-time token in the
- * link is the authorization; a human opens it to enter an integration's
- * secrets in the dashboard instead of pasting them into an agent chat.
- */
 @Controller('v1/credentials')
 export class CredentialHandoffController {
   constructor(private readonly handoff: CredentialHandoffService) {}

@@ -22,16 +22,6 @@ const POLL_INTERVAL_MS = parseEnvInt({
 
 const AUTO_DEACTIVATE_THRESHOLD = 5;
 
-/**
- * Generic poll-mode inbound worker. Iterates active channels whose adapter
- * is poll-mode and dispatches `adapter.inbound.tick(channel)`. Per-tick
- * cursor / error bookkeeping lives in `conv_inbound_state`, which adapters
- * read/write themselves (the worker is purely a scheduler).
- *
- * Disabled in tests via `MUNIN_INBOUND_POLL_WORKER_DISABLED=1` (or legacy
- * `MUNIN_EMAIL_INBOUND_WORKER_DISABLED=1`) or `NODE_ENV=test`. Tests call
- * `tick()` directly.
- */
 @Injectable()
 export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(InboundPollWorker.name);
@@ -65,7 +55,6 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
     this.timer = null;
   }
 
-  /** Public so tests can drive a single tick directly. */
   async tick(): Promise<{ channelsPolled: number; messagesIngested: number }> {
     if (this.running) return { channelsPolled: 0, messagesIngested: 0 };
     this.running = true;

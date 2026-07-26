@@ -6,7 +6,6 @@ import { signHmac } from './crypto/primitives.ts';
 export interface WebhookEventInput {
   type: string;
   payload: Record<string, unknown>;
-  /** Loop-prevention. Carry forward when re-emitting events from a webhook handler. */
   hopCount?: number;
 }
 
@@ -17,25 +16,10 @@ export interface EmittedEvent {
   payload: Record<string, unknown>;
 }
 
-/**
- * A delivery sink invoked synchronously inside `emit()` — i.e. inside the
- * request's tenant transaction (`getCurrentContext().db`). Sinks enqueue
- * durable work (queue-table inserts) transactionally with the event; the
- * actual external I/O belongs in an out-of-band worker. The webhooks queue
- * is the built-in sink; integrations (Slack, …) register additional ones.
- */
 export interface EventSink {
   onEvent(event: EmittedEvent): Promise<void>;
 }
 
-/**
- * Records a domain event in the `events` table and queues delivery to
- * every active webhook in the org subscribed to this event type.
- *
- * Delivery is fire-and-forget here; an out-of-band worker (M2+) drains the
- * `webhook_deliveries` table with retries. For v0.4 we run the worker
- * in-process via a setInterval (good enough for a solo-dev MVP).
- */
 export class WebhookDispatcher {
   private readonly sinks: EventSink[] = [];
 
@@ -93,10 +77,6 @@ export class WebhookDispatcher {
     return eventId;
   }
 
-  /**
-   * Build the canonical payload + signature header pair for a delivery.
-   * Used by the worker; exposed here so callers (and tests) can replay.
-   */
   static buildSignedRequest(
     eventType: string,
     eventPayload: Record<string, unknown>,

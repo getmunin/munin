@@ -18,14 +18,6 @@ import { Reflector } from '@nestjs/core';
 import { mcpResourceUrl, resourceMetadataUrl } from '../../oauth/oauth.constants.ts';
 import { sessionCookieNames } from '../../auth/auth-cookies.ts';
 
-/**
- * Decorator used on routes that should be reachable without auth
- * (signup, oauth discovery). Backed by Nest's `SetMetadata` keyed by a
- * stable string — Symbol() was used originally, but symbol identity
- * across compiled module boundaries proved unreliable in production
- * (well-known OAuth discovery endpoints 401'd even though they had
- * @AllowAnonymous at the method level).
- */
 export const ALLOW_ANONYMOUS = 'munin:allow-anonymous';
 export const AllowAnonymous = () => SetMetadata(ALLOW_ANONYMOUS, true);
 
@@ -33,13 +25,6 @@ export interface PublicControllerOpts {
   throttle?: boolean;
 }
 
-/**
- * Class decorator for controllers whose every route is intentionally
- * anonymous. Bundles `@Controller(path)` + `@AllowAnonymous()` so the
- * "public" intent is a single, greppable declaration — keeping a new
- * public route from accidentally inheriting the cloud build's global
- * AuthGuard. Pass `{ throttle: true }` to also wrap `ThrottlerGuard`.
- */
 export function PublicController(
   path: string,
   opts: PublicControllerOpts = {},
@@ -49,37 +34,16 @@ export function PublicController(
   return applyDecorators(...decorators);
 }
 
-/**
- * Extension point: try additional resolvers when the built-in resolver
- * returns null. Downstream packages plug in here to recognize their own
- * key kinds (e.g. partner credentials) without modifying core code.
- */
 export const ADDITIONAL_CREDENTIAL_RESOLVERS = Symbol('additionalCredentialResolvers');
 export interface AdditionalCredentialResolver {
   resolve(rawKey: string): Promise<ResolvedCredential | null>;
 }
 
-/**
- * Internal augmentation of the Express request used inside this app.
- * Kept local rather than declared on `express-serve-static-core` to avoid
- * cross-package module-resolution issues in this monorepo.
- */
 export interface AuthenticatedRequest {
   headers: Record<string, string | string[] | undefined>;
   credential?: ResolvedCredential;
 }
 
-/**
- * Resolves the bearer token / API key on the incoming request.
- *
- * - Authorization: Bearer <token>            → resolveBearerToken (OAuth or delegated)
- * - Authorization: Bearer mn_<kind>_<rand>   → resolveApiKey, then any registered
- *                                              additional resolvers (cloud plugs in
- *                                              partner-key resolution).
- *
- * On success, attaches `request.credential`. Does NOT open a transaction
- * or set the tenancy context — that's the TenancyInterceptor's job.
- */
 @Injectable()
 export class AuthGuard implements CanActivate {
   private readonly resolver: CredentialResolver;
@@ -178,16 +142,12 @@ function readSessionCookie(cookieHeader: string | undefined): string | null {
     const name = part.slice(0, eq).trim();
     if (!names.includes(name)) continue;
     const raw = decodeURIComponent(part.slice(eq + 1).trim());
-    // BetterAuth signs session tokens as `<token>.<signature>`. Both halves
-    // are stored in the cookie; we only need the token portion to look up
-    // the sessions row, the signature is verified at write time by BA itself.
     const dot = raw.indexOf('.');
     return dot >= 0 ? raw.slice(0, dot) : raw;
   }
   return null;
 }
 
-/** Munin API keys are `mn_<kind>_<random>`. Anything else is treated as a bearer/OAuth token. */
 function looksLikeApiKey(raw: string): boolean {
   return /^mn_[a-z]+_[A-Za-z0-9_-]+$/.test(raw);
 }

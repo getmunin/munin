@@ -42,13 +42,6 @@ const EventCallbackSchema = z.object({
 type MessageEvent = z.infer<typeof MessageEventSchema>;
 type MemberJoinedEvent = z.infer<typeof MemberJoinedEventSchema>;
 
-/**
- * Slack → Munin direction of the bridge. A reply in a mirrored thread is
- * recorded through ConvService.sendMessage() as the mapped org member, so
- * outbound-to-customer delivery, claim, and attention semantics are exactly
- * the dashboard's. Replies from Slack users with no Munin mapping are
- * rejected with an ephemeral notice — never silently attributed.
- */
 @Injectable()
 export class SlackInboundService {
   private readonly logger = new Logger(SlackInboundService.name);
@@ -118,9 +111,6 @@ export class SlackInboundService {
       return;
     }
 
-    // Slack files live on Slack's authenticated CDN; forwarding them to the
-    // customer would require download + re-hosting, which the bridge does not
-    // do yet. Loudly refuse rather than silently dropping them.
     if (text.length === 0) {
       await this.notify(
         token,

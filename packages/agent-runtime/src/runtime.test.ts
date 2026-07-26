@@ -288,7 +288,6 @@ describe('runAgent history compaction', () => {
       provider,
     });
     const sent = calls[0]?.messages ?? [];
-    // [system prompt, untrusted-data note, user, assistant, user]
     expect(sent).toHaveLength(5);
     expect(sent[0]?.role).toBe('system');
     expect(sent[1]?.role).toBe('system');
@@ -324,7 +323,6 @@ describe('runAgent history compaction', () => {
     expect(sent[1]?.role).toBe('system');
     expect(sent[2]?.role).toBe('system');
     expect(sent[2]?.content).toMatch(/^\[Note: \d+ earlier message/);
-    // Only the newest message survives (40 chars fits in 60).
     expect(sent.filter((m) => m.role === 'user' || m.role === 'assistant')).toHaveLength(1);
   });
 });

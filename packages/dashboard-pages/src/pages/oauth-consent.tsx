@@ -18,8 +18,6 @@ export interface OAuthClientInfo {
 }
 
 export interface OAuthConsentPageProps {
-  /** Server-fetched client info. If `null`, the page falls back to client-side
-   *  rendering of the raw `client_id` (e.g. when the lookup failed). */
   clientInfo: OAuthClientInfo | null;
 }
 
@@ -191,8 +189,6 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
   );
 }
 
-// ─── editorial header ────────────────────────────────────────────────
-
 interface EditorialHeaderProps {
   flow: FlowState;
   clientName: string;
@@ -253,8 +249,6 @@ function EditorialHeader({ flow, clientName }: EditorialHeaderProps) {
     </header>
   );
 }
-
-// ─── request pane (the `new` state) ─────────────────────────────────
 
 interface RequestPaneProps {
   clientInfo: OAuthClientInfo | null;
@@ -327,8 +321,6 @@ function RequestPane({
   );
 }
 
-// ─── identity card ──────────────────────────────────────────────────
-
 interface IdentityCardProps {
   clientInfo: OAuthClientInfo | null;
   clientId: string;
@@ -382,8 +374,6 @@ function formatRegistered(iso: string | undefined): string | null {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
 }
 
-// ─── trust timeline ─────────────────────────────────────────────────
-
 function TrustTimeline({ clientName }: { clientName: string }) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
@@ -402,8 +392,6 @@ function TrustTimeline({ clientName }: { clientName: string }) {
     </div>
   );
 }
-
-// ─── permission row ─────────────────────────────────────────────────
 
 function PermissionRow({ group }: { group: ModuleScopes }) {
   const t = useTranslations('dashboard.oauthConsent');
@@ -440,8 +428,6 @@ function ScopePill({ kind, label }: { kind: 'read' | 'write'; label: string }) {
   );
 }
 
-// ─── reassurance ────────────────────────────────────────────────────
-
 function ReassuranceBlock({ displayName, userName }: { displayName: string; userName: string }) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
@@ -459,8 +445,6 @@ function ReassuranceBlock({ displayName, userName }: { displayName: string; user
     </div>
   );
 }
-
-// ─── actions ────────────────────────────────────────────────────────
 
 interface ActionsFooterProps {
   userName: string;
@@ -512,8 +496,6 @@ function ActionsFooter({ userName, busy, onAuthorize, onDeny, onSwitchAccount }:
     </div>
   );
 }
-
-// ─── result pane (granted / denied) ─────────────────────────────────
 
 function ResultPane({
   flow,
@@ -582,8 +564,6 @@ function Spinner() {
     />
   );
 }
-
-// ─── inline keyframes (kept local so we don't bloat global CSS) ─────
 
 if (typeof document !== 'undefined') {
   const id = 'munin-consent-spin-keyframes';

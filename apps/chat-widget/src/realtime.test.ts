@@ -1,18 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRealtimeClient, type WebSocketLike } from './realtime.ts';
 
-/**
- * In-process WebSocket harness. Tests instantiate `MockWebSocket` via the
- * client's `webSocketCtor` injection point, drive opens / messages /
- * closes, and assert on what the client sent. Each instance is captured
- * in `MockWebSocket.instances` so the test can grab the latest.
- */
 class MockWebSocket implements WebSocketLike {
   static instances: MockWebSocket[] = [];
   static OPEN = 1;
   static CLOSED = 3;
 
-  readyState = 0; // CONNECTING
+  readyState = 0;
   sent: string[] = [];
   url: string;
   protocols?: string | string[];
@@ -38,7 +32,6 @@ class MockWebSocket implements WebSocketLike {
     this.fire('close', undefined);
   }
 
-  // Test driver helpers:
   fakeOpen(): void {
     this.readyState = MockWebSocket.OPEN;
     this.fire('open', undefined);
@@ -182,7 +175,6 @@ describe('realtime: connection lifecycle', () => {
     client.connect();
     const ws = MockWebSocket.instances.at(-1)!;
     ws.fakeOpen();
-    // Inject raw invalid data via the test driver.
     expect(() => (ws).fakeRawMessage('{not valid')).not.toThrow();
     client.close();
   });
@@ -203,7 +195,6 @@ describe('realtime: typing throttle', () => {
     client.connect();
     const ws = MockWebSocket.instances.at(-1)!;
     ws.fakeOpen();
-    // First subscribe message is at index 0; reset.
     ws.sent.length = 0;
 
     client.sendTyping(true);
@@ -214,7 +205,6 @@ describe('realtime: typing throttle', () => {
     expect(ws.sent).toHaveLength(1);
     expect((JSON.parse(ws.sent[0]!) as { isTyping: boolean }).isTyping).toBe(true);
 
-    // After 1.5 s the throttle releases.
     vi.setSystemTime(start + 1600);
     client.sendTyping(true);
     expect(ws.sent).toHaveLength(2);
@@ -253,7 +243,6 @@ describe('realtime: typing throttle', () => {
       sessionId: 'sess_1',
       webSocketCtor: MockWS,
     });
-    // No connect() — sendTyping should be a silent no-op, not throw.
     expect(() => client.sendTyping(true)).not.toThrow();
   });
 });
@@ -278,7 +267,6 @@ describe('realtime: reconnect with exp backoff', () => {
     expect(states.at(-1)).toBe('reconnecting');
     expect(MockWebSocket.instances).toHaveLength(1);
 
-    // First retry uses ~250 ms + jitter; advancing 600 ms is enough.
     vi.advanceTimersByTime(600);
     expect(MockWebSocket.instances).toHaveLength(2);
     const ws2 = MockWebSocket.instances.at(-1)!;
@@ -315,21 +303,16 @@ describe('realtime: reconnect with exp backoff', () => {
       webSocketCtor: MockWS,
     });
     client.connect();
-    // No fakeOpen — close immediately, three times in a row.
     for (let i = 0; i < 3; i++) {
       MockWebSocket.instances.at(-1)!.fakeClose();
       vi.advanceTimersByTime(60_000);
     }
-    // The first call is the initial connect (no setTimeout). Reconnects
-    // after each close use setTimeout. Extract the delays passed.
     const delays = setTimeoutSpy.mock.calls
       .map((c) => Number(c[1]))
       .filter((n) => n >= 250 && n <= 31_000);
-    // Expect each successive delay to be ≥ the previous (within jitter).
     for (let i = 1; i < delays.length; i++) {
       expect(delays[i]).toBeGreaterThanOrEqual(delays[i - 1]! - 250);
     }
-    // And the third delay should be at least 1000 (+ jitter).
     expect(delays[2] ?? 0).toBeGreaterThanOrEqual(1000);
     client.close();
     setTimeoutSpy.mockRestore();

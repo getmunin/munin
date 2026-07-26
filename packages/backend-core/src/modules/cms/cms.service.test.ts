@@ -147,8 +147,6 @@ class StubStorage implements AssetStorage {
     return rows.map((r) => r.type);
   }
 
-  // ─── Collections ─────────────────────────────────────────────────────
-
   describe('collections', () => {
     it('createCollection persists, emits webhook, and lists', async () => {
       const created = await run(() =>
@@ -204,7 +202,7 @@ class StubStorage implements AssetStorage {
       const created = await run(() =>
         svc.createCollection({ name: 'Pages', slug: 'pages', fields: [{ name: 't', type: 'text' }] }),
       );
-      await db.execute(sql`DELETE FROM events WHERE org_id = ${orgId}`); // clear creation event
+      await db.execute(sql`DELETE FROM events WHERE org_id = ${orgId}`);
       const renamed = await run(() =>
         svc.updateCollection(created.id, { name: 'Static Pages', description: 'desc' }),
       );
@@ -233,8 +231,6 @@ class StubStorage implements AssetStorage {
       await expect(run(() => svc.getCollection(created.id))).rejects.toThrow(NotFoundException);
     });
   });
-
-  // ─── Entries ─────────────────────────────────────────────────────────
 
   describe('entries', () => {
     async function seedCollection() {
@@ -387,7 +383,6 @@ class StubStorage implements AssetStorage {
       const before = await db.execute<{ search_text: string | null; embedding: string | null }>(
         sql`SELECT search_text, embedding::text AS embedding FROM cms_entries WHERE id = ${entry.id}`,
       );
-      // Update with same data — content hash unchanged.
       const after = await run(() =>
         svc.updateEntry({ id: entry.id, ifVersion: 1, data: { title: 'X' } }),
       );
@@ -581,8 +576,6 @@ class StubStorage implements AssetStorage {
       expect(await eventTypes()).toContain('cms.entry.archived');
     });
   });
-
-  // ─── Assets ──────────────────────────────────────────────────────────
 
   describe('assets', () => {
     it('requestAssetUpload mints a presigned upload and persists a non-uploaded row', async () => {
@@ -786,8 +779,6 @@ class StubStorage implements AssetStorage {
     });
   });
 
-  // ─── Locales ─────────────────────────────────────────────────────────
-
   describe('locales', () => {
     it('createLocale: first locale becomes default; later locales do not unless flagged', async () => {
       const en = await run(() => svc.createLocale({ code: 'en', name: 'English' }));
@@ -832,8 +823,6 @@ class StubStorage implements AssetStorage {
     });
   });
 
-  // ─── References ──────────────────────────────────────────────────────
-
   describe('references', () => {
     it('listInboundReferences returns rows pointing at an entry', async () => {
       await ensureLocale('en');
@@ -866,8 +855,6 @@ class StubStorage implements AssetStorage {
     });
   });
 
-  // ─── RLS ─────────────────────────────────────────────────────────────
-
   describe('RLS', () => {
     it('cross-org RLS isolation: another org cannot see this org\'s collections', async () => {
       const col = await run(() =>
@@ -877,7 +864,6 @@ class StubStorage implements AssetStorage {
           fields: [{ name: 't', type: 'text' }],
         }),
       );
-      // Create a second org and an actor scoped to it.
       const [otherOrg] = await db
         .insert(schema.orgs)
         .values({ name: 'Other Org' })

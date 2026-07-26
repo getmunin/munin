@@ -5,17 +5,6 @@ import { useTranslations } from 'next-intl';
 import type { ApiError } from '../api';
 import type { LoadFailedProps } from '../components/load-failed';
 
-/**
- * Returns a function that builds settings-size `<LoadFailed>` props from an
- * `ApiError`. All visible strings are pulled from `dashboard.loadFailed.*`
- * translations.
- *
- * Usage:
- *   const buildLoadFailed = useSettingsLoadFailedProps();
- *   if (loadError && !hasLoadedOnce) {
- *     return <LoadFailed {...buildLoadFailed('team', loadError, () => void retry(), retrying)} />;
- *   }
- */
 export function useSettingsLoadFailedProps() {
   const t = useTranslations('dashboard.loadFailed');
   const tCommon = useTranslations('common');
@@ -46,10 +35,6 @@ export function useSettingsLoadFailedProps() {
   );
 }
 
-/**
- * Returns a function that builds inbox-size `<LoadFailed>` props from an
- * `ApiError`. Inbox uses a larger heading and a flock-themed copy line.
- */
 export function useInboxLoadFailedProps() {
   const t = useTranslations('dashboard.loadFailed');
   const tCommon = useTranslations('common');

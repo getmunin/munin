@@ -19,16 +19,6 @@ interface ThrellEvent {
   isFinal?: boolean;
 }
 
-/**
- * Signaling adapter for Threll's web-call WebSocket.
- *
- * Protocol (threll-voice-server `/ws/sessions/{sessionId}`):
- *   - client → server first frame: { event: 'offer', sdp, sessionId }
- *   - server → client: { type: 'answer', sdp }  (server ICE embedded in the answer)
- *   - client → server (optional trickle): { type: 'candidate', candidate, sdpMid, sdpMLineIndex }
- *     and { type: 'ice-complete' }
- *   - server → client events: { type: 'event', event: 'state'|'transcript', ... }
- */
 class ThrellSignalingChannel implements SignalingChannel {
   private ws: WebSocket | null = null;
 

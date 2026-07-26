@@ -77,8 +77,6 @@ const skipReason = TEST_URL
     });
   }
 
-  // ─── Contacts ────────────────────────────────────────────────────────
-
   describe('contacts', () => {
     it('createContact persists with the requested fields', async () => {
       const c = await run(() =>
@@ -214,8 +212,6 @@ const skipReason = TEST_URL
     });
   });
 
-  // ─── Companies ───────────────────────────────────────────────────────
-
   describe('companies', () => {
     it('createCompany persists fields', async () => {
       const co = await run(() =>
@@ -237,8 +233,6 @@ const skipReason = TEST_URL
       await expect(run(() => svc.getCompany(randomUUID()))).rejects.toThrow(NotFoundException);
     });
   });
-
-  // ─── Pipelines & deals ───────────────────────────────────────────────
 
   describe('pipelines and deals', () => {
     async function seedPipeline() {
@@ -345,8 +339,6 @@ const skipReason = TEST_URL
     });
   });
 
-  // ─── Activities ──────────────────────────────────────────────────────
-
   describe('activities', () => {
     it('logActivity persists a record and stamps lastContactedAt on the contact', async () => {
       const c = await run(() => svc.createContact({ name: 'A', email: 'a@x' }));
@@ -371,8 +363,6 @@ const skipReason = TEST_URL
     });
   });
 
-  // ─── Search ──────────────────────────────────────────────────────────
-
   describe('search', () => {
     it('searchContacts matches by name / email / phone / title (case-insensitive)', async () => {
       await run(() => svc.createContact({ name: 'Alice', email: 'a@example.com' }));
@@ -390,8 +380,6 @@ const skipReason = TEST_URL
       expect(empty).toEqual([]);
     });
   });
-
-  // ─── RLS ─────────────────────────────────────────────────────────────
 
   describe('merge proposals', () => {
     it('proposeMerge canonicalizes pair and returns embedded contact summaries', async () => {

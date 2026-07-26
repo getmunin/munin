@@ -51,15 +51,6 @@ export class KbSearchService {
     @Inject(EmbeddingProviderHolder) private readonly embeddings: EmbeddingProviderHolder,
   ) {}
 
-  /**
-   * Hybrid search: FTS over title+body and chunk content, vector cosine over
-   * chunk embeddings. Per-source ranks are combined via Reciprocal Rank Fusion
-   * (RRF, k=60) so each source contributes monotonic, scale-free votes.
-   *
-   * RLS enforces tenancy + the audiences filter for self-service callers
-   * (only docs whose audiences include 'self_service' surface to end-users).
-   * Caller-passed filters (spaceId) are also AND'd in the SQL.
-   */
   async search(input: SearchInput): Promise<SearchHit[]> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, DEFAULT_LIMIT, MAX_LIMIT);
@@ -156,8 +147,6 @@ function reciprocalRankFuse(
     const existing = merged.get(row.document_id);
     if (existing) {
       existing.vectorScore = score;
-      // Prefer FTS excerpt if available (highlights matched terms), else use
-      // the vector excerpt (the most-similar chunk).
       if (!existing.hit.excerpt) existing.hit.excerpt = row.excerpt;
     } else {
       merged.set(row.document_id, {

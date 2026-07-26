@@ -1,11 +1,3 @@
-/**
- * Walk an `Error.cause` chain and produce a single-line description.
- *
- * Undici and other modern Node libraries throw a generic outer error
- * (e.g. `TypeError: fetch failed`) and stash the real reason on `.cause`.
- * This helper unwraps up to `maxDepth` levels and emits `Name[CODE]: msg`
- * for each link, joined by ` <- `.
- */
 export function describeError(err: unknown, maxDepth = 4): string {
   const parts: string[] = [];
   let cur: unknown = err;

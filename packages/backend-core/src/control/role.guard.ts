@@ -13,12 +13,6 @@ import { DB } from '../common/db/db.module.ts';
 import { type OrgRole } from './role-guard.ts';
 import { REQUIRE_ACTOR_TYPE_KEY, REQUIRE_ROLE_KEY } from './role.decorator.ts';
 
-/**
- * Guards run BEFORE interceptors in Nest's pipeline, so this guard can't
- * use the AsyncLocalStorage context set by TenancyInterceptor. Instead we
- * pull the actor from `req.credential` (attached by AuthGuard) and use
- * the injected service-role DB for the membership lookup.
- */
 @Injectable()
 export class RoleGuard implements CanActivate {
   constructor(
@@ -87,11 +81,6 @@ export class RoleGuard implements CanActivate {
     return true;
   }
 
-  /**
-   * Looks up the caller's role in `org_members`. The injected `db` is the
-   * service-role connection (which bypasses RLS via its connect-time option),
-   * so we don't need the request-scoped tenant transaction here.
-   */
   private async readUserRole(orgId: string, userId: string): Promise<OrgRole | null> {
     await this.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
     const rows = await this.db

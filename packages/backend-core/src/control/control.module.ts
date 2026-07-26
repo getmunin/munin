@@ -56,14 +56,6 @@ import { SlackModule } from '../modules/slack/slack.module.ts';
 import { ConnectorsController } from './connectors.controller.ts';
 import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
 
-/**
- * Control plane: server-to-server REST endpoints used by an org's backend
- * to mint scoped tokens, manage end-users, manage API keys, and read/update
- * org settings.
- *
- * All require admin API key auth. End-user delegated tokens are NOT
- * permitted on these endpoints — that's the privilege boundary.
- */
 @Module({
   imports: [
     AnalyticsModule,

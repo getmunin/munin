@@ -13,16 +13,7 @@ export interface AuditEventInput {
   userAgent?: string;
 }
 
-/**
- * Records every mutation and tool call. Reads org/actor/correlation
- * from the current request context.
- */
 export class AuditLogger {
-  /**
-   * Insert an audit row. Failures are logged but do not throw — auditing
-   * must never break the user's request. (Consider this a soft requirement;
-   * if audit is failing repeatedly, we'd want the operator to know.)
-   */
   async record(input: AuditEventInput): Promise<void> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor?.orgId || (input.target?.type === 'org' ? input.target.id : null);

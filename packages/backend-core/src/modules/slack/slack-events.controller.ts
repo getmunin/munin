@@ -7,13 +7,6 @@ import { SlackInteractionsService } from './slack-interactions.service.ts';
 import { verifySlackSignature } from './slack-signature.ts';
 import { readSlackSigningSecret } from './slack.constants.ts';
 
-/**
- * Public Slack Events API receiver. Signature-verified against the raw body,
- * then acked immediately — Slack retries on slow acks (>3s), which would
- * double-deliver — and processed out-of-band. Dedup is anchored on the
- * (channel, ts) unique index in slack_message_links, so a redelivered event
- * can never produce a second customer message.
- */
 @Controller('v1/slack')
 export class SlackEventsController {
   private readonly logger = new Logger(SlackEventsController.name);
@@ -69,11 +62,6 @@ export class SlackEventsController {
     }
   }
 
-  /**
-   * Interactivity payloads arrive form-encoded (`payload=<json>`), signed
-   * with the same v0 scheme over the raw urlencoded body. Same contract as
-   * events: verify, ack fast, process out-of-band.
-   */
   @Post('interactivity')
   @HttpCode(200)
   handleInteractivity(@Req() req: RawBodyRequest<Request>, @Res() res: Response): void {

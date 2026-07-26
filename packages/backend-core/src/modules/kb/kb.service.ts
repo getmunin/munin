@@ -136,8 +136,6 @@ export class KbService {
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
   ) {}
 
-  // ─── Spaces ─────────────────────────────────────────────────────────────
-
   async listSpaces(): Promise<SpaceDto[]> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -177,8 +175,6 @@ export class KbService {
       .returning();
     return toSpaceDto(row!);
   }
-
-  // ─── Documents ──────────────────────────────────────────────────────────
 
   async listDocuments(input: {
     spaceId?: string;
@@ -361,9 +357,6 @@ export class KbService {
     return this.removeDocument(existing, { emitCandidateDismissed: true });
   }
 
-  // Publishing a candidate deletes its inbox row through here too — with
-  // emitCandidateDismissed off, so the publish doesn't also announce a
-  // dismissal.
   private async removeDocument(
     existing: typeof schema.kbDocuments.$inferSelect,
     opts: { emitCandidateDismissed: boolean },
@@ -390,8 +383,6 @@ export class KbService {
     }
     return { deleted: true };
   }
-
-  // ─── Curation ───────────────────────────────────────────────────────────
 
   async listCurationCandidates(limit?: number): Promise<CurationCandidateSummary[]> {
     const items = await this.listDocuments({ tag: 'candidate', limit: limit ?? 200 });
@@ -520,8 +511,6 @@ export class KbService {
     });
   }
 
-  // ─── Versions ───────────────────────────────────────────────────────────
-
   async listVersions(documentId: string): Promise<VersionDto[]> {
     const ctx = getCurrentContext();
     await this.assertDocumentExists(documentId);
@@ -585,8 +574,6 @@ export class KbService {
     });
     return toDocumentDto(updated!);
   }
-
-  // ─── Transfer (import / export) ──────────────────────────────────────────
 
   async exportKb(): Promise<KbExportData> {
     const ctx = getCurrentContext();
@@ -705,8 +692,6 @@ export class KbService {
     return rows[0] ?? null;
   }
 
-  // ─── Internals ──────────────────────────────────────────────────────────
-
   private async loadSpace(spaceId: string): Promise<typeof schema.kbSpaces.$inferSelect> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -770,8 +755,6 @@ export class KbService {
     try {
       vectors = await provider.embed(chunks.map((c) => c.content));
     } catch {
-      // Embedding failure shouldn't block the write — leave vectors null and
-      // let FTS carry search until a re-index repairs them.
       vectors = chunks.map(() => null);
     }
     await ctx.db.insert(schema.kbDocumentChunks).values(
@@ -786,8 +769,6 @@ export class KbService {
     );
   }
 }
-
-// ─── DTO mappers / helpers ─────────────────────────────────────────────────
 
 function toSpaceDto(row: typeof schema.kbSpaces.$inferSelect): SpaceDto {
   return {

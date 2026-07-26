@@ -7,14 +7,6 @@ const PingInput = z.object({
   message: z.string().optional(),
 });
 
-/**
- * The "hello world" of Munin MCP tools. Used to smoke-test the full pipe:
- *   client → AuthGuard → TenancyInterceptor → MCP transport → tool dispatch
- *   → audit row → response.
- *
- * Visible to both audiences so admin and self-service flows can both hit
- * something in M0.
- */
 @Injectable()
 export class PingMcpTool {
   @McpTool({

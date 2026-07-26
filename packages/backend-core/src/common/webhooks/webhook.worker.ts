@@ -14,23 +14,8 @@ import { withSchedulerLock } from '../scheduler-lock/index.ts';
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_WEBHOOK_POLL_MS', default: 5000 });
 const MAX_ATTEMPTS = 5;
 const BATCH_SIZE = 25;
-const BACKOFF_BASE_MS = 30_000; // 30s, then 1m, 2m, 4m, 8m for ~16m total span.
+const BACKOFF_BASE_MS = 30_000;
 
-/**
- * In-process webhook delivery worker. Polls `webhook_deliveries` for rows
- * whose `next_attempt_at <= now()` and that haven't yet succeeded, POSTs
- * the signed payload to the webhook URL, and updates the row with the
- * outcome (success → `delivered_at`; failure → bump `attempt`, push
- * `next_attempt_at` forward with exponential backoff).
- *
- * Service-role DB so the worker can read deliveries across orgs without
- * a tenant context. RLS doesn't apply, but every query already filters
- * by webhook_id / org_id transitively, and the worker is internal.
- *
- * One worker instance per backend process is fine for v0.4. If we ever
- * scale horizontally, swap the polling claim for SELECT ... FOR UPDATE
- * SKIP LOCKED or an external queue.
- */
 @Injectable()
 export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
@@ -53,10 +38,6 @@ export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
     this.timer = null;
   }
 
-  /**
-   * Drain a batch of due deliveries. Public so tests can call it directly
-   * without waiting on the polling interval.
-   */
   async tick(): Promise<{ attempted: number; delivered: number; failed: number }> {
     if (this.running) return { attempted: 0, delivered: 0, failed: 0 };
     this.running = true;
@@ -114,7 +95,6 @@ export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
       .limit(1);
 
     if (!webhookRow || !eventRow || !webhookRow.active) {
-      // Webhook gone or disabled — mark delivered to stop retrying.
       await this.db
         .update(schema.webhookDeliveries)
         .set({
@@ -192,5 +172,4 @@ export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
   }
 }
 
-// Exported for tests to clamp polling.
 export { POLL_INTERVAL_MS };

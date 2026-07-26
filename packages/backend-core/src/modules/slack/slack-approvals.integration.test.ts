@@ -222,7 +222,6 @@ function buttonLabels(blocks: unknown[] | undefined): string[] {
   }
 
   async function seedMergeProposal(): Promise<string> {
-    // A pending pair is unique per org — retire earlier seeds first.
     await db
       .update(schema.crmMergeProposals)
       .set({ status: 'dismissed' })

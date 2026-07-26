@@ -82,7 +82,6 @@ describe('ui: mount + lifecycle', () => {
     controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     ($('.launcher')).click();
     expect($('.welcome-eyebrow').textContent).toBe('Powered by Munin');
-    // First sentence renders plain, second renders italic <em>.
     const h1 = $('.welcome-h1');
     expect(h1.textContent).toMatch(/Hi there\.\s*How can we help\?/);
     expect(h1.querySelector('em')?.textContent).toBe('How can we help?');

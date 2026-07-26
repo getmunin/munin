@@ -5169,7 +5169,7 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @next/env@16.2.6
+## @next/env@16.2.12
 
 > Next.js dotenv file loading
 - Homepage: https://github.com/vercel/next.js#readme
@@ -18197,7 +18197,7 @@ Original Author, when distributed with the Software.
 
 ---
 
-## brace-expansion@1.1.16, 2.1.2, 5.0.7
+## brace-expansion@1.1.16, 2.1.2, 5.0.8
 
 > Brace expansion as known from sh/bash
 - Homepage: https://github.com/juliangruber/brace-expansion#readme
@@ -27700,7 +27700,7 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## nanoid@3.3.11
+## nanoid@3.3.16
 
 > A tiny (116 bytes), secure URL-friendly unique string ID generator
 - Homepage: https://github.com/ai/nanoid#readme
@@ -27843,7 +27843,7 @@ SOFTWARE.
 
 ---
 
-## next@16.2.6
+## next@16.2.12
 
 > The React Framework
 - Homepage: https://nextjs.org
@@ -29848,7 +29848,7 @@ SOFTWARE.
 
 ---
 
-## postcss@8.5.12
+## postcss@8.5.23
 
 > Tool for transforming styles with JS plugins
 - Homepage: https://postcss.org/

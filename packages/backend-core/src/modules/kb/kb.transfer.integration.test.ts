@@ -3,8 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -125,7 +124,7 @@ const skipReason = TEST_URL
         name: 'kb_create_space',
         arguments: { name: 'Handbook', slug: 'handbook', description: 'Company handbook.' },
       });
-      const space = firstJson(spaceRes as never) as { id: string };
+      const space = firstJson(spaceRes) as { id: string };
 
       await c.callTool({
         name: 'kb_create_document',
@@ -148,7 +147,7 @@ const skipReason = TEST_URL
         },
       });
 
-      const exported = firstJson((await c.callTool({ name: 'kb_export', arguments: {} })) as never) as KbExportData;
+      const exported = firstJson((await c.callTool({ name: 'kb_export', arguments: {} }))) as KbExportData;
       return { space, exported };
     });
 
@@ -159,11 +158,11 @@ const skipReason = TEST_URL
 
     const firstImport = await withClient(adminKeyB, async (c) => {
       const res = await c.callTool({ name: 'kb_import', arguments: { records: seeded.exported } });
-      const result = firstJson(res as never) as ImportResult;
+      const result = firstJson(res) as ImportResult;
 
       const searched = await c.callTool({ name: 'kb_search', arguments: { query: 'refund processed' } });
-      const hits = firstJson(searched as never) as Array<{ documentId: string }>;
-      const spaces = firstJson((await c.callTool({ name: 'kb_list_spaces', arguments: {} })) as never) as Array<{
+      const hits = firstJson(searched) as Array<{ documentId: string }>;
+      const spaces = firstJson((await c.callTool({ name: 'kb_list_spaces', arguments: {} }))) as Array<{
         id: string;
         slug: string;
       }>;
@@ -181,10 +180,10 @@ const skipReason = TEST_URL
 
     const secondImport = await withClient(adminKeyB, async (c) => {
       const res = await c.callTool({ name: 'kb_import', arguments: { records: seeded.exported } });
-      const result = firstJson(res as never) as ImportResult;
-      const spaces = firstJson((await c.callTool({ name: 'kb_list_spaces', arguments: {} })) as never) as Array<unknown>;
+      const result = firstJson(res) as ImportResult;
+      const spaces = firstJson((await c.callTool({ name: 'kb_list_spaces', arguments: {} }))) as Array<unknown>;
       const docs = firstJson(
-        (await c.callTool({ name: 'kb_list_documents', arguments: {} })) as never,
+        (await c.callTool({ name: 'kb_list_documents', arguments: {} })),
       ) as Array<unknown>;
       return { result, spaceCount: spaces.length, docCount: docs.length };
     });

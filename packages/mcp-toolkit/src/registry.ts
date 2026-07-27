@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import type { Audience } from '@getmunin/core';
 import type { McpToolMeta } from './decorator.ts';
+import type { JsonSchemaObject } from './dispatch.ts';
 
 export interface RegisteredMcpTool {
   meta: McpToolMeta;
   handler: (args: unknown) => unknown;
-  inputJsonSchema: object;
+  inputJsonSchema: JsonSchemaObject;
 }
 
 export class McpToolRegistry {
@@ -15,7 +16,7 @@ export class McpToolRegistry {
     if (this.byName.has(meta.name)) {
       throw new Error(`Duplicate MCP tool name: ${meta.name}`);
     }
-    const inputJsonSchema = z.toJSONSchema(meta.input) as object;
+    const inputJsonSchema = z.toJSONSchema(meta.input) as JsonSchemaObject;
     this.byName.set(meta.name, { meta, handler, inputJsonSchema });
   }
 

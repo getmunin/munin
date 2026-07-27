@@ -3,8 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -86,11 +85,15 @@ const skipReason = TEST_URL
     }
   });
 
-  async function withClient<T>(token: string, fn: (c: Client) => Promise<T>): Promise<T> {
+  async function withClient<T>(
+    token: string,
+    fn: (c: Client) => Promise<T>,
+    options?: ConstructorParameters<typeof Client>[1],
+  ): Promise<T> {
     const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
       requestInit: { headers: { Authorization: `Bearer ${token}` } },
     });
-    const c = new Client({ name: 'munin-it', version: '0.0.0' });
+    const c = new Client({ name: 'munin-it', version: '0.0.0' }, options);
     await c.connect(transport);
     try {
       return await fn(c);
@@ -173,6 +176,67 @@ const skipReason = TEST_URL
       });
     });
   }, 30_000);
+
+  it('serves the 2026-07-28 revision: stateless era, no session header, cache fields', async () => {
+    const modern = { versionNegotiation: { mode: 'auto' as const } };
+    await withClient(
+      adminKey,
+      async (c) => {
+        expect(c.getProtocolEra()).toBe('modern');
+
+        const list = await c.listTools();
+        expect(list.tools.map((t) => t.name)).toContain('kb_search');
+        expect(list.cacheScope).toBe('private');
+        expect(typeof list.ttlMs).toBe('number');
+
+        const ping = await c.callTool({ name: 'ping', arguments: { message: 'modern' } });
+        expect(JSON.stringify(ping)).toContain('modern');
+
+        const { resources } = await c.listResources();
+        expect(resources.some((r) => r.uri.startsWith('skill://'))).toBe(true);
+      },
+      modern,
+    );
+  });
+
+  it('still serves 2025-era clients on the same endpoint', async () => {
+    await withClient(adminKey, async (c) => {
+      expect(c.getProtocolEra()).toBe('legacy');
+      const { tools } = await c.listTools();
+      expect(tools.map((t) => t.name)).toContain('kb_search');
+    });
+  });
+
+  it('rejects a 2026 request whose Mcp-Method header disagrees with the body', async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${adminKey}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        'MCP-Protocol-Version': '2026-07-28',
+        'Mcp-Method': 'tools/list',
+        'Mcp-Name': 'kb_search',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'kb_search',
+          arguments: { query: 'x' },
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+            'io.modelcontextprotocol/clientInfo': { name: 'munin-it', version: '0.0.0' },
+            'io.modelcontextprotocol/clientCapabilities': {},
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error?: { code?: number } };
+    expect(body.error?.code).toBe(-32020);
+  });
 
   it('admin sees skills via resources/list and can read them', async () => {
     await withClient(adminKey, async (c) => {

@@ -3,8 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -119,19 +118,19 @@ const skipReason = TEST_URL
         (await c.callTool({
           name: 'conv_create_channel',
           arguments: { type: 'email', vendor: 'smtp', name: 'Newsletter', config: {} },
-        })) as never,
+        })),
       ) as { id: string };
       const segment = firstJson(
         (await c.callTool({
           name: 'crm_create_segment',
           arguments: { name: 'Warm leads', filter: { tagsAny: ['warm'] } },
-        })) as never,
+        })),
       ) as { id: string };
       const contact = firstJson(
         (await c.callTool({
           name: 'crm_create_contact',
           arguments: { name: 'Ada Lovelace', email: 'ada@example.com' },
-        })) as never,
+        })),
       ) as { id: string };
       const campaign = firstJson(
         (await c.callTool({
@@ -148,7 +147,7 @@ const skipReason = TEST_URL
               { waitDays: 7, brief: 'breakup email' },
             ],
           },
-        })) as never,
+        })),
       ) as { id: string };
       return { channel, segment, contact, campaign };
     });
@@ -205,25 +204,25 @@ const skipReason = TEST_URL
 
     const migrated = await withClient(adminKeyB, async (c) => {
       const crmRes = firstJson(
-        (await c.callTool({ name: 'crm_import', arguments: { records: exports.crm } })) as never,
+        (await c.callTool({ name: 'crm_import', arguments: { records: exports.crm } })),
       ) as ImportResult;
       const convRes = firstJson(
-        (await c.callTool({ name: 'conv_import', arguments: { records: exports.conv, idMap: crmRes.idMap } })) as never,
+        (await c.callTool({ name: 'conv_import', arguments: { records: exports.conv, idMap: crmRes.idMap } })),
       ) as ImportResult;
       const outreachRes = firstJson(
         (await c.callTool({
           name: 'outreach_import',
           arguments: { records: exports.outreach, idMap: convRes.idMap },
-        })) as never,
+        })),
       ) as ImportResult;
       const onB = firstJson(
-        (await c.callTool({ name: 'outreach_export', arguments: {} })) as never,
+        (await c.callTool({ name: 'outreach_export', arguments: {} })),
       ) as OutreachExportData;
       const reimport = firstJson(
         (await c.callTool({
           name: 'outreach_import',
           arguments: { records: exports.outreach, idMap: convRes.idMap },
-        })) as never,
+        })),
       ) as ImportResult;
       return { outreachRes, onB, reimport };
     });

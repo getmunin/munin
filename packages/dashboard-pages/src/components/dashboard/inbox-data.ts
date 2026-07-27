@@ -4,6 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { api, ApiError } from '../../api';
 import { notify } from '../../lib/notify';
+import {
+  prepareImageForUpload,
+  uploadToPresigned,
+  type PresignedUploadTarget,
+} from '../../lib/upload-image';
+import { useTranslateError } from '../../i18n/translate-error';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { CmsAssetExpanded, CmsDraftDetailDto, KbCandidateDto, QueueItem } from './queue-drawers/types';
 import {
@@ -11,8 +17,6 @@ import {
   contactLabel,
   feedbackSnippet,
   mergeLive,
-  messageOf,
-  readFileAsBase64,
 } from './inbox-helpers';
 import type {
   ConvActionError,
@@ -86,6 +90,7 @@ function useQueueBuilder() {
 
 export function useInboxData(): InboxController {
   const buildQueue = useQueueBuilder();
+  const translateErr = useTranslateError();
   const [items, setItems] = useState<LiveSummary[]>([]);
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -144,9 +149,9 @@ export function useInboxData(): InboxController {
         return next;
       });
     } catch (err) {
-      setDetailErrors((prev) => ({ ...prev, [id]: messageOf(err) }));
+      setDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
     }
-  }, []);
+  }, [translateErr]);
 
   const reloadDetail = useCallback(
     async (id: string) => {
@@ -174,9 +179,9 @@ export function useInboxData(): InboxController {
       setKbBodies((prev) => ({ ...prev, [id]: doc.body }));
       setQueueDetailErrors((prev) => clearKey(prev, id));
     } catch (err) {
-      setQueueDetailErrors((prev) => ({ ...prev, [id]: messageOf(err) }));
+      setQueueDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
     }
-  }, []);
+  }, [translateErr]);
 
   const loadCmsDetail = useCallback(async (id: string) => {
     try {
@@ -184,9 +189,9 @@ export function useInboxData(): InboxController {
       setCmsDetails((prev) => ({ ...prev, [id]: doc }));
       setQueueDetailErrors((prev) => clearKey(prev, id));
     } catch (err) {
-      setQueueDetailErrors((prev) => ({ ...prev, [id]: messageOf(err) }));
+      setQueueDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
     }
-  }, []);
+  }, [translateErr]);
 
   const reloadQueueDetail = useCallback((id: string) => {
     setQueueDetailErrors((prev) => clearKey(prev, id));
@@ -249,12 +254,12 @@ export function useInboxData(): InboxController {
         await Promise.all([loadDetail(id), loadInbox()]);
         if (openFullAfter) setConvDrawer({ id, mode: 'full' });
       } catch (err) {
-        setActionError({ type: 'takeOver', conversationId: id, message: messageOf(err) });
+        setActionError({ type: 'takeOver', conversationId: id, message: translateErr(err) });
       } finally {
         setPending(false);
       }
     },
-    [loadDetail, loadInbox],
+    [loadDetail, loadInbox, translateErr],
   );
 
   const release = useCallback(
@@ -265,12 +270,12 @@ export function useInboxData(): InboxController {
         await api(`/v1/conversations/${id}/release`, { method: 'POST', body: '{}' });
         await Promise.all([loadDetail(id), loadInbox()]);
       } catch (err) {
-        setActionError({ type: 'release', conversationId: id, message: messageOf(err) });
+        setActionError({ type: 'release', conversationId: id, message: translateErr(err) });
       } finally {
         setPending(false);
       }
     },
-    [loadDetail, loadInbox],
+    [loadDetail, loadInbox, translateErr],
   );
 
   const closeConv = useCallback(
@@ -286,12 +291,12 @@ export function useInboxData(): InboxController {
         setItems((prev) => prev.filter((it) => it.id !== id));
         await loadInbox();
       } catch (err) {
-        setActionError({ type: 'close', conversationId: id, message: messageOf(err) });
+        setActionError({ type: 'close', conversationId: id, message: translateErr(err) });
       } finally {
         setPending(false);
       }
     },
-    [loadInbox],
+    [loadInbox, translateErr],
   );
 
   const send = useCallback(
@@ -335,7 +340,7 @@ export function useInboxData(): InboxController {
           await loadDetail(id);
         }
       } catch (err) {
-        setActionError({ type: 'send', conversationId: id, message: messageOf(err) });
+        setActionError({ type: 'send', conversationId: id, message: translateErr(err) });
         setDetails((prev) => {
           const d = prev[id];
           if (!d) return prev;
@@ -346,7 +351,7 @@ export function useInboxData(): InboxController {
         setPending(false);
       }
     },
-    [loadDetail, loadInbox],
+    [loadDetail, loadInbox, translateErr],
   );
 
   const approveQueue = useCallback(
@@ -371,12 +376,12 @@ export function useInboxData(): InboxController {
         await loadInbox();
         setQueueDrawer(null);
       } catch (err) {
-        notify.error(messageOf(err));
+        notify.error(translateErr(err));
       } finally {
         setPending(false);
       }
     },
-    [loadInbox],
+    [loadInbox, translateErr],
   );
 
   const saveQueue = useCallback(
@@ -397,13 +402,13 @@ export function useInboxData(): InboxController {
         }
         await loadInbox();
       } catch (err) {
-        notify.error(messageOf(err));
+        notify.error(translateErr(err));
         throw err;
       } finally {
         setPending(false);
       }
     },
-    [loadInbox],
+    [loadInbox, translateErr],
   );
 
   const saveCmsDraft = useCallback(
@@ -421,14 +426,14 @@ export function useInboxData(): InboxController {
         await loadInbox();
       } catch (err) {
         if (!(err instanceof ApiError && err.fieldErrors.length > 0)) {
-          notify.error(messageOf(err));
+          notify.error(translateErr(err));
         }
         throw err;
       } finally {
         setPending(false);
       }
     },
-    [loadInbox],
+    [loadInbox, translateErr],
   );
 
   const uploadCmsAsset = useCallback(
@@ -438,27 +443,31 @@ export function useInboxData(): InboxController {
       }
       setPending(true);
       try {
-        const base64Body = await readFileAsBase64(file);
+        const prepared = await prepareImageForUpload(file);
+        const handle = await api<
+          { id: string; publicUrl: string; altText: string | null } & PresignedUploadTarget
+        >(`/v1/cms/drafts/${item.id}/assets/upload-request`, {
+          method: 'POST',
+          body: JSON.stringify({
+            name: prepared.name,
+            mime: prepared.mime,
+            sizeBytes: prepared.blob.size,
+          }),
+        });
+        await uploadToPresigned(handle, prepared);
         const asset = await api<{ id: string; publicUrl: string; altText: string | null }>(
-          `/v1/cms/drafts/${item.id}/assets`,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              name: file.name,
-              mime: file.type || 'application/octet-stream',
-              base64Body,
-            }),
-          },
+          `/v1/cms/drafts/${item.id}/assets/${handle.id}/complete`,
+          { method: 'POST', body: '{}' },
         );
         return { id: asset.id, publicUrl: asset.publicUrl, altText: asset.altText };
       } catch (err) {
-        notify.error(messageOf(err));
+        notify.error(translateErr(err));
         throw err;
       } finally {
         setPending(false);
       }
     },
-    [],
+    [translateErr],
   );
 
   const previewCmsDraft = useCallback(async (item: QueueItem) => {
@@ -474,9 +483,9 @@ export function useInboxData(): InboxController {
       else window.open(target, '_blank');
     } catch (err) {
       w?.close();
-      notify.error(messageOf(err));
+      notify.error(translateErr(err));
     }
-  }, []);
+  }, [translateErr]);
 
   const dismissQueue = useCallback(
     async (item: QueueItem) => {
@@ -502,12 +511,12 @@ export function useInboxData(): InboxController {
         await loadInbox();
         setQueueDrawer(null);
       } catch (err) {
-        notify.error(messageOf(err));
+        notify.error(translateErr(err));
       } finally {
         setPending(false);
       }
     },
-    [loadInbox],
+    [loadInbox, translateErr],
   );
 
   const scheduleQueue = useCallback(
@@ -522,13 +531,13 @@ export function useInboxData(): InboxController {
         await loadInbox();
         setQueueDrawer(null);
       } catch (err) {
-        notify.error(messageOf(err));
+        notify.error(translateErr(err));
         throw err;
       } finally {
         setPending(false);
       }
     },
-    [loadInbox],
+    [loadInbox, translateErr],
   );
 
   return {

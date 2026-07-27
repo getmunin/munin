@@ -733,17 +733,29 @@ class StubStorage implements AssetStorage {
       ).rejects.toThrow();
     });
 
-    it('uploadAssetFromBase64 rejects >100KB decoded body', async () => {
+    it('uploadAssetFromBase64 rejects >100KB decoded body with cms_asset_too_large', async () => {
       const huge = Buffer.alloc(100 * 1024 + 1, 1);
-      await expect(
-        run(() =>
-          svc.uploadAssetFromBase64({
-            name: 'big.bin',
-            mime: 'application/octet-stream',
-            base64Body: huge.toString('base64'),
-          }),
-        ),
-      ).rejects.toThrow(/exceeds 100KB/);
+      const attempt = run(() =>
+        svc.uploadAssetFromBase64({
+          name: 'big.bin',
+          mime: 'application/octet-stream',
+          base64Body: huge.toString('base64'),
+        }),
+      );
+      await expect(attempt).rejects.toThrow(/exceeds 100KB/);
+      await expect(attempt).rejects.toMatchObject({ code: 'cms_asset_too_large' });
+    });
+
+    it('requestAssetUpload rejects >50MB with cms_asset_too_large', async () => {
+      const attempt = run(() =>
+        svc.requestAssetUpload({
+          name: 'huge.png',
+          mime: 'image/png',
+          sizeBytes: 50 * 1024 * 1024 + 1,
+        }),
+      );
+      await expect(attempt).rejects.toThrow(CmsInvalidError);
+      await expect(attempt).rejects.toMatchObject({ code: 'cms_asset_too_large' });
     });
 
     it('uploadAssetFromBase64 rejects malformed base64', async () => {

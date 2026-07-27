@@ -49,13 +49,18 @@ import { newImportResult, resolveId } from '../../common/transfer/transfer.helpe
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 
 export class CmsInvalidError extends Error {
-  readonly code = 'cms_invalid';
+  readonly code: string;
   readonly fieldErrors?: ReadonlyArray<{ field: string; message: string }>;
   constructor(
     message: string,
-    opts?: { fieldErrors?: ReadonlyArray<{ field: string; message: string }> },
+    opts?: {
+      fieldErrors?: ReadonlyArray<{ field: string; message: string }>;
+      code?: string;
+    },
   ) {
-    super(`cms_invalid: ${message}`);
+    const code = opts?.code ?? 'cms_invalid';
+    super(`${code}: ${message}`);
+    this.code = code;
     this.fieldErrors = opts?.fieldErrors;
   }
 }
@@ -778,8 +783,13 @@ export class CmsService {
     altText?: string;
     metadata?: Record<string, unknown>;
   }): Promise<AssetUploadHandle> {
-    if (input.sizeBytes <= 0 || input.sizeBytes > 50 * 1024 * 1024) {
-      throw new CmsInvalidError('sizeBytes must be in (0, 50MB]');
+    if (input.sizeBytes <= 0) {
+      throw new CmsInvalidError('sizeBytes must be positive');
+    }
+    if (input.sizeBytes > 50 * 1024 * 1024) {
+      throw new CmsInvalidError('sizeBytes exceeds the 50MB limit', {
+        code: 'cms_asset_too_large',
+      });
     }
     const ext = assetExtensionFromName(input.name);
     rejectSvgAsset(ext, input.mime);
@@ -1807,7 +1817,8 @@ function decodeAssetBody(base64Body: string): Buffer {
   }
   if (body.length > UPLOAD_BYTES_MAX) {
     throw new CmsInvalidError(
-      'base64Body decoded size exceeds 100KB; compress further (WebP/JPEG, smaller dimensions) or use cms_upload_asset_from_url with a public HTTPS URL',
+      'base64Body decoded size exceeds 100KB; compress further (WebP/JPEG, smaller dimensions), use cms_upload_asset_from_url with a public HTTPS URL, or use the cms_request_asset_upload presigned flow',
+      { code: 'cms_asset_too_large' },
     );
   }
   if (body.toString('base64').replace(/=+$/, '') !== base64Body.replace(/=+$/, '')) {

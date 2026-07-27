@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import type { App as McpApp } from '@modelcontextprotocol/ext-apps';
-import { errorText, isCmsEntry, parseToolResult, type CmsEntry } from '../types';
+import {
+  errorText,
+  isAssetValue,
+  isCmsEntry,
+  parseToolResult,
+  type CmsEntry,
+} from '../types';
 import { Chrome } from '../chrome';
+import { Markdown } from '../markdown';
 import { formatDateTime } from '../format';
 import { useI18n, type Translator } from '../i18n';
 
@@ -52,9 +59,6 @@ export function EntryView({ app, initial }: { app: McpApp; initial: CmsEntry }) 
   }
 
   const statusLine = describeStatus(entry, actedNow, locale, t);
-  const imageAssets = Object.values(entry.assets ?? {}).filter((a) =>
-    a.mime.startsWith('image/'),
-  );
 
   return (
     <Chrome context={t('chrome.contextCms')} tool="cms_get_entry">
@@ -75,19 +79,6 @@ export function EntryView({ app, initial }: { app: McpApp; initial: CmsEntry }) 
         </span>
       </div>
       <div className="entry-body">
-        {imageAssets.length > 0 && (
-          <div className="entry-images">
-            {imageAssets.map((asset) => (
-              <img
-                key={asset.id}
-                className="entry-image"
-                src={asset.publicUrl}
-                alt={asset.altText ?? ''}
-                loading="lazy"
-              />
-            ))}
-          </div>
-        )}
         {Object.entries(entry.data).map(([field, value]) => (
           <div className="entry-field" key={field}>
             <div className="eyebrow">{field}</div>
@@ -95,7 +86,7 @@ export function EntryView({ app, initial }: { app: McpApp; initial: CmsEntry }) 
           </div>
         ))}
       </div>
-      {error && <p className="list-error">{error}</p>}
+      {error && !scheduleOpen && <p className="list-error">{error}</p>}
       <div className="entry-actions">
         {entry.status === 'published' ? (
           <button
@@ -114,30 +105,61 @@ export function EntryView({ app, initial }: { app: McpApp; initial: CmsEntry }) 
             >
               {busy === 'publish' ? t('entry.publishing') : t('entry.publish')}
             </button>
-            {scheduleOpen ? (
-              <span className="schedule-controls">
-                <input
-                  className="target-select"
-                  type="datetime-local"
-                  value={scheduleAt}
-                  onChange={(e) => setScheduleAt(e.target.value)}
-                />
-                <button
-                  className="chip-btn"
-                  disabled={busy !== null}
-                  onClick={() => void act('schedule')}
-                >
-                  {busy === 'schedule' ? t('entry.scheduling') : t('entry.scheduleConfirm')}
-                </button>
-              </span>
-            ) : (
-              <button className="chip-btn" disabled={busy !== null} onClick={() => setScheduleOpen(true)}>
-                {t('entry.schedule')}
-              </button>
-            )}
+            <button
+              className="chip-btn"
+              disabled={busy !== null}
+              onClick={() => {
+                setError(null);
+                setScheduleOpen(true);
+              }}
+            >
+              {t('entry.schedule')}
+            </button>
           </>
         )}
       </div>
+      {scheduleOpen && (
+        <div
+          className="dialog-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setError(null);
+              setScheduleOpen(false);
+            }
+          }}
+        >
+          <div className="dialog" role="dialog" aria-modal="true">
+            <div className="eyebrow">{t('entry.scheduleTitle')}</div>
+            <input
+              className="target-select dialog-input"
+              type="datetime-local"
+              autoFocus
+              value={scheduleAt}
+              onChange={(e) => setScheduleAt(e.target.value)}
+            />
+            {error && <p className="list-error">{error}</p>}
+            <div className="dialog-actions">
+              <button
+                className="chip-btn"
+                disabled={busy !== null}
+                onClick={() => {
+                  setError(null);
+                  setScheduleOpen(false);
+                }}
+              >
+                {t('entry.scheduleCancel')}
+              </button>
+              <button
+                className="chip-btn chip-btn-solid"
+                disabled={busy !== null || !scheduleAt}
+                onClick={() => void act('schedule')}
+              >
+                {busy === 'schedule' ? t('entry.scheduling') : t('entry.scheduleConfirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Chrome>
   );
 }
@@ -170,14 +192,31 @@ function FieldValue({ value }: { value: unknown }) {
   if (value === null || value === undefined) {
     return <p className="mute">—</p>;
   }
-  if (typeof value === 'string') {
+  if (isAssetValue(value)) {
+    if (value.mime.startsWith('image/')) {
+      return (
+        <figure className="entry-asset">
+          <img
+            className="entry-image"
+            src={value.publicUrl}
+            alt={value.altText ?? ''}
+            loading="lazy"
+          />
+          {value.altText && <figcaption className="mute">{value.altText}</figcaption>}
+        </figure>
+      );
+    }
     return (
-      <div className="entry-prose">
-        {value.split(/\n{2,}/).map((para, i) => (
-          <p key={i}>{para}</p>
-        ))}
-      </div>
+      <p>
+        <a href={value.publicUrl} target="_blank" rel="noreferrer">
+          {value.altText ?? value.publicUrl}
+        </a>{' '}
+        <span className="mute">({value.mime})</span>
+      </p>
     );
+  }
+  if (typeof value === 'string') {
+    return <Markdown className="entry-prose">{value}</Markdown>;
   }
   if (typeof value === 'number' || typeof value === 'boolean') {
     return <p>{String(value)}</p>;

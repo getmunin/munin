@@ -1494,7 +1494,9 @@
       "unpublish": "Avpubliser",
       "unpublishing": "Avpubliserer…",
       "schedule": "Planlegg…",
+      "scheduleTitle": "Planlegg publisering",
       "scheduleConfirm": "Bekreft tidspunkt",
+      "scheduleCancel": "Avbryt",
       "scheduling": "Planlegger…",
       "scheduleMissing": "Velg dato og klokkeslett først.",
       "status": {

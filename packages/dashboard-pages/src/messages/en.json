@@ -1494,7 +1494,9 @@
       "unpublish": "Unpublish",
       "unpublishing": "Unpublishing…",
       "schedule": "Schedule…",
+      "scheduleTitle": "Schedule publish",
       "scheduleConfirm": "Confirm schedule",
+      "scheduleCancel": "Cancel",
       "scheduling": "Scheduling…",
       "scheduleMissing": "Pick a date and time first.",
       "status": {

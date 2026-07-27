@@ -10,6 +10,7 @@ import {
   type KbSpace,
 } from '../types';
 import { Chrome } from '../chrome';
+import { Markdown } from '../markdown';
 import { formatAge } from '../format';
 import { useI18n } from '../i18n';
 
@@ -247,7 +248,7 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
                   ) : body === null ? (
                     <p className="mute">{t('curation.bodyFailed')}</p>
                   ) : (
-                    body.split(/\n{2,}/).map((para, i) => <p key={i}>{para}</p>)
+                    <Markdown>{body}</Markdown>
                   )}
                 </div>
                 {state.error && <p className="line line-error">{state.error}</p>}
@@ -262,25 +263,39 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
                     <label className="target-label">
                       {t('curation.targetLabel')}
                       {spaces && spaces.length > 0 ? (
-                        <select
-                          className="target-select"
-                          value={targetFor(candidate)}
-                          onChange={(e) =>
-                            setTargets((prev) => ({ ...prev, [candidate.id]: e.target.value }))
-                          }
-                        >
-                          {candidate.proposedTargetSpaceSlug &&
-                            !spaces.some((s) => s.slug === candidate.proposedTargetSpaceSlug) && (
-                              <option value={candidate.proposedTargetSpaceSlug}>
-                                {candidate.proposedTargetSpaceSlug}
+                        <span className="select-wrap">
+                          <select
+                            className="target-select"
+                            value={targetFor(candidate)}
+                            onChange={(e) =>
+                              setTargets((prev) => ({ ...prev, [candidate.id]: e.target.value }))
+                            }
+                          >
+                            {candidate.proposedTargetSpaceSlug &&
+                              !spaces.some((s) => s.slug === candidate.proposedTargetSpaceSlug) && (
+                                <option value={candidate.proposedTargetSpaceSlug}>
+                                  {candidate.proposedTargetSpaceSlug}
+                                </option>
+                              )}
+                            {spaces.map((s) => (
+                              <option key={s.id} value={s.slug}>
+                                {s.name}
                               </option>
-                            )}
-                          {spaces.map((s) => (
-                            <option key={s.id} value={s.slug}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
+                            ))}
+                          </select>
+                          <svg
+                            aria-hidden
+                            className="select-caret"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="m6 9 6 6 6-6" />
+                          </svg>
+                        </span>
                       ) : (
                         <input
                           className="target-select"

@@ -139,7 +139,6 @@ export interface CmsEntry {
   locale: string;
   status: 'draft' | 'published' | 'scheduled' | 'archived';
   data: Record<string, unknown>;
-  assets?: Record<string, CmsAssetSummary>;
   version: number;
   scheduledAt: string | null;
   publishedAt: string | null;
@@ -247,6 +246,10 @@ export function isCmsEntry(value: unknown): value is CmsEntry {
     'status' in value &&
     'version' in value
   );
+}
+
+export function isAssetValue(value: unknown): value is CmsAssetSummary {
+  return isRecord(value) && typeof value.publicUrl === 'string' && typeof value.mime === 'string';
 }
 
 export function isCmsAssetList(value: unknown): value is CmsAsset[] {

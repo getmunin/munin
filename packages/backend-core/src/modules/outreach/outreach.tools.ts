@@ -128,6 +128,33 @@ const DismissProposalInput = z.object({
   reason: z.string().max(500).optional(),
 });
 
+const ReviseProposalInput = z
+  .object({
+    id: z.string().min(1).max(64),
+    reason: z
+      .string()
+      .min(1)
+      .max(500)
+      .describe('Why the draft is being changed. Recorded on the proposal and shown to reviewers.'),
+    draftSubject: z.string().max(300).nullable().optional(),
+    draftBody: z.string().min(1).max(20_000).optional(),
+    proposedSendAt: z.string().datetime().nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      v.draftSubject !== undefined || v.draftBody !== undefined || v.proposedSendAt !== undefined,
+    { message: 'pass at least one of draftSubject, draftBody, proposedSendAt' },
+  );
+
+const WithdrawProposalInput = z.object({
+  id: z.string().min(1).max(64),
+  reason: z
+    .string()
+    .min(1)
+    .max(500)
+    .describe('Why the draft is being retracted, e.g. "duplicate of oprp_… " or "address bounced".'),
+});
+
 const OutreachImportInput = z.object({
   records: z.object({
     campaigns: z.array(
@@ -316,6 +343,46 @@ export class OutreachAdminTools {
   dismissProposal(args: z.infer<typeof DismissProposalInput>) {
     return translateInvalid(() =>
       this.outreach.dismissProposal({ id: args.id, reason: args.reason }),
+    );
+  }
+
+  @McpTool({
+    name: 'outreach_revise_proposal',
+    title: 'Outreach: Revise proposal',
+    description:
+      'Rewrite the draft on one pending outreach proposal in place, keeping the same proposal id, campaign, and contact — those three cannot be changed here; a different recipient or campaign is a different proposal. Pass any of `draftSubject`, `draftBody`, `proposedSendAt` plus a required `reason`. The revision is recorded on the proposal: `revisionCount`, `lastRevisedAt`, `lastRevisionReason`, and the revising actor, plus `revisedAfterReviewAt` when someone else had already opened the draft for review before the change. Fails if the proposal is not pending. Returns the revised proposal.',
+    audiences: ['admin'],
+    scopes: ['outreach:write'],
+    input: ReviseProposalInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  reviseProposal(args: z.infer<typeof ReviseProposalInput>) {
+    return translateInvalid(() =>
+      this.outreach.reviseProposal({
+        id: args.id,
+        reason: args.reason,
+        draftSubject: args.draftSubject,
+        draftBody: args.draftBody,
+        proposedSendAt: args.proposedSendAt,
+      }),
+    );
+  }
+
+  @McpTool({
+    name: 'outreach_withdraw_proposal',
+    title: 'Outreach: Withdraw proposal',
+    description:
+      'Retract one pending outreach proposal that should no longer be reviewed — a duplicate draft, a prospect who turned out not to qualify, a bounced address. Nothing is sent. This is a neutral retraction, not a rejection: it does not suppress the contact, does not change their consent, and does not stop a campaign sequence (a withdrawn follow-up leaves later steps eligible, unlike a dismissed one). A required `reason` and the withdrawing actor are recorded. Fails if the proposal is not pending. Returns the proposal with `status: "withdrawn"`.',
+    audiences: ['admin'],
+    scopes: ['outreach:write'],
+    input: WithdrawProposalInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  withdrawProposal(args: z.infer<typeof WithdrawProposalInput>) {
+    return translateInvalid(() =>
+      this.outreach.withdrawProposal({ id: args.id, reason: args.reason }),
     );
   }
 

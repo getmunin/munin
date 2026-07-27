@@ -66,6 +66,7 @@ Behavior:
 - The proposal lands in `pending` status, visible to the operator on `/dashboard/inbox` with a Follow-up badge and step number.
 - Approving sends the body verbatim via `conv_send_message` on the same conversation. If the prospect replied in the meantime, approval fails and the operator dismisses — the reply flow has taken over.
 - **Dismissing a follow-up permanently stops the sequence for that contact.** Operators who dislike the wording should edit-then-approve instead. Write drafts worth editing, not dismissing.
+- **Withdrawing one does not stop the sequence.** If *you* filed a follow-up you shouldn't have, `outreach_withdraw_proposal({ id, reason })` retracts it and leaves the step eligible again — that is the difference from dismiss, and the reason to never use dismiss to tidy up your own drafts.
 
 ## What NOT to do
 

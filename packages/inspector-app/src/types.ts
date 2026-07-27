@@ -21,11 +21,17 @@ export interface Proposal {
   draftBody: string;
   evidence: Record<string, unknown>;
   proposedSendAt: string | null;
-  status: 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed';
+  status: 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed' | 'withdrawn';
   decidedAt: string | null;
+  firstViewedAt: string | null;
+  revisionCount: number;
+  lastRevisedAt: string | null;
+  lastRevisionReason: string | null;
+  revisedAfterReviewAt: string | null;
   sentAt: string | null;
   failureReason: string | null;
   dismissReason: string | null;
+  withdrawReason: string | null;
   createdAt: string;
   contact: ProposalContact | null;
   campaign: ProposalCampaign | null;

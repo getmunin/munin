@@ -373,7 +373,10 @@
         "kbSlugFallback": "kb-curation-inbox",
         "handleFallback": "—",
         "endUserFallback": "—",
-        "anonymousVisitor": "Anonym"
+        "anonymousVisitor": "Anonym",
+        "outreachRevised": "Endret {count}× siden utkastet ble skrevet",
+        "outreachRevisedAfterReview": "Endret {count}× etter at det ble åpnet til gjennomgang — les det på nytt før du godkjenner",
+        "outreachRevisionReason": "Begrunnelse — {reason}"
       },
       "relative": {
         "justNow": "akkurat nå",
@@ -1567,8 +1570,13 @@
         "approved": "godkjent",
         "sent": "sendt",
         "dismissed": "avvist",
-        "failed": "mislyktes"
-      }
+        "failed": "mislyktes",
+        "withdrawn": "trukket tilbake"
+      },
+      "withdrawn": "Trukket tilbake av agenten — ingenting ble sendt.",
+      "withdrawnReason": "Trukket tilbake — {reason}",
+      "revised": "Endret {count}× siden utkastet ble skrevet",
+      "revisedAfterReview": "Endret {count}× etter at noen åpnet det til gjennomgang — les det på nytt før du godkjenner"
     }
   },
   "legal": {

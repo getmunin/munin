@@ -7170,7 +7170,8 @@
                       "approved",
                       "sent",
                       "failed",
-                      "dismissed"
+                      "dismissed",
+                      "withdrawn"
                     ]
                   }
                 },
@@ -7363,7 +7364,8 @@
             "approved",
             "sent",
             "failed",
-            "dismissed"
+            "dismissed",
+            "withdrawn"
           ]
         },
         "campaignId": {
@@ -7449,6 +7451,104 @@
       },
       "required": [
         "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_revise_proposal",
+    "title": "Outreach: Revise proposal",
+    "description": "Rewrite the draft on one pending outreach proposal in place, keeping the same proposal id, campaign, and contact — those three cannot be changed here; a different recipient or campaign is a different proposal. Pass any of `draftSubject`, `draftBody`, `proposedSendAt` plus a required `reason`. The revision is recorded on the proposal: `revisionCount`, `lastRevisedAt`, `lastRevisionReason`, and the revising actor, plus `revisedAfterReviewAt` when someone else had already opened the draft for review before the change. Fails if the proposal is not pending. Returns the revised proposal.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Why the draft is being changed. Recorded on the proposal and shown to reviewers."
+        },
+        "draftSubject": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "draftBody": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "proposedSendAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_withdraw_proposal",
+    "title": "Outreach: Withdraw proposal",
+    "description": "Retract one pending outreach proposal that should no longer be reviewed — a duplicate draft, a prospect who turned out not to qualify, a bounced address. Nothing is sent. This is a neutral retraction, not a rejection: it does not suppress the contact, does not change their consent, and does not stop a campaign sequence (a withdrawn follow-up leaves later steps eligible, unlike a dismissed one). A required `reason` and the withdrawing actor are recorded. Fails if the proposal is not pending. Returns the proposal with `status: \"withdrawn\"`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Why the draft is being retracted, e.g. \"duplicate of oprp_… \" or \"address bounced\"."
+        }
+      },
+      "required": [
+        "id",
+        "reason"
       ],
       "additionalProperties": false
     }

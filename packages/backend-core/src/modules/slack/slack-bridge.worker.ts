@@ -488,7 +488,9 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
           ? 'sent'
           : proposal?.status === 'dismissed'
             ? 'dismissed'
-            : null);
+            : proposal?.status === 'withdrawn'
+              ? 'withdrawn'
+              : null);
       resolution = derived
         ? {
             outcome: derived,
@@ -779,6 +781,8 @@ function approvalOutcomeFor(eventType: string): ApprovalOutcome | null {
     case 'outreach.proposal.dismissed':
     case 'kb.curation_candidate.dismissed':
       return 'dismissed';
+    case 'outreach.proposal.withdrawn':
+      return 'withdrawn';
     default:
       return null;
   }

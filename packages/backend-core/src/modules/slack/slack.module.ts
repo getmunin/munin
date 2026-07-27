@@ -1,5 +1,6 @@
 import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { WebhookDispatcher } from '@getmunin/core';
+import { PublicThrottleModule } from '../../common/rate-limit/public-throttle.module.ts';
 import { ConvModule } from '../conv/conv.module.ts';
 import { CrmModule } from '../crm/crm.module.ts';
 import { KbModule } from '../kb/kb.module.ts';
@@ -17,7 +18,7 @@ import { SlackEventsController } from './slack-events.controller.ts';
 import { SlackAvatarsController } from './slack-avatars.controller.ts';
 
 @Module({
-  imports: [ConvModule, CrmModule, KbModule, OutreachModule],
+  imports: [ConvModule, CrmModule, KbModule, OutreachModule, PublicThrottleModule],
   providers: [
     SlackApiClient,
     SlackService,

@@ -1,5 +1,4 @@
 import type { useTranslations } from 'next-intl';
-import { ApiError } from '../../api';
 import type { CrmContactSummary, FeedbackOutboxDto } from './queue-drawers/types';
 import type { ConversationDetail, LiveSummary } from './inbox-types';
 
@@ -44,23 +43,6 @@ export function liveToStubDetail(c: LiveSummary): ConversationDetail {
   };
 }
 
-export function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error ?? new Error('file read failed'));
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('file read returned non-string result'));
-        return;
-      }
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 export function mergeLive(
   prev: Record<string, ConversationDetail>,
   live: LiveSummary[],
@@ -75,11 +57,6 @@ export function mergeLive(
 
 export function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + '…' : s;
-}
-
-export function messageOf(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return err instanceof Error ? err.message : 'Unknown error';
 }
 
 export function clearKey<T>(obj: Record<string, T>, key: string): Record<string, T> {

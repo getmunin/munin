@@ -1,13 +1,14 @@
-import { Controller, HttpCode, Logger, Post, Req, Res } from '@nestjs/common';
+import { HttpCode, Logger, Post, Req, Res } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { describeError } from '@getmunin/core';
+import { PublicController } from '../../common/auth/auth.guard.ts';
 import { SlackInboundService } from './slack-inbound.service.ts';
 import { SlackInteractionsService } from './slack-interactions.service.ts';
 import { verifySlackSignature } from './slack-signature.ts';
 import { readSlackSigningSecret } from './slack.constants.ts';
 
-@Controller('v1/slack')
+@PublicController('v1/slack', { throttle: true })
 export class SlackEventsController {
   private readonly logger = new Logger(SlackEventsController.name);
 

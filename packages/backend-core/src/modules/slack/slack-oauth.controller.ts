@@ -1,6 +1,7 @@
-import { Controller, Get, Query, Req, Res } from '@nestjs/common';
+import { Get, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
+import { PublicController } from '../../common/auth/auth.guard.ts';
 import { SlackService, SLACK_INSTALL_NONCE_COOKIE } from './slack.service.ts';
 import { readWebBaseUrl } from './slack.constants.ts';
 
@@ -20,7 +21,7 @@ function readCookie(header: string | undefined, name: string): string | null {
   return null;
 }
 
-@Controller('v1/slack/oauth')
+@PublicController('v1/slack/oauth')
 export class SlackOAuthController {
   constructor(private readonly slack: SlackService) {}
 

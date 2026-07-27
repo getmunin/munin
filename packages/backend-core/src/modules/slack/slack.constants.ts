@@ -21,6 +21,7 @@ export const SLACK_APPROVAL_EVENT_TYPES: readonly string[] = [
   'outreach.proposal.updated',
   'outreach.proposal.sent',
   'outreach.proposal.dismissed',
+  'outreach.proposal.withdrawn',
   'kb.curation_candidate.proposed',
   'kb.curation_candidate.published',
   'kb.curation_candidate.dismissed',

@@ -382,7 +382,7 @@ export function kbCandidateApprovalText(snap: KbCandidateApprovalSnapshot): stri
   return lines.join('\n');
 }
 
-export type ApprovalOutcome = 'applied' | 'sent' | 'published' | 'dismissed';
+export type ApprovalOutcome = 'applied' | 'sent' | 'published' | 'dismissed' | 'withdrawn';
 
 export function approvalResolvedLine(
   outcome: ApprovalOutcome,
@@ -398,6 +398,8 @@ export function approvalResolvedLine(
       return `:white_check_mark: *Published to the knowledge base*${by}`;
     case 'dismissed':
       return `:no_entry_sign: *Dismissed*${by}`;
+    case 'withdrawn':
+      return `:leftwards_arrow_with_hook: *Withdrawn by the agent*${by}`;
   }
 }
 

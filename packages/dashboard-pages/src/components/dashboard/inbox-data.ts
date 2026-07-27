@@ -102,6 +102,7 @@ export function useInboxData(): InboxController {
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
   const [queueDetailErrors, setQueueDetailErrors] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<ConvActionError>(null);
+  const viewedProposals = useRef<Set<string>>(new Set());
 
   const loadInbox = useCallback(async () => {
     try {
@@ -205,6 +206,16 @@ export function useInboxData(): InboxController {
     if (queueDetailErrors[queueDrawer.id]) return;
     void loadCmsDetail(queueDrawer.id);
   }, [queueDrawer, cmsDetails, queueDetailErrors, loadCmsDetail]);
+
+  useEffect(() => {
+    if (!queueDrawer || queueDrawer.kind !== 'outreach') return;
+    const id = queueDrawer.id;
+    if (viewedProposals.current.has(id)) return;
+    viewedProposals.current.add(id);
+    void api(`/v1/outreach/proposals/${id}/viewed`, { method: 'POST' }).catch(() => {
+      viewedProposals.current.delete(id);
+    });
+  }, [queueDrawer]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];

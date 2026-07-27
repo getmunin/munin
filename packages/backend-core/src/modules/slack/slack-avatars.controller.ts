@@ -1,10 +1,11 @@
-import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
+import { Get, NotFoundException, Param, Res } from '@nestjs/common';
 import type { Response } from 'express';
+import { PublicController } from '../../common/auth/auth.guard.ts';
 import { SLACK_AVATAR_FALLBACK_PNG, SLACK_AVATAR_PNGS } from './slack-avatars.generated.ts';
 
 const FILE_RE = /^([A-Z0-9]|default)\.png$/;
 
-@Controller('v1/slack/avatars')
+@PublicController('v1/slack/avatars')
 export class SlackAvatarsController {
   @Get(':file')
   serve(@Param('file') file: string, @Res() res: Response): void {

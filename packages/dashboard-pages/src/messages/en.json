@@ -60,6 +60,10 @@
       "unreachable": {
         "title": "Couldn't reach the server.",
         "hint": "Check your connection and try again."
+      },
+      "oauthError": {
+        "title": "Couldn't sign you in.",
+        "hint": "That sign-in didn't complete. Try again, or use another method."
       }
     },
     "signUp": {
@@ -1499,7 +1503,10 @@
     "CMS_CONFLICT": "CMS conflict (version mismatch?).",
     "CONV_INVALID": "Conversation entry is invalid.",
     "FEEDBACK_RATE_LIMIT": "Too many suggestions created in the last hour. Try again later.",
-    "FEEDBACK_NOT_FOUND": "Suggestion not found."
+    "FEEDBACK_NOT_FOUND": "Suggestion not found.",
+    "cms_asset_too_large": "This file is too large to upload. The maximum size is 50 MB.",
+    "cms_asset_upload_failed": "The file upload didn't finish. Check your connection and try again.",
+    "cms_version_conflict": "This entry was changed elsewhere while you were editing. Reload it and try again."
   },
   "footer": {
     "privacy": "Privacy",

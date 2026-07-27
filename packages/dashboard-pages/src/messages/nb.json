@@ -60,6 +60,10 @@
       "unreachable": {
         "title": "Får ikke kontakt med serveren.",
         "hint": "Sjekk tilkoblingen og prøv igjen."
+      },
+      "oauthError": {
+        "title": "Kunne ikke logge deg inn.",
+        "hint": "Innloggingen ble ikke fullført. Prøv igjen, eller bruk en annen metode."
       }
     },
     "signUp": {
@@ -1499,7 +1503,10 @@
     "CMS_CONFLICT": "CMS-konflikt (versjonskollisjon?).",
     "CONV_INVALID": "Samtaleoppføringen er ugyldig.",
     "FEEDBACK_RATE_LIMIT": "For mange forslag opprettet siste time. Prøv igjen senere.",
-    "FEEDBACK_NOT_FOUND": "Forslaget ble ikke funnet."
+    "FEEDBACK_NOT_FOUND": "Forslaget ble ikke funnet.",
+    "cms_asset_too_large": "Filen er for stor til å lastes opp. Maksstørrelsen er 50 MB.",
+    "cms_asset_upload_failed": "Opplastingen ble ikke fullført. Sjekk tilkoblingen og prøv igjen.",
+    "cms_version_conflict": "Oppføringen ble endret et annet sted mens du redigerte. Last den inn på nytt og prøv igjen."
   },
   "footer": {
     "privacy": "Personvern",

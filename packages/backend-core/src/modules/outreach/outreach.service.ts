@@ -29,7 +29,14 @@ export class OutreachInvalidError extends Error {
 export const PROPOSAL_KINDS = ['initial', 'reply', 'followup'] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
-export const PROPOSAL_STATUSES = ['pending', 'approved', 'sent', 'failed', 'dismissed'] as const;
+export const PROPOSAL_STATUSES = [
+  'pending',
+  'approved',
+  'sent',
+  'failed',
+  'dismissed',
+  'withdrawn',
+] as const;
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
 
 export interface CadenceRules {
@@ -101,10 +108,20 @@ export interface ProposalDto {
   decidedByActorType: string | null;
   decidedByActorId: string | null;
   decidedAt: string | null;
+  firstViewedAt: string | null;
+  viewedByActorType: string | null;
+  viewedByActorId: string | null;
+  revisionCount: number;
+  lastRevisedAt: string | null;
+  lastRevisionReason: string | null;
+  revisedByActorType: string | null;
+  revisedByActorId: string | null;
+  revisedAfterReviewAt: string | null;
   sentAt: string | null;
   sentMessageId: string | null;
   failureReason: string | null;
   dismissReason: string | null;
+  withdrawReason: string | null;
   createdAt: string;
   updatedAt: string;
   contact: ProposalContactSummary | null;
@@ -1085,12 +1102,67 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign);
   }
 
+  async markProposalViewed(id: string): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const proposal = await this.getProposal(id);
+    if (actor.type !== 'user' || proposal.firstViewedAt) return proposal;
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        firstViewedAt: new Date(),
+        viewedByActorType: actor.type,
+        viewedByActorId: actor.id,
+      })
+      .where(
+        and(
+          eq(schema.outreachProposals.id, id),
+          sql`${schema.outreachProposals.firstViewedAt} IS NULL`,
+        ),
+      )
+      .returning();
+    if (!updated) return this.getProposal(id);
+    return toProposalDto(updated, proposal.contact, proposal.campaign);
+  }
+
   async updateProposal(input: {
     id: string;
     draftSubject?: string | null;
     draftBody?: string;
+    reason?: string;
+  }): Promise<ProposalDto> {
+    return this.applyRevision(input);
+  }
+
+  async reviseProposal(input: {
+    id: string;
+    reason: string;
+    draftSubject?: string | null;
+    draftBody?: string;
+    proposedSendAt?: string | null;
+  }): Promise<ProposalDto> {
+    if (!input.reason.trim()) throw new OutreachInvalidError('reason must be non-empty');
+    if (
+      input.draftSubject === undefined &&
+      input.draftBody === undefined &&
+      input.proposedSendAt === undefined
+    ) {
+      throw new OutreachInvalidError(
+        'nothing to revise — pass at least one of draftSubject, draftBody, proposedSendAt',
+      );
+    }
+    return this.applyRevision(input);
+  }
+
+  private async applyRevision(input: {
+    id: string;
+    draftSubject?: string | null;
+    draftBody?: string;
+    proposedSendAt?: string | null;
+    reason?: string;
   }): Promise<ProposalDto> {
     const ctx = getCurrentContext();
+    const actor = ctx.actor!;
     const proposal = await this.getProposal(input.id);
     if (proposal.status !== 'pending') {
       throw new OutreachInvalidError(`proposal ${input.id} is ${proposal.status}, not pending`);
@@ -1098,9 +1170,28 @@ export class OutreachService {
     if (input.draftBody !== undefined && input.draftBody.trim().length === 0) {
       throw new OutreachInvalidError('draftBody cannot be empty');
     }
-    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    let proposedSendAt: Date | null | undefined;
+    if (input.proposedSendAt !== undefined) {
+      proposedSendAt = input.proposedSendAt === null ? null : new Date(input.proposedSendAt);
+      if (proposedSendAt !== null && Number.isNaN(proposedSendAt.getTime())) {
+        throw new OutreachInvalidError('proposedSendAt must be an ISO-8601 timestamp');
+      }
+    }
+    const now = new Date();
+    const revisedAfterReview =
+      proposal.firstViewedAt !== null && proposal.viewedByActorId !== actor.id;
+    const patch: Record<string, unknown> = {
+      updatedAt: now,
+      revisionCount: proposal.revisionCount + 1,
+      lastRevisedAt: now,
+      lastRevisionReason: input.reason ?? null,
+      revisedByActorType: actor.type,
+      revisedByActorId: actor.id,
+    };
+    if (revisedAfterReview) patch.revisedAfterReviewAt = now;
     if (input.draftSubject !== undefined) patch.draftSubject = input.draftSubject;
     if (input.draftBody !== undefined) patch.draftBody = input.draftBody;
+    if (proposedSendAt !== undefined) patch.proposedSendAt = proposedSendAt;
     const [updated] = await ctx.db
       .update(schema.outreachProposals)
       .set(patch)
@@ -1112,6 +1203,43 @@ export class OutreachService {
         proposalId: input.id,
         campaignId: proposal.campaignId,
         contactId: proposal.contactId,
+        reason: input.reason ?? null,
+        revisionCount: proposal.revisionCount + 1,
+        revisedAfterReview,
+      },
+    });
+    return toProposalDto(updated!, proposal.contact, proposal.campaign);
+  }
+
+  async withdrawProposal(input: { id: string; reason: string }): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!input.reason.trim()) throw new OutreachInvalidError('reason must be non-empty');
+    const proposal = await this.getProposal(input.id);
+    if (proposal.status !== 'pending') {
+      throw new OutreachInvalidError(`proposal ${input.id} is ${proposal.status}, not pending`);
+    }
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'withdrawn',
+        withdrawReason: input.reason,
+        decidedByActorType: actor.type,
+        decidedByActorId: actor.id,
+        decidedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, input.id))
+      .returning();
+    await this.webhooks.emit({
+      type: 'outreach.proposal.withdrawn',
+      payload: {
+        proposalId: input.id,
+        campaignId: proposal.campaignId,
+        contactId: proposal.contactId,
+        kind: proposal.kind,
+        sequenceStep: proposal.sequenceStep,
+        reason: input.reason,
       },
     });
     return toProposalDto(updated!, proposal.contact, proposal.campaign);
@@ -1502,10 +1630,20 @@ function toProposalDto(
     decidedByActorType: row.decidedByActorType,
     decidedByActorId: row.decidedByActorId,
     decidedAt: row.decidedAt?.toISOString() ?? null,
+    firstViewedAt: row.firstViewedAt?.toISOString() ?? null,
+    viewedByActorType: row.viewedByActorType,
+    viewedByActorId: row.viewedByActorId,
+    revisionCount: row.revisionCount,
+    lastRevisedAt: row.lastRevisedAt?.toISOString() ?? null,
+    lastRevisionReason: row.lastRevisionReason,
+    revisedByActorType: row.revisedByActorType,
+    revisedByActorId: row.revisedByActorId,
+    revisedAfterReviewAt: row.revisedAfterReviewAt?.toISOString() ?? null,
     sentAt: row.sentAt?.toISOString() ?? null,
     sentMessageId: row.sentMessageId,
     failureReason: row.failureReason,
     dismissReason: row.dismissReason,
+    withdrawReason: row.withdrawReason,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     contact:

@@ -456,6 +456,156 @@ const skipReason = TEST_URL
     });
   });
 
+  describe('revise and withdraw', () => {
+    function runAs<T>(as: ActorIdentity, fn: () => Promise<T>): Promise<T> {
+      return appDb.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
+        await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
+        return withContext({ db: tx, actor: as, correlationId: randomUUID() }, fn);
+      });
+    }
+
+    const reviewer = () =>
+      new ActorIdentity('user', 'usr_reviewer', orgId, ['*'], ['admin'], undefined, undefined, undefined, 'usr_reviewer');
+
+    async function pending(name: string) {
+      const c = await run(() =>
+        svc.createCampaign({ name, brief: 'b', segmentId, channelId, enabled: true }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({ campaignId: c.id, contactId, draftSubject: 's', draftBody: 'first' }),
+      );
+      return p;
+    }
+
+    it('reviseProposal rewrites the draft in place and records the revision', async () => {
+      const p = await pending('rev-basic');
+      const revised = await run(() =>
+        svc.reviseProposal({ id: p.id, reason: 'tightened the CTA', draftBody: 'second' }),
+      );
+      expect(revised.id).toBe(p.id);
+      expect(revised.campaignId).toBe(p.campaignId);
+      expect(revised.contactId).toBe(p.contactId);
+      expect(revised.draftBody).toBe('second');
+      expect(revised.draftSubject).toBe('s');
+      expect(revised.status).toBe('pending');
+      expect(revised.revisionCount).toBe(1);
+      expect(revised.lastRevisionReason).toBe('tightened the CTA');
+      expect(revised.revisedByActorId).toBe('agt_outreach_test');
+      expect(revised.lastRevisedAt).not.toBeNull();
+      expect(revised.revisedAfterReviewAt).toBeNull();
+
+      const again = await run(() =>
+        svc.reviseProposal({ id: p.id, reason: 'shorter subject', draftSubject: 'brief' }),
+      );
+      expect(again.revisionCount).toBe(2);
+      expect(again.draftBody).toBe('second');
+      expect(again.draftSubject).toBe('brief');
+    });
+
+    it('reviseProposal flags a revision made after a human opened the draft', async () => {
+      const p = await pending('rev-after-review');
+      const viewed = await runAs(reviewer(), () => svc.markProposalViewed(p.id));
+      expect(viewed.firstViewedAt).not.toBeNull();
+      expect(viewed.viewedByActorId).toBe('usr_reviewer');
+
+      const revised = await run(() =>
+        svc.reviseProposal({ id: p.id, reason: 'new pricing', draftBody: 'rewritten' }),
+      );
+      expect(revised.revisedAfterReviewAt).not.toBeNull();
+    });
+
+    it('markProposalViewed only stamps the first human view, and ignores agent actors', async () => {
+      const p = await pending('rev-view-once');
+      const byAgent = await run(() => svc.markProposalViewed(p.id));
+      expect(byAgent.firstViewedAt).toBeNull();
+
+      const first = await runAs(reviewer(), () => svc.markProposalViewed(p.id));
+      const second = await runAs(
+        new ActorIdentity('user', 'usr_other', orgId, ['*'], ['admin']),
+        () => svc.markProposalViewed(p.id),
+      );
+      expect(second.firstViewedAt).toBe(first.firstViewedAt);
+      expect(second.viewedByActorId).toBe('usr_reviewer');
+    });
+
+    it('a reviser who is the same human who opened it is not flagged', async () => {
+      const p = await pending('rev-self');
+      const me = reviewer();
+      await runAs(me, () => svc.markProposalViewed(p.id));
+      const revised = await runAs(me, () =>
+        svc.reviseProposal({ id: p.id, reason: 'my own typo', draftBody: 'fixed' }),
+      );
+      expect(revised.revisionCount).toBe(1);
+      expect(revised.revisedAfterReviewAt).toBeNull();
+    });
+
+    it('reviseProposal rejects an empty reason, an empty body, and a no-op patch', async () => {
+      const p = await pending('rev-invalid');
+      await expect(
+        run(() => svc.reviseProposal({ id: p.id, reason: '   ', draftBody: 'x' })),
+      ).rejects.toThrow(OutreachInvalidError);
+      await expect(
+        run(() => svc.reviseProposal({ id: p.id, reason: 'ok', draftBody: '   ' })),
+      ).rejects.toThrow(OutreachInvalidError);
+      await expect(run(() => svc.reviseProposal({ id: p.id, reason: 'ok' }))).rejects.toThrow(
+        OutreachInvalidError,
+      );
+    });
+
+    it('reviseProposal refuses a proposal that is no longer pending', async () => {
+      const p = await pending('rev-decided');
+      await run(() => svc.dismissProposal({ id: p.id, reason: 'no' }));
+      await expect(
+        run(() => svc.reviseProposal({ id: p.id, reason: 'too late', draftBody: 'x' })),
+      ).rejects.toThrow(OutreachInvalidError);
+    });
+
+    it('withdrawProposal retracts a pending draft neutrally', async () => {
+      const p = await pending('wd-basic');
+      const withdrawn = await run(() =>
+        svc.withdrawProposal({ id: p.id, reason: 'duplicate of an earlier draft' }),
+      );
+      expect(withdrawn.status).toBe('withdrawn');
+      expect(withdrawn.withdrawReason).toBe('duplicate of an earlier draft');
+      expect(withdrawn.dismissReason).toBeNull();
+      expect(withdrawn.decidedByActorId).toBe('agt_outreach_test');
+      expect(withdrawn.decidedAt).not.toBeNull();
+      expect(withdrawn.sentAt).toBeNull();
+
+      const contact = await run(() => crm.getContact(contactId));
+      expect(contact.doNotContact).toBe(false);
+      expect(contact.unsubscribedAt).toBeNull();
+      expect(contact.consentLawfulBasis).not.toBeNull();
+    });
+
+    it('withdrawing frees the pending slot so a corrected draft can be filed', async () => {
+      const p = await pending('wd-refile');
+      await run(() => svc.withdrawProposal({ id: p.id, reason: 'wrong angle' }));
+      const fresh = await run(() =>
+        svc.proposeInitial({
+          campaignId: p.campaignId,
+          contactId,
+          draftSubject: 's2',
+          draftBody: 'corrected',
+        }),
+      );
+      expect(fresh.id).not.toBe(p.id);
+      expect(fresh.status).toBe('pending');
+    });
+
+    it('withdrawProposal rejects an empty reason and a non-pending proposal', async () => {
+      const p = await pending('wd-invalid');
+      await expect(run(() => svc.withdrawProposal({ id: p.id, reason: '  ' }))).rejects.toThrow(
+        OutreachInvalidError,
+      );
+      await run(() => svc.withdrawProposal({ id: p.id, reason: 'retracted' }));
+      await expect(run(() => svc.withdrawProposal({ id: p.id, reason: 'again' }))).rejects.toThrow(
+        OutreachInvalidError,
+      );
+    });
+  });
+
   describe('sequences', () => {
     const STEPS = [
       { waitDays: 3, brief: 'gentle bump' },
@@ -648,6 +798,21 @@ const skipReason = TEST_URL
       ).rejects.toThrow(ConflictException);
     });
 
+    it('a withdrawn follow-up leaves the step re-proposable', async () => {
+      const c = await createSeqCampaign('seq-withdrawn');
+      const sent = await sendInitial(c.id);
+      await backdateSent(sent.id, 4);
+      const p = await run(() =>
+        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
+      );
+      await run(() => svc.withdrawProposal({ id: p.id, reason: 'duplicate draft' }));
+      const refiled = await run(() =>
+        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'better bump' }),
+      );
+      expect(refiled.status).toBe('pending');
+      expect(refiled.sequenceStep).toBe(1);
+    });
+
     it('proposeFollowup rejects while another follow-up or reply is pending', async () => {
       const c = await createSeqCampaign('seq-queued');
       const sent = await sendInitial(c.id);
@@ -834,6 +999,18 @@ const skipReason = TEST_URL
         );
         await run(() => svc.dismissProposal({ id: p.id }));
         expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
+      });
+
+      it('keeps a step due after the agent withdraws its own follow-up draft', async () => {
+        const c = await createSeqCampaign('due-withdrawn');
+        const sent = await sendInitial(c.id);
+        await backdateSent(sent.id, 4);
+        const p = await run(() =>
+          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
+        );
+        await run(() => svc.withdrawProposal({ id: p.id, reason: 'wrong case study' }));
+        const due = await run(() => svc.listDueFollowups({}));
+        expect(due.map((d) => d.nextStep)).toEqual([1]);
       });
 
       it('excludes disabled campaigns, exhausted sequences, and campaigns without steps', async () => {

@@ -373,7 +373,10 @@
         "kbSlugFallback": "kb-curation-inbox",
         "handleFallback": "—",
         "endUserFallback": "—",
-        "anonymousVisitor": "Anonymous"
+        "anonymousVisitor": "Anonymous",
+        "outreachRevised": "Revised {count}× since it was drafted",
+        "outreachRevisedAfterReview": "Revised {count}× after it was opened for review — read it again before approving",
+        "outreachRevisionReason": "Reason — {reason}"
       },
       "relative": {
         "justNow": "just now",
@@ -1567,8 +1570,13 @@
         "approved": "approved",
         "sent": "sent",
         "dismissed": "dismissed",
-        "failed": "failed"
-      }
+        "failed": "failed",
+        "withdrawn": "withdrawn"
+      },
+      "withdrawn": "Withdrawn by the agent — nothing was sent.",
+      "withdrawnReason": "Withdrawn — {reason}",
+      "revised": "Revised {count}× since it was drafted",
+      "revisedAfterReview": "Revised {count}× after a reviewer opened it — read it again before approving"
     }
   },
   "legal": {

@@ -1,5 +1,18 @@
 # @getmunin/backend-core
 
+## 4.70.1
+
+### Patch Changes
+
+- ff032db: Mark the Slack webhook controllers (`/v1/slack/events`, `/v1/slack/interactivity`, `/v1/slack/oauth/*`, `/v1/slack/avatars`) as anonymous-callable via `PublicController`. Deployments that register `AuthGuard` as a global `APP_GUARD` were returning 401 "invalid or expired credential" to Slack before signature verification ever ran, which broke button interactions and inbound event delivery. Slack authenticates these routes with its signing secret (and the OAuth callback with signed state + a nonce cookie), not a Munin credential. The events/interactivity endpoint is now also rate-limited like other public webhook endpoints.
+  - @getmunin/core@4.70.1
+  - @getmunin/db@4.70.1
+  - @getmunin/types@4.70.1
+  - @getmunin/mcp-toolkit@4.70.1
+  - @getmunin/inspector-app@4.70.1
+  - @getmunin/agent-runtime@4.70.1
+  - @getmunin/emails@4.70.1
+
 ## 4.70.0
 
 ### Minor Changes

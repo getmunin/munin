@@ -351,6 +351,55 @@
       "when": 1782807511913,
       "tag": "0049_outreach_campaign_auto_draft",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1783074481028,
+      "tag": "0050_slack_operator_bridge",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1783236372032,
+      "tag": "0051_slack_route_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1784586918174,
+      "tag": "0052_connector_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1784587344170,
+      "tag": "0053_credential_handoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1784587787527,
+      "tag": "0054_outreach_sequence_steps",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1785018440518,
+      "tag": "0055_slack_approval_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1785148456962,
+      "tag": "0056_outreach_proposal_revisions",
+      "breakpoints": true
     }
   ]
 }

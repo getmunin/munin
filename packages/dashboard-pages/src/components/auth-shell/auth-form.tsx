@@ -33,7 +33,7 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(
         ref={ref}
         {...props}
         className={cn(
-          'border-[0.5px] bg-paper px-4 py-3.5 text-[15px] text-ink',
+          'border-[1px] bg-paper px-4 py-3.5 text-[15px] text-ink',
           'placeholder:text-ink-mute',
           'transition-colors duration-fast ease-munin',
           'focus:outline-none focus:ring-[3px] focus:ring-ink/[0.08]',
@@ -58,12 +58,12 @@ export const AuthSubmit = forwardRef<HTMLButtonElement, AuthSubmitProps>(
         ref={ref}
         {...props}
         className={cn(
-          'mt-2 inline-flex w-full items-center justify-center gap-2 px-[18px] py-4 text-[15px] font-medium',
+          'mt-2 inline-flex w-full items-center justify-center gap-2 border-[1px] px-[18px] py-4 text-[15px] font-medium',
           'transition-colors duration-fast ease-munin active:translate-y-px',
           'disabled:cursor-not-allowed disabled:opacity-60',
           variant === 'navy'
-            ? 'bg-ink text-paper shadow-[inset_0_0_0_0.5px_rgb(var(--munin-ink))] hover:bg-cobalt-deep hover:shadow-[inset_0_0_0_0.5px_rgb(var(--munin-accent-deep))]'
-            : 'bg-transparent text-ink shadow-[inset_0_0_0_0.5px_rgb(var(--munin-ink))] hover:bg-ink hover:text-paper',
+            ? 'border-ink bg-ink text-paper hover:border-cobalt-deep hover:bg-cobalt-deep'
+            : 'border-ink bg-transparent text-ink hover:bg-ink hover:text-paper',
           className,
         )}
       >
@@ -102,7 +102,7 @@ export function AuthOAuthButton({
       type="button"
       {...props}
       className={cn(
-        'inline-flex w-full items-center justify-center gap-3.5 border-[0.5px] border-rule-soft bg-paper px-[18px] py-4 text-[15px] text-ink',
+        'inline-flex w-full items-center justify-center gap-3.5 border-[1px] border-rule-soft bg-paper px-[18px] py-4 text-[15px] text-ink',
         'transition-colors duration-fast ease-munin hover:border-ink active:translate-y-px',
         className,
       )}

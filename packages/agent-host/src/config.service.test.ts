@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WebhookDispatcher } from '@getmunin/core';
+import { WebhookDispatcher } from '@getmunin/core';
 import { AgentConfigService } from './config.service.ts';
 import type { AgentHealthRecorder } from './agent-health.service.ts';
 import type {
@@ -36,9 +36,12 @@ function makeRepo(opts: {
   };
 }
 
-function makeWebhooks(): WebhookDispatcher & { emit: ReturnType<typeof vi.fn> } {
-  const stub = { emit: vi.fn().mockResolvedValue('evt_stub') };
-  return stub;
+class FakeWebhookDispatcher extends WebhookDispatcher {
+  override emit = vi.fn().mockResolvedValue('evt_stub');
+}
+
+function makeWebhooks(): FakeWebhookDispatcher {
+  return new FakeWebhookDispatcher();
 }
 
 function makeHealthStub(): AgentHealthRecorder & {

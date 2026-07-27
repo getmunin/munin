@@ -1,14 +1,43 @@
 ---
 title: Outreach: Review pending proposals
-description: Operator review pass over drafted outreach proposals — approve (which sends) or dismiss each pending draft. In MCP App hosts this renders the interactive Munin Inspector panel; elsewhere, drive the same decision tools directly.
+description: Operator review pass over drafted outreach proposals — approve (which sends) or dismiss each pending draft, and the two agent-side corrections, revise and withdraw. In MCP App hosts this renders the interactive Munin Inspector panel; elsewhere, drive the same decision tools directly.
 audiences: [admin]
 ---
 
 # Review pending outreach proposals
 
-Every outbound email in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-initial-email`, `skill://outreach/draft-reply-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
+Every outbound email in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-initial-email`, `skill://outreach/draft-reply-email`, `skill://outreach/draft-followup-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
 
-**Approving sends.** `outreach_approve_proposal` is not a status flip: for an `initial` proposal it creates the outbound conversation and sends the first email through the campaign's channel (appending the CTA link and unsubscribe footer per campaign settings); for a `reply` it sends the draft verbatim on the existing conversation. There is no undo. Never approve in bulk without reading each draft.
+**Approving sends.** `outreach_approve_proposal` is not a status flip: for an `initial` proposal it creates the outbound conversation and sends the first email through the campaign's channel (appending the CTA link and unsubscribe footer per campaign settings); for a `reply` or `followup` it sends the draft verbatim on the existing conversation. There is no undo. Never approve in bulk without reading each draft.
+
+**Dismissing a follow-up stops the sequence.** A dismissed `followup` permanently ends the campaign's follow-up sequence for that contact — no later step will be drafted. That makes dismiss the right call for "stop chasing this person" and the wrong call for "reword this". For wording, revise the draft in place (below) or edit it in the dashboard review drawer, then approve the edited version.
+
+## Four verbs, four different meanings
+
+| Tool | Who it's for | What it means |
+|---|---|---|
+| `outreach_approve_proposal` | operator | Send it. No undo. |
+| `outreach_dismiss_proposal` | operator | *Rejected.* A judgement about this draft; on a `followup` it also stops the sequence. |
+| `outreach_revise_proposal` | agent | Same proposal, better text. Recipient and campaign are fixed. |
+| `outreach_withdraw_proposal` | agent | *Never mind* — the draft should not have been filed. Neutral. |
+
+Dismiss is a decision about the draft; withdraw is the agent admitting the draft was a mistake. Don't reach for dismiss to clean up after yourself, and don't withdraw a draft an operator asked you to reject — the reasons land in different fields and read differently in the audit trail.
+
+## Revising a pending draft
+
+`outreach_revise_proposal({ "id": "...", "reason": "...", "draftBody": "..." })` rewrites the draft in place. The proposal id, the contact, and the campaign do not change — a different recipient is a different proposal, so file a new one instead. `draftSubject` and `proposedSendAt` can be revised the same way, and `reason` is required.
+
+The revision is recorded, not silent. Each call bumps `revisionCount` and stamps `lastRevisedAt`, `lastRevisionReason`, and the revising actor. If somebody else had already opened the draft for review before your change, `revisedAfterReviewAt` is stamped too and the review surfaces flag it — the operator who read Monday's text gets told, in the panel and in the dashboard drawer, that Wednesday's text is not what they read.
+
+That flag is the point. **Never revise a draft an operator is mid-review on and then ask them to approve as if nothing changed.** If you revise after review, say so in the same breath you present it, and let them re-read the full body.
+
+## Withdrawing your own draft
+
+`outreach_withdraw_proposal({ "id": "...", "reason": "..." })` retracts a pending proposal you should not have filed: you drafted the same person twice, the prospect turned out not to qualify, the address bounced, the campaign premise no longer holds. Nothing is sent and `reason` is required.
+
+Withdrawal is deliberately neutral. It does **not** suppress the contact, does **not** touch their consent, and does **not** stop a campaign sequence — a withdrawn `followup` leaves that step eligible again, unlike a dismissed one. If the contact genuinely should never be contacted again, that is a suppression decision: `crm_set_contact_consent` / the do-not-contact flag, not a withdrawal.
+
+Because withdrawal clears the pending slot for that (campaign, contact, kind), you can withdraw a bad draft and file a corrected one. Prefer `outreach_revise_proposal` when the recipient is right and only the text is wrong — withdraw-and-refile loses the review history.
 
 ## In an MCP App host (Claude, Claude Desktop, …)
 
@@ -23,10 +52,11 @@ In hosts without MCP Apps support the decision tools appear normally, and the sa
 3. **Decide one at a time** on the operator's word:
    - `outreach_approve_proposal({ "id": "..." })` — sends immediately; the result carries `status: "sent"`, `conversationId`, `sentMessageId`.
    - `outreach_dismiss_proposal({ "id": "...", "reason": "..." })` — no send; the reason lands on the proposal for the curator's next pass.
-4. **Handle refusals cleanly.** Both tools reject non-`pending` proposals (someone else may have decided it since listing — refresh rather than retry). Approval also rejects when the campaign was disabled or the contact became suppressed since drafting; that is the suppression floor working, not an error to route around.
+4. **Handle refusals cleanly.** Both tools reject non-`pending` proposals (someone else may have decided it since listing — refresh rather than retry). Approval also rejects when the campaign was disabled or the contact became suppressed since drafting, and — for `followup` proposals — when the prospect replied after the draft was filed (dismiss it; the reply flow owns the conversation now). That is the suppression floor and stop-on-reply working, not an error to route around.
 
 ## What not to do
 
 - **Never approve on your own initiative.** A pending queue is not permission. The invariant that makes propose-only outreach safe is that a human read each draft.
-- **Don't edit-and-approve in one breath.** If a draft needs changes, dismiss with a reason (or have the operator edit it in the dashboard) and let a fresh proposal be filed.
+- **Don't revise-and-approve in one breath.** A revision resets what the operator needs to read. Revise, re-present the full body, then wait for their word.
+- **Don't withdraw a draft to escape a refusal.** If approval failed because the contact was suppressed or the prospect replied, that is the safety floor doing its job — dismiss it (or leave it) rather than withdrawing to clear the slot and re-drafting around the block.
 - **Don't loop approve over the whole list** ("approve all") unless the operator explicitly reviewed every draft and said exactly that.

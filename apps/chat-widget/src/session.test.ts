@@ -37,9 +37,7 @@ describe('session', () => {
   beforeEach(() => {
     try {
       localStorage.clear();
-    } catch {
-      // ignore
-    }
+    } catch {}
     document.cookie.split(';').forEach((c) => {
       const eq = c.indexOf('=');
       const name = (eq > -1 ? c.slice(0, eq) : c).trim();

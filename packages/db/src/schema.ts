@@ -1709,6 +1709,9 @@ export const curatorJobs = pgTable(
 // initials per (campaign, contact) → review → approve → send via the
 // existing email channel. Replies thread into normal conversations
 // (reply attribution via `conv_conversations.outreach_campaign_id`).
+// Campaigns may define `sequence_steps` (waitDays + brief per step); a
+// scheduled curator drafts `kind='followup'` proposals for silent
+// threads — stopped by any inbound reply, unsubscribe, or dismissal.
 export const outreachCampaigns = pgTable(
   'outreach_campaigns',
   {
@@ -1733,6 +1736,10 @@ export const outreachCampaigns = pgTable(
       }>()
       .notNull()
       .default({}),
+    sequenceSteps: jsonb('sequence_steps')
+      .$type<{ waitDays: number; brief: string }[]>()
+      .notNull()
+      .default([]),
     ctaUrl: text('cta_url'),
     enabled: boolean('enabled').notNull().default(false),
     autoDraftInitial: boolean('auto_draft_initial').notNull().default(false),
@@ -1769,24 +1776,35 @@ export const outreachProposals = pgTable(
       onDelete: 'set null',
     }),
     kind: varchar('kind', { length: 16 }).notNull(),
-    // 'initial' | 'reply'
+    // 'initial' | 'reply' | 'followup'
+    sequenceStep: integer('sequence_step'),
     draftSubject: text('draft_subject'),
     draftBody: text('draft_body').notNull(),
     evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
     proposedSendAt: timestamp('proposed_send_at', { withTimezone: true }),
     status: varchar('status', { length: 16 }).notNull().default('pending'),
-    // 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed'
+    // 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed' | 'withdrawn'
     proposedByActorType: varchar('proposed_by_actor_type', { length: 16 }).notNull(),
     proposedByActorId: text('proposed_by_actor_id').notNull(),
     decidedByActorType: varchar('decided_by_actor_type', { length: 16 }),
     decidedByActorId: text('decided_by_actor_id'),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
+    firstViewedAt: timestamp('first_viewed_at', { withTimezone: true }),
+    viewedByActorType: varchar('viewed_by_actor_type', { length: 16 }),
+    viewedByActorId: text('viewed_by_actor_id'),
+    revisionCount: integer('revision_count').notNull().default(0),
+    lastRevisedAt: timestamp('last_revised_at', { withTimezone: true }),
+    lastRevisionReason: text('last_revision_reason'),
+    revisedByActorType: varchar('revised_by_actor_type', { length: 16 }),
+    revisedByActorId: text('revised_by_actor_id'),
+    revisedAfterReviewAt: timestamp('revised_after_review_at', { withTimezone: true }),
     sentAt: timestamp('sent_at', { withTimezone: true }),
     sentMessageId: text('sent_message_id').references(() => convMessages.id, {
       onDelete: 'set null',
     }),
     failureReason: text('failure_reason'),
     dismissReason: text('dismiss_reason'),
+    withdrawReason: text('withdraw_reason'),
     createdAt,
     updatedAt,
   },
@@ -1876,6 +1894,300 @@ export const orgAlerts = pgTable(
   }),
 );
 
+// ───────────────────────── Slack operator bridge ─────────────────────
+// Slack as an operator surface layered on existing conversations: each
+// conversation mirrors into one Slack thread; operators triage and (later
+// phases) reply from Slack. NOT a customer channel — the conversation's
+// original channel keeps handling the customer transport.
+
+// One row per (org, workspace) install. The Slack app itself is
+// deployment-level (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET /
+// SLACK_SIGNING_SECRET env); only the per-workspace bot token lives here,
+// pgcrypto-encrypted. `team_id` is deliberately NOT unique — one workspace
+// may serve several orgs; inbound routing resolves by channel, not team.
+export const slackIntegrations = pgTable(
+  'slack_integrations',
+  {
+    id: id('slk'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    teamId: text('team_id').notNull(),
+    teamName: text('team_name'),
+    encryptedBotToken: text('encrypted_bot_token').notNull(),
+    botUserId: text('bot_user_id'),
+    appId: text('app_id'),
+    installedByUserId: text('installed_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    active: boolean('active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgUq: uniqueIndex('slack_integrations_org_uq').on(t.orgId),
+    teamIdx: index('slack_integrations_team_idx').on(t.teamId),
+  }),
+);
+
+// Which Slack channel an org's conversations mirror into. The
+// (team_id, slack_channel_id) unique constraint is the multi-org
+// invariant: a Slack channel belongs to exactly one org (and one route),
+// so inbound channel→org resolution is always unambiguous. A non-null
+// conv_channel_id makes the row a source-channel override: conversations
+// arriving on that conv channel mirror there instead of the default.
+export const slackChannelRoutes = pgTable(
+  'slack_channel_routes',
+  {
+    id: id('slr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    teamId: text('team_id').notNull(),
+    slackChannelId: text('slack_channel_id').notNull(),
+    slackChannelName: text('slack_channel_name'),
+    purpose: varchar('purpose', { length: 16 }).notNull().default('default'),
+    // 'default' | 'escalations' | 'approvals'
+    convChannelId: text('conv_channel_id').references(() => convChannels.id, {
+      onDelete: 'cascade',
+    }),
+    /** Rendered verbatim in escalation alerts, e.g. `<!subteam^S123>` or `<!here>`. */
+    mention: text('mention'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    teamChannelUq: uniqueIndex('slack_channel_routes_team_channel_uq').on(
+      t.teamId,
+      t.slackChannelId,
+    ),
+    purposeUq: uniqueIndex('slack_channel_routes_purpose_uq')
+      .on(t.integrationId, t.purpose)
+      .where(sql`conv_channel_id IS NULL`),
+    convChannelUq: uniqueIndex('slack_channel_routes_conv_channel_uq')
+      .on(t.integrationId, t.convChannelId)
+      .where(sql`conv_channel_id IS NOT NULL`),
+    orgIdx: index('slack_channel_routes_org_idx').on(t.orgId),
+  }),
+);
+
+// One Slack thread = one conversation. Created lazily by the bridge worker
+// on the first mirrored event for a conversation (the parent message's `ts`
+// becomes the thread anchor). Resolves both directions.
+export const slackConversationLinks = pgTable(
+  'slack_conversation_links',
+  {
+    id: id('scl'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    slackChannelId: text('slack_channel_id').notNull(),
+    slackThreadTs: text('slack_thread_ts').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    conversationUq: uniqueIndex('slack_conversation_links_conversation_uq').on(t.conversationId),
+    threadUq: uniqueIndex('slack_conversation_links_thread_uq').on(
+      t.slackChannelId,
+      t.slackThreadTs,
+    ),
+    orgIdx: index('slack_conversation_links_org_idx').on(t.orgId),
+  }),
+);
+
+// Message ↔ Slack ts mapping. Loop prevention in both directions: outbound
+// mirroring records the posted ts; inbound (phase 2) pre-records the link so
+// the resulting conversation.message.sent event is not re-mirrored, and
+// drops Slack events whose ts is already linked.
+export const slackMessageLinks = pgTable(
+  'slack_message_links',
+  {
+    id: id('sml'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => convMessages.id, { onDelete: 'cascade' }),
+    slackChannelId: text('slack_channel_id').notNull(),
+    slackTs: text('slack_ts').notNull(),
+    origin: varchar('origin', { length: 16 }).notNull(),
+    // 'mirrored' (Munin → Slack) | 'slack' (operator reply from Slack)
+    createdAt,
+  },
+  (t) => ({
+    messageUq: uniqueIndex('slack_message_links_message_uq').on(t.messageId),
+    tsUq: uniqueIndex('slack_message_links_ts_uq').on(t.slackChannelId, t.slackTs),
+    orgIdx: index('slack_message_links_org_idx').on(t.orgId),
+  }),
+);
+
+// Slack user → Munin user mapping for reply attribution (phase 2). Rows are
+// created by email auto-match (`users.info` → org member email) or manual
+// linking; replies from unmapped Slack users are rejected.
+export const slackUserLinks = pgTable(
+  'slack_user_links',
+  {
+    id: id('sul'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    slackUserId: text('slack_user_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    slackUserUq: uniqueIndex('slack_user_links_slack_user_uq').on(t.integrationId, t.slackUserId),
+    orgIdx: index('slack_user_links_org_idx').on(t.orgId),
+  }),
+);
+
+// Durable queue feeding the Slack bridge worker. Populated at
+// WebhookDispatcher.emit() time (in the request transaction) via the
+// registered event sink; drained out-of-band like webhook_deliveries.
+// `conversation_id` is denormalized so the worker can keep per-conversation
+// ordering (head-of-line: a due row waits while an earlier undelivered row
+// for the same conversation is still retrying).
+export const slackDeliveries = pgTable(
+  'slack_deliveries',
+  {
+    id: id('sld'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    eventType: text('event_type').notNull(),
+    conversationId: text('conversation_id').references(() => convConversations.id, {
+      onDelete: 'cascade',
+    }),
+    // Serializes approval-notification rows the same way conversation_id
+    // serializes mirror rows (head-of-line per subject); null for both on the
+    // other kind of row. Format: '<subject_type>:<subject_id>'.
+    subjectKey: text('subject_key'),
+    attempt: integer('attempt').notNull().default(0),
+    error: text('error'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => ({
+    pendingIdx: index('slack_deliveries_pending_idx').on(t.nextAttemptAt),
+    convIdx: index('slack_deliveries_conv_idx').on(t.conversationId, t.createdAt),
+    subjectIdx: index('slack_deliveries_subject_idx').on(t.subjectKey, t.createdAt),
+    orgIdx: index('slack_deliveries_org_idx').on(t.orgId),
+  }),
+);
+
+// One Slack message = one approval item (CRM merge proposal, outreach
+// proposal, KB curation candidate). Created by the bridge worker when the
+// pending notification posts; resolution events chat.update the same message
+// and stamp resolved_at so late or duplicate resolutions are no-ops.
+export const slackNotificationLinks = pgTable(
+  'slack_notification_links',
+  {
+    id: id('snl'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
+    subjectType: varchar('subject_type', { length: 32 }).notNull(),
+    // 'crm_merge_proposal' | 'outreach_proposal' | 'kb_curation_candidate'
+    subjectId: text('subject_id').notNull(),
+    slackChannelId: text('slack_channel_id').notNull(),
+    slackTs: text('slack_ts').notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => ({
+    subjectUq: uniqueIndex('slack_notification_links_subject_uq').on(
+      t.integrationId,
+      t.subjectType,
+      t.subjectId,
+    ),
+    orgIdx: index('slack_notification_links_org_idx').on(t.orgId),
+  }),
+);
+
+// Connector connections: per-org credentials for third-party systems,
+// one row per connected vendor account. `domain` names the product surface
+// the connector feeds (commerce → orders, bookings → reservations); it is
+// derived from the vendor's adapter at create time. `config` is
+// vendor-shaped JSONB with pgcrypto-encrypted secrets — never returned raw
+// by MCP tools. Self-service lookup tools read these rows through the
+// service layer, so RLS permits end-user reads but blocks end-user writes.
+export const connectorConnections = pgTable(
+  'connector_connections',
+  {
+    id: id('cnc'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    vendor: varchar('vendor', { length: 32 }).notNull(),
+    domain: varchar('domain', { length: 32 }).notNull(),
+    name: text('name').notNull(),
+    config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
+    active: boolean('active').notNull().default(true),
+    credentialState: varchar('credential_state', { length: 16 }).notNull().default('active'),
+    lastTestedAt: timestamp('last_tested_at', { withTimezone: true }),
+    lastTestError: text('last_test_error'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('connector_connections_org_idx').on(t.orgId, t.domain),
+    orgNameUq: uniqueIndex('connector_connections_org_name_uq').on(t.orgId, t.name),
+  }),
+);
+
+// One-time links for entering an integration's secret credentials out-of-band
+// (a dashboard form) instead of pasting them into an agent conversation.
+// target_type routes completion to the owning module's handler (connector,
+// channel, …); link_hash is the peppered hash of the returned token.
+export const credentialRequests = pgTable(
+  'credential_requests',
+  {
+    id: id('crq'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    targetType: varchar('target_type', { length: 32 }).notNull(),
+    targetId: text('target_id').notNull(),
+    linkHash: text('link_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt,
+  },
+  (t) => ({
+    linkIdx: index('credential_requests_link_idx').on(t.linkHash),
+    targetIdx: index('credential_requests_target_idx').on(t.targetType, t.targetId),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   orgs,
@@ -1940,6 +2252,13 @@ export const allTables = {
   systemConfig,
   feedbackOutbox,
   orgAlerts,
+  slackIntegrations,
+  slackChannelRoutes,
+  slackConversationLinks,
+  slackMessageLinks,
+  slackUserLinks,
+  slackDeliveries,
+  connectorConnections,
 };
 
 export type AllTables = typeof allTables;

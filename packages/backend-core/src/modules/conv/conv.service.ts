@@ -63,6 +63,7 @@ export interface ChannelDto {
   active: boolean;
   config: Record<string, unknown>;
   defaultAgentMode: AgentMode;
+  needsCredentials: boolean;
   createdAt: string;
 }
 
@@ -93,12 +94,6 @@ export interface ConversationSummary {
   displayId: number;
   status: ConversationStatus;
   channelId: string;
-  /**
-   * The channel kind (e.g. 'email' | 'chat' | 'sms' | 'voice'). Populated by
-   * endpoints that JOIN conv_channels — currently only `GET /v1/conversations/:id`.
-   * Other endpoints omit the field rather than fabricating a value; consumers that
-   * need it should call the detail endpoint.
-   */
   channelType?: string;
   endUserId: string | null;
   contactId: string | null;
@@ -111,14 +106,6 @@ export interface ConversationSummary {
   needsHumanAttentionAt: string | null;
   agentMode: AgentMode;
   outreachCampaignId: string | null;
-  /**
-   * True while a voice call is in progress for this conversation. The chat
-   * agent runner uses this to skip auto-replies — the voice channel owns the
-   * conversation's reply loop until the call ends, regardless of vendor. Set
-   * by `WidgetVoiceService` on call start (writes `voiceActive: true` +
-   * `voiceStartedAt` into `conv_conversations.metadata`); cleared by the
-   * active voice adapter when the call ends.
-   */
   voiceActive: boolean;
   updatedAt: string;
   createdAt: string;
@@ -126,12 +113,6 @@ export interface ConversationSummary {
 
 export interface ConversationDetail extends ConversationSummary {
   messages: MessageDto[];
-  /**
-   * The assistant's configured name (`assistants.name`) for the owning org,
-   * or null if unset. Runtime consumers fall back to no name preamble when
-   * null; the wire format carries the configured value verbatim so each
-   * caller controls its own fallback policy.
-   */
   assistantName: string | null;
   endUserLocale: string | null;
   contactEmail: string | null;
@@ -183,7 +164,6 @@ export class ConvService {
     @Inject(AlertsService) private readonly alerts: AlertsService,
   ) {}
 
-  // ─── Channels ───────────────────────────────────────────────────────────
 
   async listChannels(): Promise<ChannelDto[]> {
     const ctx = getCurrentContext();
@@ -279,7 +259,6 @@ export class ConvService {
     return rows[0] ? toChannelDto(rows[0]) : null;
   }
 
-  // ─── Topics ─────────────────────────────────────────────────────────────
 
   async listTopics(): Promise<TopicDto[]> {
     const ctx = getCurrentContext();
@@ -365,10 +344,13 @@ export class ConvService {
     if (!updated) {
       throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
     }
+    await this.webhooks.emit({
+      type: 'conversation.subject_changed',
+      payload: { conversationId: input.conversationId, subject: input.subject },
+    });
     return toConversationSummary(updated);
   }
 
-  // ─── Conversations ──────────────────────────────────────────────────────
 
   async listConversationsByIds(
     ids: string[],
@@ -908,11 +890,6 @@ export class ConvService {
         });
       }
 
-      // Enqueue an outbound delivery row for staff-authored messages on
-      // email channels. The email-outbound worker picks these up, builds
-      // the MIME, and ships them via SMTP. End-user-authored messages on
-      // an email channel arrived via the IMAP poller — they're already
-      // outside; no need to send them again.
       if (
         conv.channelType === 'email' &&
         input.authorType !== 'end_user' &&
@@ -924,13 +901,6 @@ export class ConvService {
     return toMessageDto(row!);
   }
 
-  /**
-   * Insert a `conv_message_deliveries` row for a freshly-created outbound
-   * message on an email channel. Stamps `in_reply_to_header` from the
-   * most-recent successful outbound on the same conversation so reply
-   * chains hold. Lives on ConvService rather than EmailService to keep
-   * sendMessage from importing the email module.
-   */
   private async enqueueEmailOutbound(
     messageId: string,
     conversationId: string,
@@ -1329,7 +1299,6 @@ export class ConvService {
     return rows.map((r) => toMessageDto(r, authorNames));
   }
 
-  // ─── Transfer (import / export) ──────────────────────────────────────────
 
   async exportConv(): Promise<ConvExportData> {
     const ctx = getCurrentContext();
@@ -1520,12 +1489,6 @@ export class ConvService {
     return out;
   }
 
-  /**
-   * Insert a conversation, retrying on `display_id` collision (when two
-   * concurrent inserts in the same org pick the same MAX+1). The unique
-   * index on (org_id, display_id) makes this race detectable; we retry up
-   * to 5 times before giving up.
-   */
   private async insertConversationWithRetry(values: {
     orgId: string;
     channelId: string;
@@ -1559,7 +1522,6 @@ export class ConvService {
   }
 }
 
-// ─── DTO mappers / helpers ─────────────────────────────────────────────────
 
 function toChannelDto(row: typeof schema.convChannels.$inferSelect): ChannelDto {
   return {
@@ -1570,8 +1532,20 @@ function toChannelDto(row: typeof schema.convChannels.$inferSelect): ChannelDto 
     active: row.active,
     config: row.config,
     defaultAgentMode: row.defaultAgentMode as AgentMode,
+    needsCredentials: channelNeedsCredentials(row),
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function channelNeedsCredentials(row: typeof schema.convChannels.$inferSelect): boolean {
+  if (row.type !== 'email') return false;
+  const config = row.config as {
+    outbound?: { provider?: string; encryptedPassword?: string };
+    inbound?: { encryptedPassword?: string };
+  };
+  const smtpMissing = config.outbound?.provider === 'smtp' && !config.outbound.encryptedPassword;
+  const imapMissing = !!config.inbound && !config.inbound.encryptedPassword;
+  return smtpMissing || imapMissing;
 }
 
 function toTopicDto(row: typeof schema.convTopics.$inferSelect): TopicDto {

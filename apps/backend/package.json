@@ -16,7 +16,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@better-auth/oauth-provider": "^1.6.10",
+    "@better-auth/oauth-provider": "^1.6.23",
     "@getmunin/agent-host": "workspace:*",
     "@getmunin/analytics-tracker": "workspace:*",
     "@getmunin/backend-core": "workspace:*",
@@ -29,7 +29,7 @@
     "@nestjs/platform-express": "^11.1.19",
     "@sentry/nestjs": "^10.51.0",
     "@sentry/profiling-node": "^10.51.0",
-    "better-auth": "^1.6.11",
+    "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
     "postgres": "^3.4.5",

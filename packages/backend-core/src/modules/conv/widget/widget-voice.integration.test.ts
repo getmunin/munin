@@ -172,8 +172,18 @@ const skipReason = TEST_URL
     token: string = widgetKey,
   ): Promise<{ status: number; json: unknown }> {
     const url = new URL(`${baseUrl}/v1/widget/voice/available`);
-    for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    const sessionHeaderMap: Record<string, string> = {
+      sessionId: 'x-munin-session-id',
+      verifiedExternalId: 'x-munin-verified-external-id',
+      userHash: 'x-munin-user-hash',
+    };
+    for (const [k, v] of Object.entries(query)) {
+      const header = sessionHeaderMap[k];
+      if (header) headers[header] = v;
+      else url.searchParams.set(k, v);
+    }
+    const res = await fetch(url, { headers });
     const text = await res.text();
     let json: unknown = null;
     try {

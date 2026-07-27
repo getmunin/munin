@@ -1,13 +1,3 @@
-/**
- * OSS migration entry point. Runs the shared schema (extensions, RLS,
- * module SQL, app role) from @getmunin/db, then layers the agent-host
- * singleton DDL on top.
- *
- *   pnpm --filter @getmunin/backend migrate
- *
- * Reads MUNIN_MIGRATE_URL (privileged superuser URL — not the runtime
- * munin_app role). Both halves are idempotent.
- */
 import './load-env.js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';

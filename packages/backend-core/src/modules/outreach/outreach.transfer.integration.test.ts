@@ -108,8 +108,9 @@ const skipReason = TEST_URL
       channelId: string;
       autoDraftInitial: boolean;
       autoDraftReplies: boolean;
+      sequenceSteps: Array<{ waitDays: number; brief: string }>;
     }>;
-    proposals: Array<{ id: string; campaignId: string; contactId: string }>;
+    proposals: Array<{ id: string; campaignId: string; contactId: string; kind: string; sequenceStep: number | null }>;
   }
 
   it('moves campaigns + proposals to a different org, remapping segment/channel/contact FKs via the threaded idMap', async () => {
@@ -135,23 +136,60 @@ const skipReason = TEST_URL
       const campaign = firstJson(
         (await c.callTool({
           name: 'outreach_create_campaign',
-          arguments: { name: 'Spring promo', brief: 'Re-engage warm leads.', segmentId: segment.id, channelId: channel.id, autoDraftInitial: true, autoDraftReplies: false },
+          arguments: {
+            name: 'Spring promo',
+            brief: 'Re-engage warm leads.',
+            segmentId: segment.id,
+            channelId: channel.id,
+            autoDraftInitial: true,
+            autoDraftReplies: false,
+            sequenceSteps: [
+              { waitDays: 3, brief: 'gentle bump' },
+              { waitDays: 7, brief: 'breakup email' },
+            ],
+          },
         })) as never,
       ) as { id: string };
       return { channel, segment, contact, campaign };
     });
 
-    await db.insert(schema.outreachProposals).values({
-      orgId: orgAId,
-      campaignId: seeded.campaign.id,
-      contactId: seeded.contact.id,
-      kind: 'initial',
-      draftSubject: 'Hello from Munin',
-      draftBody: 'We would love to reconnect.',
-      status: 'pending',
-      proposedByActorType: 'agent',
-      proposedByActorId: 'seed',
-    });
+    await db.insert(schema.outreachProposals).values([
+      {
+        orgId: orgAId,
+        campaignId: seeded.campaign.id,
+        contactId: seeded.contact.id,
+        kind: 'initial',
+        draftSubject: 'Hello from Munin',
+        draftBody: 'We would love to reconnect.',
+        status: 'pending',
+        proposedByActorType: 'agent',
+        proposedByActorId: 'seed',
+      },
+      {
+        orgId: orgAId,
+        campaignId: seeded.campaign.id,
+        contactId: seeded.contact.id,
+        kind: 'followup',
+        sequenceStep: 1,
+        draftBody: 'Bumping this.',
+        status: 'sent',
+        sentAt: new Date(),
+        proposedByActorType: 'agent',
+        proposedByActorId: 'seed',
+      },
+      {
+        orgId: orgAId,
+        campaignId: seeded.campaign.id,
+        contactId: seeded.contact.id,
+        kind: 'followup',
+        sequenceStep: 2,
+        draftBody: 'Closing the loop.',
+        status: 'sent',
+        sentAt: new Date(),
+        proposedByActorType: 'agent',
+        proposedByActorId: 'seed',
+      },
+    ]);
 
     const exports = await withClient(adminKeyA, async (c) => ({
       crm: firstJson((await c.callTool({ name: 'crm_export', arguments: {} })) as never),
@@ -160,9 +198,9 @@ const skipReason = TEST_URL
     }));
 
     expect(exports.outreach.campaigns.length).toBe(1);
-    expect(exports.outreach.proposals.length).toBe(1);
+    expect(exports.outreach.proposals.length).toBe(3);
     const srcCampaignId = exports.outreach.campaigns[0]!.id;
-    const srcProposalId = exports.outreach.proposals[0]!.id;
+    const srcProposalId = exports.outreach.proposals.find((p) => p.kind === 'initial')!.id;
     const srcSegmentId = exports.outreach.campaigns[0]!.segmentId;
 
     const migrated = await withClient(adminKeyB, async (c) => {
@@ -190,19 +228,28 @@ const skipReason = TEST_URL
       return { outreachRes, onB, reimport };
     });
 
-    expect(migrated.outreachRes.created).toBe(2);
+    expect(migrated.outreachRes.created).toBe(4);
     expect(migrated.outreachRes.idMap[srcCampaignId]).toMatch(/^ocmp_/);
     expect(migrated.outreachRes.idMap[srcProposalId]).toMatch(/^oprp_/);
     expect(migrated.outreachRes.warnings.some((w) => w.includes('imported disabled'))).toBe(true);
 
     expect(migrated.onB.campaigns.length).toBe(1);
-    expect(migrated.onB.proposals.length).toBe(1);
+    expect(migrated.onB.proposals.length).toBe(3);
     expect(migrated.onB.campaigns[0]!.segmentId).not.toBe(srcSegmentId);
     expect(migrated.onB.campaigns[0]!.segmentId).toBe(migrated.outreachRes.idMap[srcSegmentId]);
     expect(migrated.onB.campaigns[0]!.autoDraftInitial).toBe(true);
     expect(migrated.onB.campaigns[0]!.autoDraftReplies).toBe(false);
+    expect(migrated.onB.campaigns[0]!.sequenceSteps).toEqual([
+      { waitDays: 3, brief: 'gentle bump' },
+      { waitDays: 7, brief: 'breakup email' },
+    ]);
+    const followupSteps = migrated.onB.proposals
+      .filter((p) => p.kind === 'followup')
+      .map((p) => p.sequenceStep)
+      .sort();
+    expect(followupSteps).toEqual([1, 2]);
 
     expect(migrated.reimport.created).toBe(0);
-    expect(migrated.reimport.skipped).toBe(2);
+    expect(migrated.reimport.skipped).toBe(4);
   });
 });

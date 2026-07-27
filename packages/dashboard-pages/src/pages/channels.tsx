@@ -68,6 +68,7 @@ interface ChannelDto {
   active: boolean;
   config: Record<string, unknown>;
   defaultAgentMode?: 'auto' | 'draft_only' | 'off';
+  needsCredentials?: boolean;
   createdAt: string;
 }
 
@@ -217,6 +218,7 @@ export function ChannelsPage() {
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
   const [sendTestFor, setSendTestFor] = useState<EmailChannelDto | null>(null);
+  const [enterCredsFor, setEnterCredsFor] = useState<EmailChannelDto | null>(null);
   const [sendSmsTestFor, setSendSmsTestFor] = useState<TwilioSmsChannelDto | null>(null);
   const [sendMessageBirdTestFor, setSendMessageBirdTestFor] =
     useState<MessageBirdSmsChannelDto | null>(null);
@@ -422,6 +424,17 @@ export function ChannelsPage() {
         <SendTestEmailDialog channel={sendTestFor} onClose={() => setSendTestFor(null)} />
       )}
 
+      {enterCredsFor && (
+        <EnterChannelCredentialsDialog
+          channel={enterCredsFor}
+          onClose={() => setEnterCredsFor(null)}
+          onDone={() => {
+            setEnterCredsFor(null);
+            void tryLoad();
+          }}
+        />
+      )}
+
       {sendSmsTestFor && (
         <SendTestSmsDialog
           channel={sendSmsTestFor}
@@ -544,6 +557,9 @@ export function ChannelsPage() {
                   void deleteChannel(c);
                 }}
                 onShowEmbed={() => setEmbedFor(c)}
+                onEnterCredentials={() => {
+                  if (c.type === 'email') setEnterCredsFor(c as EmailChannelDto);
+                }}
                 onEdit={() => {
                   if (c.type === 'sms' && c.vendor === 'twilio') {
                     setEditTwilioSms(c as TwilioSmsChannelDto);
@@ -588,6 +604,7 @@ function ChannelRow({
   onRotateIdentity,
   onDelete,
   onShowEmbed,
+  onEnterCredentials,
   onEdit,
   onSendTest,
 }: {
@@ -598,6 +615,7 @@ function ChannelRow({
   onRotateIdentity: () => void;
   onDelete: () => void;
   onShowEmbed: () => void;
+  onEnterCredentials: () => void;
   onEdit: () => void;
   onSendTest: () => void;
 }) {
@@ -638,7 +656,7 @@ function ChannelRow({
   const isDeactivated = !channel.active;
 
   return (
-    <li className="border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
+    <li className="border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
       <div className="flex items-start justify-between gap-6">
         <div className={cn('min-w-0 flex-1 space-y-3', isDeactivated && 'opacity-50')}>
           <div className="flex items-center gap-3 flex-wrap">
@@ -646,6 +664,11 @@ function ChannelRow({
             <h3 className="font-serif text-lg leading-none text-ink dark:text-foreground">
               {channel.name}
             </h3>
+            {channel.needsCredentials && (
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                {t('status.awaitingCredentials')}
+              </span>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
@@ -729,6 +752,11 @@ function ChannelRow({
                 {tCommon('edit')}
               </Button>
             ) : null}
+            {channel.needsCredentials && (
+              <Button size="sm" onClick={onEnterCredentials}>
+                {t('enterCredentials.button')}
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -827,7 +855,7 @@ function AlertFooter({
     ? t('status.deactivatedMessage', { threshold })
     : t('status.failingMessage', { attempt, threshold });
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t-[0.5px] border-rule-soft pt-3 dark:border-rule-on-dark">
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t-[1px] border-rule-soft pt-3 dark:border-rule-on-dark">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <span className={cn('size-[7px] shrink-0 rounded-full', dotClass)} aria-hidden />
         <span className="truncate text-[13px] text-ink dark:text-foreground">{message}</span>
@@ -904,7 +932,7 @@ function VendorPicker<V extends ChannelVendor>({
   onChange: (next: V) => void;
 }) {
   return (
-    <div className="flex border-[0.5px] border-ink dark:border-foreground">
+    <div className="flex border-[1px] border-ink dark:border-foreground">
       {options.map((opt) => {
         const selected = value === opt.id;
         return (
@@ -914,7 +942,7 @@ function VendorPicker<V extends ChannelVendor>({
             onClick={() => onChange(opt.id)}
             aria-pressed={selected}
             className={cn(
-              'flex flex-1 items-center justify-center gap-2 border-r-[0.5px] border-rule-soft px-3 py-2 text-sm transition-colors last:border-r-0',
+              'flex flex-1 items-center justify-center gap-2 border-r-[1px] border-rule-soft px-3 py-2 text-sm transition-colors last:border-r-0',
               selected
                 ? 'bg-cobalt/5 text-ink dark:text-foreground'
                 : 'text-muted-foreground hover:text-ink dark:hover:text-foreground',
@@ -938,7 +966,7 @@ function OriginChip({ text, muted }: { text: string; muted?: boolean }) {
   return (
     <span
       className={cn(
-        'inline-block border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
+        'inline-block border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
         muted ? 'text-ink-mute italic' : 'text-ink dark:text-foreground',
       )}
     >
@@ -1140,9 +1168,22 @@ function zodIssuesToFieldErrors(
     } else if (last === 'port') {
       if (parent === 'outbound') errors.smtpPort = t('email.portInvalid');
       else if (parent === 'inbound') errors.imapPort = t('email.portInvalid');
+    } else if (last === 'fromNumber' || last === 'to') {
+      errors[last] = t('errors.phoneNumberInvalid');
+    } else if (typeof last === 'string') {
+      errors[last] = t('errors.valueInvalid');
     }
   }
   return errors;
+}
+
+function zodIssuesToErrorMessage(
+  issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey> }>,
+  t: ReturnType<typeof useTranslations<'dashboard.channels'>>,
+): string {
+  return issues.some((i) => i.path[i.path.length - 1] === 'to')
+    ? t('errors.phoneNumberInvalid')
+    : t('errors.valueInvalid');
 }
 
 function widgetAllowlistRequired(): boolean {
@@ -1392,7 +1433,7 @@ function EmailChannelDialog({
             </FormField>
           </div>
 
-          <fieldset className="space-y-3 rounded-md border-[0.5px] px-3 pb-3">
+          <fieldset className="space-y-3 rounded-md border-[1px] px-3 pb-3">
             <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.outboundLabel')}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField label={t('email.host')} error={fieldErrors.smtpHost}>
@@ -1488,7 +1529,7 @@ function EmailChannelDialog({
             </div>
           </fieldset>
 
-          <fieldset className="space-y-3 rounded-md border-[0.5px] px-3 pb-3">
+          <fieldset className="space-y-3 rounded-md border-[1px] px-3 pb-3">
             <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.inboundLabel')}</legend>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -1604,6 +1645,111 @@ function EmailChannelDialog({
   );
 }
 
+
+function EnterChannelCredentialsDialog({
+  channel,
+  onClose,
+  onDone,
+}: {
+  channel: EmailChannelDto;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const config = channel.config as { outbound?: { provider?: string }; inbound?: unknown };
+  const showSmtp = config.outbound?.provider === 'smtp';
+  const showImap = !!config.inbound;
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [imapPassword, setImapPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const canSubmit = (showSmtp ? smtpPassword.trim() : true) && (showImap ? imapPassword.trim() : true);
+
+  async function submit() {
+    setSaving(true);
+    setError(null);
+    try {
+      const secrets: Record<string, string> = {};
+      if (showSmtp && smtpPassword) secrets.smtpPassword = smtpPassword;
+      if (showImap && imapPassword) secrets.imapPassword = imapPassword;
+      const res = await api<{ ok: boolean; detail?: string; error?: string }>(
+        `/v1/conversations/channels/${channel.id}/credentials`,
+        { method: 'POST', body: JSON.stringify({ secrets }) },
+      );
+      if (res.ok) notify.success(t('enterCredentials.saved'));
+      else notify.info(t('enterCredentials.savedUntested', { error: res.error ?? '' }));
+      onDone();
+    } catch (err) {
+      setError(translate(err) || t('enterCredentials.error'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('enterCredentials.title')}</DialogTitle>
+          <DialogDescription>
+            {t('enterCredentials.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          {showSmtp && (
+            <FormField label={t('enterCredentials.smtpLabel')}>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={smtpPassword}
+                onChange={(e) => setSmtpPassword(e.target.value)}
+              />
+            </FormField>
+          )}
+          {showImap && (
+            <FormField label={t('enterCredentials.imapLabel')} error={error ?? undefined}>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={imapPassword}
+                onChange={(e) => setImapPassword(e.target.value)}
+              />
+            </FormField>
+          )}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={saving}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving || !canSubmit}
+              pending={saving}
+            >
+              {t('enterCredentials.submit')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function SendTestEmailDialog({
   channel,
@@ -1757,7 +1903,7 @@ function CopyableSecret({ label, value, hint }: { label: string; value: string; 
     <div className="space-y-1">
       <Label>{label}</Label>
       <div className="flex items-center gap-2">
-        <code className="flex-1 truncate rounded-md border-[0.5px] bg-background px-3 py-2 font-mono text-sm">
+        <code className="flex-1 truncate rounded-md border-[1px] bg-background px-3 py-2 font-mono text-sm">
           {value}
         </code>
         <Button variant="outline" size="sm" onClick={copy}>
@@ -1808,7 +1954,7 @@ function WebhookSecretField({
     <div className="flex flex-col gap-2">
       {value ? (
         <div className="flex items-center gap-2">
-          <code className="flex-1 truncate rounded-md border-[0.5px] bg-background px-3 py-2 font-mono text-sm">
+          <code className="flex-1 truncate rounded-md border-[1px] bg-background px-3 py-2 font-mono text-sm">
             {value}
           </code>
           <Button type="button" variant="outline" size="sm" onClick={copy}>
@@ -1822,7 +1968,7 @@ function WebhookSecretField({
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <div className="flex-1 truncate rounded-md border-[0.5px] border-dashed bg-background px-3 py-2 font-mono text-sm text-muted-foreground">
+          <div className="flex-1 truncate rounded-md border-[1px] border-dashed bg-background px-3 py-2 font-mono text-sm text-muted-foreground">
             {emptyHint ?? '••••'}
           </div>
           <Button type="button" variant="outline" size="sm" onClick={regenerate}>
@@ -1923,7 +2069,7 @@ function EmbedSnippetDialog({
         <div className="space-y-8 py-2">
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.scriptLabel')}</Label>
-            <pre className="overflow-x-auto rounded-md border-[0.5px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
               {scriptSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copySnippet}>
@@ -1939,7 +2085,7 @@ function EmbedSnippetDialog({
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.hashLabel')}</Label>
             <p className={dialogHintClass}>{t('embed.hashHint')}</p>
-            <div className="flex w-fit border-[0.5px] border-ink dark:border-foreground">
+            <div className="flex w-fit border-[1px] border-ink dark:border-foreground">
               {HASH_SNIPPETS.map((s) => {
                 const active = s.language === language;
                 return (
@@ -1948,7 +2094,7 @@ function EmbedSnippetDialog({
                     type="button"
                     onClick={() => setLanguage(s.language)}
                     className={cn(
-                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r-[0.5px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
+                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r-[1px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
                       active
                         ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
                         : 'bg-paper hover:bg-paper-deep dark:bg-card dark:hover:bg-secondary',
@@ -1959,7 +2105,7 @@ function EmbedSnippetDialog({
                 );
               })}
             </div>
-            <pre className="overflow-x-auto rounded-md border-[0.5px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
               {hashSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copyHash}>
@@ -2182,7 +2328,7 @@ function SendTestSmsDialog({
     if (body.trim()) payload.body = body.trim();
     const parsed = SendTwilioSmsTestBody.safeParse(payload);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
       return;
     }
     setSending(true);
@@ -2460,7 +2606,7 @@ function SendTestMessageBirdSmsDialog({
     if (body.trim()) payload.body = body.trim();
     const parsed = SendMessageBirdSmsTestBody.safeParse(payload);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
       return;
     }
     setSending(true);
@@ -2596,6 +2742,13 @@ function AddSmsDialog({
   }, [open]);
 
   async function submitTwilio(): Promise<void> {
+    if (!fromNumber.trim() && !messagingServiceSid.trim()) {
+      setFieldErrors({
+        fromNumber: t('twilioSms.fromOrServiceRequired'),
+        messagingServiceSid: t('twilioSms.fromOrServiceRequired'),
+      });
+      return;
+    }
     const payload: Record<string, unknown> = {
       ...(name.trim() ? { name: name.trim() } : {}),
       ...(accountSid.trim() ? { accountSid: accountSid.trim() } : {}),
@@ -3505,7 +3658,7 @@ function PlaceVapiCallDialog({
     if (customerName.trim()) payload.customerName = customerName.trim();
     const parsed = VapiCallInitiateBody.safeParse(payload);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
       return;
     }
     setPlacing(true);
@@ -3865,7 +4018,7 @@ function PlaceThrellCallDialog({
     if (customerName.trim()) payload.customerName = customerName.trim();
     const parsed = ThrellCallInitiateBody.safeParse(payload);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'invalid input');
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
       return;
     }
     setPlacing(true);

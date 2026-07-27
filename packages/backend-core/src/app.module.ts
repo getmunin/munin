@@ -22,6 +22,11 @@ import { StorageModule } from './common/storage/storage.module.ts';
 import { RealtimeModule } from './realtime/realtime.module.ts';
 import { OAuthModule } from './oauth/oauth.module.ts';
 import { SystemAlertsModule } from './modules/system-alerts/system-alerts.module.ts';
+import { SlackModule } from './modules/slack/slack.module.ts';
+import { CredentialHandoffModule } from './modules/credential-handoff/credential-handoff.module.ts';
+import { ConnectorsModule } from './modules/connectors/connectors.module.ts';
+import { CommerceModule } from './modules/commerce/commerce.module.ts';
+import { BookingsModule } from './modules/bookings/bookings.module.ts';
 
 export const BACKEND_FEATURE_MODULES = [
   DbModule,
@@ -41,6 +46,11 @@ export const BACKEND_FEATURE_MODULES = [
   RealtimeModule,
   OAuthModule,
   SystemAlertsModule,
+  SlackModule,
+  CredentialHandoffModule,
+  ConnectorsModule,
+  CommerceModule,
+  BookingsModule,
   AuditModule,
 ];
 

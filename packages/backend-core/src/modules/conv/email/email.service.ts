@@ -191,6 +191,57 @@ export class EmailService {
     return out;
   }
 
+  async describeCredentials(
+    channelId: string,
+  ): Promise<{ label: string; fields: Array<{ key: string; label: string; required: boolean }> } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select()
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channelId))
+      .limit(1);
+    const channel = rows[0];
+    if (!channel || channel.type !== 'email') return null;
+    const stored = jsonbToStored(channel.config);
+    const fields: Array<{ key: string; label: string; required: boolean }> = [];
+    if (stored.outbound.provider === 'smtp') {
+      fields.push({ key: 'smtpPassword', label: 'SMTP password', required: true });
+    }
+    if (stored.inbound) {
+      fields.push({ key: 'imapPassword', label: 'IMAP password', required: true });
+    }
+    if (fields.length === 0) return null;
+    return { label: channel.name, fields };
+  }
+
+  async applyCredentials(
+    channelId: string,
+    secrets: Record<string, string>,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select()
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channelId))
+      .limit(1);
+    const channel = rows[0];
+    if (!channel || channel.type !== 'email') {
+      return { ok: false, error: 'channel is not an email channel' };
+    }
+    const stored = jsonbToStored(channel.config);
+    if (secrets.smtpPassword && stored.outbound.provider === 'smtp') {
+      stored.outbound.encryptedPassword = await encryptString(secrets.smtpPassword);
+    }
+    if (secrets.imapPassword && stored.inbound) {
+      stored.inbound.encryptedPassword = await encryptString(secrets.imapPassword);
+    }
+    await ctx.db
+      .update(schema.convChannels)
+      .set({ config: storedToJsonb(stored), updatedAt: new Date() })
+      .where(eq(schema.convChannels.id, channel.id));
+    return { ok: true, detail: 'credentials saved — run conv_test_email_channel to verify' };
+  }
+
   async decryptSmtpPassword(tx: Db | Tx, encryptedPassword: string): Promise<string> {
     if (!encryptedPassword) return '';
     return decryptString(tx, encryptedPassword);

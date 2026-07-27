@@ -18,6 +18,10 @@ import {
 } from './channels/channel-admin.ts';
 import { ChannelAdminService } from './channels/channel-admin.service.ts';
 import { ChannelAdminTools } from './channels/channel-admin.tools.ts';
+import { ChannelCredentialService } from './channels/channel-credential.service.ts';
+import { ChannelCredentialTools } from './channels/channel-credential.tools.ts';
+import { CredentialHandoffModule } from '../credential-handoff/credential-handoff.module.ts';
+import { CredentialTargetRegistry } from '../credential-handoff/credential-target.ts';
 import { VapiAdminProvider } from './vapi/vapi-admin.provider.ts';
 import { ThrellAdminProvider } from './threll/threll-admin.provider.ts';
 import { TwilioSmsAdminProvider } from './twilio/twilio-sms-admin.provider.ts';
@@ -57,7 +61,7 @@ import { WidgetAdminTools } from './widget/widget.tools.ts';
 import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
 
 @Module({
-  imports: [CuratorModule, McpModule, RealtimeModule, PublicThrottleModule],
+  imports: [CuratorModule, McpModule, RealtimeModule, PublicThrottleModule, CredentialHandoffModule],
   controllers: [WidgetController, ChannelWebhookController],
   providers: [
     ConvService,
@@ -67,6 +71,8 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ConvSelfServiceTools,
     EmailService,
     EmailAdminTools,
+    ChannelCredentialService,
+    ChannelCredentialTools,
     EmailAdapter,
     ChannelIngestService,
     InboundPollWorker,
@@ -164,6 +170,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ThrellAdminService,
     ChannelAdminService,
     ChannelAdminTools,
+    ChannelCredentialService,
     VoiceCallbackService,
     VoiceCallbackTools,
     WidgetAdapter,
@@ -175,4 +182,8 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     CHANNEL_ADAPTERS,
   ],
 })
-export class ConvModule {}
+export class ConvModule {
+  constructor(registry: CredentialTargetRegistry, handler: ChannelCredentialService) {
+    registry.register(handler);
+  }
+}

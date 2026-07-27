@@ -1,5 +1,189 @@
 # @getmunin/backend-core
 
+## 4.69.3
+
+### Patch Changes
+
+- 137fe87: Auth: actually link social sign-ins when the pre-existing local account's email is unverified. better-auth's account linking has a second gate — `requireLocalEmailVerified` (default `true`) — that rejects linking a trusted provider to an existing account whose email isn't verified. Since email/password sign-up runs with `requireEmailVerification: false`, those accounts are unverified, so Google/GitHub sign-in still failed with `account_not_linked`. Set `requireLocalEmailVerified: false` (the incoming provider's verified email is the proof of ownership). Also surface OAuth `?error=` codes on the login page instead of silently showing a clean form.
+  - @getmunin/inspector-app@4.69.3
+  - @getmunin/core@4.69.3
+  - @getmunin/db@4.69.3
+  - @getmunin/types@4.69.3
+  - @getmunin/mcp-toolkit@4.69.3
+  - @getmunin/agent-runtime@4.69.3
+  - @getmunin/emails@4.69.3
+
+## 4.69.2
+
+### Patch Changes
+
+- 5b82be8: Auth: link Google/GitHub sign-ins to an existing account with the same verified email instead of failing with `account_not_linked`. OAuth errors now redirect to the app's login/signup page (via `errorCallbackURL`) instead of the API origin root, which returned a 404.
+  - @getmunin/inspector-app@4.69.2
+  - @getmunin/core@4.69.2
+  - @getmunin/db@4.69.2
+  - @getmunin/types@4.69.2
+  - @getmunin/mcp-toolkit@4.69.2
+  - @getmunin/agent-runtime@4.69.2
+  - @getmunin/emails@4.69.2
+
+## 4.69.1
+
+### Patch Changes
+
+- 2d118b3: Build the Slack OAuth redirect URI from the auth origin (`NEXT_PUBLIC_AUTH_URL`) instead of the MCP resource origin, so browser-facing install flows land on the `api.*` host that Slack apps register as the callback. Falls back to the MCP origin when no auth URL is set, matching single-origin self-host deployments.
+  - @getmunin/core@4.69.1
+  - @getmunin/db@4.69.1
+  - @getmunin/types@4.69.1
+  - @getmunin/mcp-toolkit@4.69.1
+  - @getmunin/inspector-app@4.69.1
+  - @getmunin/agent-runtime@4.69.1
+  - @getmunin/emails@4.69.1
+
+## 4.69.0
+
+### Minor Changes
+
+- 7078b30: CMS draft preview links: drafts can now be viewed rendered by the customer frontend before publishing. `cms_get_preview_link` (and `POST /v1/cms/drafts/:id/preview-link`, plus a Preview action in the inbox drawer) mints a signed, entry-scoped token valid for 1 hour; the public delivery API's single-entry route accepts it as `?preview=<token>` and returns the entry regardless of status with `Cache-Control: no-store` and a `status` field. Reference expansion under preview includes draft-status referenced entries so the previewed page is truthful. Collections can carry a `settings.previewUrl` template (`{token}`, `{slug}`, `{locale}`, `{collection}` placeholders) pointing at the frontend's draft-mode endpoint; the full frontend contract is documented in the new `skill://cms/preview-entry`. List and search delivery routes never accept preview tokens.
+- 18dc6a6: Slack approval notifications: pending CRM merge proposals, outreach drafts, and KB curation candidates now post to Slack with approve/dismiss buttons, and the message updates in place once the item is decided anywhere. New optional `approvals` channel route (`slack_set_routing` with `purpose: "approvals"`), falling back to escalations, then default. KB curation now emits `kb.curation_candidate.proposed/published/dismissed` events, and the CRM merge events `crm.merge_proposal.applied/dismissed` join the public event catalog. Adds the `slack_notification_links` table and a `subject_key` ordering column on `slack_deliveries` (migration 0055).
+- 6f31549: Slack thread parents now headline the conversation subject once it is set. `conv_set_subject` emits a new `conversation.subject_changed` event, the Slack bridge mirrors it by refreshing the thread root in place (no thread reply), and the parent headline switches from "New conversation #N" to the subject.
+
+  Resolved conversations are now unmistakable in Slack: the parent's status line becomes a ":white*check_mark: \_Conversation is resolved.*" banner (":no*entry_sign: \_Marked as spam.*" for spam), and status-change thread replies use human phrasing ("Conversation is resolved.", "Conversation reopened", "Conversation snoozed") instead of "Status changed to _closed_".
+
+### Patch Changes
+
+- 352ba3e: Bumped three more dependencies flagged by Dependabot: `next` to 16.2.12 (nine advisories fixed in 16.2.11 — SSRF in Server Actions on custom servers and in rewrites, App Router DoS via Server Actions, middleware bypass with Turbopack and a single locale, image-optimization DoS via SVG, response-body cache confusion, unbounded Edge Server Action payloads, and disclosure of internal Server Function endpoints), `postcss` to 8.5.23 (path traversal in previous-source-map auto-loading), and `brace-expansion` to 5.0.8 (DoS via unbounded expansion length). Declared ranges moved to the patched floor; `next` peer ranges stay at `^16.0.0` so consumers are not narrowed.
+- dcf7022: Bumped four transitively-pulled dependencies flagged by Dependabot: `fast-uri` to 3.1.4 (host confusion via backslash authority delimiter and failed IDN canonicalization), `linkify-it` to 5.0.2 (quadratic-complexity DoS in the `mailto:` validator), `hono` to 4.12.32 (per-request JSX context isolation, `cx()` escaping bypass, header de-duplication), and `sharp` to 0.35.3 (libvips 8.18.3, covering CVE-2026-33327/33328/35590/35591). The `hono` and `fast-uri` overrides already allowed the patched versions and only needed re-resolution; `linkify-it` was pinned at the now-vulnerable floor. `sharp` moves ahead of the `^0.34.5` that `next` still declares as an optional dependency.
+- 2f2ea9e: Fix merged contacts being re-proposed for merge on every dedup pass. `crm_propose_merge` now rejects a pair with `crm_conflict` when either contact carries `customFields.mergedInto` or the pair already has an `applied` proposal on record, so a merge the operator approved stays approved instead of reappearing in the review queue. `crm_apply_merge_proposal` also dismisses any other pending proposals that reference the archived duplicate (reason `contact merged into <keeperId>`), and contact lookup by email/phone (`crm_find_contact`, bulk-create and import dedup) now prefers the surviving row over an archived duplicate. `skill://crm/clean-contact-data` tells the curator to drop merged-away rows from the candidate buffer and to skim applied proposals alongside dismissed ones.
+- 277080c: The Slack app manifest for self-hosters is now also checked in as `slack-app-manifest.json` at the repo root; the connect-slack skill points to it and a test keeps the two copies in sync.
+- Updated dependencies [7078b30]
+- Updated dependencies [18dc6a6]
+- Updated dependencies [6f31549]
+  - @getmunin/core@4.69.0
+  - @getmunin/types@4.69.0
+  - @getmunin/db@4.69.0
+  - @getmunin/agent-runtime@4.69.0
+  - @getmunin/mcp-toolkit@4.69.0
+  - @getmunin/inspector-app@4.69.0
+  - @getmunin/emails@4.69.0
+
+## 4.68.0
+
+### Minor Changes
+
+- 8116ea6: Bookings module: connector-backed booking lookups with a Gastroplanner adapter. Admin tools (`bookings_lookup_bookings`, `bookings_lookup_booking`) take a guest email; self-service tools (`bookings_get_my_bookings`, `bookings_get_my_booking`) bind to the calling end-user's email server-side. Adds the `bookings:read` scope and `skill://bookings/check-booking-status`.
+- c48d768: Bookings write support: the Gastroplanner adapter can now check availability and create, modify, and cancel bookings via the booking API. New admin tools `bookings_check_availability`, `bookings_create_booking`, `bookings_update_booking`, `bookings_cancel_booking` and self-service tools `bookings_create_my_booking`, `bookings_update_my_booking`, `bookings_cancel_my_booking` (self-service writes bind to the calling end-user's own email and enforce ownership before modifying or cancelling). Adds the `bookings:write` scope and renames the skill to `skill://bookings/manage-bookings`.
+- ab212f4: Email channels can now use the credential-handoff flow: `conv_request_channel_credentials` (and `POST /v1/conversations/channels/:id/credential-link`) return a one-time dashboard link for entering a channel's SMTP/IMAP passwords, so secrets aren't pasted into an agent conversation. Create the channel with the password omitted, then share the link. Registers a `channel` handler on the shared credential-handoff registry.
+- 129e6e7: Commerce module: connector-backed order lookups with Shopify and Magento 2 adapters. Admin tools (`commerce_lookup_orders`, `commerce_lookup_order`) take a customer email; self-service tools (`commerce_get_my_orders`, `commerce_get_my_order`) bind to the calling end-user's email server-side. Adds the `commerce:read` scope and `skill://commerce/check-order-status`.
+- 1482bbe: Connectors trunk: encrypted `connector_connections` storage behind a vendor-adapter registry, `connectors_*` admin MCP tools (list vendors, CRUD, credential test), `connectors:read`/`connectors:write` scopes, and the shared scope/identity helpers domain modules (commerce, bookings) build their typed read surfaces on.
+- 8da0e90: Connectors management UI and secure credential handoff. The Integrations settings page gains a Data connectors section to list, add, test, and remove connections. Secrets can be entered inline or handed off: creating a connection without its secret returns a one-time link (`/connect/credentials`) a human opens to enter credentials in the dashboard, so secrets never pass through an agent conversation. Backed by a generic `credential_requests` handoff primitive (reusable by other MCP-set-up integrations) and a `/v1/connectors` control-plane API.
+- 2b3db51: Enforce campaign cadence rules in the outreach follow-up due-scan. `outreach_list_due_followups` now holds back contacts who already received `maxPerWeekPerContact` sent touches (initials + follow-ups) in the trailing 7 days, and returns nothing on a `blackoutDates` day. Quiet hours intentionally do not gate the scan — drafting is not sending, and a midnight sweep would otherwise starve quiet-hours campaigns.
+- 491186c: Multi-step outreach sequences. Campaigns can define ordered `sequenceSteps` (wait period + drafting brief per step, email campaigns only); a daily curator sweep (`skill://outreach/draft-followup-email`, `MUNIN_CURATOR_OUTREACH_FOLLOWUP_CRON`) finds conversations whose next step is due via the new `outreach_list_due_followups` tool and files `kind: 'followup'` proposals with `outreach_propose_followup` into the existing human review queue. Any inbound reply permanently stops a sequence (the reply flow takes over), as does unsubscribe/suppression or dismissing a follow-up draft. Follow-ups thread into the initial's conversation with no subject or unsubscribe footer, and export/import round-trips sequences.
+- cdff1ad: Slack integration phase 3: claim/close buttons, live parent state, source-channel routing
+
+  The thread parent message becomes interactive: Claim and Close buttons (Reopen once resolved) plus a live status line (status, claimed-by, assigned-to, needs-attention) that updates via `chat.update` as conversation events flow through the mirror. A signed interactivity endpoint (`POST /v1/slack/interactivity`) maps button clicks onto the existing service paths — `ConversationClaimsService.claim` and `conv_change_status` — as the clicking teammate, with the same account-linking rule and ephemeral rejections as thread replies (including "already claimed by someone else").
+
+  Routing gains source-channel overrides: `slack_set_routing` with `convChannelId` mirrors conversations from one Munin conversation channel into their own Slack channel (widget → #support-chat, email → #support-email) while everything else keeps the default. Migration `0051_slack_route_overrides` adds the column and reworks the route uniques. Also fixes a phase-1 gap where routing two purposes at the same Slack channel surfaced as a bare 500 instead of a conflict.
+
+  The Slack app manifest gains the interactivity request URL (`/v1/slack/interactivity`).
+
+- cdff1ad: Slack integration phase 4: manual user links, attachment handling, !assign
+
+  - New admin tools `slack_list_user_links`, `slack_link_user`, `slack_unlink_user` for managing Slack-user ↔ Munin-member attribution when the profile-email auto-match does not apply. Linking again replaces the mapping; unlinked users fall back to rejection.
+  - Attachment links on mirrored Munin messages render as :paperclip: lines in the thread (best-effort over the loosely-typed `conv_messages.attachments`). Inbound Slack files are refused loudly instead of dropped silently: a file-only reply is rejected with an ephemeral notice, and a reply with files goes out as text with a warning that the files were not forwarded.
+  - `!assign me` / `!assign @teammate` in a mirrored thread assigns the conversation through `conv_assign_conversation` as the sender; unmapped mentionees get an ephemeral error. The assignment mirrors back into the thread and parent status line like any other event.
+
+- 8037e74: Slack integration phase 1: mirror conversations into Slack threads (operator surface)
+
+  - New `slack` module: per-org workspace connection via Slack OAuth (deployment-level app credentials in `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`), channel routing, and a bridge worker that projects conversation events (`created`, messages, status, assign/claim, handover) into one Slack thread per conversation. Handover requests additionally alert a configurable escalations channel with an optional mention.
+  - The bridge registers an `EventSink` on `WebhookDispatcher` (contract introduced in the integration foundations release) — deliveries are enqueued transactionally with the emitted event; the webhooks queue and the Slack bridge are peer consumers.
+  - New tables (`slack_integrations`, `slack_channel_routes`, `slack_conversation_links`, `slack_message_links`, `slack_user_links`, `slack_deliveries`) with RLS; a Slack channel can only mirror one org (`(team_id, slack_channel_id)` unique), so one workspace can serve multiple orgs.
+  - Admin MCP tools `slack_get_install_url`, `slack_get_status`, `slack_set_routing`, `slack_test`, `slack_disconnect` (scopes `slack:read`/`slack:write`), the `skill://slack/connect-slack` setup skill with the app manifest, `/v1/slack` control endpoints, and a Slack card under AI settings → Integrations.
+
+  Reply-from-Slack and interactive claim/close buttons are follow-up phases; message links already dedupe both directions to keep the loop-prevention invariant.
+
+- cdff1ad: Slack integration phase 2: reply from the thread
+
+  Operators reply to customers directly from a mirrored Slack thread. A signed Events API receiver (`POST /v1/slack/events`, v0 HMAC over the raw body, ±5 min replay window) resolves `(channel, thread_ts)` to the conversation and records the reply through `ConvService.sendMessage()` as the mapped org member — outbound delivery, claim, and attention semantics match the dashboard. A leading `!` keeps the reply as an internal note.
+
+  Attribution is by Slack-profile-email ↔ org-member match, cached in `slack_user_links` and re-checked against current membership. Unmapped users are rejected with an ephemeral notice; nothing is recorded or sent. Loop prevention is atomic: the `slack_message_links` row commits in the same transaction as the message, so the mirror worker never re-posts a Slack-authored reply and redelivered events dedupe on the `(channel, ts)` unique index.
+
+  The Slack app manifest gains the `channels:history` bot scope and a `message.channels` event subscription; `SLACK_SIGNING_SECRET` is now required for reply-from-Slack. Workspaces installed before this need a reinstall to grant the new scope.
+
+- 3677620: Slack routing without channel IDs: the configure dialog lists the channels the bot has been invited to (new `GET /v1/slack/channels` + `slack_list_channels` tool), and inviting @Munin to an unrouted channel posts an interactive prompt where an org owner/admin can set default or escalations routing directly from Slack. Also fixes the Slack Web API client to form-encode requests (read methods rejected JSON bodies with invalid_arguments, surfacing as a 500 when saving a route) and sends the OAuth install back to the Integrations page instead of AI settings.
+
+### Patch Changes
+
+- 3870f04: Connectors: run the vendor credential probe outside the DB transaction. Credential handoff now persists secrets in a short transaction, then verifies them (the vendor round-trip) after commit via a new optional `CredentialTargetHandler.verify` hook, so the public `/v1/credentials` completion no longer holds a pooled Postgres connection open across a slow vendor call.
+- cdff1ad: Harden the Slack OAuth install flow against install-URL hijacking
+
+  Two defenses on `completeInstall`:
+
+  - **Session binding for dashboard installs.** The `/v1/slack/install-url` endpoint now sets an httpOnly, `SameSite=Lax` `slack_install_nonce` cookie and embeds the nonce in the signed OAuth `state`; the callback requires the cookie to match. A leaked or intercepted dashboard install URL can no longer be completed by anyone but the initiating browser. MCP-minted install URLs (opened by a human in a fresh browser, no cookie continuity) remain nonce-free by design and rely on the short TTL plus the guard below.
+  - **Workspace-repoint guard.** `completeInstall` refuses to overwrite an org's existing integration with a _different_ Slack workspace (returns `slack_workspace_mismatch`); switching workspaces requires an explicit `slack_disconnect` first. This blocks the high-impact case where a redeemed install URL would repoint an org's mirrored conversations (customer PII) to an attacker-controlled workspace.
+
+- 8788bd4: Localize the smart/fast model-tier badges (nb: "rask") and surface connector config validation as inline field errors: invalid connector config now returns structured `fieldErrors` instead of a raw zod JSON blob, and the connect dialog highlights the offending inputs with localized per-field messages instead of toasting. The Tailwind preset now defines the `aria-invalid` variant (absent from Tailwind v3 defaults), so the destructive border/ring on invalid inputs actually renders.
+- Updated dependencies [1482bbe]
+- Updated dependencies [8da0e90]
+- Updated dependencies [a66d454]
+- Updated dependencies [491186c]
+- Updated dependencies [cdff1ad]
+- Updated dependencies [8037e74]
+- Updated dependencies [3677620]
+  - @getmunin/db@4.68.0
+  - @getmunin/core@4.68.0
+  - @getmunin/types@4.68.0
+  - @getmunin/agent-runtime@4.68.0
+  - @getmunin/inspector-app@4.68.0
+  - @getmunin/mcp-toolkit@4.68.0
+  - @getmunin/emails@4.68.0
+
+## 4.67.2
+
+### Patch Changes
+
+- fbb276c: Fix chat-widget read-state loss on identity claim: when an anonymous session is claimed by a verified visitor (`identify`), the anonymous end-user's `conv_message_reads` rows are now migrated to the verified end-user before the anonymous end-user is deleted. Previously the read receipts were cascade-deleted with the anonymous end-user, so already-read agent replies resurfaced as unread (phantom unread badge) after logging in.
+  - @getmunin/core@4.67.2
+  - @getmunin/db@4.67.2
+  - @getmunin/types@4.67.2
+  - @getmunin/mcp-toolkit@4.67.2
+  - @getmunin/inspector-app@4.67.2
+  - @getmunin/agent-runtime@4.67.2
+  - @getmunin/emails@4.67.2
+
+## 4.67.1
+
+### Patch Changes
+
+- @getmunin/core@4.67.1
+- @getmunin/db@4.67.1
+- @getmunin/types@4.67.1
+- @getmunin/mcp-toolkit@4.67.1
+- @getmunin/inspector-app@4.67.1
+- @getmunin/agent-runtime@4.67.1
+- @getmunin/emails@4.67.1
+
+## 4.67.0
+
+### Minor Changes
+
+- eead33b: Security hardening from a follow-up audit.
+
+  - **Widget session credential moved out of the URL (BREAKING):** the widget read endpoints (`GET /v1/widget/messages`, `GET /v1/widget/conversations`, `GET /v1/widget/voice/available`) no longer accept the session credential in the query string. `sessionId`, `sessionIds`, `verifiedExternalId`, and `userHash` must now be sent as the `x-munin-session-id`, `x-munin-session-ids`, `x-munin-verified-external-id`, and `x-munin-user-hash` request headers. This keeps the session token — which grants read/write on a visitor's conversation — out of server, proxy, and CDN access logs. The bundled chat widget is updated; any custom integration that called these GET endpoints must move the fields from the query string to headers.
+  - **Widget origin allowlist is required by default (BREAKING):** a widget channel with an empty `originAllowlist` now rejects all traffic, and creating one without an allowlist fails, unless `MUNIN_WIDGET_REQUIRE_ALLOWLIST` is explicitly set to `0`/`false`. Previously the allowlist was only enforced when the flag was opted in. Existing widget channels without an allowlist stop accepting requests until their origins are configured (or the flag is disabled). This inverts the default to fail-closed.
+  - **OAuth `mcp:admin` scope is gated by org role (BREAKING):** OAuth access tokens (opaque and JWT) issued to users whose org membership role is not `owner` or `admin` no longer carry the `mcp:admin` scope or the admin MCP audience — they resolve to the self-service surface. Previously any member who consented to an `mcp:admin` scope grant reached every admin MCP tool. Admin API keys (`mn_admin_*`) are unaffected.
+  - **Channel webhook endpoint hardened:** `POST /v1/conversations/channels/:channelId/webhook` is now rate-limited (per-IP, like the other public endpoints) and returns a uniform `401` for both unknown-channel and signature-verification failures to prevent channel-id enumeration. Note: an unknown channel now returns `401` instead of `404`.
+
+### Patch Changes
+
+- Updated dependencies [eead33b]
+  - @getmunin/core@4.67.0
+  - @getmunin/agent-runtime@4.67.0
+  - @getmunin/mcp-toolkit@4.67.0
+  - @getmunin/db@4.67.0
+  - @getmunin/types@4.67.0
+  - @getmunin/inspector-app@4.67.0
+  - @getmunin/emails@4.67.0
+
 ## 4.66.1
 
 ### Patch Changes

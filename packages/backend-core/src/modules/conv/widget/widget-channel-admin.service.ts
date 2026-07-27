@@ -51,6 +51,7 @@ function assertAllowlistPopulated(originAllowlist: readonly string[]): void {
     envVar: 'MUNIN_WIDGET_REQUIRE_ALLOWLIST',
     errorCode: 'origin_allowlist_required',
     field: 'originAllowlist',
+    defaultRequire: true,
   });
 }
 

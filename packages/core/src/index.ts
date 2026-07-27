@@ -50,6 +50,13 @@ export {
   signViewToken,
   verifyViewToken,
 } from './crypto/view-token.ts';
+export {
+  type PreviewTokenPayload,
+  PreviewTokenError,
+  signPreviewToken,
+  verifyPreviewToken,
+  PREVIEW_TOKEN_MAX_AGE_SECONDS,
+} from './crypto/preview-token.ts';
 export { BOT_UA, looksLikeBot } from './http/bot-ua.ts';
 
 export {
@@ -99,7 +106,12 @@ export {
   type ParseEnvIntOptions,
 } from './env/index.ts';
 
-export { WebhookDispatcher, type WebhookEventInput } from './webhooks.ts';
+export {
+  WebhookDispatcher,
+  type WebhookEventInput,
+  type EventSink,
+  type EmittedEvent,
+} from './webhooks.ts';
 export {
   chunkDocument,
   estimateTokens,

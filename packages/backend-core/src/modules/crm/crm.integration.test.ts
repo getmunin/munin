@@ -73,8 +73,6 @@ const skipReason = TEST_URL
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
 
-    // Second end-user in the SAME org. Used to assert end-user-vs-end-user
-    // isolation: Bob must not be able to read Alice's contact via any tool.
     const [eu2] = await db
       .insert(schema.endUsers)
       .values({ orgId, externalId: 'eu-2', name: 'Bob', email: 'bob@example.com' })
@@ -144,7 +142,6 @@ const skipReason = TEST_URL
       const pipeline = pipelines[0]!;
       const firstStage = pipeline.stages[0]!;
 
-      // Create the end-user's matching CRM contact, plus a sibling for isolation testing.
       const myContact = parseToolResult<{ id: string; name: string | null }>(
         await c.callTool({
           name: 'crm_create_contact',
@@ -177,7 +174,6 @@ const skipReason = TEST_URL
       );
       expect(deal.stageId).toBe(firstStage.id);
 
-      // Move it to "Won" — should stamp closedAt because that stage is winLoss=won.
       const wonStage = pipeline.stages.find((s) => s.name === 'Won')!;
       const moved = parseToolResult<{ closedAt: string | null }>(
         await c.callTool({
@@ -200,7 +196,6 @@ const skipReason = TEST_URL
       );
       expect(activity.contactId).toBe(myContact.id);
 
-      // Updating doNotContact stamps unsubscribedAt automatically.
       const updated = parseToolResult<{ doNotContact: boolean; unsubscribedAt: string | null }>(
         await c.callTool({
           name: 'crm_update_contact',
@@ -211,7 +206,6 @@ const skipReason = TEST_URL
       expect(updated.unsubscribedAt).not.toBeNull();
     });
 
-    // End-user agent: tools/list reflects self-service surface only; sees only own contact.
     await withClient(endUserToken, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
@@ -250,8 +244,6 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('end-user isolation: Bob cannot read Alice\'s contact via crm_get_my_contact', async () => {
-    // Bob has no contact linked to him; getMyContact must NOT return Alice's
-    // contact even though it lives in the same org. RLS narrows by end_user_id.
     await withClient(otherEndUserToken, async (c) => {
       const result = (await c.callTool({
         name: 'crm_get_my_contact',
@@ -259,8 +251,6 @@ const skipReason = TEST_URL
       })) as { isError?: boolean; content?: Array<{ text?: string }> };
       expect(result.isError).toBe(true);
       const text = result.content?.[0]?.text ?? '';
-      // Either the service throws crm_not_found, or the RLS-filtered query
-      // returns zero rows — both surface as a not-found error to the caller.
       expect(text).toMatch(/not.?found|no contact/i);
       expect(text).not.toMatch(/Alice/);
     });

@@ -14,14 +14,9 @@ const skipReason = TEST_URL
   let orgB: string;
 
   beforeAll(async () => {
-    // Assumes migrations have already been run (locally: `pnpm db:migrate`;
-    // in CI: the workflow's migrate step). The munin_app role must exist.
-    // Connect as the non-superuser app role so RLS policies actually apply —
-    // Postgres superusers always bypass RLS regardless of FORCE.
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
     client = postgres(appUrl, { max: 2 });
 
-    // Create two orgs in service-role mode (bypass via session-local GUC).
     await client.begin(async (sql) => {
       await sql`SELECT set_config('app.bypass_rls', 'on', true)`;
       const ts = Date.now();
@@ -45,7 +40,6 @@ const skipReason = TEST_URL
 
   afterAll(async () => {
     if (!client) return;
-    // Clean up
     await client.begin(async (sql) => {
       await sql`SELECT set_config('app.bypass_rls', 'on', true)`;
       await sql`DELETE FROM end_users WHERE org_id IN (${orgA}, ${orgB})`;
@@ -98,7 +92,6 @@ const skipReason = TEST_URL
   });
 
   it('delegated end-user scope further constrains visibility to that user', async () => {
-    // Find Org A's eu id.
     const aEu = await client.begin(async (sql) => {
       await sql`SELECT set_config('app.bypass_rls', 'on', true)`;
       const rows = await sql`SELECT id FROM end_users WHERE org_id = ${orgA} LIMIT 1`;
@@ -116,12 +109,6 @@ const skipReason = TEST_URL
     expect(rows[0]!.id).toBe(aEu);
   });
 
-  // Meta-test: enforce the "every org-scoped table has RLS" invariant.
-  // If you add a new table with an `org_id` column, you must also enable
-  // row-level security on it and add a tenant_isolation policy (typically
-  // in packages/db/src/sql/<module>.sql). The few exempt tables are listed
-  // explicitly below — usually because tenancy is delegated to a parent
-  // table's policy via FK or the table is a system-level catalog.
   it('every table with an org_id column has RLS enabled', async () => {
     const exempt = new Set<string>([]);
     const rows = await client.begin(async (sql) => {

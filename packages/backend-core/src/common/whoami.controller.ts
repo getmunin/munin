@@ -4,12 +4,6 @@ import { AuthGuard } from './auth/auth.guard.ts';
 import { TenancyInterceptor } from './tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from './audit/audit.interceptor.ts';
 
-/**
- * Minimal authenticated endpoint: returns the resolved caller identity.
- *
- * Lets us smoke-test the full chain (AuthGuard → TenancyInterceptor →
- * AuditInterceptor → controller) without needing a real domain module yet.
- */
 @Controller('v1')
 @UseGuards(AuthGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)

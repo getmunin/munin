@@ -4,7 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
+import { buildApiKey, hashSecret, keyPrefix, signPreviewToken } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -136,7 +136,6 @@ const skipReason = TEST_URL
       );
       expect(collections.find((c) => c.slug === 'pages')).toBeTruthy();
 
-      // Create + publish an entry.
       const entry = parseToolResult<{ id: string; slug: string; version: number; status: string }>(
         await c.callTool({
           name: 'cms_create_entry',
@@ -151,9 +150,6 @@ const skipReason = TEST_URL
       expect(entry.status).toBe('published');
     });
 
-    // Fetch anonymously via the public delivery API. waitFor absorbs the
-    // commit-visibility race between the MCP request transaction and the
-    // controller's separate service-role connection.
     const single = await fetchUntil(
       `${baseUrl}/v1/cms/${orgId}/pages/hello-world`,
       (r) => r.status === 200,
@@ -164,13 +160,11 @@ const skipReason = TEST_URL
     expect(singleJson.slug).toBe('hello-world');
     expect(singleJson.data.title).toBe('Hello, world');
 
-    // ETag round-trip.
     const cached = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/hello-world`, {
       headers: { 'if-none-match': single.headers.get('etag')! },
     });
     expect(cached.status).toBe(304);
 
-    // List works.
     const list = await fetch(`${baseUrl}/v1/cms/${orgId}/pages`);
     expect(list.status).toBe(200);
     const listJson = (await list.json()) as { items: Array<{ slug: string }> };
@@ -189,7 +183,6 @@ const skipReason = TEST_URL
         },
       });
 
-      // Admin search includes drafts.
       const adminHits = parseToolResult<Array<{ slug: string }>>(
         await c.callTool({
           name: 'cms_search',
@@ -199,7 +192,6 @@ const skipReason = TEST_URL
       expect(adminHits.find((h) => h.slug === 'draft-only')).toBeTruthy();
     });
 
-    // Public search hides drafts.
     const search = await fetch(
       `${baseUrl}/v1/cms/${orgId}/search?q=${encodeURIComponent('secret')}&collection=pages`,
     );
@@ -207,16 +199,11 @@ const skipReason = TEST_URL
     const hits = (await search.json()) as Array<{ slug: string }>;
     expect(hits.find((h) => h.slug === 'draft-only')).toBeFalsy();
 
-    // GET on the draft entry returns 404 publicly.
     const fetched = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/draft-only`);
     expect(fetched.status).toBe(404);
   }, 30_000);
 
   it('admin drafts route is not shadowed by the public delivery wildcard', async () => {
-    // `GET /v1/cms/drafts/:id` and the public `GET /v1/cms/:orgId/:collectionSlug`
-    // are both 4-segment routes; `/v1/cms/drafts/<id>` matches both. If the public
-    // controller is registered first it wins (first-match-wins) and 404s with
-    // `cms_not_found: org drafts`, never reaching the auth-guarded drafts route.
     let draftId = '';
     await withClient(adminKey, async (c) => {
       const created = parseToolResult<{ id: string }>(
@@ -233,12 +220,9 @@ const skipReason = TEST_URL
       draftId = created.id;
     });
 
-    // Unauthenticated: must reach the guarded drafts controller (401), NOT the
-    // anonymous public wildcard (which would 404 on org "drafts").
     const anon = await fetch(`${baseUrl}/v1/cms/drafts/${draftId}`);
     expect(anon.status).toBe(401);
 
-    // Authenticated admin: the draft is served for review.
     const authed = await fetch(`${baseUrl}/v1/cms/drafts/${draftId}`, {
       headers: { Authorization: `Bearer ${adminKey}` },
     });
@@ -246,6 +230,188 @@ const skipReason = TEST_URL
     const body = (await authed.json()) as { id: string; status: string };
     expect(body.id).toBe(draftId);
     expect(body.status).toBe('draft');
+  }, 30_000);
+
+  it('preview: a signed link exposes exactly one draft on the delivery API; bad tokens never fall back to published', async () => {
+    let draftId = '';
+    await withClient(adminKey, async (c) => {
+      const created = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'pages',
+            slug: 'preview-draft',
+            data: { title: 'Preview me', slug: 'preview-draft', body: 'Draft body.' },
+            status: 'draft',
+          },
+        }),
+      );
+      draftId = created.id;
+    });
+
+    const anonMint = await fetch(`${baseUrl}/v1/cms/drafts/${draftId}/preview-link`, {
+      method: 'POST',
+    });
+    expect(anonMint.status).toBe(401);
+
+    const mint = await fetch(`${baseUrl}/v1/cms/drafts/${draftId}/preview-link`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminKey}`, 'content-type': 'application/json' },
+      body: '{}',
+    });
+    expect(mint.status).toBe(200);
+    const link = (await mint.json()) as {
+      url: string | null;
+      deliveryUrl: string;
+      token: string;
+      expiresAt: string;
+    };
+    expect(link.url).toBeNull();
+    expect(link.token).toMatch(/^pv1\./);
+    expect(link.deliveryUrl).toContain(`/v1/cms/${orgId}/pages/preview-draft?locale=en&preview=`);
+
+    const hidden = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/preview-draft`);
+    expect(hidden.status).toBe(404);
+
+    const previewUrl = `${baseUrl}/v1/cms/${orgId}/pages/preview-draft?locale=en&preview=${link.token}`;
+    const preview = await fetchUntil(previewUrl, (r) => r.status === 200);
+    expect(preview.status).toBe(200);
+    expect(preview.headers.get('cache-control')).toBe('no-store');
+    const previewJson = (await preview.json()) as {
+      slug: string;
+      status: string;
+      data: Record<string, unknown>;
+    };
+    expect(previewJson.slug).toBe('preview-draft');
+    expect(previewJson.status).toBe('draft');
+    expect(previewJson.data.title).toBe('Preview me');
+
+    const conditional = await fetch(previewUrl, { headers: { 'if-none-match': '"anything"' } });
+    expect(conditional.status).toBe(200);
+
+    const flipped = link.token.slice(0, -1) + (link.token.endsWith('0') ? '1' : '0');
+    const tampered = await fetch(
+      `${baseUrl}/v1/cms/${orgId}/pages/preview-draft?preview=${flipped}`,
+    );
+    expect(tampered.status).toBe(403);
+    const garbage = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/preview-draft?preview=garbage`);
+    expect(garbage.status).toBe(403);
+
+    const expiredToken = signPreviewToken(
+      { orgId, entryId: draftId, issuedAt: Math.floor(Date.now() / 1000) - 2 * 60 * 60 },
+      process.env.MUNIN_KEY_PEPPER,
+    );
+    const expired = await fetch(
+      `${baseUrl}/v1/cms/${orgId}/pages/preview-draft?preview=${expiredToken}`,
+    );
+    expect(expired.status).toBe(403);
+
+    const foreignToken = signPreviewToken(
+      { orgId: 'org_other', entryId: draftId },
+      process.env.MUNIN_KEY_PEPPER,
+    );
+    const foreign = await fetch(
+      `${baseUrl}/v1/cms/${orgId}/pages/preview-draft?preview=${foreignToken}`,
+    );
+    expect(foreign.status).toBe(403);
+
+    const wrongSlug = await fetch(
+      `${baseUrl}/v1/cms/${orgId}/pages/hello-world?preview=${link.token}`,
+    );
+    expect(wrongSlug.status).toBe(404);
+
+    const wrongLocale = await fetch(
+      `${baseUrl}/v1/cms/${orgId}/pages/preview-draft?locale=es&preview=${link.token}`,
+    );
+    expect(wrongLocale.status).toBe(404);
+  }, 30_000);
+
+  it('preview: previewUrl template substitution, invalid templates, MCP tool, and draft refs in _refs', async () => {
+    let sourceId = '';
+    let targetId = '';
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Preview notes',
+          slug: 'preview-notes',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'related', type: 'reference', options: { targetCollection: 'preview-notes' } },
+          ],
+        },
+      });
+      const target = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'preview-notes',
+            slug: 'target-draft',
+            data: { title: 'Target draft' },
+            status: 'draft',
+          },
+        }),
+      );
+      targetId = target.id;
+      const source = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'preview-notes',
+            slug: 'source-draft',
+            data: { title: 'Source draft', related: targetId },
+            status: 'draft',
+          },
+        }),
+      );
+      sourceId = source.id;
+
+      await c.callTool({
+        name: 'cms_update_collection',
+        arguments: {
+          idOrSlug: 'preview-notes',
+          patch: {
+            settings: {
+              previewUrl: 'https://site.example/api/preview?token={token}&slug={slug}&locale={locale}&c={collection}',
+            },
+          },
+        },
+      });
+
+      const minted = parseToolResult<{ url: string | null; token: string }>(
+        await c.callTool({ name: 'cms_get_preview_link', arguments: { id: sourceId } }),
+      );
+      expect(minted.url).toBe(
+        `https://site.example/api/preview?token=${encodeURIComponent(minted.token)}&slug=source-draft&locale=en&c=preview-notes`,
+      );
+
+      const withRefs = await fetchUntil(
+        `${baseUrl}/v1/cms/${orgId}/preview-notes/source-draft?preview=${minted.token}&include=references`,
+        (r) => r.status === 200,
+      );
+      const refsJson = (await withRefs.json()) as {
+        data: { related: { id: string; data: { title: string } } };
+      };
+      expect(refsJson.data.related).toMatchObject({
+        id: targetId,
+        data: { title: 'Target draft' },
+      });
+
+      await c.callTool({
+        name: 'cms_update_collection',
+        arguments: {
+          idOrSlug: 'preview-notes',
+          patch: { settings: { previewUrl: 'notaurl-{token}' } },
+        },
+      });
+    });
+
+    const badTemplate = await fetch(`${baseUrl}/v1/cms/drafts/${sourceId}/preview-link`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminKey}`, 'content-type': 'application/json' },
+      body: '{}',
+    });
+    expect(badTemplate.status).toBe(400);
   }, 30_000);
 
   it('schedule worker promotes due scheduled entries', async () => {
@@ -274,7 +440,6 @@ const skipReason = TEST_URL
       entryVersion = scheduled.version;
     });
 
-    // Push the scheduled time into the past (avoids waiting), then run the worker.
     await db
       .update(schema.cmsEntries)
       .set({ scheduledAt: new Date(Date.now() - 1000) })
@@ -290,7 +455,6 @@ const skipReason = TEST_URL
 
   it('delivery: a locale-specific draft is 404; published siblings in another locale are not silently substituted', async () => {
     await withClient(adminKey, async (c) => {
-      // Add a second locale and create same-slug entries: en=published, es=draft.
       await c.callTool({
         name: 'cms_create_locale',
         arguments: { code: 'es', name: 'Spanish' },
@@ -317,18 +481,13 @@ const skipReason = TEST_URL
       });
     });
 
-    // Without a locale param, the controller picks any published row — should
-    // be the en entry (the es one is a draft and must not appear).
     const noLocale = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/localized`);
     expect(noLocale.status).toBe(200);
     expect(((await noLocale.json()) as { locale: string }).locale).toBe('en');
 
-    // With locale=es: there's no published es entry, so 404 — never a silent
-    // fallback to the en entry.
     const esQuery = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/localized?locale=es`);
     expect(esQuery.status).toBe(404);
 
-    // With locale=en: returns the en entry as expected.
     const enQuery = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/localized?locale=en`);
     expect(enQuery.status).toBe(200);
     expect(((await enQuery.json()) as { locale: string }).locale).toBe('en');

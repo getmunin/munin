@@ -117,8 +117,6 @@ describe('openInProcessMcpClient', () => {
   });
 
   it('callTool coerces a void return into a valid text result (never undefined)', async () => {
-    // Regression: JSON.stringify(undefined) === undefined, which fails the MCP
-    // CallToolResult schema and surfaces as a transport-level -32602 error.
     const client = openInProcessMcpClient({
       registry: buildRegistry(),
       actor: adminActor(),

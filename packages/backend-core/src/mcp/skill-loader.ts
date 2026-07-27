@@ -4,14 +4,7 @@ import type { RegisteredSkill } from '@getmunin/mcp-toolkit';
 import type { Audience } from '@getmunin/core';
 
 export interface SkillSource {
-  /** Absolute path to a directory tree to scan for `*.md` files. */
   root: string;
-  /**
-   * Top-level URI namespace for skills under this root. Files inside
-   * subdirectories use the subdirectory name as the module segment.
-   * If omitted, the namespace is derived from the immediate parent
-   * directory name of each file (one level up from the markdown file).
-   */
   namespace?: string;
 }
 

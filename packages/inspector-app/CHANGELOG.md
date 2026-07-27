@@ -1,5 +1,74 @@
 # @getmunin/inspector-app
 
+## 4.69.3
+
+### Patch Changes
+
+- Updated dependencies [137fe87]
+  - @getmunin/dashboard-pages@4.69.3
+  - @getmunin/ui@4.69.3
+
+## 4.69.2
+
+### Patch Changes
+
+- Updated dependencies [5b82be8]
+  - @getmunin/dashboard-pages@4.69.2
+  - @getmunin/ui@4.69.2
+
+## 4.69.1
+
+### Patch Changes
+
+- @getmunin/ui@4.69.1
+- @getmunin/dashboard-pages@4.69.1
+
+## 4.69.0
+
+### Patch Changes
+
+- Updated dependencies [7078b30]
+  - @getmunin/dashboard-pages@4.69.0
+  - @getmunin/ui@4.69.0
+
+## 4.68.0
+
+### Patch Changes
+
+- Updated dependencies [8da0e90]
+- Updated dependencies [d4bfeb7]
+- Updated dependencies [a66d454]
+- Updated dependencies [cdff1ad]
+- Updated dependencies [ed38e6c]
+- Updated dependencies [47f509d]
+- Updated dependencies [491186c]
+- Updated dependencies [8037e74]
+- Updated dependencies [3677620]
+- Updated dependencies [8788bd4]
+  - @getmunin/dashboard-pages@4.68.0
+  - @getmunin/ui@4.68.0
+
+## 4.67.2
+
+### Patch Changes
+
+- @getmunin/ui@4.67.2
+- @getmunin/dashboard-pages@4.67.2
+
+## 4.67.1
+
+### Patch Changes
+
+- @getmunin/ui@4.67.1
+- @getmunin/dashboard-pages@4.67.1
+
+## 4.67.0
+
+### Patch Changes
+
+- @getmunin/ui@4.67.0
+- @getmunin/dashboard-pages@4.67.0
+
 ## 4.66.1
 
 ### Patch Changes

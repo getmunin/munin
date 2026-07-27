@@ -99,8 +99,6 @@ const skipReason = TEST_URL
     return rows.map((r) => r.type);
   }
 
-  // ─── Channels ────────────────────────────────────────────────────────
-
   describe('channels', () => {
     it('createChannel persists with type, name, config', async () => {
       const ch = await run(() =>
@@ -162,8 +160,6 @@ const skipReason = TEST_URL
     });
   });
 
-  // ─── Topics ──────────────────────────────────────────────────────────
-
   describe('topics', () => {
     it('createTopic persists fields and listTopics returns them', async () => {
       const t = await run(() =>
@@ -181,8 +177,6 @@ const skipReason = TEST_URL
       ).rejects.toThrow(ConvInvalidError);
     });
   });
-
-  // ─── Conversations ───────────────────────────────────────────────────
 
   describe('conversations', () => {
     async function seedChannel() {
@@ -369,8 +363,6 @@ const skipReason = TEST_URL
     });
   });
 
-  // ─── Messaging ───────────────────────────────────────────────────────
-
   describe('messaging', () => {
     async function seedConversation(channelType: 'email' | 'chat' = 'email') {
       const vendor = channelType === 'email' ? 'smtp' : 'munin';
@@ -403,7 +395,7 @@ const skipReason = TEST_URL
 
     it('sendMessage emits sent event for staff and queues an email outbound', async () => {
       const { conv } = await seedConversation('email');
-      await db.execute(sql`DELETE FROM events WHERE org_id = ${orgId}`); // clear creation events
+      await db.execute(sql`DELETE FROM events WHERE org_id = ${orgId}`);
       const m = await run(() =>
         svc.sendMessage({
           conversationId: conv.id,
@@ -470,8 +462,6 @@ const skipReason = TEST_URL
       expect(types).not.toContain('conversation.message.sent');
     });
   });
-
-  // ─── Assignment / status ─────────────────────────────────────────────
 
   describe('assignment and status', () => {
     async function seedConv() {
@@ -561,7 +551,6 @@ const skipReason = TEST_URL
           agentMode: 'draft_only',
         }),
       );
-      // Now an inbound end_user reply lands.
       await run(() =>
         svc.sendMessage({
           conversationId: conv.id,
@@ -680,8 +669,6 @@ const skipReason = TEST_URL
     });
   });
 
-  // ─── Search ──────────────────────────────────────────────────────────
-
   describe('search', () => {
     it('searchMessages matches case-insensitively on body', async () => {
       const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'X' }));
@@ -703,8 +690,6 @@ const skipReason = TEST_URL
       expect(r).toEqual([]);
     });
   });
-
-  // ─── RLS ─────────────────────────────────────────────────────────────
 
   describe('RLS', () => {
     it('cross-org isolation: another org cannot see this org\'s channels', async () => {

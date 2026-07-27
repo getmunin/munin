@@ -18,7 +18,6 @@ import {
 } from './email.service.ts';
 
 const SetupInput = z.object({
-  /** Pass to update an existing channel; omit to create one. */
   channelId: z.string().optional(),
   name: z.string().min(1).max(120),
   config: EmailChannelConfigInput,
@@ -234,14 +233,6 @@ export class EmailAdminTools {
   }
 }
 
-/**
- * Pick the right TLS mode for an SMTP host based on the port.
- *
- * Port 465 is the only port that takes implicit TLS — every other common
- * submission port (587, 25, 2525, …) expects plaintext connect + STARTTLS
- * upgrade. The stored `secure` flag is treated as a hint for ambiguous ports
- * only; the port wins when it has a well-known convention.
- */
 export function smtpTransportOptions(
   host: string,
   port: number,

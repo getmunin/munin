@@ -15,24 +15,8 @@ import type { Request, Response } from 'express';
 import { PublicController } from '../auth/auth.guard.ts';
 import { STORAGE } from './storage.token.ts';
 
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB; tighten via Org.settings later.
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
-/**
- * Self-host upload endpoint. Active only when MUNIN_STORAGE_PROVIDER is
- * `local` (the default).
- *
- *   PUT/POST /static/assets/upload?key=&exp=&sz=&sig=
- *     Validate the signed URL minted by LocalFsStorage.presignedUpload,
- *     read the request body, write to disk under the storage root.
- *
- * Read serving (`GET /static/assets/<key>`) is registered as Express
- * middleware in `bootstrap-app.ts`, not as a controller route, because
- * Nest 10 + Express 4 doesn't accept catch-all named-wildcard patterns.
- *
- * In S3 mode this returns 404 — uploaders go directly to the presigned
- * S3 URL, reads go to the bucket's public host (or a CDN front
- * configured via MUNIN_STORAGE_S3_PUBLIC_BASE_URL).
- */
 @PublicController('static/assets')
 export class StaticAssetsController {
   constructor(@Inject(STORAGE) private readonly storage: AssetStorage) {}

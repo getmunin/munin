@@ -11,7 +11,10 @@ import {
   contentHash,
   describeError,
   getCurrentContext,
+  PREVIEW_TOKEN_MAX_AGE_SECONDS,
+  readApiBaseUrl,
   safeFetch,
+  signPreviewToken,
   SsrfBlockedError,
   WebhookDispatcher,
   type AssetStorage,
@@ -46,13 +49,18 @@ import { newImportResult, resolveId } from '../../common/transfer/transfer.helpe
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 
 export class CmsInvalidError extends Error {
-  readonly code = 'cms_invalid';
+  readonly code: string;
   readonly fieldErrors?: ReadonlyArray<{ field: string; message: string }>;
   constructor(
     message: string,
-    opts?: { fieldErrors?: ReadonlyArray<{ field: string; message: string }> },
+    opts?: {
+      fieldErrors?: ReadonlyArray<{ field: string; message: string }>;
+      code?: string;
+    },
   ) {
-    super(`cms_invalid: ${message}`);
+    const code = opts?.code ?? 'cms_invalid';
+    super(`${code}: ${message}`);
+    this.code = code;
     this.fieldErrors = opts?.fieldErrors;
   }
 }
@@ -66,8 +74,6 @@ export class CmsConflictError extends Error {
 
 export const ENTRY_STATUSES = ['draft', 'published', 'scheduled', 'archived'] as const;
 export type EntryStatus = (typeof ENTRY_STATUSES)[number];
-
-// ─── DTOs ───────────────────────────────────────────────────────────────
 
 export interface CollectionDto {
   id: string;
@@ -112,6 +118,13 @@ export interface CmsDraftEntrySummary {
   updatedAt: string;
 }
 
+export interface PreviewLinkDto {
+  url: string | null;
+  deliveryUrl: string;
+  token: string;
+  expiresAt: string;
+}
+
 export interface VersionDto {
   id: string;
   entryId: string;
@@ -149,8 +162,6 @@ export interface LocaleDto {
   isDefault: boolean;
   position: number;
 }
-
-// ─── Transfer shapes ─────────────────────────────────────────────────────
 
 export interface CmsLocaleExport {
   id: string;
@@ -207,8 +218,6 @@ export class CmsService {
     @Inject(STORAGE) private readonly storage: AssetStorage,
     @Inject(EmbeddingProviderHolder) private readonly embeddings: EmbeddingProviderHolder,
   ) {}
-
-  // ─── Collections ─────────────────────────────────────────────────────
 
   async listCollections(): Promise<CollectionDto[]> {
     const ctx = getCurrentContext();
@@ -322,8 +331,6 @@ export class CmsService {
     return { deleted: true };
   }
 
-  // ─── Entries ─────────────────────────────────────────────────────────
-
   async listEntries(input: {
     collection?: string;
     status?: EntryStatus;
@@ -433,6 +440,53 @@ export class CmsService {
       { expandReferences: wantsReferences(include) },
     );
     return dto;
+  }
+
+  async createPreviewLink(entryId: string): Promise<PreviewLinkDto> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ entry: schema.cmsEntries, collection: schema.cmsCollections })
+      .from(schema.cmsEntries)
+      .innerJoin(
+        schema.cmsCollections,
+        eq(schema.cmsCollections.id, schema.cmsEntries.collectionId),
+      )
+      .where(eq(schema.cmsEntries.id, entryId))
+      .limit(1);
+    if (!rows[0]) throw new NotFoundException(`cms_not_found: entry ${entryId}`);
+    const { entry, collection } = rows[0];
+    const orgId = ctx.actor!.orgId;
+
+    const token = signPreviewToken({ orgId, entryId: entry.id });
+    const expiresAt = new Date(Date.now() + PREVIEW_TOKEN_MAX_AGE_SECONDS * 1000).toISOString();
+    const deliveryUrl =
+      `${readApiBaseUrl()}/v1/cms/${orgId}/${collection.slug}/${encodeURIComponent(entry.slug)}` +
+      `?locale=${encodeURIComponent(entry.locale)}&preview=${token}`;
+
+    const template = readPreviewUrlTemplate(collection.settings);
+    let url: string | null = null;
+    if (template) {
+      url = template
+        .replaceAll('{slug}', encodeURIComponent(entry.slug))
+        .replaceAll('{locale}', encodeURIComponent(entry.locale))
+        .replaceAll('{token}', encodeURIComponent(token))
+        .replaceAll('{collection}', encodeURIComponent(collection.slug));
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new CmsInvalidError(
+          `collection settings.previewUrl did not produce a valid URL: ${url}`,
+        );
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new CmsInvalidError(
+          `collection settings.previewUrl must be an http(s) URL, got ${parsed.protocol}`,
+        );
+      }
+    }
+
+    return { url, deliveryUrl, token, expiresAt };
   }
 
   private async expandAssetsInDtos(
@@ -711,8 +765,6 @@ export class CmsService {
     return result;
   }
 
-  // ─── Assets ──────────────────────────────────────────────────────────
-
   async listAssets(input: { limit?: number }): Promise<AssetDto[]> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
@@ -731,8 +783,13 @@ export class CmsService {
     altText?: string;
     metadata?: Record<string, unknown>;
   }): Promise<AssetUploadHandle> {
-    if (input.sizeBytes <= 0 || input.sizeBytes > 50 * 1024 * 1024) {
-      throw new CmsInvalidError('sizeBytes must be in (0, 50MB]');
+    if (input.sizeBytes <= 0) {
+      throw new CmsInvalidError('sizeBytes must be positive');
+    }
+    if (input.sizeBytes > 50 * 1024 * 1024) {
+      throw new CmsInvalidError('sizeBytes exceeds the 50MB limit', {
+        code: 'cms_asset_too_large',
+      });
     }
     const ext = assetExtensionFromName(input.name);
     rejectSvgAsset(ext, input.mime);
@@ -924,8 +981,6 @@ export class CmsService {
     }
 
     await this.storage.delete(rows[0].storageKey).catch(() => {
-      // Storage delete failure shouldn't block row deletion — log via audit
-      // and let an operator GC the orphan later.
     });
     await ctx.db.delete(schema.cmsAssets).where(eq(schema.cmsAssets.id, input.id));
     return { deleted: true };
@@ -945,8 +1000,6 @@ export class CmsService {
       .where(eq(schema.cmsAssetReferences.assetId, assetId))
       .orderBy(desc(schema.cmsAssetReferences.createdAt));
   }
-
-  // ─── Locales ─────────────────────────────────────────────────────────
 
   async listLocales(): Promise<LocaleDto[]> {
     const ctx = getCurrentContext();
@@ -1017,8 +1070,6 @@ export class CmsService {
     return toLocaleDto(row!);
   }
 
-  // ─── References ──────────────────────────────────────────────────────
-
   async listInboundReferences(entryId: string): Promise<{ fromEntryId: string; fieldName: string }[]> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -1031,8 +1082,6 @@ export class CmsService {
       .orderBy(desc(schema.cmsReferences.createdAt));
     return rows;
   }
-
-  // ─── Transfer (import / export) ──────────────────────────────────────
 
   async exportCms(): Promise<CmsExportData> {
     const ctx = getCurrentContext();
@@ -1316,9 +1365,6 @@ export class CmsService {
     return toAssetDto(row!);
   }
 
-  // ─── Internals ───────────────────────────────────────────────────────
-
-  /** Used by the schedule worker to flip due entries to published. */
   async publishById(id: string): Promise<EntryDto> {
     const existing = await this.loadEntryRow(id);
     return this.transition({ id, ifVersion: existing.version }, 'published');
@@ -1416,7 +1462,6 @@ export class CmsService {
       .where(and(eq(schema.cmsLocales.orgId, orgId), eq(schema.cmsLocales.isDefault, true)))
       .limit(1);
     if (rows[0]) return rows[0].code;
-    // Fall back to the first locale or 'en' if none configured.
     const any = await ctx.db
       .select()
       .from(schema.cmsLocales)
@@ -1547,8 +1592,6 @@ export class CmsService {
   }
 }
 
-// ─── DTO mappers ───────────────────────────────────────────────────────
-
 function toCollectionDto(row: typeof schema.cmsCollections.$inferSelect): CollectionDto {
   return {
     id: row.id,
@@ -1620,8 +1663,6 @@ function toLocaleDto(row: typeof schema.cmsLocales.$inferSelect): LocaleDto {
     position: row.position,
   };
 }
-
-// ─── helpers ───────────────────────────────────────────────────────────
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
@@ -1728,6 +1769,11 @@ function validateFieldsShape(fields: FieldDef[], allowBlocks = true): void {
   }
 }
 
+function readPreviewUrlTemplate(settings: Record<string, unknown>): string | undefined {
+  const v = (settings as { previewUrl?: unknown }).previewUrl;
+  return typeof v === 'string' && v.trim() !== '' ? v : undefined;
+}
+
 function readSearchableFieldsOverride(settings: Record<string, unknown>): string[] | undefined {
   const v = (settings as { searchableFields?: unknown }).searchableFields;
   if (!Array.isArray(v)) return undefined;
@@ -1771,7 +1817,8 @@ function decodeAssetBody(base64Body: string): Buffer {
   }
   if (body.length > UPLOAD_BYTES_MAX) {
     throw new CmsInvalidError(
-      'base64Body decoded size exceeds 100KB; compress further (WebP/JPEG, smaller dimensions) or use cms_upload_asset_from_url with a public HTTPS URL',
+      'base64Body decoded size exceeds 100KB; compress further (WebP/JPEG, smaller dimensions), use cms_upload_asset_from_url with a public HTTPS URL, or use the cms_request_asset_upload presigned flow',
+      { code: 'cms_asset_too_large' },
     );
   }
   if (body.toString('base64').replace(/=+$/, '') !== base64Body.replace(/=+$/, '')) {

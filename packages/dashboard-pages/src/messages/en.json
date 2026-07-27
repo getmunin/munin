@@ -60,6 +60,10 @@
       "unreachable": {
         "title": "Couldn't reach the server.",
         "hint": "Check your connection and try again."
+      },
+      "oauthError": {
+        "title": "Couldn't sign you in.",
+        "hint": "That sign-in didn't complete. Try again, or use another method."
       }
     },
     "signUp": {
@@ -184,7 +188,8 @@
     "partner": "Partner",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
-    "organization": "Organization"
+    "organization": "Organization",
+    "integrations": "Integrations"
   },
   "dashboard": {
     "runnerStatusBanner": {
@@ -309,6 +314,7 @@
         "cmsApprove": "Approve ↵",
         "cmsMoreMenu": "More actions",
         "cmsSchedule": "Schedule",
+        "cmsPreview": "Preview",
         "cmsScheduleTitle": "Schedule publish",
         "cmsScheduleDescription": "Pick when this draft should go live. Munin will publish it automatically at that time — no further approval needed.",
         "cmsScheduleConfirm": "Approve & schedule",
@@ -332,6 +338,7 @@
         "feedbackApproveConfirm": "Approve sends the title and body above to Munin developers.",
         "outreachKindReply": "REPLY",
         "outreachKindInitial": "INITIAL",
+        "outreachKindFollowup": "FOLLOW-UP {step}",
         "conversationFallback": "Conversation #{id}",
         "crmMergeBody": "Merge <strong>{loser}</strong> into <strong>{keeper}</strong>.",
         "crmMergeExplain": "Keeps the primary; rewrites foreign keys; archives the loser. No conversations are lost.",
@@ -366,7 +373,10 @@
         "kbSlugFallback": "kb-curation-inbox",
         "handleFallback": "—",
         "endUserFallback": "—",
-        "anonymousVisitor": "Anonymous"
+        "anonymousVisitor": "Anonymous",
+        "outreachRevised": "Revised {count}× since it was drafted",
+        "outreachRevisedAfterReview": "Revised {count}× after it was opened for review — read it again before approving",
+        "outreachRevisionReason": "Reason — {reason}"
       },
       "relative": {
         "justNow": "just now",
@@ -477,7 +487,19 @@
       "status": {
         "deactivatedMessage": "Auto-deactivated after {threshold} failed polls",
         "failingMessage": "Inbound polling failing · {attempt}/{threshold} · auto-deactivates at {threshold}",
-        "activate": "Activate"
+        "activate": "Activate",
+        "awaitingCredentials": "Awaiting credentials"
+      },
+      "enterCredentials": {
+        "button": "Enter credentials",
+        "title": "Enter channel credentials",
+        "description": "Enter the passwords for {name}. They're encrypted at rest and never shown again.",
+        "smtpLabel": "SMTP password",
+        "imapLabel": "IMAP password",
+        "submit": "Save",
+        "saved": "Credentials saved",
+        "savedUntested": "Saved — couldn't verify yet: {error}",
+        "error": "Couldn't save credentials."
       },
       "emptyTitle": "No channels yet",
       "emptyBody": "Add a chat widget or email channel to start collecting messages.",
@@ -565,6 +587,7 @@
         "messagingServiceSidLabel": "Messaging Service SID (optional)",
         "messagingServiceSidHint": "Starts with \"MG\". Use this instead of From number if you have a Messaging Service.",
         "fromOrServiceHint": "Either From number or Messaging Service SID is required — providing both is allowed.",
+        "fromOrServiceRequired": "Provide a From number or a Messaging Service SID.",
         "sendTest": "Send test SMS",
         "messagingService": "messaging service · {sid}",
         "accountSidChip": "account · {sid}",
@@ -699,6 +722,8 @@
         "load": "Could not load channels.",
         "create": "Could not create channel.",
         "required": "Required.",
+        "phoneNumberInvalid": "Use the international format, e.g. +15551234567.",
+        "valueInvalid": "This value isn't valid.",
         "createEmail": "Could not create email channel.",
         "updateEmail": "Could not update email channel.",
         "createTwilioSms": "Could not create Twilio SMS channel.",
@@ -1105,7 +1130,7 @@
     "settings": {
       "groups": {
         "workspace": "Workspace",
-        "access": "Access & integrations",
+        "access": "Access",
         "monitoring": "Monitoring"
       }
     },
@@ -1230,6 +1255,162 @@
       }
     }
   },
+  "integrations": {
+    "hero": {
+      "eyebrow": "Integrations",
+      "title": "Connect Munin to <em>the tools you already use</em>",
+      "lede": "Bring conversations into the surfaces your team and customers live in."
+    },
+    "operatorBridges": {
+      "title": "Operator bridges",
+      "subtitle": "Triage & reply from your team's chat tools"
+    },
+    "dataConnectors": {
+      "title": "Data connections",
+      "subtitle": "Live against the vendor — nothing is stored in Munin"
+    },
+    "connectors": {
+      "title": "Connections",
+      "lede": "Connected commerce and booking systems agents can use on a customer's behalf.",
+      "name": "Name",
+      "namePlaceholder": "e.g. Main store",
+      "create": "Connect",
+      "created": "Connector connected",
+      "enterCredentials": "Enter credentials",
+      "enterCredentialsFor": "Enter credentials for {name}",
+      "save": "Save",
+      "savedUntested": "Saved — couldn't verify yet: {error}",
+      "test": "Test",
+      "testOk": "Connection works. {detail}",
+      "testFailed": "Test failed: {error}",
+      "delete": "Remove",
+      "deleteTitle": "Remove connector",
+      "deleteConfirm": "Remove {name}? Lookups through it stop working immediately.",
+      "statusActive": "Active",
+      "statusPending": "Awaiting credentials",
+      "statusError": "Test failed",
+      "statusInactive": "Inactive",
+      "connect": "Connect",
+      "connectVendor": "Connect {vendor}",
+      "readOnly": "Read-only",
+      "whatAgentsGet": "What agents get",
+      "liveData": "Live against the vendor — nothing is stored in Munin.",
+      "connectedCount": "{count} connected"
+    },
+    "slack": {
+      "title": "Slack",
+      "lede": "Mirror conversations into a Slack channel as threads and alert your team on handover requests. Replies to customers still go out over the conversation's original channel.",
+      "notConfigured": "This deployment has no Slack app configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET on the backend — the agent skill \"Connect Slack for human handoff\" has the app manifest and steps.",
+      "connect": "Connect Slack",
+      "connectedTo": "Connected to {workspace}.",
+      "channelLabel": "Default channel ID",
+      "channelHint": "The Slack channel conversations mirror into (channel details → About → Channel ID, e.g. C0123456789).",
+      "channelsLoading": "Loading channels…",
+      "channelSelectPlaceholder": "Select a channel…",
+      "channelListHint": "Only channels Munin has been invited to are listed. To add one, run /invite @Munin in that channel in Slack.",
+      "channelsNoneInvited": "Munin isn't in any channels yet. Run /invite @Munin in the Slack channel you want, then reopen this dialog.",
+      "channelsLoadFailed": "Could not load the channel list — paste the channel ID manually.",
+      "saveRouting": "Save channel",
+      "inviteBot": "The bot is not in that channel yet — run /invite @Munin in Slack, then send a test.",
+      "sendTest": "Send test message",
+      "testSent": "Test message sent",
+      "disconnect": "Disconnect",
+      "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",
+      "failedDeliveries": "{count} mirror deliveries failed in the last 24 hours.",
+      "configure": "Configure",
+      "notConfiguredShort": "Slack app not configured"
+    },
+    "catalog": {
+      "category": {
+        "chatBridge": "Chat · Bridge",
+        "commerce": "Commerce",
+        "booking": "Booking",
+        "connection": "Connection"
+      },
+      "description": {
+        "slack": "Triage the inbox and reply without leaving your workspace.",
+        "shopify": "Orders, customers, and fulfillment — read on behalf of a customer.",
+        "magento": "Read orders and customers from your Magento store.",
+        "gastroplanner": "Check availability, book tables, and manage restaurant bookings.",
+        "generic": "Read directly on behalf of a customer."
+      },
+      "capability": {
+        "slackMirror": "Mirror conversations into Slack threads.",
+        "slackReply": "Reply to customers from the thread.",
+        "ordersLookup": "Look up a customer's orders and status.",
+        "customersLookup": "Match a conversation to a store customer.",
+        "bookingsLookup": "Find a guest's bookings and details.",
+        "bookingsAvailability": "Check availability and book a table.",
+        "bookingsManage": "Change or cancel a guest's booking."
+      }
+    },
+    "field": {
+      "shopify": {
+        "shopDomain": {
+          "label": "Shop domain",
+          "hint": "Your permanent *.myshopify.com domain, not a custom storefront domain.",
+          "placeholder": "your-store.myshopify.com",
+          "invalid": "Enter your *.myshopify.com domain, without https:// or a path."
+        },
+        "accessToken": {
+          "label": "Admin API access token",
+          "hint": "A custom-app token (starts with shpat_) with read_orders + read_customers.",
+          "invalid": "This doesn't look like a valid token — paste the full shpat_… token."
+        },
+        "apiVersion": {
+          "label": "API version",
+          "hint": "Optional — defaults to a current stable version.",
+          "invalid": "Use the YYYY-MM format, e.g. 2025-01."
+        }
+      },
+      "magento": {
+        "baseUrl": {
+          "label": "Store base URL",
+          "hint": "The storefront base URL, without the /rest suffix.",
+          "placeholder": "https://store.example.com",
+          "invalid": "Enter a full https:// URL to the store."
+        },
+        "accessToken": {
+          "label": "Integration access token",
+          "hint": "An integration token with read access to Sales + Customers.",
+          "invalid": "This doesn't look like a valid token — paste the full integration token."
+        }
+      },
+      "gastroplanner": {
+        "apiToken": {
+          "label": "Partner API token",
+          "hint": "Issued by Gastroplanner support for your account.",
+          "invalid": "This doesn't look like a valid token — paste the full token from Gastroplanner."
+        },
+        "restaurantUri": {
+          "label": "Restaurant URI",
+          "hint": "The value sent as the X-RESTAURANT header for your venue.",
+          "placeholder": "my-restaurant",
+          "invalid": "Enter the X-RESTAURANT value for your venue."
+        },
+        "baseUrl": {
+          "label": "API base URL",
+          "hint": "Optional — defaults to https://api.gastroplanner.eu.",
+          "placeholder": "https://api.gastroplanner.eu",
+          "invalid": "Enter a full https:// URL, or leave the field empty for the default."
+        }
+      }
+    }
+  },
+  "credentialEntry": {
+    "eyebrow": "Secure setup",
+    "title": "Enter your credentials",
+    "lede": "This one-time link lets you enter an integration's secret credentials directly, without sharing them in a chat.",
+    "loading": "Loading…",
+    "invalid": "This link is invalid or has expired.",
+    "for": "Credentials for {vendor}",
+    "submit": "Save credentials",
+    "reassurance": "Credentials are encrypted at rest and never shown again. This link works once.",
+    "success": "Done.",
+    "successBody": "Your credentials were saved and verified.",
+    "savedButUntested": "Credentials saved, but the test call didn't succeed — check them and try again from the dashboard.",
+    "failure": "Couldn't save."
+  },
   "assistants": {
     "list": {
       "persona": {
@@ -1245,7 +1426,7 @@
         "blurb": "Speaks to your customers directly, in the configured persona."
       },
       "background": {
-        "tierLabel": "{tier}",
+        "tierLabel": "{tier, select, smart {smart} fast {fast} other {{tier}}}",
         "neverRan": "Never run for this org yet.",
         "statuses": {
           "pending": "pending",
@@ -1268,7 +1449,7 @@
       "chatAssistant": {
         "title": "Chat assistant",
         "description": "Replies to customers across chat, email, and any other conversation channel.",
-        "tierLabel": "{tier}"
+        "tierLabel": "{tier, select, smart {smart} fast {fast} other {{tier}}}"
       }
     },
     "identity": {
@@ -1325,7 +1506,10 @@
     "CMS_CONFLICT": "CMS conflict (version mismatch?).",
     "CONV_INVALID": "Conversation entry is invalid.",
     "FEEDBACK_RATE_LIMIT": "Too many suggestions created in the last hour. Try again later.",
-    "FEEDBACK_NOT_FOUND": "Suggestion not found."
+    "FEEDBACK_NOT_FOUND": "Suggestion not found.",
+    "cms_asset_too_large": "This file is too large to upload. The maximum size is 50 MB.",
+    "cms_asset_upload_failed": "The file upload didn't finish. Check your connection and try again.",
+    "cms_version_conflict": "This entry was changed elsewhere while you were editing. Reload it and try again."
   },
   "footer": {
     "privacy": "Privacy",
@@ -1391,8 +1575,13 @@
         "approved": "approved",
         "sent": "sent",
         "dismissed": "dismissed",
-        "failed": "failed"
-      }
+        "failed": "failed",
+        "withdrawn": "withdrawn"
+      },
+      "withdrawn": "Withdrawn by the agent — nothing was sent.",
+      "withdrawnReason": "Withdrawn — {reason}",
+      "revised": "Revised {count}× since it was drafted",
+      "revisedAfterReview": "Revised {count}× after a reviewer opened it — read it again before approving"
     },
     "merge": {
       "eyebrow": "Pending merge proposals",

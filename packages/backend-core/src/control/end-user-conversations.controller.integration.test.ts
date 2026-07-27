@@ -239,7 +239,6 @@ const skipReason = TEST_URL
       aliceToken,
       'POST',
       `/v1/end-users/me/conversations/${start.body.id}/messages`,
-      // Even if the client tries to spoof the author type, the server forces 'end_user'.
       { body: 'second message', authorType: 'agent' },
     );
     expect(reply.status).toBe(201);

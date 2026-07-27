@@ -14,10 +14,7 @@ type BetterAuthInstance = ReturnType<typeof betterAuth>;
 
 export const STANDARD_OIDC_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const;
 
-export const SUPPORTED_AUTH_SCOPES = [
-  ...STANDARD_OIDC_SCOPES,
-  ...MUNIN_SUPPORTED_SCOPES,
-] as const;
+export const SUPPORTED_AUTH_SCOPES = [...STANDARD_OIDC_SCOPES, ...MUNIN_SUPPORTED_SCOPES] as const;
 
 export interface SignupHookUser {
   id: string;
@@ -66,7 +63,6 @@ export interface MuninAuthCoreOptions {
 
   crossSubDomainCookies?: { domain: string };
 
-  /** Defaults to MUNIN_AUTH_COOKIE_PREFIX, falling back to better-auth's default. */
   cookiePrefix?: string;
 
   rateLimit?: BetterAuthOptions['rateLimit'];
@@ -95,110 +91,116 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
     return active?.orgId;
   };
 
-  return asMuninAuth(betterAuth({
-    baseURL: opts.baseUrl,
-    basePath: '/auth',
-    secret: opts.authSecret,
-    rateLimit: opts.rateLimit,
-    logger: opts.logger,
-    database: drizzleAdapter(opts.db, {
-      provider: 'pg',
-      schema: {
-        user: schema.users,
-        session: schema.sessions,
-        account: schema.accounts,
-        verification: schema.verifications,
-        oauthClient: schema.oauthClient,
-        oauthAccessToken: schema.oauthAccessToken,
-        oauthRefreshToken: schema.oauthRefreshToken,
-        oauthConsent: schema.oauthConsent,
-        jwks: schema.jwks,
-        rateLimit: schema.authRateLimit,
-      },
-    }),
-    plugins: [
-      jwt({ jwt: { issuer } }),
-      oauthProvider({
-        loginPage: `${dashboardUrl}/login`,
-        consentPage: `${dashboardUrl}/dashboard/oauth/consent`,
-        allowDynamicClientRegistration: true,
-        allowUnauthenticatedClientRegistration: true,
-        scopes: [...SUPPORTED_AUTH_SCOPES],
-        validAudiences,
-        silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
-        postLogin: {
-          page: `${dashboardUrl}/dashboard/oauth/consent`,
-          shouldRedirect: () => false,
-          consentReferenceId: async ({ user }) =>
-            user?.id ? await resolveDefaultOrgId(user.id) : undefined,
+  return asMuninAuth(
+    betterAuth({
+      baseURL: opts.baseUrl,
+      basePath: '/auth',
+      secret: opts.authSecret,
+      rateLimit: opts.rateLimit,
+      logger: opts.logger,
+      database: drizzleAdapter(opts.db, {
+        provider: 'pg',
+        schema: {
+          user: schema.users,
+          session: schema.sessions,
+          account: schema.accounts,
+          verification: schema.verifications,
+          oauthClient: schema.oauthClient,
+          oauthAccessToken: schema.oauthAccessToken,
+          oauthRefreshToken: schema.oauthRefreshToken,
+          oauthConsent: schema.oauthConsent,
+          jwks: schema.jwks,
+          rateLimit: schema.authRateLimit,
         },
-        customAccessTokenClaims: ({ referenceId }) =>
-          referenceId ? { org_id: referenceId } : {},
       }),
-      ...(opts.captcha
-        ? [
-            captcha({
-              provider: opts.captcha.provider,
-              secretKey: opts.captcha.secretKey,
-              ...(opts.captcha.endpoints ? { endpoints: opts.captcha.endpoints } : {}),
-            }),
-          ]
-        : []),
-    ],
-    emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: false,
-      autoSignIn: true,
-      sendResetPassword: opts.sendResetPassword,
-    },
-    emailVerification: opts.sendVerificationEmail
-      ? {
-          sendVerificationEmail: opts.sendVerificationEmail,
-          sendOnSignUp: true,
-        }
-      : undefined,
-    socialProviders,
-    account: { encryptOAuthTokens: true },
-    user: opts.deleteUser
-      ? {
-          deleteUser: {
-            enabled: true,
-            beforeDelete: opts.deleteUser.beforeDelete,
-            sendDeleteAccountVerification: opts.deleteUser.sendDeleteAccountVerification,
+      plugins: [
+        jwt({ jwt: { issuer } }),
+        oauthProvider({
+          loginPage: `${dashboardUrl}/login`,
+          consentPage: `${dashboardUrl}/dashboard/oauth/consent`,
+          allowDynamicClientRegistration: true,
+          allowUnauthenticatedClientRegistration: true,
+          scopes: [...SUPPORTED_AUTH_SCOPES],
+          validAudiences,
+          silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
+          postLogin: {
+            page: `${dashboardUrl}/dashboard/oauth/consent`,
+            shouldRedirect: () => false,
+            consentReferenceId: async ({ user }) =>
+              user?.id ? await resolveDefaultOrgId(user.id) : undefined,
           },
-        }
-      : undefined,
-    trustedOrigins: origins,
-    advanced: {
-      useSecureCookies: dashboardUrl.startsWith('https://'),
-      cookiePrefix: opts.cookiePrefix ?? authCookiePrefix(),
-      ...(opts.crossSubDomainCookies
+          customAccessTokenClaims: ({ referenceId }) =>
+            referenceId ? { org_id: referenceId } : {},
+        }),
+        ...(opts.captcha
+          ? [
+              captcha({
+                provider: opts.captcha.provider,
+                secretKey: opts.captcha.secretKey,
+                ...(opts.captcha.endpoints ? { endpoints: opts.captcha.endpoints } : {}),
+              }),
+            ]
+          : []),
+      ],
+      emailAndPassword: {
+        enabled: true,
+        requireEmailVerification: false,
+        autoSignIn: true,
+        sendResetPassword: opts.sendResetPassword,
+      },
+      emailVerification: opts.sendVerificationEmail
         ? {
-            crossSubDomainCookies: {
-              enabled: true,
-              domain: opts.crossSubDomainCookies.domain,
-            },
+            sendVerificationEmail: opts.sendVerificationEmail,
+            sendOnSignUp: true,
           }
-        : {}),
-    },
-    databaseHooks:
-      opts.signupBefore || opts.signupAfter
+        : undefined,
+      socialProviders,
+      account: {
+        encryptOAuthTokens: true,
+        accountLinking: {
+          enabled: true,
+          trustedProviders: ['google', 'github'],
+          requireLocalEmailVerified: false,
+        },
+      },
+      user: opts.deleteUser
         ? {
-            user: {
-              create: {
-                before: opts.signupBefore,
-                after: opts.signupAfter,
-              },
+            deleteUser: {
+              enabled: true,
+              beforeDelete: opts.deleteUser.beforeDelete,
+              sendDeleteAccountVerification: opts.deleteUser.sendDeleteAccountVerification,
             },
           }
         : undefined,
-  }));
+      trustedOrigins: origins,
+      advanced: {
+        useSecureCookies: dashboardUrl.startsWith('https://'),
+        cookiePrefix: opts.cookiePrefix ?? authCookiePrefix(),
+        ...(opts.crossSubDomainCookies
+          ? {
+              crossSubDomainCookies: {
+                enabled: true,
+                domain: opts.crossSubDomainCookies.domain,
+              },
+            }
+          : {}),
+      },
+      databaseHooks:
+        opts.signupBefore || opts.signupAfter
+          ? {
+              user: {
+                create: {
+                  before: opts.signupBefore,
+                  after: opts.signupAfter,
+                },
+              },
+            }
+          : undefined,
+    }),
+  );
 }
 
-export function computeValidAudiences(
-  baseUrl: string,
-  mcpResourceUrl?: string | null,
-): string[] {
+export function computeValidAudiences(baseUrl: string, mcpResourceUrl?: string | null): string[] {
   const variants = new Set<string>();
   addUrlVariants(variants, baseUrl);
   if (mcpResourceUrl) addUrlVariants(variants, mcpResourceUrl);

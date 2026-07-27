@@ -213,7 +213,8 @@ body.host-mobile .panel {
   color: var(--ink);
 }
 
-.pill-dismissed {
+.pill-dismissed,
+.pill-withdrawn {
   color: var(--fg-3);
 }
 

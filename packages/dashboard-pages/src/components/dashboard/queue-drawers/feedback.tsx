@@ -55,7 +55,7 @@ export function FeedbackQueueDrawer({
           <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
             {t('proposal')}
           </p>
-          <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
+          <div className="border-[1px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
             <p className="whitespace-pre-wrap">{f.body}</p>
             <p className="mt-3 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
               {t(attributionKey, { orgName: '—', userName: '—' })}

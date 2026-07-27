@@ -103,23 +103,15 @@ interface ReceivedRequest {
       .returning();
     const webhook = { id: webhookRow!.id, secret: webhookRow!.secret };
 
-    // Set up a chat channel so end-user start_conversation can pick one up.
     const [channel] = await db
       .insert(schema.convChannels)
       .values({ orgId, type: 'chat', vendor: 'munin', name: 'Web' })
       .returning();
-    // Provision an end-user + token, then start a conversation through the
-    // service layer directly (we already exercised the MCP path elsewhere).
     const [eu] = await db
       .insert(schema.endUsers)
       .values({ orgId, externalId: 'eu-1', name: 'Alice' })
       .returning();
 
-    // Insert a conversation + first message via service-role db, then emit
-    // the matching events through the WebhookDispatcher's persistence
-    // layer using a quick dispatch step. Easier: create a conv via the
-    // admin REST → MCP path. We'll just use the desk admin tool over MCP.
-    // For simplicity here, do the inserts directly + create the events row.
     const [conv] = await db
       .insert(schema.convConversations)
       .values({
@@ -154,7 +146,6 @@ interface ReceivedRequest {
     expect(delivery.event).toBe('conversation.created');
     expect(delivery.signature).toMatch(/^sha256=/);
 
-    // Signature verifies against the secret that's set on the webhook.
     const sigOnly = delivery.signature!.replace(/^sha256=/, '');
     expect(verifyHmac(delivery.body, webhook.secret, sigOnly)).toBe(true);
 
@@ -200,7 +191,6 @@ interface ReceivedRequest {
     receiverShouldFail = true;
     try {
       const worker = app.get(WebhookWorker);
-      // First attempt: should record an error and schedule a retry.
       const r1 = await worker.tick();
       expect(r1.delivered).toBe(0);
       expect(r1.failed).toBe(1);
@@ -213,7 +203,6 @@ interface ReceivedRequest {
       expect(afterFirst!.error).toMatch(/non-2xx: 500/);
       expect(afterFirst!.nextAttemptAt).toBeInstanceOf(Date);
 
-      // Force the row to "due" again and run 4 more times to exhaust attempts.
       for (let i = 0; i < 4; i++) {
         await db
           .update(schema.webhookDeliveries)

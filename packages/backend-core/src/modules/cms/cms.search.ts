@@ -90,16 +90,6 @@ export class CmsSearchService {
     @Inject(DB) private readonly serviceDb: Db,
   ) {}
 
-  /**
-   * Hybrid search across CMS entries. FTS over the generated tsvector
-   * (`fts`) plus pgvector cosine over `embedding`, fused via Reciprocal
-   * Rank Fusion (k=60).
-   *
-   * Admin callers (RLS-scoped to org) see drafts + published. The public
-   * delivery surface passes `publishedOnly: true` + opts.orgId and runs
-   * against the service-role DB so RLS doesn't gate the read; cross-org
-   * leakage is impossible because the SQL hard-filters on org_id.
-   */
   async search(input: SearchInput, opts?: { orgId?: string }): Promise<SearchHit[]> {
     const limit = clampLimit(input.limit, DEFAULT_LIMIT, MAX_LIMIT);
     const trimmed = input.query.trim();

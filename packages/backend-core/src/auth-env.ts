@@ -1,9 +1,3 @@
-/**
- * Env-reading helpers shared between OSS and cloud auth bootstraps.
- * Edition-specific helpers (e.g. allowed-domain allowlist for OSS) stay
- * in the edition's own auth.config.
- */
-
 export function readGoogleProviderFromEnv(): { clientId: string; clientSecret: string } | undefined {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;

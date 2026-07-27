@@ -4,18 +4,10 @@ import type { McpToolMeta } from './decorator.ts';
 
 export interface RegisteredMcpTool {
   meta: McpToolMeta;
-  /** Bound handler — already has `this` resolved to the providing service instance. */
   handler: (args: unknown) => unknown;
-  /** JSON Schema (draft 2020-12) generated from meta.input via zod 4. */
   inputJsonSchema: object;
 }
 
-/**
- * Holds every @McpTool-decorated method discovered at app boot.
- *
- * Lookup is by tool name (unique). Registration order is preserved so the
- * tools/list response is stable.
- */
 export class McpToolRegistry {
   private readonly byName = new Map<string, RegisteredMcpTool>();
 
@@ -27,7 +19,6 @@ export class McpToolRegistry {
     this.byName.set(meta.name, { meta, handler, inputJsonSchema });
   }
 
-  /** All tools, optionally filtered to those visible to the given audience. */
   list(audience?: Audience): RegisteredMcpTool[] {
     const all = Array.from(this.byName.values());
     if (!audience) return all;

@@ -154,6 +154,30 @@ export interface CreateMuninRestClientOptions {
   fetch?: typeof fetch;
 }
 
+export class MuninRestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(message);
+    this.name = 'MuninRestError';
+  }
+}
+
+function errorCodeFrom(text: string): string | null {
+  try {
+    const parsed = JSON.parse(text) as { code?: unknown; message?: unknown };
+    if (typeof parsed.code === 'string') return parsed.code;
+    if (typeof parsed.message === 'string') {
+      return /^([a-z_]+):/.exec(parsed.message)?.[1] ?? null;
+    }
+  } catch {
+    return /^([a-z_]+):/.exec(text)?.[1] ?? null;
+  }
+  return null;
+}
+
 export function createMuninRestClient(opts: CreateMuninRestClientOptions): MuninRestClient {
   const baseUrl = opts.baseUrl.replace(/\/+$/, '');
   const fetchImpl = opts.fetch ?? globalThis.fetch;
@@ -170,7 +194,11 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     const res = await fetchImpl(`${baseUrl}${path}`, { ...init, headers });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`munin ${init.method ?? 'GET'} ${path} → ${res.status}: ${text.slice(0, 300)}`);
+      throw new MuninRestError(
+        `munin ${init.method ?? 'GET'} ${path} → ${res.status}: ${text.slice(0, 300)}`,
+        res.status,
+        errorCodeFrom(text),
+      );
     }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;

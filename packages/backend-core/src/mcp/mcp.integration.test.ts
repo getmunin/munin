@@ -31,9 +31,6 @@ const skipReason = TEST_URL
 
     await runMigrations(TEST_URL!);
 
-    // Postgres superusers always bypass RLS — the integration test must boot
-    // Nest with the non-superuser munin_app role so the RLS policies actually
-    // apply to delegated end-user requests.
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
     process.env.DATABASE_URL = appUrl;
 
@@ -166,7 +163,6 @@ const skipReason = TEST_URL
       const adminTitles = adminHits.map((h) => h.title);
       expect(adminTitles).toContain('Public help');
 
-      // Cleanup so this test doesn't leak documents.
       await c.callTool({
         name: 'kb_delete_document',
         arguments: { id: privateDoc.id, ifVersion: privateDoc.version },
@@ -298,23 +294,18 @@ const skipReason = TEST_URL
       name: 'mcp-it-limited',
       keyHash: hashSecret(limitedKey),
       keyPrefix: keyPrefix(limitedKey),
-      scopes: ['kb:read'], // read-only, no kb:write, no '*'
+      scopes: ['kb:read'],
     });
 
     await withClient(limitedKey, async (c) => {
-      // listTools intersects both audience and scope: kb_search is listed
-      // (caller has kb:read) but kb_create_document is hidden (no kb:write).
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
       expect(names).toContain('kb_search');
       expect(names).not.toContain('kb_create_document');
 
-      // kb_search works (kb:read).
       const search = await c.callTool({ name: 'kb_search', arguments: { query: 'anything' } });
       expect(JSON.stringify(search)).not.toMatch(/Missing required scope/);
 
-      // Defense in depth: even when invoked by name, kb_create_document is
-      // denied at dispatch with a scope error.
       const denied = await c.callTool({
         name: 'kb_create_document',
         arguments: {
@@ -336,7 +327,7 @@ const skipReason = TEST_URL
       name: 'mcp-it-audit',
       keyHash: hashSecret(auditKey),
       keyPrefix: keyPrefix(auditKey),
-      scopes: ['kb:read'], // missing kb:write — kb_create_document will be denied
+      scopes: ['kb:read'],
     });
 
     await withClient(auditKey, async (c) => {
@@ -351,8 +342,6 @@ const skipReason = TEST_URL
       expect(denied.isError).toBe(true);
     });
 
-    // Audit row written by createMcpServer's deny path. Read with bypass on so
-    // we can see the row regardless of org GUC state.
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const rows = await db
       .select({ tool: schema.auditLog.tool, result: schema.auditLog.result, error: schema.auditLog.error })
@@ -381,7 +370,6 @@ const skipReason = TEST_URL
       expect(denied.isError).toBe(true);
       expect(denied.content?.[0]?.text ?? '').toMatch(/Missing required scope: kb:read/);
 
-      // ping has no scope requirement — still works for the same actor.
       const ping = await c.callTool({ name: 'ping', arguments: { message: 'ok' } });
       expect(JSON.stringify(ping)).toContain('ok');
     });
@@ -461,7 +449,6 @@ const skipReason = TEST_URL
   }, 30_000);
 
   it('end-user agent sees only self-service tools and only public docs', async () => {
-    // First seed a public + a private doc as admin.
     let publicDocId = '';
     let privateDocId = '';
     let publicVer = 0;

@@ -1122,7 +1122,7 @@ SOFTWARE.
 
 ---
 
-## @better-auth/core@1.6.11
+## @better-auth/core@1.6.23
 
 > The most comprehensive authentication framework for TypeScript.
 - Homepage: https://www.better-auth.com
@@ -1153,7 +1153,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/drizzle-adapter@1.6.11
+## @better-auth/drizzle-adapter@1.6.23
 
 > Drizzle adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/drizzle
@@ -1184,7 +1184,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/kysely-adapter@1.6.11
+## @better-auth/kysely-adapter@1.6.23
 
 > Kysely adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/kysely
@@ -1215,7 +1215,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/memory-adapter@1.6.11
+## @better-auth/memory-adapter@1.6.23
 
 > Memory adapter for Better Auth
 - Homepage: https://www.better-auth.com
@@ -1246,7 +1246,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/mongo-adapter@1.6.11
+## @better-auth/mongo-adapter@1.6.23
 
 > Mongo adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/mongodb
@@ -1277,7 +1277,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/oauth-provider@1.6.10
+## @better-auth/oauth-provider@1.6.23
 
 > An oauth provider plugin for Better Auth
 - Homepage: https://www.better-auth.com/docs/plugins/oauth-provider
@@ -1308,7 +1308,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/prisma-adapter@1.6.11
+## @better-auth/prisma-adapter@1.6.23
 
 > Prisma adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/prisma
@@ -1339,7 +1339,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/telemetry@1.6.11
+## @better-auth/telemetry@1.6.23
 
 > Telemetry package for Better Auth
 - Homepage: https://www.better-auth.com
@@ -1370,7 +1370,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/utils@0.4.0
+## @better-auth/utils@0.4.2
 
 > A collection of utilities for better-auth
 - Homepage: https://github.com/better-auth/utils#readme
@@ -1381,8 +1381,9 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## @better-fetch/fetch@1.1.21
+## @better-fetch/fetch@1.3.1
 
+- Homepage: https://github.com/better-auth/better-fetch#readme
 - License: MIT
 
 ```
@@ -5168,7 +5169,7 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @next/env@16.2.6
+## @next/env@16.2.12
 
 > Next.js dotenv file loading
 - Homepage: https://github.com/vercel/next.js#readme
@@ -15281,7 +15282,7 @@ MIT License
 
 ---
 
-## @types/node@22.19.17, 22.20.0
+## @types/node@22.19.17, 22.20.1
 
 > TypeScript definitions for node
 - Homepage: https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node
@@ -18291,7 +18292,7 @@ Apache License
 
 ---
 
-## better-auth@1.6.11
+## better-auth@1.6.23
 
 > The most comprehensive authentication framework for TypeScript.
 - Homepage: https://better-auth.com
@@ -18322,7 +18323,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## better-call@1.3.5
+## better-call@1.3.7
 
 - Homepage: https://github.com/better-auth/better-call#readme
 - License: MIT
@@ -18353,7 +18354,7 @@ SOFTWARE.
 
 ---
 
-## body-parser@2.2.2
+## body-parser@2.3.0
 
 > Node.js body parsing middleware
 - Homepage: https://github.com/expressjs/body-parser#readme
@@ -18449,7 +18450,7 @@ Original Author, when distributed with the Software.
 
 ---
 
-## brace-expansion@1.1.14, 2.1.0, 5.0.6
+## brace-expansion@1.1.16, 2.1.2, 5.0.8
 
 > Brace expansion as known from sh/bash
 - Homepage: https://github.com/juliangruber/brace-expansion#readme
@@ -20162,7 +20163,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## content-type@1.0.5
+## content-type@1.0.5, 2.0.0
 
 > Create and parse HTTP Content-Type header
 - Homepage: https://github.com/jshttp/content-type#readme
@@ -23296,7 +23297,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## fast-uri@3.1.2
+## fast-uri@3.1.4
 
 > Dependency-free RFC 3986 URI toolbox
 - Homepage: https://github.com/fastify/fast-uri
@@ -24646,7 +24647,7 @@ SOFTWARE.
 
 ---
 
-## hono@4.12.26
+## hono@4.12.32
 
 > Web framework built on Web Standards
 - Homepage: https://hono.dev
@@ -26656,7 +26657,7 @@ THE SOFTWARE.
 
 ---
 
-## js-yaml@4.2.0
+## js-yaml@4.3.0
 
 > YAML 1.2 parser and serializer
 - Homepage: https://github.com/nodeca/js-yaml#readme
@@ -27295,7 +27296,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## linkify-it@5.0.1
+## linkify-it@5.0.2
 
 > Links recognition library with FULL unicode support
 - Homepage: https://github.com/markdown-it/linkify-it#readme
@@ -30080,7 +30081,7 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## nanoid@3.3.11
+## nanoid@3.3.16
 
 > A tiny (116 bytes), secure URL-friendly unique string ID generator
 - Homepage: https://github.com/ai/nanoid#readme
@@ -30223,7 +30224,7 @@ SOFTWARE.
 
 ---
 
-## next@16.2.6
+## next@16.2.12
 
 > The React Framework
 - Homepage: https://nextjs.org
@@ -32262,7 +32263,7 @@ SOFTWARE.
 
 ---
 
-## postcss@8.5.12
+## postcss@8.5.23
 
 > Tool for transforming styles with JS plugins
 - Homepage: https://postcss.org/
@@ -35103,7 +35104,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## set-cookie-parser@3.1.0
+## set-cookie-parser@3.1.0, 3.1.2
 
 > Parses set-cookie headers into objects
 - Homepage: https://github.com/nfriedly/set-cookie-parser
@@ -35194,7 +35195,7 @@ SOFTWARE.
 
 ---
 
-## sharp@0.34.5
+## sharp@0.35.3
 
 > High performance Node.js image processing, the fastest module to resize JPEG, PNG, WebP, GIF, AVIF and TIFF images
 - Homepage: https://sharp.pixelplumbing.com
@@ -37258,7 +37259,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.3
+## tldts@7.4.9
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -37283,7 +37284,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.3
+## tldts-core@7.4.9
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme
@@ -37395,7 +37396,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## tough-cookie@4.1.4, 6.0.1
+## tough-cookie@4.1.4, 6.0.2
 
 > RFC6265 Cookies and Cookie Jar for node.js
 - Homepage: https://github.com/salesforce/tough-cookie
@@ -37774,7 +37775,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## type-fest@0.7.1, 5.7.0
+## type-fest@0.7.1, 5.8.0
 
 > A collection of essential TypeScript types
 - Homepage: https://github.com/sindresorhus/type-fest#readme
@@ -37795,7 +37796,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## type-is@1.6.18, 2.0.1
+## type-is@1.6.18, 2.0.1, 2.1.0
 
 > Infer the content-type of a request.
 - Homepage: https://github.com/jshttp/type-is#readme

@@ -66,8 +66,6 @@ const skipReason = TEST_URL
       scopes: ['*'],
     });
 
-    // Stage a fake widget bundle + manifest in a tmp dir so the static-
-    // asset routes have something to serve from createApp().
     widgetAssetDir = mkdtempSync(join(tmpdir(), 'munin-widget-asset-'));
     writeFileSync(join(widgetAssetDir, FIXTURE_BUNDLE), FIXTURE_BUNDLE_BODY);
     writeFileSync(
@@ -86,7 +84,6 @@ const skipReason = TEST_URL
     if (!address || typeof address === 'string') throw new Error('expected AddressInfo');
     baseUrl = `http://127.0.0.1:${address.port}`;
 
-    // Mint a widget channel + key via the admin MCP tool.
     const created = await withClient(adminKey, async (c) => {
       return parseToolResult<{
         id: string;
@@ -147,7 +144,25 @@ const skipReason = TEST_URL
     };
     if (headers.Origin === '') delete headers.Origin;
     if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch(`${baseUrl}${path}`, {
+    let finalPath = path;
+    if (method === 'GET') {
+      const url = new URL(path, baseUrl);
+      const sessionHeaderMap: Record<string, string> = {
+        sessionId: 'x-munin-session-id',
+        sessionIds: 'x-munin-session-ids',
+        verifiedExternalId: 'x-munin-verified-external-id',
+        userHash: 'x-munin-user-hash',
+      };
+      for (const [param, header] of Object.entries(sessionHeaderMap)) {
+        const value = url.searchParams.get(param);
+        if (value !== null && headers[header] === undefined) {
+          headers[header] = value;
+          url.searchParams.delete(param);
+        }
+      }
+      finalPath = url.pathname + url.search;
+    }
+    const res = await fetch(`${baseUrl}${finalPath}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -398,8 +413,6 @@ const skipReason = TEST_URL
     expect(rotated.widgetKey).toMatch(/^mn_widget_/);
     expect(rotated.widgetKey).not.toEqual(oldKey);
 
-    // Old key revoked. Retry briefly: revocation visibility through the
-    // server's connection pool can lag the rotate tx's commit by a tick.
     let staleStatus = 0;
     await waitFor(async () => {
       const r = await call('POST', '/v1/widget/messages', oldKey, {
@@ -412,7 +425,6 @@ const skipReason = TEST_URL
     });
     expect(staleStatus).toBe(401);
 
-    // New key works.
     const fresh = await call('POST', '/v1/widget/messages', rotated.widgetKey, {
       channelId,
       sessionId: 'vis_post_rotation',
@@ -426,9 +438,6 @@ const skipReason = TEST_URL
     expect(identityVerificationSecret).toBeTruthy();
     expect(identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
 
-    // The secret persists in the channel config (RLS-protected JSONB).
-    // waitFor absorbs commit-visibility races between the MCP tool's
-    // commit and this separate connection's snapshot.
     await waitFor(async () => {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       const rows = await db
@@ -445,7 +454,6 @@ const skipReason = TEST_URL
       );
     });
 
-    // An update never echoes the secret back through the response.
     const updated = await withClient(adminKey, async (c) => {
       return parseToolResult<{
         config: Record<string, unknown> & { hasIdentityVerificationSecret: boolean };
@@ -497,11 +505,6 @@ const skipReason = TEST_URL
     expect(rotated.identityVerificationSecret.length).toBeGreaterThanOrEqual(32);
     expect(rotated.identityVerificationSecret).not.toEqual(oldSecret);
 
-    // Update the closure's secret BEFORE asserting DB persistence, so a
-    // transient stale-read on this separate connection (commit visibility
-    // can lag the MCP tool response by a tick under load) doesn't poison
-    // every subsequent test that signs with this secret. We then waitFor
-    // the DB to converge.
     identityVerificationSecret = rotated.identityVerificationSecret;
     await waitFor(async () => {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
@@ -515,7 +518,6 @@ const skipReason = TEST_URL
   });
 
   it('rejects identity rotation across tenants', async () => {
-    // Mint a fresh org with its own admin key, channel, and secret.
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const [otherOrg] = await db
       .insert(schema.orgs)
@@ -531,9 +533,6 @@ const skipReason = TEST_URL
       scopes: ['*'],
     });
 
-    // Org B's admin attempts to rotate Org A's channel secret. NotFound (404)
-    // because the channel lookup is org-scoped — we must never leak the
-    // existence of another tenant's channel via a different status code.
     let threw: unknown = null;
     try {
       await withClient(otherAdminKey, async (c) => {
@@ -550,7 +549,6 @@ const skipReason = TEST_URL
     expect(threw).toBeTruthy();
     expect(String(threw)).toMatch(/not found|tool error/i);
 
-    // Secret on Org A's channel must be unchanged.
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const rows = await db
       .select({ config: schema.convChannels.config })
@@ -624,7 +622,6 @@ const skipReason = TEST_URL
   it('rejects a tampered userHash with 403', async () => {
     const externalId = 'user_tamper';
     const good = signHmac(externalId, identityVerificationSecret);
-    // Flip the last hex char.
     const last = good[good.length - 1]!;
     const flipped = last === 'a' ? 'b' : 'a';
     const tampered = good.slice(0, -1) + flipped;
@@ -639,7 +636,6 @@ const skipReason = TEST_URL
   });
 
   it('rejects a userHash signed with a different channels secret (cross-channel replay)', async () => {
-    // Mint a second widget channel within the same org.
     const second = await withClient(adminKey, async (c) => {
       return parseToolResult<{
         id: string;
@@ -655,7 +651,6 @@ const skipReason = TEST_URL
         }),
       );
     });
-    // Sign with channel-2 secret, send to channel-1.
     const externalId = 'user_replay';
     const cross = signHmac(externalId, second.identityVerificationSecret);
     const res = await call('POST', '/v1/widget/messages', widgetKey, {
@@ -761,6 +756,102 @@ const skipReason = TEST_URL
     });
     expect(followup.status).toBe(201);
     expect((followup.json as { contactId: string }).contactId).toBe(anonBody.contactId);
+  });
+
+  it('verified GET surfaces an anonymous session only after identify claims it', async () => {
+    const sessionId = `vis_carryover_${Date.now()}`;
+    const externalId = 'user_carryover_7';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'started on marketing' }],
+    });
+
+    const before = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    expect(before.status).toBe(200);
+    expect((before.json as { messages: unknown[] }).messages).toEqual([]);
+
+    await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: externalId,
+      userHash,
+    });
+
+    const after = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    expect(after.status).toBe(200);
+    expect((after.json as { messages: Array<{ body: string }> }).messages.map((m) => m.body)).toContain(
+      'started on marketing',
+    );
+
+    const convs = await call(
+      'GET',
+      `/v1/widget/conversations?${qs({ channelId, sessionIds: sessionId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    expect(convs.status).toBe(200);
+    expect(
+      (convs.json as { conversations: Array<{ sessionId: string }> }).conversations.map(
+        (c) => c.sessionId,
+      ),
+    ).toContain(sessionId);
+  });
+
+  it('carries read-state from the anonymous session to the verified caller on identify', async () => {
+    const sessionId = `vis_read_carryover_${Date.now()}`;
+    const externalId = 'user_read_carryover';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+
+    const posted = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'anon question' }],
+    });
+    const conversationId = (posted.json as { conversationId: string }).conversationId;
+    const agentMessageId = await insertAgentMessage(conversationId, 'agent answer', sessionId);
+
+    const anonConv = (
+      await db
+        .select({ endUserId: schema.convConversations.endUserId })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, conversationId))
+        .limit(1)
+    )[0]!;
+    await db.insert(schema.convMessageReads).values({
+      orgId,
+      conversationId,
+      messageId: agentMessageId,
+      endUserId: anonConv.endUserId!,
+    });
+
+    await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId,
+      verifiedExternalId: externalId,
+      userHash,
+    });
+
+    const res = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId, verifiedExternalId: externalId, userHash })}`,
+      widgetKey,
+    );
+    expect(res.status).toBe(200);
+    const agent = (res.json as { messages: Array<{ id: string; readAt: string | null }> }).messages.find(
+      (m) => m.id === agentMessageId,
+    )!;
+    expect(agent).toBeDefined();
+    expect(agent.readAt).not.toBeNull();
   });
 
   it('identify is idempotent: re-claiming the same session returns the same refs', async () => {
@@ -972,13 +1063,11 @@ const skipReason = TEST_URL
     expect(allBody.hasMore).toBe(false);
     expect(allBody.messages.map((m) => m.body)).toEqual(['one', 'two', 'three']);
     expect(allBody.messages.map((m) => m.role)).toEqual(['end_user', 'agent', 'end_user']);
-    // Strictly ascending timestamps (or equal — they were inserted in one tx).
     const times = allBody.messages.map((m) => Date.parse(m.at));
     for (let i = 1; i < times.length; i++) {
       expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]!);
     }
 
-    // since filter: exclude rows with createdAt <= since.
     const since = allBody.messages[0]!.at;
     const after = await call(
       'GET',
@@ -1046,12 +1135,46 @@ const skipReason = TEST_URL
     expect(bodyA.messages.map((m) => m.body)).toContain('a-only');
   });
 
+  it('does not accept a sessionId supplied only in the query string', async () => {
+    const sessionId = 'vis_query_only';
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'query-only-secret' }],
+    });
+
+    const queryOnly = await fetch(
+      `${baseUrl}/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      {
+        method: 'GET',
+        headers: {
+          Origin: 'https://customer.example',
+          Authorization: `Bearer ${widgetKey}`,
+        },
+      },
+    );
+    const queryOnlyText = await queryOnly.text();
+    expect(queryOnly.status).toBe(403);
+    expect(queryOnlyText).not.toContain('query-only-secret');
+
+    const viaHeader = await fetch(`${baseUrl}/v1/widget/messages?${qs({ channelId })}`, {
+      method: 'GET',
+      headers: {
+        Origin: 'https://customer.example',
+        Authorization: `Bearer ${widgetKey}`,
+        'x-munin-session-id': sessionId,
+      },
+    });
+    expect(viaHeader.status).toBe(200);
+    const body = (await viaHeader.json()) as { messages: Array<{ body: string }> };
+    expect(body.messages.map((m) => m.body)).toContain('query-only-secret');
+  });
+
   it('returns empty when GET is verified but the contact is bound to a different externalId', async () => {
     const sessionId = 'vis_list_verified_mismatch';
     const otherExt = 'user_other';
     const otherHash = signHmac(otherExt, identityVerificationSecret);
 
-    // Bind the conversation/contact via verified ingest as user_other.
     await call('POST', '/v1/widget/messages', widgetKey, {
       channelId,
       sessionId,
@@ -1060,9 +1183,6 @@ const skipReason = TEST_URL
       messages: [{ role: 'end_user', body: 'belongs to other' }],
     });
 
-    // Now request as a different verified user — same sessionId but
-    // different externalId. Empty response (don't leak that the session
-    // exists for someone else).
     const requesterExt = 'user_requester';
     const requesterHash = signHmac(requesterExt, identityVerificationSecret);
     const res = await call(
@@ -1132,7 +1252,7 @@ const skipReason = TEST_URL
     const res = await call(
       'GET',
       `/v1/widget/messages?${qs({ channelId: second.id, sessionId: 'vis_other' })}`,
-      widgetKey, // wrong key for that channel
+      widgetKey,
     );
     expect(res.status).toBe(403);
   });
@@ -1304,7 +1424,6 @@ const skipReason = TEST_URL
     };
     const agent = body.messages.find((m) => m.role === 'agent')!;
     expect(agent.authorKind).toBe('ai');
-    // No assistants row for this org → falls back to 'Munin'.
     expect(agent.authorName).toBe('Munin');
     expect(body.conversation?.status).toBe('open');
   });

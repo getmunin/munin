@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/inspector-app",
-  "version": "4.66.1",
+  "version": "4.69.3",
   "license": "MIT",
   "description": "Munin Inspector MCP App: the ui://munin/inspector panel bundle rendered inline by MCP App hosts.",
   "publishConfig": {
@@ -42,7 +42,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.10.0",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.18",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.0",
     "vite": "^6.4.3",

@@ -82,7 +82,7 @@ export function LoadFailed({
 
       <dl
         className={cn(
-          'grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary p-4',
+          'grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary p-4',
           isInbox ? 'max-w-[520px]' : 'max-w-[480px]',
         )}
       >

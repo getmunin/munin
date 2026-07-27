@@ -72,6 +72,8 @@ const ListEntriesInput = z.object({
 
 const GetEntryInput = z.object({ id: z.string(), include: IncludeInput });
 
+const GetPreviewLinkInput = z.object({ id: z.string() });
+
 const CreateEntryInput = z.object({
   collection: z.string(),
   slug: z.string().min(1).max(200),
@@ -331,6 +333,21 @@ export class CmsAdminTools {
   })
   getEntry(args: z.infer<typeof GetEntryInput>) {
     return this.cms.getEntry(args.id, args.include);
+  }
+
+  @McpTool({
+    name: 'cms_get_preview_link',
+    title: 'CMS: Get preview link',
+    description:
+      'Mint a signed, short-lived (1 hour) preview link for one entry so a draft can be viewed on the customer frontend before publishing. Returns `url` (the collection\'s settings.previewUrl template with {slug}, {locale}, {token}, {collection} substituted; null when no template is configured) and `deliveryUrl` (the raw delivery-API JSON URL with ?preview=).',
+    audiences: ['admin'],
+    scopes: ['cms:read'],
+    input: GetPreviewLinkInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getPreviewLink(args: z.infer<typeof GetPreviewLinkInput>) {
+    return this.cms.createPreviewLink(args.id);
   }
 
   @McpTool({

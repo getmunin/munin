@@ -1,5 +1,67 @@
 # @getmunin/mcp-toolkit
 
+## 4.69.3
+
+### Patch Changes
+
+- @getmunin/core@4.69.3
+- @getmunin/types@4.69.3
+
+## 4.69.2
+
+### Patch Changes
+
+- @getmunin/core@4.69.2
+- @getmunin/types@4.69.2
+
+## 4.69.1
+
+### Patch Changes
+
+- @getmunin/core@4.69.1
+- @getmunin/types@4.69.1
+
+## 4.69.0
+
+### Patch Changes
+
+- Updated dependencies [7078b30]
+- Updated dependencies [18dc6a6]
+- Updated dependencies [6f31549]
+  - @getmunin/core@4.69.0
+  - @getmunin/types@4.69.0
+
+## 4.68.0
+
+### Patch Changes
+
+- Updated dependencies [a66d454]
+- Updated dependencies [491186c]
+  - @getmunin/core@4.68.0
+  - @getmunin/types@4.68.0
+
+## 4.67.2
+
+### Patch Changes
+
+- @getmunin/core@4.67.2
+- @getmunin/types@4.67.2
+
+## 4.67.1
+
+### Patch Changes
+
+- @getmunin/core@4.67.1
+- @getmunin/types@4.67.1
+
+## 4.67.0
+
+### Patch Changes
+
+- Updated dependencies [eead33b]
+  - @getmunin/core@4.67.0
+  - @getmunin/types@4.67.0
+
 ## 4.66.1
 
 ### Patch Changes

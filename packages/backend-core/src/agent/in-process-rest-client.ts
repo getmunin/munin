@@ -25,6 +25,7 @@ import {
 } from '@getmunin/agent-runtime';
 import type { ConversationMessage } from '@getmunin/agent-runtime';
 import { ConvService } from '../modules/conv/conv.service.ts';
+import { ConversationClaimsService } from '../modules/conv/conv.claims.service.ts';
 import { CuratorJobsService } from '../modules/curator/curator-jobs.service.ts';
 import { DB } from '../common/db/db.module.ts';
 import { applyTenancyGUCs } from '../common/tenancy/tenancy.interceptor.ts';
@@ -38,6 +39,7 @@ export class InProcessMuninRestClientFactoryService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly conv: ConvService,
+    private readonly claims: ConversationClaimsService,
     private readonly curator: CuratorJobsService,
   ) {}
 
@@ -46,6 +48,7 @@ export class InProcessMuninRestClientFactoryService {
       db: this.db,
       audit: this.audit,
       conv: this.conv,
+      claims: this.claims,
       curator: this.curator,
       actor: buildAdminAgentActor(orgId),
     });
@@ -56,6 +59,7 @@ interface BuildOptions {
   db: Db;
   audit: AuditLogger;
   conv: ConvService;
+  claims: ConversationClaimsService;
   curator: CuratorJobsService;
   actor: ActorIdentity;
 }
@@ -104,13 +108,20 @@ function buildClient(opts: BuildOptions): MuninRestClient {
     async getConversation(id: string): Promise<ConversationDetail> {
       return audited('runner:getConversation', async () => {
         const detail = await opts.conv.getConversation(id);
+        const claim = await opts.claims.getActiveClaim(id);
         return {
           id: detail.id,
           status: detail.status,
           channelType: detail.channelType,
           endUserId: detail.endUserId,
           assigneeUserId: detail.assigneeUserId,
-          claim: null,
+          claim: claim
+            ? {
+                holderType: claim.holderType,
+                holderId: claim.holderId,
+                expiresAt: claim.expiresAt,
+              }
+            : null,
           agentMode: detail.agentMode,
           voiceActive: detail.voiceActive,
           outreachCampaignId: detail.outreachCampaignId,

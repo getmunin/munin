@@ -17,16 +17,22 @@ export const CRM_EVENT_TYPES = [
   'crm.deal.stage_changed',
   'crm.activity.logged',
   'crm.merge_proposal.proposed',
+  'crm.merge_proposal.applied',
+  'crm.merge_proposal.dismissed',
 ] as const;
 
 export const KB_EVENT_TYPES = [
   'kb.document.created',
   'kb.document.updated',
   'kb.document.deleted',
+  'kb.curation_candidate.proposed',
+  'kb.curation_candidate.published',
+  'kb.curation_candidate.dismissed',
 ] as const;
 
 export const CONVERSATION_EVENT_TYPES = [
   'conversation.created',
+  'conversation.subject_changed',
   'conversation.status_changed',
   'conversation.assigned',
   'conversation.released',
@@ -45,6 +51,7 @@ export const OUTREACH_EVENT_TYPES = [
   'outreach.proposal.updated',
   'outreach.proposal.sent',
   'outreach.proposal.dismissed',
+  'outreach.proposal.withdrawn',
 ] as const;
 
 export const SYSTEM_EVENT_TYPES = [

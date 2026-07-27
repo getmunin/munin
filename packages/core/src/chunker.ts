@@ -1,20 +1,5 @@
-/**
- * Document chunking for embedding.
- *
- * Splits a body of text into overlapping windows roughly sized in tokens.
- * We don't bundle a real tokenizer (tiktoken adds ~7MB and we don't need
- * exact accuracy — pgvector chunks just need to be uniformly bounded);
- * instead we estimate tokens at ~4 characters per token, which is a common
- * approximation for English text and BPE-family encoders.
- *
- * Splits prefer paragraph boundaries (\n\n), then sentence boundaries, then
- * fall back to character cuts so very long unbroken text is still bounded.
- */
-
 export interface ChunkOptions {
-  /** Target tokens per chunk. Default 512. */
   targetTokens?: number;
-  /** Overlap between successive chunks, in tokens. Default 64. */
   overlapTokens?: number;
 }
 
@@ -43,7 +28,6 @@ export function chunkDocument(text: string, opts: ChunkOptions = {}): Chunk[] {
   const trimmed = text.trim();
   if (!trimmed) return [];
 
-  // Single chunk: short doc fits in one window.
   if (trimmed.length <= targetChars) {
     return [{ index: 0, content: trimmed, tokenCount: estimateTokens(trimmed) }];
   }
@@ -88,10 +72,6 @@ function lastSentenceEnd(text: string, minCut: number, end: number): number {
   }
   return last === -1 ? -1 : minCut + last + 2;
 }
-
-// ─── Content hashing ──────────────────────────────────────────────────────
-// Cheap stable hash so kb_documents.content_hash can short-circuit
-// re-chunking when only metadata changed.
 
 export function contentHash(title: string, body: string): string {
   let h1 = 0xdeadbeef;

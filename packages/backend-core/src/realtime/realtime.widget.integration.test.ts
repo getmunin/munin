@@ -169,10 +169,6 @@ const skipReason = TEST_URL
     });
   }
 
-  /**
-   * Waits for the next event message matching `predicate`. Drops `ready` /
-   * `pong` and other framing messages.
-   */
   function nextEvent(
     ws: WebSocket,
     predicate: (msg: { type: string; channel?: string; event?: { type: string } }) => boolean,
@@ -196,19 +192,12 @@ const skipReason = TEST_URL
             ws.off('message', onMessage);
             resolve(msg);
           }
-        } catch {
-          // ignore
-        }
+        } catch {}
       };
       ws.on('message', onMessage);
     });
   }
 
-  /**
-   * Asserts that no event matching `predicate` arrives within `withinMs`.
-   * Used to verify isolation (e.g. session A subscriber should NOT receive
-   * session B's events).
-   */
   function expectNoEvent(
     ws: WebSocket,
     predicate: (msg: { type: string; channel?: string }) => boolean,
@@ -227,9 +216,7 @@ const skipReason = TEST_URL
             ws.off('message', onMessage);
             reject(new Error(`unexpected event: ${JSON.stringify(msg)}`));
           }
-        } catch {
-          // ignore
-        }
+        } catch {}
       };
       ws.on('message', onMessage);
     });
@@ -269,8 +256,6 @@ const skipReason = TEST_URL
       ws.send(
         JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId }),
       );
-      // Give the server a tick to register the subscription before the
-      // ingest fires the NOTIFY.
       await new Promise((r) => setTimeout(r, 50));
 
       const status = await ingest(
@@ -308,7 +293,6 @@ const skipReason = TEST_URL
       );
       await new Promise((r) => setTimeout(r, 50));
 
-      // Ingest a message under sessionId B; subscriber on A must not see it.
       const noEventP = expectNoEvent(
         wsA,
         (m) => m.type === 'event' && m.channel === `widget:${channelId}:${sessB}`,
@@ -334,9 +318,6 @@ const skipReason = TEST_URL
     const ws = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
     await waitForOpen(ws);
     try {
-      // Send blocked subscriptions; server should silently drop them. We
-      // verify by ingesting and asserting the only event we receive is on
-      // the legitimate widget subscription.
       ws.send(JSON.stringify({ type: 'subscribe', channel: 'org' }));
       ws.send(
         JSON.stringify({ type: 'subscribe', channel: 'conversation', id: 'cnv_fake' }),
@@ -363,8 +344,6 @@ const skipReason = TEST_URL
   });
 
   it('rejects upgrade for a widget key targeting a different channelId in identity', async () => {
-    // verifiedExternalId / userHash present but the HMAC was signed with a
-    // different channel's secret — the upgrade gate must reject 401.
     const ext = 'user_replay';
     const wrongHash = signHmac(ext, 'unrelated-secret-of-sufficient-length-32-chars');
     const ws = connectWs(widgetKey, {
@@ -387,8 +366,6 @@ const skipReason = TEST_URL
     const hash = signHmac(ext, identitySecret);
     const sessionId = 'rt_verified_match';
 
-    // First, ingest as the verified user so the conversation/contact is
-    // bound to this externalId.
     const ingestStatus = await ingest(
       widgetKey,
       {
@@ -413,7 +390,6 @@ const skipReason = TEST_URL
       );
       await new Promise((r) => setTimeout(r, 50));
 
-      // Send another message; verified subscriber should receive its event.
       await ingest(
         widgetKey,
         {
@@ -440,7 +416,6 @@ const skipReason = TEST_URL
     const ownerHash = signHmac(ownerExt, identitySecret);
     const sessionId = 'rt_verified_mismatch';
 
-    // Bind the session to ownerExt.
     await ingest(
       widgetKey,
       {
@@ -453,10 +428,6 @@ const skipReason = TEST_URL
       ALLOWED_ORIGIN,
     );
 
-    // Now connect as a different verified user; subscribe to the same
-    // sessionId. Server must accept the upgrade (HMAC is valid for this
-    // requester's externalId) but suppress events because the conversation
-    // belongs to ownerExt.
     const requesterExt = 'user_requester';
     const requesterHash = signHmac(requesterExt, identitySecret);
     const ws = connectWs(widgetKey, {
@@ -510,7 +481,6 @@ const skipReason = TEST_URL
   it('fans out visitor typing to operators subscribed to the conversation', async () => {
     const sessionId = 'rt_typing_v2o';
 
-    // Visitor must have a conversation before typing can be routed.
     const ingestRes = await fetch(`${baseUrl}/v1/widget/messages`, {
       method: 'POST',
       headers: {
@@ -533,8 +503,6 @@ const skipReason = TEST_URL
       wsOperator.send(
         JSON.stringify({ type: 'subscribe', channel: 'conversation', id: conversationId }),
       );
-      // Visitor's subscription is technically optional for sending typing
-      // but realistic.
       wsVisitor.send(
         JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId }),
       );
@@ -654,12 +622,9 @@ const skipReason = TEST_URL
           if (msg.type === 'typing' && msg.authorType === 'visitor' && msg.isTyping) {
             typingCount++;
           }
-        } catch {
-          // ignore
-        }
+        } catch {}
       });
 
-      // Spam 10 typing:true events back-to-back.
       for (let i = 0; i < 10; i++) {
         wsVisitor.send(
           JSON.stringify({
@@ -672,8 +637,6 @@ const skipReason = TEST_URL
         );
       }
 
-      // Wait beyond a single 1.5s window so we'd see a second broadcast if
-      // the throttle were broken — but not enough for the auto-clear.
       await new Promise((r) => setTimeout(r, 600));
       expect(typingCount).toBe(1);
     } finally {
@@ -718,14 +681,11 @@ const skipReason = TEST_URL
         }),
       );
 
-      // Receive the typing:true.
       await nextEvent(
         wsOperator,
         (m) => m.type === 'typing' && (m as { isTyping?: boolean }).isTyping === true,
       );
 
-      // Don't send another typing event; the server's auto-clear should
-      // fire typing:false after 5 s.
       const cleared = await nextEvent(
         wsOperator,
         (m) => m.type === 'typing' && (m as { isTyping?: boolean }).isTyping === false,
@@ -745,7 +705,6 @@ const skipReason = TEST_URL
   it('does not leak visitor typing across sessionIds', async () => {
     const sessA = 'rt_typing_iso_a';
     const sessB = 'rt_typing_iso_b';
-    // Both sessions need conversations.
     for (const s of [sessA, sessB]) {
       await fetch(`${baseUrl}/v1/widget/messages`, {
         method: 'POST',
@@ -762,9 +721,6 @@ const skipReason = TEST_URL
       });
     }
 
-    // wsB is a widget subscriber on session B; should NOT see typing fired
-    // by session A (typing fans out to operators on conversation:<id>, not
-    // to other visitors of the same channel).
     const wsA = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
     const wsB = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
     await Promise.all([waitForOpen(wsA), waitForOpen(wsB)]);
@@ -820,7 +776,6 @@ const skipReason = TEST_URL
       );
       await new Promise((r) => setTimeout(r, 50));
 
-      // Operator tries to fire widget-style typing — should be dropped.
       const noVisitorEventP = expectNoEvent(wsVisitor, (m) => m.type === 'typing', 600);
       wsOperator.send(
         JSON.stringify({
@@ -833,7 +788,6 @@ const skipReason = TEST_URL
       );
       await noVisitorEventP;
 
-      // Widget tries to fire conversation-style typing — should be dropped.
       const noOperatorEventP = expectNoEvent(wsOperator, (m) => m.type === 'typing', 600);
       wsVisitor.send(
         JSON.stringify({
@@ -851,14 +805,11 @@ const skipReason = TEST_URL
   });
 
   it('drops widget typing when the (channelId, sessionId) has no conversation yet', async () => {
-    const sessionId = 'rt_typing_pre_conv'; // no ingest first
+    const sessionId = 'rt_typing_pre_conv';
     const wsVisitor = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
     const wsOperator = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', adminKey]);
     await Promise.all([waitForOpen(wsVisitor), waitForOpen(wsOperator)]);
     try {
-      // Operator subscribes broadly to org so anything that DID fan out
-      // would have a destination — the gateway just shouldn't fan
-      // out at all because no conversation maps to (channelId, sessionId).
       wsOperator.send(JSON.stringify({ type: 'subscribe', channel: 'org' }));
       await new Promise((r) => setTimeout(r, 50));
 

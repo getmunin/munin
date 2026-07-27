@@ -318,8 +318,6 @@ const CrmImportInput = z.object({
 export class CrmAdminTools {
   constructor(@Inject(CrmService) private readonly crm: CrmService) {}
 
-  // Contacts ────────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_list_contacts',
     title: 'CRM: List contacts',
@@ -422,8 +420,6 @@ export class CrmAdminTools {
     return this.crm.searchContacts(args);
   }
 
-  // Companies ───────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_list_companies',
     title: 'CRM: List companies',
@@ -451,8 +447,6 @@ export class CrmAdminTools {
   createCompany(args: z.infer<typeof CreateCompanyInput>) {
     return this.crm.createCompany(args);
   }
-
-  // Pipelines + deals ───────────────────────────────────────────────────
 
   @McpTool({
     name: 'crm_list_pipelines',
@@ -527,8 +521,6 @@ export class CrmAdminTools {
     return this.crm.changeStage(args);
   }
 
-  // Activities ──────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_log_activity',
     title: 'CRM: Log activity',
@@ -558,8 +550,6 @@ export class CrmAdminTools {
     return this.crm.listActivities(args);
   }
 
-  // AI fields ───────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_set_ai_summary',
     title: 'CRM: Set AI summary or next action',
@@ -575,13 +565,11 @@ export class CrmAdminTools {
     return this.crm.setAiSummary(args);
   }
 
-  // Merge proposals ─────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_propose_merge',
     title: 'CRM: Propose a merge candidate',
     description:
-      'File a structured proposal that two contacts are the same person. Pass `confidence` ("high" | "medium"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.',
+      'File a structured proposal that two contacts are the same person. Pass `confidence` ("high" | "medium"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. Rejects with a conflict when the pair has already been merged: either side carrying `customFields.mergedInto`, or an `applied` proposal already on record for the pair. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: ProposeMergeInput,
@@ -612,7 +600,7 @@ export class CrmAdminTools {
     name: 'crm_apply_merge_proposal',
     title: 'CRM: Apply a merge proposal',
     description:
-      "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), and marks the proposal `applied`. Activities and deals stay on whichever contactId they were originally logged under — that's a documented v1 limitation. Throws if the proposal is not in `pending` status.",
+      "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, reassigns the duplicate's activities, deals and relationships onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), dismisses any other pending proposals that reference the duplicate, and marks the proposal `applied`. Throws if the proposal is not in `pending` status.",
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: ApplyMergeProposalInput,
@@ -639,8 +627,6 @@ export class CrmAdminTools {
   dismissMergeProposal(args: z.infer<typeof DismissMergeProposalInput>) {
     return this.crm.dismissMergeProposal(args);
   }
-
-  // Segments ────────────────────────────────────────────────────────────
 
   @McpTool({
     name: 'crm_list_segments',
@@ -729,8 +715,6 @@ export class CrmAdminTools {
     return this.crm.listContactsInSegment(args);
   }
 
-  // Consent ─────────────────────────────────────────────────────────────
-
   @McpTool({
     name: 'crm_set_contact_consent',
     title: 'CRM: Set contact consent',
@@ -745,8 +729,6 @@ export class CrmAdminTools {
   setContactConsent(args: z.infer<typeof SetContactConsentInput>) {
     return this.crm.setContactConsent(args);
   }
-
-  // Transfer ────────────────────────────────────────────────────────────
 
   @McpTool({
     name: 'crm_export',

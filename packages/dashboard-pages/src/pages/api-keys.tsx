@@ -126,7 +126,7 @@ export function ApiKeysPage() {
           <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full">
             <thead>
-              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[1px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tableName')}</Th>
                 <Th className="hidden md:table-cell">{t('tablePrefix')}</Th>
                 <Th className="hidden md:table-cell">{t('tableCreated')}</Th>
@@ -136,7 +136,7 @@ export function ApiKeysPage() {
             </thead>
             <tbody>
               {keys.map((k) => (
-                <tr key={k.id} className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark">
+                <tr key={k.id} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
                   <td className="py-4 pr-4 text-sm font-medium text-ink dark:text-foreground">
                     {k.name}
                   </td>
@@ -334,7 +334,7 @@ function KeyReveal({ value, copyLabel }: { value: string; copyLabel: string }) {
   }
   return (
     <div className="flex items-center gap-2">
-      <code className="flex-1 truncate border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-3 py-2 font-mono text-xs text-ink dark:text-foreground">
+      <code className="flex-1 truncate border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-3 py-2 font-mono text-xs text-ink dark:text-foreground">
         {value}
       </code>
       <Button variant="outline" size="sm" onClick={copy} className="gap-1.5">

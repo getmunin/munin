@@ -62,8 +62,14 @@ export function OutreachQueueDrawer({
     return () => window.removeEventListener('keydown', onKey);
   }, [editing, cancelEdit]);
 
-  const kind = item.raw.kind === 'reply' ? t('outreachKindReply') : t('outreachKindInitial');
+  const kind =
+    item.raw.kind === 'reply'
+      ? t('outreachKindReply')
+      : item.raw.kind === 'followup'
+        ? t('outreachKindFollowup', { step: item.raw.sequenceStep ?? 1 })
+        : t('outreachKindInitial');
   const handle = item.raw.contact?.email ?? item.raw.campaign?.name ?? t('handleFallback');
+  const revisionCount = item.raw.revisionCount ?? 0;
 
   return (
     <>
@@ -77,6 +83,27 @@ export function OutreachQueueDrawer({
       />
 
       <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+        {revisionCount > 0 && (
+          <section
+            className={`border-l-2 px-3 py-2 text-xs ${
+              item.raw.revisedAfterReviewAt
+                ? 'border-alert-bad-border text-alert-bad-ink'
+                : 'border-rule text-ink-mute'
+            }`}
+          >
+            <p>
+              {item.raw.revisedAfterReviewAt
+                ? t('outreachRevisedAfterReview', { count: revisionCount })
+                : t('outreachRevised', { count: revisionCount })}
+            </p>
+            {item.raw.lastRevisionReason && (
+              <p className="mt-1">
+                {t('outreachRevisionReason', { reason: item.raw.lastRevisionReason })}
+              </p>
+            )}
+          </section>
+        )}
+
         {item.raw.kind === 'reply' && (
           <section className="space-y-2">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
@@ -97,11 +124,11 @@ export function OutreachQueueDrawer({
               value={editedBody}
               onChange={(e) => setEditedBody(e.target.value)}
               rows={14}
-              className="w-full resize-y rounded-input border-[0.5px] border-cobalt bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:text-foreground"
+              className="w-full resize-y rounded-input border-[1px] border-cobalt bg-paper px-4 py-3 text-sm leading-relaxed outline-none focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:text-foreground"
               autoFocus
             />
           ) : (
-            <div className="border-[0.5px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
+            <div className="border-[1px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
               {item.raw.draftSubject && (
                 <p className="mb-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
                   {t('subject', { subject: item.raw.draftSubject })}

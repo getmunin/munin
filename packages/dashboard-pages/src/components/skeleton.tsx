@@ -31,13 +31,13 @@ export function TableSkeleton({ columns, rows = 4 }: { columns: SkeletonColumn[]
   return (
     <div role="status" aria-busy="true">
       <span className="sr-only">Loading…</span>
-      <div className="flex items-center gap-6 border-b-[0.5px] border-rule-soft pb-3 dark:border-rule-on-dark">
+      <div className="flex items-center gap-6 border-b-[1px] border-rule-soft pb-3 dark:border-rule-on-dark">
         {cells('h-2.5')}
       </div>
       {Array.from({ length: rows }).map((_, r) => (
         <div
           key={r}
-          className="flex items-center gap-6 border-b-[0.5px] border-rule-soft py-4 dark:border-rule-on-dark"
+          className="flex items-center gap-6 border-b-[1px] border-rule-soft py-4 dark:border-rule-on-dark"
         >
           {cells('h-4')}
         </div>
@@ -50,7 +50,7 @@ export function CardSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'space-y-3 border-[0.5px] border-rule-soft p-4 dark:border-rule-on-dark',
+        'space-y-3 border-[1px] border-rule-soft p-4 dark:border-rule-on-dark',
         className,
       )}
     >

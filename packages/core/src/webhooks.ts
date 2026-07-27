@@ -6,31 +6,37 @@ import { signHmac } from './crypto/primitives.ts';
 export interface WebhookEventInput {
   type: string;
   payload: Record<string, unknown>;
-  /** Loop-prevention. Carry forward when re-emitting events from a webhook handler. */
   hopCount?: number;
 }
 
-/**
- * Records a domain event in the `events` table and queues delivery to
- * every active webhook in the org subscribed to this event type.
- *
- * Delivery is fire-and-forget here; an out-of-band worker (M2+) drains the
- * `webhook_deliveries` table with retries. For v0.4 we run the worker
- * in-process via a setInterval (good enough for a solo-dev MVP).
- */
+export interface EmittedEvent {
+  eventId: string;
+  orgId: string;
+  type: string;
+  payload: Record<string, unknown>;
+}
+
+export interface EventSink {
+  onEvent(event: EmittedEvent): Promise<void>;
+}
+
 export class WebhookDispatcher {
+  private readonly sinks: EventSink[] = [];
+
+  registerSink(sink: EventSink): void {
+    this.sinks.push(sink);
+  }
+
   async emit(input: WebhookEventInput): Promise<string> {
     const ctx = getCurrentContext();
     if (!ctx.actor) throw new Error('webhooks.emit requires an authenticated actor');
     const orgId = ctx.actor.orgId;
 
-    // Loop guard.
     const hopCount = input.hopCount ?? 0;
     if (hopCount >= 10) {
       throw new Error(`event hop count exceeded for ${input.type} (correlationId=${ctx.correlationId})`);
     }
 
-    // Persist the event.
     const [event] = await ctx.db
       .insert(schema.events)
       .values({
@@ -45,7 +51,6 @@ export class WebhookDispatcher {
 
     const eventId = event!.id;
 
-    // Find subscribed webhooks.
     const subs = await ctx.db
       .select()
       .from(schema.webhooks)
@@ -55,24 +60,23 @@ export class WebhookDispatcher {
       (w) => w.events.length === 0 || w.events.includes(input.type),
     );
 
-    if (matching.length === 0) return eventId;
+    if (matching.length > 0) {
+      await ctx.db.insert(schema.webhookDeliveries).values(
+        matching.map((w) => ({
+          webhookId: w.id,
+          eventId,
+          nextAttemptAt: new Date(),
+        })),
+      );
+    }
 
-    // Queue deliveries. The actual HTTP attempts are done by the worker.
-    await ctx.db.insert(schema.webhookDeliveries).values(
-      matching.map((w) => ({
-        webhookId: w.id,
-        eventId,
-        nextAttemptAt: new Date(),
-      })),
-    );
+    for (const sink of this.sinks) {
+      await sink.onEvent({ eventId, orgId, type: input.type, payload: input.payload });
+    }
 
     return eventId;
   }
 
-  /**
-   * Build the canonical payload + signature header pair for a delivery.
-   * Used by the worker; exposed here so callers (and tests) can replay.
-   */
   static buildSignedRequest(
     eventType: string,
     eventPayload: Record<string, unknown>,

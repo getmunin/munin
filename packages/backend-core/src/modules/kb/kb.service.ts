@@ -136,8 +136,6 @@ export class KbService {
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
   ) {}
 
-  // ─── Spaces ─────────────────────────────────────────────────────────────
-
   async listSpaces(): Promise<SpaceDto[]> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -177,8 +175,6 @@ export class KbService {
       .returning();
     return toSpaceDto(row!);
   }
-
-  // ─── Documents ──────────────────────────────────────────────────────────
 
   async listDocuments(input: {
     spaceId?: string;
@@ -349,7 +345,6 @@ export class KbService {
   }
 
   async deleteDocument(input: { id: string; ifVersion: number }): Promise<{ deleted: true }> {
-    const ctx = getCurrentContext();
     const existing = await this.loadForUpdate(input.id);
     if (existing.isSystem) {
       throw new KbInvalidError(
@@ -359,7 +354,15 @@ export class KbService {
     if (existing.version !== input.ifVersion) {
       throw new KbConflictError(existing.version, input.ifVersion);
     }
-    await ctx.db.delete(schema.kbDocuments).where(eq(schema.kbDocuments.id, input.id));
+    return this.removeDocument(existing, { emitCandidateDismissed: true });
+  }
+
+  private async removeDocument(
+    existing: typeof schema.kbDocuments.$inferSelect,
+    opts: { emitCandidateDismissed: boolean },
+  ): Promise<{ deleted: true }> {
+    const ctx = getCurrentContext();
+    await ctx.db.delete(schema.kbDocuments).where(eq(schema.kbDocuments.id, existing.id));
     await this.webhooks.emit({
       type: 'kb.document.deleted',
       payload: {
@@ -368,10 +371,18 @@ export class KbService {
         slug: existing.slug,
       },
     });
+    if (opts.emitCandidateDismissed && existing.tags.includes('candidate')) {
+      await this.webhooks.emit({
+        type: 'kb.curation_candidate.dismissed',
+        payload: {
+          candidateDocumentId: existing.id,
+          title: existing.title,
+          ...extractCandidateRefs(existing.tags),
+        },
+      });
+    }
     return { deleted: true };
   }
-
-  // ─── Curation ───────────────────────────────────────────────────────────
 
   async listCurationCandidates(limit?: number): Promise<CurationCandidateSummary[]> {
     const items = await this.listDocuments({ tag: 'candidate', limit: limit ?? 200 });
@@ -394,7 +405,7 @@ export class KbService {
     proposedTargetSpaceSlug?: string;
   }): Promise<DocumentDto> {
     const space = await this.ensureCurationInboxSpace();
-    return this.createDocument({
+    const doc = await this.createDocument({
       spaceId: space.id,
       title: input.subject,
       body: input.draftBody,
@@ -406,6 +417,17 @@ export class KbService {
         ...(input.proposedTargetSpaceSlug ? [`target:${input.proposedTargetSpaceSlug}`] : []),
       ]),
     });
+    await this.webhooks.emit({
+      type: 'kb.curation_candidate.proposed',
+      payload: {
+        candidateDocumentId: doc.id,
+        title: doc.title,
+        proposedTargetSpaceSlug: input.proposedTargetSpaceSlug ?? null,
+        sourceConversationId: input.sourceConversationId ?? null,
+        spaceId: doc.spaceId,
+      },
+    });
+    return doc;
   }
 
   async publishCurationCandidate(input: {
@@ -458,7 +480,17 @@ export class KbService {
       audiences,
       tags: carriedTags,
     });
-    await this.deleteDocument({ id: candidate.id, ifVersion: candidate.version });
+    await this.removeDocument(candidate, { emitCandidateDismissed: false });
+    await this.webhooks.emit({
+      type: 'kb.curation_candidate.published',
+      payload: {
+        candidateDocumentId: candidate.id,
+        publishedDocumentId: published.id,
+        targetSpaceSlug: input.targetSpaceSlug,
+        targetSpaceId: targetSpace.id,
+        title: candidate.title,
+      },
+    });
     return published;
   }
 
@@ -478,8 +510,6 @@ export class KbService {
         'Drafted KB-document candidates from resolved-handover conversations. Review with kb_list_documents tag=candidate, then promote with kb_publish_curation_candidate.',
     });
   }
-
-  // ─── Versions ───────────────────────────────────────────────────────────
 
   async listVersions(documentId: string): Promise<VersionDto[]> {
     const ctx = getCurrentContext();
@@ -544,8 +574,6 @@ export class KbService {
     });
     return toDocumentDto(updated!);
   }
-
-  // ─── Transfer (import / export) ──────────────────────────────────────────
 
   async exportKb(): Promise<KbExportData> {
     const ctx = getCurrentContext();
@@ -664,8 +692,6 @@ export class KbService {
     return rows[0] ?? null;
   }
 
-  // ─── Internals ──────────────────────────────────────────────────────────
-
   private async loadSpace(spaceId: string): Promise<typeof schema.kbSpaces.$inferSelect> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -729,8 +755,6 @@ export class KbService {
     try {
       vectors = await provider.embed(chunks.map((c) => c.content));
     } catch {
-      // Embedding failure shouldn't block the write — leave vectors null and
-      // let FTS carry search until a re-index repairs them.
       vectors = chunks.map(() => null);
     }
     await ctx.db.insert(schema.kbDocumentChunks).values(
@@ -745,8 +769,6 @@ export class KbService {
     );
   }
 }
-
-// ─── DTO mappers / helpers ─────────────────────────────────────────────────
 
 function toSpaceDto(row: typeof schema.kbSpaces.$inferSelect): SpaceDto {
   return {

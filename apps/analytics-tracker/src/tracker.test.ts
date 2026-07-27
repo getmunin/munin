@@ -15,21 +15,12 @@ let sendBeacon: ReturnType<typeof vi.fn>;
 let keyCounter = 0;
 
 interface LoadOpts {
-  /** Attributes set on the injected <script> tag. `null` values are skipped. */
   attrs?: Record<string, string | null>;
-  /** `script.src`, used for the data-api origin fallback. */
   src?: string;
-  /** Omit the auto-generated data-key (for the "disabled" paths). */
   noKey?: boolean;
-  /** Don't define document.currentScript (simulate inline/unknown script). */
   noCurrentScript?: boolean;
 }
 
-/**
- * Re-runs the tracker IIFE against freshly staged globals and returns the
- * unique data-key bound to this load, so callers can filter beacons emitted
- * by listeners that earlier loads left attached to the shared window.
- */
 async function loadTracker(opts: LoadOpts = {}): Promise<string> {
   const key = opts.noKey ? '' : `mn_track_${++keyCounter}`;
   const script = document.createElement('script');
@@ -52,7 +43,6 @@ async function decode(call: BeaconCall): Promise<Record<string, unknown>> {
   return JSON.parse(await call.blob.text()) as Record<string, unknown>;
 }
 
-/** Beacons sent to a given path, filtered to the load that owns `key`. */
 async function beaconsFor(key: string, pathSuffix: string): Promise<Record<string, unknown>[]> {
   const matches = beacons.filter((b) => b.url.endsWith(pathSuffix));
   const decoded = await Promise.all(matches.map(decode));
@@ -79,6 +69,14 @@ function setReferrer(value: string): void {
   Object.defineProperty(document, 'referrer', { configurable: true, value });
 }
 
+function clearLocalStorageIfAvailable(): void {
+  try {
+    localStorage.clear();
+  } catch {
+    return;
+  }
+}
+
 beforeEach(() => {
   beacons = [];
   sendBeacon = vi.fn((url: string, blob: Blob) => {
@@ -86,11 +84,7 @@ beforeEach(() => {
     return true;
   });
   Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: sendBeacon });
-  try {
-    localStorage.clear();
-  } catch {
-    // ignore
-  }
+  clearLocalStorageIfAvailable();
   delete (window as { mn?: unknown }).mn;
   setLocation('https://site.example/welcome');
   setReferrer('');

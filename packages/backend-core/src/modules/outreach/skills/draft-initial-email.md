@@ -15,7 +15,7 @@ A separate `skill://crm/clean-contact-data` runs weekly to merge any duplicate c
 
 1. **List campaigns** with `outreach_list_campaigns`. Skip rows where `enabled = false` or `autoDraftInitial = false` (the latter are drafted manually on demand, not by this weekly pass).
 2. **For each campaign**, materialise the audience with `crm_list_contacts_in_segment(campaign.segmentId)`. The list is *already* filtered for suppression (`do_not_contact`, `unsubscribed_at`) and lawful basis (`consent_lawful_basis IS NOT NULL`) — that floor is non-overridable in the service. Treat what comes back as the eligible set.
-3. **For each contact in the audience**, dedupe via `outreach_list_proposals({ kind: "initial", campaignId, contactId })`. Skip if any proposal is `pending`, `approved`, or `sent` (already drafted or already reached). Only `dismissed`/`failed` allow a re-draft.
+3. **For each contact in the audience**, dedupe via `outreach_list_proposals({ kind: "initial", campaignId, contactId })`. Skip if any proposal is `pending`, `approved`, or `sent` (already drafted or already reached). Only `dismissed`/`withdrawn`/`failed` allow a re-draft.
 4. **Pull product context** with `kb_search` against the brief — find 1–3 relevant KB snippets to ground the email in real facts (don't fabricate features).
 5. **Draft** an 80–200-word email, personalised to the contact's name + company. Plain prose, no headings, sparing bold/italic, no JSON-escaping. The unsubscribe footer is appended **at approve-time** by the system — do not include one in your draft.
 6. **File** with `outreach_propose_initial({ campaignId, contactId, draftSubject, draftBody, evidence })`. The `evidence` JSONB carries the (KB doc ids, contact-tag matches, reasoning summary) you'd want a human reviewer to see — keep it short and structured.
@@ -48,9 +48,11 @@ If the segment returns 0 contacts, skip this campaign entirely.
 }
 ```
 
-If any returned proposal is `pending`, `approved`, or `sent`, skip the contact — they already have a draft in flight or were already reached. Don't re-propose; the service will reject you anyway (the pending unique index for a pending draft, an `outreach_conflict` for a sent/approved first-touch), and you'll waste an LLM call. Only `dismissed` (the operator rejected a prior draft) and `failed` (a send that didn't land) leave the contact eligible for a fresh draft.
+If any returned proposal is `pending`, `approved`, or `sent`, skip the contact — they already have a draft in flight or were already reached. Don't re-propose; the service will reject you anyway (the pending unique index for a pending draft, an `outreach_conflict` for a sent/approved first-touch), and you'll waste an LLM call. Three statuses leave the contact eligible for a fresh draft: `dismissed` (the operator rejected a prior draft), `withdrawn` (a curator retracted its own draft), and `failed` (a send that didn't land).
 
 You may also want to skip when the contact's `lastContactedAt` was within `cadenceRules.maxPerWeekPerContact / 7` days — but for the initial pass, skipping based on an existing non-dismissed proposal is the only hard rule.
+
+**If you catch your own mistake after filing**, don't leave it in the queue for a human to clean up. `outreach_withdraw_proposal({ id, reason })` retracts a pending draft neutrally — the case this exists for is exactly the one this pass produces: two drafts for the same person, a contact who turns out not to fit the segment's intent, an address you later learn bounces. It doesn't suppress the contact or stop anything; it just takes the draft back. If the recipient is right and only the wording is wrong, revise in place instead — see `skill://outreach/review-proposals`.
 
 ## Step 4 — pull product context
 
@@ -113,6 +115,7 @@ Out of scope for this skill — see `skill://outreach/review-proposals`. The ope
 
 ## Related
 
+- `skill://outreach/draft-followup-email` — drafts the next sequence step when an initial filed by this pass sits unanswered past a campaign's `sequenceSteps` wait period.
 - `skill://kb/review-content` — symmetric pattern (per-conversation curator that proposes, human approves) for KB instead of outreach.
 - `skill://crm/clean-contact-data` — population-level dedup that catches duplicates this and other curators create.
 - `skill://crm/extract-contact-from-message` — auto-applied (NOT propose-and-review) per-conversation contact creation. The asymmetry vs this skill: extracting what the user typed is faithful transcription; drafting outreach is generative — different risk profiles.

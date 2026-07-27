@@ -19,7 +19,10 @@ import { RoleGuard } from './role.guard.ts';
 import { RequireActorType } from './role.decorator.ts';
 
 export const SELF_SERVICE_SCOPES = [
+  'bookings:read',
+  'bookings:write',
   'cms:read',
+  'commerce:read',
   'conv:read',
   'conv:write',
   'crm:read',
@@ -55,14 +58,6 @@ interface MintResult {
   audiences: string[];
 }
 
-/**
- * Mint a short-lived end-user delegated token.
- *
- * The org's backend (with admin API key) calls this when starting a customer-
- * facing session (voice call, web chat, etc.). The agent runtime gets the
- * resulting token and uses it as bearer when calling MCP tools — its surface
- * is restricted to self-service tools, scoped to that one EndUser.
- */
 @Controller('v1/tokens/delegated')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
@@ -78,7 +73,6 @@ export class DelegatedTokenController {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
 
-    // Resolve / upsert EndUser.
     let endUserId = input.endUserId;
     if (endUserId) {
       const owned = await ctx.db
@@ -117,7 +111,6 @@ export class DelegatedTokenController {
       }
     }
 
-    // Issue the token.
     const rawToken = buildApiKey('dlg');
     const expiresAt = new Date(Date.now() + input.ttlSeconds * 1000);
 

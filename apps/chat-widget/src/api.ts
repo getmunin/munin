@@ -1,20 +1,5 @@
 import type { WidgetVisitor } from './config.ts';
 
-/**
- * Thin REST client for the widget's two endpoints:
- *   POST /v1/widget/messages   — visitor sends a message
- *   GET  /v1/widget/messages   — one-shot reconnect backfill
- *
- * The client is **not** a polling primitive. The realtime client calls
- * `backfillSince()` exactly once per (re)connect; live updates flow over
- * the WebSocket. If you find yourself adding `setInterval` on a method
- * here, stop — the design says no polling.
- *
- * The channel + identity attributes are baked into the client at
- * construction so the rest of the widget code doesn't have to thread
- * them through every call.
- */
-
 export interface ApiIdentity {
   externalId: string;
   userHash: string;
@@ -140,6 +125,21 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
     };
   }
 
+  function sessionGetHeaders(opts?: { sessionIds?: string[] }): Record<string, string> {
+    const headers: Record<string, string> = { Authorization: `Bearer ${deps.widgetKey}` };
+    if (opts?.sessionIds) {
+      if (opts.sessionIds.length > 0) headers['x-munin-session-ids'] = opts.sessionIds.join(',');
+    } else {
+      headers['x-munin-session-id'] = sessionId;
+    }
+    const identity = deps.getIdentity?.();
+    if (identity) {
+      headers['x-munin-verified-external-id'] = identity.externalId;
+      headers['x-munin-user-hash'] = identity.userHash;
+    }
+    return headers;
+  }
+
   function ingestPayload(text: string): Record<string, unknown> {
     const payload: Record<string, unknown> = {
       channelId: deps.channelId,
@@ -174,16 +174,10 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
     async backfillSince(since) {
       const url = new URL(messagesUrl);
       url.searchParams.set('channelId', deps.channelId);
-      url.searchParams.set('sessionId', sessionId);
       if (since) url.searchParams.set('since', since.toISOString());
-      const identity = deps.getIdentity?.();
-      if (identity) {
-        url.searchParams.set('verifiedExternalId', identity.externalId);
-        url.searchParams.set('userHash', identity.userHash);
-      }
       const res = await fetchImpl(url.toString(), {
         method: 'GET',
-        headers: { Authorization: `Bearer ${deps.widgetKey}` },
+        headers: sessionGetHeaders(),
       });
       if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
       return (await res.json()) as BackfillResult;
@@ -192,17 +186,9 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
     async listConversations(sessionIds) {
       const url = new URL(conversationsUrl);
       url.searchParams.set('channelId', deps.channelId);
-      if (sessionIds.length > 0) {
-        url.searchParams.set('sessionIds', sessionIds.join(','));
-      }
-      const identity = deps.getIdentity?.();
-      if (identity) {
-        url.searchParams.set('verifiedExternalId', identity.externalId);
-        url.searchParams.set('userHash', identity.userHash);
-      }
       const res = await fetchImpl(url.toString(), {
         method: 'GET',
-        headers: { Authorization: `Bearer ${deps.widgetKey}` },
+        headers: sessionGetHeaders({ sessionIds }),
       });
       if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
       const body = (await res.json()) as { conversations: ConversationSummary[] };
@@ -255,15 +241,9 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       const url = new URL(`${base}/voice/available`);
       url.searchParams.set('channelId', deps.channelId);
       url.searchParams.set('conversationId', conversationId);
-      url.searchParams.set('sessionId', sessionId);
-      const identity = deps.getIdentity?.();
-      if (identity) {
-        url.searchParams.set('verifiedExternalId', identity.externalId);
-        url.searchParams.set('userHash', identity.userHash);
-      }
       const res = await fetchImpl(url.toString(), {
         method: 'GET',
-        headers: { Authorization: `Bearer ${deps.widgetKey}` },
+        headers: sessionGetHeaders(),
       });
       if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
       return (await res.json()) as VoiceAvailabilityResult;

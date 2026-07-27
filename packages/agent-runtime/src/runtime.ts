@@ -26,7 +26,6 @@ export interface RunAgentArgs {
   history: ConversationMessage[];
   mcp: McpToolHandle;
   abortSignal?: AbortSignal;
-  /** Override provider — used by tests. Defaults to OpenAI-compatible. */
   provider?: Provider;
 }
 

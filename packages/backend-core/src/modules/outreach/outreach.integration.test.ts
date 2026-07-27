@@ -140,7 +140,7 @@ const skipReason = TEST_URL
     return null;
   }
 
-  it('discovers all 11 outreach tools on tools/list', async () => {
+  it('discovers all 15 outreach tools on tools/list', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name).filter((n) => n.startsWith('outreach_')).sort();
@@ -153,10 +153,14 @@ const skipReason = TEST_URL
           'outreach_get_campaign',
           'outreach_import',
           'outreach_list_campaigns',
+          'outreach_list_due_followups',
           'outreach_list_proposals',
+          'outreach_propose_followup',
           'outreach_propose_initial',
           'outreach_propose_reply',
+          'outreach_revise_proposal',
           'outreach_update_campaign',
+          'outreach_withdraw_proposal',
         ].sort(),
       );
 
@@ -246,6 +250,66 @@ const skipReason = TEST_URL
       expect(proposals.map((p) => p.id)).toContain(proposalId);
       const ours = proposals.find((p) => p.id === proposalId);
       expect(ours?.contact?.email).toBe('jane@acme.com');
+    });
+  });
+
+  it('revise then withdraw round-trips over /mcp without a protocol error', async () => {
+    await withClient(adminKey, async (c) => {
+      const created = await c.callTool({
+        name: 'outreach_create_campaign',
+        arguments: { name: 'Correction pass', brief: 'Test the correction verbs.', segmentId, channelId },
+      });
+      const campaignId = (firstJson(created as never) as { id: string }).id;
+
+      const proposed = await c.callTool({
+        name: 'outreach_propose_initial',
+        arguments: { campaignId, contactId, draftSubject: 'First cut', draftBody: 'Original body.' },
+      });
+      const proposalId = (firstJson(proposed as never) as { id: string }).id;
+
+      const revised = await c.callTool({
+        name: 'outreach_revise_proposal',
+        arguments: { id: proposalId, reason: 'tightened the CTA', draftBody: 'Rewritten body.' },
+      });
+      expect(revised.isError).toBeFalsy();
+      const afterRevise = firstJson(revised as never) as {
+        id: string;
+        draftBody: string;
+        draftSubject: string;
+        status: string;
+        revisionCount: number;
+        lastRevisionReason: string;
+      };
+      expect(afterRevise.id).toBe(proposalId);
+      expect(afterRevise.draftBody).toBe('Rewritten body.');
+      expect(afterRevise.draftSubject).toBe('First cut');
+      expect(afterRevise.status).toBe('pending');
+      expect(afterRevise.revisionCount).toBe(1);
+      expect(afterRevise.lastRevisionReason).toBe('tightened the CTA');
+
+      const withdrawn = await c.callTool({
+        name: 'outreach_withdraw_proposal',
+        arguments: { id: proposalId, reason: 'duplicate of an earlier draft' },
+      });
+      expect(withdrawn.isError).toBeFalsy();
+      const afterWithdraw = firstJson(withdrawn as never) as {
+        status: string;
+        withdrawReason: string;
+      };
+      expect(afterWithdraw.status).toBe('withdrawn');
+      expect(afterWithdraw.withdrawReason).toBe('duplicate of an earlier draft');
+
+      const reviseDecided = await c.callTool({
+        name: 'outreach_revise_proposal',
+        arguments: { id: proposalId, reason: 'too late', draftBody: 'nope' },
+      });
+      expect(reviseDecided.isError).toBe(true);
+
+      const withdrawTwice = await c.callTool({
+        name: 'outreach_withdraw_proposal',
+        arguments: { id: proposalId, reason: 'again' },
+      });
+      expect(withdrawTwice.isError).toBe(true);
     });
   });
 
@@ -465,6 +529,113 @@ const skipReason = TEST_URL
         arguments: { id: 'op_doesnotexist' },
       });
       expect(missing.isError).toBe(true);
+    });
+  });
+
+  it('sequence flow: create campaign with steps → send initial → list due → propose follow-up → approve sends message #2', async () => {
+    const [seqContact] = await db
+      .insert(schema.crmContacts)
+      .values({
+        orgId,
+        name: 'Seq Prospect',
+        email: 'seq@acme.com',
+        consentLawfulBasis: 'legitimate_interest',
+        consentGivenAt: new Date(),
+        consentSource: 'imported-test',
+        tags: ['priority'],
+      })
+      .returning();
+
+    await withClient(adminKey, async (c) => {
+      const campaign = firstJson(
+        (await c.callTool({
+          name: 'outreach_create_campaign',
+          arguments: {
+            name: 'seq-e2e',
+            brief: 'Sequence end-to-end.',
+            segmentId,
+            channelId,
+            enabled: true,
+            sequenceSteps: [{ waitDays: 3, brief: 'gentle bump' }],
+          },
+        })) as never,
+      ) as { id: string; sequenceSteps: Array<{ waitDays: number; brief: string }> };
+      expect(campaign.sequenceSteps).toEqual([{ waitDays: 3, brief: 'gentle bump' }]);
+
+      const initial = firstJson(
+        (await c.callTool({
+          name: 'outreach_propose_initial',
+          arguments: {
+            campaignId: campaign.id,
+            contactId: seqContact!.id,
+            draftSubject: 'Hi there',
+            draftBody: 'Initial pitch.',
+          },
+        })) as never,
+      ) as { id: string };
+
+      const sent = firstJson(
+        (await c.callTool({
+          name: 'outreach_approve_proposal',
+          arguments: { id: initial.id },
+        })) as never,
+      ) as { id: string; conversationId: string };
+
+      const notDue = firstJson(
+        (await c.callTool({ name: 'outreach_list_due_followups', arguments: {} })) as never,
+      ) as unknown[];
+      expect(notDue).toEqual([]);
+
+      await db
+        .update(schema.outreachProposals)
+        .set({ sentAt: sql`now() - interval '4 days'` })
+        .where(sql`id = ${sent.id}`);
+
+      const due = firstJson(
+        (await c.callTool({
+          name: 'outreach_list_due_followups',
+          arguments: { campaignId: campaign.id },
+        })) as never,
+      ) as Array<{ conversationId: string; nextStep: number; stepBrief: string }>;
+      expect(due).toHaveLength(1);
+      expect(due[0]!.conversationId).toBe(sent.conversationId);
+      expect(due[0]!.nextStep).toBe(1);
+      expect(due[0]!.stepBrief).toBe('gentle bump');
+
+      const followup = firstJson(
+        (await c.callTool({
+          name: 'outreach_propose_followup',
+          arguments: {
+            conversationId: sent.conversationId,
+            step: 1,
+            draftBody: 'Just floating this back up.',
+          },
+        })) as never,
+      ) as { id: string; kind: string; sequenceStep: number };
+      expect(followup.kind).toBe('followup');
+      expect(followup.sequenceStep).toBe(1);
+
+      const approved = firstJson(
+        (await c.callTool({
+          name: 'outreach_approve_proposal',
+          arguments: { id: followup.id },
+        })) as never,
+      ) as { status: string; conversationId: string; sentMessageId: string };
+      expect(approved.status).toBe('sent');
+      expect(approved.conversationId).toBe(sent.conversationId);
+
+      const msgs = await db.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM conv_messages WHERE conversation_id = ${sent.conversationId}`,
+      );
+      expect(msgs[0]!.count).toBe(2);
+
+      const drained = firstJson(
+        (await c.callTool({
+          name: 'outreach_list_due_followups',
+          arguments: { campaignId: campaign.id },
+        })) as never,
+      ) as unknown[];
+      expect(drained).toEqual([]);
     });
   });
 

@@ -315,7 +315,6 @@ const skipReason = TEST_URL
       const after = await run(() => svc.listSpaces());
       expect(after.find((s) => s.slug === CURATION_INBOX_SLUG)).toBeDefined();
 
-      // A second proposal reuses the same inbox space.
       const second = await run(() =>
         svc.proposeCurationCandidate({
           subject: 'Refunds policy',
@@ -344,8 +343,83 @@ const skipReason = TEST_URL
       expect(published.tags).not.toEqual(expect.arrayContaining(['candidate', 'curation']));
       expect(published.title).toBe('How to reset password');
 
-      // The candidate doc is gone from the inbox.
       await expect(run(() => svc.getDocument(candidate.id))).rejects.toThrow(KbNotFoundError);
+    });
+
+    async function curationEvents(candidateId: string): Promise<Array<{ type: string; payload: Record<string, unknown> }>> {
+      const rows = await db.execute<{ type: string; payload: Record<string, unknown> }>(
+        sql`SELECT type, payload FROM events
+            WHERE org_id = ${orgId}
+              AND type LIKE 'kb.curation_candidate.%'
+              AND payload->>'candidateDocumentId' = ${candidateId}
+            ORDER BY created_at`,
+      );
+      return [...rows];
+    }
+
+    it('emits proposed / published / dismissed curation events', async () => {
+      await run(() => svc.createSpace({ name: 'Support FAQ', slug: 'support-faq' }));
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Weekend hours',
+          draftBody: 'We open 10–16 Saturdays.',
+          sourceConversationId: 'ccv_evt',
+          proposedTargetSpaceSlug: 'support-faq',
+        }),
+      );
+      let events = await curationEvents(candidate.id);
+      expect(events).toHaveLength(1);
+      expect(events[0]!.type).toBe('kb.curation_candidate.proposed');
+      expect(events[0]!.payload).toMatchObject({
+        candidateDocumentId: candidate.id,
+        title: 'Weekend hours',
+        proposedTargetSpaceSlug: 'support-faq',
+        sourceConversationId: 'ccv_evt',
+        spaceId: candidate.spaceId,
+      });
+
+      const published = await run(() =>
+        svc.publishCurationCandidate({
+          candidateDocumentId: candidate.id,
+          targetSpaceSlug: 'support-faq',
+        }),
+      );
+      events = await curationEvents(candidate.id);
+      expect(events.map((e) => e.type)).toEqual([
+        'kb.curation_candidate.proposed',
+        'kb.curation_candidate.published',
+      ]);
+      expect(events[1]!.payload).toMatchObject({
+        candidateDocumentId: candidate.id,
+        publishedDocumentId: published.id,
+        targetSpaceSlug: 'support-faq',
+        title: 'Weekend hours',
+      });
+
+      const dismissed = await run(() =>
+        svc.proposeCurationCandidate({ subject: 'Refunds', draftBody: 'Within 14 days.' }),
+      );
+      await run(() => svc.deleteDocument({ id: dismissed.id, ifVersion: dismissed.version }));
+      const dismissedEvents = await curationEvents(dismissed.id);
+      expect(dismissedEvents.map((e) => e.type)).toEqual([
+        'kb.curation_candidate.proposed',
+        'kb.curation_candidate.dismissed',
+      ]);
+      expect(dismissedEvents[1]!.payload).toMatchObject({
+        candidateDocumentId: dismissed.id,
+        title: 'Refunds',
+        proposedTargetSpaceSlug: null,
+        sourceConversationId: null,
+      });
+    });
+
+    it('emits no curation events when deleting a plain document', async () => {
+      const space = await run(() => svc.createSpace({ name: 'Plain', slug: 'plain' }));
+      const doc = await run(() =>
+        svc.createDocument({ spaceId: space.id, title: 'Plain', body: 'body' }),
+      );
+      await run(() => svc.deleteDocument({ id: doc.id, ifVersion: doc.version }));
+      expect(await curationEvents(doc.id)).toHaveLength(0);
     });
 
     it('rejects publishing a non-candidate document', async () => {

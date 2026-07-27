@@ -39,7 +39,6 @@ const skipReason = TEST_URL
     db = createDb(TEST_URL!, { serviceRole: true });
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
 
-    // Start from a clean slate so the "first user becomes owner" path runs.
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
     await db.delete(schema.orgInvitations);
     await db.delete(schema.orgMembers);
@@ -121,7 +120,6 @@ const skipReason = TEST_URL
 
   it('signup with a valid pending invitation succeeds even outside the allowlist', async () => {
     const email = `invitee-${Date.now()}@elsewhere.example`;
-    // Find the singleton org id.
     const [orgRow] = await db
       .select({ id: schema.orgs.id })
       .from(schema.orgs)

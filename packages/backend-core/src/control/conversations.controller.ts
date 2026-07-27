@@ -310,9 +310,15 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (err) {
     if (err instanceof ConvInvalidError) throw new BadRequestException(err.message);
-    if (err instanceof HandoverActiveError) throw new ConflictException(err.message);
-    if (err instanceof ClaimedByOtherError) throw new ConflictException(err.message);
-    if (err instanceof AgentReplyRaceError) throw new ConflictException(err.message);
+    if (err instanceof HandoverActiveError) {
+      throw new ConflictException({ message: err.message, code: err.code });
+    }
+    if (err instanceof ClaimedByOtherError) {
+      throw new ConflictException({ message: err.message, code: err.code });
+    }
+    if (err instanceof AgentReplyRaceError) {
+      throw new ConflictException({ message: err.message, code: err.code });
+    }
     throw err;
   }
 }

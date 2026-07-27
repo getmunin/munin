@@ -1,5 +1,85 @@
 # @getmunin/core
 
+## 4.69.3
+
+### Patch Changes
+
+- @getmunin/db@4.69.3
+- @getmunin/types@4.69.3
+
+## 4.69.2
+
+### Patch Changes
+
+- @getmunin/db@4.69.2
+- @getmunin/types@4.69.2
+
+## 4.69.1
+
+### Patch Changes
+
+- @getmunin/db@4.69.1
+- @getmunin/types@4.69.1
+
+## 4.69.0
+
+### Minor Changes
+
+- 7078b30: CMS draft preview links: drafts can now be viewed rendered by the customer frontend before publishing. `cms_get_preview_link` (and `POST /v1/cms/drafts/:id/preview-link`, plus a Preview action in the inbox drawer) mints a signed, entry-scoped token valid for 1 hour; the public delivery API's single-entry route accepts it as `?preview=<token>` and returns the entry regardless of status with `Cache-Control: no-store` and a `status` field. Reference expansion under preview includes draft-status referenced entries so the previewed page is truthful. Collections can carry a `settings.previewUrl` template (`{token}`, `{slug}`, `{locale}`, `{collection}` placeholders) pointing at the frontend's draft-mode endpoint; the full frontend contract is documented in the new `skill://cms/preview-entry`. List and search delivery routes never accept preview tokens.
+
+### Patch Changes
+
+- Updated dependencies [18dc6a6]
+- Updated dependencies [6f31549]
+  - @getmunin/types@4.69.0
+  - @getmunin/db@4.69.0
+
+## 4.68.0
+
+### Minor Changes
+
+- a66d454: Integration foundations: `EventSink` contract on `WebhookDispatcher` for transactional event fan-out to integration bridges, and the Integrations settings hub page that operator bridges and connectors slot into.
+
+### Patch Changes
+
+- Updated dependencies [1482bbe]
+- Updated dependencies [8da0e90]
+- Updated dependencies [491186c]
+- Updated dependencies [cdff1ad]
+- Updated dependencies [8037e74]
+  - @getmunin/db@4.68.0
+  - @getmunin/types@4.68.0
+
+## 4.67.2
+
+### Patch Changes
+
+- @getmunin/db@4.67.2
+- @getmunin/types@4.67.2
+
+## 4.67.1
+
+### Patch Changes
+
+- @getmunin/db@4.67.1
+- @getmunin/types@4.67.1
+
+## 4.67.0
+
+### Minor Changes
+
+- eead33b: Security hardening from a follow-up audit.
+
+  - **Widget session credential moved out of the URL (BREAKING):** the widget read endpoints (`GET /v1/widget/messages`, `GET /v1/widget/conversations`, `GET /v1/widget/voice/available`) no longer accept the session credential in the query string. `sessionId`, `sessionIds`, `verifiedExternalId`, and `userHash` must now be sent as the `x-munin-session-id`, `x-munin-session-ids`, `x-munin-verified-external-id`, and `x-munin-user-hash` request headers. This keeps the session token — which grants read/write on a visitor's conversation — out of server, proxy, and CDN access logs. The bundled chat widget is updated; any custom integration that called these GET endpoints must move the fields from the query string to headers.
+  - **Widget origin allowlist is required by default (BREAKING):** a widget channel with an empty `originAllowlist` now rejects all traffic, and creating one without an allowlist fails, unless `MUNIN_WIDGET_REQUIRE_ALLOWLIST` is explicitly set to `0`/`false`. Previously the allowlist was only enforced when the flag was opted in. Existing widget channels without an allowlist stop accepting requests until their origins are configured (or the flag is disabled). This inverts the default to fail-closed.
+  - **OAuth `mcp:admin` scope is gated by org role (BREAKING):** OAuth access tokens (opaque and JWT) issued to users whose org membership role is not `owner` or `admin` no longer carry the `mcp:admin` scope or the admin MCP audience — they resolve to the self-service surface. Previously any member who consented to an `mcp:admin` scope grant reached every admin MCP tool. Admin API keys (`mn_admin_*`) are unaffected.
+  - **Channel webhook endpoint hardened:** `POST /v1/conversations/channels/:channelId/webhook` is now rate-limited (per-IP, like the other public endpoints) and returns a uniform `401` for both unknown-channel and signature-verification failures to prevent channel-id enumeration. Note: an unknown channel now returns `401` instead of `404`.
+
+### Patch Changes
+
+- @getmunin/db@4.67.0
+- @getmunin/types@4.67.0
+
 ## 4.66.1
 
 ### Patch Changes

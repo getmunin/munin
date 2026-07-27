@@ -3,15 +3,6 @@ import type { Audience } from '@getmunin/core';
 export const SKILLS_LIST_TOOL = 'skills_list';
 export const SKILLS_READ_TOOL = 'skills_read';
 
-/**
- * Single source of truth for the synthetic skill tools. These mirror the MCP
- * `resources/list` / `resources/read` surface as plain tools so clients that
- * don't expose server resources can still discover and read `skill://` guides.
- *
- * Consumed both by the dispatch layer (live `tools/list`) and the public tool
- * catalog so the two never drift. They carry no scopes; output is filtered by
- * the caller's audience at call time.
- */
 export interface SkillToolDescriptor {
   name: string;
   title: string;

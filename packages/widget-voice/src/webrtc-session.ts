@@ -7,12 +7,6 @@ import type {
   WebRtcVoiceDescriptor,
 } from './types.ts';
 
-/**
- * Vendor-agnostic in-browser voice session over WebRTC. Owns the peer
- * connection, microphone capture, and remote audio playback; delegates the
- * vendor's signaling framing to a SignalingChannel. Reused by any SDK-less
- * vendor — only the SignalingChannel differs.
- */
 export class WebRtcVoiceSession implements VoiceSession {
   private pc: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
@@ -133,7 +127,6 @@ export class WebRtcVoiceSession implements VoiceSession {
       },
       onRemoteCandidate: (candidate) => {
         void pc.addIceCandidate(candidate).catch(() => {
-          // a failed trickle candidate is non-fatal
         });
       },
       onTranscript: (payload) => {
@@ -164,7 +157,6 @@ export class WebRtcVoiceSession implements VoiceSession {
     }
     this.audioEl.srcObject = stream;
     void this.audioEl.play().catch(() => {
-      // autoplay may be blocked until a user gesture; the widget triggers start on a click
     });
   }
 

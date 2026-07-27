@@ -280,7 +280,7 @@ function TrackerRow({
   const t = useTranslations('dashboard.trackers');
   const origins = tracker.allowedOrigins;
   return (
-    <li className="border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
+    <li className="border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0 flex-1 space-y-3">
           <h3 className="font-serif text-lg leading-none text-ink dark:text-foreground">
@@ -336,7 +336,7 @@ function OriginChip({ text, muted }: { text: string; muted?: boolean }) {
   return (
     <span
       className={cn(
-        'inline-block border-[0.5px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
+        'inline-block border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
         muted ? 'text-ink-mute italic' : 'text-ink dark:text-foreground',
       )}
     >
@@ -689,7 +689,7 @@ function EmbedSnippetDialog({
         <div className="space-y-8 py-2">
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.scriptLabel')}</Label>
-            <pre className="overflow-x-auto rounded-md border-[0.5px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
               {scriptSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copySnippet}>
@@ -702,7 +702,7 @@ function EmbedSnippetDialog({
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.hashLabel')}</Label>
             <p className={dialogHintClass}>{t('embed.hashHint')}</p>
-            <div className="flex w-fit border-[0.5px] border-ink dark:border-foreground">
+            <div className="flex w-fit border-[1px] border-ink dark:border-foreground">
               {HASH_SNIPPETS.map((s) => {
                 const active = s.language === language;
                 return (
@@ -711,7 +711,7 @@ function EmbedSnippetDialog({
                     type="button"
                     onClick={() => setLanguage(s.language)}
                     className={cn(
-                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r-[0.5px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
+                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r-[1px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
                       active
                         ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
                         : 'bg-paper hover:bg-paper-deep dark:bg-card dark:hover:bg-secondary',
@@ -722,7 +722,7 @@ function EmbedSnippetDialog({
                 );
               })}
             </div>
-            <pre className="overflow-x-auto rounded-md border-[0.5px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
               {hashSnippet}
             </pre>
             <Button variant="outline" size="sm" onClick={copyHash}>

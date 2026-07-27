@@ -115,6 +115,8 @@ export { AgentsPage } from './pages/agents';
 export { ApiKeysPage } from './pages/api-keys';
 export { AuditLogPage } from './pages/audit-log';
 export { ChannelsPage } from './pages/channels';
+export { IntegrationsPage } from './pages/integrations';
+export { CredentialEntryPage } from './pages/credential-entry';
 export { TrackersPage } from './pages/trackers';
 export { EndUsersPage } from './pages/end-users';
 export { DashboardPage } from './pages/overview';

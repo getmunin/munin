@@ -181,7 +181,7 @@ export function AuditLogPage() {
           <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
           <table className="w-full">
             <thead>
-              <tr className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark text-left">
+              <tr className="border-b-[1px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('tableTime')}</Th>
                 <Th className="hidden md:table-cell">{t('tableActor')}</Th>
                 <Th className="hidden md:table-cell">{t('tableClient')}</Th>
@@ -195,7 +195,7 @@ export function AuditLogPage() {
               {items.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b-[0.5px] border-rule-soft dark:border-rule-on-dark align-top"
+                  className="border-b-[1px] border-rule-soft dark:border-rule-on-dark align-top"
                 >
                   <td className="py-3 pr-4 font-mono text-[11px] text-ink-mute whitespace-nowrap">
                     {format.dateTime(new Date(row.createdAt), {

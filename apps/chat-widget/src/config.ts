@@ -1,32 +1,3 @@
-/**
- * Parses the embed snippet's `data-*` attributes into a typed `WidgetConfig`.
- *
- * The widget is configured entirely on its `<script>` tag:
- *   <script src="…/widget.js"
- *           data-munin-host="https://munin.example.com"
- *           data-widget-key="mn_widget_…"
- *           data-channel-id="…"
- *           data-external-id="user_42"
- *           data-user-hash="<hex-hmac>"
- *           data-munin-theme-color="#10b981"
- *           data-munin-position="bottom-right"
- *           data-munin-greeting="Hi! How can we help?"
- *           data-munin-title="Chat with us"
- *           data-munin-locale="en"
- *           data-munin-visitor-name="Ada"
- *           data-munin-visitor-email="ada@example.com"
- *           data-munin-visitor-meta='{"plan":"pro"}'
- *           data-munin-meta-account-id="acc_42"
- *           data-munin-cookie-domain=".getmunin.com"
- *           defer></script>
- *
- * Returns `{ ok: true, config }` or `{ ok: false, errors }`. The widget
- * bootstrap logs (but doesn't throw on) parse errors; the goal is to never
- * break the host page even if the operator misconfigures. Identity attrs
- * are conditional-required: if either `data-external-id` or
- * `data-user-hash` is set, both must be set.
- */
-
 export const WIDGET_END_USER_BODY_MAX_CHARS = 1_000;
 export const WIDGET_END_USER_BODY_HTML_MAX_CHARS = 4_000;
 

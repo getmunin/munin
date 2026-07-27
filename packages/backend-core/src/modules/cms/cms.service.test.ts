@@ -147,8 +147,6 @@ class StubStorage implements AssetStorage {
     return rows.map((r) => r.type);
   }
 
-  // ─── Collections ─────────────────────────────────────────────────────
-
   describe('collections', () => {
     it('createCollection persists, emits webhook, and lists', async () => {
       const created = await run(() =>
@@ -204,7 +202,7 @@ class StubStorage implements AssetStorage {
       const created = await run(() =>
         svc.createCollection({ name: 'Pages', slug: 'pages', fields: [{ name: 't', type: 'text' }] }),
       );
-      await db.execute(sql`DELETE FROM events WHERE org_id = ${orgId}`); // clear creation event
+      await db.execute(sql`DELETE FROM events WHERE org_id = ${orgId}`);
       const renamed = await run(() =>
         svc.updateCollection(created.id, { name: 'Static Pages', description: 'desc' }),
       );
@@ -233,8 +231,6 @@ class StubStorage implements AssetStorage {
       await expect(run(() => svc.getCollection(created.id))).rejects.toThrow(NotFoundException);
     });
   });
-
-  // ─── Entries ─────────────────────────────────────────────────────────
 
   describe('entries', () => {
     async function seedCollection() {
@@ -387,7 +383,6 @@ class StubStorage implements AssetStorage {
       const before = await db.execute<{ search_text: string | null; embedding: string | null }>(
         sql`SELECT search_text, embedding::text AS embedding FROM cms_entries WHERE id = ${entry.id}`,
       );
-      // Update with same data — content hash unchanged.
       const after = await run(() =>
         svc.updateEntry({ id: entry.id, ifVersion: 1, data: { title: 'X' } }),
       );
@@ -582,8 +577,6 @@ class StubStorage implements AssetStorage {
     });
   });
 
-  // ─── Assets ──────────────────────────────────────────────────────────
-
   describe('assets', () => {
     it('requestAssetUpload mints a presigned upload and persists a non-uploaded row', async () => {
       const handle = await run(() =>
@@ -740,17 +733,29 @@ class StubStorage implements AssetStorage {
       ).rejects.toThrow();
     });
 
-    it('uploadAssetFromBase64 rejects >100KB decoded body', async () => {
+    it('uploadAssetFromBase64 rejects >100KB decoded body with cms_asset_too_large', async () => {
       const huge = Buffer.alloc(100 * 1024 + 1, 1);
-      await expect(
-        run(() =>
-          svc.uploadAssetFromBase64({
-            name: 'big.bin',
-            mime: 'application/octet-stream',
-            base64Body: huge.toString('base64'),
-          }),
-        ),
-      ).rejects.toThrow(/exceeds 100KB/);
+      const attempt = run(() =>
+        svc.uploadAssetFromBase64({
+          name: 'big.bin',
+          mime: 'application/octet-stream',
+          base64Body: huge.toString('base64'),
+        }),
+      );
+      await expect(attempt).rejects.toThrow(/exceeds 100KB/);
+      await expect(attempt).rejects.toMatchObject({ code: 'cms_asset_too_large' });
+    });
+
+    it('requestAssetUpload rejects >50MB with cms_asset_too_large', async () => {
+      const attempt = run(() =>
+        svc.requestAssetUpload({
+          name: 'huge.png',
+          mime: 'image/png',
+          sizeBytes: 50 * 1024 * 1024 + 1,
+        }),
+      );
+      await expect(attempt).rejects.toThrow(CmsInvalidError);
+      await expect(attempt).rejects.toMatchObject({ code: 'cms_asset_too_large' });
     });
 
     it('uploadAssetFromBase64 rejects malformed base64', async () => {
@@ -785,8 +790,6 @@ class StubStorage implements AssetStorage {
       ).rejects.toThrow(/sourceUrl blocked/);
     });
   });
-
-  // ─── Locales ─────────────────────────────────────────────────────────
 
   describe('locales', () => {
     it('createLocale: first locale becomes default; later locales do not unless flagged', async () => {
@@ -832,8 +835,6 @@ class StubStorage implements AssetStorage {
     });
   });
 
-  // ─── References ──────────────────────────────────────────────────────
-
   describe('references', () => {
     it('listInboundReferences returns rows pointing at an entry', async () => {
       await ensureLocale('en');
@@ -866,8 +867,6 @@ class StubStorage implements AssetStorage {
     });
   });
 
-  // ─── RLS ─────────────────────────────────────────────────────────────
-
   describe('RLS', () => {
     it('cross-org RLS isolation: another org cannot see this org\'s collections', async () => {
       const col = await run(() =>
@@ -877,7 +876,6 @@ class StubStorage implements AssetStorage {
           fields: [{ name: 't', type: 'text' }],
         }),
       );
-      // Create a second org and an actor scoped to it.
       const [otherOrg] = await db
         .insert(schema.orgs)
         .values({ name: 'Other Org' })

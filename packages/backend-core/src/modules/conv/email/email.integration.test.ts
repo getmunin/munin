@@ -136,10 +136,6 @@ class StubImapFetcher implements ImapFetcher {
   }
 
   it('inbound from new sender → new conversation; admin reply → outbound via mailer with Reply-To plus-address; replied inbound threads back', async () => {
-    // 1. Set up an email channel via the admin tool, then poll for the row to
-    //    appear: MCP responses are written to the wire from inside the
-    //    request transaction, so the client gets the response slightly before
-    //    the transaction commits.
     const rawResult = await withClient(adminKey, async (c) =>
       c.callTool({
         name: 'conv_setup_email_channel',
@@ -187,7 +183,6 @@ class StubImapFetcher implements ImapFetcher {
     expect(setupAudit).toHaveLength(1);
     expect(JSON.stringify(setupAudit[0]!.args)).not.toContain('app-pw-stub');
 
-    // 2. Push an inbound email from a brand-new sender.
     fetcher.push(rfc822({
       from: 'Customer One <c1@customer.test>',
       to: 'support@acme.test',
@@ -199,7 +194,6 @@ class StubImapFetcher implements ImapFetcher {
     const ingest1 = await inboundWorker.tick();
     expect(ingest1.messagesIngested).toBe(1);
 
-    // Worker created a contact + conversation on this channel.
     const conv1Rows = await db
       .select()
       .from(schema.convConversations)
@@ -214,7 +208,6 @@ class StubImapFetcher implements ImapFetcher {
       .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, 'c1@customer.test')));
     expect(contact1Rows).toHaveLength(1);
 
-    // 3. Admin replies via conv_send_message → enqueues an outbound delivery.
     const adminMsgId = await withClient(adminKey, async (c) =>
       parseToolResult<{ id: string }>(
         await c.callTool({
@@ -241,7 +234,6 @@ class StubImapFetcher implements ImapFetcher {
     expect(queued).toHaveLength(1);
     expect(queued[0]!.status).toBe('queued');
 
-    // 4. Outbound worker drains the queue → StubMailer captures the message.
     const drain1 = await outboundWorker.tick();
     expect(drain1.sent).toBe(1);
     expect(mailer.outbox).toHaveLength(1);
@@ -249,14 +241,9 @@ class StubImapFetcher implements ImapFetcher {
     expect(sent1.to).toBe('c1@customer.test');
     expect(sent1.from).toContain('support@acme.test');
     expect(sent1.text).toContain('reset your password');
-    // Headers include the Message-ID we stamped, and Reply-To is the auto plus-address.
     const stampedMessageId = sent1.headers?.['Message-ID'];
     expect(stampedMessageId).toMatch(/^<[^<>]+@acme\.test>$/);
-    // ResendMailer composes Reply-To from msg.replyTo (set via composeReplyToBare for mailer path).
-    // The ‘mailer’ codepath uses replyToTemplate only — undefined here. The stamped
-    // Message-ID is what the inbound side will key off when the customer replies.
 
-    // Delivery row is now 'sent' with the stamped Message-ID persisted for threading.
     const sentRow = (
       await db
         .select()
@@ -266,7 +253,6 @@ class StubImapFetcher implements ImapFetcher {
     expect(sentRow.status).toBe('sent');
     expect(sentRow.messageIdHeader).toBeTruthy();
 
-    // 5. Customer replies — the inbound carries In-Reply-To matching our stamped Message-ID.
     fetcher.push(rfc822({
       from: 'Customer One <c1@customer.test>',
       to: 'support@acme.test',
@@ -280,7 +266,6 @@ class StubImapFetcher implements ImapFetcher {
     const ingest2 = await inboundWorker.tick();
     expect(ingest2.messagesIngested).toBe(1);
 
-    // Threaded into the existing conversation (no new conversation row).
     const allConvs = await db
       .select()
       .from(schema.convConversations)
@@ -290,7 +275,6 @@ class StubImapFetcher implements ImapFetcher {
       .select()
       .from(schema.convMessages)
       .where(eq(schema.convMessages.conversationId, conv1.id));
-    // 1 inbound + 1 admin reply + 1 inbound reply = 3
     expect(messages).toHaveLength(3);
     expect(messages.some((m) => m.body.includes('That worked'))).toBe(true);
   }, 60_000);

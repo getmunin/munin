@@ -221,6 +221,7 @@ function ProposalRow({
           {hasEvidence && evidenceOpen && (
             <pre className="evidence">{JSON.stringify(proposal.evidence, null, 2)}</pre>
           )}
+          {revisionNotice(proposal, t)}
           {state.error && <p className="line line-error">{state.error}</p>}
           {proposal.status === 'pending' ? (
             <div className="actions">
@@ -244,6 +245,20 @@ function ProposalRow({
   );
 }
 
+function revisionNotice(proposal: Proposal, t: Translator) {
+  if (!proposal.revisionCount) return null;
+  const key = proposal.revisedAfterReviewAt
+    ? 'proposals.revisedAfterReview'
+    : 'proposals.revised';
+  const className = proposal.revisedAfterReviewAt ? 'line line-error' : 'line line-mute';
+  const notice = t(key, { count: proposal.revisionCount });
+  return (
+    <p className={className}>
+      {proposal.lastRevisionReason ? `${notice} (${proposal.lastRevisionReason})` : notice}
+    </p>
+  );
+}
+
 function decidedLine(
   proposal: Proposal,
   decidedNow: boolean,
@@ -262,6 +277,13 @@ function decidedLine(
         text: proposal.dismissReason
           ? t('proposals.dismissedReason', { reason: proposal.dismissReason })
           : t('proposals.dismissed'),
+        className: 'line-mute',
+      };
+    case 'withdrawn':
+      return {
+        text: proposal.withdrawReason
+          ? t('proposals.withdrawnReason', { reason: proposal.withdrawReason })
+          : t('proposals.withdrawn'),
         className: 'line-mute',
       };
     case 'failed':

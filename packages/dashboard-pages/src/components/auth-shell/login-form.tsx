@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { authClient } from '../../auth-client';
@@ -13,13 +13,7 @@ import {
   socialCallbackUrl,
   absoluteCallbackUrl,
 } from '../../auth/post-signin-redirect';
-import {
-  AuthShell,
-  AuthHeading,
-  AuthSubheading,
-  AuthFootnote,
-  AuthDivider,
-} from './auth-shell';
+import { AuthShell, AuthHeading, AuthSubheading, AuthFootnote, AuthDivider } from './auth-shell';
 import { AuthEpigraph } from './auth-epigraph';
 import { ErrorAlert } from './error-alert';
 import { AuthField, AuthLabel, AuthInput, AuthSubmit, AuthOAuthButton } from './auth-form';
@@ -28,7 +22,7 @@ import { GoogleLogo, GithubLogo } from './oauth-logos';
 import type { AuthFooter } from './epigraphs';
 import type { AuthProviders } from './fetch-auth-providers';
 
-type SignInError = { kind: 'invalid' | 'unreachable'; detail: string };
+type SignInError = { kind: 'invalid' | 'unreachable' | 'oauth'; detail: string };
 
 export interface LoginFormProps {
   providers: AuthProviders;
@@ -39,6 +33,7 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
   const t = useTranslations('auth.signIn');
   const tInvalid = useTranslations('auth.signIn.invalid');
   const tUnreachable = useTranslations('auth.signIn.unreachable');
+  const tOauth = useTranslations('auth.signIn.oauthError');
   const tFields = useTranslations('auth.fields');
   const tForgot = useTranslations('auth.forgotPassword');
   const tCommon = useTranslations('common');
@@ -62,6 +57,11 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileHandle>(null);
+
+  useEffect(() => {
+    const code = params.get('error');
+    if (code) setError({ kind: 'oauth', detail: code });
+  }, [params]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -102,8 +102,18 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
   }
 
   const epigraphState = error ? 'login-error' : 'login';
-  const alertTitle = error?.kind === 'unreachable' ? tUnreachable('title') : tInvalid('title');
-  const alertHint = error?.kind === 'unreachable' ? tUnreachable('hint') : tInvalid('hint');
+  const alertTitle =
+    error?.kind === 'unreachable'
+      ? tUnreachable('title')
+      : error?.kind === 'oauth'
+        ? tOauth('title')
+        : tInvalid('title');
+  const alertHint =
+    error?.kind === 'unreachable'
+      ? tUnreachable('hint')
+      : error?.kind === 'oauth'
+        ? tOauth('hint')
+        : tInvalid('hint');
 
   return (
     <AuthShell
@@ -144,9 +154,7 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
               {tGithub('signIn')}
             </AuthOAuthButton>
           )}
-          {(providers.google || providers.github) && (
-            <AuthDivider label={tCommon('or')} />
-          )}
+          {(providers.google || providers.github) && <AuthDivider label={tCommon('or')} />}
 
           <form
             onSubmit={(event) => {
@@ -201,11 +209,7 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
 
           {captcha && (
             <div className="mt-[18px]">
-              <Turnstile
-                ref={turnstileRef}
-                siteKey={captcha.siteKey}
-                onToken={setCaptchaToken}
-              />
+              <Turnstile ref={turnstileRef} siteKey={captcha.siteKey} onToken={setCaptchaToken} />
             </div>
           )}
         </>

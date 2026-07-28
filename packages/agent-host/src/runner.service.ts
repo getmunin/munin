@@ -80,11 +80,14 @@ const CONVERSATION_SWEEP_LIMIT = 50;
 const CURATOR_MAX_TOOL_ITERATIONS = 16;
 
 const DEFAULT_END_USER_AGENT_SCOPES: readonly string[] = [
+  'bookings:read',
+  'bookings:write',
+  'commerce:read',
   'conv:read',
   'conv:write',
-  'kb:read',
   'crm:read',
   'crm:write',
+  'kb:read',
 ];
 
 export type GenerateTrigger = 'chat' | 'scheduled';

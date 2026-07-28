@@ -210,12 +210,6 @@
       "channelInboundFailing": "Inbound polling failing on \"{name}\"",
       "openChannelSettings": "Open channel settings →"
     },
-    "saveFailed": {
-      "title": "Save failed",
-      "sub": "Nothing was saved · safe to retry",
-      "body": "Munin couldn't reach the server. Your inputs are still here — try again, or come back in a moment.",
-      "retry": "Retry save"
-    },
     "loadFailed": {
       "eyebrow": "Connection · failed",
       "settings": {
@@ -743,8 +737,7 @@
         "sendTest": "Could not send test email.",
         "sendTestSms": "Could not send test SMS.",
         "delete": "Could not delete channel.",
-        "activate": "Could not activate channel.",
-        "saveFailedEyebrow": "Save · failed"
+        "activate": "Could not activate channel."
       }
     },
     "trackers": {
@@ -1311,8 +1304,7 @@
       "channelsNoneInvited": "Munin isn't in any channels yet. Run /invite @Munin in the Slack channel you want, then reopen this dialog.",
       "channelsLoadFailed": "Could not load the channel list — paste the channel ID manually.",
       "saveRouting": "Save channel",
-      "inviteBot": "The bot is not in that channel yet — run /invite @Munin in Slack, then send a test.",
-      "sendTest": "Send test message",
+      "inviteBot": "The bot is not in that channel yet — run /invite @Munin in Slack, then use Test on the Slack card.",
       "testSent": "Test message sent",
       "disconnect": "Disconnect",
       "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",

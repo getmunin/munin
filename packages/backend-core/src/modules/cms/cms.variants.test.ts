@@ -59,6 +59,20 @@ function master(width: number, height: number): Promise<Buffer> {
     .toBuffer();
 }
 
+function noisyJpegMaster(width: number, height: number, quality = 70): Promise<Buffer> {
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r: 128, g: 128, b: 128 },
+      noise: { type: 'gaussian', mean: 128, sigma: 60 },
+    },
+  })
+    .jpeg({ quality })
+    .toBuffer();
+}
+
 describe('variantWidthsFor', () => {
   it('never upscales past the source width', () => {
     expect(variantWidthsFor(1536)).toEqual([320, 640, 1024, 1536]);
@@ -172,6 +186,38 @@ describe('deriveVariantColumns', () => {
     for (const variant of columns.variants) {
       expect(variant.sizeBytes).toBeLessThan(body.length);
     }
+  });
+
+  it('drops a rendition that recompresses heavier than an already-efficient master', async () => {
+    const storage = new MemoryStorage();
+    const body = await noisyJpegMaster(1200, 800);
+    const columns = await deriveVariantColumns(storage, {
+      mime: 'image/jpeg',
+      storageKey: 'cms/org_1/noisy.jpg',
+      body,
+    });
+
+    expect(columns.variants.length).toBeGreaterThan(0);
+    for (const variant of columns.variants) {
+      expect(variant.sizeBytes).toBeLessThan(body.length);
+    }
+    expect(columns.variants.some((v) => v.width === 1200)).toBe(false);
+    expect([...storage.written.keys()]).not.toContain('cms/org_1/noisy-1200w.webp');
+  });
+
+  it('removes a superseded rendition left behind by an earlier ladder version', async () => {
+    const storage = new MemoryStorage();
+    const body = await noisyJpegMaster(1200, 800);
+    const stale = 'cms/org_1/noisy-1200w.webp';
+    await storage.writeDirect(stale, Buffer.alloc(999_999));
+
+    await deriveVariantColumns(storage, {
+      mime: 'image/jpeg',
+      storageKey: 'cms/org_1/noisy.jpg',
+      body,
+    });
+
+    expect(storage.written.has(stale)).toBe(false);
   });
 
   it('settles non-images without touching storage', async () => {

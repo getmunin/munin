@@ -210,12 +210,6 @@
       "channelInboundFailing": "Innkommende henting feiler på «{name}»",
       "openChannelSettings": "Åpne kanalinnstillinger →"
     },
-    "saveFailed": {
-      "title": "Lagring feilet",
-      "sub": "Ingenting ble lagret · trygt å prøve igjen",
-      "body": "Munin nådde ikke tjeneren. Inndataene dine er fortsatt her — prøv igjen, eller kom tilbake om et øyeblikk.",
-      "retry": "Prøv lagring igjen"
-    },
     "loadFailed": {
       "eyebrow": "Tilkobling · feilet",
       "settings": {
@@ -743,8 +737,7 @@
         "sendTest": "Kunne ikke sende test-e-post.",
         "sendTestSms": "Kunne ikke sende test-SMS.",
         "delete": "Kunne ikke slette kanalen.",
-        "activate": "Kunne ikke aktivere kanalen.",
-        "saveFailedEyebrow": "Lagring · feilet"
+        "activate": "Kunne ikke aktivere kanalen."
       }
     },
     "trackers": {
@@ -1311,8 +1304,7 @@
       "channelsNoneInvited": "Munin er ikke i noen kanaler ennå. Kjør /invite @Munin i Slack-kanalen du vil bruke, og åpne denne dialogen på nytt.",
       "channelsLoadFailed": "Kunne ikke hente kanallisten — lim inn kanal-ID-en manuelt.",
       "saveRouting": "Lagre kanal",
-      "inviteBot": "Boten er ikke i kanalen ennå — kjør /invite @Munin i Slack, og send deretter en test.",
-      "sendTest": "Send testmelding",
+      "inviteBot": "Boten er ikke i kanalen ennå — kjør /invite @Munin i Slack, og bruk deretter Test på Slack-kortet.",
       "testSent": "Testmelding sendt",
       "disconnect": "Koble fra",
       "disconnectConfirm": "Koble fra Slack? Trådkoblinger og ruting slettes; samtalene i Munin påvirkes ikke.",

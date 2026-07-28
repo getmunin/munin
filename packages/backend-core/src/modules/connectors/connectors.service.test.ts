@@ -401,6 +401,54 @@ class FakeAdapter implements ConnectorAdapter {
         /no email identity/,
       );
     });
+
+    it('rejects an anonymous end-user even when an email is on the record', async () => {
+      const [eu] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId,
+          externalId: 'anon:sess-guard',
+          email: 'victim@example.com',
+          metadata: { anonymous: true, emailSource: 'visitor' },
+        })
+        .returning();
+      const actor = new ActorIdentity(
+        'end_user_agent',
+        'tok_anon_email',
+        orgId,
+        ['commerce:read'],
+        ['self_service'],
+        eu!.id,
+      );
+
+      await expect(run(() => connectors.requireEndUserEmail(), actor)).rejects.toThrow(
+        /connectors_unverified/,
+      );
+    });
+
+    it('rejects a verified end-user whose email was self-reported in chat', async () => {
+      const [eu] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId,
+          externalId: 'crm-usr-77',
+          email: 'victim2@example.com',
+          metadata: { emailSource: 'visitor' },
+        })
+        .returning();
+      const actor = new ActorIdentity(
+        'end_user_agent',
+        'tok_visitor_email',
+        orgId,
+        ['commerce:read'],
+        ['self_service'],
+        eu!.id,
+      );
+
+      await expect(run(() => connectors.requireEndUserEmail(), actor)).rejects.toThrow(
+        /connectors_unverified/,
+      );
+    });
   });
 
   describe('vendorCall', () => {

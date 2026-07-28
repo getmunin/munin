@@ -1493,7 +1493,7 @@
   {
     "name": "cms_get_entry",
     "title": "CMS: Read entry",
-    "description": "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema. In hosts that support MCP Apps this renders an inline entry preview with publish/unpublish/schedule actions.",
+    "description": "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema.",
     "audiences": [
       "admin"
     ],

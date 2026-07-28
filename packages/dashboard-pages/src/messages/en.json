@@ -1665,28 +1665,6 @@
       "journeySearched": "searched “{query}”",
       "journeyViewed": "viewed a page"
     },
-    "entry": {
-      "versionLine": "Version {version}",
-      "publishedNow": "published just now",
-      "publishedAt": "published {at}",
-      "scheduledFor": "goes live {at}",
-      "publish": "Publish",
-      "publishing": "Publishing…",
-      "unpublish": "Unpublish",
-      "unpublishing": "Unpublishing…",
-      "schedule": "Schedule…",
-      "scheduleTitle": "Schedule publish",
-      "scheduleConfirm": "Confirm schedule",
-      "scheduleCancel": "Cancel",
-      "scheduling": "Scheduling…",
-      "scheduleMissing": "Pick a date and time first.",
-      "status": {
-        "draft": "draft",
-        "published": "published",
-        "scheduled": "scheduled",
-        "archived": "archived"
-      }
-    },
     "assets": {
       "eyebrow": "Media library",
       "title": "Assets",

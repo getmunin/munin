@@ -1665,28 +1665,6 @@
       "journeySearched": "søkte etter «{query}»",
       "journeyViewed": "så på en side"
     },
-    "entry": {
-      "versionLine": "Versjon {version}",
-      "publishedNow": "publisert akkurat nå",
-      "publishedAt": "publisert {at}",
-      "scheduledFor": "publiseres {at}",
-      "publish": "Publiser",
-      "publishing": "Publiserer…",
-      "unpublish": "Avpubliser",
-      "unpublishing": "Avpubliserer…",
-      "schedule": "Planlegg…",
-      "scheduleTitle": "Planlegg publisering",
-      "scheduleConfirm": "Bekreft tidspunkt",
-      "scheduleCancel": "Avbryt",
-      "scheduling": "Planlegger…",
-      "scheduleMissing": "Velg dato og klokkeslett først.",
-      "status": {
-        "draft": "utkast",
-        "published": "publisert",
-        "scheduled": "planlagt",
-        "archived": "arkivert"
-      }
-    },
     "assets": {
       "eyebrow": "Mediebibliotek",
       "title": "Filer",

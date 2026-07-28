@@ -324,13 +324,12 @@ export class CmsAdminTools {
     name: 'cms_get_entry',
     title: 'CMS: Read entry',
     description:
-      "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema. In hosts that support MCP Apps this renders an inline entry preview with publish/unpublish/schedule actions.",
+      "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema.",
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: GetEntryInput,
     readOnlyHint: true,
     destructiveHint: false,
-    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   getEntry(args: z.infer<typeof GetEntryInput>) {
     return this.cms.getEntry(args.id, args.include);

@@ -39,7 +39,7 @@ class FakeSlackApi extends SlackApiClient {
       throw new SlackApiError('rate_limited', 1_000);
     }
     this.counter += 1;
-    const ts = `1700000000.${String(this.counter).padStart(6, '0')}`;
+    const ts = `${Math.floor(Date.now() / 1000)}.${String(this.counter).padStart(6, '0')}`;
     this.posted.push({
       channel: input.channel,
       text: input.text,
@@ -257,13 +257,13 @@ function buttonLabels(blocks: unknown[] | undefined): string[] {
     };
   }
 
-  async function seedOutreachProposal(): Promise<string> {
+  async function seedOutreachProposal(contactId = contactAId): Promise<string> {
     const [proposal] = await db
       .insert(schema.outreachProposals)
       .values({
         orgId,
         campaignId,
-        contactId: contactAId,
+        contactId,
         kind: 'initial',
         draftSubject: 'Hello from Munin',
         draftBody: 'We just launched — want a demo?',
@@ -469,7 +469,7 @@ function buttonLabels(blocks: unknown[] | undefined): string[] {
     expect(api.updated).toHaveLength(1);
   });
 
-  it('posts outreach drafts without opening a conversation thread, then resolves on sent', async () => {
+  it('posts outreach drafts as thread replies under a campaign parent, then resolves on sent', async () => {
     const api = new FakeSlackApi();
     const worker = new SlackBridgeWorker(db, api);
     const proposalId = await seedOutreachProposal();
@@ -483,12 +483,23 @@ function buttonLabels(blocks: unknown[] | undefined): string[] {
     expect(delivery!.conversationId).toBeNull();
 
     await worker.tick();
-    expect(api.posted).toHaveLength(1);
-    const posted = api.posted[0]!;
-    expect(posted.threadTs).toBeUndefined();
-    expect(posted.text).toContain('Outreach draft awaiting approval');
-    expect(posted.text).toContain('Hello from Munin');
-    expect(buttonLabels(posted.blocks)).toEqual(['Approve & send', 'Dismiss']);
+    expect(api.posted).toHaveLength(2);
+    const parent = api.posted[0]!;
+    expect(parent.threadTs).toBeUndefined();
+    expect(parent.text).toContain('Outreach drafts awaiting approval — Spring launch');
+    const reply = api.posted[1]!;
+    expect(reply.threadTs).toBe(parent.ts);
+    expect(reply.text).toContain('Outreach draft awaiting approval');
+    expect(reply.text).toContain('Hello from Munin');
+    expect(buttonLabels(reply.blocks)).toEqual(['Approve & send', 'View full draft', 'Dismiss']);
+
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.ts).toBe(parent.ts);
+    expect(api.updated[0]!.text).toContain('1 draft pending');
+
+    const parentLink = await notificationLink('outreach_campaign', campaignId);
+    expect(parentLink?.slackTs).toBe(parent.ts);
+    expect(parentLink?.resolvedAt).toBeNull();
 
     await db
       .update(schema.outreachProposals)
@@ -502,9 +513,101 @@ function buttonLabels(blocks: unknown[] | undefined): string[] {
     await emit('outreach.proposal.sent', { proposalId });
     await worker.tick();
 
-    expect(api.updated).toHaveLength(1);
-    expect(api.updated[0]!.text).toContain('*Approved — email sent* by *Dana Decider*');
-    expect(actionIds(api.updated[0]!.blocks)).toEqual([]);
+    expect(api.updated).toHaveLength(3);
+    expect(api.updated[1]!.ts).toBe(reply.ts);
+    expect(api.updated[1]!.text).toContain('*Approved — email sent* by *Dana Decider*');
+    expect(actionIds(api.updated[1]!.blocks)).toEqual([]);
+    expect(api.updated[2]!.ts).toBe(parent.ts);
+    expect(api.updated[2]!.text).toContain('All outreach drafts handled — Spring launch');
+
+    const resolvedParent = await notificationLink('outreach_campaign', campaignId);
+    expect(resolvedParent?.resolvedAt).not.toBeNull();
+  });
+
+  it('reuses the campaign parent for further drafts and bumps the pending count', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const firstId = await seedOutreachProposal();
+    const secondId = await seedOutreachProposal(contactBId);
+
+    await emit('outreach.proposal.created', { proposalId: firstId });
+    await emit('outreach.proposal.created', { proposalId: secondId });
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(3);
+    const parent = api.posted[0]!;
+    expect(api.posted[1]!.threadTs).toBe(parent.ts);
+    expect(api.posted[2]!.threadTs).toBe(parent.ts);
+    const lastParentUpdate = api.updated.filter((u) => u.ts === parent.ts).at(-1);
+    expect(lastParentUpdate!.text).toContain('2 drafts pending');
+  });
+
+  it('rotates to a fresh parent on a new day, marking the old one moved', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const firstId = await seedOutreachProposal();
+
+    await emit('outreach.proposal.created', { proposalId: firstId });
+    await worker.tick();
+
+    const staleTs = `${Math.floor(Date.now() / 1000) - 25 * 3600}.000001`;
+    await db
+      .update(schema.slackNotificationLinks)
+      .set({ slackTs: staleTs })
+      .where(
+        and(
+          eq(schema.slackNotificationLinks.subjectType, 'outreach_campaign'),
+          eq(schema.slackNotificationLinks.subjectId, campaignId),
+        ),
+      );
+
+    const secondId = await seedOutreachProposal(contactBId);
+    await emit('outreach.proposal.created', { proposalId: secondId });
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(4);
+    const newParent = api.posted[2]!;
+    expect(newParent.threadTs).toBeUndefined();
+    expect(newParent.text).toContain('Outreach drafts awaiting approval — Spring launch');
+    expect(api.posted[3]!.threadTs).toBe(newParent.ts);
+
+    const movedNotice = api.updated.find((u) => u.ts === staleTs);
+    expect(movedNotice!.text).toContain('continued in a newer thread');
+
+    const parentLink = await notificationLink('outreach_campaign', campaignId);
+    expect(parentLink?.slackTs).toBe(newParent.ts);
+    expect(parentLink?.resolvedAt).toBeNull();
+  });
+
+  it('rotates to a fresh parent when a new wave starts after the previous one resolved', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const firstId = await seedOutreachProposal();
+
+    await emit('outreach.proposal.created', { proposalId: firstId });
+    await worker.tick();
+    await db
+      .update(schema.outreachProposals)
+      .set({ status: 'dismissed' })
+      .where(eq(schema.outreachProposals.id, firstId));
+    await emit('outreach.proposal.dismissed', { proposalId: firstId });
+    await worker.tick();
+
+    const firstParentTs = api.posted[0]!.ts;
+    const secondId = await seedOutreachProposal();
+    await emit('outreach.proposal.created', { proposalId: secondId });
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(4);
+    const newParent = api.posted[2]!;
+    expect(newParent.threadTs).toBeUndefined();
+    expect(newParent.ts).not.toBe(firstParentTs);
+    expect(api.posted[3]!.threadTs).toBe(newParent.ts);
+    expect(api.updated.some((u) => u.text.includes('continued in a newer thread'))).toBe(false);
+
+    const parentLink = await notificationLink('outreach_campaign', campaignId);
+    expect(parentLink?.slackTs).toBe(newParent.ts);
+    expect(parentLink?.resolvedAt).toBeNull();
   });
 
   it('skips outreach draft edits that never surfaced', async () => {

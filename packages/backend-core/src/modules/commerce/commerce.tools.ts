@@ -16,6 +16,18 @@ const LookupOrderInput = z.object({
   orderNumber: z.string().min(1).max(64).optional(),
 });
 
+const SearchProductsInput = z.object({
+  query: z.string().trim().min(1).max(200),
+  connectionId: z.string().min(1).optional(),
+  limit: z.number().int().min(1).max(25).default(10),
+});
+
+const GetProductInput = z.object({
+  connectionId: z.string().min(1).optional(),
+  productRef: z.string().min(1).max(64).optional(),
+  sku: z.string().min(1).max(64).optional(),
+});
+
 @Injectable()
 export class CommerceAdminTools {
   constructor(@Inject(CommerceService) private readonly commerce: CommerceService) {}
@@ -48,5 +60,35 @@ export class CommerceAdminTools {
   })
   lookupOrder(args: z.infer<typeof LookupOrderInput>) {
     return this.commerce.lookupOrder(args);
+  }
+
+  @McpTool({
+    name: 'commerce_search_products',
+    title: 'Commerce: Search the product catalog',
+    description:
+      'Search the connected store’s live product catalog by name or SKU. Returns published products with price range, currency, image, and storefront link. Only published/enabled products are visible. `connectionId` is only needed when multiple commerce connections are active.',
+    audiences: ['admin', 'self_service'],
+    scopes: ['commerce:read'],
+    input: SearchProductsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  searchProducts(args: z.infer<typeof SearchProductsInput>) {
+    return this.commerce.searchProducts(args);
+  }
+
+  @McpTool({
+    name: 'commerce_get_product',
+    title: 'Commerce: One product with variants and stock',
+    description:
+      'Fetch one published product from the connected store, including description and per-variant price and availability (`availableForSale`; null when the store doesn’t expose stock). Identify it by `productRef` (from a catalog search) or `sku`. Returns not-found for unpublished products.',
+    audiences: ['admin', 'self_service'],
+    scopes: ['commerce:read'],
+    input: GetProductInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getProduct(args: z.infer<typeof GetProductInput>) {
+    return this.commerce.getProduct(args);
   }
 }

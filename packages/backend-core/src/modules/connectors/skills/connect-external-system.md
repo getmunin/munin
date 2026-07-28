@@ -6,7 +6,7 @@ audiences: [admin]
 
 # Connect an external system
 
-Connectors give agents read access to the org's third-party systems, grouped by domain: **commerce** (orders — Shopify, Magento 2) and **bookings** (bookings — Gastroplanner). Admin agents use the lookup tools while handling a support conversation; customers' own agents get the self-service tools (`commerce_get_my_orders`, `bookings_get_my_bookings`), scoped server-side to their own records.
+Connectors give agents read access to the org's third-party systems, grouped by domain: **commerce** (orders + product catalog — Shopify, Magento 2) and **bookings** (bookings — Gastroplanner). Admin agents use the lookup tools while handling a support conversation; customers' own agents get the self-service tools (`commerce_get_my_orders`, `bookings_get_my_bookings`), scoped server-side to their own records.
 
 `connectors_list_vendors` returns the supported systems and the exact config fields each one needs.
 
@@ -24,7 +24,7 @@ Secrets are encrypted at rest and never returned by any tool. Munin only ever ne
 Create a custom app token in the Shopify admin:
 
 1. Shopify admin → **Settings → Apps and sales channels → Develop apps → Create an app**.
-2. Under **Configuration → Admin API integration**, grant exactly two scopes: `read_orders` and `read_customers`.
+2. Under **Configuration → Admin API integration**, grant exactly three scopes: `read_orders`, `read_customers`, and `read_products`.
 3. Install the app and copy the **Admin API access token** (`shpat_…`). Shopify shows it once.
 
 ```json
@@ -40,14 +40,14 @@ Create a custom app token in the Shopify admin:
 
 `shopDomain` is the permanent `*.myshopify.com` domain, not your custom storefront domain. `apiVersion` is optional (defaults to a current stable version).
 
-Note: apps with `read_orders` see the last 60 days of orders by default; request the `read_all_orders` scope in the Shopify app config if customers ask about older orders.
+Note: apps with `read_orders` see the last 60 days of orders by default; request the `read_all_orders` scope in the Shopify app config if customers ask about older orders. A connection created before product lookups existed needs `read_products` added in the Shopify app config — no change in Munin, the stored token picks up the new scope.
 
 ## Magento 2 / Adobe Commerce (commerce)
 
 Create an integration token:
 
 1. Magento admin → **System → Extensions → Integrations → Add New Integration**.
-2. Under **API**, grant resource access to **Sales** (read) and **Customers** (read) only.
+2. Under **API**, grant resource access to **Sales** (read), **Customers** (read), and **Catalog** (read) only. Include **CatalogInventory** if you want product lookups to report stock availability — without it, availability comes back as unknown rather than failing.
 3. Save, **Activate**, and copy the **Access Token**.
 
 ```json

@@ -10,6 +10,8 @@ import type {
   CommerceAdapter,
   CommerceOrderDetail,
   CommerceOrderSummary,
+  CommerceProductDetail,
+  CommerceProductSummary,
 } from './commerce-adapter.ts';
 import { ConnectorVendorError, type ConnectorFetch, REQUEST_TIMEOUT_MS } from '../connectors/http.ts';
 
@@ -79,6 +81,40 @@ const ORDER_DETAIL_FIELDS = `
   fulfillments { displayStatus trackingInfo { company number url } }
 `;
 
+interface ShopifyProductNode {
+  id: string;
+  title: string;
+  status: string;
+  onlineStoreUrl: string | null;
+  featuredMedia: { preview: { image: { url: string } | null } | null } | null;
+  priceRangeV2: {
+    minVariantPrice: ShopifyMoney;
+    maxVariantPrice: ShopifyMoney;
+  };
+  description?: string;
+  variants?: {
+    nodes: Array<{ title: string; sku: string | null; price: string; availableForSale: boolean }>;
+  };
+}
+
+const PRODUCT_SUMMARY_FIELDS = `
+  id
+  title
+  status
+  onlineStoreUrl
+  featuredMedia { preview { image { url } } }
+  priceRangeV2 {
+    minVariantPrice { amount currencyCode }
+    maxVariantPrice { amount currencyCode }
+  }
+`;
+
+const PRODUCT_DETAIL_FIELDS = `
+  ${PRODUCT_SUMMARY_FIELDS}
+  description
+  variants(first: 100) { nodes { title sku price availableForSale } }
+`;
+
 export class ShopifyAdapter implements CommerceAdapter {
   readonly vendor = 'shopify';
   readonly domain = 'commerce' as const;
@@ -93,7 +129,7 @@ export class ShopifyAdapter implements CommerceAdapter {
     },
     {
       key: 'accessToken',
-      label: 'Admin API access token (shpat_…) with read_orders + read_customers',
+      label: 'Admin API access token (shpat_…) with read_orders + read_customers + read_products',
       required: true,
       secret: true,
     },
@@ -171,6 +207,91 @@ export class ShopifyAdapter implements CommerceAdapter {
         : null;
     if (!node || !this.ownedBy(node, args.email)) return null;
     return this.toDetail(node);
+  }
+
+  async searchProducts(
+    ctx: ConnectorConnectionContext,
+    args: { query: string; limit: number },
+  ): Promise<CommerceProductSummary[]> {
+    const tokens = args.query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+    if (!tokens.length) return [];
+    const q = ['status:active', ...tokens.map((t) => searchTerm(t))].join(' ');
+    const data = await this.graphql<{ products: { nodes: ShopifyProductNode[] } }>(
+      ctx,
+      `query ($q: String!, $n: Int!) {
+        products(first: $n, query: $q) { nodes { ${PRODUCT_SUMMARY_FIELDS} } }
+      }`,
+      { q, n: args.limit },
+    );
+    return data.products.nodes
+      .filter((node) => node.status === 'ACTIVE')
+      .map((node) => this.toProductSummary(node));
+  }
+
+  async getProduct(
+    ctx: ConnectorConnectionContext,
+    args: { productRef?: string; sku?: string },
+  ): Promise<CommerceProductDetail | null> {
+    const node = args.productRef
+      ? await this.productById(ctx, args.productRef)
+      : args.sku
+        ? await this.productBySku(ctx, args.sku)
+        : null;
+    if (!node || node.status !== 'ACTIVE') return null;
+    return this.toProductDetail(node);
+  }
+
+  private async productById(
+    ctx: ConnectorConnectionContext,
+    productRef: string,
+  ): Promise<ShopifyProductNode | null> {
+    if (!/^\d+$/.test(productRef)) return null;
+    const data = await this.graphql<{ product: ShopifyProductNode | null }>(
+      ctx,
+      `query ($id: ID!) { product(id: $id) { ${PRODUCT_DETAIL_FIELDS} } }`,
+      { id: `gid://shopify/Product/${productRef}` },
+    );
+    return data.product;
+  }
+
+  private async productBySku(
+    ctx: ConnectorConnectionContext,
+    sku: string,
+  ): Promise<ShopifyProductNode | null> {
+    const normalized = sku.trim();
+    if (!normalized) return null;
+    const data = await this.graphql<{ products: { nodes: ShopifyProductNode[] } }>(
+      ctx,
+      `query ($q: String!) { products(first: 1, query: $q) { nodes { ${PRODUCT_DETAIL_FIELDS} } } }`,
+      { q: `status:active sku:${searchTerm(normalized)}` },
+    );
+    return data.products.nodes[0] ?? null;
+  }
+
+  private toProductSummary(node: ShopifyProductNode): CommerceProductSummary {
+    const range = node.priceRangeV2;
+    return {
+      productRef: numericGid(node.id) ?? node.id,
+      title: node.title,
+      url: node.onlineStoreUrl,
+      imageUrl: node.featuredMedia?.preview?.image?.url ?? null,
+      currency: range.minVariantPrice.currencyCode,
+      priceMin: range.minVariantPrice.amount,
+      priceMax: range.maxVariantPrice.amount,
+    };
+  }
+
+  private toProductDetail(node: ShopifyProductNode): CommerceProductDetail {
+    return {
+      ...this.toProductSummary(node),
+      description: node.description || null,
+      variants: (node.variants?.nodes ?? []).map((variant) => ({
+        title: variant.title,
+        sku: variant.sku ?? null,
+        price: variant.price,
+        availableForSale: variant.availableForSale,
+      })),
+    };
   }
 
   private async orderById(

@@ -9,6 +9,8 @@ import type {
   CommerceAdapter,
   CommerceOrderDetail,
   CommerceOrderSummary,
+  CommerceProductDetail,
+  CommerceProductSummary,
 } from './commerce-adapter.ts';
 
 @Injectable()
@@ -53,6 +55,44 @@ export class CommerceService {
       throw new NotFoundException('commerce_not_found: no such order for that customer');
     }
     return { connection: connectionSummary(scope.connection), order };
+  }
+
+  async searchProducts(args: {
+    query: string;
+    connectionId?: string;
+    limit: number;
+  }): Promise<{ connection: ConnectionSummary; products: CommerceProductSummary[] }> {
+    const scope = await this.connectors.resolveScope('commerce', args.connectionId);
+    const adapter = scope.adapter as CommerceAdapter;
+    const products = await this.connectors.vendorCall(() =>
+      adapter.searchProducts(this.connectors.connectionContext(scope.connection), {
+        query: args.query,
+        limit: args.limit,
+      }),
+    );
+    return { connection: connectionSummary(scope.connection), products };
+  }
+
+  async getProduct(args: {
+    connectionId?: string;
+    productRef?: string;
+    sku?: string;
+  }): Promise<{ connection: ConnectionSummary; product: CommerceProductDetail }> {
+    if (!args.productRef && !args.sku) {
+      throw new BadRequestException('commerce_invalid: provide productRef or sku');
+    }
+    const scope = await this.connectors.resolveScope('commerce', args.connectionId);
+    const adapter = scope.adapter as CommerceAdapter;
+    const product = await this.connectors.vendorCall(() =>
+      adapter.getProduct(this.connectors.connectionContext(scope.connection), {
+        productRef: args.productRef,
+        sku: args.sku,
+      }),
+    );
+    if (!product) {
+      throw new NotFoundException('commerce_not_found: no such product in the connected store');
+    }
+    return { connection: connectionSummary(scope.connection), product };
   }
 
   async getMyOrders(args: {

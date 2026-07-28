@@ -59,6 +59,21 @@ const orderNode = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const productNode = (over: Record<string, unknown> = {}) => ({
+  id: 'gid://shopify/Product/501',
+  title: 'Blue Mug',
+  status: 'ACTIVE',
+  onlineStoreUrl: 'https://acme.example/products/blue-mug',
+  featuredMedia: { preview: { image: { url: 'https://cdn.example/mug.jpg' } } },
+  priceRangeV2: {
+    minVariantPrice: { amount: '19.90', currencyCode: 'EUR' },
+    maxVariantPrice: { amount: '24.90', currencyCode: 'EUR' },
+  },
+  description: 'A sturdy blue mug.',
+  variants: { nodes: [{ title: 'Default', sku: 'MUG-1', price: '19.90', availableForSale: true }] },
+  ...over,
+});
+
 describe('ShopifyAdapter', () => {
   it('lists orders scoped to the customer id resolved from an exact email match', async () => {
     const { fetch, requests } = stubGraphql((req) => {
@@ -185,6 +200,73 @@ describe('ShopifyAdapter', () => {
 
     expect(result).toBeNull();
     expect(requests).toHaveLength(0);
+  });
+
+  it('searches published products with quoted tokens pinned to status:active', async () => {
+    const { fetch, requests } = stubGraphql(() => ({
+      data: { products: { nodes: [productNode(), productNode({ status: 'DRAFT' })] } },
+    }));
+    const adapter = new ShopifyAdapter(fetch);
+
+    const products = await adapter.searchProducts(ctx(), {
+      query: 'blue mug OR status:draft',
+      limit: 10,
+    });
+
+    expect(requests[0]!.body.variables.q).toBe('status:active "blue" "mug" "OR" "status:draft"');
+    expect(products).toHaveLength(1);
+    expect(products[0]).toEqual({
+      productRef: '501',
+      title: 'Blue Mug',
+      url: 'https://acme.example/products/blue-mug',
+      imageUrl: 'https://cdn.example/mug.jpg',
+      currency: 'EUR',
+      priceMin: '19.90',
+      priceMax: '24.90',
+    });
+  });
+
+  it('fetches one product by ref with variants, refusing non-active products', async () => {
+    const { fetch, requests } = stubGraphql((req) => ({
+      data: {
+        product: productNode(
+          String(req.body.variables.id).endsWith('/502') ? { id: 'gid://shopify/Product/502', status: 'ARCHIVED' } : {},
+        ),
+      },
+    }));
+    const adapter = new ShopifyAdapter(fetch);
+
+    const active = await adapter.getProduct(ctx(), { productRef: '501' });
+    const archived = await adapter.getProduct(ctx(), { productRef: '502' });
+
+    expect(requests[0]!.body.variables.id).toBe('gid://shopify/Product/501');
+    expect(active?.description).toBe('A sturdy blue mug.');
+    expect(active?.variants).toEqual([
+      { title: 'Default', sku: 'MUG-1', price: '19.90', availableForSale: true },
+    ]);
+    expect(archived).toBeNull();
+  });
+
+  it('rejects a non-numeric productRef without calling the vendor', async () => {
+    const { fetch, requests } = stubGraphql(() => ({ data: {} }));
+    const adapter = new ShopifyAdapter(fetch);
+
+    const result = await adapter.getProduct(ctx(), { productRef: 'gid://shopify/Product/501' });
+
+    expect(result).toBeNull();
+    expect(requests).toHaveLength(0);
+  });
+
+  it('fetches one product by sku with an escaped search term', async () => {
+    const { fetch, requests } = stubGraphql(() => ({
+      data: { products: { nodes: [productNode()] } },
+    }));
+    const adapter = new ShopifyAdapter(fetch);
+
+    const product = await adapter.getProduct(ctx(), { sku: 'MUG-1' });
+
+    expect(requests[0]!.body.variables.q).toBe('status:active sku:"MUG-1"');
+    expect(product?.productRef).toBe('501');
   });
 
   it('maps 401 responses to a vendor error', async () => {

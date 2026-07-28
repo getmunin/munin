@@ -174,6 +174,53 @@ interface StubCall {
     );
   });
 
+  it('searches the connected store catalog as a self-service end-user', async () => {
+    await createShopifyConnection();
+    respond = () => ({
+      body: {
+        data: {
+          products: {
+            nodes: [
+              {
+                id: 'gid://shopify/Product/501',
+                title: 'Blue Mug',
+                status: 'ACTIVE',
+                onlineStoreUrl: null,
+                featuredMedia: null,
+                priceRangeV2: {
+                  minVariantPrice: { amount: '19.90', currencyCode: 'EUR' },
+                  maxVariantPrice: { amount: '19.90', currencyCode: 'EUR' },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    const result = await run(
+      () => commerce.searchProducts({ query: 'mug', limit: 5 }),
+      endUserActor,
+    );
+
+    expect(result.connection.vendor).toBe('shopify');
+    expect(result.products[0]).toMatchObject({ productRef: '501', title: 'Blue Mug' });
+  });
+
+  it('rejects product detail lookups without a ref or sku', async () => {
+    await createShopifyConnection();
+    await expect(run(() => commerce.getProduct({}))).rejects.toThrow(BadRequestException);
+  });
+
+  it('reports not-found for a product the store does not have', async () => {
+    await createShopifyConnection();
+    respond = () => ({ body: { data: { products: { nodes: [] } } } });
+
+    await expect(run(() => commerce.getProduct({ sku: 'GONE' }))).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
   it("reports not-found for an order that isn't the customer's", async () => {
     await createShopifyConnection();
     respond = (call) => {

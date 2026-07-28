@@ -43,6 +43,22 @@ const order = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const product = (over: Record<string, unknown> = {}) => ({
+  id: 7,
+  sku: 'MUG-1',
+  name: 'Mug',
+  price: 19.9,
+  status: 1,
+  type_id: 'simple',
+  custom_attributes: [
+    { attribute_code: 'image', value: '/m/u/mug.jpg' },
+    { attribute_code: 'description', value: '<p>A mug.</p>' },
+  ],
+  ...over,
+});
+
+const storeConfigs = [{ code: 'default', base_currency_code: 'EUR' }];
+
 describe('MagentoAdapter', () => {
   it('lists orders filtered by lowercased customer email, newest first', async () => {
     const { fetch, urls } = stubRest(() => ({
@@ -168,6 +184,112 @@ describe('MagentoAdapter', () => {
       '000000042',
     );
     expect(detail?.orderNumber).toBe('000000042');
+  });
+
+  it('searches enabled, visible products by name or sku with the store currency', async () => {
+    const { fetch, urls } = stubRest((url) =>
+      url.includes('/rest/V1/store/storeConfigs')
+        ? { body: storeConfigs }
+        : { body: { items: [product()], total_count: 1 } },
+    );
+    const adapter = new MagentoAdapter(fetch);
+
+    const products = await adapter.searchProducts(ctx(), { query: 'mu_g', limit: 10 });
+
+    const url = new URL(urls[1]!);
+    expect(url.pathname).toBe('/rest/V1/products');
+    expect(url.searchParams.get('searchCriteria[filter_groups][0][filters][0][field]')).toBe('name');
+    expect(url.searchParams.get('searchCriteria[filter_groups][0][filters][0][value]')).toBe('%mu\\_g%');
+    expect(url.searchParams.get('searchCriteria[filter_groups][0][filters][1][field]')).toBe('sku');
+    expect(url.searchParams.get('searchCriteria[filter_groups][1][filters][0][field]')).toBe('status');
+    expect(url.searchParams.get('searchCriteria[filter_groups][2][filters][0][field]')).toBe('visibility');
+    expect(url.searchParams.get('searchCriteria[filter_groups][2][filters][0][condition_type]')).toBe('neq');
+    expect(products).toEqual([
+      {
+        productRef: 'MUG-1',
+        title: 'Mug',
+        url: null,
+        imageUrl: 'https://store.example.com/media/catalog/product/m/u/mug.jpg',
+        currency: 'EUR',
+        priceMin: '19.90',
+        priceMax: '19.90',
+      },
+    ]);
+  });
+
+  it('fetches a simple product with a single variant and live stock', async () => {
+    const { fetch, urls } = stubRest((url) =>
+      url.includes('/storeConfigs')
+        ? { body: storeConfigs }
+        : url.includes('/stockItems/')
+          ? { body: { is_in_stock: true } }
+          : { body: product() },
+    );
+    const adapter = new MagentoAdapter(fetch);
+
+    const detail = await adapter.getProduct(ctx(), { sku: 'MUG-1' });
+
+    expect(urls[0]).toContain('/rest/V1/products/MUG-1');
+    expect(detail?.description).toBe('<p>A mug.</p>');
+    expect(detail?.variants).toEqual([
+      { title: 'Mug', sku: 'MUG-1', price: '19.90', availableForSale: true },
+    ]);
+  });
+
+  it('expands configurable products into children with a price range from variants', async () => {
+    const { fetch } = stubRest((url) =>
+      url.includes('/storeConfigs')
+        ? { body: storeConfigs }
+        : url.includes('/configurable-products/')
+          ? {
+              body: [
+                product({ sku: 'MUG-1-S', name: 'Mug S', price: 17.5 }),
+                product({ sku: 'MUG-1-L', name: 'Mug L', price: 22 }),
+              ],
+            }
+          : url.includes('/stockItems/MUG-1-S')
+            ? { body: { is_in_stock: false } }
+            : url.includes('/stockItems/')
+              ? { body: { is_in_stock: true } }
+              : { body: product({ sku: 'MUG-1', type_id: 'configurable', price: null }) },
+    );
+    const adapter = new MagentoAdapter(fetch);
+
+    const detail = await adapter.getProduct(ctx(), { productRef: 'MUG-1' });
+
+    expect(detail?.priceMin).toBe('17.50');
+    expect(detail?.priceMax).toBe('22.00');
+    expect(detail?.variants).toEqual([
+      { title: 'Mug S', sku: 'MUG-1-S', price: '17.50', availableForSale: false },
+      { title: 'Mug L', sku: 'MUG-1-L', price: '22.00', availableForSale: true },
+    ]);
+  });
+
+  it('treats disabled products and unknown skus as not found', async () => {
+    const { fetch } = stubRest((url) =>
+      url.includes('/rest/V1/products/GONE')
+        ? { status: 404, body: { message: 'not found' } }
+        : { body: product({ status: 2 }) },
+    );
+    const adapter = new MagentoAdapter(fetch);
+
+    expect(await adapter.getProduct(ctx(), { sku: 'MUG-1' })).toBeNull();
+    expect(await adapter.getProduct(ctx(), { sku: 'GONE' })).toBeNull();
+  });
+
+  it('reports null availability when the stock endpoint is not accessible', async () => {
+    const { fetch } = stubRest((url) =>
+      url.includes('/storeConfigs')
+        ? { body: storeConfigs }
+        : url.includes('/stockItems/')
+          ? { status: 401, body: {} }
+          : { body: product() },
+    );
+    const adapter = new MagentoAdapter(fetch);
+
+    const detail = await adapter.getProduct(ctx(), { sku: 'MUG-1' });
+
+    expect(detail?.variants[0]!.availableForSale).toBeNull();
   });
 
   it('maps 401 responses to a vendor error', async () => {

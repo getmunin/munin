@@ -3,8 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -137,7 +136,7 @@ const skipReason = TEST_URL
               { name: 'Won', winLoss: 'won' },
             ],
           },
-        })) as never,
+        })),
       ) as { id: string; stages: Array<{ id: string; name: string }> };
 
       await c.callTool({
@@ -149,14 +148,14 @@ const skipReason = TEST_URL
         (await c.callTool({
           name: 'crm_create_company',
           arguments: { name: 'Acme Inc', domain: 'acme.example' },
-        })) as never,
+        })),
       ) as { id: string };
 
       const contact = firstJson(
         (await c.callTool({
           name: 'crm_create_contact',
           arguments: { name: 'Ada Lovelace', email: 'ada@acme.example', companyId: company.id },
-        })) as never,
+        })),
       ) as { id: string };
 
       const deal = firstJson(
@@ -170,7 +169,7 @@ const skipReason = TEST_URL
             amountCents: 500000,
             currency: 'USD',
           },
-        })) as never,
+        })),
       ) as { id: string };
 
       await c.callTool({
@@ -179,7 +178,7 @@ const skipReason = TEST_URL
       });
 
       const exported = firstJson(
-        (await c.callTool({ name: 'crm_export', arguments: {} })) as never,
+        (await c.callTool({ name: 'crm_export', arguments: {} })),
       ) as CrmExportData;
       return { pipeline, company, contact, deal, exported };
     });
@@ -200,15 +199,15 @@ const skipReason = TEST_URL
 
     const firstImport = await withClient(adminKeyB, async (c) => {
       const res = await c.callTool({ name: 'crm_import', arguments: { records: seeded.exported } });
-      const result = firstJson(res as never) as ImportResult;
+      const result = firstJson(res) as ImportResult;
       const companies = firstJson(
-        (await c.callTool({ name: 'crm_list_companies', arguments: {} })) as never,
+        (await c.callTool({ name: 'crm_list_companies', arguments: {} })),
       ) as Array<{ id: string; domain: string | null }>;
       const contacts = firstJson(
-        (await c.callTool({ name: 'crm_list_contacts', arguments: {} })) as never,
+        (await c.callTool({ name: 'crm_list_contacts', arguments: {} })),
       ) as Array<{ id: string; companyId: string | null }>;
       const deals = firstJson(
-        (await c.callTool({ name: 'crm_list_deals', arguments: {} })) as never,
+        (await c.callTool({ name: 'crm_list_deals', arguments: {} })),
       ) as Array<{ id: string; pipelineId: string }>;
       return { result, companies, contacts, deals };
     });
@@ -231,15 +230,15 @@ const skipReason = TEST_URL
 
     const secondImport = await withClient(adminKeyB, async (c) => {
       const res = await c.callTool({ name: 'crm_import', arguments: { records: seeded.exported } });
-      const result = firstJson(res as never) as ImportResult;
+      const result = firstJson(res) as ImportResult;
       const companies = firstJson(
-        (await c.callTool({ name: 'crm_list_companies', arguments: {} })) as never,
+        (await c.callTool({ name: 'crm_list_companies', arguments: {} })),
       ) as Array<unknown>;
       const contacts = firstJson(
-        (await c.callTool({ name: 'crm_list_contacts', arguments: {} })) as never,
+        (await c.callTool({ name: 'crm_list_contacts', arguments: {} })),
       ) as Array<unknown>;
       const deals = firstJson(
-        (await c.callTool({ name: 'crm_list_deals', arguments: {} })) as never,
+        (await c.callTool({ name: 'crm_list_deals', arguments: {} })),
       ) as Array<unknown>;
       return { result, companyCount: companies.length, contactCount: contacts.length, dealCount: deals.length };
     });

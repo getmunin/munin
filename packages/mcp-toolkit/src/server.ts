@@ -1,10 +1,4 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import {
-  CallToolRequestSchema,
-  ListResourcesRequestSchema,
-  ListToolsRequestSchema,
-  ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { Server, type ServerOptions } from '@modelcontextprotocol/server';
 import type { AuditLogger, ActorIdentity, Audience } from '@getmunin/core';
 import type { McpToolRegistry } from './registry.ts';
 import type { SkillRegistry } from './skill-registry.ts';
@@ -31,6 +25,13 @@ export interface CreateMcpServerOptions {
   captureException?: CaptureExceptionFn;
 }
 
+const CACHE_HINTS: ServerOptions['cacheHints'] = {
+  'tools/list': { ttlMs: 60_000, cacheScope: 'private' },
+  'resources/list': { ttlMs: 60_000, cacheScope: 'private' },
+  'resources/read': { ttlMs: 300_000, cacheScope: 'private' },
+  'server/discover': { ttlMs: 300_000, cacheScope: 'private' },
+};
+
 export function createMcpServer(opts: CreateMcpServerOptions): Server {
   const info = opts.serverInfo ?? { name: 'munin', version: process.env.MUNIN_VERSION ?? '0.4.0' };
   const dispatch: DispatchContext = {
@@ -47,19 +48,19 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
   const server = new Server(info, {
     capabilities: { tools: {}, ...(opts.skills ? { resources: {} } : {}) },
     instructions: opts.instructions,
+    cacheHints: CACHE_HINTS,
   });
 
-  server.setRequestHandler(ListToolsRequestSchema, () => ({
+  server.setRequestHandler('tools/list', () => ({
     tools: listTools(dispatch),
   }));
 
-  server.setRequestHandler(CallToolRequestSchema, async (req) => {
-    const out = await callTool(dispatch, req.params.name, req.params.arguments);
-    return out as unknown as Awaited<ReturnType<Parameters<typeof server.setRequestHandler>[1]>>;
-  });
+  server.setRequestHandler('tools/call', (req) =>
+    callTool(dispatch, req.params.name, req.params.arguments),
+  );
 
   if (opts.skills) {
-    server.setRequestHandler(ListResourcesRequestSchema, () => ({
+    server.setRequestHandler('resources/list', () => ({
       resources: [
         ...listResources(dispatch).map((r) => ({
           ...r,
@@ -68,7 +69,7 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
         ...listAppResources(dispatch),
       ],
     }));
-    server.setRequestHandler(ReadResourceRequestSchema, (req) => ({
+    server.setRequestHandler('resources/read', (req) => ({
       contents: [readResource(dispatch, req.params.uri)],
     }));
   }

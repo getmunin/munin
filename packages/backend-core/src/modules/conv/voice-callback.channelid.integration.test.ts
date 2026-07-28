@@ -3,8 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq } from 'drizzle-orm';
@@ -160,7 +159,7 @@ const skipReason = TEST_URL
         name: 'conv_call_contact',
         arguments: { conversationId },
       });
-      const text = firstText(res as never);
+      const text = firstText(res);
       expect(text, text).toMatch(/vapi_|fetch failed|placeCall|TypeError|invalid|pgp_sym_decrypt/i);
     });
   });
@@ -183,7 +182,7 @@ const skipReason = TEST_URL
         name: 'conv_call_contact',
         arguments: { conversationId, channelId: channelBId },
       });
-      const text = firstText(res as never);
+      const text = firstText(res);
       expect(text, text).toMatch(/vapi_|fetch failed|placeCall|TypeError|invalid|pgp_sym_decrypt/i);
     });
   });

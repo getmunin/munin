@@ -17,6 +17,7 @@ interface AuthorizationServerMetadata {
   code_challenge_methods_supported: readonly string[];
   scopes_supported: readonly string[];
   resource_indicators_supported: boolean;
+  authorization_response_iss_parameter_supported: boolean;
 }
 
 @PublicController('.well-known/oauth-authorization-server')
@@ -46,6 +47,7 @@ export class OAuthAsAliasController {
       code_challenge_methods_supported: ['S256'],
       scopes_supported: ['openid', 'profile', 'email', 'offline_access', ...SUPPORTED_SCOPES],
       resource_indicators_supported: true,
+      authorization_response_iss_parameter_supported: true,
     };
   }
 }

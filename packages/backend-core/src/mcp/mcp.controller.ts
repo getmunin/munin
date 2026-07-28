@@ -10,7 +10,8 @@ import {
   Inject,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createMcpHandler } from '@modelcontextprotocol/server';
+import { toNodeHandler } from '@modelcontextprotocol/node';
 import { AuditLogger, getCurrentContext } from '@getmunin/core';
 import { createMcpServer } from '@getmunin/mcp-toolkit';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
@@ -78,21 +79,16 @@ export class McpController {
       captureException: (error, context) => this.errorReporter.captureException(error, context),
     });
 
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true,
-    });
-
-    await server.connect(transport);
+    const handle = toNodeHandler(createMcpHandler(() => server));
 
     if (!deferUntilCommit) {
-      await transport.handleRequest(req, res, req.body as unknown);
+      await handle(req, res, req.body as unknown);
       return;
     }
 
     const captured = captureResponse(res);
     try {
-      await transport.handleRequest(req, res, req.body as unknown);
+      await handle(req, res, req.body as unknown);
     } finally {
       captured.restore();
     }

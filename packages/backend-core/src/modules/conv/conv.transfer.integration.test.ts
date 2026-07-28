@@ -3,8 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -180,13 +179,13 @@ const skipReason = TEST_URL
         name: 'conv_create_channel',
         arguments: { type: 'chat', vendor: 'widget', name: 'Website widget' },
       });
-      return firstJson(res as never) as { id: string };
+      return firstJson(res) as { id: string };
     });
 
     await seedConversationInOrgA(channel.id);
 
     const exported = await withClient(adminKeyA, async (c) => {
-      return firstJson((await c.callTool({ name: 'conv_export', arguments: {} })) as never) as ConvExportData;
+      return firstJson((await c.callTool({ name: 'conv_export', arguments: {} }))) as ConvExportData;
     });
 
     expect(exported.channels.length).toBe(1);
@@ -198,12 +197,12 @@ const skipReason = TEST_URL
 
     const firstImport = await withClient(adminKeyB, async (c) => {
       const res = await c.callTool({ name: 'conv_import', arguments: { records: exported } });
-      const result = firstJson(res as never) as ImportResult;
+      const result = firstJson(res) as ImportResult;
       const channels = firstJson(
-        (await c.callTool({ name: 'conv_list_channels', arguments: {} })) as never,
+        (await c.callTool({ name: 'conv_list_channels', arguments: {} })),
       ) as Array<{ id: string; name: string; config: Record<string, unknown> }>;
       const conversations = firstJson(
-        (await c.callTool({ name: 'conv_list_conversations', arguments: {} })) as never,
+        (await c.callTool({ name: 'conv_list_conversations', arguments: {} })),
       ) as Array<{ id: string }>;
       return { result, channels, conversations };
     });
@@ -226,7 +225,7 @@ const skipReason = TEST_URL
     const targetConvId = firstImport.result.idMap[srcConvId]!;
     const detail = await withClient(adminKeyB, async (c) => {
       return firstJson(
-        (await c.callTool({ name: 'conv_get_conversation', arguments: { id: targetConvId } })) as never,
+        (await c.callTool({ name: 'conv_get_conversation', arguments: { id: targetConvId } })),
       ) as { messages: Array<{ id: string; inReplyToId: string | null }> };
     });
     expect(detail.messages.length).toBe(2);
@@ -238,12 +237,12 @@ const skipReason = TEST_URL
         name: 'conv_import',
         arguments: { records: exported, idMap: firstImport.result.idMap },
       });
-      const result = firstJson(res as never) as ImportResult;
+      const result = firstJson(res) as ImportResult;
       const channels = firstJson(
-        (await c.callTool({ name: 'conv_list_channels', arguments: {} })) as never,
+        (await c.callTool({ name: 'conv_list_channels', arguments: {} })),
       ) as Array<unknown>;
       const conversations = firstJson(
-        (await c.callTool({ name: 'conv_list_conversations', arguments: {} })) as never,
+        (await c.callTool({ name: 'conv_list_conversations', arguments: {} })),
       ) as Array<unknown>;
       return { result, channelCount: channels.length, convCount: conversations.length };
     });

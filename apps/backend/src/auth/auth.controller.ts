@@ -5,6 +5,7 @@ import { readMailerFromEnv } from '@getmunin/core';
 import {
   DB,
   PublicController,
+  authorizationServerUrl,
   handleAuthRequest,
   readGithubProviderFromEnv,
   readGoogleProviderFromEnv,
@@ -20,8 +21,6 @@ import {
   type MuninAuth,
 } from './auth.config.ts';
 
-const AUTH_URL_FALLBACK = 'http://localhost:3001';
-
 @PublicController('auth', { throttle: true })
 export class AuthController {
   private readonly auth: MuninAuth;
@@ -31,10 +30,7 @@ export class AuthController {
     const captcha = readTurnstileCaptchaFromEnv();
     this.auth = createMuninAuth({
       db,
-      baseUrl:
-        process.env.NEXT_PUBLIC_AUTH_URL ??
-        process.env.NEXT_PUBLIC_MCP_URL ??
-        AUTH_URL_FALLBACK,
+      baseUrl: authorizationServerUrl(),
       authSecret: requireAuthSecret(),
       trustedOrigins: readTrustedOriginsFromEnv(),
       mailer,

@@ -3,8 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -172,21 +171,21 @@ const skipReason = TEST_URL
           name: 'analytics_create_tracker',
           arguments: { name: 'Marketing site' },
         });
-        const tracker = firstJson(trackerRes as never) as {
+        const tracker = firstJson(trackerRes) as {
           id: string;
           identityVerificationSecret: string;
         };
         expect(tracker.identityVerificationSecret.length).toBeGreaterThan(0);
 
         const config = firstJson(
-          (await c.callTool({ name: 'analytics_export_config', arguments: {} })) as never,
+          (await c.callTool({ name: 'analytics_export_config', arguments: {} })),
         ) as ConfigExport;
 
         const firstPage = firstJson(
           (await c.callTool({
             name: 'analytics_export_events',
             arguments: { limit: 2 },
-          })) as never,
+          })),
         ) as EventsPage;
 
         const allViews: Array<{ id: string; subjectId: string }> = [];
@@ -200,7 +199,7 @@ const skipReason = TEST_URL
             (await c.callTool({
               name: 'analytics_export_events',
               arguments: { limit: 2, cursor: page.nextCursor },
-            })) as never,
+            })),
           ) as EventsPage;
         }
         return { config, firstPage, allViews, allSearches };
@@ -224,7 +223,7 @@ const skipReason = TEST_URL
             events: { viewEvents: seeded.allViews, searchEvents: seeded.allSearches },
           },
         });
-        return firstJson(res as never) as ImportResult;
+        return firstJson(res) as ImportResult;
       });
 
       expect(firstImport.created).toBe(1 + 4 + 1);
@@ -239,7 +238,7 @@ const skipReason = TEST_URL
           name: 'analytics_import',
           arguments: { config: seeded.config },
         });
-        return firstJson(res as never) as ImportResult;
+        return firstJson(res) as ImportResult;
       });
       expect(secondImport.created).toBe(0);
       expect(secondImport.skipped).toBe(1);

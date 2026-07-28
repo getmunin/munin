@@ -3,8 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -105,7 +104,7 @@ const skipReason = TEST_URL
           description: 'Internal engineering docs.',
         },
       });
-      const space = firstJson(spaceRes as never) as { id: string; slug: string };
+      const space = firstJson(spaceRes) as { id: string; slug: string };
       expect(space.id).toMatch(/^ksp_/);
       expect(space.slug).toBe('engineering');
 
@@ -120,7 +119,7 @@ const skipReason = TEST_URL
           tags: ['ops'],
         },
       });
-      const doc = firstJson(created as never) as { id: string; version: number };
+      const doc = firstJson(created) as { id: string; version: number };
       expect(doc.id).toMatch(/^kdoc_/);
       expect(doc.version).toBe(1);
 
@@ -128,7 +127,7 @@ const skipReason = TEST_URL
         name: 'kb_search',
         arguments: { query: 'blue-green deploy' },
       });
-      const hits = firstJson(searched as never) as Array<{ documentId: string }>;
+      const hits = firstJson(searched) as Array<{ documentId: string }>;
       expect(hits.length).toBeGreaterThanOrEqual(1);
       expect(hits.some((h) => h.documentId === doc.id)).toBe(true);
 
@@ -140,7 +139,7 @@ const skipReason = TEST_URL
           body: 'We use blue-green deploys with terraform and feature flags.',
         },
       });
-      const updatedDoc = firstJson(updated as never) as { version: number };
+      const updatedDoc = firstJson(updated) as { version: number };
       expect(updatedDoc.version).toBe(2);
 
       const staleUpdate = await c.callTool({
@@ -157,7 +156,7 @@ const skipReason = TEST_URL
         name: 'kb_list_versions',
         arguments: { documentId: doc.id },
       });
-      const versionList = firstJson(versions as never) as Array<{ version: number }>;
+      const versionList = firstJson(versions) as Array<{ version: number }>;
       expect(Array.isArray(versionList), `expected array, got ${JSON.stringify(versionList)}`).toBe(true);
       expect(versionList.length).toBeGreaterThanOrEqual(1);
       expect(versionList.map((v) => v.version)).toContain(1);
@@ -166,7 +165,7 @@ const skipReason = TEST_URL
         name: 'kb_restore_version',
         arguments: { documentId: doc.id, version: 1, ifVersion: 2 },
       });
-      const restoredDoc = firstJson(restored as never) as { version: number; body: string };
+      const restoredDoc = firstJson(restored) as { version: number; body: string };
       expect(restoredDoc.version).toBe(3);
       expect(restoredDoc.body).toBe('We use blue-green deploys with terraform.');
     });
@@ -178,7 +177,7 @@ const skipReason = TEST_URL
         name: 'kb_create_space',
         arguments: { name: 'Lookup space', slug: 'lookup', description: 'Lookup tests.' },
       });
-      const space = firstJson(spaceRes as never) as { id: string; slug: string };
+      const space = firstJson(spaceRes) as { id: string; slug: string };
 
       await c.callTool({
         name: 'kb_create_document',
@@ -196,7 +195,7 @@ const skipReason = TEST_URL
         name: 'kb_get_document_by_slug',
         arguments: { spaceSlug: space.slug, slug: 'findable' },
       });
-      const doc = firstJson(found as never) as { slug: string; title: string };
+      const doc = firstJson(found) as { slug: string; title: string };
       expect(doc.slug).toBe('findable');
       expect(doc.title).toBe('Findable by slug');
     });
@@ -208,7 +207,7 @@ const skipReason = TEST_URL
         name: 'kb_create_space',
         arguments: { name: 'Trash space', slug: 'trash', description: 'Delete tests.' },
       });
-      const space = firstJson(spaceRes as never) as { id: string };
+      const space = firstJson(spaceRes) as { id: string };
 
       const created = await c.callTool({
         name: 'kb_create_document',
@@ -221,13 +220,13 @@ const skipReason = TEST_URL
           tags: [],
         },
       });
-      const doc = firstJson(created as never) as { id: string; version: number };
+      const doc = firstJson(created) as { id: string; version: number };
 
       const beforeDelete = await c.callTool({
         name: 'kb_search',
         arguments: { query: 'unique-marker-xqz' },
       });
-      const beforeHits = firstJson(beforeDelete as never) as Array<{ documentId: string }>;
+      const beforeHits = firstJson(beforeDelete) as Array<{ documentId: string }>;
       expect(Array.isArray(beforeHits)).toBe(true);
 
       const deleted = await c.callTool({
@@ -240,7 +239,7 @@ const skipReason = TEST_URL
         name: 'kb_search',
         arguments: { query: 'unique-marker-xqz' },
       });
-      const afterHits = firstJson(afterDelete as never) as Array<{ documentId: string }>;
+      const afterHits = firstJson(afterDelete) as Array<{ documentId: string }>;
       expect(Array.isArray(afterHits)).toBe(true);
       expect(afterHits.some((h) => h.documentId === doc.id)).toBe(false);
     });

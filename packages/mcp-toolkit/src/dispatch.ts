@@ -20,6 +20,8 @@ export type CaptureExceptionFn = (
   context?: CaptureExceptionContext,
 ) => void;
 
+export type JsonSchemaObject = { type: 'object' } & Record<string, unknown>;
+
 export interface DispatchContext {
   registry: McpToolRegistry;
   audience: Audience;
@@ -34,7 +36,7 @@ export interface DispatchContext {
 export interface ToolListing {
   name: string;
   description: string;
-  inputSchema: Record<string, unknown>;
+  inputSchema: JsonSchemaObject;
   annotations: {
     title: string;
     readOnlyHint: boolean;
@@ -46,6 +48,7 @@ export interface ToolListing {
 export interface ToolCallResult {
   content: Array<{ type: 'text'; text: string }>;
   isError?: boolean;
+  [key: string]: unknown;
 }
 
 export interface ResourceListing {
@@ -83,7 +86,7 @@ export function listTools(ctx: DispatchContext): ToolListing[] {
     .map((t) => ({
       name: t.meta.name,
       description: t.meta.description,
-      inputSchema: t.inputJsonSchema as Record<string, unknown>,
+      inputSchema: t.inputJsonSchema,
       annotations: {
         title: t.meta.title ?? t.meta.name,
         readOnlyHint: t.meta.readOnlyHint ?? false,
@@ -94,7 +97,7 @@ export function listTools(ctx: DispatchContext): ToolListing[] {
   if (listResources(ctx).length > 0) {
     tools.push(...skillToolListings());
   }
-  return tools;
+  return tools.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 export async function callTool(

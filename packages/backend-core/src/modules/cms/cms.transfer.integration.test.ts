@@ -6,8 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
@@ -140,7 +139,7 @@ const PNG_BASE64 =
         (await c.callTool({
           name: 'cms_upload_asset_from_base64',
           arguments: { name: 'pixel.png', mime: 'image/png', base64Body: PNG_BASE64 },
-        })) as never,
+        })),
       ) as { id: string };
 
       const collection = firstJson(
@@ -155,7 +154,7 @@ const PNG_BASE64 =
               { name: 'hero', type: 'asset' },
             ],
           },
-        })) as never,
+        })),
       ) as { id: string };
 
       await c.callTool({
@@ -180,7 +179,7 @@ const PNG_BASE64 =
         },
       });
 
-      const exported = firstJson((await c.callTool({ name: 'cms_export', arguments: {} })) as never) as CmsExportData;
+      const exported = firstJson((await c.callTool({ name: 'cms_export', arguments: {} }))) as CmsExportData;
       return { asset, collection, exported };
     });
 
@@ -197,18 +196,18 @@ const PNG_BASE64 =
 
     const firstImport = await withClient(adminKeyB, async (c) => {
       const res = await c.callTool({ name: 'cms_import', arguments: { records: seeded.exported } });
-      const result = firstJson(res as never) as ImportResult;
+      const result = firstJson(res) as ImportResult;
 
       const searched = await c.callTool({
         name: 'cms_search',
         arguments: { query: 'refund processed' },
       });
-      const hits = firstJson(searched as never) as Array<{ entryId?: string; id?: string }>;
+      const hits = firstJson(searched) as Array<{ entryId?: string; id?: string }>;
       const collections = firstJson(
-        (await c.callTool({ name: 'cms_list_collections', arguments: {} })) as never,
+        (await c.callTool({ name: 'cms_list_collections', arguments: {} })),
       ) as Array<{ id: string; slug: string }>;
       const entries = firstJson(
-        (await c.callTool({ name: 'cms_list_entries', arguments: {} })) as never,
+        (await c.callTool({ name: 'cms_list_entries', arguments: {} })),
       ) as Array<{ id: string; slug: string; data: Record<string, unknown> }>;
       return { result, hits, collections, entries };
     });
@@ -233,18 +232,18 @@ const PNG_BASE64 =
 
     const secondImport = await withClient(adminKeyB, async (c) => {
       const res = await c.callTool({ name: 'cms_import', arguments: { records: seeded.exported } });
-      const result = firstJson(res as never) as ImportResult;
+      const result = firstJson(res) as ImportResult;
       const collections = firstJson(
-        (await c.callTool({ name: 'cms_list_collections', arguments: {} })) as never,
+        (await c.callTool({ name: 'cms_list_collections', arguments: {} })),
       ) as Array<unknown>;
       const entries = firstJson(
-        (await c.callTool({ name: 'cms_list_entries', arguments: {} })) as never,
+        (await c.callTool({ name: 'cms_list_entries', arguments: {} })),
       ) as Array<unknown>;
       const locales = firstJson(
-        (await c.callTool({ name: 'cms_list_locales', arguments: {} })) as never,
+        (await c.callTool({ name: 'cms_list_locales', arguments: {} })),
       ) as Array<unknown>;
       const assets = firstJson(
-        (await c.callTool({ name: 'cms_list_assets', arguments: {} })) as never,
+        (await c.callTool({ name: 'cms_list_assets', arguments: {} })),
       ) as Array<unknown>;
       return {
         result,
@@ -285,7 +284,7 @@ const PNG_BASE64 =
 
     const result = await withClient(adminKeyB, async (c) => {
       const res = await c.callTool({ name: 'cms_import', arguments: { records } });
-      return firstJson(res as never) as ImportResult;
+      return firstJson(res) as ImportResult;
     });
 
     expect(
@@ -323,7 +322,7 @@ const PNG_BASE64 =
 
     const result = await withClient(adminKeyB, async (c) => {
       const res = await c.callTool({ name: 'cms_import', arguments: { records } });
-      return firstJson(res as never) as ImportResult;
+      return firstJson(res) as ImportResult;
     });
 
     const newAssetId = result.idMap['cma_src_key'];

@@ -1,5 +1,4 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { McpTool, McpToolHandle, McpToolResult } from './types.ts';
 
 export interface OpenHttpMcpClientOptions {
@@ -23,7 +22,7 @@ export async function openHttpMcpClient(opts: OpenHttpMcpClientOptions): Promise
   });
   const client = new Client(
     { name: opts.clientName ?? 'munin-agent', version: '0.0.1' },
-    { capabilities: {} },
+    { capabilities: {}, versionNegotiation: { mode: 'auto' } },
   );
   await client.connect(transport);
 
@@ -39,7 +38,7 @@ export async function openHttpMcpClient(opts: OpenHttpMcpClientOptions): Promise
     async callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
       const result = await client.callTool({ name, arguments: args });
       return {
-        content: (result.content ?? []) as McpToolResult['content'],
+        content: result.content ?? [],
         isError: typeof result.isError === 'boolean' ? result.isError : undefined,
       };
     },

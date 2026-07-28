@@ -373,7 +373,15 @@ export class WidgetIngestService {
     if (endUserId) {
       await tx
         .update(schema.endUsers)
-        .set({ ...patch, updatedAt: new Date() })
+        .set({
+          ...patch,
+          ...(patch.email
+            ? {
+                metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || '{"emailSource":"visitor"}'::jsonb`,
+              }
+            : {}),
+          updatedAt: new Date(),
+        })
         .where(eq(schema.endUsers.id, endUserId));
     }
 
@@ -748,12 +756,14 @@ export class WidgetIngestService {
               ...(input.visitorId ? { visitorId: input.visitorId } : {}),
             };
       if (input.locale) baseMetadata.locale = input.locale;
+      const visitorEmail = input.visitor?.email?.trim().toLowerCase() ?? null;
+      if (visitorEmail) baseMetadata.emailSource = 'visitor';
       const [created] = await tx
         .insert(schema.endUsers)
         .values({
           orgId,
           externalId,
-          email: input.visitor?.email?.trim().toLowerCase() ?? null,
+          email: visitorEmail,
           name: input.visitor?.name ?? null,
           metadata: baseMetadata,
         })

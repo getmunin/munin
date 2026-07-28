@@ -293,7 +293,16 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
         body: JSON.stringify({
           endUserId,
           audiences: ['self_service'],
-          scopes: ['conv:read', 'conv:write', 'kb:read', 'crm:read', 'crm:write'],
+          scopes: [
+            'bookings:read',
+            'bookings:write',
+            'commerce:read',
+            'conv:read',
+            'conv:write',
+            'crm:read',
+            'crm:write',
+            'kb:read',
+          ],
           ttlSeconds,
         }),
       });

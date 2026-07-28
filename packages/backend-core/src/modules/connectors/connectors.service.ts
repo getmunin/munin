@@ -412,7 +412,7 @@ export class ConnectorsService {
       throw new BadRequestException('connectors_invalid: end-user identity required');
     }
     const rows = await ctx.db
-      .select({ email: schema.endUsers.email })
+      .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
       .from(schema.endUsers)
       .where(eq(schema.endUsers.id, endUserId))
       .limit(1);
@@ -420,6 +420,12 @@ export class ConnectorsService {
     if (!email) {
       throw new BadRequestException(
         'connectors_invalid: your session has no email identity, which this lookup requires',
+      );
+    }
+    const meta = rows[0]?.metadata as { anonymous?: boolean; emailSource?: string } | null;
+    if (meta?.anonymous === true || meta?.emailSource === 'visitor') {
+      throw new BadRequestException(
+        'connectors_unverified: this email was self-reported in chat and is not verified, so personal lookups are not allowed; ask the customer to write in from their email address or use a signed-in session',
       );
     }
     return email;

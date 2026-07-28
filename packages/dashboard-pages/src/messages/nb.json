@@ -334,6 +334,7 @@
         "outreachKindInitial": "FØRSTE",
         "outreachKindFollowup": "OPPFØLGING {step}",
         "conversationFallback": "Samtale #{id}",
+        "conversationUnknown": "Ukjent samtale",
         "crmMergeBody": "Slå sammen <strong>{loser}</strong> inn i <strong>{keeper}</strong>.",
         "crmMergeExplain": "Beholder hovedoppføringen; flytter referanser; arkiverer den andre. Ingen samtaler går tapt.",
         "internalLabel": "intern · {author}",
@@ -360,7 +361,6 @@
           "release": "Prøv igjen",
           "close": "Prøv igjen"
         },
-        "retry": "Prøv igjen",
         "activityConv": "Samtaleaktivitet",
         "activityContact": "Kontaktaktivitet",
         "activityEmpty": "Ingen aktivitet ennå.",
@@ -933,7 +933,7 @@
     },
     "team": {
       "eyebrow": "Arbeidsområde · Medarbeidere",
-      "title": "<em>Rådet</em>.",
+      "title": "<em>Rådet</em> ditt.",
       "subtitle": "Inviter medarbeidere og styr hva de ser.",
       "inviteTitle": "Inviter en medarbeider",
       "inviteDescription": "De får en e-post med en lenke for å akseptere. Lenken utløper om 7 dager.",
@@ -1251,9 +1251,9 @@
   },
   "integrations": {
     "hero": {
-      "eyebrow": "Integrasjoner",
-      "title": "Koble Munin til <em>verktøyene du allerede bruker</em>",
-      "lede": "Ta samtaler inn i flatene medarbeiderne og kundene dine allerede bruker."
+      "eyebrow": "Arbeidsområde · Integrasjoner",
+      "title": "Ut i <em>verden</em>.",
+      "lede": "Dit medarbeiderne dine allerede jobber, og systemene Munin svarer ut fra."
     },
     "operatorBridges": {
       "title": "Operatørbroer",
@@ -1275,6 +1275,7 @@
       "save": "Lagre",
       "savedUntested": "Lagret — kunne ikke verifisere ennå: {error}",
       "test": "Test",
+      "moreMenu": "Flere handlinger",
       "testOk": "Koblingen fungerer. {detail}",
       "testFailed": "Testen feilet: {error}",
       "delete": "Fjern",
@@ -1306,6 +1307,7 @@
       "channelsLoadFailed": "Kunne ikke hente kanallisten — lim inn kanal-ID-en manuelt.",
       "saveRouting": "Lagre kanal",
       "inviteBot": "Boten er ikke i kanalen ennå — kjør /invite @Munin i Slack, og bruk deretter Test på Slack-kortet.",
+      "sendTest": "Send testmelding",
       "testSent": "Testmelding sendt",
       "disconnect": "Koble fra",
       "disconnectConfirm": "Koble fra Slack? Trådkoblinger og ruting slettes; samtalene i Munin påvirkes ikke.",
@@ -1473,6 +1475,7 @@
     }
   },
   "errors": {
+    "NETWORK_ERROR": "Fikk ikke kontakt med Munin. Sjekk tilkoblingen din.",
     "SIGNUP_NOT_ALLOWED": "Registrering er begrenset på denne Munin-installasjonen. Be en administrator om å invitere deg.",
     "SIGNUP_DOMAIN_NOT_ALLOWED": "E-postdomenet ditt er ikke på listen, og det finnes ingen ventende invitasjon for denne adressen. Be en administrator om å invitere deg.",
     "SIGNUP_INVITE_ONLY": "Registrering er kun ved invitasjon på denne Munin-installasjonen. Be en administrator om å sende en invitasjon.",

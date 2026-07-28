@@ -1406,7 +1406,6 @@
     "for": "Tilgang for {vendor}",
     "submit": "Lagre",
     "reassurance": "Tilgangsnøklene krypteres i hvile og vises aldri igjen. Denne lenken virker én gang.",
-    "success": "Ferdig.",
     "successBody": "Tilgangen ble lagret og verifisert.",
     "savedButUntested": "Tilgangen ble lagret, men testkallet lyktes ikke — sjekk den og prøv igjen fra dashbordet.",
     "failure": "Kunne ikke lagre.",

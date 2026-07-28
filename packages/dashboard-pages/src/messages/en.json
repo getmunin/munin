@@ -1406,7 +1406,6 @@
     "for": "Credentials for {vendor}",
     "submit": "Save credentials",
     "reassurance": "Credentials are encrypted at rest and never shown again. This link works once.",
-    "success": "Done.",
     "successBody": "Your credentials were saved and verified.",
     "savedButUntested": "Credentials saved, but the test call didn't succeed — check them and try again from the dashboard.",
     "failure": "Couldn't save.",

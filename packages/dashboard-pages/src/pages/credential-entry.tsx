@@ -28,7 +28,7 @@ export function CredentialEntryPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ ok: boolean; message: string; retryable?: boolean } | null>(
+  const [done, setDone] = useState<{ ok: boolean; detail?: string; retryable?: boolean } | null>(
     null,
   );
 
@@ -61,10 +61,10 @@ export function CredentialEntryPage() {
       });
       setDone({
         ok: res.ok,
-        message: res.ok ? (res.detail ?? t('successBody')) : (res.error ?? t('savedButUntested')),
+        detail: res.ok ? res.detail : (res.error ?? t('savedButUntested')),
       });
     } catch (err) {
-      setDone({ ok: false, message: translate(err), retryable: true });
+      setDone({ ok: false, detail: translate(err), retryable: true });
     } finally {
       setBusy(false);
     }
@@ -86,8 +86,9 @@ export function CredentialEntryPage() {
         ) : done ? (
           <CardContent className="space-y-4">
             <p className={`text-sm ${done.ok ? 'text-foreground' : 'text-destructive'}`}>
-              {done.ok ? t('success') : t('failure')} {done.message}
+              {done.ok ? t('successBody') : t('failure')}
             </p>
+            {done.detail && <p className="text-xs text-muted-foreground">{done.detail}</p>}
             {!done.ok && done.retryable && (
               <Button type="button" variant="outline" className="w-full" onClick={retry}>
                 {t('retry')}

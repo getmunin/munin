@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Code, Copy, MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { CreateTrackerBody } from '@getmunin/types';
-import { api, ApiError } from '../api';
+import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
 import { CardListSkeleton } from '../components/skeleton';
@@ -12,7 +12,7 @@ import { EmptyCallout } from '../components/empty-callout';
 import { CopyableSecret } from '../components/copyable-secret';
 import { useConfirm } from '../components/confirm-dialog';
 import { FormField } from '../components/form-field';
-import { SaveErrorStage, type SaveErrorDetail } from '../components/save-error-stage';
+import { FormError, toFormError, type FormErrorDetail } from '../components/form-error';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
@@ -67,28 +67,6 @@ interface RotatedKey {
 }
 
 const KEY_DISPLAY_TIMEOUT_MS = 1500;
-
-function toSaveErrorDetail(
-  err: unknown,
-  _message: string,
-  fallback: { endpoint: string; method: string },
-): SaveErrorDetail {
-  if (err instanceof ApiError) {
-    return {
-      endpoint: err.endpoint,
-      method: err.method,
-      status: `${err.status} · ${err.statusText}`,
-      requestId: err.requestId,
-      message: err.status >= 400 && err.status < 500 ? err.message : undefined,
-    };
-  }
-  return {
-    endpoint: fallback.endpoint,
-    method: fallback.method,
-    status: '—',
-    requestId: null,
-  };
-}
 
 export function TrackersPage() {
   const t = useTranslations('dashboard.trackers');
@@ -362,7 +340,7 @@ function CreateTrackerDialog({
   const [originsError, setOriginsError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedTracker | null>(null);
-  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -405,12 +383,7 @@ function CreateTrackerDialog({
       setCreated(result);
       onCreated();
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.create'), {
-          endpoint: '/v1/analytics/trackers',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.create')));
     } finally {
       setCreating(false);
     }
@@ -445,13 +418,6 @@ function CreateTrackerDialog({
               </Button>
             </DialogFooter>
           </>
-        ) : submitError ? (
-          <SaveErrorStage
-            detail={submitError}
-            onBack={() => setSubmitError(null)}
-            onRetry={() => void submit()}
-            retrying={creating}
-          />
         ) : (
           <>
             <DialogHeader>
@@ -491,6 +457,7 @@ function CreateTrackerDialog({
                   </p>
                 )}
               </FormField>
+              {submitError && <FormError detail={submitError} />}
 
               <DialogFooter className={dialogFooterClass}>
                 <Button

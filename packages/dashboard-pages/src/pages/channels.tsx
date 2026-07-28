@@ -19,7 +19,7 @@ import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
 import { CardListSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
-import { SaveErrorStage, type SaveErrorDetail } from '../components/save-error-stage';
+import { FormError, toFormError, type FormErrorDetail } from '../components/form-error';
 import { useConfirm } from '../components/confirm-dialog';
 import { FormField } from '../components/form-field';
 import { NativeSelect } from '../components/native-select';
@@ -992,7 +992,7 @@ function CreateWidgetDialog({
   const [originsError, setOriginsError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedWidget | null>(null);
-  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -1035,12 +1035,7 @@ function CreateWidgetDialog({
       setCreated(result);
       onCreated();
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.create'), {
-          endpoint: '/v1/conversations/channels/widget',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.create')));
     } finally {
       setCreating(false);
     }
@@ -1077,13 +1072,6 @@ function CreateWidgetDialog({
               </Button>
             </DialogFooter>
           </>
-        ) : submitError ? (
-          <SaveErrorStage
-            detail={submitError}
-            onBack={() => setSubmitError(null)}
-            onRetry={() => void submit()}
-            retrying={creating}
-          />
         ) : (
           <>
             <DialogHeader>
@@ -1124,6 +1112,7 @@ function CreateWidgetDialog({
                 )}
               </FormField>
 
+              {submitError && <FormError detail={submitError} />}
               <DialogFooter className={dialogFooterClass}>
                 <Button
                   type="button"
@@ -1191,28 +1180,6 @@ function widgetAllowlistRequired(): boolean {
   return raw === '1' || raw === 'true';
 }
 
-function toSaveErrorDetail(
-  err: unknown,
-  _message: string,
-  fallback: { endpoint: string; method: string },
-): SaveErrorDetail {
-  if (err instanceof ApiError) {
-    return {
-      endpoint: err.endpoint,
-      method: err.method,
-      status: `${err.status} · ${err.statusText}`,
-      requestId: err.requestId,
-      message: err.status >= 400 && err.status < 500 ? err.message : undefined,
-    };
-  }
-  return {
-    endpoint: fallback.endpoint,
-    method: fallback.method,
-    status: '—',
-    requestId: null,
-  };
-}
-
 function parsePositiveInt(raw: string): number | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -1256,7 +1223,7 @@ function EmailChannelDialog({
   const [perDayMax, setPerDayMax] = useState('');
   const [perHourMax, setPerHourMax] = useState('');
   const [creating, setCreating] = useState(false);
-  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const clearFieldError = (key: string) => {
     setFieldErrors((prev) => {
@@ -1360,14 +1327,7 @@ function EmailChannelDialog({
       onSaved();
     } catch (err) {
       setSubmitError(
-        toSaveErrorDetail(
-          err,
-          translate(err) || t(isEdit ? 'errors.updateEmail' : 'errors.createEmail'),
-          {
-            endpoint: '/v1/conversations/channels/email',
-            method: 'POST',
-          },
-        ),
+        toFormError(err, translate(err) || t(isEdit ? 'errors.updateEmail' : 'errors.createEmail')),
       );
     } finally {
       setCreating(false);
@@ -1377,15 +1337,6 @@ function EmailChannelDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
-        {submitError ? (
-          <SaveErrorStage
-            detail={submitError}
-            onBack={() => setSubmitError(null)}
-            onRetry={() => void submit()}
-            retrying={creating}
-          />
-        ) : (
-          <>
         <DialogHeader>
           <DialogTitle>{t(isEdit ? 'email.editTitle' : 'email.createTitle')}</DialogTitle>
           <DialogDescription>
@@ -1614,6 +1565,7 @@ function EmailChannelDialog({
           </fieldset>
           </div>
 
+          {submitError && <FormError detail={submitError} />}
           <DialogFooter className={dialogFooterClass}>
             <Button
               type="button"
@@ -1638,8 +1590,6 @@ function EmailChannelDialog({
             </Button>
           </DialogFooter>
         </form>
-          </>
-        )}
       </DialogContent>
     </Dialog>
   );
@@ -2146,7 +2096,7 @@ function TwilioSmsChannelDialog({
     editChannel.config?.messagingServiceSid ?? '',
   );
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -2186,12 +2136,7 @@ function TwilioSmsChannelDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.updateTwilioSms'), {
-          endpoint: '/v1/conversations/channels/twilio-sms',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.updateTwilioSms')));
     } finally {
       setSaving(false);
     }
@@ -2200,107 +2145,97 @@ function TwilioSmsChannelDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        {submitError ? (
-          <SaveErrorStage
-            detail={submitError}
-            onBack={() => setSubmitError(null)}
-            onRetry={() => void submit()}
-            retrying={saving}
-          />
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t('twilioSms.editTitle')}</DialogTitle>
-              <DialogDescription>{t('twilioSms.editDescription')}</DialogDescription>
-            </DialogHeader>
-            <form
-              className="mt-4 flex flex-col gap-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void submit();
-              }}
+        <DialogHeader>
+          <DialogTitle>{t('twilioSms.editTitle')}</DialogTitle>
+          <DialogDescription>{t('twilioSms.editDescription')}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. main-twilio"
+              maxLength={120}
+            />
+          </FormField>
+          <FormField
+            label={t('twilioSms.accountSidLabel')}
+            hint={t('twilioSms.accountSidHint')}
+            error={fieldErrors.accountSid}
+          >
+            <Input
+              value={accountSid}
+              onChange={(e) => setAccountSid(e.target.value)}
+              placeholder="AC…"
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField
+            label={t('twilioSms.authTokenLabel')}
+            hint={t('twilioSms.authTokenHintEdit')}
+          >
+            <Input
+              type="password"
+              value={authToken}
+              onChange={(e) => setAuthToken(e.target.value)}
+              placeholder="••••"
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField
+            label={t('twilioSms.fromNumberLabel')}
+            hint={t('twilioSms.fromNumberHint')}
+            error={fieldErrors.fromNumber}
+          >
+            <Input
+              value={fromNumber}
+              onChange={(e) => setFromNumber(e.target.value)}
+              placeholder="+15551234567"
+              maxLength={32}
+            />
+          </FormField>
+          <FormField
+            label={t('twilioSms.messagingServiceSidLabel')}
+            hint={t('twilioSms.messagingServiceSidHint')}
+            error={fieldErrors.messagingServiceSid}
+          >
+            <Input
+              value={messagingServiceSid}
+              onChange={(e) => setMessagingServiceSid(e.target.value)}
+              placeholder="MG…"
+              maxLength={64}
+            />
+          </FormField>
+          <p className={dialogHintClass}>{t('twilioSms.fromOrServiceHint')}</p>
+          {submitError && <FormError detail={submitError} />}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
             >
-              <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. main-twilio"
-                  maxLength={120}
-                />
-              </FormField>
-              <FormField
-                label={t('twilioSms.accountSidLabel')}
-                hint={t('twilioSms.accountSidHint')}
-                error={fieldErrors.accountSid}
-              >
-                <Input
-                  value={accountSid}
-                  onChange={(e) => setAccountSid(e.target.value)}
-                  placeholder="AC…"
-                  autoComplete="off"
-                />
-              </FormField>
-              <FormField
-                label={t('twilioSms.authTokenLabel')}
-                hint={t('twilioSms.authTokenHintEdit')}
-              >
-                <Input
-                  type="password"
-                  value={authToken}
-                  onChange={(e) => setAuthToken(e.target.value)}
-                  placeholder="••••"
-                  autoComplete="off"
-                />
-              </FormField>
-              <FormField
-                label={t('twilioSms.fromNumberLabel')}
-                hint={t('twilioSms.fromNumberHint')}
-                error={fieldErrors.fromNumber}
-              >
-                <Input
-                  value={fromNumber}
-                  onChange={(e) => setFromNumber(e.target.value)}
-                  placeholder="+15551234567"
-                  maxLength={32}
-                />
-              </FormField>
-              <FormField
-                label={t('twilioSms.messagingServiceSidLabel')}
-                hint={t('twilioSms.messagingServiceSidHint')}
-                error={fieldErrors.messagingServiceSid}
-              >
-                <Input
-                  value={messagingServiceSid}
-                  onChange={(e) => setMessagingServiceSid(e.target.value)}
-                  placeholder="MG…"
-                  maxLength={64}
-                />
-              </FormField>
-              <p className={dialogHintClass}>{t('twilioSms.fromOrServiceHint')}</p>
-              <DialogFooter className={dialogFooterClass}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={dialogButtonClass}
-                  onClick={() => onOpenChange(false)}
-                  disabled={saving}
-                >
-                  {tCommon('cancel')}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="accent"
-                  className={dialogButtonClass}
-                  disabled={saving}
-                  pending={saving}
-                >
-                  {saving ? tCommon('saving') : tCommon('saveChanges')}
-                  <span aria-hidden className="ml-1 font-mono">↵</span>
-                </Button>
-              </DialogFooter>
-            </form>
-          </>
-        )}
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving}
+              pending={saving}
+            >
+              {saving ? tCommon('saving') : tCommon('saveChanges')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -2439,7 +2374,7 @@ function MessageBirdSmsChannelDialog({
   const [signingKey, setSigningKey] = useState('');
   const [originator, setOriginator] = useState(editChannel.config?.originator ?? '');
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -2477,12 +2412,7 @@ function MessageBirdSmsChannelDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.updateMessageBirdSms'), {
-          endpoint: '/v1/conversations/channels/messagebird-sms',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.updateMessageBirdSms')));
     } finally {
       setSaving(false);
     }
@@ -2491,94 +2421,84 @@ function MessageBirdSmsChannelDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        {submitError ? (
-          <SaveErrorStage
-            detail={submitError}
-            onBack={() => setSubmitError(null)}
-            onRetry={() => void submit()}
-            retrying={saving}
-          />
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t('messageBirdSms.editTitle')}</DialogTitle>
-              <DialogDescription>{t('messageBirdSms.editDescription')}</DialogDescription>
-            </DialogHeader>
-            <form
-              className="mt-4 flex flex-col gap-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void submit();
-              }}
+        <DialogHeader>
+          <DialogTitle>{t('messageBirdSms.editTitle')}</DialogTitle>
+          <DialogDescription>{t('messageBirdSms.editDescription')}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. nordic-messagebird"
+              maxLength={120}
+            />
+          </FormField>
+          <FormField
+            label={t('messageBirdSms.accessKeyLabel')}
+            hint={t('messageBirdSms.accessKeyHintEdit')}
+          >
+            <Input
+              type="password"
+              value={accessKey}
+              onChange={(e) => setAccessKey(e.target.value)}
+              placeholder="••••"
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField
+            label={t('messageBirdSms.signingKeyLabel')}
+            hint={t('messageBirdSms.signingKeyHintEdit')}
+          >
+            <Input
+              type="password"
+              value={signingKey}
+              onChange={(e) => setSigningKey(e.target.value)}
+              placeholder="••••"
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField
+            label={t('messageBirdSms.originatorLabel')}
+            hint={t('messageBirdSms.originatorHint')}
+            error={fieldErrors.originator}
+          >
+            <Input
+              value={originator}
+              onChange={(e) => setOriginator(e.target.value)}
+              placeholder="+15551234567 or AcmeSupport"
+              maxLength={32}
+            />
+          </FormField>
+          {submitError && <FormError detail={submitError} />}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
             >
-              <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. nordic-messagebird"
-                  maxLength={120}
-                />
-              </FormField>
-              <FormField
-                label={t('messageBirdSms.accessKeyLabel')}
-                hint={t('messageBirdSms.accessKeyHintEdit')}
-              >
-                <Input
-                  type="password"
-                  value={accessKey}
-                  onChange={(e) => setAccessKey(e.target.value)}
-                  placeholder="••••"
-                  autoComplete="off"
-                />
-              </FormField>
-              <FormField
-                label={t('messageBirdSms.signingKeyLabel')}
-                hint={t('messageBirdSms.signingKeyHintEdit')}
-              >
-                <Input
-                  type="password"
-                  value={signingKey}
-                  onChange={(e) => setSigningKey(e.target.value)}
-                  placeholder="••••"
-                  autoComplete="off"
-                />
-              </FormField>
-              <FormField
-                label={t('messageBirdSms.originatorLabel')}
-                hint={t('messageBirdSms.originatorHint')}
-                error={fieldErrors.originator}
-              >
-                <Input
-                  value={originator}
-                  onChange={(e) => setOriginator(e.target.value)}
-                  placeholder="+15551234567 or AcmeSupport"
-                  maxLength={32}
-                />
-              </FormField>
-              <DialogFooter className={dialogFooterClass}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={dialogButtonClass}
-                  onClick={() => onOpenChange(false)}
-                  disabled={saving}
-                >
-                  {tCommon('cancel')}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="accent"
-                  className={dialogButtonClass}
-                  disabled={saving}
-                  pending={saving}
-                >
-                  {saving ? tCommon('saving') : tCommon('saveChanges')}
-                  <span aria-hidden className="ml-1 font-mono">↵</span>
-                </Button>
-              </DialogFooter>
-            </form>
-          </>
-        )}
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving}
+              pending={saving}
+            >
+              {saving ? tCommon('saving') : tCommon('saveChanges')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -2722,7 +2642,7 @@ function AddSmsDialog({
   const [signingKey, setSigningKey] = useState('');
   const [originator, setOriginator] = useState('');
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -2772,12 +2692,7 @@ function AddSmsDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.createTwilioSms'), {
-          endpoint: '/v1/conversations/channels/twilio-sms',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.createTwilioSms')));
     } finally {
       setSaving(false);
     }
@@ -2806,12 +2721,7 @@ function AddSmsDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.createMessageBirdSms'), {
-          endpoint: '/v1/conversations/channels/messagebird-sms',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.createMessageBirdSms')));
     } finally {
       setSaving(false);
     }
@@ -2826,170 +2736,160 @@ function AddSmsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        {submitError ? (
-          <SaveErrorStage
-            detail={submitError}
-            onBack={() => setSubmitError(null)}
-            onRetry={() => submit()}
-            retrying={saving}
+        <DialogHeader>
+          <DialogTitle>{t('addSmsDialog.title')}</DialogTitle>
+          <DialogDescription>{t('addSmsDialog.description')}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <VendorPicker
+            options={[
+              { id: 'twilio', label: t('typeTwilioSms') },
+              { id: 'messagebird', label: t('typeMessageBirdSms') },
+            ]}
+            value={vendor}
+            onChange={(next) => setVendor(next)}
           />
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t('addSmsDialog.title')}</DialogTitle>
-              <DialogDescription>{t('addSmsDialog.description')}</DialogDescription>
-            </DialogHeader>
-            <form
-              className="mt-4 flex flex-col gap-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                submit();
-              }}
+          {vendor === 'twilio' ? (
+            <>
+              <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. main-twilio"
+                  maxLength={120}
+                  required
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.accountSidLabel')}
+                hint={t('twilioSms.accountSidHint')}
+                error={fieldErrors.accountSid}
+              >
+                <Input
+                  value={accountSid}
+                  onChange={(e) => setAccountSid(e.target.value)}
+                  placeholder="AC…"
+                  autoComplete="off"
+                  required
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.authTokenLabel')}
+                hint={t('twilioSms.authTokenHintCreate')}
+              >
+                <Input
+                  type="password"
+                  value={authToken}
+                  onChange={(e) => setAuthToken(e.target.value)}
+                  autoComplete="off"
+                  required
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.fromNumberLabel')}
+                hint={t('twilioSms.fromNumberHint')}
+                error={fieldErrors.fromNumber}
+              >
+                <Input
+                  value={fromNumber}
+                  onChange={(e) => setFromNumber(e.target.value)}
+                  placeholder="+15551234567"
+                  maxLength={32}
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.messagingServiceSidLabel')}
+                hint={t('twilioSms.messagingServiceSidHint')}
+                error={fieldErrors.messagingServiceSid}
+              >
+                <Input
+                  value={messagingServiceSid}
+                  onChange={(e) => setMessagingServiceSid(e.target.value)}
+                  placeholder="MG…"
+                  maxLength={64}
+                />
+              </FormField>
+              <p className={dialogHintClass}>{t('twilioSms.fromOrServiceHint')}</p>
+            </>
+          ) : (
+            <>
+              <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. nordic-messagebird"
+                  maxLength={120}
+                  required
+                />
+              </FormField>
+              <FormField
+                label={t('messageBirdSms.accessKeyLabel')}
+                hint={t('messageBirdSms.accessKeyHintCreate')}
+              >
+                <Input
+                  type="password"
+                  value={accessKey}
+                  onChange={(e) => setAccessKey(e.target.value)}
+                  autoComplete="off"
+                  required
+                />
+              </FormField>
+              <FormField
+                label={t('messageBirdSms.signingKeyLabel')}
+                hint={t('messageBirdSms.signingKeyHintCreate')}
+              >
+                <Input
+                  type="password"
+                  value={signingKey}
+                  onChange={(e) => setSigningKey(e.target.value)}
+                  autoComplete="off"
+                  required
+                />
+              </FormField>
+              <FormField
+                label={t('messageBirdSms.originatorLabel')}
+                hint={t('messageBirdSms.originatorHint')}
+                error={fieldErrors.originator}
+              >
+                <Input
+                  value={originator}
+                  onChange={(e) => setOriginator(e.target.value)}
+                  placeholder="+15551234567 or AcmeSupport"
+                  maxLength={32}
+                  required
+                />
+              </FormField>
+            </>
+          )}
+          {submitError && <FormError detail={submitError} />}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
             >
-              <VendorPicker
-                options={[
-                  { id: 'twilio', label: t('typeTwilioSms') },
-                  { id: 'messagebird', label: t('typeMessageBirdSms') },
-                ]}
-                value={vendor}
-                onChange={(next) => setVendor(next)}
-              />
-              {vendor === 'twilio' ? (
-                <>
-                  <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. main-twilio"
-                      maxLength={120}
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    label={t('twilioSms.accountSidLabel')}
-                    hint={t('twilioSms.accountSidHint')}
-                    error={fieldErrors.accountSid}
-                  >
-                    <Input
-                      value={accountSid}
-                      onChange={(e) => setAccountSid(e.target.value)}
-                      placeholder="AC…"
-                      autoComplete="off"
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    label={t('twilioSms.authTokenLabel')}
-                    hint={t('twilioSms.authTokenHintCreate')}
-                  >
-                    <Input
-                      type="password"
-                      value={authToken}
-                      onChange={(e) => setAuthToken(e.target.value)}
-                      autoComplete="off"
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    label={t('twilioSms.fromNumberLabel')}
-                    hint={t('twilioSms.fromNumberHint')}
-                    error={fieldErrors.fromNumber}
-                  >
-                    <Input
-                      value={fromNumber}
-                      onChange={(e) => setFromNumber(e.target.value)}
-                      placeholder="+15551234567"
-                      maxLength={32}
-                    />
-                  </FormField>
-                  <FormField
-                    label={t('twilioSms.messagingServiceSidLabel')}
-                    hint={t('twilioSms.messagingServiceSidHint')}
-                    error={fieldErrors.messagingServiceSid}
-                  >
-                    <Input
-                      value={messagingServiceSid}
-                      onChange={(e) => setMessagingServiceSid(e.target.value)}
-                      placeholder="MG…"
-                      maxLength={64}
-                    />
-                  </FormField>
-                  <p className={dialogHintClass}>{t('twilioSms.fromOrServiceHint')}</p>
-                </>
-              ) : (
-                <>
-                  <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. nordic-messagebird"
-                      maxLength={120}
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    label={t('messageBirdSms.accessKeyLabel')}
-                    hint={t('messageBirdSms.accessKeyHintCreate')}
-                  >
-                    <Input
-                      type="password"
-                      value={accessKey}
-                      onChange={(e) => setAccessKey(e.target.value)}
-                      autoComplete="off"
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    label={t('messageBirdSms.signingKeyLabel')}
-                    hint={t('messageBirdSms.signingKeyHintCreate')}
-                  >
-                    <Input
-                      type="password"
-                      value={signingKey}
-                      onChange={(e) => setSigningKey(e.target.value)}
-                      autoComplete="off"
-                      required
-                    />
-                  </FormField>
-                  <FormField
-                    label={t('messageBirdSms.originatorLabel')}
-                    hint={t('messageBirdSms.originatorHint')}
-                    error={fieldErrors.originator}
-                  >
-                    <Input
-                      value={originator}
-                      onChange={(e) => setOriginator(e.target.value)}
-                      placeholder="+15551234567 or AcmeSupport"
-                      maxLength={32}
-                      required
-                    />
-                  </FormField>
-                </>
-              )}
-              <DialogFooter className={dialogFooterClass}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={dialogButtonClass}
-                  onClick={() => onOpenChange(false)}
-                  disabled={saving}
-                >
-                  {tCommon('cancel')}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="accent"
-                  className={dialogButtonClass}
-                  disabled={saving}
-                  pending={saving}
-                >
-                  {saving ? tCommon('creating') : t('addSmsDialog.create')}
-                  <span aria-hidden className="ml-1 font-mono">↵</span>
-                </Button>
-              </DialogFooter>
-            </form>
-          </>
-        )}
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving}
+              pending={saving}
+            >
+              {saving ? tCommon('creating') : t('addSmsDialog.create')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -3022,7 +2922,7 @@ function AddVoiceDialog({
   const [options, setOptions] = useState<ChannelOptionItem[]>([]);
   const [optionsAccountLabel, setOptionsAccountLabel] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [createdChannelId, setCreatedChannelId] = useState<string | null>(null);
 
@@ -3067,12 +2967,7 @@ function AddVoiceDialog({
       setAssistantId(assistants[0]?.value ?? '');
       setStage('options');
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.createVapi'), {
-          endpoint: '/v1/conversations/channels/options',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.createVapi')));
     } finally {
       setSaving(false);
     }
@@ -3125,12 +3020,7 @@ function AddVoiceDialog({
         if (ok) await submitVapi(true);
         return;
       }
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.createVapi'), {
-          endpoint: '/v1/conversations/channels/vapi',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.createVapi')));
     } finally {
       setSaving(false);
     }
@@ -3158,12 +3048,7 @@ function AddVoiceDialog({
       setWorkerId(workers[0]?.value ?? '');
       setStage('options');
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.createThrell'), {
-          endpoint: '/v1/conversations/channels/options',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.createThrell')));
     } finally {
       setSaving(false);
     }
@@ -3203,12 +3088,7 @@ function AddVoiceDialog({
         if (ok) await createThrell(true);
         return;
       }
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.createThrell'), {
-          endpoint: '/v1/conversations/channels/threll',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.createThrell')));
     } finally {
       setSaving(false);
     }
@@ -3228,14 +3108,7 @@ function AddVoiceDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        {submitError ? (
-          <SaveErrorStage
-            detail={submitError}
-            onBack={() => setSubmitError(null)}
-            onRetry={() => (stage === 'options' ? createForVendor() : submit())}
-            retrying={saving}
-          />
-        ) : createdChannelId ? (
+        {createdChannelId ? (
           <VapiConnectionStage
             channelId={createdChannelId}
             webhookSecret={webhookSecret}
@@ -3350,6 +3223,7 @@ function AddVoiceDialog({
                   </FormField>
                 </>
               )}
+              {submitError && <FormError detail={submitError} />}
               <DialogFooter className={dialogFooterClass}>
                 <Button
                   type="button"
@@ -3444,7 +3318,7 @@ function VapiChannelDialog({
   const [publicKey, setPublicKey] = useState(editChannel.config?.publicKey ?? '');
   const [assistants, setAssistants] = useState<ChannelOptionItem[]>([]);
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -3500,12 +3374,7 @@ function VapiChannelDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.updateVapi'), {
-          endpoint: '/v1/conversations/channels/vapi',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.updateVapi')));
     } finally {
       setSaving(false);
     }
@@ -3514,123 +3383,113 @@ function VapiChannelDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        {submitError ? (
-          <SaveErrorStage
-            detail={submitError}
-            onBack={() => setSubmitError(null)}
-            onRetry={() => void submit()}
-            retrying={saving}
-          />
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t('vapi.editTitle')}</DialogTitle>
-              <DialogDescription>{t('vapi.editDescription')}</DialogDescription>
-            </DialogHeader>
-            <form
-              className="mt-4 flex flex-col gap-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void submit();
-              }}
+        <DialogHeader>
+          <DialogTitle>{t('vapi.editTitle')}</DialogTitle>
+          <DialogDescription>{t('vapi.editDescription')}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('nameLabel')} hint={t('vapi.nameHint')}>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. main-vapi"
+              maxLength={120}
+            />
+          </FormField>
+          <FormField label={t('vapi.apiKeyLabel')} hint={t('vapi.apiKeyHintEdit')}>
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="••••"
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField
+            label={t('vapi.publicKeyLabel')}
+            hint={t('vapi.publicKeyHintEdit')}
+            error={fieldErrors.publicKey}
+          >
+            <Input
+              value={publicKey}
+              onChange={(e) => setPublicKey(e.target.value)}
+              maxLength={256}
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField label={t('vapi.webhookSecretLabel')} hint={t('vapi.webhookSecretHintEdit')}>
+            <WebhookSecretField
+              value={webhookSecret}
+              onChange={setWebhookSecret}
+              generateLabel={t('vapi.webhookSecretGenerate')}
+              regenerateLabel={t('vapi.webhookSecretRegenerate')}
+              emptyHint={t('vapi.webhookSecretKeepHint')}
+            />
+          </FormField>
+          <FormField
+            label={t('vapi.assistantIdLabel')}
+            hint={t('vapi.assistantIdHint')}
+            error={fieldErrors.assistantId}
+          >
+            {assistants.length > 0 ? (
+              <NativeSelect value={assistantId} onChange={(e) => setAssistantId(e.target.value)}>
+                {!assistants.some((a) => a.value === assistantId) && assistantId ? (
+                  <option value={assistantId}>{assistantId}</option>
+                ) : null}
+                {assistants.map((a) => (
+                  <option key={a.value} value={a.value}>
+                    {optionLabel(a)}
+                  </option>
+                ))}
+              </NativeSelect>
+            ) : (
+              <Input
+                value={assistantId}
+                onChange={(e) => setAssistantId(e.target.value)}
+                maxLength={128}
+              />
+            )}
+          </FormField>
+          <FormField
+            label={t('vapi.phoneNumberIdLabel')}
+            hint={t('vapi.phoneNumberIdHint')}
+            error={fieldErrors.phoneNumberId}
+          >
+            <Input
+              value={phoneNumberId}
+              onChange={(e) => setPhoneNumberId(e.target.value)}
+              maxLength={128}
+            />
+          </FormField>
+          {submitError && <FormError detail={submitError} />}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
             >
-              <FormField label={t('nameLabel')} hint={t('vapi.nameHint')}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. main-vapi"
-                  maxLength={120}
-                />
-              </FormField>
-              <FormField label={t('vapi.apiKeyLabel')} hint={t('vapi.apiKeyHintEdit')}>
-                <Input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="••••"
-                  autoComplete="off"
-                />
-              </FormField>
-              <FormField
-                label={t('vapi.publicKeyLabel')}
-                hint={t('vapi.publicKeyHintEdit')}
-                error={fieldErrors.publicKey}
-              >
-                <Input
-                  value={publicKey}
-                  onChange={(e) => setPublicKey(e.target.value)}
-                  maxLength={256}
-                  autoComplete="off"
-                />
-              </FormField>
-              <FormField label={t('vapi.webhookSecretLabel')} hint={t('vapi.webhookSecretHintEdit')}>
-                <WebhookSecretField
-                  value={webhookSecret}
-                  onChange={setWebhookSecret}
-                  generateLabel={t('vapi.webhookSecretGenerate')}
-                  regenerateLabel={t('vapi.webhookSecretRegenerate')}
-                  emptyHint={t('vapi.webhookSecretKeepHint')}
-                />
-              </FormField>
-              <FormField
-                label={t('vapi.assistantIdLabel')}
-                hint={t('vapi.assistantIdHint')}
-                error={fieldErrors.assistantId}
-              >
-                {assistants.length > 0 ? (
-                  <NativeSelect value={assistantId} onChange={(e) => setAssistantId(e.target.value)}>
-                    {!assistants.some((a) => a.value === assistantId) && assistantId ? (
-                      <option value={assistantId}>{assistantId}</option>
-                    ) : null}
-                    {assistants.map((a) => (
-                      <option key={a.value} value={a.value}>
-                        {optionLabel(a)}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                ) : (
-                  <Input
-                    value={assistantId}
-                    onChange={(e) => setAssistantId(e.target.value)}
-                    maxLength={128}
-                  />
-                )}
-              </FormField>
-              <FormField
-                label={t('vapi.phoneNumberIdLabel')}
-                hint={t('vapi.phoneNumberIdHint')}
-                error={fieldErrors.phoneNumberId}
-              >
-                <Input
-                  value={phoneNumberId}
-                  onChange={(e) => setPhoneNumberId(e.target.value)}
-                  maxLength={128}
-                />
-              </FormField>
-              <DialogFooter className={dialogFooterClass}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={dialogButtonClass}
-                  onClick={() => onOpenChange(false)}
-                  disabled={saving}
-                >
-                  {tCommon('cancel')}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="accent"
-                  className={dialogButtonClass}
-                  disabled={saving}
-                  pending={saving}
-                >
-                  {saving ? tCommon('saving') : tCommon('saveChanges')}
-                  <span aria-hidden className="ml-1 font-mono">↵</span>
-                </Button>
-              </DialogFooter>
-            </form>
-          </>
-        )}
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving}
+              pending={saving}
+            >
+              {saving ? tCommon('saving') : tCommon('saveChanges')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -3842,7 +3701,7 @@ function ThrellChannelDialog({
   const [workerId, setWorkerId] = useState(editChannel.config?.workerId ?? '');
   const [workers, setWorkers] = useState<ChannelOptionItem[]>([]);
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState<SaveErrorDetail | null>(null);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -3892,12 +3751,7 @@ function ThrellChannelDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      setSubmitError(
-        toSaveErrorDetail(err, translate(err) || t('errors.updateThrell'), {
-          endpoint: '/v1/conversations/channels/threll',
-          method: 'POST',
-        }),
-      );
+      setSubmitError(toFormError(err, translate(err) || t('errors.updateThrell')));
     } finally {
       setSaving(false);
     }
@@ -3906,91 +3760,81 @@ function ThrellChannelDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        {submitError ? (
-          <SaveErrorStage
-            detail={submitError}
-            onBack={() => setSubmitError(null)}
-            onRetry={() => void submit()}
-            retrying={saving}
-          />
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t('threll.editTitle')}</DialogTitle>
-              <DialogDescription>{t('threll.editDescription')}</DialogDescription>
-            </DialogHeader>
-            <form
-              className="mt-4 flex flex-col gap-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void submit();
-              }}
+        <DialogHeader>
+          <DialogTitle>{t('threll.editTitle')}</DialogTitle>
+          <DialogDescription>{t('threll.editDescription')}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('nameLabel')} hint={t('threll.nameHint')}>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. main-threll"
+              maxLength={120}
+            />
+          </FormField>
+          <FormField label={t('threll.apiKeyLabel')} hint={t('threll.apiKeyHintEdit')}>
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="••••"
+              autoComplete="off"
+            />
+          </FormField>
+          <FormField
+            label={t('threll.workerLabel')}
+            hint={t('threll.workerHint')}
+            error={fieldErrors.workerId}
+          >
+            {workers.length > 0 ? (
+              <NativeSelect value={workerId} onChange={(e) => setWorkerId(e.target.value)}>
+                {!workers.some((w) => w.value === workerId) && workerId ? (
+                  <option value={workerId}>{workerId}</option>
+                ) : null}
+                {workers.map((worker) => (
+                  <option key={worker.value} value={worker.value}>
+                    {optionLabel(worker)}
+                  </option>
+                ))}
+              </NativeSelect>
+            ) : (
+              <Input
+                value={workerId}
+                onChange={(e) => setWorkerId(e.target.value)}
+                maxLength={128}
+              />
+            )}
+          </FormField>
+          {submitError && <FormError detail={submitError} />}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
             >
-              <FormField label={t('nameLabel')} hint={t('threll.nameHint')}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. main-threll"
-                  maxLength={120}
-                />
-              </FormField>
-              <FormField label={t('threll.apiKeyLabel')} hint={t('threll.apiKeyHintEdit')}>
-                <Input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="••••"
-                  autoComplete="off"
-                />
-              </FormField>
-              <FormField
-                label={t('threll.workerLabel')}
-                hint={t('threll.workerHint')}
-                error={fieldErrors.workerId}
-              >
-                {workers.length > 0 ? (
-                  <NativeSelect value={workerId} onChange={(e) => setWorkerId(e.target.value)}>
-                    {!workers.some((w) => w.value === workerId) && workerId ? (
-                      <option value={workerId}>{workerId}</option>
-                    ) : null}
-                    {workers.map((worker) => (
-                      <option key={worker.value} value={worker.value}>
-                        {optionLabel(worker)}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                ) : (
-                  <Input
-                    value={workerId}
-                    onChange={(e) => setWorkerId(e.target.value)}
-                    maxLength={128}
-                  />
-                )}
-              </FormField>
-              <DialogFooter className={dialogFooterClass}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={dialogButtonClass}
-                  onClick={() => onOpenChange(false)}
-                  disabled={saving}
-                >
-                  {tCommon('cancel')}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="accent"
-                  className={dialogButtonClass}
-                  disabled={saving}
-                  pending={saving}
-                >
-                  {saving ? tCommon('saving') : tCommon('saveChanges')}
-                  <span aria-hidden className="ml-1 font-mono">↵</span>
-                </Button>
-              </DialogFooter>
-            </form>
-          </>
-        )}
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving}
+              pending={saving}
+            >
+              {saving ? tCommon('saving') : tCommon('saveChanges')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

@@ -13,11 +13,7 @@ export {
 export { CopyableSecret, type CopyableSecretProps } from './components/copyable-secret';
 export { FormField, type FormFieldProps } from './components/form-field';
 export { isValidUrl, isValidHost, isValidEmail, isValidPort } from './lib/validators';
-export {
-  SaveErrorStage,
-  type SaveErrorStageProps,
-  type SaveErrorDetail,
-} from './components/save-error-stage';
+export { FormError, toFormError, type FormErrorDetail } from './components/form-error';
 export { useLoadGate } from './lib/use-load-gate';
 export { notify } from './lib/notify';
 export {

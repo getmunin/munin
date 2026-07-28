@@ -210,12 +210,6 @@
       "channelInboundFailing": "Innkommende henting feiler på «{name}»",
       "openChannelSettings": "Åpne kanalinnstillinger →"
     },
-    "saveFailed": {
-      "title": "Lagring feilet",
-      "sub": "Ingenting ble lagret · trygt å prøve igjen",
-      "body": "Munin nådde ikke tjeneren. Inndataene dine er fortsatt her — prøv igjen, eller kom tilbake om et øyeblikk.",
-      "retry": "Prøv lagring igjen"
-    },
     "loadFailed": {
       "eyebrow": "Tilkobling · feilet",
       "settings": {
@@ -743,8 +737,7 @@
         "sendTest": "Kunne ikke sende test-e-post.",
         "sendTestSms": "Kunne ikke sende test-SMS.",
         "delete": "Kunne ikke slette kanalen.",
-        "activate": "Kunne ikke aktivere kanalen.",
-        "saveFailedEyebrow": "Lagring · feilet"
+        "activate": "Kunne ikke aktivere kanalen."
       }
     },
     "trackers": {

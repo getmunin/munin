@@ -1,5 +1,115 @@
 # @getmunin/backend-core
 
+## 4.72.0
+
+### Minor Changes
+
+- f7113e4: Connector secrets can no longer transit the conversation
+
+  `connectors_create_connection` and `connectors_update_connection` now reject secret
+  config fields outright — the only way a secret enters Munin from an agent flow is the
+  one-time credential link. Creating a connection returns the link directly; the
+  `connect-external-system` skill is rewritten around that flow (its examples previously
+  showed pasting `accessToken` into the tool call, which is why agents offered chat
+  paste as an option).
+
+  Two credential-link dead ends are fixed alongside:
+
+  - A pending connection missing required non-secret config (e.g. Shopify without
+    `shopDomain`) is now rejected at create time with the missing keys named, instead of
+    minting a link whose save step can never validate.
+  - The credential-entry page keeps the one-time token on a failed save (the server
+    only consumes it on success), so it now offers a retry that resets the form instead
+    of stranding the user on an error. Also drops the doubled top padding on the
+    status states.
+  - The Shopify adapter's default Admin API version moves from the sunset `2025-01`
+    to `2026-04`.
+
+- 58abfbc: Email channel passwords can no longer transit the conversation
+
+  `conv_setup_email_channel` now rejects SMTP/IMAP passwords in its config — the same
+  link-only contract the connectors got. A channel whose transport needs passwords is
+  created `active: false` and the response carries the one-time credential link; saving
+  the passwords through the link verifies them against the SMTP/IMAP servers (new
+  `verify` step on the channel credential handler) and activates the channel. A
+  `mailer`-outbound channel without IMAP needs no secrets and is active immediately.
+  The `/v1` dashboard path is unchanged.
+
+  The SMTP/IMAP probe moved from the email tools into a shared `EmailChannelProbe` so
+  the credential handoff and `conv_test_email_channel` run the same checks, and the
+  `setup-email-channel` skill is rewritten around the link flow.
+
+- c81065d: Serve MCP protocol revision 2026-07-28 alongside 2025-11-25
+
+  `/mcp` now speaks both protocol eras from the same endpoint. Modern clients get the
+  stateless 2026-07-28 revision (no `initialize` handshake, no `Mcp-Session-Id`,
+  `server/discover`, per-request `_meta` envelope, `Mcp-Method`/`Mcp-Name` header
+  validation); existing 2025-era clients keep working unchanged.
+
+  - Migrated from `@modelcontextprotocol/sdk` v1 to the v2 package split
+    (`@modelcontextprotocol/{server,client,node}`). `createMcpServer` now returns a v2
+    `Server`, and the HTTP entry is `createMcpHandler` + `toNodeHandler` instead of
+    `StreamableHTTPServerTransport`. **Breaking for anyone embedding
+    `@getmunin/mcp-toolkit` directly.**
+  - `tools/list`, `resources/list` and `resources/read` advertise `ttlMs` /
+    `cacheScope` on the 2026 revision, scoped `private` because listings are filtered
+    per actor audience and scopes.
+  - `tools/list` is now returned in a stable, name-sorted order so clients can cache it.
+  - POSTs to `/mcp` whose `Content-Type` media type is not `application/json` are
+    rejected with `415 Unsupported Media Type` (SDK v2 parses the header instead of
+    substring-matching it). MCP SDK clients always send `application/json`; parameters
+    like `charset=utf-8` continue to work.
+  - The authorization server advertises
+    `authorization_response_iss_parameter_supported` (RFC 9207 / SEP-2468), which
+    BetterAuth already emits, and derives its BetterAuth `baseUrl` from
+    `authorizationServerUrl()` so the advertised issuer and the emitted `iss` cannot
+    drift apart.
+
+- 45b8b7c: Voice/SMS channel secrets can no longer transit the conversation
+
+  `conv_configure_channel` now rejects secret config fields (Vapi/Threll API keys,
+  Twilio auth tokens, MessageBird access/signing keys) — completing the contract that
+  connectors and email channels already follow. Creating a channel stores a pending row
+  (`active: false`, non-secret config under `pendingSetup`) and returns the one-time
+  credential link; saving the secrets runs the vendor's `completeSetup`, which performs
+  the create-time vendor side effects at apply time — Vapi's assistant-webhook install
+  and Threll's webhook-subscription creation (whose signing secret the vendor mints) —
+  then verifies the credentials with the vendor's test call and activates the channel.
+
+  Every admin action on a pending channel (test, call, send-test, options, updates)
+  answers `conv_invalid: channel is awaiting credentials` instead of a raw 500 from the
+  strict stored-config schemas. `conv_list_channel_options` drops its credentialed
+  pre-create discovery mode — options are listed with a channel's stored credentials
+  after the link completes; initial assistant/worker ids come from the vendor dashboard.
+  The new `setup-voice-sms-channel` skill documents the flow, and the `/v1` dashboard
+  paths are unchanged.
+
+### Patch Changes
+
+- 852ba5c: CMS: never keep an image variant that is heavier than its master.
+
+  The variant ladder assumed recompressing to WebP q80 always beats the original. For an already-efficiently-compressed photographic JPEG at full width it does not — WebP loses that contest. On a real asset a 199,523-byte JPEG master produced a 214,250-byte "derivative", and because delivery resolves inline `asset://` to the widest variant, the delivery path served 7% _more_ bytes than the master it was supposed to improve on.
+
+  - Any rendition whose encoded bytes are not smaller than the master is discarded rather than stored. `widestVariantUrl` then falls back to the next-widest rendition, or to the master when none qualify, so the invariant is now "a variant is only ever offered if it is genuinely lighter".
+  - Renditions dropped by this rule are also deleted from storage, so re-deriving an asset that previously produced an oversized variant reclaims that object instead of orphaning it.
+  - `VARIANT_LADDER_VERSION` goes to 2, so the CMS worker's reconciliation pass re-derives every existing asset under the new rule. No backfill or manual repair.
+
+  The regression escaped its own test: the suite already asserted "every variant is lighter than the master", but built the fixture from `sharp({create})` with a flat solid colour, which compresses so trivially that the assertion could not fail. The fixture is now a noisy JPEG master, which reproduces the failure against the old code, and there is explicit coverage for dropping the oversized rendition and for reclaiming a superseded object.
+
+- 1b52a3e: The end-user conversation agent can now reach commerce and bookings connectors: its delegated identity previously carried only conv/kb/crm scopes, so every `commerce_*` and `bookings_*` tool was stripped at the `/mcp` scope intersection and the widget agent deferred to a human even with a configured Shopify or Gastroplanner connection. The in-process runner resolves the connector scopes per conversation from the org's active connections, so orgs without a commerce or bookings connection never see those tools.
+
+  Alongside the wider scopes, self-service connector lookups no longer trust self-reported emails: browser-supplied widget emails (first-ingest visitor payload and the save-conversation box) are stamped `emailSource: 'visitor'` on the end-user record, and `requireEndUserEmail` rejects anonymous identities and visitor-sourced emails with `connectors_unverified`. This closes an account-takeover vector where an anonymous chat visitor could claim someone else's email and read their orders or cancel their bookings. Emails asserted by trusted paths — inbound email, SMS/voice caller ID, operator-minted delegated tokens, the admin API — keep working.
+
+- Updated dependencies [c81065d]
+- Updated dependencies [1b52a3e]
+  - @getmunin/mcp-toolkit@4.72.0
+  - @getmunin/agent-runtime@4.72.0
+  - @getmunin/inspector-app@4.72.0
+  - @getmunin/core@4.72.0
+  - @getmunin/db@4.72.0
+  - @getmunin/types@4.72.0
+  - @getmunin/emails@4.72.0
+
 ## 4.71.0
 
 ### Minor Changes

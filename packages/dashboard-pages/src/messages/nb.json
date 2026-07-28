@@ -1307,6 +1307,7 @@
       "channelsLoadFailed": "Kunne ikke hente kanallisten — lim inn kanal-ID-en manuelt.",
       "saveRouting": "Lagre kanal",
       "inviteBot": "Boten er ikke i kanalen ennå — kjør /invite @Munin i Slack, og bruk deretter Test på Slack-kortet.",
+      "sendTest": "Send testmelding",
       "testSent": "Testmelding sendt",
       "disconnect": "Koble fra",
       "disconnectConfirm": "Koble fra Slack? Trådkoblinger og ruting slettes; samtalene i Munin påvirkes ikke.",

@@ -150,7 +150,7 @@ export function OperatorBridgesSection() {
                   disabled={busy || !hasDefaultRoute}
                   onClick={() => void sendTest()}
                 >
-                  {tConn('test')}
+                  {t('sendTest')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

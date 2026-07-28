@@ -1307,6 +1307,7 @@
       "channelsLoadFailed": "Could not load the channel list — paste the channel ID manually.",
       "saveRouting": "Save channel",
       "inviteBot": "The bot is not in that channel yet — run /invite @Munin in Slack, then use Test on the Slack card.",
+      "sendTest": "Send test message",
       "testSent": "Test message sent",
       "disconnect": "Disconnect",
       "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",

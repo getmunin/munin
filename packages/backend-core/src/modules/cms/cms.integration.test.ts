@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { createApp } from '../../bootstrap-app.ts';
 import { AppModule } from '../../app.module.ts';
 import { CmsScheduleWorker } from './cms.schedule.worker.ts';
+import { VARIANT_LADDER_VERSION } from './cms.variants.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -882,7 +883,7 @@ const skipReason = TEST_URL
       .from(schema.cmsAssets)
       .where(sql`id = ${assetId}`)
       .limit(1);
-    expect(row!.variantsVersion).toBe(1);
+    expect(row!.variantsVersion).toBe(VARIANT_LADDER_VERSION);
     expect(row!.width).toBe(800);
     expect(row!.variants.map((v) => v.width)).toEqual([320, 640, 800]);
   }, 60_000);
@@ -911,7 +912,7 @@ const skipReason = TEST_URL
       .from(schema.cmsAssets)
       .where(sql`id = ${asset!.id}`)
       .limit(1);
-    expect(row!.variantsVersion).toBe(1);
+    expect(row!.variantsVersion).toBe(VARIANT_LADDER_VERSION);
     expect(row!.variants).toEqual([]);
   }, 60_000);
 

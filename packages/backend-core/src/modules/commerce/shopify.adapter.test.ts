@@ -296,7 +296,7 @@ describe('ShopifyAdapter', () => {
       );
       expect(stored).toEqual({
         shopDomain: 'acme.myshopify.com',
-        apiVersion: '2025-01',
+        apiVersion: '2026-04',
         encryptedAccessToken: 'enc(shpat_new_token)',
       });
     });

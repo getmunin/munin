@@ -21,3 +21,5 @@ Two credential-link dead ends are fixed alongside:
   only consumes it on success), so it now offers a retry that resets the form instead
   of stranding the user on an error. Also drops the doubled top padding on the
   status states.
+- The Shopify adapter's default Admin API version moves from the sunset `2025-01`
+  to `2026-04`.

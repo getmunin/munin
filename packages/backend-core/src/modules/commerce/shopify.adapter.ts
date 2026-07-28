@@ -15,7 +15,7 @@ import type {
 } from './commerce-adapter.ts';
 import { ConnectorVendorError, type ConnectorFetch, REQUEST_TIMEOUT_MS } from '../connectors/http.ts';
 
-const DEFAULT_API_VERSION = '2025-01';
+const DEFAULT_API_VERSION = '2026-04';
 const SHOP_DOMAIN_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
 
 export const ShopifyConfigInput = z.object({

@@ -81,6 +81,17 @@ export class SlackApiClient {
     });
   }
 
+  async openView(input: {
+    token: string;
+    triggerId: string;
+    view: Record<string, unknown>;
+  }): Promise<void> {
+    await this.call('views.open', input.token, {
+      trigger_id: input.triggerId,
+      view: input.view,
+    });
+  }
+
   async postEphemeral(input: {
     token: string;
     channel: string;

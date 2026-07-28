@@ -18,6 +18,8 @@ import {
   mergeProposalApprovalText,
   messageBodyText,
   messageText,
+  outreachCampaignParentMovedText,
+  outreachCampaignParentText,
   outreachProposalApprovalText,
   parentStateLine,
   parseMessageAttachments,
@@ -53,6 +55,13 @@ type DeliveryRow = typeof schema.slackDeliveries.$inferSelect;
 type LinkRow = typeof schema.slackConversationLinks.$inferSelect;
 
 class TerminalDeliveryError extends Error {}
+
+function slackTsIsToday(slackTs: string): boolean {
+  const postedAtSec = Number.parseFloat(slackTs);
+  if (!Number.isFinite(postedAtSec)) return false;
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  return day(new Date(postedAtSec * 1000)) === day(new Date());
+}
 
 @Injectable()
 export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
@@ -358,6 +367,9 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         .update(schema.slackNotificationLinks)
         .set({ resolvedAt: new Date() })
         .where(eq(schema.slackNotificationLinks.id, link.id));
+      if (subject.subjectType === 'outreach_proposal') {
+        await this.refreshOutreachParent(integration, subject.subjectId, token);
+      }
       return;
     }
 
@@ -375,16 +387,30 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
           .update(schema.slackNotificationLinks)
           .set({ resolvedAt: new Date() })
           .where(eq(schema.slackNotificationLinks.id, link.id));
+        if (subject.subjectType === 'outreach_proposal') {
+          await this.refreshOutreachParent(integration, subject.subjectId, token);
+        }
       }
       return;
     }
     if (row.eventType === 'outreach.proposal.updated') return;
 
+    let threadTs: string | undefined;
+    let channel = route.slackChannelId;
+    if (subject.subjectType === 'outreach_proposal') {
+      const parent = await this.ensureOutreachParent(integration, route, subject.subjectId, token);
+      if (parent) {
+        threadTs = parent.slackTs;
+        channel = parent.slackChannelId;
+      }
+    }
+
     let posted;
     try {
       posted = await this.api.postMessage({
         token,
-        channel: route.slackChannelId,
+        channel,
+        threadTs,
         text: rendering.text,
         blocks: rendering.blocks,
       });
@@ -406,6 +432,156 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         resolvedAt: rendering.resolved ? new Date() : null,
       })
       .onConflictDoNothing();
+    if (subject.subjectType === 'outreach_proposal') {
+      await this.refreshOutreachParent(integration, subject.subjectId, token);
+    }
+  }
+
+  private async outreachParentContext(proposalId: string): Promise<{
+    campaignId: string;
+    campaignName: string;
+    pendingCount: number;
+  } | null> {
+    const [proposal] = await this.db
+      .select({ campaignId: schema.outreachProposals.campaignId })
+      .from(schema.outreachProposals)
+      .where(eq(schema.outreachProposals.id, proposalId))
+      .limit(1);
+    if (!proposal) return null;
+    const [campaign] = await this.db
+      .select({ name: schema.outreachCampaigns.name })
+      .from(schema.outreachCampaigns)
+      .where(eq(schema.outreachCampaigns.id, proposal.campaignId))
+      .limit(1);
+    const [pending] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.outreachProposals)
+      .where(
+        and(
+          eq(schema.outreachProposals.campaignId, proposal.campaignId),
+          eq(schema.outreachProposals.status, 'pending'),
+        ),
+      );
+    return {
+      campaignId: proposal.campaignId,
+      campaignName: campaign?.name ?? 'a campaign',
+      pendingCount: pending?.count ?? 0,
+    };
+  }
+
+  private async outreachParentLink(
+    integrationId: string,
+    campaignId: string,
+  ): Promise<typeof schema.slackNotificationLinks.$inferSelect | null> {
+    const [link] = await this.db
+      .select()
+      .from(schema.slackNotificationLinks)
+      .where(
+        and(
+          eq(schema.slackNotificationLinks.integrationId, integrationId),
+          eq(schema.slackNotificationLinks.subjectType, 'outreach_campaign'),
+          eq(schema.slackNotificationLinks.subjectId, campaignId),
+        ),
+      )
+      .limit(1);
+    return link ?? null;
+  }
+
+  private async ensureOutreachParent(
+    integration: IntegrationRow,
+    route: RouteRow,
+    proposalId: string,
+    token: string,
+  ): Promise<{ slackTs: string; slackChannelId: string } | null> {
+    const context = await this.outreachParentContext(proposalId);
+    if (!context) return null;
+    const link = await this.outreachParentLink(integration.id, context.campaignId);
+    if (
+      link &&
+      !link.resolvedAt &&
+      link.slackChannelId === route.slackChannelId &&
+      slackTsIsToday(link.slackTs)
+    ) {
+      return { slackTs: link.slackTs, slackChannelId: link.slackChannelId };
+    }
+
+    const text = outreachCampaignParentText(
+      context.campaignName,
+      context.pendingCount,
+      `${readWebBaseUrl()}/dashboard`,
+    );
+    let posted;
+    try {
+      posted = await this.api.postMessage({ token, channel: route.slackChannelId, text });
+    } catch (err) {
+      if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
+        throw new TerminalDeliveryError('bot_not_in_channel');
+      }
+      throw err;
+    }
+    if (link && !link.resolvedAt) {
+      await this.api
+        .updateMessage({
+          token,
+          channel: link.slackChannelId,
+          ts: link.slackTs,
+          text: outreachCampaignParentMovedText(context.campaignName),
+        })
+        .catch(() => undefined);
+    }
+    if (link) {
+      await this.db
+        .update(schema.slackNotificationLinks)
+        .set({ slackChannelId: posted.channel, slackTs: posted.ts, resolvedAt: null })
+        .where(eq(schema.slackNotificationLinks.id, link.id));
+    } else {
+      await this.db
+        .insert(schema.slackNotificationLinks)
+        .values({
+          orgId: integration.orgId,
+          integrationId: integration.id,
+          subjectType: 'outreach_campaign',
+          subjectId: context.campaignId,
+          slackChannelId: posted.channel,
+          slackTs: posted.ts,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.slackNotificationLinks.integrationId,
+            schema.slackNotificationLinks.subjectType,
+            schema.slackNotificationLinks.subjectId,
+          ],
+          set: { slackChannelId: posted.channel, slackTs: posted.ts, resolvedAt: null },
+        });
+    }
+    return { slackTs: posted.ts, slackChannelId: posted.channel };
+  }
+
+  private async refreshOutreachParent(
+    integration: IntegrationRow,
+    proposalId: string,
+    token: string,
+  ): Promise<void> {
+    const context = await this.outreachParentContext(proposalId);
+    if (!context) return;
+    const link = await this.outreachParentLink(integration.id, context.campaignId);
+    if (!link) return;
+    await this.api.updateMessage({
+      token,
+      channel: link.slackChannelId,
+      ts: link.slackTs,
+      text: outreachCampaignParentText(
+        context.campaignName,
+        context.pendingCount,
+        `${readWebBaseUrl()}/dashboard`,
+      ),
+    });
+    if (context.pendingCount === 0 && !link.resolvedAt) {
+      await this.db
+        .update(schema.slackNotificationLinks)
+        .set({ resolvedAt: new Date() })
+        .where(eq(schema.slackNotificationLinks.id, link.id));
+    }
   }
 
   private async renderApproval(
@@ -423,6 +599,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     let text: string;
     let approveLabel: string | null;
+    let viewLabel: string | undefined;
     let resolution: ApprovalResolution | null;
 
     if (subject.subjectType === 'crm_merge_proposal') {
@@ -482,6 +659,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         dashboardUrl,
       });
       approveLabel = 'Approve & send';
+      viewLabel = 'View full draft';
       const derived: ApprovalOutcome | null =
         outcome ??
         (proposal?.status === 'sent'
@@ -528,7 +706,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       text: resolution
         ? `${text}\n${approvalResolvedLine(resolution.outcome, resolution.decidedByName)}`
         : text,
-      blocks: approvalBlocks(text, value, { approveLabel }, resolution),
+      blocks: approvalBlocks(text, value, { approveLabel, viewLabel }, resolution),
       resolved: resolution !== null,
     };
   }

@@ -229,15 +229,21 @@ export class EmailService {
       return { ok: false, error: 'channel is not an email channel' };
     }
     const stored = jsonbToStored(channel.config);
+    const wasPending = needsCredentials(stored);
     if (secrets.smtpPassword && stored.outbound.provider === 'smtp') {
       stored.outbound.encryptedPassword = await encryptString(secrets.smtpPassword);
     }
     if (secrets.imapPassword && stored.inbound) {
       stored.inbound.encryptedPassword = await encryptString(secrets.imapPassword);
     }
+    const activate = wasPending && !needsCredentials(stored);
     await ctx.db
       .update(schema.convChannels)
-      .set({ config: storedToJsonb(stored), updatedAt: new Date() })
+      .set({
+        config: storedToJsonb(stored),
+        ...(activate ? { active: true } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(schema.convChannels.id, channel.id));
     return { ok: true, detail: 'credentials saved — run conv_test_email_channel to verify' };
   }
@@ -252,11 +258,14 @@ export class EmailService {
     return decryptString(tx, encryptedPassword);
   }
 
-  async createChannel(input: {
-    name: string;
-    config: EmailChannelConfigInputT;
-    defaultAgentMode?: AgentMode;
-  }): Promise<{
+  async createChannel(
+    input: {
+      name: string;
+      config: EmailChannelConfigInputT;
+      defaultAgentMode?: AgentMode;
+    },
+    opts?: { rejectSecrets?: boolean },
+  ): Promise<{
     id: string;
     name: string;
     type: 'email';
@@ -266,6 +275,7 @@ export class EmailService {
   }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    if (opts?.rejectSecrets) assertNoSecrets(input.config);
     const stored = await this.toStored(input.config);
     const [row] = await ctx.db
       .insert(schema.convChannels)
@@ -275,6 +285,7 @@ export class EmailService {
         vendor: stored.outbound.provider,
         name: input.name,
         config: storedToJsonb(stored),
+        active: !needsCredentials(stored),
         ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
       })
       .returning();
@@ -288,12 +299,15 @@ export class EmailService {
     };
   }
 
-  async updateChannel(input: {
-    channelId: string;
-    name?: string;
-    config: EmailChannelConfigInputT;
-    defaultAgentMode?: AgentMode;
-  }): Promise<{
+  async updateChannel(
+    input: {
+      channelId: string;
+      name?: string;
+      config: EmailChannelConfigInputT;
+      defaultAgentMode?: AgentMode;
+    },
+    opts?: { rejectSecrets?: boolean },
+  ): Promise<{
     id: string;
     name: string;
     type: 'email';
@@ -302,6 +316,7 @@ export class EmailService {
     defaultAgentMode: AgentMode;
   }> {
     const ctx = getCurrentContext();
+    if (opts?.rejectSecrets) assertNoSecrets(input.config);
     const existing = await ctx.db
       .select()
       .from(schema.convChannels)
@@ -489,6 +504,25 @@ async function encryptString(plaintext: string): Promise<string> {
   const ct = rows[0]?.ct;
   if (!ct) throw new ConflictException('encryption_failed');
   return ct;
+}
+
+export function needsCredentials(stored: StoredEmailChannelConfig): boolean {
+  if (stored.outbound.provider === 'smtp' && !stored.outbound.encryptedPassword) return true;
+  if (stored.inbound && !stored.inbound.encryptedPassword) return true;
+  return false;
+}
+
+function assertNoSecrets(config: EmailChannelConfigInputT): void {
+  const provided: string[] = [];
+  if (config.outbound.provider === 'smtp' && config.outbound.password) {
+    provided.push('outbound.password');
+  }
+  if (config.inbound?.password) provided.push('inbound.password');
+  if (provided.length > 0) {
+    throw new BadRequestException(
+      `conv_invalid: secret fields (${provided.join(', ')}) cannot be accepted through this tool — omit them, and a one-time credential link is returned for a human to enter them in the dashboard`,
+    );
+  }
 }
 
 export function storedToJsonb(stored: StoredEmailChannelConfig): Record<string, unknown> {

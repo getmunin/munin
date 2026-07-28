@@ -10,6 +10,7 @@ import { ConvAdminTools } from './conv.tools.ts';
 import { ConvSelfServiceTools } from './conv.self-service.tools.ts';
 import { EmailService } from './email/email.service.ts';
 import { EmailAdminTools } from './email/email.tools.ts';
+import { EmailChannelProbe } from './email/email-probe.service.ts';
 import { EmailAdapter } from './email/email-adapter.ts';
 import { CHANNEL_ADAPTERS } from './channels/adapter.ts';
 import {
@@ -70,6 +71,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ConvAdminTools,
     ConvSelfServiceTools,
     EmailService,
+    EmailChannelProbe,
     EmailAdminTools,
     ChannelCredentialService,
     ChannelCredentialTools,
@@ -150,6 +152,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ConvService,
     ConversationClaimsService,
     EmailService,
+    EmailChannelProbe,
     EmailAdapter,
     EmailAdminTools,
     MessageBirdClientService,

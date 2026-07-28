@@ -11,7 +11,7 @@ import {
 import { DB } from '../../../common/db/db.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
 import { EmailService, jsonbToStored, type StoredEmailChannelConfig } from '../email/email.service.ts';
-import { smtpTransportOptions } from '../email/email.tools.ts';
+import { smtpTransportOptions } from '../email/email-probe.service.ts';
 import { buildOutbound, type BuiltMessage } from '../email/mime.ts';
 import {
   formatQuotedHistory,

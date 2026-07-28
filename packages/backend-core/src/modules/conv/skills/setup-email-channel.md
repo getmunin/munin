@@ -11,9 +11,11 @@ Use this when a customer wants Munin to send and receive email under one of thei
 
 1. Decide outbound: their own SMTP server, or send through Munin's configured Mailer (Resend).
 2. Decide inbound: poll IMAP, or rely on the customer forwarding to a `MUNIN_EMAIL_REPLY_DOMAIN` address.
-3. Call `conv_setup_email_channel` with the full config.
-4. Call `conv_test_email_channel` to verify creds without sending mail.
-5. Confirm the channel appears in `conv_list_channels` with `active: true`.
+3. Call `conv_setup_email_channel` with the non-secret config — **never ask for or pass passwords**. The response includes a one-time **credential link**.
+4. Share the credential link — the human enters the SMTP/IMAP passwords in the dashboard; the channel activates and the passwords are verified against the servers on save. The link works once and expires after 24 hours; mint a fresh one with `conv_request_channel_credentials`.
+5. Confirm the channel appears in `conv_list_channels` with `active: true`; `conv_test_email_channel` re-verifies credentials any time.
+
+A `mailer`-outbound channel with no IMAP inbound needs no secrets at all — it is active immediately, no link involved.
 
 ## Step 1 — gather the config
 
@@ -21,11 +23,11 @@ Required from the operator:
 
 - **Addressing**: `fromAddress` (must be a real mailbox they control), optional `fromName` (e.g. "Acme Support").
 - **Outbound mode**:
-  - `smtp` — host, port, secure (TLS yes/no), username, password. Most providers: port 587 with `secure: false` (STARTTLS) or 465 with `secure: true`.
+  - `smtp` — host, port, secure (TLS yes/no), username. Most providers: port 587 with `secure: false` (STARTTLS) or 465 with `secure: true`. The password is entered through the credential link, never in the conversation.
   - `mailer` — no extra config; uses the Munin instance's configured Mailer. Best for self-host without an SMTP relay.
-- **Inbound (optional)**: IMAP host, port, secure, username, password, mailbox name (defaults to `INBOX`).
+- **Inbound (optional)**: IMAP host, port, secure, username, mailbox name (defaults to `INBOX`). The password comes through the credential link.
 
-Passwords are stored encrypted via pgcrypto. If you re-call `conv_setup_email_channel` later with empty password fields, the prior encrypted password is preserved — useful when the operator only wants to update non-secret fields.
+Passwords are stored encrypted via pgcrypto and only enter Munin through the credential link. Re-calling `conv_setup_email_channel` for updates keeps the stored passwords — non-secret fields can be changed freely.
 
 ## Step 2 — create the channel
 
@@ -45,8 +47,7 @@ Call `conv_setup_email_channel` (admin):
       "host": "smtp.acme.com",
       "port": 587,
       "secure": false,
-      "username": "support@acme.com",
-      "password": "<plaintext-once>"
+      "username": "support@acme.com"
     },
     "inbound": {
       "provider": "imap",
@@ -54,16 +55,15 @@ Call `conv_setup_email_channel` (admin):
       "port": 993,
       "secure": true,
       "username": "support@acme.com",
-      "password": "<plaintext-once>",
       "mailbox": "INBOX"
     }
   }
 }
 ```
 
-Returns the channel ID, type `'email'`, and the redacted DTO (passwords show as `••••`).
+Returns the channel ID, type `'email'`, the redacted DTO (passwords show as `••••`), and — when SMTP or IMAP is configured — a `credentialLink` with a one-time URL. The channel stays `active: false` until the human opens the link and saves the passwords; saving verifies them against the SMTP/IMAP servers and activates the channel.
 
-To **update** an existing channel, pass `channelId` and only the fields you want to change. Empty password strings preserve the stored secret.
+To **update** an existing channel, pass `channelId` and only the fields you want to change. Stored passwords are preserved; to rotate a password, mint a link with `conv_request_channel_credentials`.
 
 ## Step 3 — verify
 

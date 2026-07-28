@@ -25,7 +25,7 @@ import {
   jsonbToStored,
   type StoredEmailChannelConfig,
 } from './email.service.ts';
-import { smtpTransportOptions } from './email.tools.ts';
+import { smtpTransportOptions } from './email-probe.service.ts';
 import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.ts';
 import { renderEmailHtml } from './markdown.ts';
 import { resolveInbound, type ParsedInboundEmail } from './threading.ts';

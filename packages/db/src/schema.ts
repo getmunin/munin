@@ -2105,6 +2105,9 @@ export const slackDeliveries = pgTable(
 // proposal, KB curation candidate). Created by the bridge worker when the
 // pending notification posts; resolution events chat.update the same message
 // and stamp resolved_at so late or duplicate resolutions are no-ops.
+// Outreach proposals also get a per-campaign thread parent row (subject_type
+// 'outreach_campaign'); a resolved parent, or one from a previous UTC day, is
+// reused for the next wave by pointing the row at a freshly posted message.
 export const slackNotificationLinks = pgTable(
   'slack_notification_links',
   {

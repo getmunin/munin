@@ -109,11 +109,11 @@ Call `slack_test` — it posts a hello message to the default channel. Then conf
 
 ## Approval notifications
 
-Items waiting on a human decision post as standalone messages (not threads) with approve/dismiss buttons, and the message updates in place once the item is decided — from Slack, the dashboard, or an agent:
+Items waiting on a human decision post with approve/dismiss buttons, and the message updates in place once the item is decided — from Slack, the dashboard, or an agent:
 
-- **CRM merge proposals** — duplicate contacts with the recommended keeper and confidence. *Apply merge* / *Dismiss*.
-- **Outreach drafts** — pending proposals with campaign, recipient, subject, and a body preview. *Approve & send* (this sends the real email) / *Dismiss*. Draft edits refresh the message.
-- **KB curation candidates** — drafted knowledge-base articles awaiting review. *Publish to \<space\>* when the draft proposes a target space, otherwise only *Dismiss* (deletes the draft) plus a dashboard link for picking a space.
+- **CRM merge proposals** — standalone messages: duplicate contacts with the recommended keeper and confidence. *Apply merge* / *Dismiss*.
+- **Outreach drafts** — grouped per campaign: one parent message with a live pending count, each draft a thread reply with campaign, recipient, subject, and a short body preview. *Approve & send* (this sends the real email) / *View full draft* (opens the complete draft in a modal, no dashboard needed) / *Dismiss*. Draft edits refresh the reply. When every draft in the wave is decided the parent flips to an all-handled banner. Parents last one day (UTC): the first draft of a new day posts a fresh parent (the campaign-wide pending count moves with it), and a previous parent that still showed pending drafts is rewritten to a "continued in a newer thread" notice — its still-pending replies stay actionable.
+- **KB curation candidates** — standalone messages: drafted knowledge-base articles awaiting review. *Publish to \<space\>* when the draft proposes a target space, otherwise only *Dismiss* (deletes the draft) plus a dashboard link for picking a space.
 
 Routing: they land in the `approvals` channel when routed (`slack_set_routing` with `purpose: "approvals"`), otherwise fall back to the escalations channel, then the default channel:
 

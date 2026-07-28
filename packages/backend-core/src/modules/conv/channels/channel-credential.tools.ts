@@ -15,7 +15,7 @@ export class ChannelCredentialTools {
     name: 'conv_request_channel_credentials',
     title: 'Conv: Request a channel credential link',
     description:
-      'Return a one-time link a human opens to enter an email channel’s secret credentials (SMTP/IMAP passwords) in the dashboard, so the secret is never pasted into a conversation. Create the channel first (the password may be omitted), then share this link. The link expires after 24 hours.',
+      'Return a one-time link a human opens to enter an email channel’s secret credentials (SMTP/IMAP passwords) in the dashboard — passwords are never accepted in a conversation. conv_setup_email_channel already returns this link on create; use this tool to mint a fresh link when one expired or to rotate the stored passwords. The link expires after 24 hours.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: RequestInput,

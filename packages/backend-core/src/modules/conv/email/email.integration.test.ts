@@ -134,6 +134,20 @@ class StubImapFetcher implements ImapFetcher {
     }
   }
 
+  async function completeCredentialLink(
+    link: { url: string } | undefined,
+    secrets: Record<string, string>,
+  ): Promise<void> {
+    expect(link?.url).toContain('token=mncl_');
+    const token = new URL(link!.url).searchParams.get('token')!;
+    const res = await fetch(`${baseUrl}/v1/credentials`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token, secrets }),
+    });
+    expect(res.status).toBeLessThan(500);
+  }
+
   it('inbound from new sender → new conversation; admin reply → outbound via mailer with Reply-To plus-address; replied inbound threads back', async () => {
     const rawResult = await withClient(adminKey, async (c) =>
       c.callTool({
@@ -149,7 +163,6 @@ class StubImapFetcher implements ImapFetcher {
               port: 993,
               secure: true,
               username: 'support@acme.test',
-              password: 'app-pw-stub',
               mailbox: 'INBOX',
             },
           },
@@ -159,8 +172,15 @@ class StubImapFetcher implements ImapFetcher {
     if ((rawResult as { isError?: boolean }).isError) {
       throw new Error(`conv_setup_email_channel failed: ${JSON.stringify(rawResult)}`);
     }
-    const channel = parseToolResult<{ id: string; config: { addressing: { fromAddress: string } } }>(rawResult);
+    const channel = parseToolResult<{
+      id: string;
+      active: boolean;
+      config: { addressing: { fromAddress: string } };
+      credentialLink?: { url: string };
+    }>(rawResult);
     expect(channel.config.addressing.fromAddress).toBe('support@acme.test');
+    expect(channel.active).toBe(false);
+    await completeCredentialLink(channel.credentialLink, { imapPassword: 'app-pw-stub' });
 
     await waitFor(async () => {
       const rows = await db
@@ -405,7 +425,6 @@ class StubImapFetcher implements ImapFetcher {
               port: 993,
               secure: true,
               username: 'outreach@acme.test',
-              password: 'app-pw-stub',
               mailbox: 'INBOX',
             },
           },
@@ -415,8 +434,13 @@ class StubImapFetcher implements ImapFetcher {
     if ((rawResult as { isError?: boolean }).isError) {
       throw new Error(`conv_setup_email_channel failed: ${JSON.stringify(rawResult)}`);
     }
-    const outreachChannel = parseToolResult<{ id: string; defaultAgentMode: string }>(rawResult);
+    const outreachChannel = parseToolResult<{
+      id: string;
+      defaultAgentMode: string;
+      credentialLink?: { url: string };
+    }>(rawResult);
     expect(outreachChannel.defaultAgentMode).toBe('draft_only');
+    await completeCredentialLink(outreachChannel.credentialLink, { imapPassword: 'app-pw-stub' });
 
     await waitFor(async () => {
       const rows = await db

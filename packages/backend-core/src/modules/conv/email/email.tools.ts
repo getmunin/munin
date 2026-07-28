@@ -6,16 +6,16 @@ import { eq } from 'drizzle-orm';
 import { getCurrentContext, resolvePublicHost, type Mailer } from '@getmunin/core';
 import { renderChannelTestEmail } from '@getmunin/emails';
 import { createTransport } from 'nodemailer';
-import { ImapFlow } from 'imapflow';
 import { AgentModeSchema } from '@getmunin/types';
 import { DB } from '../../../common/db/db.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
+import { ChannelCredentialService } from '../channels/channel-credential.service.ts';
 import {
-  EmailService,
-  EmailChannelConfigInput,
-  jsonbToStored,
-  type StoredEmailChannelConfig,
-} from './email.service.ts';
+  EmailChannelProbe,
+  describeSmtpError,
+  smtpTransportOptions,
+} from './email-probe.service.ts';
+import { EmailService, EmailChannelConfigInput, jsonbToStored } from './email.service.ts';
 
 const SetupInput = z.object({
   channelId: z.string().optional(),
@@ -37,6 +37,8 @@ const SendTestInput = z.object({
 export class EmailAdminTools {
   constructor(
     @Inject(EmailService) private readonly email: EmailService,
+    @Inject(EmailChannelProbe) private readonly probe: EmailChannelProbe,
+    @Inject(ChannelCredentialService) private readonly credentials: ChannelCredentialService,
     @Inject(DB) private readonly serviceDb: Db,
     @Inject(MAILER) private readonly mailer: Mailer,
   ) {}
@@ -45,7 +47,7 @@ export class EmailAdminTools {
     name: 'conv_setup_email_channel',
     title: 'Conv: Set up email channel',
     description:
-      "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host. Set `defaultAgentMode: 'draft_only'` on an outreach-only inbox so inbound replies are always drafted for human approval rather than auto-sent.",
+      "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` on an outreach-only inbox so inbound replies are always drafted for human approval rather than auto-sent.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetupInput,
@@ -54,18 +56,27 @@ export class EmailAdminTools {
   })
   async setupChannel(args: z.infer<typeof SetupInput>) {
     if (args.channelId) {
-      return this.email.updateChannel({
-        channelId: args.channelId,
+      return this.email.updateChannel(
+        {
+          channelId: args.channelId,
+          name: args.name,
+          config: args.config,
+          defaultAgentMode: args.defaultAgentMode,
+        },
+        { rejectSecrets: true },
+      );
+    }
+    const channel = await this.email.createChannel(
+      {
         name: args.name,
         config: args.config,
         defaultAgentMode: args.defaultAgentMode,
-      });
-    }
-    return this.email.createChannel({
-      name: args.name,
-      config: args.config,
-      defaultAgentMode: args.defaultAgentMode,
-    });
+      },
+      { rejectSecrets: true },
+    );
+    if (channel.active) return channel;
+    const credentialLink = await this.credentials.requestLink(channel.id);
+    return { ...channel, credentialLink };
   }
 
   @McpTool({
@@ -91,11 +102,7 @@ export class EmailAdminTools {
       .limit(1);
     const channel = rows[0];
     if (!channel) throw new NotFoundException(`channel ${args.channelId} not found`);
-    const config = jsonbToStored(channel.config);
-
-    const smtp = await this.testSmtp(config);
-    const imap = await this.testImap(config);
-    return { smtp, imap };
+    return this.probe.test(jsonbToStored(channel.config));
   }
 
   @McpTool({
@@ -171,122 +178,4 @@ export class EmailAdminTools {
     return { delivered: true };
   }
 
-  private async testSmtp(config: StoredEmailChannelConfig): Promise<string> {
-    if (config.outbound.provider === 'mailer') return 'ok';
-    try {
-      const resolved = await resolvePublicHost(config.outbound.host);
-      const password = await this.serviceDb.transaction((tx) =>
-        this.email.decryptSmtpPassword(
-          tx,
-          config.outbound.provider === 'smtp' ? config.outbound.encryptedPassword : '',
-        ),
-      );
-      const transport = createTransport({
-        ...smtpTransportOptions(
-          config.outbound.host,
-          config.outbound.port,
-          config.outbound.secure,
-          { user: config.outbound.username, pass: password },
-          resolved?.address,
-        ),
-        connectionTimeout: 5000,
-        greetingTimeout: 5000,
-      });
-      try {
-        await transport.verify();
-      } finally {
-        transport.close();
-      }
-      return 'ok';
-    } catch (err) {
-      return `error: ${err instanceof Error ? err.message : String(err)}`;
-    }
-  }
-
-  private async testImap(config: StoredEmailChannelConfig): Promise<string> {
-    if (!config.inbound) return 'not configured';
-    try {
-      const resolved = await resolvePublicHost(config.inbound.host);
-      const password = await this.serviceDb.transaction((tx) =>
-        this.email.decryptImapPassword(tx, config.inbound!.encryptedPassword),
-      );
-      const client = new ImapFlow({
-        host: resolved?.address ?? config.inbound.host,
-        port: config.inbound.port,
-        secure: config.inbound.secure,
-        auth: { user: config.inbound.username, pass: password },
-        logger: false,
-        ...(resolved && resolved.address !== config.inbound.host
-          ? { tls: { servername: config.inbound.host } }
-          : {}),
-      });
-      try {
-        await client.connect();
-        await client.logout();
-      } catch (err) {
-        return `error: ${err instanceof Error ? err.message : String(err)}`;
-      }
-      return 'ok';
-    } catch (err) {
-      return `error: ${err instanceof Error ? err.message : String(err)}`;
-    }
-  }
-}
-
-export function smtpTransportOptions(
-  host: string,
-  port: number,
-  secureHint: boolean,
-  auth: { user: string; pass: string },
-  resolvedAddress?: string,
-): {
-  host: string;
-  port: number;
-  secure: boolean;
-  requireTLS: boolean;
-  auth: { user: string; pass: string };
-  tls?: { servername: string };
-} {
-  let secure: boolean;
-  let requireTLS: boolean;
-  if (port === 465) {
-    secure = true;
-    requireTLS = false;
-  } else if (port === 587 || port === 25 || port === 2525) {
-    secure = false;
-    requireTLS = true;
-  } else {
-    secure = secureHint;
-    requireTLS = !secureHint;
-  }
-  if (resolvedAddress && resolvedAddress !== host) {
-    return { host: resolvedAddress, port, secure, requireTLS, auth, tls: { servername: host } };
-  }
-  return { host, port, secure, requireTLS, auth };
-}
-
-function describeSmtpError(err: unknown): string {
-  if (!err || typeof err !== 'object') return String(err);
-  const e = err as { code?: string; responseCode?: number; response?: string; message?: string };
-  const code = typeof e.code === 'string' ? e.code : null;
-  const response = typeof e.response === 'string' ? e.response.replace(/\s+/g, ' ').trim() : null;
-  if (code === 'EAUTH') {
-    return response
-      ? `SMTP authentication failed (${response})`
-      : 'SMTP authentication failed — check the username and password.';
-  }
-  if (code === 'ECONNECTION' || code === 'ETIMEDOUT' || code === 'EDNS') {
-    return response
-      ? `Could not connect to the SMTP server (${response})`
-      : 'Could not connect to the SMTP server — check the host and port.';
-  }
-  if (code === 'EENVELOPE') {
-    return response
-      ? `SMTP rejected the envelope (${response})`
-      : 'SMTP rejected the sender or recipient address.';
-  }
-  if (response) return response;
-  if (e.message) return e.message;
-  if (err instanceof Error) return err.message;
-  return 'SMTP transport failed';
 }

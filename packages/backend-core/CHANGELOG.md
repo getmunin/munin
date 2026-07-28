@@ -1,5 +1,74 @@
 # @getmunin/backend-core
 
+## 4.73.0
+
+### Minor Changes
+
+- 62776e2: CMS: `cms_get_entry` no longer renders an MCP Apps panel.
+
+  An entry is a document — long prose, blocks, images, under a user-defined schema — which is the worst fit for a fixed card in a chat transcript. The panel rendered every field stacked at full height and dumped `blocks` fields as raw JSON into a `<pre>` with no height cap, so reading one article produced a screen-and-a-half of transcript.
+
+  The decisive constraint is that the binding is per-tool, not per-call: hosts resolve `_meta.ui.resourceUri` from the tool definition, and neither the MCP Apps spec nor the ext-apps SDK defines a way to suppress rendering for a single call. So a panel that is mildly useful when reviewing one draft is unavoidably also rendered five times when an agent reads five entries for a research pass. There is no setting that makes it appear only when it helps.
+
+  Nothing moves out of reach. `cms_publish_entry` / `cms_unpublish_entry` / `cms_schedule_publish` were never app-only — unlike the outreach and CRM proposal actions — and they carry `destructiveHint: true`, so the human confirmation lives in the host's destructive-tool prompt rather than in a panel button. The tool result is unchanged: the full entry JSON was always in `content`, which is what the model reads.
+
+  The inspector app keeps its other six panel-bound tools (`cms_list_assets`, `kb_list_curation_candidates`, `crm_list_merge_proposals`, `outreach_list_proposals`, and the four analytics reads), all of which wrap bounded, actionable payloads. The entry view, its type guards, its `inspector.entry` translations, and its styles are deleted.
+
+- 62776e2: CMS: entry lists return summaries, so a list call can no longer blow the host's result cap.
+
+  `cms_list_entries` ran every row through the same projection as `cms_get_entry`, so listing a collection of articles returned every full body. On a real collection, `{ collection: "journal-blocks", limit: 100 }` produced 72,768 characters — over Claude Desktop's per-result cap, which spilled the payload to a file and left the calling agent with nothing usable. `cms_search` had the same shape: full `data` on up to 50 hits, redundant with the match excerpt it already returned.
+
+  Both now summarize. Because collection schemas are user-defined, the projection is driven by value size rather than a per-collection config: short values (text, numbers, booleans, dates, selects, asset/reference ids) come back verbatim, long text is shortened to a ~200-character lead, and oversized collections are replaced by an item count. What was withheld is reported per field in `fieldSummary` — `{ "body": { "words": 1600, "truncated": true } }` — so a length signal survives without the bytes. A result-wide budget sheds lead length in stages and, as a last resort, drops rows, reported as `dropped` rather than silently truncated.
+
+  Breaking changes to two tool result shapes:
+
+  - `cms_list_entries` returns `{ entries, returned, dropped, truncated }` instead of a bare array, and each entry gains `title`, `titleFieldName`, `fieldSummary`, and `truncated`. It no longer expands asset fields or accepts `include` — summaries never expand. `cms_get_entry` (unchanged) and the public delivery API remain the full-fidelity reads.
+  - `cms_search` hits carry summarized `data` plus `title`, `fieldSummary`, and `truncated`. `include: ["references"]` still works: expanded references keep their `{ id, slug, collection, locale }` identity and their nested `data` is summarized in turn. The public delivery API's search is untouched and still returns full entry data for frontends.
+
+  New inputs on `cms_list_entries`: `ids` reads up to 50 specific entries in one widget-free call — the shape a research pass over several entries actually wants, instead of N `cms_get_entry` calls each rendering an MCP Apps panel — and `fields` returns named fields verbatim when the full value is the point.
+
+  Also fixes a latent 500 found while testing this: `cms_create_entry` and `cms_update_entry` had no duplicate pre-check against `cms_entries_slug_uq`, so reusing a slug in a collection poisoned the request transaction and failed at commit, past any handler-level catch, surfacing as a bare `500`. Both now pre-check and raise `cms_slug_conflict`.
+
+### Patch Changes
+
+- 0ac33df: Commerce: a product search renders as a gallery instead of a wall of prose.
+
+  `commerce_search_products` returns image, title, price range and a storefront link per product, and until now every one of those had to survive a round trip through the model's prose. This adds a rendered surface for that result on all three chat surfaces, over one payload contract.
+
+  - **New `MessageComponent` contract** (`@getmunin/types`): a Zod-validated `product_list` payload with a `source` block naming the connection that produced it, capped at 8 items. Price formatting lives in a deliberately dependency-free `@getmunin/types/message-format` subpath so the browser bundles can import it without dragging zod along — `formatPriceRange` renders `priceMin`/`priceMax` through `Intl.NumberFormat` from the payload's own `currency`, collapsing an equal min/max to a single price and falling back to `<amount> <code>` when a vendor reports a currency `Intl` doesn't know.
+  - **The payload is derived server-side from the typed tool result, never authored by the model.** `runAgent` already returns each turn's tool calls with their raw results, so the conversation handler maps the last successful `commerce_search_products` call of the turn into components and persists them on `conv_messages.metadata`. The model cannot invent a price, a stock claim or a spec line, because there is no field for one. A refined second search supersedes the first; an errored search falls back to an earlier successful one; a search with no matches attaches nothing.
+  - **Insecure or malformed URLs are nulled rather than dropping the product**, so a vendor serving images over http yields a card with a placeholder instead of a missing product. The schema itself requires https, and non-JSON or unparseable results are ignored entirely.
+  - **Widget exposure is a whitelist, not a spread.** `conv_messages.metadata` also carries runner state (session ids, provider message ids, claim holders), so the widget's message list reads only the `components` key and re-validates it against the schema on the way out. Components are only ever attached to, or rendered on, `agent`/`user` messages, and never on internal notes.
+  - **Chat widget** renders the gallery natively: an edge-to-edge scroll-snap rail that bleeds into the panel's own padding so the next card is visibly cut, a placeholder for missing or blocked imagery, and the connection named in a provenance line. It costs **1 kB gzip**. Hosting the real MCP App panel here was measured and rejected: `AppBridge` alone is 33.5 kB gzip and the panel it renders is 324 kB gzip — roughly twice the entire widget — on a customer's own marketing page, and an anonymous visitor has no MCP session for the panel to call tools against.
+  - **Agent inbox** renders the same payload with the same rules, below the bubble at full drawer width rather than inside the 85%-max bubble. Native rather than an `AppBridge` host because the inbox is a transcript: a conversation with five product searches would mean five 324 kB iframes, each fed a persisted snapshot into a panel built around a live `ontoolresult`.
+  - **claude.ai and other MCP App hosts** get the gallery via a new `views/products.tsx` in the inspector panel, shape-routing on the `{ connection, products }` tool result the way the six existing views do, with `commerce_search_products` now declaring `_meta.ui.resourceUri`. The panel keeps its own shape guard rather than importing the schema, matching how every other view there works. An empty result falls through to the neutral view.
+  - `cdn.shopify.com` joins the panel's CSP `resourceDomains` so Shopify imagery actually loads. Other vendors host product images on the merchant's own domain, which is per-connection and cannot be known when the resource is built — those cards show the placeholder. Making that allowlist org-aware is follow-up work.
+  - The `skill://commerce/answer-product-questions` skill now tells the agent what the gallery already shows, so prose stops restating prices and links, stops promising a count it hasn't verified, and names missing specs (weights, materials) as absent from the product feed rather than inferring them.
+
+  No migration: `conv_messages.metadata` is existing jsonb.
+
+- 0ac33df: Commerce: stop telling customers a stocked product doesn't exist.
+
+  `commerce_search_products` claimed "we don't have that" for products the store demonstrably sells. Three separate causes, all in the adapters.
+
+  - **No relevance ordering at all.** The Shopify products query never set `sortKey`, so it defaulted to `ID` — creation order. With a `limit` of 10 against a store with many matches, the agent was shown ten arbitrary products and could never see the best one. Now `sortKey: RELEVANCE`.
+  - **Every term was required.** Shopify implies `AND` between terms, so `borrelåsreim jenter` demanded both words and matched nothing, because no product title contains "jenter". Magento was stricter still: it wrapped the _whole_ query in a single `LIKE '%…%'`, so word order mattered — `borrelåsreim Xplora` could not match "Xplora 4 Borrelåsreim Blå". Magento now filters one group per term (all terms must appear, in any order), and both adapters retry a multi-term search as OR when the all-terms pass finds nothing. Precise queries keep their precision; the second vendor call only happens on a miss.
+  - **OR results came back badly ordered, and re-ranking them starved.** Shopify's own `RELEVANCE` does not favour products matching more of the OR terms — for `borrelåsreim Xplora jenter` it ranked Samsung straps and screen protectors above the nine Xplora straps that matched two terms, placing them beyond position 25. So the broad pass now over-fetches a flat pool of 50 and re-ranks locally by how many query terms appear in the title, stable within equal coverage, before truncating to the caller's limit. The pool is deliberately not a multiple of `limit` — the depth needed is set by how badly the vendor orders OR results, not by how many results we intend to show, and a proportional pool left `limit: 3` and `limit: 5` still showing the wrong products first.
+
+  Shopify's search-syntax `OR` binds tighter than `AND`, so the fallback query is explicitly parenthesised as `status:active AND (…)`. Terms stay double-quoted, which also keeps a literal `OR` typed by a customer as a search term rather than a connective.
+
+  Not attempted: prefix wildcards (`term*`) would need a second, unquoted escaping path, since wildcards inside a quoted phrase are literal — that reintroduces search-syntax injection surface for a partial-word win. Typo tolerance is not available on either Admin API at all; on Shopify it would mean moving to the Storefront API's `predictiveSearch`, which needs a separate storefront access token on every existing connection and caps results at 10. Both deferred.
+
+- Updated dependencies [62776e2]
+- Updated dependencies [0ac33df]
+  - @getmunin/inspector-app@4.73.0
+  - @getmunin/types@4.73.0
+  - @getmunin/agent-runtime@4.73.0
+  - @getmunin/core@4.73.0
+  - @getmunin/db@4.73.0
+  - @getmunin/mcp-toolkit@4.73.0
+  - @getmunin/emails@4.73.0
+
 ## 4.72.0
 
 ### Minor Changes

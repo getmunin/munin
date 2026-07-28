@@ -1,5 +1,62 @@
 # @getmunin/dashboard-pages
 
+## 4.73.0
+
+### Patch Changes
+
+- 62776e2: CMS: `cms_get_entry` no longer renders an MCP Apps panel.
+
+  An entry is a document — long prose, blocks, images, under a user-defined schema — which is the worst fit for a fixed card in a chat transcript. The panel rendered every field stacked at full height and dumped `blocks` fields as raw JSON into a `<pre>` with no height cap, so reading one article produced a screen-and-a-half of transcript.
+
+  The decisive constraint is that the binding is per-tool, not per-call: hosts resolve `_meta.ui.resourceUri` from the tool definition, and neither the MCP Apps spec nor the ext-apps SDK defines a way to suppress rendering for a single call. So a panel that is mildly useful when reviewing one draft is unavoidably also rendered five times when an agent reads five entries for a research pass. There is no setting that makes it appear only when it helps.
+
+  Nothing moves out of reach. `cms_publish_entry` / `cms_unpublish_entry` / `cms_schedule_publish` were never app-only — unlike the outreach and CRM proposal actions — and they carry `destructiveHint: true`, so the human confirmation lives in the host's destructive-tool prompt rather than in a panel button. The tool result is unchanged: the full entry JSON was always in `content`, which is what the model reads.
+
+  The inspector app keeps its other six panel-bound tools (`cms_list_assets`, `kb_list_curation_candidates`, `crm_list_merge_proposals`, `outreach_list_proposals`, and the four analytics reads), all of which wrap bounded, actionable payloads. The entry view, its type guards, its `inspector.entry` translations, and its styles are deleted.
+
+- 0ac33df: Commerce: a product search renders as a gallery instead of a wall of prose.
+
+  `commerce_search_products` returns image, title, price range and a storefront link per product, and until now every one of those had to survive a round trip through the model's prose. This adds a rendered surface for that result on all three chat surfaces, over one payload contract.
+
+  - **New `MessageComponent` contract** (`@getmunin/types`): a Zod-validated `product_list` payload with a `source` block naming the connection that produced it, capped at 8 items. Price formatting lives in a deliberately dependency-free `@getmunin/types/message-format` subpath so the browser bundles can import it without dragging zod along — `formatPriceRange` renders `priceMin`/`priceMax` through `Intl.NumberFormat` from the payload's own `currency`, collapsing an equal min/max to a single price and falling back to `<amount> <code>` when a vendor reports a currency `Intl` doesn't know.
+  - **The payload is derived server-side from the typed tool result, never authored by the model.** `runAgent` already returns each turn's tool calls with their raw results, so the conversation handler maps the last successful `commerce_search_products` call of the turn into components and persists them on `conv_messages.metadata`. The model cannot invent a price, a stock claim or a spec line, because there is no field for one. A refined second search supersedes the first; an errored search falls back to an earlier successful one; a search with no matches attaches nothing.
+  - **Insecure or malformed URLs are nulled rather than dropping the product**, so a vendor serving images over http yields a card with a placeholder instead of a missing product. The schema itself requires https, and non-JSON or unparseable results are ignored entirely.
+  - **Widget exposure is a whitelist, not a spread.** `conv_messages.metadata` also carries runner state (session ids, provider message ids, claim holders), so the widget's message list reads only the `components` key and re-validates it against the schema on the way out. Components are only ever attached to, or rendered on, `agent`/`user` messages, and never on internal notes.
+  - **Chat widget** renders the gallery natively: an edge-to-edge scroll-snap rail that bleeds into the panel's own padding so the next card is visibly cut, a placeholder for missing or blocked imagery, and the connection named in a provenance line. It costs **1 kB gzip**. Hosting the real MCP App panel here was measured and rejected: `AppBridge` alone is 33.5 kB gzip and the panel it renders is 324 kB gzip — roughly twice the entire widget — on a customer's own marketing page, and an anonymous visitor has no MCP session for the panel to call tools against.
+  - **Agent inbox** renders the same payload with the same rules, below the bubble at full drawer width rather than inside the 85%-max bubble. Native rather than an `AppBridge` host because the inbox is a transcript: a conversation with five product searches would mean five 324 kB iframes, each fed a persisted snapshot into a panel built around a live `ontoolresult`.
+  - **claude.ai and other MCP App hosts** get the gallery via a new `views/products.tsx` in the inspector panel, shape-routing on the `{ connection, products }` tool result the way the six existing views do, with `commerce_search_products` now declaring `_meta.ui.resourceUri`. The panel keeps its own shape guard rather than importing the schema, matching how every other view there works. An empty result falls through to the neutral view.
+  - `cdn.shopify.com` joins the panel's CSP `resourceDomains` so Shopify imagery actually loads. Other vendors host product images on the merchant's own domain, which is per-connection and cannot be known when the resource is built — those cards show the placeholder. Making that allowlist org-aware is follow-up work.
+  - The `skill://commerce/answer-product-questions` skill now tells the agent what the gallery already shows, so prose stops restating prices and links, stops promising a count it hasn't verified, and names missing specs (weights, materials) as absent from the product feed rather than inferring them.
+
+  No migration: `conv_messages.metadata` is existing jsonb.
+
+- 09a2eeb: Dashboard: consistent load-failure states in the inbox drawers, and one action shape for every integration card.
+
+  ## Inbox drawers
+
+  A failed detail fetch looked like two different products depending on which drawer you were in: the conversation drawer replaced the whole drawer with a left-aligned eyebrow + serif heading + accent Retry + Close, while the queue drawers kept their header and footer and showed a centered icon with one grey line and a small outline Retry. Neither was wrong on its own; together they read as unfinished.
+
+  - **`NETWORK_ERROR` is now a real error code.** `api.ts` stamped a hardcoded English sentence into `ApiError.message` on a fetch rejection, and the conversation drawer rendered that raw string under a localized heading — hence a Norwegian title above "Couldn't reach Munin. Check your connection." The queue drawers dodged the same bug by discarding the error and printing a fixed localized line, so they never told you _why_. The transport layer now sets `code: 'NETWORK_ERROR'` and `errors.NETWORK_ERROR` exists in both locales, so `useTranslateError` localizes it everywhere — including surfaces that were never part of this bug report.
+  - **The regex that sniffed for that English string is gone.** `InlineActionError` matched `/reach munin|check your connection|network/i` against the message to decide whether to swap in a terse localized reason; it now reads `code === 'NETWORK_ERROR'`, so `ConvActionError` carries the code alongside the message. Copy changes can no longer silently break the substitution.
+  - **One `DrawerLoadFailed` in `queue-drawers/shared.tsx`** replaces both the conversation drawer's local copy and `DrawerErrorState`: destructive eyebrow, serif title, the localized reason, and a retry button that shows its own in-flight label. It tracks that state itself from the promise `onRetry` returns, so no caller has to thread a flag — the conversation drawer previously passed the unrelated action-pending flag, which meant its "Retrying…" label never actually appeared.
+  - **The header stays, and it names the conversation.** The conversation drawer discarded its header, taking with it the only clue about which conversation failed — and then had to add its own Close button, a second affordance the queue drawers don't need. It now renders a header like every other drawer, so `close ×` is the single way out. `ConvDrawer` carries an optional `title`, which the recent-conversations row fills with the subject it already renders (the only path that reaches this state — live-now cards always have a seeded stub detail), so the header shows the real subject instead of the word "conversation" stuttering against its own pill.
+  - **The dead footer goes.** A queue drawer whose body failed to load kept a footer of disabled Approve/Edit/Dismiss buttons plus a `⌘↵` hint for a shortcut already guarded to a no-op. When the load fails there is nothing to act on, so the footer isn't rendered.
+  - One name per value across the drawer boundary: `QueueDrawer`'s `detailError` / `onRetryDetail` props are now `loadError` / `onRetry`, matching what they were already renamed to one level down, and the derived boolean is `loadFailed` in both queue drawers (`convLoadError` in the conversation drawer). The controller keeps `detailErrors` / `queueDetailErrors`, which distinguish per-item detail fetches from the page-level `loadError` on the same object.
+  - Drops the duplicate `dashboard.overview.drawer.retry` key in favour of `common.retry` / `common.retrying` — identical strings in both locales, and the divergence started with the two error states each picking a different one.
+
+  ## Integrations page
+
+  A connected Slack card carried three same-weight footer buttons — Configure, Test, Remove — against two on a connected connector, so nothing read as primary, the destructive action sat one pixel from Test at equal visual weight, and a fourth action would have wrapped the row inside a three-across grid.
+
+  - **`IntegrationCard` takes a `menu` slot**, rendered top-right, and every footer is now exactly one button — so the cards line up across the grid and per-vendor differences cost no layout. Slack connected: primary _Configure_, menu _Test_ + _Remove_. Connector: primary _Test_ (or _Enter credentials_ while pending), menu _Remove_. Unconnected cards keep their single _Connect_ and get no menu at all. The trigger reuses the `MoreHorizontal` + `DropdownMenu` idiom the CMS queue drawer already uses, with `Remove` as a `destructive` item below a separator — destructive is never inline now.
+  - Slack legitimately has one more capability than a connector (routing lives in Munin; a connector's credentials _are_ its config), so the fix isn't to remove the action — it's to stop the card surface from exposing that as a longer row of identical buttons.
+  - **Suppresses the instance suffix when it equals the vendor name.** A connection a customer names after its own vendor rendered as "Shopify · Shopify".
+  - **Retitles the page in the house voice.** It was the only settings page whose title was a marketing sentence rather than a short raven-flavoured line ("Keys to the _gate_.", "The _council_.") and the only one whose eyebrow lacked the `Category ·` prefix. Now `Workspace · Integrations` / "Out into the _world_." — the ravens flying out to other systems — with a lede that covers both sections instead of only the operator bridges.
+
+- Updated dependencies [0ac33df]
+  - @getmunin/types@4.73.0
+  - @getmunin/ui@4.73.0
+
 ## 4.72.0
 
 ### Minor Changes

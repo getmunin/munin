@@ -258,20 +258,20 @@ const skipReason = TEST_URL
         name: 'outreach_create_campaign',
         arguments: { name: 'Correction pass', brief: 'Test the correction verbs.', segmentId, channelId },
       });
-      const campaignId = (firstJson(created as never) as { id: string }).id;
+      const campaignId = (firstJson(created) as { id: string }).id;
 
       const proposed = await c.callTool({
         name: 'outreach_propose_initial',
         arguments: { campaignId, contactId, draftSubject: 'First cut', draftBody: 'Original body.' },
       });
-      const proposalId = (firstJson(proposed as never) as { id: string }).id;
+      const proposalId = (firstJson(proposed) as { id: string }).id;
 
       const revised = await c.callTool({
         name: 'outreach_revise_proposal',
         arguments: { id: proposalId, reason: 'tightened the CTA', draftBody: 'Rewritten body.' },
       });
       expect(revised.isError).toBeFalsy();
-      const afterRevise = firstJson(revised as never) as {
+      const afterRevise = firstJson(revised) as {
         id: string;
         draftBody: string;
         draftSubject: string;
@@ -291,7 +291,7 @@ const skipReason = TEST_URL
         arguments: { id: proposalId, reason: 'duplicate of an earlier draft' },
       });
       expect(withdrawn.isError).toBeFalsy();
-      const afterWithdraw = firstJson(withdrawn as never) as {
+      const afterWithdraw = firstJson(withdrawn) as {
         status: string;
         withdrawReason: string;
       };

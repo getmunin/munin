@@ -334,6 +334,7 @@
         "outreachKindInitial": "INITIAL",
         "outreachKindFollowup": "FOLLOW-UP {step}",
         "conversationFallback": "Conversation #{id}",
+        "conversationUnknown": "Unknown conversation",
         "crmMergeBody": "Merge <strong>{loser}</strong> into <strong>{keeper}</strong>.",
         "crmMergeExplain": "Keeps the primary; rewrites foreign keys; archives the loser. No conversations are lost.",
         "internalLabel": "internal · {author}",
@@ -360,7 +361,6 @@
           "release": "Retry",
           "close": "Retry"
         },
-        "retry": "Retry",
         "activityConv": "Conversation activity",
         "activityContact": "Contact activity",
         "activityEmpty": "No activity yet.",
@@ -1473,6 +1473,7 @@
     }
   },
   "errors": {
+    "NETWORK_ERROR": "Couldn't reach Munin. Check your connection.",
     "SIGNUP_NOT_ALLOWED": "Signup is restricted on this Munin instance. Ask an admin to invite you.",
     "SIGNUP_DOMAIN_NOT_ALLOWED": "Your email domain isn't on the allowlist, and there's no pending invitation for this address. Ask an admin to invite you.",
     "SIGNUP_INVITE_ONLY": "Signup is invite-only on this Munin instance. Ask an admin to send you an invitation.",

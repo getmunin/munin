@@ -11,16 +11,16 @@ import { MessageBubble } from './inbox-message-bubble';
 import type { ConvActionError, ConversationDetail } from './inbox-types';
 
 export function InlineActionError({
-  action,
-  message,
+  error,
   onRetry,
 }: {
-  action: NonNullable<ConvActionError>['type'];
-  message: string;
+  error: NonNullable<ConvActionError>;
   onRetry: (() => void) | null;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
-  const reason = isConnectionMessage(message) ? t('actionFailedReasonConnection') : message;
+  const tCommon = useTranslations('common');
+  const action = error.type;
+  const reason = actionErrorReason(error, t);
   return (
     <div
       className="flex items-center gap-[14px] whitespace-nowrap border-[1px] border-cobalt bg-[oklch(0.98_0.025_25)] px-3 py-1.5 text-[13px] font-medium text-cobalt dark:border-cobalt-soft dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
@@ -39,15 +39,18 @@ export function InlineActionError({
           className="cursor-pointer text-[13px] font-medium text-cobalt underline underline-offset-[3px] hover:text-cobalt-deep dark:text-cobalt-soft"
           onClick={onRetry}
         >
-          {t('retry')} <span aria-hidden>↻</span>
+          {tCommon('retry')} <span aria-hidden>↻</span>
         </button>
       )}
     </div>
   );
 }
 
-function isConnectionMessage(msg: string): boolean {
-  return /reach munin|check your connection|network/i.test(msg);
+function actionErrorReason(
+  error: NonNullable<ConvActionError>,
+  t: ReturnType<typeof useTranslations<'dashboard.overview.drawer'>>,
+): string {
+  return error.code === 'NETWORK_ERROR' ? t('actionFailedReasonConnection') : error.message;
 }
 
 function retryHandler(
@@ -62,40 +65,6 @@ function retryHandler(
   if (err.type === 'release') return onRelease;
   if (err.type === 'close') return onCloseConv;
   return null;
-}
-
-export function DrawerLoadFailed({
-  message,
-  retrying,
-  onRetry,
-  onClose,
-}: {
-  message: string;
-  retrying: boolean;
-  onRetry: () => void;
-  onClose: () => void;
-}) {
-  const t = useTranslations('dashboard.overview.drawer');
-  const tCommon = useTranslations('common');
-  return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
-        {t('loadFailedEyebrow')}
-      </div>
-      <h2 className="font-serif text-xl leading-tight text-ink dark:text-foreground">
-        {t('loadFailedTitle')}
-      </h2>
-      <p className="text-sm text-ink-mute">{message}</p>
-      <div className="mt-2 flex items-center gap-3">
-        <Button type="button" variant="accent" onClick={onRetry} disabled={retrying}>
-          {retrying ? tCommon('retrying') : tCommon('retry')}
-        </Button>
-        <Button type="button" variant="outline" onClick={onClose}>
-          {tCommon('close')}
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 export function SimplifiedConvDrawer({
@@ -214,9 +183,7 @@ export function SimplifiedConvDrawer({
             />
             <span className="flex-1">
               {t(`actionFailedShort.${actionError.type}`)} ·{' '}
-              {isConnectionMessage(actionError.message)
-                ? t('actionFailedReasonConnection')
-                : actionError.message}
+              {actionErrorReason(actionError, t)}
             </span>
           </div>
         )}
@@ -332,9 +299,7 @@ export function FullConvDrawer({
             />
             <span className="flex-1">
               {t(`actionFailedShort.${actionError.type}`)} ·{' '}
-              {isConnectionMessage(actionError.message)
-                ? t('actionFailedReasonConnection')
-                : actionError.message}
+              {actionErrorReason(actionError, t)}
             </span>
             {retryHandler(actionError, onSend, onTakeOver, onRelease, onCloseConv) ? (
               <button

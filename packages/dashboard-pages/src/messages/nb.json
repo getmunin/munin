@@ -334,6 +334,7 @@
         "outreachKindInitial": "FØRSTE",
         "outreachKindFollowup": "OPPFØLGING {step}",
         "conversationFallback": "Samtale #{id}",
+        "conversationUnknown": "Ukjent samtale",
         "crmMergeBody": "Slå sammen <strong>{loser}</strong> inn i <strong>{keeper}</strong>.",
         "crmMergeExplain": "Beholder hovedoppføringen; flytter referanser; arkiverer den andre. Ingen samtaler går tapt.",
         "internalLabel": "intern · {author}",
@@ -360,7 +361,6 @@
           "release": "Prøv igjen",
           "close": "Prøv igjen"
         },
-        "retry": "Prøv igjen",
         "activityConv": "Samtaleaktivitet",
         "activityContact": "Kontaktaktivitet",
         "activityEmpty": "Ingen aktivitet ennå.",
@@ -1473,6 +1473,7 @@
     }
   },
   "errors": {
+    "NETWORK_ERROR": "Fikk ikke kontakt med Munin. Sjekk tilkoblingen din.",
     "SIGNUP_NOT_ALLOWED": "Registrering er begrenset på denne Munin-installasjonen. Be en administrator om å invitere deg.",
     "SIGNUP_DOMAIN_NOT_ALLOWED": "E-postdomenet ditt er ikke på listen, og det finnes ingen ventende invitasjon for denne adressen. Be en administrator om å invitere deg.",
     "SIGNUP_INVITE_ONLY": "Registrering er kun ved invitasjon på denne Munin-installasjonen. Be en administrator om å sende en invitasjon.",

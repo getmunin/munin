@@ -9,7 +9,7 @@ import {
   uploadToPresigned,
   type PresignedUploadTarget,
 } from '../../lib/upload-image';
-import { useTranslateError } from '../../i18n/translate-error';
+import { getErrorCode, useTranslateError } from '../../i18n/translate-error';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { CmsAssetExpanded, CmsDraftDetailDto, KbCandidateDto, QueueItem } from './queue-drawers/types';
 import {
@@ -265,7 +265,12 @@ export function useInboxData(): InboxController {
         await Promise.all([loadDetail(id), loadInbox()]);
         if (openFullAfter) setConvDrawer({ id, mode: 'full' });
       } catch (err) {
-        setActionError({ type: 'takeOver', conversationId: id, message: translateErr(err) });
+        setActionError({
+          type: 'takeOver',
+          conversationId: id,
+          message: translateErr(err),
+          code: getErrorCode(err),
+        });
       } finally {
         setPending(false);
       }
@@ -281,7 +286,12 @@ export function useInboxData(): InboxController {
         await api(`/v1/conversations/${id}/release`, { method: 'POST', body: '{}' });
         await Promise.all([loadDetail(id), loadInbox()]);
       } catch (err) {
-        setActionError({ type: 'release', conversationId: id, message: translateErr(err) });
+        setActionError({
+          type: 'release',
+          conversationId: id,
+          message: translateErr(err),
+          code: getErrorCode(err),
+        });
       } finally {
         setPending(false);
       }
@@ -302,7 +312,12 @@ export function useInboxData(): InboxController {
         setItems((prev) => prev.filter((it) => it.id !== id));
         await loadInbox();
       } catch (err) {
-        setActionError({ type: 'close', conversationId: id, message: translateErr(err) });
+        setActionError({
+          type: 'close',
+          conversationId: id,
+          message: translateErr(err),
+          code: getErrorCode(err),
+        });
       } finally {
         setPending(false);
       }
@@ -351,7 +366,12 @@ export function useInboxData(): InboxController {
           await loadDetail(id);
         }
       } catch (err) {
-        setActionError({ type: 'send', conversationId: id, message: translateErr(err) });
+        setActionError({
+          type: 'send',
+          conversationId: id,
+          message: translateErr(err),
+          code: getErrorCode(err),
+        });
         setDetails((prev) => {
           const d = prev[id];
           if (!d) return prev;

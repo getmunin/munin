@@ -47,6 +47,12 @@ export interface ListChannelOptionsInput {
   config?: unknown;
 }
 
+export interface CompleteSetupResult {
+  ok: boolean;
+  detail?: string;
+  error?: string;
+}
+
 export interface ChannelAdminProvider {
   readonly kind: ChannelAdminKind;
   readonly vendor: string;
@@ -60,6 +66,17 @@ export interface ChannelAdminProvider {
   sendTest?(input: { channelId: string; to: string; body?: string }): Promise<unknown>;
   listOptions?(input: ListChannelOptionsInput): Promise<ChannelOptionsDto>;
   onArchive?(channelId: string): Promise<void>;
+  validatePendingConfig?(config: Record<string, unknown>): Record<string, unknown>;
+  completeSetup?(channelId: string, secrets: Record<string, string>): Promise<CompleteSetupResult>;
+}
+
+export const PENDING_SETUP_KEY = 'pendingSetup';
+
+export function readPendingSetup(config: unknown): Record<string, unknown> | null {
+  if (!config || typeof config !== 'object') return null;
+  const pending = (config as Record<string, unknown>)[PENDING_SETUP_KEY];
+  if (!pending || typeof pending !== 'object') return null;
+  return pending as Record<string, unknown>;
 }
 
 export const CHANNEL_ADMIN_PROVIDERS = Symbol('CHANNEL_ADMIN_PROVIDERS');

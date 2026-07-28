@@ -16,6 +16,7 @@ import { schema, makeId, type Db } from '@getmunin/db';
 import { z } from 'zod';
 import { DB } from '../../../common/db/db.module.ts';
 import { asRecord } from '../channels/json-shape.ts';
+import { readPendingSetup } from '../channels/channel-admin.ts';
 import { VapiClientService, VAPI_WEBHOOK_SECRET_HEADER } from './vapi-client.service.ts';
 
 const REDACTED = '••••';
@@ -162,6 +163,52 @@ export class VapiService {
     });
   }
 
+  async completeSetup(
+    channelId: string,
+    secrets: Record<string, string>,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const [channel] = await ctx.db
+      .select()
+      .from(schema.convChannels)
+      .where(and(eq(schema.convChannels.id, channelId), eq(schema.convChannels.orgId, actor.orgId)))
+      .limit(1);
+    if (!channel || channel.vendor !== 'vapi') {
+      return { ok: false, error: 'channel no longer exists' };
+    }
+    const pending = readPendingSetup(channel.config);
+    const base = pending ?? nonSecretParts(jsonbToStored(channel.config));
+    const parsed = VapiConfigInputSchema.safeParse({ ...base, ...secrets });
+    if (!parsed.success) {
+      throw new BadRequestException(`conv_invalid: config for vapi: ${flattenError(parsed.error)}`);
+    }
+    const replaceWebhook = pending?.replaceWebhook === true;
+    const auto = await this.tryConfigureAssistantWebhook(
+      parsed.data,
+      buildWebhookUrl(channelId),
+      replaceWebhook,
+    );
+    if (auto.conflict) {
+      throw new ConflictException({
+        code: 'webhook_conflict',
+        message:
+          'This Vapi assistant already has a server URL configured. Recreate the channel with replaceWebhook: true to overwrite it.',
+      });
+    }
+    const stored = await this.toStored(parsed.data, auto);
+    await ctx.db
+      .update(schema.convChannels)
+      .set({ config: storedToJsonb(stored), active: true, updatedAt: new Date() })
+      .where(eq(schema.convChannels.id, channelId));
+    return {
+      ok: true,
+      detail: auto.configured
+        ? 'credentials saved; assistant webhook configured'
+        : 'credentials saved; the assistant webhook could not be configured automatically — set the server URL in the Vapi dashboard',
+    };
+  }
+
   async updateChannel(input: {
     channelId: string;
     name?: string;
@@ -253,6 +300,18 @@ export class VapiService {
 
 function buildWebhookUrl(channelId: string): string {
   return `${readApiBaseUrl()}/v1/conversations/channels/${channelId}/webhook`;
+}
+
+function nonSecretParts(stored: StoredVapiConfig): Record<string, unknown> {
+  return {
+    assistantId: stored.assistantId,
+    phoneNumberId: stored.phoneNumberId,
+    publicKey: stored.publicKey,
+  };
+}
+
+function flattenError(error: z.ZodError): string {
+  return error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
 }
 
 function isMuninWebhookUrl(url: string): boolean {

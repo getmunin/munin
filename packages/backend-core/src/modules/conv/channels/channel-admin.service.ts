@@ -10,6 +10,8 @@ import { getCurrentContext } from '@getmunin/core';
 import { schema } from '@getmunin/db';
 import {
   CHANNEL_ADMIN_PROVIDERS,
+  PENDING_SETUP_KEY,
+  readPendingSetup,
   type ChannelAdminDto,
   type ChannelAdminProvider,
   type ChannelOptionsDto,
@@ -39,13 +41,21 @@ export class ChannelAdminService {
     }));
   }
 
-  async configure(input: {
-    vendor: string;
-    channelId?: string;
-    name?: string;
-    config: Record<string, unknown>;
-  }): Promise<ChannelAdminDto> {
+  async configure(
+    input: {
+      vendor: string;
+      channelId?: string;
+      name?: string;
+      config: Record<string, unknown>;
+    },
+    opts?: { rejectSecrets?: boolean },
+  ): Promise<ChannelAdminDto> {
     const provider = this.requireVendor(input.vendor);
+    if (opts?.rejectSecrets) this.assertNoSecrets(provider, input.config);
+    if (input.channelId) await this.assertNotPending(input.channelId);
+    if (opts?.rejectSecrets && !input.channelId) {
+      return this.createPending(provider, { name: input.name, config: input.config });
+    }
     const parsed = provider.configInput.safeParse(input.config);
     if (!parsed.success) {
       throw new BadRequestException(`invalid config for ${input.vendor}: ${parsed.error.message}`);
@@ -55,6 +65,80 @@ export class ChannelAdminService {
       name: input.name,
       config: parsed.data,
     });
+  }
+
+  async completeSetup(
+    channelId: string,
+    secrets: Record<string, string>,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }> {
+    const provider = await this.providerForChannel(channelId, { allowPending: true });
+    if (!provider.completeSetup) {
+      return { ok: false, error: `channel vendor '${provider.vendor}' does not support credential links` };
+    }
+    return provider.completeSetup(channelId, secrets);
+  }
+
+  providerFor(vendor: string): ChannelAdminProvider | undefined {
+    return this.byVendor.get(vendor);
+  }
+
+  private assertNoSecrets(provider: ChannelAdminProvider, config: Record<string, unknown>): void {
+    const provided = provider.configFields
+      .filter((f) => f.secret)
+      .map((f) => f.name)
+      .filter((name) => config[name] !== undefined);
+    if (provided.length > 0) {
+      throw new BadRequestException(
+        `conv_invalid: secret fields (${provided.join(', ')}) cannot be accepted through this tool — omit them, and a one-time credential link is returned for a human to enter them in the dashboard`,
+      );
+    }
+  }
+
+  private async assertNotPending(channelId: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ config: schema.convChannels.config })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channelId))
+      .limit(1);
+    if (rows[0] && readPendingSetup(rows[0].config)) {
+      throw new BadRequestException(
+        'conv_invalid: channel is awaiting credentials — complete the credential link first',
+      );
+    }
+  }
+
+  private async createPending(
+    provider: ChannelAdminProvider,
+    input: { name?: string; config: Record<string, unknown> },
+  ): Promise<ChannelAdminDto> {
+    if (!input.name) throw new BadRequestException('name is required when creating a channel');
+    if (!provider.validatePendingConfig || !provider.completeSetup) {
+      throw new BadRequestException(
+        `channel vendor '${provider.vendor}' does not support credential links`,
+      );
+    }
+    const pending = provider.validatePendingConfig(input.config);
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .insert(schema.convChannels)
+      .values({
+        orgId: ctx.actor!.orgId,
+        type: provider.kind,
+        vendor: provider.vendor,
+        name: input.name,
+        config: { [PENDING_SETUP_KEY]: pending },
+        active: false,
+      })
+      .returning();
+    return {
+      id: row!.id,
+      name: row!.name,
+      type: row!.type,
+      vendor: row!.vendor,
+      active: row!.active,
+      config: pending,
+    };
   }
 
   async test(channelId: string): Promise<unknown> {
@@ -124,11 +208,14 @@ export class ChannelAdminService {
     return provider;
   }
 
-  private async providerForChannel(channelId: string): Promise<ChannelAdminProvider> {
+  private async providerForChannel(
+    channelId: string,
+    opts?: { allowPending?: boolean },
+  ): Promise<ChannelAdminProvider> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const rows = await ctx.db
-      .select({ vendor: schema.convChannels.vendor })
+      .select({ vendor: schema.convChannels.vendor, config: schema.convChannels.config })
       .from(schema.convChannels)
       .where(
         and(eq(schema.convChannels.id, channelId), eq(schema.convChannels.orgId, actor.orgId)),
@@ -136,6 +223,11 @@ export class ChannelAdminService {
       .limit(1);
     const row = rows[0];
     if (!row) throw new NotFoundException(`channel ${channelId} not found`);
+    if (!opts?.allowPending && readPendingSetup(row.config)) {
+      throw new BadRequestException(
+        'conv_invalid: channel is awaiting credentials — complete the credential link first',
+      );
+    }
     return this.requireVendor(row.vendor);
   }
 }

@@ -54,6 +54,13 @@ export class MessageBirdSmsAdminService {
     @Inject(MessageBirdClientService) private readonly client: MessageBirdClientService,
   ) {}
 
+  completeSetup(
+    channelId: string,
+    secrets: Record<string, string>,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }> {
+    return this.svc.completeSetup(channelId, secrets);
+  }
+
   async configure(args: z.infer<typeof ConfigureInput>): Promise<MessageBirdSmsChannelDto> {
     if (args.channelId) {
       return this.svc.updateChannel({

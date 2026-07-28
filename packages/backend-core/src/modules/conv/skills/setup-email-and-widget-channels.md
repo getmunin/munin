@@ -32,8 +32,8 @@ Lists existing channels and their `active` flag. If the org already has an email
 
 Per `skill://conv/setup-email-channel`, gather:
 - `fromAddress` — the real mailbox the customer controls.
-- Outbound mode: `smtp` (host, port, secure, username, password) or `mailer` (Munin's configured Resend).
-- Inbound mode: `imap` (host, port, secure, username, password, mailbox), or skip if the customer will forward to a `MUNIN_EMAIL_REPLY_DOMAIN` address.
+- Outbound mode: `smtp` (host, port, secure, username — the password comes through the credential link, never the conversation) or `mailer` (Munin's configured Resend).
+- Inbound mode: `imap` (host, port, secure, username, mailbox — password via the credential link), or skip if the customer will forward to a `MUNIN_EMAIL_REPLY_DOMAIN` address.
 
 Then:
 
@@ -44,12 +44,14 @@ Then:
     "name": "Acme Support",
     "config": {
       "addressing": { "fromAddress": "support@acme.com", "fromName": "Acme Support" },
-      "outbound": { "provider": "smtp", "host": "smtp.acme.com", "port": 587, "secure": false, "username": "support@acme.com", "password": "<plaintext, encrypted server-side>" },
-      "inbound":  { "host": "imap.acme.com", "port": 993, "secure": true, "username": "support@acme.com", "password": "<plaintext>", "mailbox": "INBOX" }
+      "outbound": { "provider": "smtp", "host": "smtp.acme.com", "port": 587, "secure": false, "username": "support@acme.com" },
+      "inbound":  { "host": "imap.acme.com", "port": 993, "secure": true, "username": "support@acme.com", "mailbox": "INBOX" }
     }
   }
 }
 ```
+
+The response includes a one-time `credentialLink` — share it so a human can enter the SMTP/IMAP passwords in the dashboard. The channel activates when they save (the passwords are verified against the servers).
 
 The response includes the channel id. Passwords come back as `••••` — they're encrypted via pgcrypto and never re-emitted.
 

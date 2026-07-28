@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { z } from 'zod';
 import { describeConfigFields } from '../channels/channel-admin.ts';
 import type {
   ChannelAdminDto,
@@ -8,6 +9,10 @@ import type {
 import { ConfigureInput, MessageBirdSmsAdminService } from './messagebird-sms-admin.service.ts';
 
 const ConfigSchema = ConfigureInput.omit({ channelId: true, name: true });
+
+const PendingConfig = z.object({
+  originator: z.string().min(1).max(32),
+});
 
 @Injectable()
 export class MessageBirdSmsAdminProvider implements ChannelAdminProvider {
@@ -23,6 +28,19 @@ export class MessageBirdSmsAdminProvider implements ChannelAdminProvider {
   configure(input: ConfigureChannelInput): Promise<ChannelAdminDto> {
     const config = ConfigSchema.parse(input.config);
     return this.tools.configure({ channelId: input.channelId, name: input.name, ...config });
+  }
+
+  validatePendingConfig(config: Record<string, unknown>): Record<string, unknown> {
+    const parsed = PendingConfig.safeParse(config);
+    if (!parsed.success) {
+      const detail = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+      throw new BadRequestException(`conv_invalid: config for messagebird: ${detail}`);
+    }
+    return parsed.data;
+  }
+
+  completeSetup(channelId: string, secrets: Record<string, string>) {
+    return this.tools.completeSetup(channelId, secrets);
   }
 
   test(channelId: string) {

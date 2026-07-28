@@ -3,13 +3,75 @@ import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core'
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+import { sensitive } from '@getmunin/types';
+import { getCurrentContext } from '@getmunin/core';
+import { eq } from 'drizzle-orm';
 import { EmailService } from '../email/email.service.ts';
 import {
   ChannelCredentialService,
   type EmailChannelTester,
 } from './channel-credential.service.ts';
+import { ChannelAdminService } from './channel-admin.service.ts';
+import {
+  PENDING_SETUP_KEY,
+  describeConfigFields,
+  readPendingSetup,
+  type ChannelAdminDto,
+  type ChannelAdminProvider,
+  type CompleteSetupResult,
+  type ConfigureChannelInput,
+} from './channel-admin.ts';
 import { CredentialHandoffService } from '../../credential-handoff/credential-handoff.service.ts';
 import { CredentialTargetRegistry } from '../../credential-handoff/credential-target.ts';
+
+class FakeSmsProvider implements ChannelAdminProvider {
+  readonly kind = 'sms' as const;
+  readonly vendor = 'fakesms';
+  readonly displayName = 'Fake SMS';
+  readonly configInput = z.object({
+    sender: z.string().min(1),
+    apiToken: sensitive(z.string().min(1).optional()),
+  });
+  readonly configFields = describeConfigFields(this.configInput);
+  readonly capabilities = { call: false, sendTest: false };
+  testResult: CompleteSetupResult = { ok: true };
+
+  configure(_input: ConfigureChannelInput): Promise<ChannelAdminDto> {
+    return Promise.reject(new Error('not used in this test'));
+  }
+
+  test(): Promise<unknown> {
+    return Promise.resolve(this.testResult);
+  }
+
+  validatePendingConfig(config: Record<string, unknown>): Record<string, unknown> {
+    const parsed = z.object({ sender: z.string().min(1) }).parse(config);
+    return parsed;
+  }
+
+  async completeSetup(
+    channelId: string,
+    secrets: Record<string, string>,
+  ): Promise<CompleteSetupResult> {
+    if (!secrets.apiToken) return { ok: false, error: 'apiToken missing' };
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select()
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, channelId))
+      .limit(1);
+    const pending = readPendingSetup(rows[0]!.config) ?? {};
+    await ctx.db
+      .update(schema.convChannels)
+      .set({
+        config: { sender: pending.sender, encryptedApiToken: `enc(${secrets.apiToken})` },
+        active: true,
+      })
+      .where(eq(schema.convChannels.id, channelId));
+    return { ok: true, detail: 'credentials saved' };
+  }
+}
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -25,6 +87,8 @@ const skipReason = TEST_URL
   let channelId: string;
   let adminActor: ActorIdentity;
   let probeResult: { smtp: string; imap: string };
+  let fakeProvider: FakeSmsProvider;
+  let adminSvc: ChannelAdminService;
 
   beforeAll(async () => {
     process.env.MUNIN_ENCRYPTION_KEY ??= 'integration-test-encryption-key';
@@ -45,7 +109,9 @@ const skipReason = TEST_URL
     const probe: EmailChannelTester = {
       test: () => Promise.resolve(probeResult),
     };
-    channels = new ChannelCredentialService(email, handoff, probe, db);
+    fakeProvider = new FakeSmsProvider();
+    adminSvc = new ChannelAdminService([fakeProvider]);
+    channels = new ChannelCredentialService(email, handoff, probe, db, adminSvc);
     targets.register(channels);
   });
 
@@ -226,12 +292,93 @@ const skipReason = TEST_URL
     expect(mailer.active).toBe(true);
   });
 
-  it('refuses a credential link for a non-email channel', async () => {
+  it('refuses a credential link for a vendor without deferred-setup support', async () => {
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const [sms] = await db
       .insert(schema.convChannels)
-      .values({ orgId, type: 'sms', vendor: 'twilio', name: 'SMS', config: {} })
+      .values({ orgId, type: 'sms', vendor: 'nolink', name: 'SMS', config: {} })
       .returning();
-    await expect(asAdmin(() => channels.requestLink(sms!.id))).rejects.toThrow(/only.*email/);
+    await expect(asAdmin(() => channels.requestLink(sms!.id))).rejects.toThrow(
+      /credential links are not available/,
+    );
+  });
+
+  describe('voice/SMS vendor flow (fake provider)', () => {
+    it('rejects secret fields at the tool boundary', async () => {
+      await expect(
+        asAdmin(() =>
+          adminSvc.configure(
+            { vendor: 'fakesms', name: 'Leaky', config: { sender: 'ACME', apiToken: 'tok_leak' } },
+            { rejectSecrets: true },
+          ),
+        ),
+      ).rejects.toThrow(/conv_invalid: secret fields \(apiToken\)/);
+    });
+
+    it('rejects a pending create missing required non-secret config', async () => {
+      await expect(
+        asAdmin(() =>
+          adminSvc.configure(
+            { vendor: 'fakesms', name: 'No sender', config: {} },
+            { rejectSecrets: true },
+          ),
+        ),
+      ).rejects.toThrow(/sender/);
+    });
+
+    it('creates a pending channel, blocks admin actions, then completes setup via the link', async () => {
+      const created = await asAdmin(() =>
+        adminSvc.configure(
+          { vendor: 'fakesms', name: 'Fake SMS line', config: { sender: 'ACME' } },
+          { rejectSecrets: true },
+        ),
+      );
+      expect(created.active).toBe(false);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const pendingRows = await db
+        .select()
+        .from(schema.convChannels)
+        .where(sql`id = ${created.id}`);
+      expect(pendingRows[0]!.config).toEqual({ [PENDING_SETUP_KEY]: { sender: 'ACME' } });
+
+      await expect(asAdmin(() => adminSvc.test(created.id))).rejects.toThrow(
+        /awaiting credentials/,
+      );
+
+      const link = await asAdmin(() => channels.requestLink(created.id));
+      const token = tokenFromUrl(link.url);
+
+      const described = await handoff.describe(token);
+      expect(described.vendor).toBe('fakesms');
+      expect(described.fields).toEqual([{ key: 'apiToken', label: 'apiToken', required: true }]);
+
+      const result = await handoff.complete(token, { apiToken: 'tok_secret' });
+      expect(result).toEqual({ ok: true, detail: 'credentials saved and verified' });
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db.select().from(schema.convChannels).where(sql`id = ${created.id}`);
+      expect(rows[0]!.active).toBe(true);
+      expect(rows[0]!.config).toEqual({ sender: 'ACME', encryptedApiToken: 'enc(tok_secret)' });
+    });
+
+    it('surfaces a failed vendor verification without dropping the saved credentials', async () => {
+      fakeProvider.testResult = { ok: false, error: 'vendor rejected the token' };
+      const created = await asAdmin(() =>
+        adminSvc.configure(
+          { vendor: 'fakesms', name: 'Bad token line', config: { sender: 'ACME' } },
+          { rejectSecrets: true },
+        ),
+      );
+      const link = await asAdmin(() => channels.requestLink(created.id));
+      const result = await handoff.complete(tokenFromUrl(link.url), { apiToken: 'tok_bad' });
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain('vendor rejected');
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db.select().from(schema.convChannels).where(sql`id = ${created.id}`);
+      expect(rows[0]!.config).toEqual({ sender: 'ACME', encryptedApiToken: 'enc(tok_bad)' });
+      fakeProvider.testResult = { ok: true };
+    });
   });
 });

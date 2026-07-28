@@ -10,6 +10,7 @@ import { encryptSecretSql, getCurrentContext } from '@getmunin/core';
 import { schema, makeId, type Db } from '@getmunin/db';
 import { z } from 'zod';
 import { DB } from '../../../common/db/db.module.ts';
+import { readPendingSetup } from '../channels/channel-admin.ts';
 import {
   ThrellClientService,
   buildWebhookUrl,
@@ -88,6 +89,40 @@ export class ThrellService {
       .returning();
     if (!row) throw new ConflictException('channel_create_failed');
     return this.toDto(row.id, row.name, row.active, stored);
+  }
+
+  async completeSetup(
+    channelId: string,
+    secrets: Record<string, string>,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const [channel] = await ctx.db
+      .select()
+      .from(schema.convChannels)
+      .where(and(eq(schema.convChannels.id, channelId), eq(schema.convChannels.orgId, actor.orgId)))
+      .limit(1);
+    if (!channel || channel.vendor !== 'threll') {
+      return { ok: false, error: 'channel no longer exists' };
+    }
+    const pending = readPendingSetup(channel.config);
+    const base = pending ?? nonSecretParts(jsonbToStored(channel.config));
+    const parsed = ThrellConfigInputSchema.safeParse({ ...base, ...secrets });
+    if (!parsed.success) {
+      throw new BadRequestException(`conv_invalid: config for threll: ${flattenError(parsed.error)}`);
+    }
+    const accountId = parsed.data.accountId ?? (await this.resolveAccountId(parsed.data.apiKey));
+    const signingSecret = await this.ensureWebhookSubscription(
+      { apiKey: parsed.data.apiKey, accountId },
+      buildWebhookUrl(channelId),
+      pending?.replaceWebhook === true,
+    );
+    const stored = await this.toStored({ ...parsed.data, accountId }, signingSecret);
+    await ctx.db
+      .update(schema.convChannels)
+      .set({ config: storedToJsonb(stored), active: true, updatedAt: new Date() })
+      .where(eq(schema.convChannels.id, channelId));
+    return { ok: true, detail: 'credentials saved; webhook subscription configured' };
   }
 
   async updateChannel(input: {
@@ -209,6 +244,14 @@ export class ThrellService {
       },
     };
   }
+}
+
+function nonSecretParts(stored: StoredThrellConfig): Record<string, unknown> {
+  return { accountId: stored.accountId, workerId: stored.workerId };
+}
+
+function flattenError(error: z.ZodError): string {
+  return error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
 }
 
 export function findReusableSigningSecret(

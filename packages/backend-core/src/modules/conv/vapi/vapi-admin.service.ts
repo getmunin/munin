@@ -72,6 +72,13 @@ export class VapiAdminService {
     @Inject(VapiClientService) private readonly client: VapiClientService,
   ) {}
 
+  completeSetup(
+    channelId: string,
+    secrets: Record<string, string>,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }> {
+    return this.svc.completeSetup(channelId, secrets);
+  }
+
   async configure(args: z.infer<typeof ConfigureInput>): Promise<VapiChannelDto> {
     if (args.channelId) {
       return this.svc.updateChannel({

@@ -12,6 +12,13 @@ import { ConfigureInput, VapiAdminService, type VapiListAssistantsResult } from 
 
 const ConfigSchema = ConfigureInput.omit({ channelId: true, name: true });
 
+const PendingConfig = z.object({
+  assistantId: z.string().min(1).max(128),
+  phoneNumberId: z.string().min(1).max(128).optional(),
+  publicKey: z.string().min(1).max(256).optional(),
+  replaceWebhook: z.boolean().optional(),
+});
+
 const OptionsConfig = z.object({ apiKey: z.string().min(1).max(256) });
 
 @Injectable()
@@ -28,6 +35,19 @@ export class VapiAdminProvider implements ChannelAdminProvider {
   configure(input: ConfigureChannelInput): Promise<ChannelAdminDto> {
     const config = ConfigSchema.parse(input.config);
     return this.tools.configure({ channelId: input.channelId, name: input.name, ...config });
+  }
+
+  validatePendingConfig(config: Record<string, unknown>): Record<string, unknown> {
+    const parsed = PendingConfig.safeParse(config);
+    if (!parsed.success) {
+      const detail = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+      throw new BadRequestException(`conv_invalid: config for vapi: ${detail}`);
+    }
+    return parsed.data;
+  }
+
+  completeSetup(channelId: string, secrets: Record<string, string>) {
+    return this.tools.completeSetup(channelId, secrets);
   }
 
   test(channelId: string) {

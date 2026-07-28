@@ -119,10 +119,16 @@ function assetStorageOrigin(): string | null {
   }
 }
 
+const COMMERCE_IMAGE_ORIGINS = ['https://cdn.shopify.com'];
+
 export function inspectorAppResource(): RegisteredSkill {
   const { content, cspDomains } = inspectorPayload;
   const assetOrigin = assetStorageOrigin();
-  const resourceDomains = [...(cspDomains ?? []), ...(assetOrigin ? [assetOrigin] : [])];
+  const resourceDomains = [
+    ...(cspDomains ?? []),
+    ...(assetOrigin ? [assetOrigin] : []),
+    ...COMMERCE_IMAGE_ORIGINS,
+  ];
   return {
     uri: INSPECTOR_APP_URI,
     name: 'Munin Inspector',

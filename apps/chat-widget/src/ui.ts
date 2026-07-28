@@ -3,8 +3,10 @@ import type { WidgetConfig } from './config.ts';
 import { WIDGET_END_USER_BODY_MAX_CHARS } from './config.ts';
 import { buildWidgetCss } from './styles.ts';
 import { registerBundledFonts } from './fonts.ts';
+import { pickLocale } from './strings/index.ts';
 import type { Strings } from './strings/index.ts';
 import { renderMarkdownInto } from './markdown.ts';
+import { renderMessageComponents } from './product-list.ts';
 
 export type ConnectionLabel = 'connected' | 'reconnecting' | 'closed' | 'idle' | 'connecting';
 
@@ -55,6 +57,7 @@ const TYPING_IDLE_MS = 800;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): UiController {
+  const locale = pickLocale(config.locale).locale;
   if (config.fonts === 'bundled') registerBundledFonts();
   const host = document.createElement('div');
   host.style.all = 'initial';
@@ -333,7 +336,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     for (const m of messages) {
       if (seenIds.has(m.id)) continue;
       seenIds.add(m.id);
-      const el = renderMessage(m, strings);
+      const el = renderMessage(m, strings, locale);
       panel.messagesEl.appendChild(el);
       if (readObserver && m.role !== 'end_user' && m.role !== 'system') {
         readObserver.observe(el);
@@ -614,7 +617,7 @@ function escapeAttr(s: string): string {
   );
 }
 
-function renderMessage(m: ListedMessage, strings: Strings): HTMLElement {
+function renderMessage(m: ListedMessage, strings: Strings, locale: string): HTMLElement {
   if (m.role === 'system') {
     const el = document.createElement('div');
     el.className = 'system';
@@ -654,6 +657,13 @@ function renderMessage(m: ListedMessage, strings: Strings): HTMLElement {
     renderMarkdownInto(bubble, m.body);
   }
   wrap.appendChild(bubble);
+  if (!mine) {
+    const appEls = renderMessageComponents(m.components, locale, strings);
+    if (appEls.length > 0) wrap.classList.add('has-app');
+    for (const el of appEls) {
+      wrap.appendChild(el);
+    }
+  }
   if (mine) {
     const t = document.createElement('div');
     t.className = 'msg-t mine';

@@ -56,6 +56,7 @@ const is: Strings = {
   voiceOnCallWithTemplate: 'Í símtali við {who}',
   voiceTapToReturn: 'Pikkaðu til að snúa aftur',
   voiceFailed: 'Talsímtal mistókst',
+  productViewLabel: 'Sjá',
 };
 
 export default is;

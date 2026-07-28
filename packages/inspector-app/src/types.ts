@@ -273,3 +273,31 @@ export function isAssetUsageList(value: unknown): value is AssetUsageRow[] {
 export function isEmptyList(value: unknown): value is [] {
   return Array.isArray(value) && value.length === 0;
 }
+
+export interface ConnectorSource {
+  id: string;
+  name: string;
+  vendor: string;
+}
+
+export interface CommerceProduct {
+  productRef: string;
+  title: string;
+  url: string | null;
+  imageUrl: string | null;
+  currency: string;
+  priceMin: string | null;
+  priceMax: string | null;
+}
+
+export interface ProductSearchResult {
+  connection: ConnectorSource;
+  products: CommerceProduct[];
+}
+
+export function isProductSearchResult(value: unknown): value is ProductSearchResult {
+  if (!isRecord(value) || !isRecord(value.connection) || !Array.isArray(value.products)) return false;
+  if (typeof value.connection.vendor !== 'string') return false;
+  const first: unknown = value.products[0];
+  return isRecord(first) && typeof first.productRef === 'string' && typeof first.title === 'string';
+}

@@ -370,7 +370,8 @@
         "anonymousVisitor": "Anonym",
         "outreachRevised": "Endret {count}× siden utkastet ble skrevet",
         "outreachRevisedAfterReview": "Endret {count}× etter at det ble åpnet til gjennomgang — les det på nytt før du godkjenner",
-        "outreachRevisionReason": "Begrunnelse — {reason}"
+        "outreachRevisionReason": "Begrunnelse — {reason}",
+        "productsView": "Se"
       },
       "relative": {
         "justNow": "akkurat nå",
@@ -1524,7 +1525,8 @@
       "contextCrm": "CRM",
       "contextKb": "Kunnskapsbase",
       "contextAnalytics": "Statistikk",
-      "contextCms": "CMS"
+      "contextCms": "CMS",
+      "contextCommerce": "Handel"
     },
     "connect": {
       "connecting": "Kobler til verten…",
@@ -1696,6 +1698,13 @@
       "usageNone": "Ikke referert av noen oppføringer.",
       "usageCount": "Referert av {count} felt",
       "foot": "{count} filer"
+    },
+    "products": {
+      "eyebrow": "Butikkatalog",
+      "title": "Produkter",
+      "subline": "{count} treff live fra {source}.",
+      "view": "Se ↗",
+      "foot": "Priser og lager hentes live fra {vendor} — ingenting lagres i Munin."
     }
   },
   "legal": {

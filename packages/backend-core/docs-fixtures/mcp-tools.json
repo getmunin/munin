@@ -8597,7 +8597,7 @@
   {
     "name": "commerce_search_products",
     "title": "Commerce: Search the product catalog",
-    "description": "Search the connected store’s live product catalog by name or SKU. Returns published products with price range, currency, image, and storefront link. Only published/enabled products are visible. `connectionId` is only needed when multiple commerce connections are active.",
+    "description": "Search the connected store’s live product catalog by name or SKU. Returns published products with price range, currency, image, and storefront link. Only published/enabled products are visible. `connectionId` is only needed when multiple commerce connections are active. In hosts that support MCP Apps this renders an inline product gallery.",
     "audiences": [
       "admin",
       "self_service"

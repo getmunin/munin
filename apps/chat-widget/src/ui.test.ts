@@ -562,3 +562,122 @@ describe('ui: connection state banner', () => {
     expect($('.status').textContent).toMatch(/disconnect/i);
   });
 });
+
+describe('ui: product list component', () => {
+  const source = { connectionId: 'conn_1', vendor: 'shopify', label: 'Nordic Supply' };
+
+  function productMsg(items: unknown[]): ListedMessage {
+    return msg({
+      id: 'p1',
+      role: 'agent',
+      body: 'Three in that range:',
+      components: [{ type: 'product_list', source, items }] as ListedMessage['components'],
+    });
+  }
+
+  const fjell = {
+    productRef: 'p1',
+    title: 'Fjell Shell 3L',
+    imageUrl: 'https://cdn.shopify.com/fjell.jpg',
+    url: 'https://nordicsupply.test/p/fjell',
+    currency: 'NOK',
+    priceMin: '1890',
+    priceMax: '1890',
+  };
+
+  beforeEach(() => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    ($('.launcher')).click();
+    controller.setView('chat');
+  });
+
+  it('renders a card per product with image, title, price and a view link', () => {
+    controller!.addMessages([
+      productMsg([fjell, { ...fjell, productRef: 'p2', title: 'Storm Anorak', priceMin: '1450', priceMax: '1690' }]),
+    ]);
+    const cards = $$('.pcard');
+    expect(cards).toHaveLength(2);
+    expect($$('.pcard-name').map((el) => el.textContent)).toEqual(['Fjell Shell 3L', 'Storm Anorak']);
+    const img = $<HTMLImageElement>('.pcard-shot');
+    expect(img.tagName).toBe('IMG');
+    expect(img.src).toBe('https://cdn.shopify.com/fjell.jpg');
+    expect(img.getAttribute('loading')).toBe('lazy');
+    const link = $<HTMLAnchorElement>('.pcard-view');
+    expect(link.href).toBe('https://nordicsupply.test/p/fjell');
+    expect(link.rel).toContain('noopener');
+    expect(link.target).toBe('_blank');
+  });
+
+  it('renders a single price when min equals max and a range when they differ', () => {
+    controller!.addMessages([
+      productMsg([fjell, { ...fjell, productRef: 'p2', priceMin: '1450', priceMax: '1690' }]),
+    ]);
+    const prices = $$('.pcard-price').map((el) => el.textContent ?? '');
+    expect(prices[0]).not.toMatch(/–/);
+    expect(prices[1]).toMatch(/–/);
+  });
+
+  it('falls back to a placeholder when the product has no image', () => {
+    controller!.addMessages([productMsg([{ ...fjell, imageUrl: null }])]);
+    expect($$('.pcard-shot-empty')).toHaveLength(1);
+    expect(shadowRoot().querySelector('img.pcard-shot')).toBeNull();
+  });
+
+  it('swaps a broken image for the placeholder', () => {
+    controller!.addMessages([productMsg([fjell])]);
+    const img = $<HTMLImageElement>('img.pcard-shot');
+    img.dispatchEvent(new Event('error'));
+    expect(shadowRoot().querySelector('img.pcard-shot')).toBeNull();
+    expect($$('.pcard-shot-empty')).toHaveLength(1);
+  });
+
+  it('omits the view link when the product has no storefront url', () => {
+    controller!.addMessages([productMsg([{ ...fjell, url: null }])]);
+    expect($$('.pcard-view')).toHaveLength(0);
+  });
+
+  it('omits the price line when the product has no price', () => {
+    controller!.addMessages([productMsg([{ ...fjell, priceMin: null, priceMax: null }])]);
+    expect($$('.pcard-price')).toHaveLength(0);
+  });
+
+  it('renders only the card rail — no provenance or swipe chrome', () => {
+    controller!.addMessages([productMsg([fjell, { ...fjell, productRef: 'p9' }])]);
+    expect($$('.plist-rail')).toHaveLength(1);
+    const rail = $('.plist-rail');
+    expect(rail.children).toHaveLength(2);
+    expect(shadowRoot().textContent).not.toContain('Nordic Supply');
+  });
+
+  it('marks the message row as app-bearing so the rail can bleed', () => {
+    controller!.addMessages([productMsg([fjell])]);
+    expect($('[data-message-id="p1"]').classList.contains('has-app')).toBe(true);
+  });
+
+
+  it('renders the product image square and uncropped so nothing is cut off', () => {
+    controller!.addMessages([productMsg([fjell])]);
+    const css = $('style').textContent ?? '';
+    expect(css).toMatch(/\.pcard-shot\s*\{[^}]*aspect-ratio:\s*1 \/ 1/);
+    expect(css).toMatch(/\.pcard-shot\s*\{[^}]*object-fit:\s*contain/);
+    expect(css).toMatch(/\.pcard-shot\s*\{[^}]*background:\s*#fff/);
+  });
+
+  it('never renders components on an end-user message', () => {
+    controller!.addMessages([
+      msg({
+        id: 'e1',
+        role: 'end_user',
+        body: 'mine',
+        components: [{ type: 'product_list', source, items: [fjell] }] as ListedMessage['components'],
+      }),
+    ]);
+    expect($$('.pcard')).toHaveLength(0);
+  });
+
+  it('renders nothing extra for a message without components', () => {
+    controller!.addMessages([msg({ id: 'n1', role: 'agent', body: 'just text' })]);
+    expect($$('.plist-rail')).toHaveLength(0);
+    expect($('[data-message-id="n1"]').classList.contains('has-app')).toBe(false);
+  });
+});

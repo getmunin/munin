@@ -25,6 +25,17 @@ Only published/enabled products are ever returned — a draft or disabled produc
 - `priceMin`/`priceMax` can be null on Magento search results when the parent product carries no price; the product detail computes the range from its variants instead.
 - Prices are in the store's own currency (`currency`) — don't convert.
 
+## The product gallery renders itself
+
+A `commerce_search_products` result is rendered as a product gallery — inline in the chat widget and the agent inbox, and as an MCP App panel in hosts that support one. Each card shows the image, title, price range and a storefront link, built from the tool result itself.
+
+That changes what your prose should do:
+
+- Don't restate prices, titles or links the cards already show. Introduce the results and add what the cards can't say ("all three are 20k waterproof", "the middle one is on sale").
+- Don't promise a count you haven't verified — say "here's what matches" rather than "three options", since the gallery renders what the search returned.
+- The gallery only shows fields the catalog exposes. Weights, materials, care instructions and similar specs are not in the product feed: say so plainly and point at the storefront page or `kb_search`, rather than inferring them from the title.
+- Cards appear for the *last* search of a turn. If you search twice, the refined query is what the customer sees — so search again rather than describing a narrowed subset in prose.
+
 ## When the KB is the better source
 
 The catalog answers *what exists, what it costs, and whether it's in stock*. Comparison and advice questions ("what's the difference between X and Y?", "which one fits my bike?") are usually better served by `kb_search` when the org has imported product guides — combine both: facts from the catalog, guidance from the KB.

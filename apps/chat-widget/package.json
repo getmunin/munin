@@ -34,5 +34,8 @@
     "typescript-eslint": "^8.61.1",
     "vite": "^6.4.3",
     "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "@getmunin/types": "workspace:*"
   }
 }

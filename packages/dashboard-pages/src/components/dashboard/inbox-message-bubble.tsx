@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@getmunin/ui';
+import { MessageComponents } from './inbox-product-list';
 import type { MessageDto } from './inbox-types';
 
 const MESSAGE_MD_COMPONENTS: Components = {
@@ -70,7 +71,7 @@ export function MessageBubble({ message }: { message: MessageDto }) {
     );
   }
   return (
-    <div className={cn('flex flex-col gap-1', isOutbound ? 'items-end' : 'items-start')}>
+    <div className={cn('flex w-full flex-col gap-1', isOutbound ? 'items-end' : 'items-start')}>
       <div
         className={cn(
           'max-w-[85%] px-3 py-2 text-sm',
@@ -95,6 +96,7 @@ export function MessageBubble({ message }: { message: MessageDto }) {
         </div>
         <MessageMarkdown body={message.body} />
       </div>
+      {isOutbound && <MessageComponents metadata={message.metadata} />}
       {isOutbound && message.seenAt && (
         <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
           {t('seenAt', { time: formatSeenAt(message.seenAt) })}

@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@getmunin/dashboard-pages": "workspace:*",
+    "@getmunin/types": "workspace:*",
     "@getmunin/ui": "workspace:*",
     "@modelcontextprotocol/client": "2.0.0",
     "@modelcontextprotocol/ext-apps": "^1.7.4",

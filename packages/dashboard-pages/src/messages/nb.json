@@ -933,7 +933,7 @@
     },
     "team": {
       "eyebrow": "Arbeidsområde · Medarbeidere",
-      "title": "<em>Rådet</em>.",
+      "title": "<em>Rådet</em> ditt.",
       "subtitle": "Inviter medarbeidere og styr hva de ser.",
       "inviteTitle": "Inviter en medarbeider",
       "inviteDescription": "De får en e-post med en lenke for å akseptere. Lenken utløper om 7 dager.",

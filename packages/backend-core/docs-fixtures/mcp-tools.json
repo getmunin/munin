@@ -1439,7 +1439,7 @@
   {
     "name": "cms_list_entries",
     "title": "CMS: List entries",
-    "description": "List entries. Filters: collection (id or slug), status, locale. Drafts and scheduled entries are returned to admins; the public delivery API only ever returns published.",
+    "description": "List entries as summaries: identifiers, status, derived title, short fields verbatim, and long text shortened to a lead with a word count in `fieldSummary`. Pass `ids` to read up to 50 specific entries in one call, or `fields` to return named fields verbatim. `truncated: true` marks an entry whose full field values were withheld from the summary. Filters: collection (id or slug), status, locale. Drafts and scheduled entries are returned to admins; the public delivery API only ever returns published.",
     "audiences": [
       "admin"
     ],
@@ -1454,6 +1454,13 @@
       "properties": {
         "collection": {
           "type": "string"
+        },
+        "ids": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "status": {
           "type": "string",
@@ -1472,14 +1479,11 @@
           "exclusiveMinimum": 0,
           "maximum": 200
         },
-        "include": {
-          "description": "Set to [\"references\"] to expand reference fields into the referenced entries.",
+        "fields": {
+          "maxItems": 20,
           "type": "array",
           "items": {
-            "type": "string",
-            "enum": [
-              "references"
-            ]
+            "type": "string"
           }
         }
       },
@@ -1489,7 +1493,7 @@
   {
     "name": "cms_get_entry",
     "title": "CMS: Read entry",
-    "description": "Read one entry. Data is projected through the collection's current field schema. In hosts that support MCP Apps this renders an inline entry preview with publish/unpublish/schedule actions.",
+    "description": "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema. In hosts that support MCP Apps this renders an inline entry preview with publish/unpublish/schedule actions.",
     "audiences": [
       "admin"
     ],
@@ -2206,7 +2210,7 @@
   {
     "name": "cms_search",
     "title": "CMS: Search entries",
-    "description": "Hybrid full-text + semantic search across CMS entries. Returns drafts and published; the public delivery API runs the same engine but hard-filters to published-only.",
+    "description": "Hybrid full-text + semantic search across CMS entries. Each hit carries a match excerpt, the derived title, and summarized field data — long text is shortened to a lead with a word count in `fieldSummary`. Returns drafts and published; the public delivery API runs the same engine but hard-filters to published-only.",
     "audiences": [
       "admin"
     ],

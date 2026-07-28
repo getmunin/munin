@@ -43,6 +43,11 @@ import {
   type ExpandedEntry,
   type FieldDef,
 } from './cms.fields.ts';
+import {
+  fitWithinBudget,
+  summarizeEntryData,
+  type FieldSummaryNote,
+} from './cms.summary.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
 import { deriveVariantColumns, type VariantColumns } from './cms.variants.ts';
 import { loadEntryMap } from './cms.entry-loader.ts';
@@ -104,6 +109,32 @@ export interface EntryDto {
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EntrySummaryDto {
+  id: string;
+  collectionId: string;
+  collectionSlug: string;
+  slug: string;
+  locale: string;
+  status: EntryStatus;
+  title: string | null;
+  titleFieldName: string | null;
+  data: Record<string, unknown>;
+  fieldSummary: Record<string, FieldSummaryNote>;
+  truncated: boolean;
+  version: number;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EntryListResult {
+  entries: EntrySummaryDto[];
+  returned: number;
+  dropped: number;
+  truncated: boolean;
 }
 
 export interface CmsDraftEntrySummary {
@@ -338,17 +369,21 @@ export class CmsService {
 
   async listEntries(input: {
     collection?: string;
+    ids?: string[];
     status?: EntryStatus;
     locale?: string;
     limit?: number;
-    include?: string[];
-  }): Promise<EntryDto[]> {
+    fields?: string[];
+  }): Promise<EntryListResult> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
     const filters: SQL[] = [];
     if (input.collection) {
       const col = await this.getCollection(input.collection);
       filters.push(eq(schema.cmsEntries.collectionId, col.id));
+    }
+    if (input.ids && input.ids.length > 0) {
+      filters.push(inArray(schema.cmsEntries.id, input.ids));
     }
     if (input.status) filters.push(eq(schema.cmsEntries.status, input.status));
     if (input.locale) filters.push(eq(schema.cmsEntries.locale, input.locale));
@@ -363,16 +398,23 @@ export class CmsService {
       .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(desc(schema.cmsEntries.updatedAt))
       .limit(limit);
-    const dtos = rows.map((r) =>
-      toEntryDto(r.entry, r.collection.slug, r.collection.fields as FieldDef[]),
+
+    const verbatim = new Set(input.fields ?? []);
+    const { items, dropped } = fitWithinBudget((leadChars) =>
+      rows.map((r) =>
+        toEntrySummaryDto(r.entry, r.collection.slug, r.collection.fields as FieldDef[], {
+          leadChars,
+          verbatim,
+        }),
+      ),
     );
-    const fieldsByEntryId = new Map<string, FieldDef[]>(
-      rows.map((r) => [r.entry.id, r.collection.fields as FieldDef[]]),
-    );
-    await this.expandAssetsInDtos(ctx.actor!.orgId, dtos, fieldsByEntryId, {
-      expandReferences: wantsReferences(input.include),
-    });
-    return dtos;
+
+    return {
+      entries: items,
+      returned: items.length,
+      dropped,
+      truncated: dropped > 0 || items.some((e) => e.truncated),
+    };
   }
 
   async listDraftEntries(limit = 50): Promise<CmsDraftEntrySummary[]> {
@@ -538,6 +580,30 @@ export class CmsService {
     }
   }
 
+  private async assertEntrySlugFree(
+    orgId: string,
+    collectionId: string,
+    slug: string,
+    locale: string,
+    exceptId?: string,
+  ): Promise<void> {
+    const ctx = getCurrentContext();
+    const filters = [
+      eq(schema.cmsEntries.orgId, orgId),
+      eq(schema.cmsEntries.collectionId, collectionId),
+      eq(schema.cmsEntries.slug, slug),
+      eq(schema.cmsEntries.locale, locale),
+    ];
+    const rows = await ctx.db
+      .select({ id: schema.cmsEntries.id })
+      .from(schema.cmsEntries)
+      .where(and(...filters))
+      .limit(2);
+    if (rows.some((r) => r.id !== exceptId)) {
+      throw new ConflictException(`cms_slug_conflict: ${slug} (${locale})`);
+    }
+  }
+
   async createEntry(input: {
     collection: string;
     slug: string;
@@ -558,6 +624,7 @@ export class CmsService {
       );
     }
     await this.assertAssetsExist(actor.orgId, collection.fields, input.data);
+    await this.assertEntrySlugFree(actor.orgId, collection.id, input.slug, locale);
 
     await this.quotas.assertCanAdd('cms_entries');
 
@@ -640,6 +707,15 @@ export class CmsService {
     }
     const newSlug = input.slug ?? existing.slug;
     const newLocale = input.locale ?? existing.locale;
+    if (newSlug !== existing.slug || newLocale !== existing.locale) {
+      await this.assertEntrySlugFree(
+        actor.orgId,
+        existing.collectionId,
+        newSlug,
+        newLocale,
+        existing.id,
+      );
+    }
     const hash = contentHash(
       `${newSlug}|${newLocale}|${existing.status}`,
       JSON.stringify(newData),
@@ -1646,6 +1722,35 @@ function toEntryDto(
     locale: row.locale,
     status: row.status as EntryStatus,
     data: projectData(fields, row.data),
+    version: row.version,
+    scheduledAt: row.scheduledAt?.toISOString() ?? null,
+    publishedAt: row.publishedAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function toEntrySummaryDto(
+  row: typeof schema.cmsEntries.$inferSelect,
+  collectionSlug: string,
+  fields: FieldDef[],
+  opts: { leadChars: number; verbatim: ReadonlySet<string> },
+): EntrySummaryDto {
+  const data = row.data ?? {};
+  const derived = deriveEntryTitle(fields, data);
+  const summary = summarizeEntryData(fields, data, opts);
+  return {
+    id: row.id,
+    collectionId: row.collectionId,
+    collectionSlug,
+    slug: row.slug,
+    locale: row.locale,
+    status: row.status as EntryStatus,
+    title: derived.title,
+    titleFieldName: derived.fieldName,
+    data: summary.data,
+    fieldSummary: summary.fieldSummary,
+    truncated: summary.truncated,
     version: row.version,
     scheduledAt: row.scheduledAt?.toISOString() ?? null,
     publishedAt: row.publishedAt?.toISOString() ?? null,

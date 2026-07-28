@@ -118,7 +118,7 @@ Verify with `cms_list_inbound_references` on a few entries — outbound links fr
 { "name": "cms_list_entries", "arguments": { "collection": "blog", "limit": 200 } }
 ```
 
-Sanity-check the count against the source. Spot-check 2–3 entries (`cms_get_entry`) for body fidelity. Then publish in batches per `skill://cms/publish-entry`.
+Sanity-check `returned` against the source count. Entries come back as summaries with long text shortened, so body fidelity needs `cms_get_entry` on 2–3 spot checks — or `cms_list_entries` with `"fields": ["body"]` on a handful of `ids` to compare several at once. Then publish in batches per `skill://cms/publish-entry`.
 
 ## What NOT to do
 

@@ -3,7 +3,6 @@ import { App as McpApp, applyHostStyleVariables } from '@modelcontextprotocol/ex
 import type { CallToolResult } from '@modelcontextprotocol/client';
 import {
   isCmsAssetList,
-  isCmsEntry,
   isCurationCandidateList,
   isDayPointList,
   isEmptyList,
@@ -21,7 +20,6 @@ import { ProposalsView } from './views/proposals';
 import { MergeProposalsView } from './views/merge-proposals';
 import { CurationView } from './views/curation';
 import { AnalyticsView, type AnalyticsPayload } from './views/analytics';
-import { EntryView } from './views/entry';
 import { AssetsView } from './views/assets';
 import { ProductsView } from './views/products';
 
@@ -95,8 +93,6 @@ export function InspectorApp() {
         <ProposalsView app={mcpApp} initial={payload} />
       ) : isCurationCandidateList(payload) ? (
         <CurationView app={mcpApp} initial={payload} />
-      ) : isCmsEntry(payload) ? (
-        <EntryView app={mcpApp} initial={payload} />
       ) : isCmsAssetList(payload) ? (
         <AssetsView app={mcpApp} initial={payload} />
       ) : isProductSearchResult(payload) ? (

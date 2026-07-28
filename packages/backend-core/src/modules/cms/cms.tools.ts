@@ -64,10 +64,11 @@ const IncludeInput = z
 
 const ListEntriesInput = z.object({
   collection: z.string().optional(),
+  ids: z.array(z.string()).max(50).optional(),
   status: z.enum(ENTRY_STATUSES).optional(),
   locale: z.string().optional(),
   limit: z.number().int().positive().max(200).optional(),
-  include: IncludeInput,
+  fields: z.array(z.string()).max(20).optional(),
 });
 
 const GetEntryInput = z.object({ id: z.string(), include: IncludeInput });
@@ -308,7 +309,7 @@ export class CmsAdminTools {
     name: 'cms_list_entries',
     title: 'CMS: List entries',
     description:
-      'List entries. Filters: collection (id or slug), status, locale. Drafts and scheduled entries are returned to admins; the public delivery API only ever returns published.',
+      'List entries as summaries: identifiers, status, derived title, short fields verbatim, and long text shortened to a lead with a word count in `fieldSummary`. Pass `ids` to read up to 50 specific entries in one call, or `fields` to return named fields verbatim. `truncated: true` marks an entry whose full field values were withheld from the summary. Filters: collection (id or slug), status, locale. Drafts and scheduled entries are returned to admins; the public delivery API only ever returns published.',
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: ListEntriesInput,
@@ -323,13 +324,12 @@ export class CmsAdminTools {
     name: 'cms_get_entry',
     title: 'CMS: Read entry',
     description:
-      "Read one entry. Data is projected through the collection's current field schema. In hosts that support MCP Apps this renders an inline entry preview with publish/unpublish/schedule actions.",
+      "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema.",
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: GetEntryInput,
     readOnlyHint: true,
     destructiveHint: false,
-    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   getEntry(args: z.infer<typeof GetEntryInput>) {
     return this.cms.getEntry(args.id, args.include);
@@ -632,7 +632,7 @@ export class CmsAdminTools {
     name: 'cms_search',
     title: 'CMS: Search entries',
     description:
-      'Hybrid full-text + semantic search across CMS entries. Returns drafts and published; the public delivery API runs the same engine but hard-filters to published-only.',
+      'Hybrid full-text + semantic search across CMS entries. Each hit carries a match excerpt, the derived title, and summarized field data — long text is shortened to a lead with a word count in `fieldSummary`. Returns drafts and published; the public delivery API runs the same engine but hard-filters to published-only.',
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: SearchInput,
@@ -640,7 +640,7 @@ export class CmsAdminTools {
     destructiveHint: false,
   })
   searchEntries(args: z.infer<typeof SearchInput>) {
-    return this.search.search(args);
+    return this.search.search({ ...args, projection: 'summary' });
   }
 
   @McpTool({

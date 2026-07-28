@@ -22,7 +22,7 @@ Every CMS entry has a `status` (`draft | published | scheduled | archived`) and 
 
 Returns `{ id, collection, slug, locale, status, data, version, publishedAt, ... }`. Hold on to `version` — every subsequent write needs it.
 
-If you're picking from the queue: `cms_list_entries` with `{ "status": "draft", "limit": 50 }` first.
+If you're picking from the queue: `cms_list_entries` with `{ "status": "draft", "limit": 50 }` first. That returns `{ entries, returned, dropped, truncated }` with long text shortened to a lead — enough to choose a draft, not enough to review one. Read the chosen entry in full before editing it.
 
 ## Step 2 — refine the draft
 

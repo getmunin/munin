@@ -20,6 +20,11 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./message-format": {
+      "development": "./src/message-format.ts",
+      "types": "./dist/message-format.d.ts",
+      "default": "./dist/message-format.js"
     }
   },
   "files": [

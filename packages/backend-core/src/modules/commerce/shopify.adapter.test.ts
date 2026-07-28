@@ -202,6 +202,71 @@ describe('ShopifyAdapter', () => {
     expect(requests).toHaveLength(0);
   });
 
+
+  it('sorts product search by relevance rather than the default id order', async () => {
+    const { fetch, requests } = stubGraphql(() => ({
+      data: { products: { nodes: [productNode()] } },
+    }));
+    const adapter = new ShopifyAdapter(fetch);
+
+    await adapter.searchProducts(ctx(), { query: 'mug', limit: 10 });
+
+    expect(requests[0]!.body.query).toContain('sortKey: RELEVANCE');
+  });
+
+  it('retries a multi-term search as OR when the all-terms search finds nothing', async () => {
+    const { fetch, requests } = stubGraphql((req) =>
+      String(req.body.variables.q).includes(' OR ')
+        ? { data: { products: { nodes: [productNode()] } } }
+        : { data: { products: { nodes: [] } } },
+    );
+    const adapter = new ShopifyAdapter(fetch);
+
+    const products = await adapter.searchProducts(ctx(), {
+      query: 'borrelasreim jenter',
+      limit: 10,
+    });
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]!.body.variables.q).toBe('status:active "borrelasreim" "jenter"');
+    expect(requests[1]!.body.variables.q).toBe(
+      'status:active AND ("borrelasreim" OR "jenter")',
+    );
+    expect(products).toHaveLength(1);
+  });
+
+  it('does not retry when the all-terms search already matched', async () => {
+    const { fetch, requests } = stubGraphql(() => ({
+      data: { products: { nodes: [productNode()] } },
+    }));
+    const adapter = new ShopifyAdapter(fetch);
+
+    await adapter.searchProducts(ctx(), { query: 'blue mug', limit: 10 });
+
+    expect(requests).toHaveLength(1);
+  });
+
+  it('does not retry a single-term search that found nothing', async () => {
+    const { fetch, requests } = stubGraphql(() => ({ data: { products: { nodes: [] } } }));
+    const adapter = new ShopifyAdapter(fetch);
+
+    const products = await adapter.searchProducts(ctx(), { query: 'nonesuch', limit: 10 });
+
+    expect(requests).toHaveLength(1);
+    expect(products).toEqual([]);
+  });
+
+  it('keeps a literal OR token quoted in the fallback so it cannot act as a connective', async () => {
+    const { fetch, requests } = stubGraphql(() => ({ data: { products: { nodes: [] } } }));
+    const adapter = new ShopifyAdapter(fetch);
+
+    await adapter.searchProducts(ctx(), { query: 'mug OR status:draft', limit: 10 });
+
+    expect(requests[1]!.body.variables.q).toBe(
+      'status:active AND ("mug" OR "OR" OR "status:draft")',
+    );
+  });
+
   it('searches published products with quoted tokens pinned to status:active', async () => {
     const { fetch, requests } = stubGraphql(() => ({
       data: { products: { nodes: [productNode(), productNode({ status: 'DRAFT' })] } },

@@ -56,6 +56,7 @@ const pl: Strings = {
   voiceOnCallWithTemplate: 'Rozmowa z {who}',
   voiceTapToReturn: 'Dotknij, aby wrócić',
   voiceFailed: 'Rozmowa głosowa nieudana',
+  productViewLabel: 'Zobacz',
 };
 
 export default pl;

@@ -8,7 +8,7 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { type Db } from '@getmunin/db';
-import { type WebImportProgress } from '@getmunin/types';
+import { type MessageComponent, type WebImportProgress } from '@getmunin/types';
 import {
   type AckCuratorJobInput,
   type AwaitingReplyConversation,
@@ -147,7 +147,12 @@ function buildClient(opts: BuildOptions): MuninRestClient {
     async postAgentMessage(
       conversationId: string,
       body: string,
-      messageOpts: { preserveAttention?: boolean; sinceMessageId?: string; totalTokens?: number } = {},
+      messageOpts: {
+        preserveAttention?: boolean;
+        sinceMessageId?: string;
+        totalTokens?: number;
+        components?: MessageComponent[];
+      } = {},
     ): Promise<void> {
       await audited(
         'runner:postAgentMessage',
@@ -159,6 +164,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
             authorId: opts.actor.id,
             preserveAttention: messageOpts.preserveAttention,
             sinceMessageId: messageOpts.sinceMessageId,
+            components: messageOpts.components,
           });
         },
         { totalTokens: messageOpts.totalTokens },

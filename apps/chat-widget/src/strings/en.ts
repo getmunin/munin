@@ -56,6 +56,7 @@ const en: Strings = {
   voiceOnCallWithTemplate: 'On call with {who}',
   voiceTapToReturn: 'Tap to return',
   voiceFailed: 'Voice call failed',
+  productViewLabel: 'View',
 };
 
 export default en;

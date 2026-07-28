@@ -56,6 +56,7 @@ const nl: Strings = {
   voiceOnCallWithTemplate: 'In gesprek met {who}',
   voiceTapToReturn: 'Tik om terug te keren',
   voiceFailed: 'Spraakoproep mislukt',
+  productViewLabel: 'Bekijk',
 };
 
 export default nl;

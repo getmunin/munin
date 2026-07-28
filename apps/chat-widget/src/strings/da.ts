@@ -56,6 +56,7 @@ const da: Strings = {
   voiceOnCallWithTemplate: 'I opkald med {who}',
   voiceTapToReturn: 'Tryk for at vende tilbage',
   voiceFailed: 'Taleopkald mislykkedes',
+  productViewLabel: 'Se',
 };
 
 export default da;

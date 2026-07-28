@@ -10,6 +10,7 @@ import {
   isFunnel,
   isJourneyList,
   isMergeProposalList,
+  isProductSearchResult,
   isProposalList,
   isTrafficSourceList,
   parseToolResult,
@@ -22,6 +23,7 @@ import { CurationView } from './views/curation';
 import { AnalyticsView, type AnalyticsPayload } from './views/analytics';
 import { EntryView } from './views/entry';
 import { AssetsView } from './views/assets';
+import { ProductsView } from './views/products';
 
 const mcpApp = new McpApp({ name: 'Munin Inspector', version: '0.3.0' });
 
@@ -97,6 +99,8 @@ export function InspectorApp() {
         <EntryView app={mcpApp} initial={payload} />
       ) : isCmsAssetList(payload) ? (
         <AssetsView app={mcpApp} initial={payload} />
+      ) : isProductSearchResult(payload) ? (
+        <ProductsView initial={payload} />
       ) : charts ? (
         <AnalyticsView payload={charts} />
       ) : isEmptyList(payload) ? (

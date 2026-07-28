@@ -1,3 +1,4 @@
+import type { MessageComponent } from '@getmunin/types';
 import type { WidgetVisitor } from './config.ts';
 
 export interface ApiIdentity {
@@ -26,6 +27,7 @@ export interface ListedMessage {
   bodyHtml: string | null;
   at: string;
   readAt: string | null;
+  components?: MessageComponent[];
 }
 
 export interface ConversationEnvelope {

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
+import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 import { CommerceService } from './commerce.service.ts';
 
 const LookupOrdersInput = z.object({
@@ -66,12 +67,13 @@ export class CommerceAdminTools {
     name: 'commerce_search_products',
     title: 'Commerce: Search the product catalog',
     description:
-      'Search the connected store’s live product catalog by name or SKU. Returns published products with price range, currency, image, and storefront link. Only published/enabled products are visible. `connectionId` is only needed when multiple commerce connections are active.',
+      'Search the connected store’s live product catalog by name or SKU. Returns published products with price range, currency, image, and storefront link. Only published/enabled products are visible. `connectionId` is only needed when multiple commerce connections are active. In hosts that support MCP Apps this renders an inline product gallery.',
     audiences: ['admin', 'self_service'],
     scopes: ['commerce:read'],
     input: SearchProductsInput,
     readOnlyHint: true,
     destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
   })
   searchProducts(args: z.infer<typeof SearchProductsInput>) {
     return this.commerce.searchProducts(args);

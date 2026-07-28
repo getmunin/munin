@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { getCurrentContext } from '@getmunin/core';
+import { MessageComponentsSchema } from '@getmunin/types';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
@@ -45,6 +46,7 @@ const ReplyBody = z.object({
   sinceMessageId: z.string().optional(),
   claim: z.boolean().optional(),
   totalTokens: z.number().int().nonnegative().optional(),
+  components: MessageComponentsSchema.optional(),
 });
 
 const AcquireBody = z.object({
@@ -178,6 +180,7 @@ export class ConversationsController {
         preserveAttention: parsed.data.preserveAttention,
         sinceMessageId: parsed.data.sinceMessageId,
         claim: parsed.data.claim,
+        components: parsed.data.components,
         authorType: actor.type === 'user' ? 'user' : 'agent',
         authorId: actor.id,
       }),

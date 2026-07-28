@@ -15,6 +15,7 @@ import type {
   CommerceProductVariant,
 } from './commerce-adapter.ts';
 import { ConnectorVendorError, type ConnectorFetch, REQUEST_TIMEOUT_MS } from '../connectors/http.ts';
+import { broadSearchLimit, rankByTokenCoverage } from './product-ranking.ts';
 
 export const MagentoConfigInput = z.object({
   baseUrl: z
@@ -156,16 +157,41 @@ export class MagentoAdapter implements CommerceAdapter {
     ctx: ConnectorConnectionContext,
     args: { query: string; limit: number },
   ): Promise<CommerceProductSummary[]> {
-    const query = args.query.trim();
-    if (!query) return [];
+    const tokens = args.query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+    if (!tokens.length) return [];
     const currency = await this.baseCurrency(ctx);
-    const like = `%${query.replace(/([\\%_])/g, '\\$1')}%`;
+    const likes = tokens.map((t) => `%${t.replace(/([\\%_])/g, '\\$1')}%`);
+
+    const all = await this.productSearch(ctx, currency, args.limit, (params) => {
+      likes.forEach((like, index) => {
+        setFilter(params, index, 'name', like, 'like', 0);
+        setFilter(params, index, 'sku', like, 'like', 1);
+      });
+      return likes.length;
+    });
+    if (all.length > 0 || likes.length < 2) return all;
+
+    const any = await this.productSearch(ctx, currency, broadSearchLimit(args.limit), (params) => {
+      likes.forEach((like, index) => {
+        setFilter(params, 0, 'name', like, 'like', index * 2);
+        setFilter(params, 0, 'sku', like, 'like', index * 2 + 1);
+      });
+      return 1;
+    });
+    return rankByTokenCoverage(any, tokens).slice(0, args.limit);
+  }
+
+  private async productSearch(
+    ctx: ConnectorConnectionContext,
+    currency: string,
+    limit: number,
+    applyTermFilters: (params: URLSearchParams) => number,
+  ): Promise<CommerceProductSummary[]> {
     const params = new URLSearchParams();
-    setFilter(params, 0, 'name', like, 'like', 0);
-    setFilter(params, 0, 'sku', like, 'like', 1);
-    setFilter(params, 1, 'status', '1', 'eq');
-    setFilter(params, 2, 'visibility', '1', 'neq');
-    params.set('searchCriteria[pageSize]', String(args.limit));
+    const nextGroup = applyTermFilters(params);
+    setFilter(params, nextGroup, 'status', '1', 'eq');
+    setFilter(params, nextGroup + 1, 'visibility', '1', 'neq');
+    params.set('searchCriteria[pageSize]', String(limit));
     const result = await this.get<MagentoSearchResult<MagentoProduct>>(
       ctx,
       `/rest/V1/products?${params.toString()}`,

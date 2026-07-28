@@ -56,6 +56,7 @@ const de: Strings = {
   voiceOnCallWithTemplate: 'Im Gespräch mit {who}',
   voiceTapToReturn: 'Tippen, um zurückzukehren',
   voiceFailed: 'Sprachanruf fehlgeschlagen',
+  productViewLabel: 'Ansehen',
 };
 
 export default de;

@@ -14,6 +14,7 @@ import type {
   CommerceProductSummary,
 } from './commerce-adapter.ts';
 import { ConnectorVendorError, type ConnectorFetch, REQUEST_TIMEOUT_MS } from '../connectors/http.ts';
+import { broadSearchLimit, rankByTokenCoverage } from './product-ranking.ts';
 
 const DEFAULT_API_VERSION = '2026-04';
 const SHOP_DOMAIN_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
@@ -215,13 +216,28 @@ export class ShopifyAdapter implements CommerceAdapter {
   ): Promise<CommerceProductSummary[]> {
     const tokens = args.query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
     if (!tokens.length) return [];
-    const q = ['status:active', ...tokens.map((t) => searchTerm(t))].join(' ');
+    const terms = tokens.map((t) => searchTerm(t));
+    const all = await this.productSearch(ctx, ['status:active', ...terms].join(' '), args.limit);
+    if (all.length > 0 || terms.length < 2) return all;
+    const any = await this.productSearch(
+      ctx,
+      `status:active AND (${terms.join(' OR ')})`,
+      broadSearchLimit(args.limit),
+    );
+    return rankByTokenCoverage(any, tokens).slice(0, args.limit);
+  }
+
+  private async productSearch(
+    ctx: ConnectorConnectionContext,
+    q: string,
+    limit: number,
+  ): Promise<CommerceProductSummary[]> {
     const data = await this.graphql<{ products: { nodes: ShopifyProductNode[] } }>(
       ctx,
       `query ($q: String!, $n: Int!) {
-        products(first: $n, query: $q) { nodes { ${PRODUCT_SUMMARY_FIELDS} } }
+        products(first: $n, query: $q, sortKey: RELEVANCE) { nodes { ${PRODUCT_SUMMARY_FIELDS} } }
       }`,
-      { q, n: args.limit },
+      { q, n: limit },
     );
     return data.products.nodes
       .filter((node) => node.status === 'ACTIVE')

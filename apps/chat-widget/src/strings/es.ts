@@ -56,6 +56,7 @@ const es: Strings = {
   voiceOnCallWithTemplate: 'En llamada con {who}',
   voiceTapToReturn: 'Toca para volver',
   voiceFailed: 'La llamada de voz falló',
+  productViewLabel: 'Ver',
 };
 
 export default es;

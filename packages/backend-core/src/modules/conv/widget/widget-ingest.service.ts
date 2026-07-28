@@ -8,6 +8,7 @@ import {
 import { schema, type Tx } from '@getmunin/db';
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { WebhookDispatcher, getCurrentContext, parseEnvBool, verifyHmac } from '@getmunin/core';
+import { parseMessageComponents, type MessageComponent } from '@getmunin/types';
 import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
@@ -122,6 +123,7 @@ export class WidgetIngestService {
         bodyHtml: schema.convMessages.bodyHtml,
         createdAt: schema.convMessages.createdAt,
         internal: schema.convMessages.internal,
+        metadata: schema.convMessages.metadata,
       })
       .from(schema.convMessages)
       .where(
@@ -174,6 +176,7 @@ export class WidgetIngestService {
       bodyHtml: r.bodyHtml,
       at: r.createdAt.toISOString(),
       readAt: readsByMessageId.get(r.id)?.toISOString() ?? null,
+      ...visibleComponents(r.authorType, r.metadata),
     }));
 
     const envelope: WidgetConversationEnvelope = {
@@ -1098,6 +1101,16 @@ function authorKindFor(authorType: string): WidgetListedMessage['authorKind'] {
   if (authorType === 'user') return 'human';
   if (authorType === 'agent') return 'ai';
   return null;
+}
+
+function visibleComponents(
+  authorType: string,
+  metadata: Record<string, unknown> | null,
+): { components?: MessageComponent[] } {
+  if (authorType !== 'agent' && authorType !== 'user') return {};
+  if (!metadata) return {};
+  const components = parseMessageComponents(metadata.components);
+  return components ? { components } : {};
 }
 
 function singleLinePreview(body: string): string {

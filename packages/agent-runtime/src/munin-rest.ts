@@ -1,3 +1,4 @@
+import type { MessageComponent } from '@getmunin/types';
 import type { ConversationMessage } from './types.ts';
 
 export interface ConversationDetail {
@@ -119,7 +120,12 @@ export interface MuninRestClient {
   postAgentMessage(
     conversationId: string,
     body: string,
-    opts?: { preserveAttention?: boolean; sinceMessageId?: string; totalTokens?: number },
+    opts?: {
+      preserveAttention?: boolean;
+      sinceMessageId?: string;
+      totalTokens?: number;
+      components?: MessageComponent[];
+    },
   ): Promise<void>;
   tryAcquireConversation(input: {
     conversationId: string;
@@ -225,7 +231,12 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     async postAgentMessage(
       conversationId: string,
       body: string,
-      opts: { preserveAttention?: boolean; sinceMessageId?: string; totalTokens?: number } = {},
+      opts: {
+        preserveAttention?: boolean;
+        sinceMessageId?: string;
+        totalTokens?: number;
+        components?: MessageComponent[];
+      } = {},
     ): Promise<void> {
       await call<unknown>(`/v1/conversations/${encodeURIComponent(conversationId)}/messages`, {
         method: 'POST',
@@ -234,6 +245,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
           ...(opts.preserveAttention ? { preserveAttention: true } : {}),
           ...(opts.sinceMessageId ? { sinceMessageId: opts.sinceMessageId } : {}),
           ...(opts.totalTokens !== undefined ? { totalTokens: opts.totalTokens } : {}),
+          ...(opts.components?.length ? { components: opts.components } : {}),
         }),
       });
     },

@@ -56,6 +56,7 @@ const sv: Strings = {
   voiceOnCallWithTemplate: 'I samtal med {who}',
   voiceTapToReturn: 'Tryck för att återgå',
   voiceFailed: 'Röstsamtal misslyckades',
+  productViewLabel: 'Visa',
 };
 
 export default sv;

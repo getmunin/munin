@@ -370,7 +370,8 @@
         "anonymousVisitor": "Anonymous",
         "outreachRevised": "Revised {count}× since it was drafted",
         "outreachRevisedAfterReview": "Revised {count}× after it was opened for review — read it again before approving",
-        "outreachRevisionReason": "Reason — {reason}"
+        "outreachRevisionReason": "Reason — {reason}",
+        "productsView": "View"
       },
       "relative": {
         "justNow": "just now",
@@ -1524,7 +1525,8 @@
       "contextCrm": "CRM",
       "contextKb": "Knowledge base",
       "contextAnalytics": "Analytics",
-      "contextCms": "CMS"
+      "contextCms": "CMS",
+      "contextCommerce": "Commerce"
     },
     "connect": {
       "connecting": "Connecting to host…",
@@ -1696,6 +1698,13 @@
       "usageNone": "Not referenced by any entry.",
       "usageCount": "Referenced by {count} entry fields",
       "foot": "{count} assets"
+    },
+    "products": {
+      "eyebrow": "Store catalog",
+      "title": "Products",
+      "subline": "{count} live matches from {source}.",
+      "view": "View ↗",
+      "foot": "Live prices and availability from {vendor} — nothing is stored in Munin."
     }
   },
   "legal": {

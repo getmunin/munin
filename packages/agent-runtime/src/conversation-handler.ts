@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { auditConversation, type AuditAction, type AuditTopic } from './audit.ts';
+import { deriveMessageComponents } from './message-components.ts';
 import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.ts';
 import { runAgent } from './runtime.ts';
 import type {
@@ -286,6 +287,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             preserveAttention: handoverThisTurn,
             sinceMessageId,
             totalTokens: reply.usage.totalTokens,
+            components: deriveMessageComponents(reply.toolCalls),
           });
           log.info(
             `${conversationId} replied (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,

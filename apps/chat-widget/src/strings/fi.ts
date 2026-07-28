@@ -56,6 +56,7 @@ const fi: Strings = {
   voiceOnCallWithTemplate: 'Puhelussa: {who}',
   voiceTapToReturn: 'Palaa napauttamalla',
   voiceFailed: 'Äänipuhelu epäonnistui',
+  productViewLabel: 'Katso',
 };
 
 export default fi;

@@ -77,3 +77,18 @@ export {
 } from './event-catalog.ts';
 export { type WebImportProgress } from './web-import.ts';
 export { type AssetVariant } from './asset-variants.ts';
+export {
+  MESSAGE_COMPONENT_MAX_ITEMS,
+  MESSAGE_COMPONENTS_MAX,
+  ProductListItemSchema,
+  ComponentSourceSchema,
+  ProductListComponentSchema,
+  MessageComponentSchema,
+  MessageComponentsSchema,
+  parseMessageComponents,
+  type ProductListItem,
+  type ComponentSource,
+  type ProductListComponent,
+  type MessageComponent,
+} from './message-components.ts';
+export { formatPriceRange, type PriceRange } from './message-format.ts';

@@ -65,6 +65,7 @@ export interface Strings {
   voiceOnCallWithTemplate: string;
   voiceTapToReturn: string;
   voiceFailed: string;
+  productViewLabel: string;
 }
 
 const PLURAL_KEYS: readonly (keyof PluralValue)[] = ['zero', 'one', 'two', 'few', 'many', 'other'];

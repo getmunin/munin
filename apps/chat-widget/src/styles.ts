@@ -1,5 +1,5 @@
 export function buildWidgetCss(_fonts: 'bundled' | 'system'): string {
-  return BASE_CSS;
+  return BASE_CSS + PRODUCT_LIST_CSS;
 }
 
 const BASE_CSS = String.raw`
@@ -911,4 +911,72 @@ button {
   .panel { transition: none; }
   .bubble.typing span { animation: none; opacity: 0.6; }
 }
+`;
+
+const PRODUCT_LIST_CSS = String.raw`
+.msg.has-app { max-width: 100%; align-self: stretch; }
+.msg.has-app .bubble { max-width: 86%; }
+
+.plist-rail {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 18px;
+  margin: 0 -18px;
+  padding: 2px 18px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.plist-rail::-webkit-scrollbar { display: none; }
+
+.pcard {
+  flex: 0 0 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  scroll-snap-align: start;
+  border: 1px solid var(--munin-rule);
+  border-radius: 10px;
+  background: var(--munin-paper);
+  padding: 7px;
+}
+
+.pcard-shot {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+}
+.pcard-shot-empty {
+  background: var(--munin-paper-deep);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--munin-paper-deep),
+    var(--munin-paper-deep) 6px,
+    var(--munin-bone) 6px,
+    var(--munin-bone) 7px
+  );
+}
+
+.pcard-name { font-size: 12px; line-height: 1.3; color: var(--munin-ink); }
+.pcard-price { font-family: var(--munin-mono); font-size: 11.5px; color: var(--munin-ink-soft); }
+
+.pcard-view {
+  align-self: flex-start;
+  margin-top: 1px;
+  border: 1px solid var(--munin-rule);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-family: var(--munin-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--munin-ink-soft);
+  text-decoration: none;
+}
+.pcard-view:hover { border-color: var(--munin-ink); color: var(--munin-ink); }
 `;

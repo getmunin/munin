@@ -9,6 +9,7 @@ import {
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import type { MessageComponent } from '@getmunin/types';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
@@ -731,6 +732,7 @@ export class ConvService {
     preserveAttention?: boolean;
     sinceMessageId?: string;
     claim?: boolean;
+    components?: MessageComponent[];
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -778,6 +780,11 @@ export class ConvService {
       }
     }
 
+    const attachComponents =
+      !!input.components?.length &&
+      !input.internal &&
+      (input.authorType === 'agent' || input.authorType === 'user');
+
     const [row] = await ctx.db
       .insert(schema.convMessages)
       .values({
@@ -788,6 +795,7 @@ export class ConvService {
         body: input.body,
         internal: input.internal ?? false,
         inReplyToId: input.inReplyToId ?? null,
+        ...(attachComponents ? { metadata: { components: input.components } } : {}),
       })
       .returning();
     const clearAttention =

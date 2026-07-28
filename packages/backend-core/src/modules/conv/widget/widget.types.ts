@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { MessageComponent } from '@getmunin/types';
 
 export const WidgetChannelConfig = z.object({
   provider: z.literal('widget'),
@@ -160,6 +161,7 @@ export interface WidgetListedMessage {
   bodyHtml: string | null;
   at: string;
   readAt: string | null;
+  components?: MessageComponent[];
 }
 
 export interface WidgetConversationEnvelope {

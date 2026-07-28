@@ -186,6 +186,73 @@ describe('MagentoAdapter', () => {
     expect(detail?.orderNumber).toBe('000000042');
   });
 
+
+  it('requires every term to appear, in any order, via one filter group per term', async () => {
+    const { fetch, urls } = stubRest((url) =>
+      url.includes('/rest/V1/store/storeConfigs')
+        ? { body: storeConfigs }
+        : { body: { items: [product()], total_count: 1 } },
+    );
+    const adapter = new MagentoAdapter(fetch);
+
+    await adapter.searchProducts(ctx(), { query: 'borrelasreim xplora', limit: 10 });
+
+    const url = new URL(urls[1]!);
+    const g = (group: number, filter: number, part: string) =>
+      url.searchParams.get(`searchCriteria[filter_groups][${group}][filters][${filter}][${part}]`);
+    expect(g(0, 0, 'value')).toBe('%borrelasreim%');
+    expect(g(0, 1, 'field')).toBe('sku');
+    expect(g(1, 0, 'value')).toBe('%xplora%');
+    expect(g(1, 1, 'field')).toBe('sku');
+    expect(g(2, 0, 'field')).toBe('status');
+    expect(g(3, 0, 'field')).toBe('visibility');
+  });
+
+  it('retries a multi-term search as one OR group when all-terms finds nothing', async () => {
+    let productCalls = 0;
+    const { fetch, urls } = stubRest((url) => {
+      if (url.includes('/rest/V1/store/storeConfigs')) return { body: storeConfigs };
+      productCalls += 1;
+      return productCalls === 1
+        ? { body: { items: [], total_count: 0 } }
+        : { body: { items: [product()], total_count: 1 } };
+    });
+    const adapter = new MagentoAdapter(fetch);
+
+    const products = await adapter.searchProducts(ctx(), {
+      query: 'borrelasreim jenter',
+      limit: 10,
+    });
+
+    expect(productCalls).toBe(2);
+    const retry = new URL(urls[urls.length - 1]!);
+    const g = (filter: number, part: string) =>
+      retry.searchParams.get(`searchCriteria[filter_groups][0][filters][${filter}][${part}]`);
+    expect(g(0, 'value')).toBe('%borrelasreim%');
+    expect(g(1, 'field')).toBe('sku');
+    expect(g(2, 'value')).toBe('%jenter%');
+    expect(g(3, 'field')).toBe('sku');
+    expect(retry.searchParams.get('searchCriteria[filter_groups][1][filters][0][field]')).toBe(
+      'status',
+    );
+    expect(products).toHaveLength(1);
+  });
+
+  it('does not retry a single-term search that found nothing', async () => {
+    let productCalls = 0;
+    const { fetch } = stubRest((url) => {
+      if (url.includes('/rest/V1/store/storeConfigs')) return { body: storeConfigs };
+      productCalls += 1;
+      return { body: { items: [], total_count: 0 } };
+    });
+    const adapter = new MagentoAdapter(fetch);
+
+    const products = await adapter.searchProducts(ctx(), { query: 'nonesuch', limit: 10 });
+
+    expect(productCalls).toBe(1);
+    expect(products).toEqual([]);
+  });
+
   it('searches enabled, visible products by name or sku with the store currency', async () => {
     const { fetch, urls } = stubRest((url) =>
       url.includes('/rest/V1/store/storeConfigs')

@@ -346,6 +346,85 @@ const skipReason = TEST_URL
     expect((rows[0]!.metadata).locale).toBeUndefined();
   });
 
+  it('exposes message components to the widget and nothing else from metadata', async () => {
+    const sessionId = 'vis_components';
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'Rain jacket under 2000 kr?', providerMessageId: 'cmp_1' }],
+    });
+    expect(res.status).toBe(201);
+    const { conversationId } = res.json as { conversationId: string };
+
+    const components = [
+      {
+        type: 'product_list',
+        source: { connectionId: 'conn_1', vendor: 'shopify', label: 'Nordic Supply' },
+        items: [
+          {
+            productRef: 'p1',
+            title: 'Fjell Shell 3L',
+            imageUrl: 'https://cdn.shopify.com/fjell.jpg',
+            url: 'https://nordicsupply.test/p/fjell',
+            currency: 'NOK',
+            priceMin: '1890',
+            priceMax: '1890',
+          },
+        ],
+      },
+    ];
+    await insertAgentMessage(conversationId, 'Three in that range:', sessionId, 'cmp_2', {
+      metadata: { sessionId, providerMessageId: 'cmp_2', components, runnerHolderId: 'secret-holder' },
+    });
+
+    const listed = await call('GET', `/v1/widget/messages?${qs({ channelId, sessionId })}`, widgetKey);
+    expect(listed.status).toBe(200);
+    const messages = (listed.json as { messages: Array<Record<string, unknown>> }).messages;
+    const agentMessage = messages.find((m) => m.role === 'agent')!;
+    expect(agentMessage.components).toEqual(components);
+    expect(Object.keys(agentMessage)).not.toContain('metadata');
+    expect(JSON.stringify(listed.json)).not.toContain('secret-holder');
+
+    const endUserMessage = messages.find((m) => m.role === 'end_user')!;
+    expect(endUserMessage.components).toBeUndefined();
+  });
+
+  it('omits malformed components rather than shipping them to the widget', async () => {
+    const sessionId = 'vis_components_bad';
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'hi', providerMessageId: 'cmpbad_1' }],
+    });
+    const { conversationId } = res.json as { conversationId: string };
+
+    await insertAgentMessage(conversationId, 'here you go', sessionId, 'cmpbad_2', {
+      metadata: {
+        components: [
+          {
+            type: 'product_list',
+            source: { connectionId: 'conn_1', vendor: 'shopify', label: 'Nordic Supply' },
+            items: [
+              {
+                productRef: 'p1',
+                title: 'Sketchy',
+                imageUrl: 'http://insecure.test/a.jpg',
+                url: null,
+                currency: 'NOK',
+                priceMin: '10',
+                priceMax: '10',
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const listed = await call('GET', `/v1/widget/messages?${qs({ channelId, sessionId })}`, widgetKey);
+    const messages = (listed.json as { messages: Array<Record<string, unknown>> }).messages;
+    expect(messages.find((m) => m.role === 'agent')!.components).toBeUndefined();
+  });
+
   it('is idempotent on providerMessageId', async () => {
     const sessionId = 'vis_idempotent';
     const body = {

@@ -258,6 +258,15 @@ const skipReason = TEST_URL
     const first = messages.find((m) => m.authorType === 'end_user')!;
     expect((first.metadata).sessionId).toBe(sessionId);
     expect((first.metadata).providerMessageId).toBe('evt_1');
+
+    const endUsers = await db
+      .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(
+        and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, `anon:${sessionId}`)),
+      );
+    expect(endUsers[0]?.email).toBe('vita@example.com');
+    expect(endUsers[0]?.metadata).toMatchObject({ anonymous: true, emailSource: 'visitor' });
   });
 
   it('persists locale into end_users.metadata on first ingest', async () => {
@@ -1392,6 +1401,15 @@ const skipReason = TEST_URL
         ),
       );
     expect(contacts[0]?.email).toBe('set-mid-convo@example.com');
+
+    const endUsers = await db
+      .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(
+        and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, `anon:${sid}`)),
+      );
+    expect(endUsers[0]?.email).toBe('set-mid-convo@example.com');
+    expect(endUsers[0]?.metadata).toMatchObject({ anonymous: true, emailSource: 'visitor' });
   });
 
   it('rejects PATCH /visitor with mismatched channelId', async () => {

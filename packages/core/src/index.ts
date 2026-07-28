@@ -77,6 +77,7 @@ export {
 } from './providers/mailer.ts';
 export {
   type AssetStorage,
+  type PresignedUploadHandle,
   type LocalFsStorageOptions,
   type S3CompatibleStorageOptions,
   LocalFsStorage,

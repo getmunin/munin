@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { schema } from '@getmunin/db';
+import type { AssetVariant } from '@getmunin/types';
 import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import {
   contentHash,
@@ -43,6 +44,7 @@ import {
   type FieldDef,
 } from './cms.fields.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
+import { deriveVariantColumns, type VariantColumns } from './cms.variants.ts';
 import { loadEntryMap } from './cms.entry-loader.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
@@ -139,6 +141,9 @@ export interface AssetDto {
   name: string;
   mime: string;
   sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  variants: AssetVariant[];
   storageProvider: string;
   storageKey: string;
   publicUrl: string;
@@ -905,6 +910,7 @@ export class CmsService {
     const actor = ctx.actor!;
     const key = `cms/${actor.orgId}/${randomKeySegment()}.${ext}`;
     await this.storage.writeDirect(key, input.body, { mime: input.mime });
+    const derived = await this.deriveVariantsOrDefer(input.mime, key, input.body);
 
     const [row] = await ctx.db
       .insert(schema.cmsAssets)
@@ -913,6 +919,7 @@ export class CmsService {
         name: input.name,
         mime: input.mime,
         sizeBytes: input.body.length,
+        ...derived,
         storageProvider: this.storage.provider,
         storageKey: key,
         publicUrl: this.storage.publicUrlFor(key),
@@ -952,13 +959,33 @@ export class CmsService {
       );
     }
 
+    const body = await this.storage.readBytes(existing.storageKey);
+    const derived = body
+      ? await this.deriveVariantsOrDefer(existing.mime, existing.storageKey, body)
+      : {};
+
     const [row] = await ctx.db
       .update(schema.cmsAssets)
-      .set({ uploaded: true, updatedAt: new Date() })
+      .set({ uploaded: true, ...derived, updatedAt: new Date() })
       .where(eq(schema.cmsAssets.id, input.id))
       .returning();
     if (!row) throw new NotFoundException(`cms_not_found: asset ${input.id}`);
     return toAssetDto(row);
+  }
+
+  private async deriveVariantsOrDefer(
+    mime: string,
+    storageKey: string,
+    body: Buffer,
+  ): Promise<Partial<VariantColumns>> {
+    try {
+      return await deriveVariantColumns(this.storage, { mime, storageKey, body });
+    } catch (err) {
+      console.warn(
+        `[cms] variant generation deferred for ${storageKey}: ${describeError(err)}`,
+      );
+      return {};
+    }
   }
 
   async deleteAsset(input: { id: string }): Promise<{ deleted: true }> {
@@ -1644,6 +1671,9 @@ function toAssetDto(row: typeof schema.cmsAssets.$inferSelect): AssetDto {
     name: row.name,
     mime: row.mime,
     sizeBytes: row.sizeBytes,
+    width: row.width,
+    height: row.height,
+    variants: row.variants,
     storageProvider: row.storageProvider,
     storageKey: row.storageKey,
     publicUrl: row.publicUrl,

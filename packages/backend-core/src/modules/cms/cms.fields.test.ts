@@ -33,11 +33,11 @@ const bodyFields: FieldDef[] = [
 const assetMap = new Map<string, AssetSummary>([
   [
     'cma_a',
-    { id: 'cma_a', publicUrl: 'https://cdn/a.png', altText: 'A', mime: 'image/png', sizeBytes: 1 },
+    { id: 'cma_a', publicUrl: 'https://cdn/a.png', altText: 'A', mime: 'image/png', sizeBytes: 1, width: null, height: null, variants: [] },
   ],
   [
     'cma_b',
-    { id: 'cma_b', publicUrl: 'https://cdn/b.png', altText: null, mime: 'image/png', sizeBytes: 2 },
+    { id: 'cma_b', publicUrl: 'https://cdn/b.png', altText: null, mime: 'image/png', sizeBytes: 2, width: null, height: null, variants: [] },
   ],
 ]);
 
@@ -78,6 +78,43 @@ describe('rewriteInlineAssets', () => {
   it('does not touch typed asset fields', () => {
     const out = rewriteInlineAssets(bodyFields, { hero: 'cma_a' }, assetMap);
     expect(out.hero).toBe('cma_a');
+  });
+
+  it('prefers the widest variant over the master when variants exist', () => {
+    const withVariants = new Map<string, AssetSummary>([
+      [
+        'cma_a',
+        {
+          id: 'cma_a',
+          publicUrl: 'https://cdn/a.png',
+          altText: 'A',
+          mime: 'image/png',
+          sizeBytes: 2_282_751,
+          width: 1536,
+          height: 1024,
+          variants: [
+            {
+              width: 640,
+              height: 427,
+              format: 'webp',
+              storageKey: 'a-640w.webp',
+              publicUrl: 'https://cdn/a-640w.webp',
+              sizeBytes: 34_826,
+            },
+            {
+              width: 1536,
+              height: 1024,
+              format: 'webp',
+              storageKey: 'a-1536w.webp',
+              publicUrl: 'https://cdn/a-1536w.webp',
+              sizeBytes: 112_406,
+            },
+          ],
+        },
+      ],
+    ]);
+    const out = rewriteInlineAssets(bodyFields, { body: '![a](asset://cma_a)' }, withVariants);
+    expect(out.body).toBe('![a](https://cdn/a-1536w.webp)');
   });
 });
 
@@ -145,11 +182,11 @@ describe('applyAssetExpansion', () => {
   const map = new Map<string, AssetSummary>([
     [
       'cma_a',
-      { id: 'cma_a', publicUrl: 'https://cdn/a.png', altText: 'A', mime: 'image/png', sizeBytes: 1 },
+      { id: 'cma_a', publicUrl: 'https://cdn/a.png', altText: 'A', mime: 'image/png', sizeBytes: 1, width: null, height: null, variants: [] },
     ],
     [
       'cma_b',
-      { id: 'cma_b', publicUrl: 'https://cdn/b.png', altText: null, mime: 'image/png', sizeBytes: 2 },
+      { id: 'cma_b', publicUrl: 'https://cdn/b.png', altText: null, mime: 'image/png', sizeBytes: 2, width: null, height: null, variants: [] },
     ],
   ]);
 
@@ -218,8 +255,8 @@ const blockData = {
 };
 
 const blockAssetMap = new Map<string, AssetSummary>([
-  ['cma_a', { id: 'cma_a', publicUrl: 'https://cdn/a.png', altText: 'A', mime: 'image/png', sizeBytes: 1 }],
-  ['cma_b', { id: 'cma_b', publicUrl: 'https://cdn/b.png', altText: null, mime: 'image/png', sizeBytes: 2 }],
+  ['cma_a', { id: 'cma_a', publicUrl: 'https://cdn/a.png', altText: 'A', mime: 'image/png', sizeBytes: 1, width: null, height: null, variants: [] }],
+  ['cma_b', { id: 'cma_b', publicUrl: 'https://cdn/b.png', altText: null, mime: 'image/png', sizeBytes: 2, width: null, height: null, variants: [] }],
 ]);
 
 describe('blocks: validation', () => {

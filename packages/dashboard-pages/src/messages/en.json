@@ -210,12 +210,6 @@
       "channelInboundFailing": "Inbound polling failing on \"{name}\"",
       "openChannelSettings": "Open channel settings →"
     },
-    "saveFailed": {
-      "title": "Save failed",
-      "sub": "Nothing was saved · safe to retry",
-      "body": "Munin couldn't reach the server. Your inputs are still here — try again, or come back in a moment.",
-      "retry": "Retry save"
-    },
     "loadFailed": {
       "eyebrow": "Connection · failed",
       "settings": {
@@ -743,8 +737,7 @@
         "sendTest": "Could not send test email.",
         "sendTestSms": "Could not send test SMS.",
         "delete": "Could not delete channel.",
-        "activate": "Could not activate channel.",
-        "saveFailedEyebrow": "Save · failed"
+        "activate": "Could not activate channel."
       }
     },
     "trackers": {

@@ -11,7 +11,7 @@ import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { BadRequestException } from '@nestjs/common';
-import { ConnectorsService } from './connectors.service.ts';
+import { ConnectorsService, type CredentialLinkMinter } from './connectors.service.ts';
 import {
   ConnectorRegistry,
   type ConnectorAdapter,
@@ -150,6 +150,16 @@ class FakeAdapter implements ConnectorAdapter {
     });
   }
 
+  function stubHandoff(): CredentialLinkMinter {
+    return {
+      mint: () =>
+        Promise.resolve({
+          url: 'https://example.test/connect/credentials?token=mncl_stub',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        }),
+    };
+  }
+
   function createConnection(vendor: string, name: string) {
     return run(() =>
       connectors.createConnection({
@@ -174,6 +184,60 @@ class FakeAdapter implements ConnectorAdapter {
       for (const row of rows) {
         expect(JSON.stringify(row.config)).not.toMatch(/tok_plaintext_secret/);
       }
+    });
+
+    it('rejects secret fields when the caller defers secrets to the credential link', async () => {
+      await expect(
+        run(() =>
+          connectors.createConnection(
+            {
+              vendor: 'fakeshop',
+              name: 'Chat store',
+              config: { host: 'chat.example.com', apiToken: 'tok_plaintext_secret' },
+            },
+            { rejectSecrets: true },
+          ),
+        ),
+      ).rejects.toThrow(/connectors_invalid: secret fields \(apiToken\)/);
+    });
+
+    it('rejects updates that carry secret fields when secrets are deferred', async () => {
+      const shop = await createConnection('fakeshop', 'Main store');
+      await expect(
+        run(() =>
+          connectors.updateConnection(
+            { connectionId: shop.id, config: { host: 'new.example.com', apiToken: 'tok_2' } },
+            { rejectSecrets: true },
+          ),
+        ),
+      ).rejects.toThrow(/connectors_invalid: secret fields \(apiToken\)/);
+    });
+
+    it('rejects a secretless create that is missing required non-secret config', async () => {
+      await expect(
+        run(() =>
+          connectors.createConnection(
+            { vendor: 'fakeshop', name: 'No host', config: {} },
+            { rejectSecrets: true },
+          ),
+        ),
+      ).rejects.toThrow(/connectors_invalid: missing required config for fakeshop: host/);
+    });
+
+    it('creates a pending connection with a credential link when secrets are deferred', async () => {
+      const withHandoff = new ConnectorsService(
+        new ConnectorRegistry([shopAdapter]),
+        stubHandoff(),
+      );
+      const created = await run(() =>
+        withHandoff.createConnection(
+          { vendor: 'fakeshop', name: 'Linked store', config: { host: 'linked.example.com' } },
+          { rejectSecrets: true },
+        ),
+      );
+      expect(created.credentialState).toBe('pending');
+      expect(created.active).toBe(false);
+      expect(created.credentialLink?.url).toContain('mncl_');
     });
 
     it('rejects a duplicate connection name before hitting the unique index', async () => {

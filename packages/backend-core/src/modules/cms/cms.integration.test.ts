@@ -1309,6 +1309,106 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('cms_list_entries summarizes long bodies, honours ids + fields, and stays within the result budget', async () => {
+    const longBody = 'Rannsaka djupt i kjelda '.repeat(400);
+    const ids: string[] = [];
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Journal',
+          slug: 'journal',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+            { name: 'body', type: 'markdown' },
+          ],
+        },
+      });
+      for (let i = 0; i < 30; i += 1) {
+        const created = parseToolResult<{ id: string }>(
+          await c.callTool({
+            name: 'cms_create_entry',
+            arguments: {
+              collection: 'journal',
+              slug: `journal-${i}`,
+              data: { title: `Journal ${i}`, slug: `journal-${i}`, body: longBody },
+              status: 'published',
+            },
+          }),
+        );
+        ids.push(created.id);
+      }
+    });
+
+    await withClient(adminKey, async (c) => {
+      const raw = await c.callTool({
+        name: 'cms_list_entries',
+        arguments: { collection: 'journal', limit: 100 },
+      });
+      const serialized = JSON.stringify(raw);
+      expect(serialized.length).toBeLessThan(40_000);
+
+      const listed = parseToolResult<{
+        entries: Array<{
+          id: string;
+          slug: string;
+          title: string | null;
+          data: Record<string, unknown>;
+          fieldSummary: Record<string, { words?: number; truncated?: boolean }>;
+          truncated: boolean;
+        }>;
+        returned: number;
+        dropped: number;
+        truncated: boolean;
+      }>(raw);
+
+      expect(listed.returned).toBe(listed.entries.length);
+      expect(listed.truncated).toBe(true);
+
+      const first = listed.entries[0]!;
+      expect(first.title).toMatch(/^Journal /);
+      expect(first.data.slug).toBe(first.slug);
+      expect((first.data.body as string).length).toBeLessThan(longBody.length);
+      expect(first.fieldSummary.body?.words).toBe(1600);
+      expect(first.truncated).toBe(true);
+
+      const byIds = parseToolResult<{ entries: Array<{ id: string }>; returned: number }>(
+        await c.callTool({
+          name: 'cms_list_entries',
+          arguments: { ids: [ids[0]!, ids[1]!, ids[2]!] },
+        }),
+      );
+      expect(byIds.returned).toBe(3);
+      expect(byIds.entries.map((e) => e.id).sort()).toEqual([ids[0]!, ids[1]!, ids[2]!].sort());
+
+      const verbatim = parseToolResult<{
+        entries: Array<{ data: { body: string }; fieldSummary: Record<string, unknown> }>;
+      }>(
+        await c.callTool({
+          name: 'cms_list_entries',
+          arguments: { ids: [ids[0]!], fields: ['body'] },
+        }),
+      );
+      expect(verbatim.entries[0]!.data.body).toBe(longBody);
+      expect(verbatim.entries[0]!.fieldSummary.body).toBeUndefined();
+
+      const hits = parseToolResult<
+        Array<{ slug: string; excerpt: string; data: { body?: string }; truncated?: boolean }>
+      >(
+        await c.callTool({
+          name: 'cms_search',
+          arguments: { query: 'Rannsaka', collection: 'journal' },
+        }),
+      );
+      expect(hits.length).toBeGreaterThan(0);
+      expect(hits[0]!.excerpt).toBeTruthy();
+      expect(hits[0]!.data.body?.length ?? 0).toBeLessThan(longBody.length);
+      expect(hits[0]!.truncated).toBe(true);
+    });
+  }, 60_000);
+
   it('rich field types: array, multi_select, and array-of-text block props round-trip and validate', async () => {
     await withClient(adminKey, async (c) => {
       await c.callTool({

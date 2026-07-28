@@ -5,8 +5,14 @@ import type { Db, Tx } from '@getmunin/db';
 import { schema } from '@getmunin/db';
 import { DB } from '../../common/db/db.module.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
-import { CmsService, type EntryStatus } from './cms.service.ts';
+import { CmsService, deriveEntryTitle, type EntryStatus } from './cms.service.ts';
 import type { FieldDef } from './cms.fields.ts';
+import {
+  fitWithinBudget,
+  summarizeEntryData,
+  summarizeValues,
+  type FieldSummaryNote,
+} from './cms.summary.ts';
 import {
   applyAssetExpansion,
   applyReferenceExpansion,
@@ -36,6 +42,9 @@ export interface SearchHit {
   excerpt: string;
   score: number;
   source: 'fts' | 'vector' | 'both';
+  title?: string | null;
+  fieldSummary?: Record<string, FieldSummaryNote>;
+  truncated?: boolean;
 }
 
 export interface SearchInput {
@@ -46,6 +55,7 @@ export interface SearchInput {
   publishedOnly?: boolean;
   limit?: number;
   include?: string[];
+  projection?: 'summary' | 'full';
 }
 
 const DEFAULT_LIMIT = 10;
@@ -215,6 +225,10 @@ export class CmsSearchService {
         if (Object.keys(refSidecar).length > 0) hit.refs = refSidecar;
       }
     }
+
+    if (input.projection === 'summary') {
+      return summarizeHits(fused, fieldsByEntryId);
+    }
     return fused;
   }
 
@@ -235,6 +249,48 @@ export class CmsSearchService {
       .limit(1);
     return rows[0] ?? null;
   }
+}
+
+function summarizeHits(
+  hits: SearchHit[],
+  fieldsByEntryId: Map<string, FieldDef[]>,
+): SearchHit[] {
+  const { items } = fitWithinBudget((leadChars) =>
+    hits.map((hit) => {
+      const fields = fieldsByEntryId.get(hit.entryId) ?? [];
+      const summary = summarizeEntryData(fields, hit.data, { leadChars });
+      const derived = deriveEntryTitle(fields, hit.data);
+      return {
+        entryId: hit.entryId,
+        collectionId: hit.collectionId,
+        collectionSlug: hit.collectionSlug,
+        slug: hit.slug,
+        locale: hit.locale,
+        status: hit.status,
+        excerpt: hit.excerpt,
+        score: hit.score,
+        source: hit.source,
+        title: derived.title,
+        data: summary.data,
+        fieldSummary: summary.fieldSummary,
+        truncated: summary.truncated,
+        ...(hit.assets ? { assets: hit.assets } : {}),
+        ...(hit.refs ? { refs: summarizeRefs(hit.refs, leadChars) } : {}),
+      };
+    }),
+  );
+  return items;
+}
+
+function summarizeRefs(
+  refs: Record<string, ExpandedEntry>,
+  leadChars: number,
+): Record<string, ExpandedEntry> {
+  const out: Record<string, ExpandedEntry> = {};
+  for (const [id, ref] of Object.entries(refs)) {
+    out[id] = { ...ref, data: summarizeValues(ref.data, leadChars).data };
+  }
+  return out;
 }
 
 function reciprocalRankFuse(

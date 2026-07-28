@@ -41,9 +41,13 @@ Make the velocity threshold per-collection in your judgment. Don't apply one glo
 { "name": "cms_list_entries", "arguments": { "status": "draft", "limit": 200 } }
 ```
 
+The result is `{ entries, returned, dropped, truncated }`. Each entry is a **summary**, not the full record: short fields come back verbatim, long text is shortened to a ~200-character lead, and `fieldSummary` carries the withheld detail — `{ "body": { "words": 1600, "truncated": true } }` for shortened prose, `{ "items": 12, "omitted": true }` for a large collection field. `truncated: true` on an entry means some values were withheld; `cms_get_entry` returns that entry whole. A non-zero `dropped` means rows were withheld to stay inside the result budget — narrow the filters or lower `limit` and page through.
+
+Prefer `fieldSummary.<field>.words` over eyeballing the lead when you need a length signal — it is the count for the whole field, not the lead.
+
 For each draft older than the collection's threshold, decide:
 
-- **Abandoned** — recommend `archive` or `delete`. Triggers: same author hasn't touched it in 60+ days; very short body (<200 chars) suggesting it never got going; title suggests an event/launch that has passed.
+- **Abandoned** — recommend `archive` or `delete`. Triggers: same author hasn't touched it in 60+ days; a very short body (`fieldSummary.body.words` under ~40, or a lead that is clearly the whole field) suggesting it never got going; title suggests an event/launch that has passed.
 - **Work in progress** — leave alone. Triggers: long body actively being edited (use `cms_list_versions` to see edit velocity); recent author activity in other entries.
 - **Stuck on a blocker** — leave alone but flag for the reviewer to ping the author.
 

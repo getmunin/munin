@@ -129,29 +129,6 @@ export interface JourneyEvent {
   query: string | null;
 }
 
-export interface CmsAssetSummary {
-  id: string;
-  publicUrl: string;
-  altText: string | null;
-  mime: string;
-  sizeBytes: number;
-}
-
-export interface CmsEntry {
-  id: string;
-  collectionId: string;
-  collectionSlug: string;
-  slug: string;
-  locale: string;
-  status: 'draft' | 'published' | 'scheduled' | 'archived';
-  data: Record<string, unknown>;
-  version: number;
-  scheduledAt: string | null;
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface CmsAsset {
   id: string;
   name: string;
@@ -242,20 +219,6 @@ export function isFunnel(value: unknown): value is Funnel {
 export function isJourneyList(value: unknown): value is JourneyEvent[] {
   const first: unknown = Array.isArray(value) ? value[0] : undefined;
   return isRecord(first) && (first.kind === 'view' || first.kind === 'search') && 'at' in first;
-}
-
-export function isCmsEntry(value: unknown): value is CmsEntry {
-  return (
-    isRecord(value) &&
-    'collectionSlug' in value &&
-    'data' in value &&
-    'status' in value &&
-    'version' in value
-  );
-}
-
-export function isAssetValue(value: unknown): value is CmsAssetSummary {
-  return isRecord(value) && typeof value.publicUrl === 'string' && typeof value.mime === 'string';
 }
 
 export function isCmsAssetList(value: unknown): value is CmsAsset[] {

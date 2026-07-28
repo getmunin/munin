@@ -260,7 +260,7 @@ class StubStorage implements AssetStorage {
       expect(entry.version).toBe(1);
       expect(entry.collectionSlug).toBe('articles');
       const list = await run(() => svc.listEntries({}));
-      expect(list.map((e) => e.slug)).toEqual(['first']);
+      expect(list.entries.map((e) => e.slug)).toEqual(['first']);
     });
 
     it('createEntry as published emits both created and published events', async () => {
@@ -303,15 +303,38 @@ class StubStorage implements AssetStorage {
         }),
       );
       const drafts = await run(() => svc.listEntries({ status: 'draft' }));
-      expect(drafts.map((e) => e.slug)).toEqual(['a']);
+      expect(drafts.entries.map((e) => e.slug)).toEqual(['a']);
       const byCollection = await run(() => svc.listEntries({ collection: col.slug }));
-      expect(byCollection).toHaveLength(2);
+      expect(byCollection.entries).toHaveLength(2);
       const byLocale = await run(() => svc.listEntries({ locale: 'en' }));
-      expect(byLocale).toHaveLength(2);
+      expect(byLocale.entries).toHaveLength(2);
     });
 
     it('getEntry returns 404 for unknown', async () => {
       await expect(run(() => svc.getEntry(randomUUID()))).rejects.toThrow(NotFoundException);
+    });
+
+    it('createEntry rejects a duplicate slug with a conflict instead of a poisoned transaction', async () => {
+      const col = await seedCollection();
+      await run(() => svc.createEntry({ collection: col.slug, slug: 'dup', data: { title: 'A' } }));
+      await expect(
+        run(() => svc.createEntry({ collection: col.slug, slug: 'dup', data: { title: 'B' } })),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('updateEntry rejects renaming onto an existing slug, and allows a no-op rename', async () => {
+      const col = await seedCollection();
+      await run(() => svc.createEntry({ collection: col.slug, slug: 'taken', data: { title: 'A' } }));
+      const mover = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'mover', data: { title: 'B' } }),
+      );
+      await expect(
+        run(() => svc.updateEntry({ id: mover.id, ifVersion: 1, slug: 'taken' })),
+      ).rejects.toThrow(ConflictException);
+      const same = await run(() =>
+        svc.updateEntry({ id: mover.id, ifVersion: 1, slug: 'mover', data: { title: 'C' } }),
+      );
+      expect(same.version).toBe(2);
     });
 
     it('updateEntry bumps version, fails on stale ifVersion', async () => {

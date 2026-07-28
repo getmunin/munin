@@ -208,8 +208,8 @@ const PNG_BASE64 =
       ) as Array<{ id: string; slug: string }>;
       const entries = firstJson(
         (await c.callTool({ name: 'cms_list_entries', arguments: {} })),
-      ) as Array<{ id: string; slug: string; data: Record<string, unknown> }>;
-      return { result, hits, collections, entries };
+      ) as { entries: Array<{ id: string; slug: string; data: Record<string, unknown> }> };
+      return { result, hits, collections, entries: entries.entries };
     });
 
     expect(firstImport.result.created).toBe(5);
@@ -238,7 +238,7 @@ const PNG_BASE64 =
       ) as Array<unknown>;
       const entries = firstJson(
         (await c.callTool({ name: 'cms_list_entries', arguments: {} })),
-      ) as Array<unknown>;
+      ) as { entries: Array<unknown> };
       const locales = firstJson(
         (await c.callTool({ name: 'cms_list_locales', arguments: {} })),
       ) as Array<unknown>;
@@ -248,7 +248,7 @@ const PNG_BASE64 =
       return {
         result,
         collectionCount: collections.length,
-        entryCount: entries.length,
+        entryCount: entries.entries.length,
         localeCount: locales.length,
         assetCount: assets.length,
       };

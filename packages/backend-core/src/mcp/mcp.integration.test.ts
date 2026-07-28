@@ -333,7 +333,6 @@ const skipReason = TEST_URL
         'analytics_get_funnel',
         'analytics_get_traffic_by_source',
         'analytics_get_contact_journey',
-        'cms_get_entry',
         'cms_list_assets',
       ];
       for (const name of panelWired) {
@@ -344,6 +343,13 @@ const skipReason = TEST_URL
           `${name} is not wired to the inspector panel`,
         ).toBe(INSPECTOR_APP_URI);
       }
+
+      const entry = tools.find((t) => t.name === 'cms_get_entry');
+      expect(entry, 'cms_get_entry tool missing').toBeDefined();
+      expect(
+        (entry as { _meta?: { ui?: unknown } })._meta?.ui,
+        'cms_get_entry must not render a panel: entry bodies are unbounded and a panel renders on every call',
+      ).toBeUndefined();
 
       const appOnly = [
         'outreach_approve_proposal',

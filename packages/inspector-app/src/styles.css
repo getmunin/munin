@@ -674,90 +674,6 @@ select.target-select {
   white-space: nowrap;
 }
 
-/* CMS entry preview */
-
-.pill-entry-draft {
-  color: var(--fg-3);
-}
-
-.pill-entry-published {
-  color: var(--accent);
-}
-
-.pill-entry-scheduled,
-.pill-entry-archived {
-  color: var(--fg-2);
-}
-
-.entry-body {
-  padding: 4px 24px 8px;
-}
-
-.entry-asset {
-  margin: 0;
-}
-
-.entry-asset figcaption {
-  margin-top: 6px;
-  font-size: 12px;
-}
-
-.entry-image {
-  display: block;
-  max-height: 220px;
-  max-width: 100%;
-  border: 1px solid var(--rule);
-}
-
-.dialog-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgb(0 0 0 / 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  z-index: 10;
-}
-
-.dialog {
-  background: var(--paper);
-  border: 1px solid var(--ink);
-  padding: 20px;
-  min-width: 260px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.dialog-input {
-  width: 100%;
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.entry-field {
-  margin-bottom: 16px;
-}
-
-.entry-field .eyebrow {
-  margin-bottom: 4px;
-}
-
-.entry-prose p {
-  margin: 0 0 10px;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.entry-prose p:last-child {
-  margin-bottom: 0;
-}
-
 /* Rendered markdown */
 
 .md {
@@ -847,15 +763,6 @@ select.target-select {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--fg-3);
-}
-
-.entry-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  padding: 14px 24px 20px;
-  border-top: 1px solid var(--rule);
 }
 
 /* Asset gallery */

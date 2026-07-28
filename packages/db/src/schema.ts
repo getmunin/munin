@@ -25,7 +25,7 @@ import {
   vector,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import type { WebImportProgress } from '@getmunin/types';
+import type { AssetVariant, WebImportProgress } from '@getmunin/types';
 import { parseEnvInt } from './env.ts';
 import { makeId } from './id.ts';
 
@@ -1414,6 +1414,10 @@ export const cmsAssets = pgTable(
     name: text('name').notNull(),
     mime: text('mime').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull().default(0),
+    width: integer('width'),
+    height: integer('height'),
+    variants: jsonb('variants').$type<AssetVariant[]>().notNull().default([]),
+    variantsVersion: integer('variants_version').notNull().default(0),
     storageProvider: varchar('storage_provider', { length: 16 }).notNull(),
     // 'local' | 's3'
     storageKey: text('storage_key').notNull(),
@@ -1430,6 +1434,7 @@ export const cmsAssets = pgTable(
   (t) => ({
     orgIdx: index('cms_assets_org_idx').on(t.orgId),
     keyUq: uniqueIndex('cms_assets_key_uq').on(t.storageKey),
+    variantsVersionIdx: index('cms_assets_variants_version_idx').on(t.variantsVersion),
   }),
 );
 

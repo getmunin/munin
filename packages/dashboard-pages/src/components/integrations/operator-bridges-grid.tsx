@@ -73,6 +73,18 @@ export function OperatorBridgesSection() {
     })();
   }
 
+  async function sendTest() {
+    setBusy(true);
+    try {
+      await api('/v1/slack/test', { method: 'POST' });
+      notify.success(t('testSent'));
+    } catch (err) {
+      notify.error(translate(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function disconnect() {
     const ok = await confirm({
       title: t('disconnect'),
@@ -113,6 +125,7 @@ export function OperatorBridgesSection() {
   }
 
   const workspace = status.integration?.teamName ?? status.integration?.teamId ?? '';
+  const hasDefaultRoute = status.integration?.routes.some((r) => r.purpose === 'default') ?? false;
 
   return (
     <section className="space-y-4">
@@ -143,6 +156,9 @@ export function OperatorBridgesSection() {
               <>
                 <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setConfiguring(true)}>
                   {t('configure')}
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void sendTest()} disabled={busy || !hasDefaultRoute}>
+                  {tConn('test')}
                 </Button>
                 <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void disconnect()} disabled={busy}>
                   {tConn('delete')}
@@ -226,13 +242,6 @@ function SlackConfigureDialog({
     });
   }
 
-  function sendTest() {
-    void run(async () => {
-      await api('/v1/slack/test', { method: 'POST' });
-      notify.success(t('testSent'));
-    });
-  }
-
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -286,8 +295,8 @@ function SlackConfigureDialog({
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={sendTest} disabled={busy || !defaultRoute}>
-            {t('sendTest')}
+          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
+            {tCommon('cancel')}
           </Button>
           <Button type="button" onClick={saveRouting} disabled={busy || channelId.trim().length === 0}>
             {busy ? tCommon('saving') : t('saveRouting')}

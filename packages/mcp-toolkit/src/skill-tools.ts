@@ -1,4 +1,5 @@
 import type { Audience } from '@getmunin/core';
+import type { JsonSchemaObject } from './dispatch.ts';
 
 export const SKILLS_LIST_TOOL = 'skills_list';
 export const SKILLS_READ_TOOL = 'skills_read';
@@ -11,7 +12,7 @@ export interface SkillToolDescriptor {
   scopes: readonly string[];
   readOnlyHint: boolean;
   destructiveHint: boolean;
-  inputSchema: Record<string, unknown>;
+  inputSchema: JsonSchemaObject;
 }
 
 export const SKILL_TOOLS: readonly SkillToolDescriptor[] = [

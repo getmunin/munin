@@ -3,8 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -186,7 +185,7 @@ const skipReason = TEST_URL
 
     await withClient(adminKey, async (c) => {
       const empty = await c.callTool({ name: 'outreach_list_campaigns', arguments: {} });
-      const emptyList = firstJson(empty as never) as unknown[];
+      const emptyList = firstJson(empty) as unknown[];
       expect(Array.isArray(emptyList)).toBe(true);
       expect(emptyList).toHaveLength(0);
 
@@ -199,7 +198,7 @@ const skipReason = TEST_URL
           channelId,
         },
       });
-      const campaign = firstJson(created as never) as { id: string; name: string; enabled: boolean };
+      const campaign = firstJson(created) as { id: string; name: string; enabled: boolean };
       expect(campaign.id).toMatch(/^ocmp_/);
       expect(campaign.name).toBe('Q2 outreach');
       expect(campaign.enabled).toBe(false);
@@ -209,7 +208,7 @@ const skipReason = TEST_URL
         name: 'outreach_get_campaign',
         arguments: { id: campaignId },
       });
-      const gotCampaign = firstJson(got as never) as { id: string; brief: string };
+      const gotCampaign = firstJson(got) as { id: string; brief: string };
       expect(gotCampaign.id).toBe(campaignId);
       expect(gotCampaign.brief).toContain('Re-engage');
 
@@ -217,11 +216,11 @@ const skipReason = TEST_URL
         name: 'outreach_update_campaign',
         arguments: { id: campaignId, patch: { enabled: true } },
       });
-      const updatedCampaign = firstJson(updated as never) as { enabled: boolean };
+      const updatedCampaign = firstJson(updated) as { enabled: boolean };
       expect(updatedCampaign.enabled).toBe(true);
 
       const populated = await c.callTool({ name: 'outreach_list_campaigns', arguments: {} });
-      const populatedList = firstJson(populated as never) as Array<{ id: string }>;
+      const populatedList = firstJson(populated) as Array<{ id: string }>;
       expect(populatedList.map((r) => r.id)).toContain(campaignId);
 
       const proposed = await c.callTool({
@@ -233,7 +232,7 @@ const skipReason = TEST_URL
           draftBody: 'We just shipped X — would you like a quick demo?',
         },
       });
-      const proposal = firstJson(proposed as never) as { id: string; status: string; kind: string };
+      const proposal = firstJson(proposed) as { id: string; status: string; kind: string };
       expect(proposal.id).toMatch(/^oprp_/);
       expect(proposal.status).toBe('pending');
       expect(proposal.kind).toBe('initial');
@@ -243,7 +242,7 @@ const skipReason = TEST_URL
         name: 'outreach_list_proposals',
         arguments: { status: 'pending' },
       });
-      const proposals = firstJson(listed as never) as Array<{
+      const proposals = firstJson(listed) as Array<{
         id: string;
         contact?: { email?: string };
       }>;
@@ -259,20 +258,20 @@ const skipReason = TEST_URL
         name: 'outreach_create_campaign',
         arguments: { name: 'Correction pass', brief: 'Test the correction verbs.', segmentId, channelId },
       });
-      const campaignId = (firstJson(created as never) as { id: string }).id;
+      const campaignId = (firstJson(created) as { id: string }).id;
 
       const proposed = await c.callTool({
         name: 'outreach_propose_initial',
         arguments: { campaignId, contactId, draftSubject: 'First cut', draftBody: 'Original body.' },
       });
-      const proposalId = (firstJson(proposed as never) as { id: string }).id;
+      const proposalId = (firstJson(proposed) as { id: string }).id;
 
       const revised = await c.callTool({
         name: 'outreach_revise_proposal',
         arguments: { id: proposalId, reason: 'tightened the CTA', draftBody: 'Rewritten body.' },
       });
       expect(revised.isError).toBeFalsy();
-      const afterRevise = firstJson(revised as never) as {
+      const afterRevise = firstJson(revised) as {
         id: string;
         draftBody: string;
         draftSubject: string;
@@ -292,7 +291,7 @@ const skipReason = TEST_URL
         arguments: { id: proposalId, reason: 'duplicate of an earlier draft' },
       });
       expect(withdrawn.isError).toBeFalsy();
-      const afterWithdraw = firstJson(withdrawn as never) as {
+      const afterWithdraw = firstJson(withdrawn) as {
         status: string;
         withdrawReason: string;
       };
@@ -377,7 +376,7 @@ const skipReason = TEST_URL
         },
       });
       const raw = JSON.stringify(proposed);
-      const proposal = firstJson(proposed as never) as
+      const proposal = firstJson(proposed) as
         | { id: string; kind?: string; status?: string }
         | null;
       expect(proposed.isError, `expected success, got: ${raw}`).not.toBe(true);
@@ -397,7 +396,7 @@ const skipReason = TEST_URL
             segmentId,
             channelId,
           },
-        })) as never,
+        })),
       ) as { id: string; autoDraftInitial: boolean; autoDraftReplies: boolean };
       expect(created.autoDraftInitial).toBe(false);
       expect(created.autoDraftReplies).toBe(true);
@@ -406,7 +405,7 @@ const skipReason = TEST_URL
         (await c.callTool({
           name: 'outreach_update_campaign',
           arguments: { id: created.id, patch: { autoDraftInitial: true, autoDraftReplies: false } },
-        })) as never,
+        })),
       ) as { autoDraftInitial: boolean; autoDraftReplies: boolean };
       expect(updated.autoDraftInitial).toBe(true);
       expect(updated.autoDraftReplies).toBe(false);
@@ -427,7 +426,7 @@ const skipReason = TEST_URL
             segmentId,
             channelId,
           },
-        })) as never,
+        })),
       ) as { id: string };
       campaignId = created.id;
 
@@ -435,7 +434,7 @@ const skipReason = TEST_URL
         (await c.callTool({
           name: 'outreach_propose_initial',
           arguments: { campaignId, contactId, draftSubject: 'Hi Jane', draftBody: 'First touch.' },
-        })) as never,
+        })),
       ) as { id: string };
       firstProposalId = first.id;
     });
@@ -465,7 +464,7 @@ const skipReason = TEST_URL
         arguments: { campaignId, contactId, draftSubject: 'Hi again', draftBody: 'Second touch.' },
       });
       expect(allowed.isError).not.toBe(true);
-      const proposal = firstJson(allowed as never) as { status: string };
+      const proposal = firstJson(allowed) as { status: string };
       expect(proposal.status).toBe('pending');
     });
   });
@@ -481,7 +480,7 @@ const skipReason = TEST_URL
             segmentId,
             channelId,
           },
-        })) as never,
+        })),
       ) as { id: string };
 
       const proposed = firstJson(
@@ -493,7 +492,7 @@ const skipReason = TEST_URL
             draftSubject: 'Hi Jane',
             draftBody: 'Reviewed in the panel.',
           },
-        })) as never,
+        })),
       ) as { id: string };
 
       const dismissed = await c.callTool({
@@ -501,7 +500,7 @@ const skipReason = TEST_URL
         arguments: { id: proposed.id, reason: 'not a fit' },
       });
       expect(dismissed.isError).not.toBe(true);
-      const dto = firstJson(dismissed as never) as {
+      const dto = firstJson(dismissed) as {
         status: string;
         dismissReason: string | null;
         decidedByActorType: string | null;
@@ -558,7 +557,7 @@ const skipReason = TEST_URL
             enabled: true,
             sequenceSteps: [{ waitDays: 3, brief: 'gentle bump' }],
           },
-        })) as never,
+        })),
       ) as { id: string; sequenceSteps: Array<{ waitDays: number; brief: string }> };
       expect(campaign.sequenceSteps).toEqual([{ waitDays: 3, brief: 'gentle bump' }]);
 
@@ -571,18 +570,18 @@ const skipReason = TEST_URL
             draftSubject: 'Hi there',
             draftBody: 'Initial pitch.',
           },
-        })) as never,
+        })),
       ) as { id: string };
 
       const sent = firstJson(
         (await c.callTool({
           name: 'outreach_approve_proposal',
           arguments: { id: initial.id },
-        })) as never,
+        })),
       ) as { id: string; conversationId: string };
 
       const notDue = firstJson(
-        (await c.callTool({ name: 'outreach_list_due_followups', arguments: {} })) as never,
+        (await c.callTool({ name: 'outreach_list_due_followups', arguments: {} })),
       ) as unknown[];
       expect(notDue).toEqual([]);
 
@@ -595,7 +594,7 @@ const skipReason = TEST_URL
         (await c.callTool({
           name: 'outreach_list_due_followups',
           arguments: { campaignId: campaign.id },
-        })) as never,
+        })),
       ) as Array<{ conversationId: string; nextStep: number; stepBrief: string }>;
       expect(due).toHaveLength(1);
       expect(due[0]!.conversationId).toBe(sent.conversationId);
@@ -610,7 +609,7 @@ const skipReason = TEST_URL
             step: 1,
             draftBody: 'Just floating this back up.',
           },
-        })) as never,
+        })),
       ) as { id: string; kind: string; sequenceStep: number };
       expect(followup.kind).toBe('followup');
       expect(followup.sequenceStep).toBe(1);
@@ -619,7 +618,7 @@ const skipReason = TEST_URL
         (await c.callTool({
           name: 'outreach_approve_proposal',
           arguments: { id: followup.id },
-        })) as never,
+        })),
       ) as { status: string; conversationId: string; sentMessageId: string };
       expect(approved.status).toBe('sent');
       expect(approved.conversationId).toBe(sent.conversationId);
@@ -633,7 +632,7 @@ const skipReason = TEST_URL
         (await c.callTool({
           name: 'outreach_list_due_followups',
           arguments: { campaignId: campaign.id },
-        })) as never,
+        })),
       ) as unknown[];
       expect(drained).toEqual([]);
     });

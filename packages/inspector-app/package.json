@@ -27,8 +27,8 @@
   "dependencies": {
     "@getmunin/dashboard-pages": "workspace:*",
     "@getmunin/ui": "workspace:*",
+    "@modelcontextprotocol/client": "2.0.0",
     "@modelcontextprotocol/ext-apps": "^1.7.4",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^9.0.0",

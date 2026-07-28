@@ -70,16 +70,20 @@ export interface ConnectionScope {
   adapter: ConnectorAdapter;
 }
 
+export interface CredentialLinkMinter {
+  mint(args: { targetType: string; targetId: string }): Promise<CredentialLink>;
+}
+
 @Injectable()
 export class ConnectorsService {
   constructor(
     @Inject(ConnectorRegistry) private readonly registry: ConnectorRegistry,
     @Inject(CredentialHandoffService)
-    private readonly handoff?: CredentialHandoffService,
+    private readonly handoff?: CredentialLinkMinter,
     @Inject(DB) private readonly rootDb?: Db,
   ) {}
 
-  private requireHandoff(): CredentialHandoffService {
+  private requireHandoff(): CredentialLinkMinter {
     if (!this.handoff) throw new Error('credential handoff service not available');
     return this.handoff;
   }
@@ -107,15 +111,19 @@ export class ConnectorsService {
     return rows.map((row) => this.toDto(row));
   }
 
-  async createConnection(args: {
-    vendor: string;
-    name: string;
-    config?: Record<string, unknown>;
-  }): Promise<ConnectorConnectionDto & { credentialLink?: CredentialLink }> {
+  async createConnection(
+    args: {
+      vendor: string;
+      name: string;
+      config?: Record<string, unknown>;
+    },
+    opts?: { rejectSecrets?: boolean },
+  ): Promise<ConnectorConnectionDto & { credentialLink?: CredentialLink }> {
     const ctx = getCurrentContext();
     const adapter = this.requireAdapter(args.vendor);
     await this.assertNameFree(args.name);
     const config = args.config ?? {};
+    if (opts?.rejectSecrets) this.assertNoSecrets(adapter, config);
 
     if (this.hasRequiredSecrets(adapter, config)) {
       const stored = await this.buildStored(adapter, config);
@@ -131,6 +139,19 @@ export class ConnectorsService {
         })
         .returning();
       return this.toDto(row!);
+    }
+
+    const missing = adapter.configFields
+      .filter((f) => !f.secret && f.required)
+      .filter((f) => {
+        const v = config[f.key];
+        return typeof v !== 'string' || v.length === 0;
+      })
+      .map((f) => f.key);
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `connectors_invalid: missing required config for ${adapter.vendor}: ${missing.join(', ')} — only secret fields can be deferred to the credential link`,
+      );
     }
 
     const [row] = await ctx.db
@@ -304,15 +325,28 @@ export class ConnectorsService {
     return out;
   }
 
-  async updateConnection(args: {
-    connectionId: string;
-    name?: string;
-    config?: Record<string, unknown>;
-    active?: boolean;
-  }): Promise<ConnectorConnectionDto> {
+  private assertNoSecrets(adapter: ConnectorAdapter, config: Record<string, unknown>): void {
+    const provided = this.secretKeys(adapter).filter((k) => config[k] !== undefined);
+    if (provided.length > 0) {
+      throw new BadRequestException(
+        `connectors_invalid: secret fields (${provided.join(', ')}) cannot be accepted through this tool — omit them, and a one-time credential link is returned for a human to enter them in the dashboard`,
+      );
+    }
+  }
+
+  async updateConnection(
+    args: {
+      connectionId: string;
+      name?: string;
+      config?: Record<string, unknown>;
+      active?: boolean;
+    },
+    opts?: { rejectSecrets?: boolean },
+  ): Promise<ConnectorConnectionDto> {
     const ctx = getCurrentContext();
     const row = await this.requireConnection(args.connectionId);
     const adapter = this.requireAdapter(row.vendor);
+    if (opts?.rejectSecrets && args.config) this.assertNoSecrets(adapter, args.config);
     if (args.name && args.name !== row.name) await this.assertNameFree(args.name);
     const patch: Partial<typeof schema.connectorConnections.$inferInsert> = {
       updatedAt: new Date(),

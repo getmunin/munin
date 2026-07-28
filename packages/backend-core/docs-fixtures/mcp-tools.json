@@ -3379,7 +3379,7 @@
   {
     "name": "conv_setup_email_channel",
     "title": "Conv: Set up email channel",
-    "description": "Create or update an email channel's transport configuration. Pass plaintext SMTP / IMAP passwords; the server encrypts them before storage and returns them redacted. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host. Set `defaultAgentMode: 'draft_only'` on an outreach-only inbox so inbound replies are always drafted for human approval rather than auto-sent.",
+    "description": "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` on an outreach-only inbox so inbound replies are always drafted for human approval rather than auto-sent.",
     "audiences": [
       "admin"
     ],
@@ -3630,7 +3630,7 @@
   {
     "name": "conv_request_channel_credentials",
     "title": "Conv: Request a channel credential link",
-    "description": "Return a one-time link a human opens to enter an email channel’s secret credentials (SMTP/IMAP passwords) in the dashboard, so the secret is never pasted into a conversation. Create the channel first (the password may be omitted), then share this link. The link expires after 24 hours.",
+    "description": "Return a one-time link a human opens to enter an email channel’s secret credentials (SMTP/IMAP passwords) in the dashboard — passwords are never accepted in a conversation. conv_setup_email_channel already returns this link on create; use this tool to mint a fresh link when one expired or to rotate the stored passwords. The link expires after 24 hours.",
     "audiences": [
       "admin"
     ],

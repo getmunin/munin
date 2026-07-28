@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label } from '@getmunin/ui';
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenuItem, DropdownMenuSeparator, Input, Label } from '@getmunin/ui';
 import { api } from '../../api';
 import { notify } from '../../lib/notify';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useConfirm } from '../confirm-dialog';
 import { CardSkeleton } from '../skeleton';
-import { CardGrid, IntegrationCard, SectionHeading, StatusLine } from './integration-card';
+import { CardGrid, CardMenu, IntegrationCard, SectionHeading, StatusLine } from './integration-card';
 import { NativeSelect } from '../native-select';
 import { dialogLabelClass } from '../../lib/dialog-style';
 
@@ -143,6 +143,26 @@ export function OperatorBridgesSection() {
             ) : undefined
           }
           description={tc('description.slack')}
+          menu={
+            status.appConfigured && status.connected ? (
+              <CardMenu label={tConn('moreMenu')} disabled={busy}>
+                <DropdownMenuItem
+                  disabled={busy || !hasDefaultRoute}
+                  onClick={() => void sendTest()}
+                >
+                  {tConn('test')}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={busy}
+                  onClick={() => void disconnect()}
+                >
+                  {tConn('delete')}
+                </DropdownMenuItem>
+              </CardMenu>
+            ) : undefined
+          }
           footer={
             !status.appConfigured ? (
               <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" disabled>
@@ -153,17 +173,9 @@ export function OperatorBridgesSection() {
                 {tConn('connect')}
               </Button>
             ) : (
-              <>
-                <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setConfiguring(true)}>
-                  {t('configure')}
-                </Button>
-                <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void sendTest()} disabled={busy || !hasDefaultRoute}>
-                  {tConn('test')}
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void disconnect()} disabled={busy}>
-                  {tConn('delete')}
-                </Button>
-              </>
+              <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setConfiguring(true)}>
+                {t('configure')}
+              </Button>
             )
           }
         />

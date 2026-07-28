@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@getmunin/ui';
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DropdownMenuItem } from '@getmunin/ui';
 import { api } from '../../api';
 import { notify } from '../../lib/notify';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useConfirm } from '../confirm-dialog';
 import { CardSkeleton } from '../skeleton';
-import { CardGrid, IntegrationCard, SectionHeading, StatusLine } from './integration-card';
+import { CardGrid, CardMenu, IntegrationCard, SectionHeading, StatusLine } from './integration-card';
 import { ConnectConnectorDialog, type ConnectVendor } from './connect-connector-dialog';
 import { VendorFieldRow, type VendorField } from './vendor-field-row';
 import { vendorPresentation } from './vendor-catalog';
@@ -147,21 +147,27 @@ export function DataConnectionsSection() {
               instance={conn.name}
               meta={<StatusLine tone={s.tone} label={s.label} />}
               description={tc(`description.${present.descriptionKey}`)}
-              footer={
-                <>
-                  {conn.credentialState === 'pending' ? (
-                    <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setEnterFor(conn)} disabled={busyId === conn.id}>
-                      {t('enterCredentials')}
-                    </Button>
-                  ) : (
-                    <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void test(conn)} disabled={busyId === conn.id}>
-                      {t('test')}
-                    </Button>
-                  )}
-                  <Button type="button" variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void remove(conn)} disabled={busyId === conn.id}>
+              menu={
+                <CardMenu label={t('moreMenu')} disabled={busyId === conn.id}>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={busyId === conn.id}
+                    onClick={() => void remove(conn)}
+                  >
                     {t('delete')}
+                  </DropdownMenuItem>
+                </CardMenu>
+              }
+              footer={
+                conn.credentialState === 'pending' ? (
+                  <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setEnterFor(conn)} disabled={busyId === conn.id}>
+                    {t('enterCredentials')}
                   </Button>
-                </>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void test(conn)} disabled={busyId === conn.id}>
+                    {t('test')}
+                  </Button>
+                )
               }
             />
           );

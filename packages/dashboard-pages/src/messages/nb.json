@@ -1251,9 +1251,9 @@
   },
   "integrations": {
     "hero": {
-      "eyebrow": "Integrasjoner",
-      "title": "Koble Munin til <em>verktøyene du allerede bruker</em>",
-      "lede": "Ta samtaler inn i flatene medarbeiderne og kundene dine allerede bruker."
+      "eyebrow": "Arbeidsområde · Integrasjoner",
+      "title": "Ut i <em>verden</em>.",
+      "lede": "Dit medarbeiderne dine allerede jobber, og systemene Munin svarer ut fra."
     },
     "operatorBridges": {
       "title": "Operatørbroer",
@@ -1275,6 +1275,7 @@
       "save": "Lagre",
       "savedUntested": "Lagret — kunne ikke verifisere ennå: {error}",
       "test": "Test",
+      "moreMenu": "Flere handlinger",
       "testOk": "Koblingen fungerer. {detail}",
       "testFailed": "Testen feilet: {error}",
       "delete": "Fjern",

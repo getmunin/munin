@@ -1251,9 +1251,9 @@
   },
   "integrations": {
     "hero": {
-      "eyebrow": "Integrations",
-      "title": "Connect Munin to <em>the tools you already use</em>",
-      "lede": "Bring conversations into the surfaces your team and customers live in."
+      "eyebrow": "Workspace · Integrations",
+      "title": "Out into the <em>world</em>.",
+      "lede": "Where your team already works, and the systems Munin answers from."
     },
     "operatorBridges": {
       "title": "Operator bridges",
@@ -1275,6 +1275,7 @@
       "save": "Save",
       "savedUntested": "Saved — couldn't verify yet: {error}",
       "test": "Test",
+      "moreMenu": "More actions",
       "testOk": "Connection works. {detail}",
       "testFailed": "Test failed: {error}",
       "delete": "Remove",

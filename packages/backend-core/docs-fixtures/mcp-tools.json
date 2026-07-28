@@ -8606,6 +8606,81 @@
     }
   },
   {
+    "name": "commerce_search_products",
+    "title": "Commerce: Search the product catalog",
+    "description": "Search the connected store’s live product catalog by name or SKU. Returns published products with price range, currency, image, and storefront link. Only published/enabled products are visible. `connectionId` is only needed when multiple commerce connections are active.",
+    "audiences": [
+      "admin",
+      "self_service"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        }
+      },
+      "required": [
+        "query",
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "commerce_get_product",
+    "title": "Commerce: One product with variants and stock",
+    "description": "Fetch one published product from the connected store, including description and per-variant price and availability (`availableForSale`; null when the store doesn’t expose stock). Identify it by `productRef` (from a catalog search) or `sku`. Returns not-found for unpublished products.",
+    "audiences": [
+      "admin",
+      "self_service"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "productRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "sku": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "commerce_get_my_orders",
     "title": "Commerce: My recent orders",
     "description": "List the calling end-user’s recent store orders (newest first). Scoped server-side to the email on the end-user’s own record — other customers’ orders are never visible. `connectionId` is only needed when the org has multiple active store connections.",

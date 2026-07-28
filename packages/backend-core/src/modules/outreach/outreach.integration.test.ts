@@ -139,7 +139,7 @@ const skipReason = TEST_URL
     return null;
   }
 
-  it('discovers all 13 outreach tools on tools/list', async () => {
+  it('discovers all 15 outreach tools on tools/list', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name).filter((n) => n.startsWith('outreach_')).sort();
@@ -157,7 +157,9 @@ const skipReason = TEST_URL
           'outreach_propose_followup',
           'outreach_propose_initial',
           'outreach_propose_reply',
+          'outreach_revise_proposal',
           'outreach_update_campaign',
+          'outreach_withdraw_proposal',
         ].sort(),
       );
 
@@ -247,6 +249,66 @@ const skipReason = TEST_URL
       expect(proposals.map((p) => p.id)).toContain(proposalId);
       const ours = proposals.find((p) => p.id === proposalId);
       expect(ours?.contact?.email).toBe('jane@acme.com');
+    });
+  });
+
+  it('revise then withdraw round-trips over /mcp without a protocol error', async () => {
+    await withClient(adminKey, async (c) => {
+      const created = await c.callTool({
+        name: 'outreach_create_campaign',
+        arguments: { name: 'Correction pass', brief: 'Test the correction verbs.', segmentId, channelId },
+      });
+      const campaignId = (firstJson(created as never) as { id: string }).id;
+
+      const proposed = await c.callTool({
+        name: 'outreach_propose_initial',
+        arguments: { campaignId, contactId, draftSubject: 'First cut', draftBody: 'Original body.' },
+      });
+      const proposalId = (firstJson(proposed as never) as { id: string }).id;
+
+      const revised = await c.callTool({
+        name: 'outreach_revise_proposal',
+        arguments: { id: proposalId, reason: 'tightened the CTA', draftBody: 'Rewritten body.' },
+      });
+      expect(revised.isError).toBeFalsy();
+      const afterRevise = firstJson(revised as never) as {
+        id: string;
+        draftBody: string;
+        draftSubject: string;
+        status: string;
+        revisionCount: number;
+        lastRevisionReason: string;
+      };
+      expect(afterRevise.id).toBe(proposalId);
+      expect(afterRevise.draftBody).toBe('Rewritten body.');
+      expect(afterRevise.draftSubject).toBe('First cut');
+      expect(afterRevise.status).toBe('pending');
+      expect(afterRevise.revisionCount).toBe(1);
+      expect(afterRevise.lastRevisionReason).toBe('tightened the CTA');
+
+      const withdrawn = await c.callTool({
+        name: 'outreach_withdraw_proposal',
+        arguments: { id: proposalId, reason: 'duplicate of an earlier draft' },
+      });
+      expect(withdrawn.isError).toBeFalsy();
+      const afterWithdraw = firstJson(withdrawn as never) as {
+        status: string;
+        withdrawReason: string;
+      };
+      expect(afterWithdraw.status).toBe('withdrawn');
+      expect(afterWithdraw.withdrawReason).toBe('duplicate of an earlier draft');
+
+      const reviseDecided = await c.callTool({
+        name: 'outreach_revise_proposal',
+        arguments: { id: proposalId, reason: 'too late', draftBody: 'nope' },
+      });
+      expect(reviseDecided.isError).toBe(true);
+
+      const withdrawTwice = await c.callTool({
+        name: 'outreach_withdraw_proposal',
+        arguments: { id: proposalId, reason: 'again' },
+      });
+      expect(withdrawTwice.isError).toBe(true);
     });
   });
 

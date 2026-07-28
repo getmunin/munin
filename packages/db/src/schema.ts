@@ -25,7 +25,7 @@ import {
   vector,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import type { WebImportProgress } from '@getmunin/types';
+import type { AssetVariant, WebImportProgress } from '@getmunin/types';
 import { parseEnvInt } from './env.ts';
 import { makeId } from './id.ts';
 
@@ -1414,6 +1414,10 @@ export const cmsAssets = pgTable(
     name: text('name').notNull(),
     mime: text('mime').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull().default(0),
+    width: integer('width'),
+    height: integer('height'),
+    variants: jsonb('variants').$type<AssetVariant[]>().notNull().default([]),
+    variantsVersion: integer('variants_version').notNull().default(0),
     storageProvider: varchar('storage_provider', { length: 16 }).notNull(),
     // 'local' | 's3'
     storageKey: text('storage_key').notNull(),
@@ -1430,6 +1434,7 @@ export const cmsAssets = pgTable(
   (t) => ({
     orgIdx: index('cms_assets_org_idx').on(t.orgId),
     keyUq: uniqueIndex('cms_assets_key_uq').on(t.storageKey),
+    variantsVersionIdx: index('cms_assets_variants_version_idx').on(t.variantsVersion),
   }),
 );
 
@@ -1783,18 +1788,28 @@ export const outreachProposals = pgTable(
     evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
     proposedSendAt: timestamp('proposed_send_at', { withTimezone: true }),
     status: varchar('status', { length: 16 }).notNull().default('pending'),
-    // 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed'
+    // 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed' | 'withdrawn'
     proposedByActorType: varchar('proposed_by_actor_type', { length: 16 }).notNull(),
     proposedByActorId: text('proposed_by_actor_id').notNull(),
     decidedByActorType: varchar('decided_by_actor_type', { length: 16 }),
     decidedByActorId: text('decided_by_actor_id'),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
+    firstViewedAt: timestamp('first_viewed_at', { withTimezone: true }),
+    viewedByActorType: varchar('viewed_by_actor_type', { length: 16 }),
+    viewedByActorId: text('viewed_by_actor_id'),
+    revisionCount: integer('revision_count').notNull().default(0),
+    lastRevisedAt: timestamp('last_revised_at', { withTimezone: true }),
+    lastRevisionReason: text('last_revision_reason'),
+    revisedByActorType: varchar('revised_by_actor_type', { length: 16 }),
+    revisedByActorId: text('revised_by_actor_id'),
+    revisedAfterReviewAt: timestamp('revised_after_review_at', { withTimezone: true }),
     sentAt: timestamp('sent_at', { withTimezone: true }),
     sentMessageId: text('sent_message_id').references(() => convMessages.id, {
       onDelete: 'set null',
     }),
     failureReason: text('failure_reason'),
     dismissReason: text('dismiss_reason'),
+    withdrawReason: text('withdraw_reason'),
     createdAt,
     updatedAt,
   },
@@ -2095,6 +2110,9 @@ export const slackDeliveries = pgTable(
 // proposal, KB curation candidate). Created by the bridge worker when the
 // pending notification posts; resolution events chat.update the same message
 // and stamp resolved_at so late or duplicate resolutions are no-ops.
+// Outreach proposals also get a per-campaign thread parent row (subject_type
+// 'outreach_campaign'); a resolved parent, or one from a previous UTC day, is
+// reused for the next wave by pointing the row at a freshly posted message.
 export const slackNotificationLinks = pgTable(
   'slack_notification_links',
   {

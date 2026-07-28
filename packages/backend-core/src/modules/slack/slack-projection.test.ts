@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   APPROVAL_DISMISS_ACTION_ID,
+  APPROVAL_VIEW_ACTION_ID,
   approvalBlocks,
   approvalResolvedLine,
   authorLabel,
@@ -10,6 +11,9 @@ import {
   kbCandidateApprovalText,
   mergeProposalApprovalText,
   messageText,
+  outreachCampaignParentMovedText,
+  outreachCampaignParentText,
+  outreachDraftModalView,
   outreachProposalApprovalText,
   parentStateLine,
   parseApprovalValue,
@@ -233,6 +237,19 @@ describe('approval texts', () => {
     expect(text).not.toContain('x'.repeat(600));
   });
 
+  it('keeps the outreach preview short so the thread reply stays compact', () => {
+    const text = outreachProposalApprovalText({
+      kind: 'initial',
+      campaignName: 'Spring launch',
+      contactLabel: 'Ada Lovelace',
+      draftSubject: null,
+      draftBodyPreview: 'y'.repeat(300),
+      dashboardUrl: 'https://app.example.com/dashboard',
+    });
+    expect(text).toContain('truncated');
+    expect(text).not.toContain('y'.repeat(250));
+  });
+
   it('renders a KB candidate with and without a proposed target', () => {
     const withTarget = kbCandidateApprovalText({
       title: 'Weekend hours',
@@ -291,5 +308,81 @@ describe('approvalBlocks', () => {
     expect(approvalResolvedLine('applied', null)).toContain('Merge applied');
     expect(approvalResolvedLine('published', 'A')).toContain('Published to the knowledge base');
     expect(approvalResolvedLine('dismissed', null)).toContain('Dismissed');
+  });
+
+  it('adds a view button between approve and dismiss when a view label is given', () => {
+    const blocks = approvalBlocks(
+      'body',
+      value,
+      { approveLabel: 'Approve & send', viewLabel: 'View full draft' },
+      null,
+    );
+    const actions = blocks[1] as unknown as { elements: Array<Record<string, unknown>> };
+    expect(actions.elements.map((e) => e.action_id)).toEqual([
+      'munin_approval_approve',
+      APPROVAL_VIEW_ACTION_ID,
+      APPROVAL_DISMISS_ACTION_ID,
+    ]);
+    expect(actions.elements.every((e) => e.value === value)).toBe(true);
+  });
+});
+
+describe('outreachCampaignParentText', () => {
+  it('shows the pending count with a dashboard link', () => {
+    const text = outreachCampaignParentText('Spring <launch>', 3, 'https://app.example.com/dashboard');
+    expect(text).toContain('*Outreach drafts awaiting approval — Spring &lt;launch&gt;*');
+    expect(text).toContain('3 drafts pending');
+    expect(text).toContain('<https://app.example.com/dashboard|Review all in Munin>');
+  });
+
+  it('uses the singular noun for one pending draft', () => {
+    expect(outreachCampaignParentText('Spring', 1, 'https://x')).toContain('1 draft pending');
+  });
+
+  it('flips to an all-handled banner at zero pending', () => {
+    const text = outreachCampaignParentText('Spring', 0, 'https://x');
+    expect(text).toContain('*All outreach drafts handled — Spring*');
+    expect(text).not.toContain('pending');
+  });
+
+  it('renders the moved notice for a rotated parent', () => {
+    const text = outreachCampaignParentMovedText('Spring <launch>');
+    expect(text).toContain('*Outreach drafts — Spring &lt;launch&gt;*');
+    expect(text).toContain('continued in a newer thread');
+  });
+});
+
+describe('outreachDraftModalView', () => {
+  it('renders header fields and the full body', () => {
+    const view = outreachDraftModalView({
+      kind: 'initial',
+      campaignName: 'Spring launch',
+      contactLabel: 'Ada <ada@example.com>',
+      draftSubject: 'Hello there',
+      draftBody: 'Full body text',
+    }) as { type: string; blocks: Array<{ type: string; text?: { text: string } }> };
+    expect(view.type).toBe('modal');
+    expect(view.blocks[0]!.text!.text).toContain('*Campaign:* Spring launch · initial');
+    expect(view.blocks[0]!.text!.text).toContain('Ada &lt;ada@example.com&gt;');
+    expect(view.blocks[0]!.text!.text).toContain('*Subject:* Hello there');
+    expect(view.blocks[1]!.type).toBe('divider');
+    expect(view.blocks[2]!.text!.text).toBe('Full body text');
+  });
+
+  it('splits long bodies into multiple sections within the block text limit', () => {
+    const body = Array.from({ length: 200 }, (_, i) => `line ${i} ${'z'.repeat(40)}`).join('\n');
+    const view = outreachDraftModalView({
+      kind: 'reply',
+      campaignName: 'Spring',
+      contactLabel: 'Ada',
+      draftSubject: null,
+      draftBody: body,
+    }) as { blocks: Array<{ type: string; text?: { text: string } }> };
+    const sections = view.blocks.slice(2);
+    expect(sections.length).toBeGreaterThan(1);
+    for (const section of sections) {
+      expect(section.text!.text.length).toBeLessThanOrEqual(2900);
+    }
+    expect(sections.map((s) => s.text!.text).join('\n')).toBe(body);
   });
 });

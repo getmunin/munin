@@ -297,6 +297,7 @@ export function routeDismissedText(): string {
 
 export const APPROVAL_APPROVE_ACTION_ID = 'munin_approval_approve';
 export const APPROVAL_DISMISS_ACTION_ID = 'munin_approval_dismiss';
+export const APPROVAL_VIEW_ACTION_ID = 'munin_approval_view';
 
 const APPROVAL_SUBJECT_TYPES = [
   'crm_merge_proposal',
@@ -355,12 +356,85 @@ export function outreachProposalApprovalText(snap: OutreachProposalApprovalSnaps
   ];
   if (snap.draftSubject) lines.push(`*Subject:* ${escapeSlackText(snap.draftSubject)}`);
   lines.push(
-    ...truncate(escapeSlackText(snap.draftBodyPreview), 500)
+    ...truncate(escapeSlackText(snap.draftBodyPreview), 200)
       .split('\n')
       .map((line) => `> ${line}`),
   );
   lines.push(`<${snap.dashboardUrl}|Review in Munin>`);
   return lines.join('\n');
+}
+
+export function outreachCampaignParentText(
+  campaignName: string,
+  pendingCount: number,
+  dashboardUrl: string,
+): string {
+  if (pendingCount === 0) {
+    return `:white_check_mark: *All outreach drafts handled — ${escapeSlackText(campaignName)}*`;
+  }
+  const noun = pendingCount === 1 ? 'draft' : 'drafts';
+  return [
+    `:outbox_tray: *Outreach drafts awaiting approval — ${escapeSlackText(campaignName)}*`,
+    `${pendingCount} ${noun} pending · <${dashboardUrl}|Review all in Munin>`,
+  ].join('\n');
+}
+
+export function outreachCampaignParentMovedText(campaignName: string): string {
+  return `:outbox_tray: *Outreach drafts — ${escapeSlackText(campaignName)}* — continued in a newer thread below`;
+}
+
+const MODAL_SECTION_MAX_CHARS = 2900;
+const MODAL_MAX_BODY_SECTIONS = 90;
+
+function chunkModalText(text: string): string[] {
+  const chunks: string[] = [];
+  let rest = text;
+  while (rest.length > 0 && chunks.length < MODAL_MAX_BODY_SECTIONS) {
+    if (rest.length <= MODAL_SECTION_MAX_CHARS) {
+      chunks.push(rest);
+      rest = '';
+      break;
+    }
+    const window = rest.slice(0, MODAL_SECTION_MAX_CHARS);
+    const breakAt = window.lastIndexOf('\n');
+    const cut = breakAt > MODAL_SECTION_MAX_CHARS / 2 ? breakAt : MODAL_SECTION_MAX_CHARS;
+    chunks.push(rest.slice(0, cut));
+    rest = rest.slice(cut).replace(/^\n/, '');
+  }
+  if (rest.length > 0 && chunks.length >= MODAL_MAX_BODY_SECTIONS) {
+    chunks.push('… _(truncated)_');
+  }
+  return chunks;
+}
+
+export interface OutreachDraftModalSnapshot {
+  kind: string;
+  campaignName: string;
+  contactLabel: string;
+  draftSubject: string | null;
+  draftBody: string;
+}
+
+export function outreachDraftModalView(snap: OutreachDraftModalSnapshot): Record<string, unknown> {
+  const headerLines = [
+    `*Campaign:* ${escapeSlackText(snap.campaignName)} · ${escapeSlackText(snap.kind)}`,
+    `*To:* ${escapeSlackText(snap.contactLabel)}`,
+  ];
+  if (snap.draftSubject) headerLines.push(`*Subject:* ${escapeSlackText(snap.draftSubject)}`);
+  const bodySections = chunkModalText(escapeSlackText(snap.draftBody)).map((chunk) => ({
+    type: 'section',
+    text: { type: 'mrkdwn', text: chunk },
+  }));
+  return {
+    type: 'modal',
+    title: { type: 'plain_text', text: 'Outreach draft' },
+    close: { type: 'plain_text', text: 'Close' },
+    blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text: headerLines.join('\n') } },
+      { type: 'divider' },
+      ...bodySections,
+    ],
+  };
 }
 
 export interface KbCandidateApprovalSnapshot {
@@ -382,7 +456,7 @@ export function kbCandidateApprovalText(snap: KbCandidateApprovalSnapshot): stri
   return lines.join('\n');
 }
 
-export type ApprovalOutcome = 'applied' | 'sent' | 'published' | 'dismissed';
+export type ApprovalOutcome = 'applied' | 'sent' | 'published' | 'dismissed' | 'withdrawn';
 
 export function approvalResolvedLine(
   outcome: ApprovalOutcome,
@@ -398,6 +472,8 @@ export function approvalResolvedLine(
       return `:white_check_mark: *Published to the knowledge base*${by}`;
     case 'dismissed':
       return `:no_entry_sign: *Dismissed*${by}`;
+    case 'withdrawn':
+      return `:leftwards_arrow_with_hook: *Withdrawn by the agent*${by}`;
   }
 }
 
@@ -409,7 +485,7 @@ export interface ApprovalResolution {
 export function approvalBlocks(
   text: string,
   value: string,
-  opts: { approveLabel: string | null },
+  opts: { approveLabel: string | null; viewLabel?: string },
   resolution: ApprovalResolution | null,
 ): SlackBlock[] {
   if (resolution) {
@@ -427,6 +503,7 @@ export function approvalBlocks(
     ...(opts.approveLabel
       ? [actionButton(APPROVAL_APPROVE_ACTION_ID, opts.approveLabel, value, 'primary')]
       : []),
+    ...(opts.viewLabel ? [actionButton(APPROVAL_VIEW_ACTION_ID, opts.viewLabel, value)] : []),
     actionButton(APPROVAL_DISMISS_ACTION_ID, 'Dismiss', value, 'danger'),
   ];
   return [

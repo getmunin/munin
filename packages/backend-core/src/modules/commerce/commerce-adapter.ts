@@ -12,6 +12,16 @@ export interface CommerceAdapter extends ConnectorAdapter {
     ctx: ConnectorConnectionContext,
     args: { email: string; orderRef?: string; orderNumber?: string },
   ): Promise<CommerceOrderDetail | null>;
+
+  searchProducts(
+    ctx: ConnectorConnectionContext,
+    args: { query: string; limit: number },
+  ): Promise<CommerceProductSummary[]>;
+
+  getProduct(
+    ctx: ConnectorConnectionContext,
+    args: { productRef?: string; sku?: string },
+  ): Promise<CommerceProductDetail | null>;
 }
 
 export interface CommerceOrderSummary {
@@ -42,4 +52,26 @@ export interface CommerceShipment {
 export interface CommerceOrderDetail extends CommerceOrderSummary {
   items: CommerceOrderLineItem[];
   shipments: CommerceShipment[];
+}
+
+export interface CommerceProductSummary {
+  productRef: string;
+  title: string;
+  url: string | null;
+  imageUrl: string | null;
+  currency: string;
+  priceMin: string | null;
+  priceMax: string | null;
+}
+
+export interface CommerceProductVariant {
+  title: string;
+  sku: string | null;
+  price: string | null;
+  availableForSale: boolean | null;
+}
+
+export interface CommerceProductDetail extends CommerceProductSummary {
+  description: string | null;
+  variants: CommerceProductVariant[];
 }

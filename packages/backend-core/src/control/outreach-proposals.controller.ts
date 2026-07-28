@@ -28,9 +28,11 @@ import {
 const StatusSchema = z.enum(PROPOSAL_STATUSES);
 const KindSchema = z.enum(PROPOSAL_KINDS);
 const DismissBody = z.object({ reason: z.string().max(500).optional() });
+const WithdrawBody = z.object({ reason: z.string().min(1).max(500) });
 const UpdateBody = z.object({
   draftSubject: z.string().max(500).nullable().optional(),
   draftBody: z.string().min(1).optional(),
+  reason: z.string().max(500).optional(),
 });
 
 interface ProposalListResponse {
@@ -86,8 +88,23 @@ export class OutreachProposalsController {
         id,
         draftSubject: parsed.data.draftSubject,
         draftBody: parsed.data.draftBody,
+        reason: parsed.data.reason,
       }),
     );
+  }
+
+  @Post(':id/viewed')
+  @HttpCode(200)
+  async markViewed(@Param('id') id: string): Promise<ProposalDto> {
+    return translate(() => this.outreach.markProposalViewed(id));
+  }
+
+  @Post(':id/withdraw')
+  @HttpCode(200)
+  async withdraw(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
+    const parsed = WithdrawBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(() => this.outreach.withdrawProposal({ id, reason: parsed.data.reason }));
   }
 
   @Post(':id/approve')

@@ -6,6 +6,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { buildApiKey, hashSecret, keyPrefix, signPreviewToken } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
+import sharp from 'sharp';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -788,6 +789,131 @@ const skipReason = TEST_URL
     expect(json.data.body).not.toContain('asset://');
     expect(json._assets?.[assetId]).toMatchObject({ publicUrl: 'https://assets.test/inline.png' });
   }, 30_000);
+
+  it('uploading an image derives variants, and delivery serves the widest one inline', async () => {
+    const png = await sharp({
+      create: { width: 900, height: 600, channels: 3, background: { r: 20, g: 90, b: 160 } },
+    })
+      .png()
+      .toBuffer();
+
+    const uploaded = await withClient(adminKey, async (c) => {
+      const res = (await c.callTool({
+        name: 'cms_upload_asset_from_base64',
+        arguments: {
+          name: 'variant-hero.png',
+          mime: 'image/png',
+          base64Body: png.toString('base64'),
+          altText: 'Variant hero',
+        },
+      })) as { content: Array<{ text: string }> };
+      return JSON.parse(res.content[0]!.text) as {
+        id: string;
+        width: number;
+        height: number;
+        variants: Array<{ width: number; publicUrl: string; sizeBytes: number }>;
+      };
+    });
+
+    expect(uploaded.width).toBe(900);
+    expect(uploaded.height).toBe(600);
+    expect(uploaded.variants.map((v) => v.width)).toEqual([320, 640, 900]);
+    for (const variant of uploaded.variants) {
+      expect(variant.sizeBytes).toBeGreaterThan(0);
+      expect(variant.sizeBytes).toBeLessThan(png.length);
+    }
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'variant-body',
+          data: {
+            title: 'Variants',
+            slug: 'variant-body',
+            body: `![hero](asset://${uploaded.id})`,
+          },
+          status: 'published',
+        },
+      });
+    });
+
+    const res = await fetchUntil(
+      `${baseUrl}/v1/cms/${orgId}/pages/variant-body`,
+      (r) => r.status === 200,
+    );
+    const json = (await res.json()) as { data: { body: string } };
+    expect(json.data.body).toContain('-900w.webp');
+    expect(json.data.body).not.toContain('asset://');
+  }, 60_000);
+
+  it('the worker reconciles assets left at an older ladder version', async () => {
+    const png = await sharp({
+      create: { width: 800, height: 400, channels: 3, background: { r: 200, g: 60, b: 40 } },
+    })
+      .png()
+      .toBuffer();
+
+    const assetId = await withClient(adminKey, async (c) => {
+      const res = (await c.callTool({
+        name: 'cms_upload_asset_from_base64',
+        arguments: {
+          name: 'reconcile-me.png',
+          mime: 'image/png',
+          base64Body: png.toString('base64'),
+          altText: 'Reconcile me',
+        },
+      })) as { content: Array<{ text: string }> };
+      return (JSON.parse(res.content[0]!.text) as { id: string }).id;
+    });
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    await db
+      .update(schema.cmsAssets)
+      .set({ variants: [], variantsVersion: 0, width: null, height: null })
+      .where(sql`id = ${assetId}`);
+
+    const result = await app.get(CmsScheduleWorker).reconcileVariants();
+    expect(result.reconciled).toBeGreaterThanOrEqual(1);
+
+    const [row] = await db
+      .select()
+      .from(schema.cmsAssets)
+      .where(sql`id = ${assetId}`)
+      .limit(1);
+    expect(row!.variantsVersion).toBe(1);
+    expect(row!.width).toBe(800);
+    expect(row!.variants.map((v) => v.width)).toEqual([320, 640, 800]);
+  }, 60_000);
+
+  it('a non-image asset is settled once so the worker stops reclaiming it', async () => {
+    const [asset] = await db
+      .insert(schema.cmsAssets)
+      .values({
+        orgId,
+        name: 'brochure.pdf',
+        mime: 'application/pdf',
+        sizeBytes: 900,
+        storageProvider: 'local',
+        storageKey: `cms/${orgId}/brochure-${Date.now()}.pdf`,
+        publicUrl: 'https://assets.test/brochure.pdf',
+        uploaded: true,
+        createdByType: 'agent',
+        createdById: 'test',
+      })
+      .returning();
+
+    await app.get(CmsScheduleWorker).reconcileVariants();
+
+    const [row] = await db
+      .select()
+      .from(schema.cmsAssets)
+      .where(sql`id = ${asset!.id}`)
+      .limit(1);
+    expect(row!.variantsVersion).toBe(1);
+    expect(row!.variants).toEqual([]);
+  }, 60_000);
 
   it('an inline reference to an unknown asset is rejected (not a 500)', async () => {
     await withClient(adminKey, async (c) => {

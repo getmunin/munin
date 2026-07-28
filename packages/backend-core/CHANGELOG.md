@@ -1,5 +1,78 @@
 # @getmunin/backend-core
 
+## 4.71.0
+
+### Minor Changes
+
+- 426a66e: CMS: keep the master, serve derivatives. Image assets now carry a ladder of WebP renditions and the delivery API hands out the light one.
+
+  Until now an asset was delivered exactly as uploaded. The dashboard downscaled client-side before upload, but every other path — `cms_upload_asset_from_base64`, `cms_upload_asset_from_url`, presigned uploads, and generated images — stored whatever bytes arrived and served them verbatim. A 2.2MB PNG hero and a 99KB hand-uploaded JPEG could sit in the same library with no policy between them.
+
+  - `cms_assets` gains `width`, `height`, `variants`, and `variants_version`. Variants are derived state: the original upload is always preserved as the master at `public_url`.
+  - Uploads derive renditions at 320/640/1024/1536/2048px plus one full-size recompress (capped at 2560px), skipping any width at or above the source so nothing is ever upscaled. WebP at quality 80. For a 1536×1024 master the whole ladder costs ~10% of the master's bytes.
+  - The delivery API rewrites inline `asset://` tokens to the widest variant instead of the master, and `AssetSummary` (typed asset fields and the `_assets` sidecar) now carries `width`, `height`, and the full variant list so consumers can build a `srcset`. Assets without variants keep resolving to the master, so nothing breaks while the library converges.
+  - Generation is not a one-shot backfill. The existing CMS worker reconciles any asset below the current ladder version, which covers assets that predate this change, presigned uploads whose bytes arrived late, and generation that failed on the upload path. Changing the ladder later is a version bump rather than a new migration script, and generation on upload is therefore an optimisation rather than a correctness requirement.
+  - Non-images and undecodable bytes are settled once so the worker stops reclaiming them. Batch size is tunable with `MUNIN_CMS_VARIANT_BATCH` (default 10 per tick).
+
+- 0b864a4: Add live product-catalog lookups to the commerce connector domain: `commerce_search_products` and `commerce_get_product` (admin + self-service) return published products with price range, storefront link, description, and per-variant price and `availableForSale`. Shopify searches are pinned to `status:active` with operator-safe token quoting and need the `read_products` scope; Magento reads enabled+visible products via searchCriteria, expands configurable children, and reports stock from `stockItems` (null when the CatalogInventory ACL is missing). Ships with the `skill://commerce/answer-product-questions` skill and updated connect instructions.
+- 5b49ac1: Slack outreach approvals now thread per campaign instead of posting one standalone message per draft: a parent message carries a live pending count (flipping to an all-handled banner at zero, with one parent per campaign per UTC day, so daily waves never land in a buried thread), each draft posts as a compact thread reply with a shorter body preview, and a new _View full draft_ button opens the complete subject and body in a Slack modal so reviewing no longer requires the dashboard.
+
+### Patch Changes
+
+- Updated dependencies [426a66e]
+- Updated dependencies [5b49ac1]
+  - @getmunin/core@4.71.0
+  - @getmunin/db@4.71.0
+  - @getmunin/types@4.71.0
+  - @getmunin/agent-runtime@4.71.0
+  - @getmunin/mcp-toolkit@4.71.0
+  - @getmunin/inspector-app@4.71.0
+  - @getmunin/emails@4.71.0
+
+## 4.70.1
+
+### Patch Changes
+
+- ff032db: Mark the Slack webhook controllers (`/v1/slack/events`, `/v1/slack/interactivity`, `/v1/slack/oauth/*`, `/v1/slack/avatars`) as anonymous-callable via `PublicController`. Deployments that register `AuthGuard` as a global `APP_GUARD` were returning 401 "invalid or expired credential" to Slack before signature verification ever ran, which broke button interactions and inbound event delivery. Slack authenticates these routes with its signing secret (and the OAuth callback with signed state + a nonce cookie), not a Munin credential. The events/interactivity endpoint is now also rate-limited like other public webhook endpoints.
+  - @getmunin/core@4.70.1
+  - @getmunin/db@4.70.1
+  - @getmunin/types@4.70.1
+  - @getmunin/mcp-toolkit@4.70.1
+  - @getmunin/inspector-app@4.70.1
+  - @getmunin/agent-runtime@4.70.1
+  - @getmunin/emails@4.70.1
+
+## 4.70.0
+
+### Minor Changes
+
+- 5cb5ff3: CMS: lift the dashboard's 100KB image-upload ceiling and stop leaking agent-oriented error strings into the UI.
+
+  The dashboard's cover-image upload previously went through the base64 path shared with the `cms_upload_asset_from_base64` MCP tool, inheriting its 100KB cap (which exists to keep agent tool payloads small) and surfacing its raw error message verbatim. Now:
+
+  - New control-plane endpoints `POST /v1/cms/drafts/:id/assets/upload-request` and `POST /v1/cms/drafts/:id/assets/:assetId/complete` expose the existing presigned upload flow (up to 50MB), and the dashboard uses them. Note for S3-backed deployments: the bucket CORS policy must allow PUT/POST from the dashboard origin.
+  - The dashboard downscales images client-side before upload (long edge capped at 2400px, re-encoded as WebP with JPEG/PNG fallback), so stored assets are delivery-ready instead of raw camera files.
+  - `CmsInvalidError` carries a specific `code` (`cms_asset_too_large` for size-limit rejections), the CMS drafts controller includes `code` in error bodies, and the dashboard inbox/queue surfaces translate known codes through `useTranslateError` (new `errors.*` copy in English and Norwegian) instead of showing raw backend messages.
+
+- 4601314: Extend the inspector MCP App with five new views: CRM merge-proposal review (side-by-side contact comparison with app-only apply/dismiss), KB curation-candidate review (new `kb_list_curation_candidates` tool, app-only `kb_publish_curation_candidate`), analytics charts (views over time, funnel, traffic by source, contact journey), CMS entry preview with publish/unpublish/schedule actions, and a media-library thumbnail gallery. The panel resource now CSP-allows the asset-storage origin so thumbnails render inside the iframe.
+- e123820: Add `outreach_revise_proposal` and `outreach_withdraw_proposal`, the two agent-side corrections to a pending outreach draft.
+
+  `outreach_revise_proposal` rewrites the draft in place on the same proposal id — the contact and campaign are fixed, since a different recipient is a different proposal. A `reason` is required and the revision is recorded (`revisionCount`, `lastRevisedAt`, `lastRevisionReason`, revising actor), so an edit can never be silent. Proposals now also record the first time a human opens them for review; when a revision lands after someone else has already read the draft, `revisedAfterReviewAt` is stamped and both the dashboard review drawer and the MCP Apps inspector panel warn the reviewer that Wednesday's text is not the text they read on Monday.
+
+  `outreach_withdraw_proposal` lets a curator retract its own pending draft — a duplicate, a prospect who turned out not to qualify, a bounced address — under a new terminal `withdrawn` status. Withdrawal is deliberately neutral: it does not suppress the contact, does not touch consent, and does not stop a campaign sequence, so a withdrawn follow-up leaves that step eligible again where a dismissed one ends the sequence for good. Slack approval cards resolve as withdrawn, and `skill://outreach/review-proposals` documents when each of the four verbs applies.
+
+### Patch Changes
+
+- Updated dependencies [4601314]
+- Updated dependencies [e123820]
+  - @getmunin/inspector-app@4.70.0
+  - @getmunin/types@4.70.0
+  - @getmunin/db@4.70.0
+  - @getmunin/core@4.70.0
+  - @getmunin/mcp-toolkit@4.70.0
+  - @getmunin/agent-runtime@4.70.0
+  - @getmunin/emails@4.70.0
+
 ## 4.69.3
 
 ### Patch Changes

@@ -35,6 +35,9 @@ export interface OutreachProposalDto {
   campaign?: { name: string } | null;
   contact?: { name: string | null; email: string | null } | null;
   evidence?: Record<string, unknown>;
+  revisionCount?: number;
+  lastRevisionReason?: string | null;
+  revisedAfterReviewAt?: string | null;
   createdAt: string;
 }
 

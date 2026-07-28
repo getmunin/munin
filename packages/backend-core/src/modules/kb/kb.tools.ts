@@ -6,6 +6,7 @@ import { KbService } from './kb.service.ts';
 import { KbSearchService } from './kb.search.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
+import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
 
@@ -84,6 +85,10 @@ const PublishCurationCandidateInput = z.object({
   candidateDocumentId: z.string().min(1),
   targetSpaceSlug: z.string().min(1).max(64),
   audiences: AudiencesSchema.optional(),
+});
+
+const ListCurationCandidatesInput = z.object({
+  limit: z.number().int().positive().max(200).optional(),
 });
 
 const ImportWebsiteInput = z.object({
@@ -384,6 +389,22 @@ export class KbAdminTools {
   }
 
   @McpTool({
+    name: 'kb_list_curation_candidates',
+    title: 'KB: List curation candidates',
+    description:
+      'List pending curation candidates — drafts filed into the `kb-curation-inbox` space by `kb_propose_curation_candidate`, awaiting review. Each row carries the proposed target space slug and source conversation id parsed from its tags. In hosts that support MCP Apps this renders an interactive review panel with per-candidate publish/dismiss actions.',
+    audiences: ['admin'],
+    scopes: ['kb:read'],
+    input: ListCurationCandidatesInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+    _meta: { ui: { resourceUri: INSPECTOR_APP_URI }, 'ui/resourceUri': INSPECTOR_APP_URI },
+  })
+  listCurationCandidates(args: z.infer<typeof ListCurationCandidatesInput>) {
+    return this.kb.listCurationCandidates(args.limit);
+  }
+
+  @McpTool({
     name: 'kb_publish_curation_candidate',
     title: 'KB: Publish curation candidate',
     description:
@@ -393,6 +414,7 @@ export class KbAdminTools {
     input: PublishCurationCandidateInput,
     readOnlyHint: false,
     destructiveHint: true,
+    _meta: { ui: { visibility: ['app'] } },
   })
   publishCurationCandidate(args: z.infer<typeof PublishCurationCandidateInput>) {
     return this.kb.publishCurationCandidate(args);

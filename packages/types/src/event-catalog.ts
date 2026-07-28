@@ -51,6 +51,7 @@ export const OUTREACH_EVENT_TYPES = [
   'outreach.proposal.updated',
   'outreach.proposal.sent',
   'outreach.proposal.dismissed',
+  'outreach.proposal.withdrawn',
 ] as const;
 
 export const SYSTEM_EVENT_TYPES = [

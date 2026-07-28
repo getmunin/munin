@@ -10,6 +10,9 @@ import type {
   CommerceAdapter,
   CommerceOrderDetail,
   CommerceOrderSummary,
+  CommerceProductDetail,
+  CommerceProductSummary,
+  CommerceProductVariant,
 } from './commerce-adapter.ts';
 import { ConnectorVendorError, type ConnectorFetch, REQUEST_TIMEOUT_MS } from '../connectors/http.ts';
 
@@ -56,6 +59,22 @@ interface MagentoShipment {
   tracks?: Array<{ track_number: string | null; carrier_code: string | null; title: string | null }>;
 }
 
+interface MagentoProduct {
+  id: number;
+  sku: string;
+  name: string;
+  price?: number | null;
+  status: number;
+  type_id: string;
+  custom_attributes?: Array<{ attribute_code: string; value: unknown }>;
+}
+
+interface MagentoStockItem {
+  is_in_stock?: boolean;
+}
+
+const MAX_PRODUCT_VARIANTS = 50;
+
 export class MagentoAdapter implements CommerceAdapter {
   readonly vendor = 'magento';
   readonly domain = 'commerce' as const;
@@ -70,7 +89,7 @@ export class MagentoAdapter implements CommerceAdapter {
     },
     {
       key: 'accessToken',
-      label: 'Integration access token with Sales + Customers read ACL',
+      label: 'Integration access token with Sales + Customers + Catalog read ACL',
       required: true,
       secret: true,
     },
@@ -131,6 +150,124 @@ export class MagentoAdapter implements CommerceAdapter {
     if (!order || !this.ownedBy(order, args.email)) return null;
     const shipments = await this.shipmentsForOrder(ctx, order.entity_id);
     return this.toDetail(order, shipments);
+  }
+
+  async searchProducts(
+    ctx: ConnectorConnectionContext,
+    args: { query: string; limit: number },
+  ): Promise<CommerceProductSummary[]> {
+    const query = args.query.trim();
+    if (!query) return [];
+    const currency = await this.baseCurrency(ctx);
+    const like = `%${query.replace(/([\\%_])/g, '\\$1')}%`;
+    const params = new URLSearchParams();
+    setFilter(params, 0, 'name', like, 'like', 0);
+    setFilter(params, 0, 'sku', like, 'like', 1);
+    setFilter(params, 1, 'status', '1', 'eq');
+    setFilter(params, 2, 'visibility', '1', 'neq');
+    params.set('searchCriteria[pageSize]', String(args.limit));
+    const result = await this.get<MagentoSearchResult<MagentoProduct>>(
+      ctx,
+      `/rest/V1/products?${params.toString()}`,
+    );
+    return result.items.map((product) => this.toProductSummary(ctx, product, currency));
+  }
+
+  async getProduct(
+    ctx: ConnectorConnectionContext,
+    args: { productRef?: string; sku?: string },
+  ): Promise<CommerceProductDetail | null> {
+    const sku = (args.productRef ?? args.sku)?.trim();
+    if (!sku) return null;
+    let product: MagentoProduct;
+    try {
+      product = await this.get<MagentoProduct>(ctx, `/rest/V1/products/${encodeURIComponent(sku)}`);
+    } catch (err) {
+      if (err instanceof ConnectorVendorError && err.notFound) return null;
+      throw err;
+    }
+    if (product.status !== 1) return null;
+    const currency = await this.baseCurrency(ctx);
+    const children =
+      product.type_id === 'configurable' ? await this.configurableChildren(ctx, sku) : [product];
+    const variants = await Promise.all(
+      children.slice(0, MAX_PRODUCT_VARIANTS).map(
+        async (child): Promise<CommerceProductVariant> => ({
+          title: child.name,
+          sku: child.sku,
+          price: child.price != null ? child.price.toFixed(2) : null,
+          availableForSale: await this.inStock(ctx, child.sku),
+        }),
+      ),
+    );
+    const summary = this.toProductSummary(ctx, product, currency);
+    const prices = variants
+      .map((variant) => variant.price)
+      .filter((price): price is string => price !== null)
+      .map(Number);
+    return {
+      ...summary,
+      priceMin: prices.length ? Math.min(...prices).toFixed(2) : summary.priceMin,
+      priceMax: prices.length ? Math.max(...prices).toFixed(2) : summary.priceMax,
+      description: attributeValue(product, 'description'),
+      variants,
+    };
+  }
+
+  private async configurableChildren(
+    ctx: ConnectorConnectionContext,
+    sku: string,
+  ): Promise<MagentoProduct[]> {
+    try {
+      return await this.get<MagentoProduct[]>(
+        ctx,
+        `/rest/V1/configurable-products/${encodeURIComponent(sku)}/children`,
+      );
+    } catch (err) {
+      if (err instanceof ConnectorVendorError && err.notFound) return [];
+      throw err;
+    }
+  }
+
+  private async inStock(ctx: ConnectorConnectionContext, sku: string): Promise<boolean | null> {
+    try {
+      const item = await this.get<MagentoStockItem>(
+        ctx,
+        `/rest/V1/stockItems/${encodeURIComponent(sku)}`,
+      );
+      return typeof item.is_in_stock === 'boolean' ? item.is_in_stock : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async baseCurrency(ctx: ConnectorConnectionContext): Promise<string> {
+    const configs = await this.get<Array<{ base_currency_code?: string }>>(
+      ctx,
+      '/rest/V1/store/storeConfigs',
+    );
+    return configs[0]?.base_currency_code ?? '';
+  }
+
+  private toProductSummary(
+    ctx: ConnectorConnectionContext,
+    product: MagentoProduct,
+    currency: string,
+  ): CommerceProductSummary {
+    const { baseUrl } = StoredMagentoConfig.parse(ctx.config);
+    const image = attributeValue(product, 'image');
+    const price = product.price != null ? product.price.toFixed(2) : null;
+    return {
+      productRef: product.sku,
+      title: product.name,
+      url: null,
+      imageUrl: image
+        ? `${baseUrl}/media/catalog/product${image.startsWith('/') ? '' : '/'}${image}`
+        : null,
+      currency,
+      priceMin: price,
+      priceMax: price,
+    };
   }
 
   private async orderById(
@@ -244,11 +381,17 @@ function setFilter(
   field: string,
   value: string,
   conditionType: string,
+  filter = 0,
 ): void {
-  const prefix = `searchCriteria[filter_groups][${group}][filters][0]`;
+  const prefix = `searchCriteria[filter_groups][${group}][filters][${filter}]`;
   params.set(`${prefix}[field]`, field);
   params.set(`${prefix}[value]`, value);
   params.set(`${prefix}[condition_type]`, conditionType);
+}
+
+function attributeValue(product: MagentoProduct, code: string): string | null {
+  const value = product.custom_attributes?.find((a) => a.attribute_code === code)?.value;
+  return typeof value === 'string' && value ? value : null;
 }
 
 function orderSearchParams(email: string, limit: number): string {

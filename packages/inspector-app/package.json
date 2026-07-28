@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/inspector-app",
-  "version": "4.69.3",
+  "version": "4.71.0",
   "license": "MIT",
   "description": "Munin Inspector MCP App: the ui://munin/inspector panel bundle rendered inline by MCP App hosts.",
   "publishConfig": {
@@ -30,7 +30,9 @@
     "@modelcontextprotocol/client": "2.0.0",
     "@modelcontextprotocol/ext-apps": "^1.7.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-markdown": "^9.0.0",
+    "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",

@@ -21,6 +21,7 @@ import {
   CmsInvalidError,
   CmsService,
   type AssetDto,
+  type AssetUploadHandle,
   type EntryDto,
   type PreviewLinkDto,
 } from '../modules/cms/cms.service.ts';
@@ -44,6 +45,13 @@ const AssetUploadBody = z.object({
   name: z.string().min(1).max(255),
   mime: z.string().min(1).max(120),
   base64Body: z.string().min(1).max(2_800_000),
+  altText: z.string().max(500).optional(),
+});
+
+const AssetUploadRequestBody = z.object({
+  name: z.string().min(1).max(255),
+  mime: z.string().min(1).max(120),
+  sizeBytes: z.number().int().positive(),
   altText: z.string().max(500).optional(),
 });
 
@@ -112,6 +120,32 @@ export class CmsDraftsController {
     });
   }
 
+  @Post(':id/assets/upload-request')
+  @HttpCode(200)
+  async requestAssetUpload(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<AssetUploadHandle> {
+    const parsed = AssetUploadRequestBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(async () => {
+      await this.cms.getEntry(id);
+      return this.cms.requestAssetUpload(parsed.data);
+    });
+  }
+
+  @Post(':id/assets/:assetId/complete')
+  @HttpCode(200)
+  async completeAssetUpload(
+    @Param('id') id: string,
+    @Param('assetId') assetId: string,
+  ): Promise<AssetDto> {
+    return translate(async () => {
+      await this.cms.getEntry(id);
+      return this.cms.completeAssetUpload({ id: assetId });
+    });
+  }
+
   @Post(':id/preview-link')
   @HttpCode(200)
   async previewLink(@Param('id') id: string): Promise<PreviewLinkDto> {
@@ -141,11 +175,13 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
     if (err instanceof CmsInvalidError) {
       throw new BadRequestException(
         err.fieldErrors && err.fieldErrors.length > 0
-          ? { message: err.message, fieldErrors: err.fieldErrors }
-          : err.message,
+          ? { message: err.message, code: err.code, fieldErrors: err.fieldErrors }
+          : { message: err.message, code: err.code },
       );
     }
-    if (err instanceof CmsConflictError) throw new ConflictException(err.message);
+    if (err instanceof CmsConflictError) {
+      throw new ConflictException({ message: err.message, code: err.code });
+    }
     throw err;
   }
 }

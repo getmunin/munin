@@ -1,13 +1,8 @@
 import { useState } from 'react';
 import type { App as McpApp } from '@modelcontextprotocol/ext-apps';
-import {
-  errorText,
-  isProposal,
-  isProposalList,
-  parseToolResult,
-  type Proposal,
-} from '../types';
+import { errorText, isProposal, parseToolResult, type Proposal } from '../types';
 import { Chrome } from '../chrome';
+import { formatAge } from '../format';
 import { useI18n, type Translator } from '../i18n';
 
 type CardState = {
@@ -80,7 +75,7 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
         arguments: { status: 'pending', limit: REFRESH_LIMIT },
       });
       const parsed = parseToolResult(result);
-      if (result.isError || !isProposalList(parsed)) {
+      if (result.isError || !Array.isArray(parsed) || !parsed.every(isProposal)) {
         setListError(errorText(result));
       } else {
         setProposals(parsed);
@@ -207,7 +202,7 @@ function ProposalRow({
           </div>
           <div className="row-subject">{proposal.draftSubject ?? t('proposals.noSubject')}</div>
         </div>
-        <span className="row-age">{age(proposal.createdAt, locale, t)}</span>
+        <span className="row-age">{formatAge(proposal.createdAt, locale, t('proposals.ageNow'))}</span>
         <span className="row-caret">{open ? '−' : '+'}</span>
       </div>
       {open && (
@@ -226,6 +221,7 @@ function ProposalRow({
           {hasEvidence && evidenceOpen && (
             <pre className="evidence">{JSON.stringify(proposal.evidence, null, 2)}</pre>
           )}
+          {revisionNotice(proposal, t)}
           {state.error && <p className="line line-error">{state.error}</p>}
           {proposal.status === 'pending' ? (
             <div className="actions">
@@ -249,6 +245,20 @@ function ProposalRow({
   );
 }
 
+function revisionNotice(proposal: Proposal, t: Translator) {
+  if (!proposal.revisionCount) return null;
+  const key = proposal.revisedAfterReviewAt
+    ? 'proposals.revisedAfterReview'
+    : 'proposals.revised';
+  const className = proposal.revisedAfterReviewAt ? 'line line-error' : 'line line-mute';
+  const notice = t(key, { count: proposal.revisionCount });
+  return (
+    <p className={className}>
+      {proposal.lastRevisionReason ? `${notice} (${proposal.lastRevisionReason})` : notice}
+    </p>
+  );
+}
+
 function decidedLine(
   proposal: Proposal,
   decidedNow: boolean,
@@ -269,6 +279,13 @@ function decidedLine(
           : t('proposals.dismissed'),
         className: 'line-mute',
       };
+    case 'withdrawn':
+      return {
+        text: proposal.withdrawReason
+          ? t('proposals.withdrawnReason', { reason: proposal.withdrawReason })
+          : t('proposals.withdrawn'),
+        className: 'line-mute',
+      };
     case 'failed':
       return {
         text: proposal.failureReason
@@ -279,16 +296,4 @@ function decidedLine(
     default:
       return null;
   }
-}
-
-function age(iso: string, locale: string, t: Translator): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const mins = Math.max(0, Math.floor((Date.now() - then) / 60_000));
-  if (mins < 1) return t('proposals.ageNow');
-  const rtf = new Intl.RelativeTimeFormat(locale, { style: 'short' });
-  if (mins < 60) return rtf.format(-mins, 'minute');
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return rtf.format(-hours, 'hour');
-  return rtf.format(-Math.floor(hours / 24), 'day');
 }

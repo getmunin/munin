@@ -8,7 +8,8 @@ import {
 } from '@nestjs/common';
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import type { Db } from '@getmunin/db';
+import { schema, type Db } from '@getmunin/db';
+import { and, eq } from 'drizzle-orm';
 import {
   InProcessMuninRestClientFactoryService,
   McpRegistryService,
@@ -25,7 +26,7 @@ import {
   type MessageReceivedBusEvent,
   type RealtimeBusSubscription,
 } from '@getmunin/backend-core';
-import { parseEnvBool } from '@getmunin/core';
+import { getCurrentContext, parseEnvBool } from '@getmunin/core';
 import {
   createConversationHandler,
   createPromptResolver,
@@ -79,16 +80,28 @@ const CURATOR_MAX_SCHEDULED_DELAY_MS = 24 * 60 * 60 * 1000;
 const CONVERSATION_SWEEP_LIMIT = 50;
 const CURATOR_MAX_TOOL_ITERATIONS = 16;
 
-const DEFAULT_END_USER_AGENT_SCOPES: readonly string[] = [
-  'bookings:read',
-  'bookings:write',
-  'commerce:read',
+const BASE_END_USER_AGENT_SCOPES: readonly string[] = [
   'conv:read',
   'conv:write',
   'crm:read',
   'crm:write',
   'kb:read',
 ];
+
+const CONNECTOR_DOMAIN_SCOPES: ReadonlyMap<string, readonly string[]> = new Map([
+  ['commerce', ['commerce:read']],
+  ['bookings', ['bookings:read', 'bookings:write']],
+]);
+
+export function endUserScopesForConnectorDomains(
+  domains: readonly string[],
+): readonly string[] {
+  const scopes = [...BASE_END_USER_AGENT_SCOPES];
+  for (const domain of new Set(domains)) {
+    scopes.push(...(CONNECTOR_DOMAIN_SCOPES.get(domain) ?? []));
+  }
+  return scopes;
+}
 
 export type GenerateTrigger = 'chat' | 'scheduled';
 
@@ -441,17 +454,15 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       config: handlerConfig,
       rest,
       prompts,
-      openMcp: ({ endUserId }) =>
-        Promise.resolve(
-          openEndUserAgentMcpClient({
-            db: this.db,
-            orgId,
-            endUserId,
-            registry: this.mcpRegistry,
-            skills: this.mcpSkills,
-            scopes: DEFAULT_END_USER_AGENT_SCOPES,
-          }),
-        ),
+      openMcp: async ({ endUserId }) =>
+        openEndUserAgentMcpClient({
+          db: this.db,
+          orgId,
+          endUserId,
+          registry: this.mcpRegistry,
+          skills: this.mcpSkills,
+          scopes: await this.endUserAgentScopes(id, orgId),
+        }),
       provider,
       beforeGenerate: this.options?.beforeGenerate
         ? () =>
@@ -756,6 +767,32 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         await Promise.allSettled([...inFlight]);
       },
     };
+  }
+
+  private async endUserAgentScopes(configId: string, orgId: string): Promise<readonly string[]> {
+    try {
+      const rows = await runWithServiceContext(
+        this.db,
+        configId,
+        async () => {
+          const ctx = getCurrentContext();
+          return ctx.db
+            .selectDistinct({ domain: schema.connectorConnections.domain })
+            .from(schema.connectorConnections)
+            .where(
+              and(
+                eq(schema.connectorConnections.orgId, orgId),
+                eq(schema.connectorConnections.active, true),
+              ),
+            );
+        },
+        { orgId },
+      );
+      return endUserScopesForConnectorDomains(rows.map((r) => r.domain));
+    } catch (err) {
+      this.scopedLogger(configId, 'chat').warn(`connector scope lookup failed: ${describe(err)}`);
+      return endUserScopesForConnectorDomains([...CONNECTOR_DOMAIN_SCOPES.keys()]);
+    }
   }
 
   private scopedLogger(id: string, sub: string): {

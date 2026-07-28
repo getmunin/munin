@@ -13,6 +13,7 @@ import {
 import { schema, type Db } from '@getmunin/db';
 import { z } from 'zod';
 import { DB } from '../../../common/db/db.module.ts';
+import { readPendingSetup } from '../channels/channel-admin.ts';
 
 const REDACTED = '••••';
 
@@ -127,6 +128,34 @@ export class TwilioSmsService {
     return this.updateChannel({ channelId: input.channelId, config: { authToken: input.authToken } });
   }
 
+  async completeSetup(
+    channelId: string,
+    secrets: Record<string, string>,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const [channel] = await ctx.db
+      .select()
+      .from(schema.convChannels)
+      .where(and(eq(schema.convChannels.id, channelId), eq(schema.convChannels.orgId, actor.orgId)))
+      .limit(1);
+    if (!channel || channel.vendor !== 'twilio') {
+      return { ok: false, error: 'channel no longer exists' };
+    }
+    const pending = readPendingSetup(channel.config);
+    const base = pending ?? nonSecretParts(jsonbToStored(channel.config));
+    const parsed = TwilioSmsConfigInputSchema.safeParse({ ...base, ...secrets });
+    if (!parsed.success) {
+      throw new BadRequestException(`conv_invalid: config for twilio: ${flattenError(parsed.error)}`);
+    }
+    const stored = await this.toStored(parsed.data);
+    await ctx.db
+      .update(schema.convChannels)
+      .set({ config: storedToJsonb(stored), active: true, updatedAt: new Date() })
+      .where(eq(schema.convChannels.id, channelId));
+    return { ok: true, detail: 'credentials saved' };
+  }
+
   private async toStored(input: TwilioSmsConfigInput): Promise<StoredTwilioSmsConfig> {
     return {
       accountSid: input.accountSid,
@@ -151,6 +180,14 @@ export class TwilioSmsService {
       },
     };
   }
+}
+
+function nonSecretParts(stored: StoredTwilioSmsConfig): Record<string, unknown> {
+  return { accountSid: stored.accountSid, fromNumber: stored.fromNumber, messagingServiceSid: stored.messagingServiceSid };
+}
+
+function flattenError(error: z.ZodError): string {
+  return error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
 }
 
 export function storedToJsonb(stored: StoredTwilioSmsConfig): Record<string, unknown> {

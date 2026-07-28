@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { sensitive } from '@getmunin/types';
 import { ChannelAdminService } from './channel-admin.service.ts';
+import { ChannelCredentialService } from './channel-credential.service.ts';
 import type { ChannelAdminDto } from './channel-admin.ts';
+import type { CredentialLink } from '../../credential-handoff/credential-handoff.service.ts';
 
 const E164 = /^\+[1-9]\d{4,18}$/;
 
@@ -22,7 +24,7 @@ const ConfigureInput = z.object({
     z
       .record(z.string(), z.unknown())
       .describe(
-        'Vendor-specific configuration object. The exact fields (and which are secret) come from conv_list_channel_vendors. Plaintext secrets are encrypted before storage and returned redacted.',
+        'Vendor-specific configuration object with the non-secret fields only — conv_list_channel_vendors marks which fields are secret. Secret fields are rejected here; they are entered by a human through the credential link returned on create.',
       ),
   ),
 });
@@ -43,34 +45,18 @@ const SendTestInput = z.object({
 
 const EmptyInput = z.object({});
 
-const ListOptionsInput = z
-  .object({
-    vendor: z
-      .string()
-      .min(1)
-      .max(40)
-      .optional()
-      .describe('Vendor to discover options for (with `config`). Omit when passing `channelId`.'),
-    channelId: z
-      .string()
-      .optional()
-      .describe('Discover options for an existing channel using its stored credentials.'),
-    config: sensitive(
-      z
-        .record(z.string(), z.unknown())
-        .optional()
-        .describe(
-          'Vendor credentials to discover with before the channel exists (e.g. Threll `apiKey`+`accountId`, Vapi `apiKey`). Required with `vendor`.',
-        ),
-    ),
-  })
-  .refine((v) => Boolean(v.channelId) || Boolean(v.vendor && v.config), {
-    message: 'pass channelId, or vendor + config',
-  });
+const ListOptionsInput = z.object({
+  channelId: z
+    .string()
+    .describe('Discover options for an existing channel using its stored credentials.'),
+});
 
 @Injectable()
 export class ChannelAdminTools {
-  constructor(@Inject(ChannelAdminService) private readonly svc: ChannelAdminService) {}
+  constructor(
+    @Inject(ChannelAdminService) private readonly svc: ChannelAdminService,
+    @Inject(ChannelCredentialService) private readonly credentials: ChannelCredentialService,
+  ) {}
 
   @McpTool({
     name: 'conv_list_channel_vendors',
@@ -91,7 +77,7 @@ export class ChannelAdminTools {
     name: 'conv_list_channel_options',
     title: 'Conv: List a channel vendor’s selectable options',
     description:
-      'Discover the selectable options a vendor needs before you configure a channel — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_channel instead of guessing. Pass `vendor` + `config` (credentials) before the channel exists, or `channelId` for an existing channel. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.',
+      'Discover the selectable options a channel’s vendor offers using the channel’s stored credentials — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_channel instead of guessing. The channel must have completed its credential link first. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: ListOptionsInput,
@@ -99,31 +85,35 @@ export class ChannelAdminTools {
     destructiveHint: false,
   })
   listOptions(args: z.infer<typeof ListOptionsInput>) {
-    return this.svc.listOptions({
-      vendor: args.vendor,
-      channelId: args.channelId,
-      config: args.config,
-    });
+    return this.svc.listOptions({ channelId: args.channelId });
   }
 
   @McpTool({
     name: 'conv_configure_channel',
     title: 'Conv: Configure a voice/SMS channel',
     description:
-      'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + a vendor-specific `config` object (see conv_list_channel_vendors). Pass `channelId` to update; omit to create. Plaintext secrets in `config` are encrypted before storage and returned redacted.',
+      'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_channel_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: ConfigureInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  configure(args: z.infer<typeof ConfigureInput>): Promise<ChannelAdminDto> {
-    return this.svc.configure({
-      vendor: args.vendor,
-      channelId: args.channelId,
-      name: args.name,
-      config: args.config,
-    });
+  async configure(
+    args: z.infer<typeof ConfigureInput>,
+  ): Promise<ChannelAdminDto & { credentialLink?: CredentialLink }> {
+    const result = await this.svc.configure(
+      {
+        vendor: args.vendor,
+        channelId: args.channelId,
+        name: args.name,
+        config: args.config,
+      },
+      { rejectSecrets: true },
+    );
+    if (args.channelId || result.active) return result;
+    const credentialLink = await this.credentials.requestLink(result.id);
+    return { ...result, credentialLink };
   }
 
   @McpTool({

@@ -3881,7 +3881,7 @@
   {
     "name": "conv_list_channel_options",
     "title": "Conv: List a channel vendor’s selectable options",
-    "description": "Discover the selectable options a vendor needs before you configure a channel — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_channel instead of guessing. Pass `vendor` + `config` (credentials) before the channel exists, or `channelId` for an existing channel. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.",
+    "description": "Discover the selectable options a channel’s vendor offers using the channel’s stored credentials — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_channel instead of guessing. The channel must have completed its credential link first. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.",
     "audiences": [
       "admin"
     ],
@@ -3894,32 +3894,21 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "vendor": {
-          "description": "Vendor to discover options for (with `config`). Omit when passing `channelId`.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 40
-        },
         "channelId": {
-          "description": "Discover options for an existing channel using its stored credentials.",
-          "type": "string"
-        },
-        "config": {
-          "description": "Vendor credentials to discover with before the channel exists (e.g. Threll `apiKey`+`accountId`, Vapi `apiKey`). Required with `vendor`.",
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "type": "string",
+          "description": "Discover options for an existing channel using its stored credentials."
         }
       },
+      "required": [
+        "channelId"
+      ],
       "additionalProperties": false
     }
   },
   {
     "name": "conv_configure_channel",
     "title": "Conv: Configure a voice/SMS channel",
-    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + a vendor-specific `config` object (see conv_list_channel_vendors). Pass `channelId` to update; omit to create. Plaintext secrets in `config` are encrypted before storage and returned redacted.",
+    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_channel_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create.",
     "audiences": [
       "admin"
     ],
@@ -3954,7 +3943,7 @@
             "type": "string"
           },
           "additionalProperties": {},
-          "description": "Vendor-specific configuration object. The exact fields (and which are secret) come from conv_list_channel_vendors. Plaintext secrets are encrypted before storage and returned redacted."
+          "description": "Vendor-specific configuration object with the non-secret fields only — conv_list_channel_vendors marks which fields are secret. Secret fields are rejected here; they are entered by a human through the credential link returned on create."
         }
       },
       "required": [

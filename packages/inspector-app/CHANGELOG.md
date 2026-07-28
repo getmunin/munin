@@ -1,5 +1,12 @@
 # @getmunin/inspector-app
 
+## 4.71.0
+
+### Patch Changes
+
+- @getmunin/dashboard-pages@4.71.0
+- @getmunin/ui@4.71.0
+
 ## 4.70.1
 
 ### Patch Changes

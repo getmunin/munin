@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@getmunin/core": "workspace:*",
-    "@modelcontextprotocol/client": "2.0.0-beta.5",
+    "@modelcontextprotocol/client": "2.0.0",
     "defuddle": "^0.18.1",
     "jsdom": "^24.0.0",
     "ws": "^8.21.0",

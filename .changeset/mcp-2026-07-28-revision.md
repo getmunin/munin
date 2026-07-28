@@ -22,6 +22,10 @@ validation); existing 2025-era clients keep working unchanged.
   `cacheScope` on the 2026 revision, scoped `private` because listings are filtered
   per actor audience and scopes.
 - `tools/list` is now returned in a stable, name-sorted order so clients can cache it.
+- POSTs to `/mcp` whose `Content-Type` media type is not `application/json` are
+  rejected with `415 Unsupported Media Type` (SDK v2 parses the header instead of
+  substring-matching it). MCP SDK clients always send `application/json`; parameters
+  like `charset=utf-8` continue to work.
 - The authorization server advertises
   `authorization_response_iss_parameter_supported` (RFC 9207 / SEP-2468), which
   BetterAuth already emits, and derives its BetterAuth `baseUrl` from

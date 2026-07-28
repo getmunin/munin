@@ -238,6 +238,48 @@ const skipReason = TEST_URL
     expect(body.error?.code).toBe(-32020);
   });
 
+  it('rejects a POST whose Content-Type is not application/json with 415', async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${adminKey}`,
+        'content-type': 'text/plain',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+    expect(res.status).toBe(415);
+  });
+
+  it('accepts application/json with a charset parameter on the 2026 entry', async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${adminKey}`,
+        'content-type': 'application/json; charset=utf-8',
+        accept: 'application/json, text/event-stream',
+        'MCP-Protocol-Version': '2026-07-28',
+        'Mcp-Method': 'tools/call',
+        'Mcp-Name': 'ping',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'ping',
+          arguments: { message: 'charset' },
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+            'io.modelcontextprotocol/clientInfo': { name: 'munin-it', version: '0.0.0' },
+            'io.modelcontextprotocol/clientCapabilities': {},
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+  });
+
   it('admin sees skills via resources/list and can read them', async () => {
     await withClient(adminKey, async (c) => {
       const { resources } = await c.listResources();

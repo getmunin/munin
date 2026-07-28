@@ -4663,7 +4663,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## @modelcontextprotocol/client@2.0.0-beta.5
+## @modelcontextprotocol/client@2.0.0
 
 > Model Context Protocol implementation for TypeScript - Client package
 - Homepage: https://modelcontextprotocol.io
@@ -4891,7 +4891,7 @@ the full license text.
 
 ---
 
-## @modelcontextprotocol/core@2.0.0-beta.5
+## @modelcontextprotocol/core@2.0.0
 
 > Model Context Protocol for TypeScript — public Zod schemas (spec + OAuth/OpenID)
 - Homepage: https://modelcontextprotocol.io
@@ -5347,7 +5347,7 @@ the full license text.
 
 ---
 
-## @modelcontextprotocol/node@2.0.0-beta.5
+## @modelcontextprotocol/node@2.0.0
 
 > Model Context Protocol implementation for TypeScript - Node.js middleware
 - Homepage: https://modelcontextprotocol.io
@@ -5608,7 +5608,7 @@ SOFTWARE.
 
 ---
 
-## @modelcontextprotocol/server@2.0.0-beta.5
+## @modelcontextprotocol/server@2.0.0
 
 > Model Context Protocol implementation for TypeScript - Server package
 - Homepage: https://modelcontextprotocol.io

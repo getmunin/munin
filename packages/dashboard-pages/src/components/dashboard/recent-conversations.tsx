@@ -82,7 +82,7 @@ export function RecentConversationsSection({
           <ConversationRow
             key={c.id}
             conv={c}
-            onOpen={() => controller.setConvDrawer({ id: c.id, mode: 'full' })}
+            onOpen={(title) => controller.setConvDrawer({ id: c.id, mode: 'full', title })}
           />
         ))}
       </ul>
@@ -95,7 +95,7 @@ function ConversationRow({
   onOpen,
 }: {
   conv: ConversationSummary;
-  onOpen: () => void;
+  onOpen: (title: string) => void;
 }) {
   const t = useTranslations('dashboard.overview.recentConversations');
   const age = useRelative();
@@ -107,13 +107,13 @@ function ConversationRow({
     <li className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
       <div
         className="group/cnvrow relative flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
-        onClick={onOpen}
+        onClick={() => onOpen(title)}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onOpen();
+            onOpen(title);
           }
         }}
       >

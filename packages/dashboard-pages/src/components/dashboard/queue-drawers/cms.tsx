@@ -20,9 +20,9 @@ import {
 } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
 import {
-  DrawerErrorState,
   DrawerFooter,
   DrawerHeader,
+  DrawerLoadFailed,
   DrawerLoadingState,
   Markdown,
   useCmdEnter,
@@ -73,11 +73,13 @@ export function CmsQueueDrawer({
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
+  const tCommon = useTranslations('common');
   const age = useRelative();
 
   const fields = detail?.fields ?? EMPTY_FIELDS;
   const initialData: EditableData = detail?.data ?? EMPTY_DATA;
   const blocked = pending || !detail;
+  const loadFailed = !detail && loadError !== undefined;
 
   const [editing, setEditing] = useState(false);
   const [editedData, setEditedData] = useState<EditableData>(initialData);
@@ -212,10 +214,13 @@ export function CmsQueueDrawer({
             />
           ))}
         </div>
-      ) : loadError ? (
-        <DrawerErrorState
-          message={t('detailLoadFailed')}
-          retryLabel={t('retry')}
+      ) : loadError !== undefined ? (
+        <DrawerLoadFailed
+          eyebrow={t('loadFailedEyebrow')}
+          title={t('detailLoadFailed')}
+          reason={loadError}
+          retryLabel={tCommon('retry')}
+          retryingLabel={tCommon('retrying')}
           onRetry={onRetry}
         />
       ) : (
@@ -232,7 +237,7 @@ export function CmsQueueDrawer({
           secondary={[{ label: t('cancel'), onClick: cancelEdit }]}
           shortcut={t('shortcutSave')}
         />
-      ) : (
+      ) : loadFailed ? null : (
         <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
           <Dialog
             open={schedulerOpen}

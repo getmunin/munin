@@ -1,6 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { MoreHorizontal } from 'lucide-react';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@getmunin/ui';
 import { VendorIcon } from './vendor-catalog';
 
 export function SectionHeading({
@@ -40,6 +47,7 @@ export function IntegrationCard({
   meta,
   description,
   footer,
+  menu,
 }: {
   vendor: string;
   name: string;
@@ -47,7 +55,9 @@ export function IntegrationCard({
   meta?: ReactNode;
   description: string;
   footer: ReactNode;
+  menu?: ReactNode;
 }) {
+  const showInstance = instance !== undefined && instance !== '' && instance !== name;
   return (
     <div className="flex flex-col gap-3 border-[1px] border-rule-soft bg-paper p-5 dark:border-rule-on-dark dark:bg-card">
       <div className="flex items-center gap-3">
@@ -55,14 +65,38 @@ export function IntegrationCard({
         <div className="flex min-w-0 flex-col gap-1">
           <span className="truncate text-sm font-medium text-ink dark:text-foreground">
             {name}
-            {instance ? <span className="text-ink-mute"> · {instance}</span> : null}
+            {showInstance ? <span className="text-ink-mute"> · {instance}</span> : null}
           </span>
           {meta}
         </div>
+        {menu ? <div className="ml-auto flex-none self-start">{menu}</div> : null}
       </div>
       <p className="flex-1 text-[13px] leading-snug text-ink-mute">{description}</p>
       <div className="flex flex-wrap items-center gap-2">{footer}</div>
     </div>
+  );
+}
+
+export function CardMenu({
+  label,
+  disabled,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="icon-sm" aria-label={label} disabled={disabled} />
+        }
+      >
+        <MoreHorizontal className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -5,12 +5,12 @@ import { useTranslations } from 'next-intl';
 import { Button, Pill, Sheet, SheetContent } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import { QueueDrawer } from './queue-drawers';
+import { DrawerHeader, DrawerLoadFailed } from './queue-drawers/shared';
 import { queueLabelKey, queueTone } from './queue-drawers/types';
 import type { QueueItem } from './queue-drawers/types';
 import { useInboxData } from './inbox-data';
 import { truncate } from './inbox-helpers';
 import {
-  DrawerLoadFailed,
   FullConvDrawer,
   InlineActionError,
   SimplifiedConvDrawer,
@@ -111,6 +111,7 @@ export function QueueSection({ controller }: { controller: InboxController }) {
 
 export function InboxDrawers({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.drawer');
+  const tCommon = useTranslations('common');
   const {
     convDrawer,
     setConvDrawer,
@@ -144,7 +145,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     scheduleQueue,
   } = controller;
   const selectedConv = convDrawer ? details[convDrawer.id] : null;
-  const convError = convDrawer ? detailErrors[convDrawer.id] : null;
+  const convLoadError = convDrawer ? detailErrors[convDrawer.id] : null;
   const drawerActionError =
     convDrawer && actionError?.conversationId === convDrawer.id ? actionError : null;
 
@@ -187,13 +188,24 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
                 onClearActionError={clearActionError}
               />
             )
-          ) : convDrawer && convError ? (
-            <DrawerLoadFailed
-              message={convError}
-              retrying={pending}
-              onRetry={() => void reloadDetail(convDrawer.id)}
-              onClose={() => setConvDrawer(null)}
-            />
+          ) : convDrawer && convLoadError ? (
+            <>
+              <DrawerHeader
+                pillTone="ink"
+                pillLabel={t('pillConversation')}
+                title={convDrawer.title ?? t('conversationUnknown')}
+                onClose={() => setConvDrawer(null)}
+                closeLabel={t('close')}
+              />
+              <DrawerLoadFailed
+                eyebrow={t('loadFailedEyebrow')}
+                title={t('loadFailedTitle')}
+                reason={convLoadError}
+                retryLabel={tCommon('retry')}
+                retryingLabel={tCommon('retrying')}
+                onRetry={() => reloadDetail(convDrawer.id)}
+              />
+            </>
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-ink-mute">
               <MessageSquare className="mr-2 size-4" /> {t('loading')}
@@ -211,8 +223,8 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
               cmsDetail={
                 queueDrawer.kind === 'cms' ? cmsDetails[queueDrawer.id] : undefined
               }
-              detailError={queueDetailErrors[queueDrawer.id]}
-              onRetryDetail={() => reloadQueueDetail(queueDrawer.id)}
+              loadError={queueDetailErrors[queueDrawer.id]}
+              onRetry={() => reloadQueueDetail(queueDrawer.id)}
               pending={pending}
               onApprove={() => void approveQueue(queueDrawer)}
               onDismiss={() => void dismissQueue(queueDrawer)}
@@ -310,11 +322,7 @@ function LiveCard({
         </div>
         <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
           {actionError ? (
-            <InlineActionError
-              action={actionError.type}
-              message={actionError.message}
-              onRetry={retryAction}
-            />
+            <InlineActionError error={actionError} onRetry={retryAction} />
           ) : claimed ? (
             <Button variant="accent" size="sm" onClick={() => onOpen('full')}>
               {t('chat')}

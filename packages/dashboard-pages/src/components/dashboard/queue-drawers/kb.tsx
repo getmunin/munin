@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRelative } from '../../../lib/use-relative';
 import {
-  DrawerErrorState,
   DrawerFooter,
   DrawerHeader,
+  DrawerLoadFailed,
   DrawerLoadingState,
   Markdown,
   useCmdEnter,
@@ -36,9 +36,11 @@ export function KbQueueDrawer({
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
+  const tCommon = useTranslations('common');
   const age = useRelative();
   const initialBody = body ?? '';
   const blocked = pending || body === undefined;
+  const loadFailed = body === undefined && loadError !== undefined;
   const [editing, setEditing] = useState(false);
   const [editedBody, setEditedBody] = useState(initialBody);
 
@@ -113,10 +115,13 @@ export function KbQueueDrawer({
             )}
           </section>
         </div>
-      ) : loadError ? (
-        <DrawerErrorState
-          message={t('detailLoadFailed')}
-          retryLabel={t('retry')}
+      ) : loadError !== undefined ? (
+        <DrawerLoadFailed
+          eyebrow={t('loadFailedEyebrow')}
+          title={t('detailLoadFailed')}
+          reason={loadError}
+          retryLabel={tCommon('retry')}
+          retryingLabel={tCommon('retrying')}
           onRetry={onRetry}
         />
       ) : (
@@ -133,7 +138,7 @@ export function KbQueueDrawer({
           secondary={[{ label: t('cancel'), onClick: cancelEdit }]}
           shortcut={t('shortcutSave')}
         />
-      ) : (
+      ) : loadFailed ? null : (
         <DrawerFooter
           primary={{ label: t('approve'), onClick: onApprove, disabled: blocked }}
           secondary={[

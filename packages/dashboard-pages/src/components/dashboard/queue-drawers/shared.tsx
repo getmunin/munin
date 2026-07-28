@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Button, Pill, cn } from '@getmunin/ui';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -97,24 +97,49 @@ export function DrawerLoadingState({ label }: { label: string }) {
   );
 }
 
-export function DrawerErrorState({
-  message,
+export function DrawerLoadFailed({
+  eyebrow,
+  title,
+  reason,
   retryLabel,
+  retryingLabel,
   onRetry,
 }: {
-  message: string;
+  eyebrow: string;
+  title: string;
+  reason: string;
   retryLabel: string;
-  onRetry: () => void;
+  retryingLabel: string;
+  onRetry: () => void | Promise<void>;
 }) {
+  const [retrying, setRetrying] = useState(false);
+  const retry = async () => {
+    setRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      setRetrying(false);
+    }
+  };
   return (
     <div
-      className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center"
+      className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
       role="alert"
     >
-      <AlertCircle className="size-6 text-destructive" aria-hidden />
-      <p className="text-sm text-ink-mute">{message}</p>
-      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-        {retryLabel}
+      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
+        {eyebrow}
+      </p>
+      <h3 className="font-serif text-xl leading-tight text-ink dark:text-foreground">{title}</h3>
+      <p className="text-sm text-ink-mute">{reason}</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-2"
+        onClick={() => void retry()}
+        disabled={retrying}
+      >
+        {retrying ? retryingLabel : retryLabel}
       </Button>
     </div>
   );

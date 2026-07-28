@@ -63,6 +63,7 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
       method,
       requestId: null,
       message: "Couldn't reach Munin. Check your connection.",
+      code: 'NETWORK_ERROR',
     });
   }
   if (!res.ok) {

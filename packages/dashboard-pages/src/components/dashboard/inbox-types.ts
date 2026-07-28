@@ -62,7 +62,7 @@ export interface ActivityDto {
   createdAt: string;
 }
 
-export type ConvDrawer = { id: string; mode: 'simplified' | 'full' } | null;
+export type ConvDrawer = { id: string; mode: 'simplified' | 'full'; title?: string } | null;
 
 export type LiveSummary = ConversationSummary & {
   latestEndUserMessage: { body: string; createdAt: string } | null;
@@ -81,7 +81,12 @@ export interface InboxQueueResponse {
 }
 
 export type ConvActionError =
-  | { type: 'send' | 'takeOver' | 'release' | 'close'; conversationId: string; message: string }
+  | {
+      type: 'send' | 'takeOver' | 'release' | 'close';
+      conversationId: string;
+      message: string;
+      code: string | null;
+    }
   | null;
 
 export interface InboxController {

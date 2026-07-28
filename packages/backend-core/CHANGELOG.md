@@ -1,5 +1,34 @@
 # @getmunin/backend-core
 
+## 4.71.0
+
+### Minor Changes
+
+- 426a66e: CMS: keep the master, serve derivatives. Image assets now carry a ladder of WebP renditions and the delivery API hands out the light one.
+
+  Until now an asset was delivered exactly as uploaded. The dashboard downscaled client-side before upload, but every other path — `cms_upload_asset_from_base64`, `cms_upload_asset_from_url`, presigned uploads, and generated images — stored whatever bytes arrived and served them verbatim. A 2.2MB PNG hero and a 99KB hand-uploaded JPEG could sit in the same library with no policy between them.
+
+  - `cms_assets` gains `width`, `height`, `variants`, and `variants_version`. Variants are derived state: the original upload is always preserved as the master at `public_url`.
+  - Uploads derive renditions at 320/640/1024/1536/2048px plus one full-size recompress (capped at 2560px), skipping any width at or above the source so nothing is ever upscaled. WebP at quality 80. For a 1536×1024 master the whole ladder costs ~10% of the master's bytes.
+  - The delivery API rewrites inline `asset://` tokens to the widest variant instead of the master, and `AssetSummary` (typed asset fields and the `_assets` sidecar) now carries `width`, `height`, and the full variant list so consumers can build a `srcset`. Assets without variants keep resolving to the master, so nothing breaks while the library converges.
+  - Generation is not a one-shot backfill. The existing CMS worker reconciles any asset below the current ladder version, which covers assets that predate this change, presigned uploads whose bytes arrived late, and generation that failed on the upload path. Changing the ladder later is a version bump rather than a new migration script, and generation on upload is therefore an optimisation rather than a correctness requirement.
+  - Non-images and undecodable bytes are settled once so the worker stops reclaiming them. Batch size is tunable with `MUNIN_CMS_VARIANT_BATCH` (default 10 per tick).
+
+- 0b864a4: Add live product-catalog lookups to the commerce connector domain: `commerce_search_products` and `commerce_get_product` (admin + self-service) return published products with price range, storefront link, description, and per-variant price and `availableForSale`. Shopify searches are pinned to `status:active` with operator-safe token quoting and need the `read_products` scope; Magento reads enabled+visible products via searchCriteria, expands configurable children, and reports stock from `stockItems` (null when the CatalogInventory ACL is missing). Ships with the `skill://commerce/answer-product-questions` skill and updated connect instructions.
+- 5b49ac1: Slack outreach approvals now thread per campaign instead of posting one standalone message per draft: a parent message carries a live pending count (flipping to an all-handled banner at zero, with one parent per campaign per UTC day, so daily waves never land in a buried thread), each draft posts as a compact thread reply with a shorter body preview, and a new _View full draft_ button opens the complete subject and body in a Slack modal so reviewing no longer requires the dashboard.
+
+### Patch Changes
+
+- Updated dependencies [426a66e]
+- Updated dependencies [5b49ac1]
+  - @getmunin/core@4.71.0
+  - @getmunin/db@4.71.0
+  - @getmunin/types@4.71.0
+  - @getmunin/agent-runtime@4.71.0
+  - @getmunin/mcp-toolkit@4.71.0
+  - @getmunin/inspector-app@4.71.0
+  - @getmunin/emails@4.71.0
+
 ## 4.70.1
 
 ### Patch Changes

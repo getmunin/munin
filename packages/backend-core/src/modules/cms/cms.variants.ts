@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import type { AssetStorage } from '@getmunin/core';
 import type { AssetVariant } from '@getmunin/types';
 
-export const VARIANT_LADDER_VERSION = 1;
+export const VARIANT_LADDER_VERSION = 2;
 
 const LADDER_WIDTHS = [320, 640, 1024, 1536, 2048];
 const FULL_WIDTH_CAP = 2560;
@@ -96,8 +96,13 @@ export async function deriveVariantColumns(
   const rendered = await renderVariants(input.body, source);
 
   const variants: AssetVariant[] = [];
+  const superseded: string[] = [];
   for (const variant of rendered) {
     const key = variantKeyFor(input.storageKey, variant.width);
+    if (variant.body.length >= input.body.length) {
+      superseded.push(key);
+      continue;
+    }
     await storage.writeDirect(key, variant.body, { mime: 'image/webp' });
     variants.push({
       width: variant.width,
@@ -108,6 +113,7 @@ export async function deriveVariantColumns(
       sizeBytes: variant.body.length,
     });
   }
+  await discardSuperseded(storage, superseded);
 
   return {
     width: source.width,
@@ -126,6 +132,14 @@ export function widestVariantUrl(asset: {
     null,
   );
   return widest?.publicUrl ?? asset.publicUrl;
+}
+
+async function discardSuperseded(storage: AssetStorage, keys: string[]): Promise<void> {
+  for (const key of keys) {
+    await storage.delete(key).catch((err: unknown) => {
+      console.warn(`[cms.variants] could not remove superseded ${key}: ${describeSharpError(err)}`);
+    });
+  }
 }
 
 function describeSharpError(err: unknown): string {

@@ -2,7 +2,9 @@
 '@getmunin/dashboard-pages': patch
 ---
 
-Dashboard: one load-failure state across the inbox drawers, and no more half-translated error copy.
+Dashboard: consistent load-failure states in the inbox drawers, and one action shape for every integration card.
+
+## Inbox drawers
 
 A failed detail fetch looked like two different products depending on which drawer you were in: the conversation drawer replaced the whole drawer with a left-aligned eyebrow + serif heading + accent Retry + Close, while the queue drawers kept their header and footer and showed a centered icon with one grey line and a small outline Retry. Neither was wrong on its own; together they read as unfinished.
 
@@ -13,3 +15,12 @@ A failed detail fetch looked like two different products depending on which draw
 - **The dead footer goes.** A queue drawer whose body failed to load kept a footer of disabled Approve/Edit/Dismiss buttons plus a `⌘↵` hint for a shortcut already guarded to a no-op. When the load fails there is nothing to act on, so the footer isn't rendered.
 - One name per value across the drawer boundary: `QueueDrawer`'s `detailError` / `onRetryDetail` props are now `loadError` / `onRetry`, matching what they were already renamed to one level down, and the derived boolean is `loadFailed` in both queue drawers (`convLoadError` in the conversation drawer). The controller keeps `detailErrors` / `queueDetailErrors`, which distinguish per-item detail fetches from the page-level `loadError` on the same object.
 - Drops the duplicate `dashboard.overview.drawer.retry` key in favour of `common.retry` / `common.retrying` — identical strings in both locales, and the divergence started with the two error states each picking a different one.
+
+## Integrations page
+
+A connected Slack card carried three same-weight footer buttons — Configure, Test, Remove — against two on a connected connector, so nothing read as primary, the destructive action sat one pixel from Test at equal visual weight, and a fourth action would have wrapped the row inside a three-across grid.
+
+- **`IntegrationCard` takes a `menu` slot**, rendered top-right, and every footer is now exactly one button — so the cards line up across the grid and per-vendor differences cost no layout. Slack connected: primary *Configure*, menu *Test* + *Remove*. Connector: primary *Test* (or *Enter credentials* while pending), menu *Remove*. Unconnected cards keep their single *Connect* and get no menu at all. The trigger reuses the `MoreHorizontal` + `DropdownMenu` idiom the CMS queue drawer already uses, with `Remove` as a `destructive` item below a separator — destructive is never inline now.
+- Slack legitimately has one more capability than a connector (routing lives in Munin; a connector's credentials *are* its config), so the fix isn't to remove the action — it's to stop the card surface from exposing that as a longer row of identical buttons.
+- **Suppresses the instance suffix when it equals the vendor name.** A connection a customer names after its own vendor rendered as "Shopify · Shopify".
+- **Retitles the page in the house voice.** It was the only settings page whose title was a marketing sentence rather than a short raven-flavoured line ("Keys to the *gate*.", "The *council*.") and the only one whose eyebrow lacked the `Category ·` prefix. Now `Workspace · Integrations` / "Out into the *world*." — the ravens flying out to other systems — with a lede that covers both sections instead of only the operator bridges.

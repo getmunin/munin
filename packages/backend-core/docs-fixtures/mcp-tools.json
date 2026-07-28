@@ -8239,7 +8239,7 @@
   {
     "name": "connectors_create_connection",
     "title": "Connectors: Connect a system",
-    "description": "Create a connection to a third-party system. `config` is vendor-shaped — connectors_list_vendors returns the exact fields each vendor needs. The vendor determines the domain (commerce, bookings). Omit the secret fields to create a pending connection and get a one-time link for a human to enter them in the dashboard, instead of pasting secrets into this conversation. Secrets are encrypted at rest and never returned. Connection names must be unique within the org.",
+    "description": "Create a connection to a third-party system. `config` takes the vendor’s non-secret fields only — connectors_list_vendors returns the exact fields and marks which are secret. Secret fields are rejected here: the connection is created pending and the response includes a one-time link for a human to enter the secrets in the dashboard. The vendor determines the domain (commerce, bookings). Connection names must be unique within the org.",
     "audiences": [
       "admin"
     ],
@@ -8307,7 +8307,7 @@
   {
     "name": "connectors_update_connection",
     "title": "Connectors: Update a connection",
-    "description": "Rename, activate/deactivate, or reconfigure a connection. When passing `config`, supply the full vendor config; secret fields may be omitted to keep the stored values.",
+    "description": "Rename, activate/deactivate, or reconfigure a connection. When passing `config`, supply the full non-secret vendor config; the stored secret values are kept. Secret fields are rejected here — to rotate a secret, delete the connection and create it again, entering the new secret through the credential link.",
     "audiences": [
       "admin"
     ],

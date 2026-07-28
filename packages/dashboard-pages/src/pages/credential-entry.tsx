@@ -28,7 +28,9 @@ export function CredentialEntryPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ ok: boolean; message: string } | null>(null);
+  const [done, setDone] = useState<{ ok: boolean; message: string; retryable?: boolean } | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!token) {
@@ -62,10 +64,15 @@ export function CredentialEntryPage() {
         message: res.ok ? (res.detail ?? t('successBody')) : (res.error ?? t('savedButUntested')),
       });
     } catch (err) {
-      setDone({ ok: false, message: translate(err) });
+      setDone({ ok: false, message: translate(err), retryable: true });
     } finally {
       setBusy(false);
     }
+  }
+
+  function retry() {
+    setValues({});
+    setDone(null);
   }
 
   return (
@@ -73,17 +80,22 @@ export function CredentialEntryPage() {
       <Hero eyebrow={t('eyebrow')} title={t('title')} lede={t('lede')} />
       <Card className="mt-8">
         {loadError ? (
-          <CardContent className="pt-6">
+          <CardContent>
             <p className="text-sm text-destructive">{loadError}</p>
           </CardContent>
         ) : done ? (
-          <CardContent className="pt-6">
+          <CardContent className="space-y-4">
             <p className={`text-sm ${done.ok ? 'text-foreground' : 'text-destructive'}`}>
               {done.ok ? t('success') : t('failure')} {done.message}
             </p>
+            {!done.ok && done.retryable && (
+              <Button type="button" variant="outline" className="w-full" onClick={retry}>
+                {t('retry')}
+              </Button>
+            )}
           </CardContent>
         ) : !pending ? (
-          <CardContent className="pt-6">
+          <CardContent>
             <p className="text-sm text-muted-foreground">{t('loading')}</p>
           </CardContent>
         ) : (

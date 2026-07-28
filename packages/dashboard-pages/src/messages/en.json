@@ -1409,7 +1409,8 @@
     "success": "Done.",
     "successBody": "Your credentials were saved and verified.",
     "savedButUntested": "Credentials saved, but the test call didn't succeed — check them and try again from the dashboard.",
-    "failure": "Couldn't save."
+    "failure": "Couldn't save.",
+    "retry": "Try again"
   },
   "assistants": {
     "list": {

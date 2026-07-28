@@ -123,6 +123,44 @@ const skipReason = TEST_URL
     });
   }
 
+  it('completeSetup on a pending channel provisions the webhook and activates it', async () => {
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [pending] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'voice',
+        vendor: 'threll',
+        name: 'Threll pending',
+        config: { pendingSetup: { workerId: WORKER_ID, accountId: ACCOUNT_ID } },
+        active: false,
+      })
+      .returning();
+
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('system', 'credential-handoff', orgId, ['*'], ['admin']);
+    const result = await runAsActor(actor, () => svc.completeSetup(pending!.id, { apiKey: API_KEY }));
+    expect(result.ok).toBe(true);
+    expect(createSubSpy).toHaveBeenCalledWith({
+      apiKey: API_KEY,
+      accountId: ACCOUNT_ID,
+      url: `https://munin.example/v1/conversations/channels/${pending!.id}/webhook`,
+    });
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db
+      .select()
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, pending!.id))
+      .limit(1);
+    expect(rows[0]!.active).toBe(true);
+    const config = rows[0]!.config as Record<string, string>;
+    expect(config.pendingSetup).toBeUndefined();
+    expect(await client.loadSecret(config.encryptedWebhookSecret!)).toBe(WEBHOOK_SECRET);
+    expect(await client.loadSecret(config.encryptedApiKey!)).toBe(API_KEY);
+    expect(JSON.stringify(config)).not.toContain(API_KEY);
+  });
+
   it('auto-provisions the Threll webhook subscription and stores the returned secret', async () => {
     expect(createSubSpy).toHaveBeenCalledWith({
       apiKey: API_KEY,

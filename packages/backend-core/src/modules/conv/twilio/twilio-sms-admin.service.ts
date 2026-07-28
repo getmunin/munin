@@ -56,6 +56,13 @@ export class TwilioSmsAdminService {
     @Inject(DB) private readonly db: Db,
   ) {}
 
+  completeSetup(
+    channelId: string,
+    secrets: Record<string, string>,
+  ): Promise<{ ok: boolean; detail?: string; error?: string }> {
+    return this.svc.completeSetup(channelId, secrets);
+  }
+
   async configure(args: z.infer<typeof ConfigureInput>): Promise<TwilioSmsChannelDto> {
     if (args.channelId) {
       return this.svc.updateChannel({

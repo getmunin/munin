@@ -76,3 +76,4 @@ export {
   type EventModule,
 } from './event-catalog.ts';
 export { type WebImportProgress } from './web-import.ts';
+export { type AssetVariant } from './asset-variants.ts';

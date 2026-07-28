@@ -1,3 +1,6 @@
+import type { AssetVariant } from '@getmunin/types';
+import { widestVariantUrl } from './cms.variants.ts';
+
 export const FIELD_TYPES = [
   'text',
   'rich_text',
@@ -321,6 +324,9 @@ export interface AssetSummary {
   altText: string | null;
   mime: string;
   sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  variants: AssetVariant[];
 }
 
 export interface ExpandedEntry {
@@ -475,7 +481,7 @@ export function rewriteInlineAssets(
       if (typeof value !== 'string') continue;
       out[field.name] = value.replace(ASSET_URI_PATTERN, (match, id: string) => {
         const asset = assets.get(id);
-        return asset ? asset.publicUrl : match;
+        return asset ? widestVariantUrl(asset) : match;
       });
     } else if (field.type === 'blocks' && Array.isArray(value)) {
       out[field.name] = mapBlocks(field, value, (bf, props) =>

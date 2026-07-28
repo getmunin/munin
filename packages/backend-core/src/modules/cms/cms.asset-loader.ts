@@ -16,6 +16,9 @@ export async function loadAssetMap(
       altText: schema.cmsAssets.altText,
       mime: schema.cmsAssets.mime,
       sizeBytes: schema.cmsAssets.sizeBytes,
+      width: schema.cmsAssets.width,
+      height: schema.cmsAssets.height,
+      variants: schema.cmsAssets.variants,
       uploaded: schema.cmsAssets.uploaded,
     })
     .from(schema.cmsAssets)
@@ -29,6 +32,9 @@ export async function loadAssetMap(
       altText: r.altText,
       mime: r.mime,
       sizeBytes: r.sizeBytes,
+      width: r.width,
+      height: r.height,
+      variants: r.variants,
     });
   }
   return map;

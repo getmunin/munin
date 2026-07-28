@@ -35005,7 +35005,7 @@ SOFTWARE.
 
 ---
 
-## semver@6.3.1, 7.7.4, 7.8.5
+## semver@6.3.1, 7.8.5
 
 > The semantic version parser used by npm.
 - Homepage: https://github.com/npm/node-semver#readme

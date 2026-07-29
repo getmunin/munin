@@ -22,7 +22,6 @@ import { SlackService, decryptSecretValue } from './slack.service.ts';
 import {
   APPROVAL_APPROVE_ACTION_ID,
   APPROVAL_DISMISS_ACTION_ID,
-  APPROVAL_VIEW_ACTION_ID,
   CLAIM_ACTION_ID,
   CLOSE_ACTION_ID,
   RELEASE_ACTION_ID,
@@ -30,7 +29,6 @@ import {
   ROUTE_DEFAULT_ACTION_ID,
   ROUTE_DISMISS_ACTION_ID,
   ROUTE_ESCALATIONS_ACTION_ID,
-  outreachDraftModalView,
   parseApprovalValue,
   routeConfirmedText,
   routeDismissedText,
@@ -41,7 +39,6 @@ const BlockActionsSchema = z.object({
   user: z.object({ id: z.string().min(1) }),
   channel: z.object({ id: z.string().min(1) }).optional(),
   message: z.object({ ts: z.string().min(1) }).optional(),
-  trigger_id: z.string().min(1).optional(),
   actions: z
     .array(z.object({ action_id: z.string().min(1), value: z.string().optional() }))
     .min(1),
@@ -87,16 +84,6 @@ export class SlackInteractionsService {
         slackChannelId: parsed.data.channel.id,
         slackUserId: parsed.data.user.id,
         promptTs: parsed.data.message?.ts ?? null,
-      });
-      return;
-    }
-    const viewAction = parsed.data.actions.find((a) => a.action_id === APPROVAL_VIEW_ACTION_ID);
-    if (viewAction?.value) {
-      await this.handleViewDraft({
-        value: viewAction.value,
-        triggerId: parsed.data.trigger_id ?? null,
-        slackChannelId: parsed.data.channel?.id ?? null,
-        slackUserId: parsed.data.user.id,
       });
       return;
     }
@@ -190,88 +177,6 @@ export class SlackInteractionsService {
       }
       this.logger.error(
         `slack action ${action.action_id} failed for ${conversationId}: ${describeError(err)}`,
-      );
-    }
-  }
-
-  private async handleViewDraft(input: {
-    value: string;
-    triggerId: string | null;
-    slackChannelId: string | null;
-    slackUserId: string;
-  }): Promise<void> {
-    if (!input.triggerId) return;
-    const subject = parseApprovalValue(input.value);
-    if (!subject || subject.subjectType !== 'outreach_proposal') return;
-
-    const [link] = await this.db
-      .select()
-      .from(schema.slackNotificationLinks)
-      .where(
-        and(
-          eq(schema.slackNotificationLinks.subjectType, subject.subjectType),
-          eq(schema.slackNotificationLinks.subjectId, subject.subjectId),
-        ),
-      )
-      .limit(1);
-    if (!link) return;
-    if (input.slackChannelId && input.slackChannelId !== link.slackChannelId) return;
-
-    const [integration] = await this.db
-      .select()
-      .from(schema.slackIntegrations)
-      .where(eq(schema.slackIntegrations.id, link.integrationId))
-      .limit(1);
-    if (!integration || !integration.active) return;
-    const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
-
-    const [proposal] = await this.db
-      .select()
-      .from(schema.outreachProposals)
-      .where(eq(schema.outreachProposals.id, subject.subjectId))
-      .limit(1);
-    if (!proposal) {
-      await this.api
-        .postEphemeral({
-          token,
-          channel: link.slackChannelId,
-          user: input.slackUserId,
-          text: ':mag: This draft no longer exists.',
-        })
-        .catch((err: unknown) => this.logger.warn(`ephemeral notice failed: ${describeError(err)}`));
-      return;
-    }
-
-    const [campaign] = await this.db
-      .select({ name: schema.outreachCampaigns.name })
-      .from(schema.outreachCampaigns)
-      .where(eq(schema.outreachCampaigns.id, proposal.campaignId))
-      .limit(1);
-    const [contact] = await this.db
-      .select({ name: schema.crmContacts.name, email: schema.crmContacts.email })
-      .from(schema.crmContacts)
-      .where(eq(schema.crmContacts.id, proposal.contactId))
-      .limit(1);
-    const contactLabel =
-      contact?.name && contact.email
-        ? `${contact.name} (${contact.email})`
-        : (contact?.name ?? contact?.email ?? 'unknown contact');
-
-    try {
-      await this.api.openView({
-        token,
-        triggerId: input.triggerId,
-        view: outreachDraftModalView({
-          kind: proposal.kind,
-          campaignName: campaign?.name ?? 'a campaign',
-          contactLabel,
-          draftSubject: proposal.draftSubject,
-          draftBody: proposal.draftBody,
-        }),
-      });
-    } catch (err) {
-      this.logger.warn(
-        `slack draft modal failed for ${subject.subjectId}: ${describeError(err)}`,
       );
     }
   }

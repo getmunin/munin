@@ -297,7 +297,6 @@ export function routeDismissedText(): string {
 
 export const APPROVAL_APPROVE_ACTION_ID = 'munin_approval_approve';
 export const APPROVAL_DISMISS_ACTION_ID = 'munin_approval_dismiss';
-export const APPROVAL_VIEW_ACTION_ID = 'munin_approval_view';
 
 const APPROVAL_SUBJECT_TYPES = [
   'crm_merge_proposal',
@@ -345,23 +344,42 @@ export interface OutreachProposalApprovalSnapshot {
   campaignName: string;
   contactLabel: string;
   draftSubject: string | null;
-  draftBodyPreview: string;
+  draftBody: string;
   dashboardUrl: string;
 }
 
+const TRUNCATION_MARKER = '> … _(truncated — open the full draft in Munin)_';
+
+function quotedBodyLines(body: string, budget: number): string[] {
+  const lines: string[] = [];
+  let used = 0;
+  for (const line of body.split('\n')) {
+    const quoted = `> ${line}`;
+    if (used + quoted.length + 1 > budget) {
+      const room = budget - used - TRUNCATION_MARKER.length - 2;
+      if (room > 0) lines.push(`> ${line.slice(0, room).replace(/&[a-z]*$/, '')}`);
+      lines.push(TRUNCATION_MARKER);
+      return lines;
+    }
+    used += quoted.length + 1;
+    lines.push(quoted);
+  }
+  return lines;
+}
+
 export function outreachProposalApprovalText(snap: OutreachProposalApprovalSnapshot): string {
-  const lines = [
+  const header = [
     `:outbox_tray: *Outreach draft awaiting approval* — ${escapeSlackText(snap.kind)} for *${escapeSlackText(snap.campaignName)}*`,
     `*To:* ${escapeSlackText(snap.contactLabel)}`,
   ];
-  if (snap.draftSubject) lines.push(`*Subject:* ${escapeSlackText(snap.draftSubject)}`);
-  lines.push(
-    ...truncate(escapeSlackText(snap.draftBodyPreview), 200)
-      .split('\n')
-      .map((line) => `> ${line}`),
+  if (snap.draftSubject) header.push(`*Subject:* ${escapeSlackText(snap.draftSubject)}`);
+  const footer = `<${snap.dashboardUrl}|Review in Munin>`;
+  const overhead = [...header, footer].reduce((total, line) => total + line.length + 1, 0);
+  const body = quotedBodyLines(
+    escapeSlackText(snap.draftBody),
+    Math.max(TRUNCATION_MARKER.length, MAX_BODY_CHARS - overhead),
   );
-  lines.push(`<${snap.dashboardUrl}|Review in Munin>`);
-  return lines.join('\n');
+  return [...header, ...body, footer].join('\n');
 }
 
 export function outreachCampaignParentText(
@@ -381,60 +399,6 @@ export function outreachCampaignParentText(
 
 export function outreachCampaignParentMovedText(campaignName: string): string {
   return `:outbox_tray: *Outreach drafts — ${escapeSlackText(campaignName)}* — continued in a newer thread below`;
-}
-
-const MODAL_SECTION_MAX_CHARS = 2900;
-const MODAL_MAX_BODY_SECTIONS = 90;
-
-function chunkModalText(text: string): string[] {
-  const chunks: string[] = [];
-  let rest = text;
-  while (rest.length > 0 && chunks.length < MODAL_MAX_BODY_SECTIONS) {
-    if (rest.length <= MODAL_SECTION_MAX_CHARS) {
-      chunks.push(rest);
-      rest = '';
-      break;
-    }
-    const window = rest.slice(0, MODAL_SECTION_MAX_CHARS);
-    const breakAt = window.lastIndexOf('\n');
-    const cut = breakAt > MODAL_SECTION_MAX_CHARS / 2 ? breakAt : MODAL_SECTION_MAX_CHARS;
-    chunks.push(rest.slice(0, cut));
-    rest = rest.slice(cut).replace(/^\n/, '');
-  }
-  if (rest.length > 0 && chunks.length >= MODAL_MAX_BODY_SECTIONS) {
-    chunks.push('… _(truncated)_');
-  }
-  return chunks;
-}
-
-export interface OutreachDraftModalSnapshot {
-  kind: string;
-  campaignName: string;
-  contactLabel: string;
-  draftSubject: string | null;
-  draftBody: string;
-}
-
-export function outreachDraftModalView(snap: OutreachDraftModalSnapshot): Record<string, unknown> {
-  const headerLines = [
-    `*Campaign:* ${escapeSlackText(snap.campaignName)} · ${escapeSlackText(snap.kind)}`,
-    `*To:* ${escapeSlackText(snap.contactLabel)}`,
-  ];
-  if (snap.draftSubject) headerLines.push(`*Subject:* ${escapeSlackText(snap.draftSubject)}`);
-  const bodySections = chunkModalText(escapeSlackText(snap.draftBody)).map((chunk) => ({
-    type: 'section',
-    text: { type: 'mrkdwn', text: chunk },
-  }));
-  return {
-    type: 'modal',
-    title: { type: 'plain_text', text: 'Outreach draft' },
-    close: { type: 'plain_text', text: 'Close' },
-    blocks: [
-      { type: 'section', text: { type: 'mrkdwn', text: headerLines.join('\n') } },
-      { type: 'divider' },
-      ...bodySections,
-    ],
-  };
 }
 
 export interface KbCandidateApprovalSnapshot {
@@ -485,7 +449,7 @@ export interface ApprovalResolution {
 export function approvalBlocks(
   text: string,
   value: string,
-  opts: { approveLabel: string | null; viewLabel?: string },
+  opts: { approveLabel: string | null },
   resolution: ApprovalResolution | null,
 ): SlackBlock[] {
   if (resolution) {
@@ -503,7 +467,6 @@ export function approvalBlocks(
     ...(opts.approveLabel
       ? [actionButton(APPROVAL_APPROVE_ACTION_ID, opts.approveLabel, value, 'primary')]
       : []),
-    ...(opts.viewLabel ? [actionButton(APPROVAL_VIEW_ACTION_ID, opts.viewLabel, value)] : []),
     actionButton(APPROVAL_DISMISS_ACTION_ID, 'Dismiss', value, 'danger'),
   ];
   return [

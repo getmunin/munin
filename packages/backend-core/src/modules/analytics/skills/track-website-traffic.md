@@ -53,7 +53,7 @@ That's it. The script auto-fires a page view on `DOMContentLoaded` and writes **
 - `utm_source` / `utm_medium` / `utm_campaign` (parsed from `?utm_*` query params)
 - `locale=<html lang>`
 - `source='tracker'`
-- `dwell_ms` (best-effort, added when the page is hidden or unloaded)
+- `dwell_ms` — time the page was *visible*, added when it's hidden or unloaded
 - `read_depth` — the deepest 25/50/75/100 scroll milestone reached, added on the same exit beacon
 - `country` — ISO 3166-1 alpha-2 derived server-side from the client IP via a local MaxMind-format GeoIP DB. Only populated when `MUNIN_GEOIP_DB_PATH` points at a valid `.mmdb` file (e.g. `GeoLite2-Country.mmdb` or DB-IP-Lite); otherwise stays NULL. The IP is consumed only at lookup time and is never persisted.
 
@@ -72,7 +72,7 @@ Calls you make yourself (`mn.track`, `mn.trackOnce`, declarative events) carry n
 ### What you get without configuring anything
 
 - **Read depth.** Passive `scroll` + `resize` listeners, rAF-throttled, tracking the deepest 25/50/75/100 milestone reached; a page that fits the viewport reports 100. Sent on the exit beacon, so it costs no extra row. Surfaces as `avgReadDepth` in `analytics_get_subject_engagement`.
-- **Exit reporting on two triggers.** Dwell and read depth are sent on `visibilitychange` → hidden *and* on `pagehide`. A `pagehide`-only beacon is the classic reason engagement data is sparse — mobile app-switch and tab-kill often fire only `visibilitychange` — and reporting on both is free here because enrichment is idempotent: same `viewId`, and `dwell_ms` / `read_depth` are max-wins server-side. The usual hidden-then-`pagehide` pair sends once; a reader who returns and leaves again reports a second, larger value.
+- **Exit reporting on two triggers.** Dwell and read depth are sent on `visibilitychange` → hidden *and* on `pagehide`. A `pagehide`-only beacon is the classic reason engagement data is sparse — mobile app-switch and tab-kill often fire only `visibilitychange` — and reporting on both is free here because enrichment is idempotent: same `viewId`, and `dwell_ms` / `read_depth` are max-wins server-side. The usual hidden-then-`pagehide` pair sends once; a reader who returns and leaves again reports a second, larger value. `dwell_ms` accumulates visible time only, so that second report adds the time they actually came back for, not the hours the tab sat in the background.
 - **Route changes.** The script patches `history.pushState` / `replaceState` and listens for `popstate`, closing the previous view (dwell + read depth) and opening a new one per route transition. Changes that don't change `location.pathname` are ignored, so query-param filter and tab state costs nothing — which is why this needs no SPA flag: a classic multi-page site never triggers it.
 - **Canonical subject ids.** See below.
 
@@ -340,7 +340,7 @@ The beacon also accepts `viewId` — send the same value twice to enrich one row
 
 - **Don't ship the key as `NEXT_PUBLIC_…` and pretend it's a secret.** It's public by design. Treat it like a Google Analytics measurement id — visible in the page source is normal. The org-scoped write-only authorization is the entire safety story.
 - **Don't reuse the same key across orgs.** Each customer org mints its own. Cross-org leakage isn't possible because the key resolves to one `org_id`.
-- **Don't rely on `dwell_ms` for anything precision-critical.** It's best-effort. Reporting on both `visibilitychange` and `pagehide` catches far more exits than unload alone, but ad-blockers and hard kills still swallow beacons, which leaves the row with `dwell_ms = NULL` (the view itself still counts). It also measures wall-clock time in the view, not active reading time — a tab left open in the background keeps counting until the reader closes it. Use it for relative ranking, not exact dwell times.
+- **Don't rely on `dwell_ms` for anything precision-critical.** It's best-effort. Reporting on both `visibilitychange` and `pagehide` catches far more exits than unload alone, but ad-blockers and hard kills still swallow beacons, which leaves the row with `dwell_ms = NULL` (the view itself still counts). It counts only the time the page was visible — a tab backgrounded for an hour contributes nothing — so it approximates attention rather than elapsed time, but a page left open and stared past still counts. Use it for relative ranking, not exact dwell times.
 - **Don't reuse one `viewId` across page views, and don't send it on custom events.** It is an ingest dedup key: a second event carrying an existing `viewId` enriches that row instead of creating its own, so a shared id silently collapses distinct events into one. The bundle handles this for you — this only matters if you post to `/v1/a/t` yourself.
 - **Don't fire one event per scroll milestone.** The bundle reports the deepest milestone once, on exit. Four events per page load is four rows, and `views` becomes meaningless.
 - **Don't put PII in `subject_id` or `metadata`.** Treat them as URL-shaped and tag-shaped respectively. Anything you embed there will sit in an analytics table you'll later query without auth context.

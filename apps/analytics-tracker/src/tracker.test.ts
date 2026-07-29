@@ -380,6 +380,21 @@ describe('exit enrichment', () => {
     expect(await beaconsFor(key, '/v1/a/t')).toHaveLength(1);
   });
 
+  it('leaves background time out of the dwell', async () => {
+    const key = await loadTracker();
+    beacons = [];
+
+    setVisibility('hidden');
+    const [first] = await beaconsFor(key, '/v1/a/t');
+    await new Promise((r) => setTimeout(r, 120));
+    setVisibility('visible');
+    setVisibility('hidden');
+
+    const exits = await beaconsFor(key, '/v1/a/t');
+    expect(exits).toHaveLength(2);
+    expect(exits[1]!.dwellMs as number).toBeLessThan((first!.dwellMs as number) + 60);
+  });
+
   it('reports again once the reader comes back and leaves, with a larger dwell', async () => {
     const key = await loadTracker();
     beacons = [];

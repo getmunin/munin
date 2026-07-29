@@ -127,7 +127,8 @@ function warn(message: string, ...detail: unknown[]): void {
   }
 
   const initialReferrer = doc.referrer || null;
-  let pageEnter = Date.now();
+  let activeMs = 0;
+  let visibleSince = doc.visibilityState === 'hidden' ? 0 : Date.now();
   let lastPath = location.pathname;
   let pageViewId = uuid();
   let maxDepth = 0;
@@ -218,7 +219,8 @@ function warn(message: string, ...detail: unknown[]): void {
 
   function startView(referrer?: string | null): void {
     pageViewId = uuid();
-    pageEnter = Date.now();
+    activeMs = 0;
+    visibleSince = doc.visibilityState === 'hidden' ? 0 : Date.now();
     lastPath = location.pathname;
     maxDepth = 0;
     reported = false;
@@ -230,10 +232,14 @@ function warn(message: string, ...detail: unknown[]): void {
     startView();
   }
 
+  function dwellNow(): number {
+    return activeMs + (visibleSince ? Date.now() - visibleSince : 0);
+  }
+
   function endView(): void {
     if (reported) return;
     reported = true;
-    const dwellMs = Date.now() - pageEnter;
+    const dwellMs = dwellNow();
     const depth = readDepth();
     trackView(lastPath, {
       dwellMs,
@@ -388,8 +394,16 @@ function warn(message: string, ...detail: unknown[]): void {
   addEventListener('popstate', onRouteChange);
 
   doc.addEventListener('visibilitychange', () => {
-    if (doc.visibilityState === 'hidden') endView();
-    else reported = false;
+    if (doc.visibilityState === 'hidden') {
+      if (visibleSince) {
+        activeMs += Date.now() - visibleSince;
+        visibleSince = 0;
+      }
+      endView();
+    } else {
+      visibleSince = Date.now();
+      reported = false;
+    }
   });
   addEventListener('pagehide', endView);
 

@@ -75,7 +75,7 @@ For a static export or server-rendered page that ships no JS of its own, use the
 <article data-mn-entry-token={entry._tracking.token}>…</article>
 ```
 
-Either way the view is one row: on `pagehide` (and on SPA route change) the tracker re-sends the same `viewId` with `dwellMs`, and with `readDepth` when the script tag carries `data-read-depth="true"`, which enriches that row instead of adding another. Up to 10 entry views per page load are tracked this way — plenty for a list page, and a cap so a huge index can't fan out.
+Either way the view is one row: on `pagehide` (and on route change) the tracker re-sends the same `viewId` with `dwellMs` and `readDepth`, which enriches that row instead of adding another. Up to 10 entry views per page load are tracked this way — plenty for a list page, and a cap so a huge index can't fan out.
 
 `mn.trackEntry(token, attrs?)` takes the same attribute bag as `mn.track` (`path`, `referrer`, `metadata`, `dwellMs`, `readDepth`, `viewId`).
 

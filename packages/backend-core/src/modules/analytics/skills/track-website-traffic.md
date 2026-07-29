@@ -54,7 +54,7 @@ That's it. The script auto-fires a page view on `DOMContentLoaded` and writes **
 - `locale=<html lang>`
 - `source='tracker'`
 - `dwell_ms` (best-effort, added on `pagehide`)
-- `read_depth` (only with `data-read-depth="true"`, see below)
+- `read_depth` — the deepest 25/50/75/100 scroll milestone reached, added on the same exit beacon
 - `country` — ISO 3166-1 alpha-2 derived server-side from the client IP via a local MaxMind-format GeoIP DB. Only populated when `MUNIN_GEOIP_DB_PATH` points at a valid `.mmdb` file (e.g. `GeoLite2-Country.mmdb` or DB-IP-Lite); otherwise stays NULL. The IP is consumed only at lookup time and is never persisted.
 
 `Cache-Control: public, max-age=3600` on `tracker.js` so the CDN serves the bundle without hitting your backend per request.
@@ -69,11 +69,15 @@ Calls you make yourself (`mn.track`, `mn.trackOnce`, declarative events) carry n
 
 > **Deploy seam:** before this landed, every page load wrote ≥2 rows (one per beacon). Tracker-sourced `views` therefore drops roughly 50% on the day you upgrade, and `visitors` is unchanged. History is not repairable — old rows carry no `viewId` — so don't compare `views` across the upgrade date.
 
+### What you get without configuring anything
+
+- **Read depth.** Passive `scroll` + `resize` listeners, rAF-throttled, tracking the deepest 25/50/75/100 milestone reached; a page that fits the viewport reports 100. Sent once on the exit beacon, so it costs no extra row. Surfaces as `avgReadDepth` in `analytics_get_subject_engagement`.
+- **Route changes.** The script patches `history.pushState` / `replaceState` and listens for `popstate`, closing the previous view (dwell + read depth) and opening a new one per route transition. Changes that don't change `location.pathname` are ignored, so query-param filter and tab state costs nothing — which is why this needs no SPA flag: a classic multi-page site never triggers it.
+- **Canonical subject ids.** See below.
+
 ### Optional data attributes
 
 - `data-subject-type="docs"` — override the default `'page'` subject type. Useful when you have multiple surfaces sharing one tracker key.
-- `data-spa="true"` — auto-track route changes in single-page apps. The script monkey-patches `history.pushState` / `replaceState`, closes the previous view (dwell + read depth) and opens a new one per route transition.
-- `data-read-depth="true"` — measure how far readers get. Passive `scroll` + `resize` listeners, rAF-throttled, tracking the deepest 25/50/75/100 milestone reached; a page that fits the viewport reports 100. Reported once, on the exit beacon, so it costs no extra row. Surfaces as `avgReadDepth` in `analytics_get_subject_engagement`.
 - `data-api="https://api.your-munin.example"` — override the API base. Defaults to the origin the script was loaded from.
 
 ### Declarative events — no JS file needed
@@ -94,20 +98,23 @@ Any element with `data-mn-event` fires a view event when clicked (one delegated 
 - `data-mn-metadata` — a JSON **object**; anything else is dropped with a console warning rather than sent. This is the zero-JS way to populate `metadata`.
 - `data-mn-once` — fire at most once per browser session (sessionStorage-guarded). For funnel steps that would otherwise re-fire on every navigation.
 
-### Canonical subject ids (server-side, per tracker)
+### Canonical subject ids (automatic)
 
-`subject_id` defaults to `location.pathname`, so a localized site reports `/en/pricing` and `/nb/pricing` as two different pages, and a `/` → `/en/` redirect splits the homepage in two. Fix it on the tracker, not in your markup:
+`subject_id` is `location.pathname`, which on a localized site would report `/en/pricing` and `/nb/pricing` as two different pages, and split the homepage in two the moment `/` redirects to `/en/`. Ingest folds both cases with no configuration:
+
+- **Trailing slashes** are always dropped: `/pricing/` → `/pricing`.
+- **A leading locale segment** is dropped when it matches the locale the page itself reports (`<html lang>`, which every beacon already carries): `/en/pricing` on a page declaring `lang="en-US"` → `/pricing`; `/en/` → `/`. The match is exact against the full tag or its language subtag, so `/enterprise/pricing` and `/uk/pricing` (on `lang="en-GB"`) are left alone.
+
+Ids that don't start with `/` — declarative events, funnel steps, entity ids — are never rewritten, and the raw URL is always preserved in `path`, so nothing is lost.
+
+Two cases the inference can't cover: pages that set no `lang` at all, and a URL prefix that disagrees with the tag — `/no/priser` on pages declaring `lang="nb-NO"` is the classic one. Name those prefixes explicitly:
 
 ```jsonc
 { "name": "analytics_update_tracker",
-  "arguments": {
-    "trackerId": "atr_…",
-    "canonicalLocales": ["en", "nb"],
-    "canonicalStripTrailingSlash": true
-  } }
+  "arguments": { "trackerId": "atr_…", "canonicalLocales": ["no"] } }
 ```
 
-Ingest then folds path-shaped subject ids: `/en/pricing` → `/pricing`, `/en/` → `/`, `/pricing/` → `/pricing`. Ids that don't start with `/` (declarative events, funnel steps, entity ids) are never rewritten, and the raw URL is always preserved in `path`, so nothing is lost. Both default off; the setting takes effect on the next event with no site redeploy — which is why this is a tracker setting rather than a script attribute. Past rows keep the ids they were written with.
+It applies from the next event with no site redeploy — which is why this lives on the tracker rather than in your markup. Past rows keep the ids they were written with.
 
 ## 3. Custom events from JavaScript
 
@@ -187,7 +194,7 @@ Then compute true *ordered* drop-off with `analytics_get_funnel` — it counts d
 
 `analytics_list_top_subjects({ subjectType: 'funnel' })` still gives the raw per-step counts if you only want volumes.
 
-**SPA route change with dwell** — prefer `data-spa="true"`: it closes the previous view (enriching that row with dwell + read depth) and opens a new one, one row per route. If your router doesn't go through `history.pushState`, do it manually — pass the same `viewId` to the pair of calls so the second enriches the first instead of adding a row:
+**SPA route change with dwell** — handled automatically for any router that goes through `history.pushState` / `replaceState` / `popstate`. If yours doesn't, do it manually — pass the same `viewId` to the pair of calls so the second enriches the first instead of adding a row:
 
 ```javascript
 let routeEnter = Date.now();
@@ -206,7 +213,7 @@ router.afterEach((to) => {
 });
 ```
 
-**Scroll milestones** — use `data-read-depth="true"` on the script tag. It reports the deepest milestone once, on the exit beacon, enriching the page-view row. Don't hand-roll one event per milestone: that's up to four extra rows per page load, and it inflates `views`.
+**Scroll milestones** — already handled: the bundle reports the deepest milestone once, on the exit beacon, enriching the page-view row. Don't hand-roll one event per milestone: that's up to four extra rows per page load, and it inflates `views`.
 
 For a bespoke measure (words read, video watched, a custom "engaged" heuristic), pass your own number and it lands in the same column:
 
@@ -325,7 +332,7 @@ The beacon also accepts `viewId` — send the same value twice to enrich one row
 | Audit which keys exist | `analytics_list_trackers({})`. Returns id, name, prefix, last-used, revoked-at. |
 | Disable a single page from tracking | Remove the script tag from that page. The script is per-page-load opt-in. |
 | Delete a visitor's data | `DELETE FROM analytics_view_events WHERE visitor_id = $1`. No PII is stored beyond the random uuid — but if a regulator-grade deletion is needed, this is the path. |
-| Fold locale prefixes into one subject | `analytics_update_tracker({trackerId, canonicalLocales: ["en","nb"], canonicalStripTrailingSlash: true})`. Applies from the next event; no redeploy. |
+| Fold a locale prefix the page's `lang` doesn't match | `analytics_update_tracker({trackerId, canonicalLocales: ["no"]})`. Applies from the next event; no redeploy. Matching prefixes are already folded automatically. |
 | Enable country resolution | Set `MUNIN_GEOIP_DB_PATH=/abs/path/to/GeoLite2-Country.mmdb` (or any MaxMind-format country DB) on the backend before starting. The reader memory-maps the file once at boot; no network calls per request. Disable by unsetting and restarting — the column simply stays NULL for new rows. |
 
 ## What NOT to do
@@ -334,7 +341,7 @@ The beacon also accepts `viewId` — send the same value twice to enrich one row
 - **Don't reuse the same key across orgs.** Each customer org mints its own. Cross-org leakage isn't possible because the key resolves to one `org_id`.
 - **Don't rely on `dwell_ms` for anything precision-critical.** It's best-effort, sent on `pagehide`. Mobile Safari and aggressive ad-blockers can swallow the unload beacon, which leaves the row with `dwell_ms = NULL` (the view itself still counts). Use it for relative ranking, not exact dwell times.
 - **Don't reuse one `viewId` across page views, and don't send it on custom events.** It is an ingest dedup key: a second event carrying an existing `viewId` enriches that row instead of creating its own, so a shared id silently collapses distinct events into one. The bundle handles this for you — this only matters if you post to `/v1/a/t` yourself.
-- **Don't fire one event per scroll milestone.** `data-read-depth="true"` reports the deepest milestone once, on exit. Four events per page load is four rows, and `views` becomes meaningless.
+- **Don't fire one event per scroll milestone.** The bundle reports the deepest milestone once, on exit. Four events per page load is four rows, and `views` becomes meaningless.
 - **Don't put PII in `subject_id` or `metadata`.** Treat them as URL-shaped and tag-shaped respectively. Anything you embed there will sit in an analytics table you'll later query without auth context.
 
 ## Related

@@ -87,7 +87,6 @@ interface ResolvedTracker {
   identityVerificationSecret: string | null;
   requireVerifiedIdentity: boolean;
   canonicalLocales: string[];
-  canonicalStripTrailingSlash: boolean;
 }
 
 const IdentifyBodySchema = z.object({
@@ -132,7 +131,7 @@ export class AnalyticsTrackerController {
     await this.analytics.recordView({
       orgId: tracker.orgId,
       subjectType: subjectType ?? DEFAULT_SUBJECT_TYPE,
-      subjectId: canonicalSubject(tracker, subjectId),
+      subjectId: canonicalSubject(tracker, subjectId, null),
       source: 'tracker',
       referrer: referer ?? null,
       visitorId: visitorId ?? null,
@@ -165,7 +164,7 @@ export class AnalyticsTrackerController {
     await this.analytics.recordView({
       orgId: tracker.orgId,
       subjectType: body.subjectType ?? DEFAULT_SUBJECT_TYPE,
-      subjectId: canonicalSubject(tracker, body.subjectId),
+      subjectId: canonicalSubject(tracker, body.subjectId, body.locale ?? null),
       source: 'tracker',
       path: body.path ?? null,
       locale: body.locale ?? null,
@@ -313,8 +312,6 @@ export class AnalyticsTrackerController {
           identityVerificationSecret: schema.analyticsTrackers.identityVerificationSecret,
           requireVerifiedIdentity: schema.analyticsTrackers.requireVerifiedIdentity,
           canonicalLocales: schema.analyticsTrackers.canonicalLocales,
-          canonicalStripTrailingSlash:
-            schema.analyticsTrackers.canonicalStripTrailingSlash,
         })
         .from(schema.analyticsTrackers)
         .where(eq(schema.analyticsTrackers.id, keyRow.trackerId))
@@ -334,7 +331,6 @@ export class AnalyticsTrackerController {
         identityVerificationSecret: trackerRow.identityVerificationSecret,
         requireVerifiedIdentity: trackerRow.requireVerifiedIdentity,
         canonicalLocales: trackerRow.canonicalLocales,
-        canonicalStripTrailingSlash: trackerRow.canonicalStripTrailingSlash,
       };
     } catch {
       return null;
@@ -342,10 +338,14 @@ export class AnalyticsTrackerController {
   }
 }
 
-function canonicalSubject(tracker: ResolvedTracker, subjectId: string): string {
+function canonicalSubject(
+  tracker: ResolvedTracker,
+  subjectId: string,
+  locale: string | null,
+): string {
   return canonicalizeSubjectId(subjectId, {
-    locales: tracker.canonicalLocales,
-    stripTrailingSlash: tracker.canonicalStripTrailingSlash,
+    locale,
+    localeOverrides: tracker.canonicalLocales,
   });
 }
 

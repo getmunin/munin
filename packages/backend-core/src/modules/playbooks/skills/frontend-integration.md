@@ -138,18 +138,12 @@ const API_URL = import.meta.env.VITE_API_URL;
 <script async
   src={`${API_URL}/tracker.js`}
   data-key="mn_track_…"
-  data-spa="true"
-  data-read-depth="true"
 />
 ```
 
 The tracker only needs the API origin in its `src` — there's no separate `data-api` required unless you're serving the bundle from a different host than the API (uncommon; only set if you actually have a CDN-fronted `tracker.js`).
 
-Required attribute: `data-key`. The script auto-fires a page view on `DOMContentLoaded`.
-
-`data-spa="true"` enables auto-tracking of `history.pushState` / `replaceState` route changes — set this for any React/Vue/Svelte/etc. SPA. Without it you'll only get one page view at initial load and an empty funnel.
-
-`data-read-depth="true"` measures how far readers scroll and reports it once per view, on exit — it costs no extra event, so turn it on unless the pages are all short.
+The only required attribute is `data-key`. The script auto-fires a page view on `DOMContentLoaded`, tracks `history.pushState` / `replaceState` / `popstate` route changes as further views, and reports scroll depth and dwell time on exit — no flags for any of it.
 
 `data-api` is optional and defaults to the script's origin. Don't set it unless the API origin differs from where you loaded the bundle.
 
@@ -243,7 +237,7 @@ If any of the three fails, the most likely cause is in this table:
 |---|---|
 | `[munin-widget] data-munin-host: data-munin-host is required` (or `data-widget-key`, `data-channel-id`) | Missing or mis-named attribute on the `<script>` tag. They are all required; names are exact. |
 | Widget loads but messages return 403 | `originAllowlist` doesn't include the *exact* origin shown in DevTools → Network → request headers → `Origin`. Update with `conv_widget_update_channel`. |
-| Tracker loads, `mn` global exists, but no events appear in `analytics_list_top_subjects` | `allowedOrigins` mismatch — same fix as widget, via `analytics_update_tracker`. Or: SPA without `data-spa="true"` and you're only checking subpages. |
+| Tracker loads, `mn` global exists, but no events appear in `analytics_list_top_subjects` | `allowedOrigins` mismatch — same fix as widget, via `analytics_update_tracker`. |
 | `Access to fetch ... has been blocked by CORS policy` on `/v1/cms/...` | You're calling the CMS delivery API from the browser. Move the fetch server-side per step 3. |
 | 404 on `{{API_URL}}/embed/widget.js` or `{{API_URL}}/embed/tracker.js` | Old path. Both bundles are served from the root: `/widget.js` and `/tracker.js`. |
 | 404 on `/v1/cms/{orgId}/{slug}` | The collection slug or org id is wrong. `cms_list_collections` returns the canonical slugs. |

@@ -7,7 +7,6 @@ export const CreateTrackerBody = z.object({
   allowedOrigins: z.array(z.string().url()).optional(),
   requireVerifiedIdentity: z.boolean().optional(),
   canonicalLocales: CanonicalLocales.optional(),
-  canonicalStripTrailingSlash: z.boolean().optional(),
 });
 
 export type CreateTrackerBodyT = z.infer<typeof CreateTrackerBody>;
@@ -17,7 +16,6 @@ export const UpdateTrackerBody = z.object({
   allowedOrigins: z.array(z.string().url()).optional(),
   requireVerifiedIdentity: z.boolean().optional(),
   canonicalLocales: CanonicalLocales.optional(),
-  canonicalStripTrailingSlash: z.boolean().optional(),
 });
 
 export type UpdateTrackerBodyT = z.infer<typeof UpdateTrackerBody>;

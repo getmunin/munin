@@ -46,8 +46,6 @@ interface TrackerSummary {
   lastUsedAt: string | null;
   revokedAt: string | null;
   requireVerifiedIdentity: boolean;
-  canonicalLocales: string[];
-  canonicalStripTrailingSlash: boolean;
   hasIdentityVerificationSecret: boolean;
 }
 
@@ -80,7 +78,6 @@ export function TrackersPage() {
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [rotatedKey, setRotatedKey] = useState<RotatedKey | null>(null);
   const [embedFor, setEmbedFor] = useState<TrackerSummary | null>(null);
-  const [canonicalFor, setCanonicalFor] = useState<TrackerSummary | null>(null);
 
   const load = useCallback(async () => {
     const res = await api<{ items: TrackerSummary[] }>('/v1/analytics/trackers');
@@ -201,17 +198,6 @@ export function TrackersPage() {
         <EmbedSnippetDialog tracker={embedFor} onClose={() => setEmbedFor(null)} />
       )}
 
-      {canonicalFor && (
-        <CanonicalDialog
-          tracker={canonicalFor}
-          onClose={() => setCanonicalFor(null)}
-          onSaved={() => {
-            setCanonicalFor(null);
-            void tryLoad();
-          }}
-        />
-      )}
-
       <section className="space-y-4">
         <SectionHead
           title={
@@ -238,7 +224,6 @@ export function TrackersPage() {
                 key={tr.id}
                 tracker={tr}
                 onShowEmbed={() => setEmbedFor(tr)}
-                onEditCanonical={() => setCanonicalFor(tr)}
                 onRotateKey={() => {
                   void rotateKey(tr);
                 }}
@@ -260,24 +245,18 @@ export function TrackersPage() {
 function TrackerRow({
   tracker,
   onShowEmbed,
-  onEditCanonical,
   onRotateKey,
   onRotateIdentity,
   onRevoke,
 }: {
   tracker: TrackerSummary;
   onShowEmbed: () => void;
-  onEditCanonical: () => void;
   onRotateKey: () => void;
   onRotateIdentity: () => void;
   onRevoke: () => void;
 }) {
   const t = useTranslations('dashboard.trackers');
   const origins = tracker.allowedOrigins;
-  const canonicalHints = [
-    ...tracker.canonicalLocales.map((l) => `/${l}`),
-    ...(tracker.canonicalStripTrailingSlash ? ['/…/'] : []),
-  ];
   return (
     <li className="border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
       <div className="flex items-start justify-between gap-6">
@@ -293,12 +272,6 @@ function TrackerRow({
               <OriginChip text={t('anyOrigin')} muted />
             )}
           </div>
-
-          {canonicalHints.length > 0 && (
-            <p className="font-mono text-[11px] text-ink-mute">
-              {t('canonical.summary', { rules: canonicalHints.join(' ') })}
-            </p>
-          )}
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
@@ -319,10 +292,6 @@ function TrackerRow({
               <MoreHorizontal className="size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onEditCanonical}>
-                {t('canonical.edit')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onRotateKey}>
                 {t('rotateKey')}
               </DropdownMenuItem>
@@ -522,106 +491,6 @@ function trackerAllowlistRequired(): boolean {
   return raw === '1' || raw === 'true';
 }
 
-function CanonicalDialog({
-  tracker,
-  onClose,
-  onSaved,
-}: {
-  tracker: TrackerSummary;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const t = useTranslations('dashboard.trackers');
-  const tCommon = useTranslations('common');
-  const translate = useTranslateError();
-  const [locales, setLocales] = useState(tracker.canonicalLocales.join(', '));
-  const [stripSlash, setStripSlash] = useState(tracker.canonicalStripTrailingSlash);
-  const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
-
-  async function submit() {
-    setSaving(true);
-    setSubmitError(null);
-    try {
-      await api(`/v1/analytics/trackers/${tracker.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          canonicalLocales: locales
-            .split(/[\s,]+/)
-            .map((s) => s.trim())
-            .filter(Boolean),
-          canonicalStripTrailingSlash: stripSlash,
-        }),
-      });
-      onSaved();
-    } catch (err) {
-      setSubmitError(toFormError(err, translate(err) || t('errors.canonical')));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('canonical.title', { name: tracker.name })}</DialogTitle>
-          <DialogDescription>{t('canonical.description')}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="mt-4 flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          <FormField label={t('canonical.localesLabel')} hint={t('canonical.localesHint')}>
-            <Input
-              value={locales}
-              onChange={(e) => setLocales(e.target.value)}
-              placeholder="en, nb"
-              autoFocus
-            />
-          </FormField>
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={stripSlash}
-              onChange={(e) => setStripSlash(e.target.checked)}
-            />
-            <span>
-              {t('canonical.stripSlash')}
-              <span className="block text-[11px] text-ink-mute">
-                {t('canonical.stripSlashHint')}
-              </span>
-            </span>
-          </label>
-          {submitError && <FormError detail={submitError} />}
-          <DialogFooter className={dialogFooterClass}>
-            <Button
-              type="button"
-              variant="outline"
-              className={dialogButtonClass}
-              onClick={onClose}
-            >
-              {tCommon('cancel')}
-            </Button>
-            <Button
-              type="submit"
-              variant="accent"
-              className={dialogButtonClass}
-              disabled={saving}
-            >
-              {saving ? tCommon('saving') : tCommon('save')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function RotatedIdentityDialog({
   rotated,
   onClose,
@@ -747,10 +616,7 @@ function EmbedSnippetDialog({
 
   const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
   const scriptSnippet = [
-    `<script async src="${host}/tracker.js"`,
-    `  data-key="<your tracker key>"`,
-    `  data-read-depth="true"`,
-    `  data-spa="true"></script>`,
+    `<script async src="${host}/tracker.js" data-key="<your tracker key>"></script>`,
     ``,
     `<script>`,
     `  // On the first authenticated page load, link the visitor to your user:`,
@@ -798,7 +664,6 @@ function EmbedSnippetDialog({
               {snippetCopied ? tCommon('copied') : t('embed.copyScript')}
             </Button>
             <p className={dialogHintClass}>{t('embed.scriptHint')}</p>
-            <p className={dialogHintClass}>{t('embed.attributesHint')}</p>
           </div>
 
           <div className="space-y-3">

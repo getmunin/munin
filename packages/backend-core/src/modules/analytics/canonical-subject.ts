@@ -1,27 +1,30 @@
-export interface CanonicalSubjectOptions {
-  locales: readonly string[];
-  stripTrailingSlash: boolean;
+export interface CanonicalSubjectContext {
+  locale?: string | null;
+  localeOverrides?: readonly string[];
 }
 
 export function canonicalizeSubjectId(
   subjectId: string,
-  opts: CanonicalSubjectOptions,
+  ctx: CanonicalSubjectContext = {},
 ): string {
   if (!subjectId.startsWith('/')) return subjectId;
 
   let out = subjectId;
-  const locales = opts.locales
-    .map((l) => l.trim().toLowerCase())
-    .filter((l) => l.length > 0);
-  if (locales.length > 0) {
-    const match = /^\/([^/?#]+)(\/.*)?$/.exec(out);
-    if (match && locales.includes(match[1]!.toLowerCase())) {
-      out = match[2] ?? '/';
-    }
+  const match = /^\/([^/?#]+)(\/.*)?$/.exec(out);
+  if (match && isLocaleSegment(match[1]!, ctx)) {
+    out = match[2] ?? '/';
   }
 
-  if (opts.stripTrailingSlash && out.length > 1) {
-    out = out.replace(/\/+$/, '') || '/';
-  }
+  if (out.length > 1) out = out.replace(/\/+$/, '') || '/';
   return out;
+}
+
+function isLocaleSegment(segment: string, ctx: CanonicalSubjectContext): boolean {
+  const candidate = segment.toLowerCase();
+  for (const override of ctx.localeOverrides ?? []) {
+    if (override.trim().toLowerCase() === candidate) return true;
+  }
+  const locale = ctx.locale?.trim().toLowerCase();
+  if (!locale) return false;
+  return candidate === locale || candidate === locale.split(/[-_]/)[0];
 }

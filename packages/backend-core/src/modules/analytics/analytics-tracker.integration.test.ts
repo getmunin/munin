@@ -346,47 +346,37 @@ const skipReason = TEST_URL
     expect(rows.every((r) => r.clientViewId === null)).toBe(true);
   }, 30_000);
 
-  it('canonicalizes path-shaped subject ids per tracker settings, leaving path raw', async () => {
+  it('folds locale prefixes and trailing slashes with no configuration, leaving path raw', async () => {
     const minted = await withClient(adminKey, async (c) =>
-      parseToolResult<{ id: string; trackerKey: string }>(
+      parseToolResult<{ id: string; trackerKey: string; canonicalLocales: string[] }>(
         await c.callTool({
           name: 'analytics_create_tracker',
           arguments: { name: 'canonical tracker' },
         }),
       ),
     );
-    const updated = await withClient(adminKey, async (c) =>
-      parseToolResult<{ canonicalLocales: string[]; canonicalStripTrailingSlash: boolean }>(
-        await c.callTool({
-          name: 'analytics_update_tracker',
-          arguments: {
-            trackerId: minted.id,
-            canonicalLocales: ['EN', 'nb'],
-            canonicalStripTrailingSlash: true,
-          },
-        }),
-      ),
-    );
-    expect(updated.canonicalLocales).toEqual(['en', 'nb']);
-    expect(updated.canonicalStripTrailingSlash).toBe(true);
+    expect(minted.canonicalLocales).toEqual([]);
 
     const marker = `canonical-${minted.id}`;
     await postBeacon(baseUrl, {
       key: minted.trackerKey,
       subjectId: `/en/${marker}/`,
       path: `/en/${marker}/?ref=1`,
+      locale: 'en-US',
       visitorId: 'visitor-canonical-en',
     });
     await postBeacon(baseUrl, {
       key: minted.trackerKey,
       subjectId: `/nb/${marker}`,
       path: `/nb/${marker}`,
+      locale: 'nb-NO',
       visitorId: 'visitor-canonical-nb',
     });
     await postBeacon(baseUrl, {
       key: minted.trackerKey,
       subjectId: `${marker}-click`,
       subjectType: 'funnel',
+      locale: 'en-US',
       visitorId: 'visitor-canonical-nb',
     });
     await waitFor(async () => (await countTrackerEvents(db, orgId, `/${marker}`)) === 2);
@@ -398,8 +388,56 @@ const skipReason = TEST_URL
     ]);
     expect(await countTrackerEvents(db, orgId, `${marker}-click`)).toBe(1);
 
-    await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=/en/${marker}/&v=visitor-pixel`);
-    await waitFor(async () => (await countTrackerEvents(db, orgId, `/${marker}`)) === 3);
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: `/enterprise/${marker}`,
+      locale: 'en-US',
+      visitorId: 'visitor-canonical-en',
+    });
+    await waitFor(
+      async () => (await countTrackerEvents(db, orgId, `/enterprise/${marker}`)) === 1,
+    );
+  }, 30_000);
+
+  it('honors canonicalLocales when the URL prefix disagrees with the lang tag', async () => {
+    const minted = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'override tracker' },
+        }),
+      ),
+    );
+    const marker = `override-${minted.id}`;
+
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: `/no/${marker}`,
+      locale: 'nb-NO',
+      visitorId: 'visitor-override-1',
+    });
+    await waitFor(async () => (await countTrackerEvents(db, orgId, `/no/${marker}`)) === 1);
+
+    const updated = await withClient(adminKey, async (c) =>
+      parseToolResult<{ canonicalLocales: string[] }>(
+        await c.callTool({
+          name: 'analytics_update_tracker',
+          arguments: { trackerId: minted.id, canonicalLocales: ['NO '] },
+        }),
+      ),
+    );
+    expect(updated.canonicalLocales).toEqual(['no']);
+
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: `/no/${marker}`,
+      locale: 'nb-NO',
+      visitorId: 'visitor-override-2',
+    });
+    await waitFor(async () => (await countTrackerEvents(db, orgId, `/${marker}`)) === 1);
+
+    await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=/no/${marker}/&v=visitor-pixel`);
+    await waitFor(async () => (await countTrackerEvents(db, orgId, `/${marker}`)) === 2);
   }, 30_000);
 
   it('POST /v1/a/s records search events and feeds zero-result searches', async () => {

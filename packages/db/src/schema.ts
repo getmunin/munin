@@ -1532,9 +1532,6 @@ export const analyticsTrackers = pgTable(
     identityVerificationSecret: text('identity_verification_secret'),
     requireVerifiedIdentity: boolean('require_verified_identity').notNull().default(false),
     canonicalLocales: jsonb('canonical_locales').$type<string[]>().notNull().default([]),
-    canonicalStripTrailingSlash: boolean('canonical_strip_trailing_slash')
-      .notNull()
-      .default(false),
     createdAt,
     updatedAt,
   },

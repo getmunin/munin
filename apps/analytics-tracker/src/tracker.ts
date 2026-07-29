@@ -102,8 +102,6 @@ function warn(message: string, ...detail: unknown[]): void {
   apiBase = apiBase.replace(/\/+$/, '');
 
   const subjectType = script.getAttribute('data-subject-type') || 'page';
-  const spa = script.getAttribute('data-spa') === 'true';
-  const trackDepth = script.getAttribute('data-read-depth') === 'true';
   const beaconUrl = apiBase + '/v1/a/t';
   const identifyUrl = apiBase + '/v1/a/identify';
   const searchUrl = apiBase + '/v1/a/s';
@@ -201,24 +199,21 @@ function warn(message: string, ...detail: unknown[]): void {
     return pct >= 100 ? 100 : pct >= 75 ? 75 : pct >= 50 ? 50 : pct >= 25 ? 25 : 0;
   }
 
-  function readDepth(): number | undefined {
-    if (!trackDepth) return undefined;
+  function readDepth(): number {
     maxDepth = Math.max(maxDepth, depthNow());
     return maxDepth;
   }
 
-  if (trackDepth) {
-    let pending = 0;
-    const sample = (): void => {
-      if (pending) return;
-      pending = requestAnimationFrame(() => {
-        pending = 0;
-        maxDepth = Math.max(maxDepth, depthNow());
-      });
-    };
-    addEventListener('scroll', sample, { passive: true });
-    addEventListener('resize', sample, { passive: true });
-  }
+  let pendingSample = 0;
+  const sampleDepth = (): void => {
+    if (pendingSample) return;
+    pendingSample = requestAnimationFrame(() => {
+      pendingSample = 0;
+      maxDepth = Math.max(maxDepth, depthNow());
+    });
+  };
+  addEventListener('scroll', sampleDepth, { passive: true });
+  addEventListener('resize', sampleDepth, { passive: true });
 
   function startView(referrer?: string | null): void {
     pageViewId = uuid();
@@ -269,7 +264,7 @@ function warn(message: string, ...detail: unknown[]): void {
     if (entryViews.length < MAX_ENTRY_VIEWS) entryViews.push({ token, viewId });
   }
 
-  function flushEntryViews(dwellMs: number, depth: number | undefined): void {
+  function flushEntryViews(dwellMs: number, depth: number): void {
     for (const view of entryViews) {
       sendEntry(view.token, view.viewId, { dwellMs, readDepth: depth, referrer: null });
     }
@@ -375,24 +370,22 @@ function warn(message: string, ...detail: unknown[]): void {
     onLoad();
   }
 
-  if (spa) {
-    const origPush = history.pushState.bind(history);
-    const origReplace = history.replaceState.bind(history);
-    function onRouteChange(): void {
-      if (location.pathname === lastPath) return;
-      endView();
-      startView(null);
-    }
-    history.pushState = function (...args): void {
-      origPush(...args);
-      onRouteChange();
-    };
-    history.replaceState = function (...args): void {
-      origReplace(...args);
-      onRouteChange();
-    };
-    addEventListener('popstate', onRouteChange);
+  const origPush = history.pushState.bind(history);
+  const origReplace = history.replaceState.bind(history);
+  function onRouteChange(): void {
+    if (location.pathname === lastPath) return;
+    endView();
+    startView(null);
   }
+  history.pushState = function (...args): void {
+    origPush(...args);
+    onRouteChange();
+  };
+  history.replaceState = function (...args): void {
+    origReplace(...args);
+    onRouteChange();
+  };
+  addEventListener('popstate', onRouteChange);
 
   addEventListener('pagehide', endView);
 

@@ -785,8 +785,7 @@
         "copyScript": "Copy snippet",
         "hashLabel": "Optional · verify visitor identity",
         "hashHint": "Compute a server-side HMAC of `externalId:visitorId` (the visitor id comes from window.mn.getVisitorId()) with this tracker's identity secret. Binding the visitor id keeps a leaked hash from linking any other visitor. Page-views from that visitor are then stamped with their end_user_id.",
-        "copyHash": "Copy code",
-        "attributesHint": "Optional attributes: `data-read-depth=\"true\"` measures how far readers scroll (reported once per view, on exit); `data-spa=\"true\"` tracks route changes in single-page apps — drop it on a classic multi-page site; `data-subject-type=\"docs\"` overrides the default `page` subject type."
+        "copyHash": "Copy code"
       },
       "emptyTitle": "No trackers yet",
       "emptyBody": "Add a tracker to start collecting page-view analytics.",
@@ -797,18 +796,7 @@
         "create": "Could not create tracker.",
         "rotate": "Could not rotate identity secret.",
         "rotateKey": "Could not rotate tracker key.",
-        "revoke": "Could not revoke tracker.",
-        "canonical": "Could not save canonical URL settings."
-      },
-      "canonical": {
-        "edit": "Canonical URLs",
-        "title": "Canonical URLs — {name}",
-        "description": "Fold path-shaped subject ids together at ingest, so one page is one subject. Applies to new events only; the raw URL is always kept in `path`.",
-        "localesLabel": "Locale prefixes to strip",
-        "localesHint": "Comma- or whitespace-separated, e.g. en, nb. /en/pricing and /nb/pricing then both report as /pricing.",
-        "stripSlash": "Ignore trailing slashes",
-        "stripSlashHint": "/pricing/ reports as /pricing. Useful when a redirect adds the slash on some entry paths.",
-        "summary": "canonical: {rules}"
+        "revoke": "Could not revoke tracker."
       }
     },
     "apiKeys": {

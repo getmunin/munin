@@ -1,5 +1,5 @@
 {
-  "id": "fd5cd17a-953e-4a9d-a0db-4507e469b8c7",
+  "id": "ce9f27ff-115e-4f42-9c0d-672ae57b59d9",
   "prevId": "35f7a77d-1f47-48d6-94f7-84835c3f3f5e",
   "version": "7",
   "dialect": "postgresql",
@@ -519,13 +519,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
-        },
-        "canonical_strip_trailing_slash": {
-          "name": "canonical_strip_trailing_slash",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "created_at": {
           "name": "created_at",

@@ -311,9 +311,9 @@ describe('readiness signal', () => {
   });
 });
 
-describe('SPA mode', () => {
+describe('route changes', () => {
   it('closes the previous view and opens a new one on pushState', async () => {
-    const key = await loadTracker({ attrs: { 'data-spa': 'true' } });
+    const key = await loadTracker();
     const [initial] = await beaconsFor(key, '/v1/a/t');
     beacons = [];
     history.pushState({}, '', '/account/settings');
@@ -326,18 +326,19 @@ describe('SPA mode', () => {
     expect(next!.viewId).not.toBe(initial!.viewId);
   });
 
-  it('ignores route changes that do not change the pathname', async () => {
-    const key = await loadTracker({ attrs: { 'data-spa': 'true' } });
+  it('ignores query-only pushState, so filter and tab state costs nothing', async () => {
+    const key = await loadTracker();
     beacons = [];
     history.pushState({}, '', '/welcome?tab=2');
     expect(await beaconsFor(key, '/v1/a/t')).toHaveLength(0);
   });
 
-  it('does not track route changes when SPA mode is off', async () => {
+  it('closes the previous view on replaceState and popstate too', async () => {
     const key = await loadTracker();
     beacons = [];
-    history.pushState({}, '', '/somewhere-else');
-    expect(await beaconsFor(key, '/v1/a/t')).toHaveLength(0);
+    history.replaceState({}, '', '/replaced');
+    const afterReplace = await beaconsFor(key, '/v1/a/t');
+    expect(afterReplace.map((v) => v.subjectId)).toEqual(['/welcome', '/replaced']);
   });
 });
 
@@ -396,19 +397,10 @@ describe('view id', () => {
 });
 
 describe('read depth', () => {
-  it('stays off unless data-read-depth is set', async () => {
-    setScrollHeight(4000);
-    setScrollY(0);
-    const key = await loadTracker();
-    window.dispatchEvent(new Event('pagehide'));
-    const [, exit] = await beaconsFor(key, '/v1/a/t');
-    expect(exit!.readDepth).toBeUndefined();
-  });
-
   it('reports 100 for a page that fits the viewport', async () => {
     setScrollHeight(window.innerHeight);
     setScrollY(0);
-    const key = await loadTracker({ attrs: { 'data-read-depth': 'true' } });
+    const key = await loadTracker();
     window.dispatchEvent(new Event('pagehide'));
     const [, exit] = await beaconsFor(key, '/v1/a/t');
     expect(exit!.readDepth).toBe(100);
@@ -417,7 +409,7 @@ describe('read depth', () => {
   it('tracks the deepest milestone reached, not the position at exit', async () => {
     setScrollHeight(window.innerHeight * 4);
     setScrollY(0);
-    const key = await loadTracker({ attrs: { 'data-read-depth': 'true' } });
+    const key = await loadTracker();
 
     setScrollY(window.innerHeight * 2);
     window.dispatchEvent(new Event('scroll'));
@@ -429,10 +421,10 @@ describe('read depth', () => {
     expect(exit!.readDepth).toBe(75);
   });
 
-  it('resets between views in SPA mode', async () => {
+  it('resets between views on a route change', async () => {
     setScrollHeight(window.innerHeight * 4);
     setScrollY(window.innerHeight * 3);
-    const key = await loadTracker({ attrs: { 'data-read-depth': 'true', 'data-spa': 'true' } });
+    const key = await loadTracker();
 
     history.pushState({}, '', '/second');
     setScrollY(0);

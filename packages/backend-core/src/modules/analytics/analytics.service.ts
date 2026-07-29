@@ -44,7 +44,6 @@ export interface AnalyticsTrackerExport {
   allowedOrigins: string[];
   requireVerifiedIdentity: boolean;
   canonicalLocales: string[];
-  canonicalStripTrailingSlash: boolean;
   identityVerificationSecret: string | null;
 }
 
@@ -104,7 +103,6 @@ export interface AnalyticsImportData {
       allowedOrigins: string[];
       requireVerifiedIdentity: boolean;
       canonicalLocales?: string[];
-      canonicalStripTrailingSlash?: boolean;
       identityVerificationSecret?: string | null;
     }>;
     visitorIdentities: AnalyticsVisitorIdentityExport[];
@@ -178,7 +176,6 @@ export interface TrackerSummary {
   revokedAt: string | null;
   requireVerifiedIdentity: boolean;
   canonicalLocales: string[];
-  canonicalStripTrailingSlash: boolean;
   hasIdentityVerificationSecret: boolean;
 }
 
@@ -323,7 +320,6 @@ export class AnalyticsService {
             allowedOrigins: t.allowedOrigins,
             requireVerifiedIdentity: t.requireVerifiedIdentity,
             canonicalLocales: t.canonicalLocales,
-            canonicalStripTrailingSlash: t.canonicalStripTrailingSlash,
             identityVerificationSecret: t.identityVerificationSecret,
           },
           ['identityVerificationSecret'],
@@ -476,7 +472,6 @@ export class AnalyticsService {
           allowedOrigins: tracker.allowedOrigins,
           requireVerifiedIdentity: tracker.requireVerifiedIdentity,
           canonicalLocales: normalizeCanonicalLocales(tracker.canonicalLocales ?? []),
-          canonicalStripTrailingSlash: tracker.canonicalStripTrailingSlash ?? false,
           identityVerificationSecret: null,
         })
         .returning({ id: schema.analyticsTrackers.id });
@@ -601,7 +596,6 @@ export class AnalyticsService {
     allowedOrigins?: string[];
     requireVerifiedIdentity?: boolean;
     canonicalLocales?: string[];
-    canonicalStripTrailingSlash?: boolean;
   }): Promise<CreateTrackerResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -621,7 +615,6 @@ export class AnalyticsService {
         identityVerificationSecret,
         requireVerifiedIdentity: args.requireVerifiedIdentity ?? false,
         canonicalLocales: normalizeCanonicalLocales(args.canonicalLocales ?? []),
-        canonicalStripTrailingSlash: args.canonicalStripTrailingSlash ?? false,
       })
       .returning();
     const key = await mintApiKey(ctx.db, {
@@ -643,7 +636,6 @@ export class AnalyticsService {
       revokedAt: null,
       requireVerifiedIdentity: tracker!.requireVerifiedIdentity,
       canonicalLocales: tracker!.canonicalLocales,
-      canonicalStripTrailingSlash: tracker!.canonicalStripTrailingSlash,
       hasIdentityVerificationSecret: true,
       trackerKey: key.rawKey,
       identityVerificationSecret,
@@ -661,7 +653,6 @@ export class AnalyticsService {
         createdAt: schema.analyticsTrackers.createdAt,
         requireVerifiedIdentity: schema.analyticsTrackers.requireVerifiedIdentity,
         canonicalLocales: schema.analyticsTrackers.canonicalLocales,
-        canonicalStripTrailingSlash: schema.analyticsTrackers.canonicalStripTrailingSlash,
         identityVerificationSecret: schema.analyticsTrackers.identityVerificationSecret,
         keyPrefix: schema.apiKeys.keyPrefix,
         lastUsedAt: schema.apiKeys.lastUsedAt,
@@ -688,7 +679,6 @@ export class AnalyticsService {
         revokedAt: r.revokedAt?.toISOString() ?? null,
         requireVerifiedIdentity: r.requireVerifiedIdentity,
         canonicalLocales: r.canonicalLocales,
-        canonicalStripTrailingSlash: r.canonicalStripTrailingSlash,
         hasIdentityVerificationSecret: r.identityVerificationSecret !== null,
       }));
   }
@@ -699,7 +689,6 @@ export class AnalyticsService {
     allowedOrigins?: string[];
     requireVerifiedIdentity?: boolean;
     canonicalLocales?: string[];
-    canonicalStripTrailingSlash?: boolean;
   }): Promise<TrackerSummary> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -708,7 +697,6 @@ export class AnalyticsService {
       allowedOrigins?: string[];
       requireVerifiedIdentity?: boolean;
       canonicalLocales?: string[];
-      canonicalStripTrailingSlash?: boolean;
       updatedAt: Date;
     } = {
       updatedAt: new Date(),
@@ -727,8 +715,6 @@ export class AnalyticsService {
       patch.requireVerifiedIdentity = args.requireVerifiedIdentity;
     if (args.canonicalLocales !== undefined)
       patch.canonicalLocales = normalizeCanonicalLocales(args.canonicalLocales);
-    if (args.canonicalStripTrailingSlash !== undefined)
-      patch.canonicalStripTrailingSlash = args.canonicalStripTrailingSlash;
     const [updated] = await ctx.db
       .update(schema.analyticsTrackers)
       .set(patch)
@@ -761,7 +747,6 @@ export class AnalyticsService {
       revokedAt: key?.revokedAt?.toISOString() ?? null,
       requireVerifiedIdentity: updated.requireVerifiedIdentity,
       canonicalLocales: updated.canonicalLocales,
-      canonicalStripTrailingSlash: updated.canonicalStripTrailingSlash,
       hasIdentityVerificationSecret: updated.identityVerificationSecret !== null,
     };
   }

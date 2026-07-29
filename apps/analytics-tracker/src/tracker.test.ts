@@ -100,6 +100,11 @@ function setScrollHeight(height: number): void {
   });
 }
 
+function setVisibility(state: 'hidden' | 'visible'): void {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: state });
+  document.dispatchEvent(new Event('visibilitychange'));
+}
+
 function setScrollY(y: number): void {
   Object.defineProperty(window, 'scrollY', { configurable: true, value: y });
 }
@@ -114,6 +119,7 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: sendBeacon });
   clearLocalStorageIfAvailable();
   delete (window as { mn?: unknown }).mn;
+  setVisibility('visible');
   setLocation('https://site.example/welcome');
   setReferrer('');
   document.documentElement.lang = '';
@@ -342,7 +348,7 @@ describe('route changes', () => {
   });
 });
 
-describe('pagehide', () => {
+describe('exit enrichment', () => {
   it('reports a final view with dwell time on pagehide', async () => {
     const key = await loadTracker();
     beacons = [];
@@ -350,6 +356,43 @@ describe('pagehide', () => {
     const [view] = await beaconsFor(key, '/v1/a/t');
     expect(view).toMatchObject({ referrer: null });
     expect(typeof view!.dwellMs).toBe('number');
+  });
+
+  it('reports on visibilitychange to hidden, which mobile fires when pagehide does not', async () => {
+    const key = await loadTracker();
+    const [initial] = await beaconsFor(key, '/v1/a/t');
+    beacons = [];
+
+    setVisibility('hidden');
+
+    const [exit] = await beaconsFor(key, '/v1/a/t');
+    expect(exit).toMatchObject({ viewId: initial!.viewId, referrer: null });
+    expect(typeof exit!.dwellMs).toBe('number');
+  });
+
+  it('does not report twice for the usual hidden-then-pagehide pair', async () => {
+    const key = await loadTracker();
+    beacons = [];
+
+    setVisibility('hidden');
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(await beaconsFor(key, '/v1/a/t')).toHaveLength(1);
+  });
+
+  it('reports again once the reader comes back and leaves, with a larger dwell', async () => {
+    const key = await loadTracker();
+    beacons = [];
+
+    setVisibility('hidden');
+    setVisibility('visible');
+    await new Promise((r) => setTimeout(r, 12));
+    setVisibility('hidden');
+
+    const exits = await beaconsFor(key, '/v1/a/t');
+    expect(exits).toHaveLength(2);
+    expect(exits[1]!.viewId).toBe(exits[0]!.viewId);
+    expect(exits[1]!.dwellMs as number).toBeGreaterThan(exits[0]!.dwellMs as number);
   });
 });
 
@@ -567,6 +610,39 @@ describe('CMS entry views', () => {
     expect(exit!.viewId).toBe(initial!.viewId);
     expect(typeof exit!.dwellMs).toBe('number');
     expect(exit!.referrer).toBeNull();
+  });
+
+  it('keeps enriching entry views on later exits, not just the first', async () => {
+    document.body.innerHTML = '<article data-mn-entry-token="enrich-b"></article>';
+    await loadTracker();
+    beacons = [];
+
+    setVisibility('hidden');
+    setVisibility('visible');
+    await new Promise((r) => setTimeout(r, 12));
+    window.dispatchEvent(new Event('pagehide'));
+
+    const enrichments = await entryViewsFor('enrich-b');
+    expect(enrichments).toHaveLength(2);
+    expect(enrichments[1]!.viewId).toBe(enrichments[0]!.viewId);
+    expect(enrichments[1]!.dwellMs as number).toBeGreaterThan(
+      enrichments[0]!.dwellMs as number,
+    );
+  });
+
+  it('re-registers declared entries after a bfcache restore', async () => {
+    document.body.innerHTML = '<article data-mn-entry-token="restore-a"></article>';
+    await loadTracker();
+    const [initial] = await entryViewsFor('restore-a');
+    beacons = [];
+
+    const pageshow = new Event('pageshow');
+    Object.defineProperty(pageshow, 'persisted', { value: true });
+    window.dispatchEvent(pageshow);
+
+    const [restored] = await entryViewsFor('restore-a');
+    expect(restored!.viewId).not.toBe(initial!.viewId);
+    expect(restored!.dwellMs).toBeUndefined();
   });
 
   it('warns and sends nothing when trackEntry is called without a token', async () => {

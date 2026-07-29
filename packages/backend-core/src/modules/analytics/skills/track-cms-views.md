@@ -75,7 +75,11 @@ For a static export or server-rendered page that ships no JS of its own, use the
 <article data-mn-entry-token={entry._tracking.token}>…</article>
 ```
 
-Either way the view is one row: on `pagehide` (and on route change) the tracker re-sends the same `viewId` with `dwellMs` and `readDepth`, which enriches that row instead of adding another. Up to 10 entry views per page load are tracked this way — plenty for a list page, and a cap so a huge index can't fan out.
+**Put the token on the page that shows the entry, never on cards in a list.** A `cms_entry` view means "someone read this entry". Tag the cards on a journal index and every index load records a read for every entry on it, so your most-read list becomes whatever happens to sit on the homepage. This applies to the pixel too — delivery list responses ship a `_tracking` block per item, and rendering all of them has the same effect.
+
+Want to know which cards get seen? That's a different question with a different answer: `window.mn.track(entryId, { subjectType: 'cms_entry_impression' })`, so impressions and reads stay separable at query time.
+
+Either way the view is one row: on `visibilitychange` (hidden) and `pagehide`, and on route change, the tracker re-sends the same `viewId` with `dwellMs` and `readDepth`, which enriches that row instead of adding another. The **first 10** entry views on a page are registered for that enrichment; past 10 the view is still recorded, it just never gets dwell or read depth — the cap bounds exit-beacon fan-out on a big page, not the views themselves.
 
 `mn.trackEntry(token, attrs?)` takes the same attribute bag as `mn.track` (`path`, `referrer`, `metadata`, `dwellMs`, `readDepth`, `viewId`).
 
@@ -180,6 +184,7 @@ Returns `[{ subjectType, subjectId, views, visitors }]` — `subjectId` is the e
 - **Don't strip `_tracking` from your delivery client.** If you're mapping the JSON into typed objects, thread `_tracking` through. Discarding it is the single most common reason "we have no journal analytics" in cloud.
 - **Don't slice the token out of `pixelUrl`.** `_tracking.token` ships the bare token; a regex over the URL breaks the moment the URL shape changes.
 - **Don't reach for the pixel on a page that runs `tracker.js`.** You'd trade `visitors`, dwell and read depth for nothing.
+- **Don't tag list cards with `data-mn-entry-token` (or their pixels).** `cms_entry` views answer "what got read"; firing one per card on every index load turns that into "what got listed" and quietly ranks your homepage highest. Use a separate `subjectType` for impressions.
 - **Don't try to mint your own view tokens.** The signing is server-side only. If you need a token for an entity that isn't a CMS entry, add a new mint site to the delivery layer rather than reproducing the signing in client code.
 - **Don't rely on the pixel URL surviving a pepper rotation.** If you bake URLs into a long-lived static export, plan to rebuild after pepper rotations. Day-to-day this is a non-issue.
 

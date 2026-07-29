@@ -131,6 +131,7 @@ function warn(message: string, ...detail: unknown[]): void {
   let lastPath = location.pathname;
   let pageViewId = uuid();
   let maxDepth = 0;
+  let reported = false;
   const firedOnce = new Set<string>();
   const entryViews: Array<{ token: string; viewId: string }> = [];
 
@@ -220,6 +221,8 @@ function warn(message: string, ...detail: unknown[]): void {
     pageEnter = Date.now();
     lastPath = location.pathname;
     maxDepth = 0;
+    reported = false;
+    entryViews.length = 0;
     trackView(location.pathname, { viewId: pageViewId, referrer });
   }
 
@@ -228,6 +231,8 @@ function warn(message: string, ...detail: unknown[]): void {
   }
 
   function endView(): void {
+    if (reported) return;
+    reported = true;
     const dwellMs = Date.now() - pageEnter;
     const depth = readDepth();
     trackView(lastPath, {
@@ -236,7 +241,9 @@ function warn(message: string, ...detail: unknown[]): void {
       viewId: pageViewId,
       referrer: null,
     });
-    flushEntryViews(dwellMs, depth);
+    for (const view of entryViews) {
+      sendEntry(view.token, view.viewId, { dwellMs, readDepth: depth, referrer: null });
+    }
   }
 
   function sendEntry(token: string, viewId: string, attrs: TrackAttrs = {}): void {
@@ -262,13 +269,6 @@ function warn(message: string, ...detail: unknown[]): void {
     const viewId = attrs.viewId || uuid();
     sendEntry(token, viewId, attrs);
     if (entryViews.length < MAX_ENTRY_VIEWS) entryViews.push({ token, viewId });
-  }
-
-  function flushEntryViews(dwellMs: number, depth: number): void {
-    for (const view of entryViews) {
-      sendEntry(view.token, view.viewId, { dwellMs, readDepth: depth, referrer: null });
-    }
-    entryViews.length = 0;
   }
 
   function trackDeclaredEntries(): void {
@@ -387,10 +387,16 @@ function warn(message: string, ...detail: unknown[]): void {
   };
   addEventListener('popstate', onRouteChange);
 
+  doc.addEventListener('visibilitychange', () => {
+    if (doc.visibilityState === 'hidden') endView();
+    else reported = false;
+  });
   addEventListener('pagehide', endView);
 
   addEventListener('pageshow', (event) => {
-    if (event.persisted) startView(null);
+    if (!event.persisted) return;
+    startView(null);
+    trackDeclaredEntries();
   });
 
   const w = window as Window & { mn?: Partial<MuninGlobal> };

@@ -383,11 +383,12 @@ function trackingEnabled(flag: string | undefined): boolean {
 function buildTracking(
   orgId: string,
   entryId: string,
-): { pixelUrl: string; beaconUrl: string } | undefined {
+): { token: string; pixelUrl: string; beaconUrl: string } | undefined {
   try {
     const token = signViewToken({ orgId, subjectType: 'cms_entry', subjectId: entryId });
     const base = readApiBaseUrl();
     return {
+      token,
       pixelUrl: `${base}/v1/a/v/${token}.gif`,
       beaconUrl: `${base}/v1/a/v`,
     };

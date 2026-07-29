@@ -139,6 +139,7 @@ const API_URL = import.meta.env.VITE_API_URL;
   src={`${API_URL}/tracker.js`}
   data-key="mn_track_…"
   data-spa="true"
+  data-read-depth="true"
 />
 ```
 
@@ -148,9 +149,11 @@ Required attribute: `data-key`. The script auto-fires a page view on `DOMContent
 
 `data-spa="true"` enables auto-tracking of `history.pushState` / `replaceState` route changes — set this for any React/Vue/Svelte/etc. SPA. Without it you'll only get one page view at initial load and an empty funnel.
 
+`data-read-depth="true"` measures how far readers scroll and reports it once per view, on exit — it costs no extra event, so turn it on unless the pages are all short.
+
 `data-api` is optional and defaults to the script's origin. Don't set it unless the API origin differs from where you loaded the bundle.
 
-For custom events (CTA clicks, signup funnels, scroll depth), `window.mn.track(subjectId, attrs?)` is exposed once the bundle loads — see `skill://analytics/track-website-traffic`. Drop-off across those steps is then one call to `analytics_get_funnel`.
+For funnel steps and CTA clicks, prefer the markup attributes — no JS file, no wiring: `data-mn-event="signup-cta-click"` plus `data-mn-subject-type="funnel"` (and `data-mn-once="session"` for step milestones). For anything that isn't a click, `window.mn.track(subjectId, attrs?)` / `window.mn.trackOnce(...)` are exposed once the bundle loads, and `window.mn.trackSearch(query, resultCount)` reports your own site search so `analytics_list_zero_result_searches` has something to show — see `skill://analytics/track-website-traffic`. Drop-off across those steps is then one call to `analytics_get_funnel`.
 
 ### 2c. Identify logged-in users (optional, but it's what makes journeys/funnels pay off)
 

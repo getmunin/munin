@@ -785,7 +785,8 @@
         "copyScript": "Kopier snutt",
         "hashLabel": "Valgfritt · verifiser besøkendes identitet",
         "hashHint": "Beregn en server-side HMAC av `externalId:visitorId` (besøkende-id-en kommer fra window.mn.getVisitorId()) med denne sporingskodens identitetshemmelighet. Å binde besøkende-id-en hindrer at en lekket hash kan knytte en annen besøkende. Sidevisninger fra den besøkende blir merket med end_user_id.",
-        "copyHash": "Kopier kode"
+        "copyHash": "Kopier kode",
+        "attributesHint": "Valgfrie attributter: `data-read-depth=\"true\"` måler hvor langt leserne blar (rapporteres én gang per visning, ved utgang); `data-spa=\"true\"` sporer ruteendringer i single-page-apper — dropp den på et klassisk flersidenettsted; `data-subject-type=\"docs\"` overstyrer standard emnetype `page`."
       },
       "emptyTitle": "Ingen sporingskoder ennå",
       "emptyBody": "Legg til en sporingskode for å begynne å samle statistikk om sidevisninger.",
@@ -796,7 +797,18 @@
         "create": "Kunne ikke opprette sporingskode.",
         "rotate": "Kunne ikke rotere identitetshemmelighet.",
         "rotateKey": "Kunne ikke rotere sporingsnøkkel.",
-        "revoke": "Kunne ikke deaktivere sporingskode."
+        "revoke": "Kunne ikke deaktivere sporingskode.",
+        "canonical": "Kunne ikke lagre innstillinger for kanoniske URL-er."
+      },
+      "canonical": {
+        "edit": "Kanoniske URL-er",
+        "title": "Kanoniske URL-er — {name}",
+        "description": "Slå sammen sti-formede emne-id-er ved mottak, slik at én side blir ett emne. Gjelder bare nye hendelser; rå-URL-en beholdes alltid i `path`.",
+        "localesLabel": "Språkprefikser som skal fjernes",
+        "localesHint": "Komma- eller mellomromseparert, f.eks. en, nb. /en/priser og /nb/priser rapporteres da begge som /priser.",
+        "stripSlash": "Se bort fra skråstrek på slutten",
+        "stripSlashHint": "/priser/ rapporteres som /priser. Nyttig når en omdirigering legger på skråstreken for noen inngangsstier.",
+        "summary": "kanonisk: {rules}"
       }
     },
     "apiKeys": {

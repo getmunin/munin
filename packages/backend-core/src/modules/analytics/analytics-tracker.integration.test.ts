@@ -185,6 +185,442 @@ const skipReason = TEST_URL
     expect(await countTrackerEvents(db, orgId)).toBe(beforeBad);
   }, 30_000);
 
+  it('viewId enrichment keeps one row per view and never overwrites attribution', async () => {
+    const minted = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'dedup tracker' },
+        }),
+      ),
+    );
+
+    const subject = `/dedup-${minted.id}`;
+    const viewId = `view-${minted.id}`;
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: subject,
+      path: `${subject}?utm_source=hn`,
+      referrer: 'https://news.ycombinator.com/',
+      visitorId: 'visitor-dedup',
+      viewId,
+      utm: { source: 'hn', medium: 'social', campaign: 'launch' },
+      metadata: { variant: 'a' },
+    });
+    await waitFor(async () => (await countTrackerEvents(db, orgId, subject)) === 1);
+
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: subject,
+      referrer: null,
+      visitorId: 'visitor-dedup',
+      viewId,
+      dwellMs: 12_000,
+      readDepth: 75,
+      utm: null,
+      metadata: null,
+    });
+    await waitFor(async () => {
+      const [row] = await viewRows(db, orgId, subject);
+      return row?.dwellMs === 12_000;
+    });
+
+    expect(await countTrackerEvents(db, orgId, subject)).toBe(1);
+    const [row] = await viewRows(db, orgId, subject);
+    expect(row?.dwellMs).toBe(12_000);
+    expect(row?.readDepth).toBe(75);
+    expect(row?.referrer).toBe('https://news.ycombinator.com/');
+    expect(row?.utmSource).toBe('hn');
+    expect(row?.path).toBe(`${subject}?utm_source=hn`);
+    expect(row?.metadata).toMatchObject({ variant: 'a' });
+
+    const lowerDwell = await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: subject,
+      visitorId: 'visitor-dedup',
+      viewId,
+      dwellMs: 10,
+      readDepth: 25,
+    });
+    expect(lowerDwell).toBe(204);
+    await new Promise((r) => setTimeout(r, 300));
+    const [afterLower] = await viewRows(db, orgId, subject);
+    expect(afterLower?.dwellMs).toBe(12_000);
+    expect(afterLower?.readDepth).toBe(75);
+  }, 30_000);
+
+  it('an exit beacon that arrives first creates the row and the initial view fills attribution', async () => {
+    const minted = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'out-of-order tracker' },
+        }),
+      ),
+    );
+
+    const subject = `/reordered-${minted.id}`;
+    const viewId = `view-reordered-${minted.id}`;
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: subject,
+      referrer: null,
+      visitorId: 'visitor-reordered',
+      viewId,
+      dwellMs: 4000,
+    });
+    await waitFor(async () => (await countTrackerEvents(db, orgId, subject)) === 1);
+
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: subject,
+      path: subject,
+      referrer: 'https://google.com/',
+      visitorId: 'visitor-reordered',
+      viewId,
+      utm: { source: 'newsletter' },
+    });
+    await waitFor(async () => {
+      const [row] = await viewRows(db, orgId, subject);
+      return row?.referrer === 'https://google.com/';
+    });
+
+    expect(await countTrackerEvents(db, orgId, subject)).toBe(1);
+    const [row] = await viewRows(db, orgId, subject);
+    expect(row?.dwellMs).toBe(4000);
+    expect(row?.utmSource).toBe('newsletter');
+    expect(row?.path).toBe(subject);
+  }, 30_000);
+
+  it('concurrent beacons with the same viewId collapse into one row', async () => {
+    const minted = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'concurrent tracker' },
+        }),
+      ),
+    );
+
+    const subject = `/concurrent-${minted.id}`;
+    const viewId = `view-concurrent-${minted.id}`;
+    const bodies = [0, 1, 2, 3, 4].map((i) => ({
+      key: minted.trackerKey,
+      subjectId: subject,
+      visitorId: 'visitor-concurrent',
+      viewId,
+      dwellMs: 1000 * (i + 1),
+    }));
+    const statuses = await Promise.all(bodies.map((body) => postBeacon(baseUrl, body)));
+    expect(statuses.every((s) => s === 204)).toBe(true);
+
+    await waitFor(async () => (await countTrackerEvents(db, orgId, subject)) === 1);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(await countTrackerEvents(db, orgId, subject)).toBe(1);
+    const [row] = await viewRows(db, orgId, subject);
+    expect(row?.dwellMs).toBe(5000);
+  }, 30_000);
+
+  it('beacons without a viewId still insert one row each', async () => {
+    const minted = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'legacy tracker' },
+        }),
+      ),
+    );
+
+    const subject = `/legacy-${minted.id}`;
+    for (const dwellMs of [undefined, 9000]) {
+      await postBeacon(baseUrl, {
+        key: minted.trackerKey,
+        subjectId: subject,
+        visitorId: 'visitor-legacy',
+        dwellMs,
+      });
+    }
+    await waitFor(async () => (await countTrackerEvents(db, orgId, subject)) === 2);
+    const rows = await viewRows(db, orgId, subject);
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.clientViewId === null)).toBe(true);
+  }, 30_000);
+
+  it('canonicalizes path-shaped subject ids per tracker settings, leaving path raw', async () => {
+    const minted = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'canonical tracker' },
+        }),
+      ),
+    );
+    const updated = await withClient(adminKey, async (c) =>
+      parseToolResult<{ canonicalLocales: string[]; canonicalStripTrailingSlash: boolean }>(
+        await c.callTool({
+          name: 'analytics_update_tracker',
+          arguments: {
+            trackerId: minted.id,
+            canonicalLocales: ['EN', 'nb'],
+            canonicalStripTrailingSlash: true,
+          },
+        }),
+      ),
+    );
+    expect(updated.canonicalLocales).toEqual(['en', 'nb']);
+    expect(updated.canonicalStripTrailingSlash).toBe(true);
+
+    const marker = `canonical-${minted.id}`;
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: `/en/${marker}/`,
+      path: `/en/${marker}/?ref=1`,
+      visitorId: 'visitor-canonical-en',
+    });
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: `/nb/${marker}`,
+      path: `/nb/${marker}`,
+      visitorId: 'visitor-canonical-nb',
+    });
+    await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: `${marker}-click`,
+      subjectType: 'funnel',
+      visitorId: 'visitor-canonical-nb',
+    });
+    await waitFor(async () => (await countTrackerEvents(db, orgId, `/${marker}`)) === 2);
+
+    const rows = await viewRows(db, orgId, `/${marker}`);
+    expect(rows.map((r) => r.path).sort()).toEqual([
+      `/en/${marker}/?ref=1`,
+      `/nb/${marker}`,
+    ]);
+    expect(await countTrackerEvents(db, orgId, `${marker}-click`)).toBe(1);
+
+    await fetch(`${baseUrl}/v1/a/t/${minted.trackerKey}.gif?s=/en/${marker}/&v=visitor-pixel`);
+    await waitFor(async () => (await countTrackerEvents(db, orgId, `/${marker}`)) === 3);
+  }, 30_000);
+
+  it('POST /v1/a/s records search events and feeds zero-result searches', async () => {
+    const { orgId: searchOrg, key: searchAdminKey } = await createSeedOrg(db, 'Search Org');
+    try {
+      const minted = await withClient(searchAdminKey, async (c) =>
+        parseToolResult<{ id: string; trackerKey: string }>(
+          await c.callTool({
+            name: 'analytics_create_tracker',
+            arguments: { name: 'search tracker' },
+          }),
+        ),
+      );
+
+      const res = await fetch(`${baseUrl}/v1/a/s`, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({
+          key: minted.trackerKey,
+          query: 'refund policy',
+          resultCount: 0,
+          visitorId: 'visitor-search-1',
+          locale: 'en',
+        }),
+      });
+      expect(res.status).toBe(204);
+      await waitFor(async () => (await countSearchEvents(db, searchOrg)) === 1);
+
+      const [row] = await db
+        .select()
+        .from(schema.analyticsSearchEvents)
+        .where(sql`org_id = ${searchOrg}`)
+        .limit(1);
+      expect(row?.subjectType).toBe('site');
+      expect(row?.query).toBe('refund policy');
+      expect(row?.resultCount).toBe(0);
+      expect(row?.visitorId).toBe('visitor-search-1');
+
+      const botted = await fetch(`${baseUrl}/v1/a/s`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'text/plain;charset=UTF-8',
+          'user-agent':
+            'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        },
+        body: JSON.stringify({
+          key: minted.trackerKey,
+          query: 'bot query',
+          resultCount: 0,
+        }),
+      });
+      expect(botted.status).toBe(204);
+      const invalidKey = await fetch(`${baseUrl}/v1/a/s`, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({
+          key: 'mn_track_invalid_xxx',
+          query: 'unauthorized',
+          resultCount: 0,
+        }),
+      });
+      expect(invalidKey.status).toBe(204);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await countSearchEvents(db, searchOrg)).toBe(1);
+
+      const zero = await withClient(searchAdminKey, async (c) =>
+        parseToolResult<Array<{ query: string; occurrences: number }>>(
+          await c.callTool({
+            name: 'analytics_list_zero_result_searches',
+            arguments: { sinceDays: 1, limit: 10 },
+          }),
+        ),
+      );
+      expect(zero).toEqual([
+        expect.objectContaining({ query: 'refund policy', occurrences: 1 }),
+      ]);
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${searchOrg}`);
+    }
+  }, 30_000);
+
+  it('identify backfills end_user_id onto the visitor\'s earlier anonymous events', async () => {
+    const { orgId: backfillOrg, key: backfillAdminKey } = await createSeedOrg(
+      db,
+      'Backfill Org',
+    );
+    try {
+      const minted = await withClient(backfillAdminKey, async (c) =>
+        parseToolResult<{ id: string; trackerKey: string; identityVerificationSecret: string }>(
+          await c.callTool({
+            name: 'analytics_create_tracker',
+            arguments: { name: 'backfill tracker' },
+          }),
+        ),
+      );
+
+      const visitorId = 'visitor-backfill-1';
+      await postBeacon(baseUrl, {
+        key: minted.trackerKey,
+        subjectId: '/landing',
+        path: '/landing',
+        visitorId,
+      });
+      await fetch(`${baseUrl}/v1/a/s`, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({
+          key: minted.trackerKey,
+          query: 'pricing',
+          resultCount: 2,
+          visitorId,
+        }),
+      });
+      await waitFor(async () => (await countTrackerEvents(db, backfillOrg, '/landing')) === 1);
+      await waitFor(async () => (await countSearchEvents(db, backfillOrg)) === 1);
+
+      const stale = await db
+        .select({ endUserId: schema.analyticsViewEvents.endUserId })
+        .from(schema.analyticsViewEvents)
+        .where(sql`org_id = ${backfillOrg} AND visitor_id = ${visitorId}`);
+      expect(stale.every((r) => r.endUserId === null)).toBe(true);
+
+      const externalId = 'customer:backfill';
+      const userHash = signHmac(
+        `${externalId}:${visitorId}`,
+        minted.identityVerificationSecret,
+      );
+      const identifyRes = await fetch(`${baseUrl}/v1/a/identify`, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({ key: minted.trackerKey, visitorId, externalId, userHash }),
+      });
+      expect(identifyRes.status).toBe(204);
+
+      await waitFor(async () => {
+        const rows = await db
+          .select({ endUserId: schema.analyticsViewEvents.endUserId })
+          .from(schema.analyticsViewEvents)
+          .where(sql`org_id = ${backfillOrg} AND visitor_id = ${visitorId}`);
+        return rows.length > 0 && rows.every((r) => r.endUserId !== null);
+      });
+      const searchRows = await db
+        .select({ endUserId: schema.analyticsSearchEvents.endUserId })
+        .from(schema.analyticsSearchEvents)
+        .where(sql`org_id = ${backfillOrg} AND visitor_id = ${visitorId}`);
+      expect(searchRows.every((r) => r.endUserId !== null)).toBe(true);
+
+      const engagement = await withClient(backfillAdminKey, async (c) =>
+        parseToolResult<{ views: number }>(
+          await c.callTool({
+            name: 'analytics_get_subject_engagement',
+            arguments: { subjectType: 'page', subjectId: '/landing', sinceDays: 1 },
+          }),
+        ),
+      );
+      expect(engagement.views).toBe(1);
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${backfillOrg}`);
+    }
+  }, 30_000);
+
+  it('leaves events older than the backfill window anonymous', async () => {
+    const { orgId: windowOrg, key: windowAdminKey } = await createSeedOrg(db, 'Window Org');
+    try {
+      const minted = await withClient(windowAdminKey, async (c) =>
+        parseToolResult<{ trackerKey: string; identityVerificationSecret: string }>(
+          await c.callTool({
+            name: 'analytics_create_tracker',
+            arguments: { name: 'window tracker' },
+          }),
+        ),
+      );
+      const visitorId = 'visitor-window-1';
+      await db.insert(schema.analyticsViewEvents).values([
+        {
+          orgId: windowOrg,
+          subjectType: 'page',
+          subjectId: '/ancient',
+          visitorId,
+          source: 'tracker',
+          createdAt: new Date(Date.now() - 40 * 86400000),
+        },
+        {
+          orgId: windowOrg,
+          subjectType: 'page',
+          subjectId: '/recent',
+          visitorId,
+          source: 'tracker',
+          createdAt: new Date(Date.now() - 86400000),
+        },
+      ]);
+
+      const externalId = 'customer:window';
+      const userHash = signHmac(
+        `${externalId}:${visitorId}`,
+        minted.identityVerificationSecret,
+      );
+      const res = await fetch(`${baseUrl}/v1/a/identify`, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({ key: minted.trackerKey, visitorId, externalId, userHash }),
+      });
+      expect(res.status).toBe(204);
+
+      await waitFor(async () => {
+        const [recent] = await db
+          .select({ endUserId: schema.analyticsViewEvents.endUserId })
+          .from(schema.analyticsViewEvents)
+          .where(sql`org_id = ${windowOrg} AND subject_id = '/recent'`);
+        return recent?.endUserId !== null;
+      });
+      const [ancient] = await db
+        .select({ endUserId: schema.analyticsViewEvents.endUserId })
+        .from(schema.analyticsViewEvents)
+        .where(sql`org_id = ${windowOrg} AND subject_id = '/ancient'`);
+      expect(ancient?.endUserId).toBeNull();
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${windowOrg}`);
+    }
+  }, 30_000);
+
   it('revoked tracker key stops recording', async () => {
     const minted = await withClient(adminKey, async (c) => {
       return parseToolResult<{ id: string; trackerKey: string }>(
@@ -830,6 +1266,38 @@ async function createSeedOrg(
     scopes: ['*'],
   });
   return { orgId: org!.id, key };
+}
+
+async function postBeacon(baseUrl: string, body: Record<string, unknown>): Promise<number> {
+  const res = await fetch(`${baseUrl}/v1/a/t`, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify({ subjectType: 'page', ...body }),
+  });
+  return res.status;
+}
+
+async function viewRows(
+  db: ReturnType<typeof createDb>,
+  orgId: string,
+  subjectId: string,
+): Promise<Array<typeof schema.analyticsViewEvents.$inferSelect>> {
+  return db
+    .select()
+    .from(schema.analyticsViewEvents)
+    .where(sql`org_id = ${orgId} AND subject_id = ${subjectId}`)
+    .orderBy(schema.analyticsViewEvents.createdAt);
+}
+
+async function countSearchEvents(
+  db: ReturnType<typeof createDb>,
+  orgId: string,
+): Promise<number> {
+  const r = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.analyticsSearchEvents)
+    .where(sql`org_id = ${orgId}`);
+  return r[0]?.n ?? 0;
 }
 
 async function countTrackerEvents(

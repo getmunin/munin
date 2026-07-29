@@ -14,6 +14,8 @@ const AnalyticsImportInput = z.object({
           name: z.string().min(1).max(120),
           allowedOrigins: z.array(z.string()).default([]),
           requireVerifiedIdentity: z.boolean().default(false),
+          canonicalLocales: z.array(z.string()).optional(),
+          canonicalStripTrailingSlash: z.boolean().optional(),
           identityVerificationSecret: z.string().nullable().optional(),
         }),
       ),
@@ -71,10 +73,14 @@ const EmptyInput = z.object({});
 
 const ViewSourceSchema = z.enum(['pixel', 'beacon', 'tracker']);
 
+const CanonicalLocales = z.array(z.string().min(1).max(16)).max(32);
+
 const CreateTrackerInput = z.object({
   name: z.string().min(1).max(120),
   allowedOrigins: z.array(z.string().url()).optional(),
   requireVerifiedIdentity: z.boolean().optional(),
+  canonicalLocales: CanonicalLocales.optional(),
+  canonicalStripTrailingSlash: z.boolean().optional(),
 });
 
 const UpdateTrackerInput = z.object({
@@ -82,6 +88,8 @@ const UpdateTrackerInput = z.object({
   name: z.string().min(1).max(120).optional(),
   allowedOrigins: z.array(z.string().url()).optional(),
   requireVerifiedIdentity: z.boolean().optional(),
+  canonicalLocales: CanonicalLocales.optional(),
+  canonicalStripTrailingSlash: z.boolean().optional(),
 });
 
 const RevokeTrackerInput = z.object({
@@ -235,7 +243,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_create_tracker',
     title: 'Analytics: Create tracker key',
     description:
-      'Create a tracker and mint a public `mn_track_*` API key bound to it. The key is safe to embed in `<script>` tags or mobile clients — it can only write page-view events scoped to your org, never read them. `allowedOrigins` is an optional list of full origins (`https://example.com`) the tracker will accept; when empty, any origin is accepted (set `MUNIN_TRACKER_REQUIRE_ALLOWLIST=1` to fail-closed instead). Returns the plaintext key once; store it where it needs to be embedded. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the tracker + widget + CMS wiring end-to-end.',
+      'Create a tracker and mint a public `mn_track_*` API key bound to it. The key is safe to embed in `<script>` tags or mobile clients — it can only write page-view events scoped to your org, never read them. `allowedOrigins` is an optional list of full origins (`https://example.com`) the tracker will accept; when empty, any origin is accepted (set `MUNIN_TRACKER_REQUIRE_ALLOWLIST=1` to fail-closed instead). `canonicalLocales` (e.g. `["en","nb"]`) and `canonicalStripTrailingSlash` fold path-shaped subject ids at ingest, so `/en/pricing`, `/nb/pricing` and `/pricing/` report as one subject; the raw URL is still kept in `path`. Returns the plaintext key once; store it where it needs to be embedded. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the tracker + widget + CMS wiring end-to-end.',
     audiences: ['admin'],
     scopes: ['analytics:write'],
     input: CreateTrackerInput,
@@ -265,7 +273,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_update_tracker',
     title: 'Analytics: Update tracker config',
     description:
-      'Update a tracker\'s display name and/or `allowedOrigins`. The bound API key is unchanged — rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.',
+      "Update a tracker's display name, `allowedOrigins`, or subject-id canonicalization (`canonicalLocales`, `canonicalStripTrailingSlash`). Canonicalization applies at ingest to path-shaped subject ids only and takes effect on the next event — no site redeploy needed, and past rows are left as they were. The bound API key is unchanged — rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.",
     audiences: ['admin'],
     scopes: ['analytics:write'],
     input: UpdateTrackerInput,

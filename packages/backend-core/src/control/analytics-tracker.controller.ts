@@ -26,6 +26,7 @@ import {
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
+import { canonicalizeSubjectId } from '../modules/analytics/canonical-subject.ts';
 import { GeoIpService } from '../modules/analytics/geoip.service.ts';
 import { linkVisitorToEndUser } from '../modules/analytics/visitor-identity.ts';
 
@@ -35,6 +36,7 @@ const TRANSPARENT_GIF = Buffer.from(
 );
 
 const DEFAULT_SUBJECT_TYPE = 'page';
+const DEFAULT_SEARCH_SUBJECT_TYPE = 'site';
 
 const PixelQuerySchema = z.object({
   s: z.string().min(1).max(512),
@@ -56,6 +58,7 @@ const BeaconBodySchema = z.object({
   locale: NullableString(16),
   dwellMs: z.number().int().min(0).nullable().optional(),
   readDepth: NullableInt(0, 100),
+  viewId: NullableString(64),
   utm: z
     .object({
       source: NullableString(128),
@@ -67,6 +70,15 @@ const BeaconBodySchema = z.object({
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
+const SearchBodySchema = z.object({
+  key: z.string(),
+  query: z.string().min(1).max(256),
+  resultCount: z.number().int().min(0),
+  subjectType: z.string().min(1).max(32).nullable().optional(),
+  locale: NullableString(16),
+  visitorId: NullableString(64),
+});
+
 interface ResolvedTracker {
   trackerId: string;
   orgId: string;
@@ -74,6 +86,8 @@ interface ResolvedTracker {
   allowedOrigins: string[];
   identityVerificationSecret: string | null;
   requireVerifiedIdentity: boolean;
+  canonicalLocales: string[];
+  canonicalStripTrailingSlash: boolean;
 }
 
 const IdentifyBodySchema = z.object({
@@ -118,7 +132,7 @@ export class AnalyticsTrackerController {
     await this.analytics.recordView({
       orgId: tracker.orgId,
       subjectType: subjectType ?? DEFAULT_SUBJECT_TYPE,
-      subjectId,
+      subjectId: canonicalSubject(tracker, subjectId),
       source: 'tracker',
       referrer: referer ?? null,
       visitorId: visitorId ?? null,
@@ -151,7 +165,7 @@ export class AnalyticsTrackerController {
     await this.analytics.recordView({
       orgId: tracker.orgId,
       subjectType: body.subjectType ?? DEFAULT_SUBJECT_TYPE,
-      subjectId: body.subjectId,
+      subjectId: canonicalSubject(tracker, body.subjectId),
       source: 'tracker',
       path: body.path ?? null,
       locale: body.locale ?? null,
@@ -159,12 +173,42 @@ export class AnalyticsTrackerController {
       visitorId: body.visitorId ?? null,
       dwellMs: body.dwellMs ?? null,
       readDepth: body.readDepth ?? null,
+      clientViewId: body.viewId ?? null,
       utmSource: body.utm?.source ?? null,
       utmMedium: body.utm?.medium ?? null,
       utmCampaign: body.utm?.campaign ?? null,
       userAgentClass: 'tracker',
       country: this.geoip.lookupCountry(req.ip),
       metadata: body.metadata ?? null,
+      requireVerifiedIdentity: tracker.requireVerifiedIdentity,
+    });
+  }
+
+  @Post('s')
+  @HttpCode(204)
+  async trackerSearch(
+    @Body() rawBody: unknown,
+    @Headers('user-agent') userAgent: string | undefined,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<void> {
+    if (looksLikeBot(userAgent)) return;
+    const parsed = SearchBodySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      this.logger.warn(`search.validation_failed: ${parsed.error.message}`);
+      return;
+    }
+    const body = parsed.data;
+    const tracker = await this.resolveTrackerKey(body.key);
+    if (!tracker) return;
+    if (!originIsAllowed(tracker.allowedOrigins, origin)) return;
+
+    await this.analytics.recordSearch({
+      orgId: tracker.orgId,
+      subjectType: body.subjectType ?? DEFAULT_SEARCH_SUBJECT_TYPE,
+      query: body.query,
+      resultCount: body.resultCount,
+      locale: body.locale ?? null,
+      visitorId: body.visitorId ?? null,
       requireVerifiedIdentity: tracker.requireVerifiedIdentity,
     });
   }
@@ -268,6 +312,9 @@ export class AnalyticsTrackerController {
           allowedOrigins: schema.analyticsTrackers.allowedOrigins,
           identityVerificationSecret: schema.analyticsTrackers.identityVerificationSecret,
           requireVerifiedIdentity: schema.analyticsTrackers.requireVerifiedIdentity,
+          canonicalLocales: schema.analyticsTrackers.canonicalLocales,
+          canonicalStripTrailingSlash:
+            schema.analyticsTrackers.canonicalStripTrailingSlash,
         })
         .from(schema.analyticsTrackers)
         .where(eq(schema.analyticsTrackers.id, keyRow.trackerId))
@@ -286,11 +333,20 @@ export class AnalyticsTrackerController {
         allowedOrigins: trackerRow.allowedOrigins,
         identityVerificationSecret: trackerRow.identityVerificationSecret,
         requireVerifiedIdentity: trackerRow.requireVerifiedIdentity,
+        canonicalLocales: trackerRow.canonicalLocales,
+        canonicalStripTrailingSlash: trackerRow.canonicalStripTrailingSlash,
       };
     } catch {
       return null;
     }
   }
+}
+
+function canonicalSubject(tracker: ResolvedTracker, subjectId: string): string {
+  return canonicalizeSubjectId(subjectId, {
+    locales: tracker.canonicalLocales,
+    stripTrailingSlash: tracker.canonicalStripTrailingSlash,
+  });
 }
 
 export function originIsAllowed(

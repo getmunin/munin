@@ -27,6 +27,7 @@ const BeaconBodySchema = z.object({
   locale: z.string().max(16).optional(),
   dwellMs: z.number().int().min(0).optional(),
   readDepth: z.number().int().min(0).max(100).optional(),
+  viewId: z.string().max(64).optional(),
   utm: z
     .object({
       source: z.string().max(128).optional(),
@@ -101,6 +102,7 @@ export class AnalyticsViewsController {
       visitorId: body.visitorId ?? null,
       dwellMs: body.dwellMs ?? null,
       readDepth: body.readDepth ?? null,
+      clientViewId: body.viewId ?? null,
       utmSource: body.utm?.source ?? null,
       utmMedium: body.utm?.medium ?? null,
       utmCampaign: body.utm?.campaign ?? null,

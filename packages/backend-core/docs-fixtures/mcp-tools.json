@@ -111,6 +111,12 @@
                     "default": false,
                     "type": "boolean"
                   },
+                  "canonicalLocales": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
                   "identityVerificationSecret": {
                     "anyOf": [
                       {
@@ -451,6 +457,15 @@
         },
         "requireVerifiedIdentity": {
           "type": "boolean"
+        },
+        "canonicalLocales": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          }
         }
       },
       "required": [
@@ -485,7 +500,7 @@
   {
     "name": "analytics_update_tracker",
     "title": "Analytics: Update tracker config",
-    "description": "Update a tracker's display name and/or `allowedOrigins`. The bound API key is unchanged — rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.",
+    "description": "Update a tracker's display name, `allowedOrigins`, or `canonicalLocales`. Ingest already folds trailing slashes and a leading path segment that matches the page's own `lang` attribute, so `canonicalLocales` is only needed when a URL prefix disagrees with that tag (a `/no/…` path on pages declaring `lang=\"nb-NO\"`) or when pages set no `lang` at all; entries are matched against the first path segment, and subject ids that aren't path-shaped are never rewritten. Takes effect on the next event — no site redeploy — and past rows keep the ids they were written with. The bound API key is unchanged — rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.",
     "audiences": [
       "admin"
     ],
@@ -515,6 +530,15 @@
         },
         "requireVerifiedIdentity": {
           "type": "boolean"
+        },
+        "canonicalLocales": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          }
         }
       },
       "required": [

@@ -84,6 +84,12 @@ Returns the visitor's page-view and search timeline, chronologically. Or pass `e
 
 You can also pass `endUserId` / `contactId` to `analytics_get_views_over_time`, `analytics_get_subject_engagement`, and `analytics_list_top_subjects` to scope those aggregates to one identified visitor.
 
+### Aggregates see the pre-identify events too
+
+Those aggregates filter on the `end_user_id` **column**, not the read-time bridge join — so they only see rows that carry the id. Linking a visitor therefore also stamps their recent anonymous rows: `identify` (and the widget's own identity resolution) backfills `end_user_id` on that visitor's `analytics_view_events` and `analytics_search_events` rows from the last **30 days**, in the same transaction as the link. This is what makes the landing page of a session attributable — the auto page view always reaches the server before your `identify` round-trip finishes, so without the backfill the first event of every new visitor would stay anonymous forever.
+
+Rows older than 30 days keep `end_user_id = NULL`. `analytics_get_contact_journey` still finds them (it resolves the bridge at read time); the column-based aggregates do not.
+
 ## How widget chats fit in
 
 The chat widget does its own identity resolution (via `verifiedExternalId` + `userHash` on the widget channel's secret — a *different* secret from the tracker's; see `skill://conv/setup-chat-widget`). Note the widget hash covers `externalId` **only**, not the visitor, so it can be server-rendered without a round-trip — the opposite of the tracker's visitor-bound hash above. When the widget creates or resolves an `end_users` row, it also writes the bridge row using its own `visitorId`. Because the widget and the analytics tracker share the same `localStorage` key (`mn.vid`) for their visitor id, a visitor who first opened the chat widget already has their analytics history linked — no additional `identify` call needed for that path.

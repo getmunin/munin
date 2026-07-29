@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   APPROVAL_DISMISS_ACTION_ID,
-  APPROVAL_VIEW_ACTION_ID,
   approvalBlocks,
   approvalResolvedLine,
   authorLabel,
@@ -13,7 +12,6 @@ import {
   messageText,
   outreachCampaignParentMovedText,
   outreachCampaignParentText,
-  outreachDraftModalView,
   outreachProposalApprovalText,
   parentStateLine,
   parseApprovalValue,
@@ -221,33 +219,50 @@ describe('approval texts', () => {
     expect(text).toContain('<https://app.example.com/dashboard|Review in Munin>');
   });
 
-  it('renders an outreach draft with subject and truncated quoted preview', () => {
+  it('renders an outreach draft with subject and the full quoted body', () => {
+    const body = ['Hi Ada,', '', 'We shipped the thing — want a walkthrough?', '', 'Kjell'].join(
+      '\n',
+    );
     const text = outreachProposalApprovalText({
       kind: 'initial',
       campaignName: 'Spring launch',
       contactLabel: 'Ada Lovelace',
       draftSubject: 'Hello there',
-      draftBodyPreview: 'x'.repeat(600),
+      draftBody: body,
       dashboardUrl: 'https://app.example.com/dashboard',
     });
     expect(text).toContain('*Outreach draft awaiting approval* — initial for *Spring launch*');
     expect(text).toContain('*Subject:* Hello there');
-    expect(text).toContain('> x');
-    expect(text).toContain('truncated');
-    expect(text).not.toContain('x'.repeat(600));
+    for (const line of body.split('\n')) expect(text).toContain(`> ${line}`);
+    expect(text).toContain('<https://app.example.com/dashboard|Review in Munin>');
+    expect(text).not.toContain('truncated');
   });
 
-  it('keeps the outreach preview short so the thread reply stays compact', () => {
+  it('keeps a long outreach body within the Slack section limit and points at the dashboard', () => {
     const text = outreachProposalApprovalText({
       kind: 'initial',
       campaignName: 'Spring launch',
       contactLabel: 'Ada Lovelace',
       draftSubject: null,
-      draftBodyPreview: 'y'.repeat(300),
+      draftBody: Array.from({ length: 400 }, (_, i) => `line ${i} ${'y'.repeat(40)}`).join('\n'),
       dashboardUrl: 'https://app.example.com/dashboard',
     });
-    expect(text).toContain('truncated');
-    expect(text).not.toContain('y'.repeat(250));
+    expect(text).toContain('truncated — open the full draft in Munin');
+    expect(text.length).toBeLessThanOrEqual(3000);
+    expect(text.endsWith('<https://app.example.com/dashboard|Review in Munin>')).toBe(true);
+  });
+
+  it('escapes the outreach body without splitting an entity at the truncation point', () => {
+    const text = outreachProposalApprovalText({
+      kind: 'initial',
+      campaignName: 'Spring',
+      contactLabel: 'Ada',
+      draftSubject: null,
+      draftBody: `${'z'.repeat(2900)}${'<&>'.repeat(50)}`,
+      dashboardUrl: 'https://app.example.com/dashboard',
+    });
+    expect(text.length).toBeLessThanOrEqual(3000);
+    expect(text).not.toMatch(/&[a-z]*(\n|$)/);
   });
 
   it('renders a KB candidate with and without a proposed target', () => {
@@ -310,21 +325,6 @@ describe('approvalBlocks', () => {
     expect(approvalResolvedLine('dismissed', null)).toContain('Dismissed');
   });
 
-  it('adds a view button between approve and dismiss when a view label is given', () => {
-    const blocks = approvalBlocks(
-      'body',
-      value,
-      { approveLabel: 'Approve & send', viewLabel: 'View full draft' },
-      null,
-    );
-    const actions = blocks[1] as unknown as { elements: Array<Record<string, unknown>> };
-    expect(actions.elements.map((e) => e.action_id)).toEqual([
-      'munin_approval_approve',
-      APPROVAL_VIEW_ACTION_ID,
-      APPROVAL_DISMISS_ACTION_ID,
-    ]);
-    expect(actions.elements.every((e) => e.value === value)).toBe(true);
-  });
 });
 
 describe('outreachCampaignParentText', () => {
@@ -349,40 +349,5 @@ describe('outreachCampaignParentText', () => {
     const text = outreachCampaignParentMovedText('Spring <launch>');
     expect(text).toContain('*Outreach drafts — Spring &lt;launch&gt;*');
     expect(text).toContain('continued in a newer thread');
-  });
-});
-
-describe('outreachDraftModalView', () => {
-  it('renders header fields and the full body', () => {
-    const view = outreachDraftModalView({
-      kind: 'initial',
-      campaignName: 'Spring launch',
-      contactLabel: 'Ada <ada@example.com>',
-      draftSubject: 'Hello there',
-      draftBody: 'Full body text',
-    }) as { type: string; blocks: Array<{ type: string; text?: { text: string } }> };
-    expect(view.type).toBe('modal');
-    expect(view.blocks[0]!.text!.text).toContain('*Campaign:* Spring launch · initial');
-    expect(view.blocks[0]!.text!.text).toContain('Ada &lt;ada@example.com&gt;');
-    expect(view.blocks[0]!.text!.text).toContain('*Subject:* Hello there');
-    expect(view.blocks[1]!.type).toBe('divider');
-    expect(view.blocks[2]!.text!.text).toBe('Full body text');
-  });
-
-  it('splits long bodies into multiple sections within the block text limit', () => {
-    const body = Array.from({ length: 200 }, (_, i) => `line ${i} ${'z'.repeat(40)}`).join('\n');
-    const view = outreachDraftModalView({
-      kind: 'reply',
-      campaignName: 'Spring',
-      contactLabel: 'Ada',
-      draftSubject: null,
-      draftBody: body,
-    }) as { blocks: Array<{ type: string; text?: { text: string } }> };
-    const sections = view.blocks.slice(2);
-    expect(sections.length).toBeGreaterThan(1);
-    for (const section of sections) {
-      expect(section.text!.text.length).toBeLessThanOrEqual(2900);
-    }
-    expect(sections.map((s) => s.text!.text).join('\n')).toBe(body);
   });
 });

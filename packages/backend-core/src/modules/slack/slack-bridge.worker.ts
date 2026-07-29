@@ -599,7 +599,6 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     let text: string;
     let approveLabel: string | null;
-    let viewLabel: string | undefined;
     let resolution: ApprovalResolution | null;
 
     if (subject.subjectType === 'crm_merge_proposal') {
@@ -655,11 +654,10 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
           ? await this.contactLabel(proposal.contactId)
           : 'unknown contact',
         draftSubject: proposal?.draftSubject ?? null,
-        draftBodyPreview: proposal?.draftBody ?? '',
+        draftBody: proposal?.draftBody ?? '',
         dashboardUrl,
       });
       approveLabel = 'Approve & send';
-      viewLabel = 'View full draft';
       const derived: ApprovalOutcome | null =
         outcome ??
         (proposal?.status === 'sent'
@@ -706,7 +704,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       text: resolution
         ? `${text}\n${approvalResolvedLine(resolution.outcome, resolution.decidedByName)}`
         : text,
-      blocks: approvalBlocks(text, value, { approveLabel, viewLabel }, resolution),
+      blocks: approvalBlocks(text, value, { approveLabel }, resolution),
       resolved: resolution !== null,
     };
   }

@@ -1675,9 +1675,16 @@
       "title": "Assets",
       "subline": "{count} assets, newest first — click one for details.",
       "notUploaded": "not uploaded",
+      "detailEyebrow": "Asset detail",
+      "close": "Close",
+      "copyUrl": "Copy URL",
+      "copied": "Copied",
       "usageLoading": "Checking usage…",
       "usageNone": "Not referenced by any entry.",
       "usageCount": "Referenced by {count} entry fields",
+      "showAll": "Show all {count} ↓",
+      "collapse": "Show fewer ↑",
+      "footShowing": "{visible} of {total} assets",
       "foot": "{count} assets"
     },
     "products": {

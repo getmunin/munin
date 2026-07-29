@@ -50,6 +50,7 @@ Operator bridges and connectors both surface in the dashboard on the single Inte
 - Skill markdown under `<module>/skills/<slug>.md` is auto-loaded by `skill-loader.ts` and surfaced as MCP `resources/list` URIs (`skill://<module>/<slug>`).
 - Tool + skill enforcement lives in `packages/mcp-toolkit/src/server.ts`. Scopes are intersected against `actor.scopes` at call time.
 - The same `/mcp` serves admin agents (OAuth-authorized) and end-user agents (delegated tokens minted via `delegated-token.controller.ts`).
+- **The public catalog is deliberately the full surface.** `/v1/public/mcp-tools` and `/v1/public/skills` (and the `docs-fixtures/*.json` behind the docs site) are anonymous and list *every* tool and skill an authenticated admin agent could call, admin/setup ones included. That is the product pitch — customers evaluate what their agents can do before signing up. A review finding that "admin tools are publicly listed" is applying an internal-admin-panel threat model that doesn't fit; push back rather than adding an audience filter. A skill with genuinely sensitive content opts out with `public: false` in its frontmatter; the default stays opt-out, never opt-in.
 
 ### Adding a new MCP tool — checklist
 
@@ -80,12 +81,17 @@ Tools are a public product surface and are reviewed for the Anthropic Software D
 
 - TypeScript strict everywhere. Path-style absolute imports inside packages.
 - Branch names: `<type>/<kebab-summary>`, where `type` is one of `feat|fix|chore|docs|refactor|test|ci|perf|build|revert` (same set as Conventional Commits) — e.g. `feat/website-import-reconcile`, `fix/redos-tag-strip`, `chore/bump-getmunin-4.51.0`. Branch from `main`. Tool-generated branches (`changeset-release/main`) are exempt. Enforced by the `.husky/pre-push` hook.
-- No comments unless they explain a non-obvious *why* (see global rules).
+- **No new comments in TS/JS.** Not JSDoc, not a one-liner above a tricky branch, not in tests — "but this explains a non-obvious *why*" is not an exception. Put the why in the changeset, the PR body, or a test name that encodes the invariant. Comments the repo already has stay; the rule is about comments you add. `packages/db/src/sql/*.sql` and migrations are the one exception — they keep their section headers and policy rationale.
+- No `as unknown as` double casts. When a class only needs one or two methods of a dependency, declare a narrow interface, type the constructor param as that interface (the concrete class satisfies it structurally, the `@Inject` token stays the class), and type test stubs as the interface too.
 - Zod schemas for all MCP tool inputs and external boundaries.
 - Tests live alongside source (`*.test.ts`, `*.integration.test.ts`). Integration tests gate on `TEST_DATABASE_URL`.
+- **Formatting is `eslint --fix`, not Prettier.** There's a `.prettierrc`, but nothing enforces it: `packages/eslint-config` uses `eslint-config-prettier` (which only disables conflicting rules) and `lint-staged.config.mjs` runs `eslint --fix` per package. Don't run `prettier --write` to tidy an edit — it reformats already-committed lines and buries the real change in churn. Match the surrounding style instead.
 - New features that touch DB → migration + RLS policy + per-module SQL in `packages/db/src/sql/<module>.sql`.
 - Migrations: `drizzle-kit generate` assigns a random `NNNN_adjective_noun` name — always rename the `.sql` file (and its `meta/NNNN_snapshot.json` + the `_journal.json` tag) to a meaningful `NNNN_<what_it_does>.sql`, e.g. `0048_cms_asset_references.sql`.
-- Always smoke-test a migration against a throwaway local DB before opening the PR — especially any data backfill. Create a scratch DB on the local Postgres (`docker-postgres-1`), `MUNIN_MIGRATE_URL=… pnpm -F @getmunin/db db:migrate`, seed representative pre-existing rows, run the backfill, and assert the result. A backfill that only ran against an empty DB is untested. Note: data migrations that read FORCE-RLS tables must `set_config('app.bypass_rls','on',true)` — verify by querying as the non-superuser `munin_app` role (a superuser connection bypasses RLS and hides the bug).
+- Always smoke-test a migration against a throwaway local DB before opening the PR — especially any data backfill. Create a scratch DB on the local Postgres (`docker-postgres-1`), `MUNIN_MIGRATE_URL=… pnpm -F @getmunin/db db:migrate`, seed representative pre-existing rows, run the backfill, and assert the result. A backfill that only ran against an empty DB is untested. Smoke-test against a DB **already at the previous migration**, not a fresh one — the failure below only shows up on an existing deploy. Note: data migrations that read FORCE-RLS tables must `set_config('app.bypass_rls','on',true)` — verify by querying as the non-superuser `munin_app` role (a superuser connection bypasses RLS and hides the bug).
+- **The `_journal.json` `when` timestamp must strictly increase with `idx`.** Drizzle applies a migration only if its `when` beats the newest one already recorded in the target DB, so a migration whose `when` is *lower* than its predecessor's is silently skipped on every DB past that point — while a fresh CI database applies everything in `idx` order and looks green. Renaming or regenerating a migration is exactly when a bad timestamp sneaks in. This shipped once (0048 `cms_asset_references`) and killed the 4.62.0 deploy with `relation … does not exist`. `packages/db/src/migrations-journal.test.ts` now guards it; also write migrations idempotently (`CREATE … IF NOT EXISTS`, backfill only when empty) so a corrected timestamp can re-run harmlessly.
+- Changesets: `.changeset/config.json` ignores `@getmunin/{backend,web,eslint-config,tsconfig}` — they ship from the release tag, not the registry. **One changeset file may not list an ignored package alongside a published one**; `changeset version` fails with "Mixed changesets that contain both ignored and not ignored packages are not allowed". Touching both `apps/web` and a published package? Declare only the published ones — the app's changes still ship with the commit, they just don't earn a version bump.
+- Lockfile change (even a devDep) → the pre-commit hook regenerates `THIRD_PARTY_LICENSES.md`, and CI's `license policy` job byte-compares a fresh generation. Regenerate from a clean `pnpm install --frozen-lockfile`; a dev-polluted `node_modules` produces "_No LICENSE file shipped_" placeholders that diverge from CI. The check prints its diff — read it before assuming the file is stale.
 
 ## Common dev commands
 
@@ -118,7 +124,12 @@ Then set in `.env` and restart the backend (it re-reads `.env` on every `--watch
 - `MUNIN_AUTH_TRUSTED_ORIGINS=…,https://<tunnel>`
 - `MUNIN_INBOUND_POLL_WORKER_DISABLED=1` if you seed email channels without a real mailbox — the poll worker auto-deactivates channels after repeated failures, which then fails outreach approvals with `channel … is not active`.
 
-The web dev server bakes `NEXT_PUBLIC_API_URL` into its bundles at compile time — if the login page shows "Couldn't reach the server", the web process was started with a stale value; restart it with `NEXT_PUBLIC_API_URL=http://localhost:3001`.
+**`apps/web` never sees the workspace-root `.env`.** Next only reads `.env*` from its own project directory and there is none, so `NEXT_PUBLIC_API_URL` falls back to `http://localhost:3001` (`packages/dashboard-pages/src/api.ts`, `auth-client.ts`) — an https page calling http, which the browser blocks. The login form then reports "Couldn't reach the server" while the backend is perfectly healthy and `/auth/sign-in/email` answers fine through the proxy. Write `apps/web/.env.local` (gitignored) with `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_AUTH_URL` and `NEXT_PUBLIC_MCP_URL` pointed at the tunnel, and/or export them in the shell that runs `pnpm dev`; setting them only in the root `.env` fixes the backend and silently leaves the browser on localhost. Restart web after changing them — the values are inlined at compile time. Don't try to confirm the baked value by grepping the login HTML: `NEXT_PUBLIC_*` lands in Turbopack's lazily-served JS chunks, not the server-rendered markup.
+
+Two more local-rig facts:
+
+- The dev database is `munin_dev`, not `munin`. After switching branches run `MUNIN_MIGRATE_URL=postgres://munin:munin@localhost:5432/munin_dev pnpm -F @getmunin/db db:migrate`, or the backend crash-loops on missing tables and the tunnel serves 502s that look like proxy faults.
+- Any `MUNIN_PUBLIC_URL` / `NEXT_PUBLIC_*_URL` in the root `.env` — tunnel values *or plain localhost* — makes ~9 `src/oauth/*` tests fail locally with `ERR_JWT_CLAIM_VALIDATION_FAILED` and metadata mismatches. `packages/backend-core/test-env.ts` loads the file and its values win over what the tests set themselves. Not a regression, and CI is clean: `mv .env .env.bak` for the run.
 
 In claude.ai: Settings → Connectors → Add custom connector → `https://<tunnel>/mcp`, then sign in through the local dashboard when prompted. For headless smoke tests skip OAuth entirely: create an admin key (`mn_admin_*`) and drive `/mcp` over JSON-RPC with `Authorization: Bearer`.
 
@@ -127,11 +138,14 @@ MCP Apps (`ui://` panels) specifics:
 - Hosts cache `ui://` resources **per URI** and tell the model "the widget rendered" even when the iframe stays blank — serve panels under content-addressed URIs (see `inspector.resource.ts`) so rebuilds bust the cache.
 - An app that never completes `App.connect()` renders nothing, silently. Don't import the ext-apps SDK from esm.sh (its `zod/v4` shim drops named exports and the SDK throws at import time inside the iframe); bundle the SDK, or use jsdelivr `+esm` for inline spikes.
 - Tool results over ~150k characters abort widget rendering — keep list-tool payloads bounded.
+- **The panel can't know which tool produced its result** — `@modelcontextprotocol/ext-apps` delivers the content and the arguments, never the tool name — so `packages/inspector-app/src/app.tsx` routes to views by payload *shape*, using the guards in `types.ts`. A new view therefore needs a shape-distinguishable payload (a key no other tool returns, like `proposedTargetSpaceSlug` or `utmSource`) and a guard that stays mutually exclusive with the others. Every list guard requires a non-empty array: `[]` is ambiguous across every list tool, so it renders the neutral empty state instead of guessing.
 - Tools can declare `_meta: { ui: { visibility: ['app'] } }` to be callable **only from the panel** — Apps-capable hosts hide them from the model, so the action requires a human click (e.g. `outreach_approve_proposal`). This is host-enforced: hosts without MCP Apps still expose the tool normally, so keep `destructiveHint`, scopes, and service-level state checks as the real backstops. The panel and the model share one credential per session — scopes cannot separate them.
 
 ## Skill and task URI naming
 
 Conventions for `skill://*` markdown under `packages/backend-core/src/modules/*/skills/` and `task://*` URIs in `packages/types/src/job-catalog.ts`.
+
+A feature an agent operates isn't done until a skill describes it. The skill markdown *is* the agent-facing UI here, so treat adding or extending one as a first-class deliverable of the feature — not a follow-up — and regenerate fixtures with `pnpm -F @getmunin/backend-core docs:generate`.
 
 ### Slug
 

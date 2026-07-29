@@ -1675,9 +1675,16 @@
       "title": "Filer",
       "subline": "{count} filer, nyeste først — klikk på en for detaljer.",
       "notUploaded": "ikke lastet opp",
+      "detailEyebrow": "Fildetaljer",
+      "close": "Lukk",
+      "copyUrl": "Kopier URL",
+      "copied": "Kopiert",
       "usageLoading": "Sjekker bruk…",
       "usageNone": "Ikke referert av noen oppføringer.",
       "usageCount": "Referert av {count} felt",
+      "showAll": "Vis alle {count} ↓",
+      "collapse": "Vis færre ↑",
+      "footShowing": "{visible} av {total} filer",
       "foot": "{count} filer"
     },
     "products": {

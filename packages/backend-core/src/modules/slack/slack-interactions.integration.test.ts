@@ -31,7 +31,6 @@ class FakeSlackApi extends SlackApiClient {
   usersById = new Map<string, { email: string | null }>();
   ephemerals: { user: string; text: string }[] = [];
   updated: { channel: string; ts: string; text: string }[] = [];
-  views: { triggerId: string; view: Record<string, unknown> }[] = [];
 
   override usersInfo(input: { token: string; user: string }) {
     const entry = this.usersById.get(input.user);
@@ -57,10 +56,6 @@ class FakeSlackApi extends SlackApiClient {
     return Promise.resolve();
   }
 
-  override openView(input: { token: string; triggerId: string; view: Record<string, unknown> }) {
-    this.views.push({ triggerId: input.triggerId, view: input.view });
-    return Promise.resolve();
-  }
 }
 
 (skipReason ? describe.skip : describe)('Slack interactions (buttons)', () => {
@@ -578,55 +573,6 @@ class FakeSlackApi extends SlackApiClient {
       expect(proposal!.status).toBe('dismissed');
       expect(proposal!.decidedByActorId).toBe(memberUserId);
       expect(api.ephemerals).toHaveLength(0);
-    });
-
-    it('view button opens a modal with the full draft', async () => {
-      const proposalId = await seedOutreachProposal();
-      await linkSubject('outreach_proposal', proposalId);
-
-      await interactions.processBlockActions(
-        approvalPayload('munin_approval_view', `outreach_proposal:${proposalId}`, {
-          trigger_id: 'trig_view_1',
-        }),
-      );
-
-      expect(api.views).toHaveLength(1);
-      expect(api.views[0]!.triggerId).toBe('trig_view_1');
-      const view = api.views[0]!.view as { blocks: Array<{ text?: { text: string } }> };
-      const texts = view.blocks.map((b) => b.text?.text ?? '').join('\n');
-      expect(texts).toContain('*Campaign:* Launch · initial');
-      expect(texts).toContain('Grace Hopper (grace@example.com)');
-      expect(texts).toContain('*Subject:* Hi');
-      expect(texts).toContain('Want a demo?');
-      expect(api.ephemerals).toHaveLength(0);
-    });
-
-    it('view button without a trigger id is a no-op', async () => {
-      const proposalId = await seedOutreachProposal();
-      await linkSubject('outreach_proposal', proposalId);
-
-      await interactions.processBlockActions(
-        approvalPayload('munin_approval_view', `outreach_proposal:${proposalId}`),
-      );
-
-      expect(api.views).toHaveLength(0);
-      expect(api.ephemerals).toHaveLength(0);
-    });
-
-    it('view button on a deleted draft posts an ephemeral notice', async () => {
-      const proposalId = await seedOutreachProposal();
-      await linkSubject('outreach_proposal', proposalId);
-      await db.execute(sql`DELETE FROM outreach_proposals WHERE id = ${proposalId}`);
-
-      await interactions.processBlockActions(
-        approvalPayload('munin_approval_view', `outreach_proposal:${proposalId}`, {
-          trigger_id: 'trig_view_2',
-        }),
-      );
-
-      expect(api.views).toHaveLength(0);
-      expect(api.ephemerals).toHaveLength(1);
-      expect(api.ephemerals[0]!.text).toContain('no longer exists');
     });
 
     it('surfaces a service rejection (already dismissed) as an ephemeral', async () => {

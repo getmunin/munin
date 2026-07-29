@@ -491,7 +491,8 @@ function buttonLabels(blocks: unknown[] | undefined): string[] {
     expect(reply.threadTs).toBe(parent.ts);
     expect(reply.text).toContain('Outreach draft awaiting approval');
     expect(reply.text).toContain('Hello from Munin');
-    expect(buttonLabels(reply.blocks)).toEqual(['Approve & send', 'View full draft', 'Dismiss']);
+    expect(reply.text).toContain('> We just launched — want a demo?');
+    expect(buttonLabels(reply.blocks)).toEqual(['Approve & send', 'Dismiss']);
 
     expect(api.updated).toHaveLength(1);
     expect(api.updated[0]!.ts).toBe(parent.ts);

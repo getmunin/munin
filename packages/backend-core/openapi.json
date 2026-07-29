@@ -1592,6 +1592,21 @@
         "security": []
       }
     },
+    "/v1/a/s": {
+      "post": {
+        "operationId": "AnalyticsTrackerController_trackerSearch",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTracker"
+        ],
+        "security": []
+      }
+    },
     "/v1/a/identify": {
       "post": {
         "operationId": "AnalyticsTrackerController_identify",

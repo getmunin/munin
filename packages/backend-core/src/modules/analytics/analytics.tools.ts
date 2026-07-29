@@ -14,6 +14,7 @@ const AnalyticsImportInput = z.object({
           name: z.string().min(1).max(120),
           allowedOrigins: z.array(z.string()).default([]),
           requireVerifiedIdentity: z.boolean().default(false),
+          canonicalLocales: z.array(z.string()).optional(),
           identityVerificationSecret: z.string().nullable().optional(),
         }),
       ),
@@ -71,10 +72,13 @@ const EmptyInput = z.object({});
 
 const ViewSourceSchema = z.enum(['pixel', 'beacon', 'tracker']);
 
+const CanonicalLocales = z.array(z.string().min(1).max(16)).max(32);
+
 const CreateTrackerInput = z.object({
   name: z.string().min(1).max(120),
   allowedOrigins: z.array(z.string().url()).optional(),
   requireVerifiedIdentity: z.boolean().optional(),
+  canonicalLocales: CanonicalLocales.optional(),
 });
 
 const UpdateTrackerInput = z.object({
@@ -82,6 +86,7 @@ const UpdateTrackerInput = z.object({
   name: z.string().min(1).max(120).optional(),
   allowedOrigins: z.array(z.string().url()).optional(),
   requireVerifiedIdentity: z.boolean().optional(),
+  canonicalLocales: CanonicalLocales.optional(),
 });
 
 const RevokeTrackerInput = z.object({
@@ -265,7 +270,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_update_tracker',
     title: 'Analytics: Update tracker config',
     description:
-      'Update a tracker\'s display name and/or `allowedOrigins`. The bound API key is unchanged — rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.',
+      "Update a tracker's display name, `allowedOrigins`, or `canonicalLocales`. Ingest already folds trailing slashes and a leading path segment that matches the page's own `lang` attribute, so `canonicalLocales` is only needed when a URL prefix disagrees with that tag (a `/no/…` path on pages declaring `lang=\"nb-NO\"`) or when pages set no `lang` at all; entries are matched against the first path segment, and subject ids that aren't path-shaped are never rewritten. Takes effect on the next event — no site redeploy — and past rows keep the ids they were written with. The bound API key is unchanged — rotate via `analytics_revoke_tracker` + `analytics_create_tracker`.",
     audiences: ['admin'],
     scopes: ['analytics:write'],
     input: UpdateTrackerInput,

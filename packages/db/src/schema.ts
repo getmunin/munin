@@ -1531,6 +1531,7 @@ export const analyticsTrackers = pgTable(
     // (and only honored when `requireVerifiedIdentity` is false).
     identityVerificationSecret: text('identity_verification_secret'),
     requireVerifiedIdentity: boolean('require_verified_identity').notNull().default(false),
+    canonicalLocales: jsonb('canonical_locales').$type<string[]>().notNull().default([]),
     createdAt,
     updatedAt,
   },
@@ -1562,6 +1563,7 @@ export const analyticsViewEvents = pgTable(
     userAgentClass: varchar('user_agent_class', { length: 16 }),
     dwellMs: integer('dwell_ms'),
     readDepth: integer('read_depth'),
+    clientViewId: varchar('client_view_id', { length: 64 }),
     source: varchar('source', { length: 8 }).notNull(),
     // ISO 3166-1 alpha-2 country code, derived server-side from the client
     // IP via a local MaxMind-format GeoIP DB. Always nullable: ingest works
@@ -1594,6 +1596,9 @@ export const analyticsViewEvents = pgTable(
       t.visitorId,
       t.createdAt,
     ),
+    clientViewUq: uniqueIndex('analytics_view_events_client_view_uq')
+      .on(t.orgId, t.clientViewId)
+      .where(sql`client_view_id IS NOT NULL`),
   }),
 );
 
@@ -1623,6 +1628,11 @@ export const analyticsSearchEvents = pgTable(
     endUserIdx: index('analytics_search_events_end_user_idx').on(
       t.orgId,
       t.endUserId,
+      t.createdAt,
+    ),
+    visitorIdx: index('analytics_search_events_visitor_idx').on(
+      t.orgId,
+      t.visitorId,
       t.createdAt,
     ),
   }),

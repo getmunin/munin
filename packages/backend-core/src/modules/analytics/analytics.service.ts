@@ -23,11 +23,27 @@ import {
 const ANALYTICS_MODULE = 'analytics';
 const DEFAULT_EVENT_PAGE_SIZE = 200;
 
+const VIEW_ENRICHMENT_SET = {
+  dwellMs: sql`GREATEST(analytics_view_events.dwell_ms, excluded.dwell_ms)`,
+  readDepth: sql`GREATEST(analytics_view_events.read_depth, excluded.read_depth)`,
+  endUserId: sql`COALESCE(analytics_view_events.end_user_id, excluded.end_user_id)`,
+  path: sql`COALESCE(analytics_view_events.path, excluded.path)`,
+  locale: sql`COALESCE(analytics_view_events.locale, excluded.locale)`,
+  referrer: sql`COALESCE(analytics_view_events.referrer, excluded.referrer)`,
+  utmSource: sql`COALESCE(analytics_view_events.utm_source, excluded.utm_source)`,
+  utmMedium: sql`COALESCE(analytics_view_events.utm_medium, excluded.utm_medium)`,
+  utmCampaign: sql`COALESCE(analytics_view_events.utm_campaign, excluded.utm_campaign)`,
+  visitorId: sql`COALESCE(analytics_view_events.visitor_id, excluded.visitor_id)`,
+  country: sql`COALESCE(analytics_view_events.country, excluded.country)`,
+  metadata: sql`COALESCE(analytics_view_events.metadata, excluded.metadata)`,
+};
+
 export interface AnalyticsTrackerExport {
   id: string;
   name: string;
   allowedOrigins: string[];
   requireVerifiedIdentity: boolean;
+  canonicalLocales: string[];
   identityVerificationSecret: string | null;
 }
 
@@ -86,6 +102,7 @@ export interface AnalyticsImportData {
       name: string;
       allowedOrigins: string[];
       requireVerifiedIdentity: boolean;
+      canonicalLocales?: string[];
       identityVerificationSecret?: string | null;
     }>;
     visitorIdentities: AnalyticsVisitorIdentityExport[];
@@ -133,6 +150,7 @@ export interface RecordViewInput {
   userAgentClass?: string | null;
   dwellMs?: number | null;
   readDepth?: number | null;
+  clientViewId?: string | null;
   country?: string | null;
   metadata?: Record<string, unknown> | null;
   requireVerifiedIdentity?: boolean;
@@ -157,6 +175,7 @@ export interface TrackerSummary {
   lastUsedAt: string | null;
   revokedAt: string | null;
   requireVerifiedIdentity: boolean;
+  canonicalLocales: string[];
   hasIdentityVerificationSecret: boolean;
 }
 
@@ -196,7 +215,8 @@ export class AnalyticsService {
       const visitorId = truncate(input.visitorId, 64);
       const endUserId = await this.resolveEndUserId(input.orgId, visitorId);
       if (input.requireVerifiedIdentity && !endUserId) return;
-      await this.db.insert(schema.analyticsViewEvents).values({
+      const clientViewId = truncate(input.clientViewId, 64);
+      const values = {
         orgId: input.orgId,
         subjectType: input.subjectType.slice(0, 32),
         subjectId: input.subjectId,
@@ -212,9 +232,25 @@ export class AnalyticsService {
         userAgentClass: truncate(input.userAgentClass, 16),
         dwellMs: clampInt(input.dwellMs, 0, 24 * 60 * 60 * 1000),
         readDepth: clampInt(input.readDepth, 0, 100),
+        clientViewId,
         country: normalizeCountry(input.country),
         metadata: input.metadata ?? null,
-      });
+      };
+      if (!clientViewId) {
+        await this.db.insert(schema.analyticsViewEvents).values(values);
+        return;
+      }
+      await this.db
+        .insert(schema.analyticsViewEvents)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [
+            schema.analyticsViewEvents.orgId,
+            schema.analyticsViewEvents.clientViewId,
+          ],
+          targetWhere: sql`client_view_id IS NOT NULL`,
+          set: VIEW_ENRICHMENT_SET,
+        });
     } catch (err) {
       this.logger.warn(`analytics.view.record_failed: ${(err as Error).message}`);
     }
@@ -283,6 +319,7 @@ export class AnalyticsService {
             name: t.name,
             allowedOrigins: t.allowedOrigins,
             requireVerifiedIdentity: t.requireVerifiedIdentity,
+            canonicalLocales: t.canonicalLocales,
             identityVerificationSecret: t.identityVerificationSecret,
           },
           ['identityVerificationSecret'],
@@ -434,6 +471,7 @@ export class AnalyticsService {
           name: tracker.name,
           allowedOrigins: tracker.allowedOrigins,
           requireVerifiedIdentity: tracker.requireVerifiedIdentity,
+          canonicalLocales: normalizeCanonicalLocales(tracker.canonicalLocales ?? []),
           identityVerificationSecret: null,
         })
         .returning({ id: schema.analyticsTrackers.id });
@@ -557,6 +595,7 @@ export class AnalyticsService {
     name: string;
     allowedOrigins?: string[];
     requireVerifiedIdentity?: boolean;
+    canonicalLocales?: string[];
   }): Promise<CreateTrackerResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -575,6 +614,7 @@ export class AnalyticsService {
         allowedOrigins: args.allowedOrigins ?? [],
         identityVerificationSecret,
         requireVerifiedIdentity: args.requireVerifiedIdentity ?? false,
+        canonicalLocales: normalizeCanonicalLocales(args.canonicalLocales ?? []),
       })
       .returning();
     const key = await mintApiKey(ctx.db, {
@@ -595,6 +635,7 @@ export class AnalyticsService {
       lastUsedAt: null,
       revokedAt: null,
       requireVerifiedIdentity: tracker!.requireVerifiedIdentity,
+      canonicalLocales: tracker!.canonicalLocales,
       hasIdentityVerificationSecret: true,
       trackerKey: key.rawKey,
       identityVerificationSecret,
@@ -611,6 +652,7 @@ export class AnalyticsService {
         allowedOrigins: schema.analyticsTrackers.allowedOrigins,
         createdAt: schema.analyticsTrackers.createdAt,
         requireVerifiedIdentity: schema.analyticsTrackers.requireVerifiedIdentity,
+        canonicalLocales: schema.analyticsTrackers.canonicalLocales,
         identityVerificationSecret: schema.analyticsTrackers.identityVerificationSecret,
         keyPrefix: schema.apiKeys.keyPrefix,
         lastUsedAt: schema.apiKeys.lastUsedAt,
@@ -636,6 +678,7 @@ export class AnalyticsService {
         lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
         revokedAt: r.revokedAt?.toISOString() ?? null,
         requireVerifiedIdentity: r.requireVerifiedIdentity,
+        canonicalLocales: r.canonicalLocales,
         hasIdentityVerificationSecret: r.identityVerificationSecret !== null,
       }));
   }
@@ -645,6 +688,7 @@ export class AnalyticsService {
     name?: string;
     allowedOrigins?: string[];
     requireVerifiedIdentity?: boolean;
+    canonicalLocales?: string[];
   }): Promise<TrackerSummary> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -652,6 +696,7 @@ export class AnalyticsService {
       name?: string;
       allowedOrigins?: string[];
       requireVerifiedIdentity?: boolean;
+      canonicalLocales?: string[];
       updatedAt: Date;
     } = {
       updatedAt: new Date(),
@@ -668,6 +713,8 @@ export class AnalyticsService {
     }
     if (args.requireVerifiedIdentity !== undefined)
       patch.requireVerifiedIdentity = args.requireVerifiedIdentity;
+    if (args.canonicalLocales !== undefined)
+      patch.canonicalLocales = normalizeCanonicalLocales(args.canonicalLocales);
     const [updated] = await ctx.db
       .update(schema.analyticsTrackers)
       .set(patch)
@@ -699,6 +746,7 @@ export class AnalyticsService {
       lastUsedAt: key?.lastUsedAt?.toISOString() ?? null,
       revokedAt: key?.revokedAt?.toISOString() ?? null,
       requireVerifiedIdentity: updated.requireVerifiedIdentity,
+      canonicalLocales: updated.canonicalLocales,
       hasIdentityVerificationSecret: updated.identityVerificationSecret !== null,
     };
   }
@@ -1327,6 +1375,15 @@ function clampInt(
   if (value === null || value === undefined) return null;
   if (!Number.isFinite(value)) return null;
   return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
+function normalizeCanonicalLocales(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  for (const value of values) {
+    const tag = value.trim().toLowerCase().slice(0, 16);
+    if (tag) seen.add(tag);
+  }
+  return [...seen].slice(0, 32);
 }
 
 function normalizeCountry(value: string | null | undefined): string | null {

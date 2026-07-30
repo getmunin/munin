@@ -4,7 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
+import { buildApiKey, hashSecret } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
@@ -14,12 +14,12 @@ const skipReason = TEST_URL
   ? null
   : 'Set TEST_DATABASE_URL to a Postgres URL to run voice-callback channelId tests.';
 
-(skipReason ? describe.skip : describe)('conv_call_contact — optional channelId routing', () => {
+(skipReason ? describe.skip : describe)('conv_request_callback — optional channelId routing', () => {
   let app: INestApplication;
   let baseUrl: string;
   let db: ReturnType<typeof createDb>;
   let orgId: string;
-  let adminKey: string;
+  let endUserToken: string;
   let conversationId: string;
   let channelAId: string;
   let channelBId: string;
@@ -46,19 +46,25 @@ const skipReason = TEST_URL
       .returning();
     orgId = org!.id;
 
-    adminKey = buildApiKey('admin');
-    await db.insert(schema.apiKeys).values({
+    const [endUser] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'eu-caller-routing', name: 'Caller', phone: '+14155550100' })
+      .returning();
+
+    endUserToken = buildApiKey('dlg');
+    await db.insert(schema.tokens).values({
       orgId,
-      type: 'admin',
-      name: 'voice-routing-admin',
-      keyHash: hashSecret(adminKey),
-      keyPrefix: keyPrefix(adminKey),
-      scopes: ['*'],
+      type: 'delegated_end_user',
+      tokenHash: hashSecret(endUserToken),
+      scopes: ['conv:read', 'conv:write'],
+      audiences: ['self_service'],
+      endUserId: endUser!.id,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
 
     const [contact] = await db
       .insert(schema.convContacts)
-      .values({ orgId, name: 'Caller', phone: '+14155550100' })
+      .values({ orgId, endUserId: endUser!.id, name: 'Caller', phone: '+14155550100' })
       .returning();
 
     const [chatChannel] = await db
@@ -81,6 +87,7 @@ const skipReason = TEST_URL
         orgId,
         channelId: chatChannel!.id,
         contactId: contact!.id,
+        endUserId: endUser!.id,
         displayId: nextDisplay[0]!.next,
         status: 'open',
       })
@@ -105,7 +112,7 @@ const skipReason = TEST_URL
 
   async function withClient<T>(fn: (c: Client) => Promise<T>): Promise<T> {
     const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
-      requestInit: { headers: { Authorization: `Bearer ${adminKey}` } },
+      requestInit: { headers: { Authorization: `Bearer ${endUserToken}` } },
     });
     const c = new Client({ name: 'voice-routing-it', version: '0.0.0' });
     await c.connect(transport);
@@ -144,7 +151,7 @@ const skipReason = TEST_URL
   it('no voice channels → throws no_active_voice_channel', async () => {
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_call_contact',
+        name: 'conv_request_callback',
         arguments: { conversationId },
       });
       expect(res.isError).toBe(true);
@@ -156,7 +163,7 @@ const skipReason = TEST_URL
     channelAId = await insertVoiceChannel('vapi-only');
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_call_contact',
+        name: 'conv_request_callback',
         arguments: { conversationId },
       });
       const text = firstText(res);
@@ -168,7 +175,7 @@ const skipReason = TEST_URL
     channelBId = await insertVoiceChannel('vapi-second');
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_call_contact',
+        name: 'conv_request_callback',
         arguments: { conversationId },
       });
       expect(res.isError).toBe(true);
@@ -179,7 +186,7 @@ const skipReason = TEST_URL
   it('two voice channels with explicit channelId → routes to the named channel', async () => {
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_call_contact',
+        name: 'conv_request_callback',
         arguments: { conversationId, channelId: channelBId },
       });
       const text = firstText(res);
@@ -201,7 +208,7 @@ const skipReason = TEST_URL
       .returning();
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_call_contact',
+        name: 'conv_request_callback',
         arguments: { conversationId, channelId: emailCh!.id },
       });
       expect(res.isError).toBe(true);
@@ -216,7 +223,7 @@ const skipReason = TEST_URL
       .where(eq(schema.convChannels.id, channelAId));
     await withClient(async (c) => {
       const res = await c.callTool({
-        name: 'conv_call_contact',
+        name: 'conv_request_callback',
         arguments: { conversationId, channelId: channelAId },
       });
       expect(res.isError).toBe(true);

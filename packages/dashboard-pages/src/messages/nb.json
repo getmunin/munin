@@ -665,17 +665,17 @@
         "publicKeyHintEdit": "Nødvendig for stemmesamtaler i nettleseren fra chat-widgeten. Finnes i Vapi-dashbordet under kontoen/nøkler — trygg å eksponere i nettleseren.",
         "assistantChip": "asst · {id}",
         "phoneChip": "pn · {id}",
-        "placeCall": "Start anrop",
+        "placeCall": "Ring en testsamtale",
         "placeCallDialog": {
-          "title": "Start et utgående anrop",
-          "description": "Start et utgående stemmeanrop gjennom {name}. Vapi-assistenten kjører samtalen ende-til-ende.",
+          "title": "Ring en testsamtale",
+          "description": "Ring en ekte samtale gjennom {name} for å bekrefte påloggingsinformasjon og oppkobling. Vapi-assistenten kjører samtalen ende-til-ende.",
           "toLabel": "Mottaker",
           "toHint": "E.164-format (f.eks. +4712345678).",
           "customerNameLabel": "Kundens navn (valgfritt)",
           "customerNameHint": "Vises i Vapis samtalelogg og er tilgjengelig som variabel for assistenten.",
           "submit": "Start anrop",
           "placing": "Ringer …",
-          "success": "Utgående anrop til {to} startet."
+          "success": "Testsamtale til {to} startet."
         }
       },
       "threll": {
@@ -700,17 +700,17 @@
           "message": "Denne Threll-kontoen har allerede et kontoomfattende webhook-abonnement. Munin sletter det og registrerer sitt eget. Fortsette?",
           "confirm": "Erstatt"
         },
-        "placeCall": "Start anrop",
+        "placeCall": "Ring en testsamtale",
         "placeCallDialog": {
-          "title": "Start et utgående anrop",
-          "description": "Start et utgående stemmeanrop gjennom {name}. Threll-workeren kjører samtalen ende-til-ende.",
+          "title": "Ring en testsamtale",
+          "description": "Ring en ekte samtale gjennom {name} for å bekrefte påloggingsinformasjon og oppkobling. Threll-workeren kjører samtalen ende-til-ende.",
           "toLabel": "Mottaker",
           "toHint": "E.164-format (f.eks. +4712345678).",
           "customerNameLabel": "Kundens navn (valgfritt)",
           "customerNameHint": "Vises i Thrells samtalelogg og er tilgjengelig som variabel for workeren.",
           "submit": "Start anrop",
           "placing": "Ringer …",
-          "success": "Utgående anrop til {to} startet."
+          "success": "Testsamtale til {to} startet."
         }
       },
       "errors": {

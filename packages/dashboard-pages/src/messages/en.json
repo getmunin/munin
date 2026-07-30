@@ -665,17 +665,17 @@
         "publicKeyHintEdit": "Required for in-browser voice calls from the chat widget. Find it in the Vapi dashboard under your account/keys — it's safe to expose to the browser.",
         "assistantChip": "asst · {id}",
         "phoneChip": "pn · {id}",
-        "placeCall": "Place a call",
+        "placeCall": "Make a test call",
         "placeCallDialog": {
-          "title": "Place an outbound call",
-          "description": "Start an outbound voice call through {name}. The Vapi assistant runs the conversation end-to-end.",
+          "title": "Make a test call",
+          "description": "Place a real call through {name} to confirm credentials and connectivity. The Vapi assistant runs the conversation end-to-end.",
           "toLabel": "Destination",
           "toHint": "E.164 format (e.g. +15551234567).",
           "customerNameLabel": "Customer name (optional)",
           "customerNameHint": "Shown in Vapi's call records and available to the assistant as a variable.",
           "submit": "Place call",
           "placing": "Calling…",
-          "success": "Outbound call to {to} initiated."
+          "success": "Test call to {to} initiated."
         }
       },
       "threll": {
@@ -700,17 +700,17 @@
           "message": "This Threll account already has an account-wide webhook subscription. Munin will delete it and register its own. Continue?",
           "confirm": "Replace"
         },
-        "placeCall": "Place a call",
+        "placeCall": "Make a test call",
         "placeCallDialog": {
-          "title": "Place an outbound call",
-          "description": "Start an outbound voice call through {name}. The Threll worker runs the conversation end-to-end.",
+          "title": "Make a test call",
+          "description": "Place a real call through {name} to confirm credentials and connectivity. The Threll worker runs the conversation end-to-end.",
           "toLabel": "Destination",
           "toHint": "E.164 format (e.g. +15551234567).",
           "customerNameLabel": "Customer name (optional)",
           "customerNameHint": "Shown in Threll's call records and available to the worker as a variable.",
           "submit": "Place call",
           "placing": "Calling…",
-          "success": "Outbound call to {to} initiated."
+          "success": "Test call to {to} initiated."
         }
       },
       "errors": {

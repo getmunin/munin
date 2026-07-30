@@ -28,19 +28,4 @@ export class VoiceCallbackTools {
   requestPhoneCall(args: z.infer<typeof CallbackInput>): Promise<VoiceCallbackResult> {
     return this.svc.placeCallbackForConversation(args);
   }
-
-  @McpTool({
-    name: 'conv_call_contact',
-    title: "Conv: Place a voice call to this conversation's contact",
-    description:
-      "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_call_channel` instead.",
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: CallbackInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
-  callContact(args: z.infer<typeof CallbackInput>): Promise<VoiceCallbackResult> {
-    return this.svc.placeCallbackForConversation(args);
-  }
 }

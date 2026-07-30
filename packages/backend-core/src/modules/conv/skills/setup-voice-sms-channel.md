@@ -26,7 +26,7 @@ Use this when a customer wants Munin on a phone number — an AI voice line (Vap
 
 ## While the channel is pending
 
-A channel waiting on its credential link is `active: false` and every admin action on it (`conv_test_channel`, `conv_call_channel`, `conv_send_channel_test`, `conv_list_channel_options`, updates) answers `conv_invalid: channel is awaiting credentials`. If the link expired, mint a new one with `conv_request_channel_credentials { channelId }`.
+A channel waiting on its credential link is `active: false` and every admin action on it (`conv_test_channel`, `conv_send_channel_test`, `conv_list_channel_options`, updates) answers `conv_invalid: channel is awaiting credentials`. If the link expired, mint a new one with `conv_request_channel_credentials { channelId }`.
 
 ## Picking assistant/worker ids
 
@@ -36,4 +36,4 @@ A channel waiting on its credential link is `active: false` and every admin acti
 
 - `conv_test_channel { channelId }` — vendor-shaped credential check (Twilio account fetch, MessageBird balance, etc.), no message sent.
 - SMS: `conv_send_channel_test { channelId, to }` sends a real message end-to-end.
-- Voice: `conv_call_channel { channelId, to }` places a real outbound call.
+- Voice: there is no tool that places a call. A human verifies the channel end-to-end from the dashboard — Channels → the channel's ⋯ menu → **Make a test call**.

@@ -15,6 +15,9 @@ import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
+import { VapiOutreachCaller } from '../conv/vapi/vapi-outreach-caller.ts';
+import { ThrellClientService } from '../conv/threll/threll-client.service.ts';
+import { ThrellOutreachCaller } from '../conv/threll/threll-outreach-caller.ts';
 import { VapiService } from '../conv/vapi/vapi.service.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
@@ -57,8 +60,9 @@ const skipReason = TEST_URL
     const curatorJobs = new CuratorJobsService(dispatcher);
     conv = new ConvService(dispatcher, claims, curatorJobs, new AlertsService(dispatcher));
     const email = new EmailService();
-    const vapi = new VapiClientService(db);
-    svc = new OutreachService(dispatcher, conv, crm, email, vapi, db);
+    const vapiCaller = new VapiOutreachCaller(new VapiClientService(db));
+    const threllCaller = new ThrellOutreachCaller(new ThrellClientService(db));
+    svc = new OutreachService(dispatcher, conv, crm, email, [vapiCaller, threllCaller], db);
   });
 
   afterAll(async () => {
@@ -1309,6 +1313,70 @@ const skipReason = TEST_URL
           }),
         ),
       ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('accepts a threll voice channel, not just vapi', async () => {
+      const [threllChannel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'voice',
+          vendor: 'threll',
+          name: 'threll-voice',
+          active: true,
+          config: {
+            encryptedApiKey: 'fake',
+            encryptedWebhookSecret: 'fake',
+            accountId: 'acct_1',
+            workerId: 'wrk_1',
+          },
+        })
+        .returning();
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'threll-campaign',
+          brief: 'b',
+          segmentId,
+          channelId: threllChannel!.id,
+          enabled: true,
+        }),
+      );
+      expect(c.channelId).toBe(threllChannel!.id);
+
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: voiceContactId,
+          draftBody: 'Say hei, then offer two slots.',
+        }),
+      );
+      expect(p.delivery?.channelType).toBe('voice');
+      expect(p.delivery?.vendor).toBe('threll');
+      expect(p.delivery?.destination).toBe('+14155559999');
+    });
+
+    it('rejects a voice vendor with no registered outreach caller', async () => {
+      const [unknownChannel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'voice',
+          vendor: 'some-future-vendor',
+          name: 'future-voice',
+          active: true,
+          config: {},
+        })
+        .returning();
+      await expect(
+        run(() =>
+          svc.createCampaign({
+            name: 'future-campaign',
+            brief: 'b',
+            segmentId,
+            channelId: unknownChannel!.id,
+          }),
+        ),
+      ).rejects.toThrow(/cannot place outreach calls; supported: threll, vapi/);
     });
 
     it('approveProposal on a voice initial places a Vapi call and creates a stub conversation', async () => {

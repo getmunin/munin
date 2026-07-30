@@ -83,12 +83,22 @@ export interface ProposalContactSummary {
   id: string;
   name: string | null;
   email: string | null;
+  phone: string | null;
   companyId: string | null;
 }
 
 export interface ProposalCampaignSummary {
   id: string;
   name: string;
+}
+
+export interface ProposalDelivery {
+  channelId: string;
+  channelType: string;
+  vendor: string;
+  destination: string | null;
+  appendsCta: boolean;
+  appendsUnsubscribe: boolean;
 }
 
 export interface ProposalDto {
@@ -126,6 +136,7 @@ export interface ProposalDto {
   updatedAt: string;
   contact: ProposalContactSummary | null;
   campaign: ProposalCampaignSummary | null;
+  delivery: ProposalDelivery | null;
 }
 
 export interface OutreachCampaignExport {
@@ -310,11 +321,19 @@ export class OutreachService {
           id: schema.crmContacts.id,
           name: schema.crmContacts.name,
           email: schema.crmContacts.email,
+          phone: schema.crmContacts.phone,
           companyId: schema.crmContacts.companyId,
         },
         campaign: {
           id: schema.outreachCampaigns.id,
           name: schema.outreachCampaigns.name,
+          ctaUrl: schema.outreachCampaigns.ctaUrl,
+          unsubscribeRequired: schema.outreachCampaigns.unsubscribeRequired,
+        },
+        channel: {
+          id: schema.convChannels.id,
+          type: schema.convChannels.type,
+          vendor: schema.convChannels.vendor,
         },
       })
       .from(schema.outreachProposals)
@@ -323,10 +342,16 @@ export class OutreachService {
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
       )
+      .leftJoin(schema.convChannels, eq(schema.convChannels.id, schema.outreachCampaigns.channelId))
       .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(desc(schema.outreachProposals.createdAt))
       .limit(limit);
-    return rows.map((r) => toProposalDto(r.proposal, r.contact, r.campaign));
+    return rows.map((r) => toProposalDto(
+        r.proposal,
+        r.contact,
+        r.campaign,
+        toProposalDelivery(r.contact, r.campaign, r.channel),
+      ));
   }
 
   async getProposal(id: string): Promise<ProposalDto> {
@@ -338,11 +363,19 @@ export class OutreachService {
           id: schema.crmContacts.id,
           name: schema.crmContacts.name,
           email: schema.crmContacts.email,
+          phone: schema.crmContacts.phone,
           companyId: schema.crmContacts.companyId,
         },
         campaign: {
           id: schema.outreachCampaigns.id,
           name: schema.outreachCampaigns.name,
+          ctaUrl: schema.outreachCampaigns.ctaUrl,
+          unsubscribeRequired: schema.outreachCampaigns.unsubscribeRequired,
+        },
+        channel: {
+          id: schema.convChannels.id,
+          type: schema.convChannels.type,
+          vendor: schema.convChannels.vendor,
         },
       })
       .from(schema.outreachProposals)
@@ -351,10 +384,16 @@ export class OutreachService {
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
       )
+      .leftJoin(schema.convChannels, eq(schema.convChannels.id, schema.outreachCampaigns.channelId))
       .where(eq(schema.outreachProposals.id, id))
       .limit(1);
     if (!rows[0]) throw new NotFoundException(`outreach_not_found: proposal ${id}`);
-    return toProposalDto(rows[0].proposal, rows[0].contact, rows[0].campaign);
+    return toProposalDto(
+      rows[0].proposal,
+      rows[0].contact,
+      rows[0].campaign,
+      toProposalDelivery(rows[0].contact, rows[0].campaign, rows[0].channel),
+    );
   }
 
   async proposeInitial(input: {
@@ -434,8 +473,15 @@ export class OutreachService {
       });
       return toProposalDto(
         row!,
-        { id: contact.id, name: contact.name, email: contact.email, companyId: contact.companyId },
+        {
+          id: contact.id,
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          companyId: contact.companyId,
+        },
         { id: campaign.id, name: campaign.name },
+        toProposalDelivery(contact, campaign, channel),
       );
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
@@ -522,9 +568,11 @@ export class OutreachService {
           id: crmContact.id,
           name: crmContact.name,
           email: crmContact.email,
+          phone: crmContact.phone,
           companyId: crmContact.companyId,
         },
         { id: replyCampaign.id, name: replyCampaign.name },
+        toProposalDelivery(crmContact, replyCampaign, replyChannel),
       );
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
@@ -675,8 +723,15 @@ export class OutreachService {
       });
       return toProposalDto(
         row!,
-        { id: contact.id, name: contact.name, email: contact.email, companyId: contact.companyId },
+        {
+          id: contact.id,
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          companyId: contact.companyId,
+        },
         { id: campaign.id, name: campaign.name },
+        toProposalDelivery(contact, campaign, channel),
       );
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
@@ -794,7 +849,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
   private async approveInitialVoice(
@@ -883,7 +938,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
   private async createVoiceStubConversation(args: {
@@ -1023,7 +1078,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
   private async approveFollowup(
@@ -1099,7 +1154,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
   async markProposalViewed(id: string): Promise<ProposalDto> {
@@ -1122,7 +1177,7 @@ export class OutreachService {
       )
       .returning();
     if (!updated) return this.getProposal(id);
-    return toProposalDto(updated, proposal.contact, proposal.campaign);
+    return toProposalDto(updated, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
   async updateProposal(input: {
@@ -1208,7 +1263,7 @@ export class OutreachService {
         revisedAfterReview,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
   async withdrawProposal(input: { id: string; reason: string }): Promise<ProposalDto> {
@@ -1242,7 +1297,7 @@ export class OutreachService {
         reason: input.reason,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
   async dismissProposal(input: { id: string; reason?: string }): Promise<ProposalDto> {
@@ -1273,7 +1328,7 @@ export class OutreachService {
         reason: input.reason ?? null,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
   async listDueFollowups(input: { campaignId?: string; limit?: number }): Promise<DueFollowupDto[]> {
@@ -1610,8 +1665,20 @@ function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): Campa
 
 function toProposalDto(
   row: typeof schema.outreachProposals.$inferSelect,
-  contact: { id: string | null; name: string | null; email: string | null; companyId: string | null } | null = null,
-  campaign: { id: string | null; name: string | null } | null = null,
+  contact: {
+    id: string | null;
+    name: string | null;
+    email: string | null;
+    phone?: string | null;
+    companyId: string | null;
+  } | null = null,
+  campaign: {
+    id: string | null;
+    name: string | null;
+    ctaUrl?: string | null;
+    unsubscribeRequired?: boolean | null;
+  } | null = null,
+  delivery: ProposalDelivery | null = null,
 ): ProposalDto {
   return {
     id: row.id,
@@ -1648,9 +1715,33 @@ function toProposalDto(
     updatedAt: row.updatedAt.toISOString(),
     contact:
       contact && contact.id
-        ? { id: contact.id, name: contact.name, email: contact.email, companyId: contact.companyId }
+        ? {
+            id: contact.id,
+            name: contact.name,
+            email: contact.email,
+            phone: contact.phone ?? null,
+            companyId: contact.companyId,
+          }
         : null,
     campaign: campaign && campaign.id ? { id: campaign.id, name: campaign.name ?? '' } : null,
+    delivery,
+  };
+}
+
+function toProposalDelivery(
+  contact: { email: string | null; phone?: string | null } | null,
+  campaign: { ctaUrl?: string | null; unsubscribeRequired?: boolean | null } | null,
+  channel: { id: string | null; type: string | null; vendor: string | null } | null,
+): ProposalDelivery | null {
+  if (!channel?.id || !channel.type) return null;
+  const isEmail = channel.type === 'email';
+  return {
+    channelId: channel.id,
+    channelType: channel.type,
+    vendor: channel.vendor ?? '',
+    destination: (isEmail ? contact?.email : contact?.phone) ?? null,
+    appendsCta: isEmail && Boolean(campaign?.ctaUrl),
+    appendsUnsubscribe: isEmail && campaign?.unsubscribeRequired === true,
   };
 }
 

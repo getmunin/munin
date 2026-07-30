@@ -68,7 +68,12 @@ export function OutreachQueueDrawer({
       : item.raw.kind === 'followup'
         ? t('outreachKindFollowup', { step: item.raw.sequenceStep ?? 1 })
         : t('outreachKindInitial');
-  const handle = item.raw.contact?.email ?? item.raw.campaign?.name ?? t('handleFallback');
+  const delivery = item.raw.delivery;
+  const handle =
+    delivery?.destination ??
+    item.raw.contact?.email ??
+    item.raw.campaign?.name ??
+    t('handleFallback');
   const revisionCount = item.raw.revisionCount ?? 0;
 
   return (
@@ -138,6 +143,31 @@ export function OutreachQueueDrawer({
             </div>
           )}
         </section>
+
+        {delivery && !editing && (
+          <p
+            className={`border-l-2 px-3 py-2 text-xs ${
+              delivery.destination
+                ? 'border-rule text-ink-mute'
+                : 'border-alert-bad-border text-alert-bad-ink'
+            }`}
+          >
+            {!delivery.destination
+              ? t(
+                  delivery.channelType === 'email'
+                    ? 'outreachDeliveryNoEmail'
+                    : 'outreachDeliveryNoPhone',
+                )
+              : t(
+                  delivery.channelType === 'voice'
+                    ? 'outreachDeliveryCall'
+                    : delivery.channelType === 'sms'
+                      ? 'outreachDeliverySms'
+                      : 'outreachDeliveryEmail',
+                  { destination: delivery.destination },
+                )}
+          </p>
+        )}
       </div>
 
       {editing ? (

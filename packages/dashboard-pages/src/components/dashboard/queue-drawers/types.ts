@@ -33,7 +33,14 @@ export interface OutreachProposalDto {
   draftSubject: string | null;
   draftBody: string;
   campaign?: { name: string } | null;
-  contact?: { name: string | null; email: string | null } | null;
+  contact?: { name: string | null; email: string | null; phone?: string | null } | null;
+  delivery?: {
+    channelType: string;
+    vendor: string;
+    destination: string | null;
+    appendsCta: boolean;
+    appendsUnsubscribe: boolean;
+  } | null;
   evidence?: Record<string, unknown>;
   revisionCount?: number;
   lastRevisionReason?: string | null;

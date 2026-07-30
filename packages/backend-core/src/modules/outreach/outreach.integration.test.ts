@@ -245,10 +245,102 @@ const skipReason = TEST_URL
       const proposals = firstJson(listed) as Array<{
         id: string;
         contact?: { email?: string };
+        delivery?: {
+          channelType: string;
+          destination: string | null;
+          appendsUnsubscribe: boolean;
+        } | null;
       }>;
       expect(proposals.map((p) => p.id)).toContain(proposalId);
       const ours = proposals.find((p) => p.id === proposalId);
       expect(ours?.contact?.email).toBe('jane@acme.com');
+      expect(ours?.delivery?.channelType).toBe('email');
+      expect(ours?.delivery?.destination).toBe('jane@acme.com');
+      expect(ours?.delivery?.appendsUnsubscribe).toBe(true);
+    });
+  });
+
+  it('a voice proposal reports the phone number it would dial, not an email address', async () => {
+    const [voiceChannel] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'voice',
+        vendor: 'vapi',
+        name: 'outbound-voice',
+        active: true,
+        config: {
+          encryptedApiKey: 'fake',
+          encryptedWebhookSecret: 'fake',
+          assistantId: 'asst_delivery_it',
+          phoneNumberId: 'pn_delivery_it',
+        },
+      })
+      .returning();
+    const [callable] = await db
+      .insert(schema.crmContacts)
+      .values({
+        orgId,
+        name: 'Ring Me',
+        email: 'ring@acme.com',
+        phone: '+14155559999',
+        consentLawfulBasis: 'consent',
+        consentGivenAt: new Date(),
+        consentSource: 'imported-test',
+        tags: ['priority'],
+      })
+      .returning();
+
+    await withClient(adminKey, async (c) => {
+      const created = await c.callTool({
+        name: 'outreach_create_campaign',
+        arguments: {
+          name: 'Voice follow-up',
+          brief: 'Call warm leads who asked to be phoned.',
+          segmentId,
+          channelId: voiceChannel!.id,
+          enabled: true,
+        },
+      });
+      const campaign = firstJson(created) as { id: string };
+
+      const proposed = await c.callTool({
+        name: 'outreach_propose_initial',
+        arguments: {
+          campaignId: campaign.id,
+          contactId: callable!.id,
+          draftBody: 'Open by thanking them for the demo request, then offer two slots.',
+        },
+      });
+      const proposal = firstJson(proposed) as {
+        id: string;
+        draftSubject: string | null;
+        delivery?: {
+          channelType: string;
+          vendor: string;
+          destination: string | null;
+          appendsCta: boolean;
+          appendsUnsubscribe: boolean;
+        } | null;
+      };
+      expect(proposal.draftSubject).toBeNull();
+      expect(proposal.delivery?.channelType).toBe('voice');
+      expect(proposal.delivery?.vendor).toBe('vapi');
+      expect(proposal.delivery?.destination).toBe('+14155559999');
+      expect(proposal.delivery?.appendsCta).toBe(false);
+      expect(proposal.delivery?.appendsUnsubscribe).toBe(false);
+
+      const listed = await c.callTool({
+        name: 'outreach_list_proposals',
+        arguments: { campaignId: campaign.id },
+      });
+      const listedProposals = firstJson(listed) as Array<{
+        id: string;
+        delivery?: { destination: string | null } | null;
+      }>;
+      expect(listedProposals.find((p) => p.id === proposal.id)?.delivery?.destination).toBe(
+        '+14155559999',
+      );
     });
   });
 

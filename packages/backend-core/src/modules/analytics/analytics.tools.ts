@@ -190,7 +190,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_export_config',
-    title: 'Analytics: Export trackers + visitor identities',
+    title: 'Analytics: Export tracker configuration',
     description:
       'Export this org\'s analytics configuration — trackers and visitor-identity links — as a portable JSON payload. Low-volume, returned in one shot. Tracker identity-verification secrets are redacted (the ciphertext is useless on another server); the operator re-enters them after import. Pair with `analytics_export_events` (paginated) and feed both into `analytics_import` on another Munin server.',
     audiences: ['admin'],

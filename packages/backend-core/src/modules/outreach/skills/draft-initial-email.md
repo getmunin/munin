@@ -18,7 +18,7 @@ A separate `skill://crm/clean-contact-data` runs weekly to merge any duplicate c
 3. **For each contact in the audience**, dedupe via `outreach_list_proposals({ kind: "initial", campaignId, contactId })`. Skip if any proposal is `pending`, `approved`, or `sent` (already drafted or already reached). Only `dismissed`/`withdrawn`/`failed` allow a re-draft.
 4. **Pull product context** with `kb_search` against the brief — find 1–3 relevant KB snippets to ground the email in real facts (don't fabricate features).
 5. **Draft** an 80–200-word email, personalised to the contact's name + company. Plain prose, no headings, sparing bold/italic, no JSON-escaping. The unsubscribe footer is appended **at approve-time** by the system — do not include one in your draft.
-6. **File** with `outreach_propose_initial({ campaignId, contactId, draftSubject, draftBody, evidence })`. The `evidence` JSONB carries the (KB doc ids, contact-tag matches, reasoning summary) you'd want a human reviewer to see — keep it short and structured.
+6. **File** with `outreach_propose_initial_message({ campaignId, contactId, draftSubject, draftBody, evidence })`. The `evidence` JSONB carries the (KB doc ids, contact-tag matches, reasoning summary) you'd want a human reviewer to see — keep it short and structured.
 7. **Stop.** No further calls. The operator's approval flow does the sending.
 
 ## Step 1 — list enabled campaigns
@@ -79,7 +79,7 @@ Strict rules:
 
 ```jsonc
 {
-  "name": "outreach_propose_initial",
+  "name": "outreach_propose_initial_message",
   "arguments": {
     "campaignId": "ocmp_…",
     "contactId": "cct_…",
@@ -106,7 +106,7 @@ Out of scope for this skill — see `skill://outreach/review-proposals`. The ope
 
 ## What NOT to do
 
-- **Don't auto-approve.** The plan-level invariant: every outreach email ships through a human-approved gate. If you're tempted to call `outreach_propose_initial` followed by `outreach_approve_proposal`, stop. The approve surface belongs to the operator's review pass (`skill://outreach/review-proposals`); a curator never decides its own drafts.
+- **Don't auto-approve.** The plan-level invariant: every outreach email ships through a human-approved gate. If you're tempted to call `outreach_propose_initial_message` followed by `outreach_approve_proposal`, stop. The approve surface belongs to the operator's review pass (`skill://outreach/review-proposals`); a curator never decides its own drafts.
 - **Don't bypass `crm_list_contacts_in_segment`.** Calling `crm_list_contacts` directly bypasses the suppression+consent floor and will eventually file proposals for someone who already unsubscribed — even if the operator catches it at approve-time, the audit trail looks bad.
 - **Don't fabricate facts.** If the brief says "we shipped feature X" and KB has no doc on X, write at a higher level. Better to send a vaguer email than a confidently wrong one.
 - **Don't write headings or pseudo-templates.** No `# Hello {name}` or `## About us`. Real emails are plain prose.

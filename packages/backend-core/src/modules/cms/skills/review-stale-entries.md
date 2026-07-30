@@ -88,7 +88,7 @@ A useful complement: `analytics_list_zero_result_searches({sinceDays: 90})` surf
 
 For each asset, check whether any entry references it. Asset references typically appear inside entry `data` payloads (image fields, gallery fields, file uploads). The skill doesn't have a direct "list inbound references for this asset" tool — instead:
 
-- Use `cms_search` with the asset id as the query to find entries that mention it.
+- Use `cms_search_entries` with the asset id as the query to find entries that mention it.
 - Or if the asset's filename is distinctive, search by filename.
 
 If no entries reference the asset *and* `createdAt` is more than 90 days old, recommend `delete-asset` (`cms_delete_asset`). Be careful with recently uploaded assets — they may be tied to a draft entry that's still in progress.
@@ -144,7 +144,7 @@ The operator reviews this report and runs the recommended commands. None of the 
 ## Future work
 
 - A `cms_curation_proposals` table (mirroring `crm_merge_proposals`) so this skill produces a persistent review queue instead of a one-shot report. Add when the volume justifies it.
-- Per-asset inbound-reference check (a dedicated tool that walks all entries' `data` for asset id mentions). Today the skill uses `cms_search` as a workaround.
+- Per-asset inbound-reference check (a dedicated tool that walks all entries' `data` for asset id mentions). Today the skill uses `cms_search_entries` as a workaround.
 - Automated `cms_unpublish_entry` for the high-confidence "time-bound, expired, zero references" subset, gated behind an explicit org-level toggle.
 
 ## Related

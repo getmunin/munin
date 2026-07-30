@@ -629,7 +629,7 @@ export class CmsAdminTools {
   }
 
   @McpTool({
-    name: 'cms_search',
+    name: 'cms_search_entries',
     title: 'CMS: Search entries',
     description:
       'Hybrid full-text + semantic search across CMS entries. Each hit carries a match excerpt, the derived title, and summarized field data — long text is shortened to a lead with a word count in `fieldSummary`. Returns drafts and published; the public delivery API runs the same engine but hard-filters to published-only.',

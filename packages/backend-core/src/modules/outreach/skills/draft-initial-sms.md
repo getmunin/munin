@@ -14,9 +14,9 @@ Same shape as `skill://outreach/draft-initial-email`, with three differences tha
 
 1. **List campaigns** with `outreach_list_campaigns` and keep the enabled ones. Check the campaign's channel is SMS before drafting text-shaped copy — `outreach_list_proposals` on an existing proposal shows `delivery.channelType`, or read the channel off `conv_list_channels`.
 2. **Materialise the audience** with `crm_list_contacts_in_segment(campaign.segmentId)`. Already filtered for suppression and lawful basis. Anyone who ever replied `STOP` to a text is suppressed automatically and will not appear.
-3. **Skip contacts with no `phone`.** `outreach_propose_initial` rejects them, and a rejection you could have predicted is a wasted call.
+3. **Skip contacts with no `phone`.** `outreach_propose_initial_message` rejects them, and a rejection you could have predicted is a wasted call.
 4. **Dedupe** via `outreach_list_proposals({ kind: "initial", campaignId, contactId })` exactly as the email pass does.
-5. **Draft** (rules below) and file with `outreach_propose_initial({ campaignId, contactId, draftBody, evidence })`. No `draftSubject` — a text has no subject.
+5. **Draft** (rules below) and file with `outreach_propose_initial_message({ campaignId, contactId, draftBody, evidence })`. No `draftSubject` — a text has no subject.
 6. **Stop.**
 
 ## Writing the text

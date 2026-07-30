@@ -15,8 +15,8 @@ A separate, scheduled `skill://crm/clean-contact-data` curator runs weekly to me
 2. **Check the first end-user message's `metadata.senderClassification`** (email channel only). If `isMailingList`, `isAutoReply`, or `isBounce` is true → skip the conversation entirely, no writes. These aren't real people we should be CRM-tracking.
 3. **Extract identifying fields** from `end_user`-authored messages only: `email`, `phone`, `name`, `companyId`/`companyName`, `title`. Ignore agent and system messages — those are operator output, not user-volunteered identity. **For email messages, also read `metadata.signatureText`** — the trailing block already pulled out of the body. Signatures are the strongest identity source we have (the sender themselves typed it as their canonical "this is who I am") and should take precedence over inline mentions in the body.
 4. **Skip if nothing identifying was said.** If you found neither email nor phone nor a clear self-introduced name, finish silently — no writes.
-5. **Look up an existing contact** with `crm_find_contact({ email?, phone? })` before creating. Match keys: extracted email or phone.
-6. **Create or backfill, never overwrite.** If `crm_find_contact` returns null → `crm_create_contact` with the extracted fields and the conversation's `endUserId`. If it returns an existing row → `crm_update_contact` and ONLY fill fields that are currently null/empty on the existing row. Do not overwrite a non-empty field.
+5. **Look up an existing contact** with `crm_lookup_contact({ email?, phone? })` before creating. Match keys: extracted email or phone.
+6. **Create or backfill, never overwrite.** If `crm_lookup_contact` returns null → `crm_create_contact` with the extracted fields and the conversation's `endUserId`. If it returns an existing row → `crm_update_contact` and ONLY fill fields that are currently null/empty on the existing row. Do not overwrite a non-empty field.
 7. **Stop.** One `crm_create_contact` or one `crm_update_contact`. No further actions.
 
 ### Role accounts (email only)
@@ -72,12 +72,12 @@ Parse line by line. The first non-closing line is the name. Subsequent lines are
 ## Step 4 — dedupe before creating
 
 ```jsonc
-{ "name": "crm_find_contact", "arguments": { "email": "jane@acme.com" } }
+{ "name": "crm_lookup_contact", "arguments": { "email": "jane@acme.com" } }
 ```
 
-Or by phone if no email. If `crm_find_contact` returns `null`, you'll create a new contact in step 5. Otherwise, you'll backfill.
+Or by phone if no email. If `crm_lookup_contact` returns `null`, you'll create a new contact in step 5. Otherwise, you'll backfill.
 
-If you have BOTH email and phone, run `crm_find_contact` for email first; if no hit, run for phone. The first hit wins.
+If you have BOTH email and phone, run `crm_lookup_contact` for email first; if no hit, run for phone. The first hit wins.
 
 ## Step 5a — create (no existing match)
 
@@ -114,7 +114,7 @@ Add the `from-chat` tag so operators can filter contacts that came in via this c
 
 **Always pass `mode: "fill-null"`** from this skill. That tells the service to apply patch keys only where the existing contact's field is null/empty; non-null fields are left untouched server-side. This is defense-in-depth on top of your own filtering — if you accidentally include a field that's already populated, the service refuses to overwrite rather than clobbering operator-curated data.
 
-You should still pre-filter the patch yourself (it's cleaner and avoids a no-op write): read the row from `crm_find_contact`'s response and, for each extracted field:
+You should still pre-filter the patch yourself (it's cleaner and avoids a no-op write): read the row from `crm_lookup_contact`'s response and, for each extracted field:
 
 - existing field is `null` or empty string → include it in `patch`
 - existing field has a value → leave it out of `patch`, even if the user's new value looks "better"

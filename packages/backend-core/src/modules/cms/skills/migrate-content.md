@@ -10,7 +10,7 @@ Importing a customer's existing content (Webflow, Contentful, headless WordPress
 ## TL;DR
 
 1. Inspect or design the destination collection schema (`cms_get_collection` / `cms_create_collection`).
-2. Pick a stable external id and store it in a custom field so re-runs find existing entries via `cms_search`.
+2. Pick a stable external id and store it in a custom field so re-runs find existing entries via `cms_search_entries`.
 3. For each source row: search for an existing entry → create new or update existing.
 4. Rewire references after all entries are imported (two-pass).
 5. Verify count, spot-check a few entries.
@@ -59,7 +59,7 @@ Decide on the source identifier (e.g. Contentful entry id, WordPress post id) an
 
 ```jsonc
 {
-  "name": "cms_search",
+  "name": "cms_search_entries",
   "arguments": { "query": "<source-id>", "collection": "blog", "limit": 5 }
 }
 ```
@@ -72,7 +72,7 @@ Pseudocode:
 
 ```
 for row in source:
-  hits = cms_search(query=row.id, collection="blog")
+  hits = cms_search_entries(query=row.id, collection="blog")
   existing = first hit where data.external == row.id
 
   payload = {
@@ -101,7 +101,7 @@ After every entry exists, walk the body fields and replace external links with i
 { "name": "cms_get_entry", "arguments": { "id": "<entryId>" } }
 ```
 
-Rewrite the body so any `<a href="https://old-cms/posts/old-id">` becomes a Munin entry reference (resolve via `cms_search` on the source-id-mapped entry). Then:
+Rewrite the body so any `<a href="https://old-cms/posts/old-id">` becomes a Munin entry reference (resolve via `cms_search_entries` on the source-id-mapped entry). Then:
 
 ```jsonc
 {

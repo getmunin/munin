@@ -35,7 +35,7 @@ Workflow (run weekly, Monday 07:00 local):
    rationale tying score to two specific facts>".
 
 Constraints:
-- Never call crm_change_stage or move a deal. The score is advisory.
+- Never call crm_change_deal_stage or move a deal. The score is advisory.
 - Cite at least one concrete activity or enrichment fact in every rationale.
   "high intent" alone isn't enough — say which behaviour.
 - A contact with no enrichment yet is cold by default; flag for the enricher

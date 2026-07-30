@@ -62,7 +62,7 @@ export const RECIPES: Recipe[] = [
       'crm_list_deals',
       'crm_get_contact',
       'crm_set_ai_summary',
-      'outreach_propose_initial',
+      'outreach_propose_initial_message',
     ],
   },
   {
@@ -76,7 +76,7 @@ export const RECIPES: Recipe[] = [
       'crm_list_contacts_in_segment',
       'crm_get_contact',
       'outreach_create_campaign',
-      'outreach_propose_initial',
+      'outreach_propose_initial_message',
     ],
   },
 ];

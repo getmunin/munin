@@ -7,7 +7,7 @@ audiences: [admin]
 # Onboard a new customer
 ## TL;DR sequence
 
-1. `crm_find_contact` by email — avoid duplicates.
+1. `crm_lookup_contact` by email — avoid duplicates.
 2. If miss: `crm_create_contact` with email + name + as much structured detail as you have.
 3. Optionally: `crm_create_company` and link via `crm_update_contact` `companyId`.
 4. `crm_log_activity` for the source touchpoint (signup, demo, inbound email, etc.).
@@ -18,7 +18,7 @@ audiences: [admin]
 Always check first:
 
 ```jsonc
-{ "name": "crm_find_contact", "arguments": { "email": "vita@acme.com" } }
+{ "name": "crm_lookup_contact", "arguments": { "email": "vita@acme.com" } }
 ```
 
 Returns `null` if no match, or the contact DTO. **Do not** call `crm_create_contact` without checking — duplicate emails are allowed at the schema level (so two real people at the same shared inbox can coexist) but consolidating fragments of one human across rows is painful later.
@@ -90,7 +90,7 @@ Keep it factual, short, and dense with names + numbers. Avoid platitudes ("inter
 
 ## Idempotency notes
 
-- `crm_create_contact` with a duplicate email creates a second row. Always `crm_find_contact` first.
+- `crm_create_contact` with a duplicate email creates a second row. Always `crm_lookup_contact` first.
 - `crm_create_company` with a duplicate `domain` returns the existing company.
 - `crm_log_activity` is fire-and-forget — duplicate logs are noise but not corruption.
 - `crm_set_ai_summary` overwrites; multiple calls is fine.

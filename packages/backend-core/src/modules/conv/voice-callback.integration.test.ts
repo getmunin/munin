@@ -229,7 +229,7 @@ const skipReason = TEST_URL
       expect(names).toContain('conv_request_callback');
       expect(names).not.toContain('conv_call_channel');
       expect(names).not.toContain('conv_call_contact');
-      expect(names).not.toContain('conv_configure_channel');
+      expect(names).not.toContain('conv_configure_voice_sms_channel');
     });
   });
 

@@ -347,8 +347,8 @@ export class CrmAdminTools {
   }
 
   @McpTool({
-    name: 'crm_find_contact',
-    title: 'CRM: Find contact by email or phone',
+    name: 'crm_lookup_contact',
+    title: 'CRM: Look up contact by email or phone',
     description:
       'Find an existing contact by email and/or phone before creating a new one. Returns null if no match.',
     audiences: ['admin'],
@@ -364,7 +364,7 @@ export class CrmAdminTools {
   @McpTool({
     name: 'crm_create_contact',
     title: 'CRM: Create contact',
-    description: 'Create a new contact. Search with crm_find_contact first to avoid duplicates.',
+    description: 'Create a new contact. Search with crm_lookup_contact first to avoid duplicates.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: CreateContactInput,
@@ -507,7 +507,7 @@ export class CrmAdminTools {
   }
 
   @McpTool({
-    name: 'crm_change_stage',
+    name: 'crm_change_deal_stage',
     title: 'CRM: Change deal stage',
     description:
       'Move a deal to a new stage. If the destination stage is a won/lost terminal, `closedAt` is stamped automatically.',

@@ -301,8 +301,8 @@ export class KbAdminTools {
   }
 
   @McpTool({
-    name: 'kb_import_website_status',
-    title: 'KB: Website import status',
+    name: 'kb_get_website_import_status',
+    title: 'KB: Get website import status',
     description:
       'Check the progress of a website import started with `kb_import_website`, by the job id it returned. Status is one of `pending` (queued or running), `done` (finished — `summary` reports how many documents were imported), `failed_retryable`/`dead` (will retry / gave up), or `failed`. While `pending`, poll again after a short delay.',
     audiences: ['admin'],

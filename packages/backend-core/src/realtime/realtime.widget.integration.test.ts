@@ -80,7 +80,7 @@ const skipReason = TEST_URL
         identityVerificationSecret: string;
       }>(
         await c.callTool({
-          name: 'conv_widget_create_channel',
+          name: 'conv_create_widget_channel',
           arguments: {
             name: 'rt-storefront-bot',
             originAllowlist: [ALLOWED_ORIGIN],

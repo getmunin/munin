@@ -12,7 +12,7 @@ const ConfigureInput = z.object({
     .string()
     .min(1)
     .max(40)
-    .describe('Channel vendor, e.g. "vapi", "threll", "twilio", "messagebird". Call conv_list_channel_vendors for the full list and each vendor’s config fields.'),
+    .describe('Channel vendor, e.g. "vapi", "threll", "twilio", "messagebird". Call conv_list_voice_sms_vendors for the full list and each vendor’s config fields.'),
   channelId: z
     .string()
     .optional()
@@ -25,7 +25,7 @@ const ConfigureInput = z.object({
     z
       .record(z.string(), z.unknown())
       .describe(
-        'Vendor-specific configuration object with the non-secret fields only — conv_list_channel_vendors marks which fields are secret. Secret fields are rejected here; they are entered by a human through the credential link returned on create.',
+        'Vendor-specific configuration object with the non-secret fields only — conv_list_voice_sms_vendors marks which fields are secret. Secret fields are rejected here; they are entered by a human through the credential link returned on create.',
       ),
   ),
 });
@@ -54,10 +54,10 @@ export class ChannelAdminTools {
   ) {}
 
   @McpTool({
-    name: 'conv_list_channel_vendors',
-    title: 'Conv: List configurable channel vendors',
+    name: 'conv_list_voice_sms_vendors',
+    title: 'Conv: List voice/SMS channel vendors',
     description:
-      'List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_channel.',
+      'List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_voice_sms_channel.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: EmptyInput,
@@ -72,7 +72,7 @@ export class ChannelAdminTools {
     name: 'conv_list_channel_options',
     title: 'Conv: List a channel vendor’s selectable options',
     description:
-      'Discover the selectable options a channel’s vendor offers using the channel’s stored credentials — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_channel instead of guessing. The channel must have completed its credential link first. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.',
+      'Discover the selectable options a channel’s vendor offers using the channel’s stored credentials — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_voice_sms_channel instead of guessing. The channel must have completed its credential link first. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: ListOptionsInput,
@@ -84,10 +84,10 @@ export class ChannelAdminTools {
   }
 
   @McpTool({
-    name: 'conv_configure_channel',
+    name: 'conv_configure_voice_sms_channel',
     title: 'Conv: Configure a voice/SMS channel',
     description:
-      'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_channel_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.',
+      'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: ConfigureInput,
@@ -113,10 +113,10 @@ export class ChannelAdminTools {
   }
 
   @McpTool({
-    name: 'conv_test_channel',
-    title: 'Conv: Test a channel’s stored credentials',
+    name: 'conv_test_voice_sms_channel',
+    title: 'Conv: Test a voice/SMS channel’s stored credentials',
     description:
-      'Verify a channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific.',
+      'Verify a voice or SMS channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific. Email channels are tested with conv_test_email_channel instead.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: TestInput,
@@ -128,10 +128,10 @@ export class ChannelAdminTools {
   }
 
   @McpTool({
-    name: 'conv_send_channel_test',
-    title: 'Conv: Send a real test message',
+    name: 'conv_send_voice_sms_channel_test',
+    title: 'Conv: Send a real test message on a voice/SMS channel',
     description:
-      'Send a real test message (e.g. SMS) through a channel that supports it, addressed to `to`. Useful for end-to-end deliverability checks.',
+      'Send a real test message through a voice or SMS channel that supports it, addressed to `to`. Useful for end-to-end deliverability checks. Email channels use conv_send_email_channel_test instead.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SendTestInput,

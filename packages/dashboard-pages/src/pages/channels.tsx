@@ -957,6 +957,8 @@ function VendorPicker<V extends ChannelVendor>({
   );
 }
 
+type TwilioSender = 'number' | 'service';
+
 function shortenId(id: string): string {
   if (id.length <= 14) return id;
   return `${id.slice(0, 6)}…${id.slice(-4)}`;
@@ -1220,6 +1222,7 @@ function EmailChannelDialog({
   const [imapUsername, setImapUsername] = useState('');
   const [imapPassword, setImapPassword] = useState('');
   const [imapMailbox, setImapMailbox] = useState('');
+  const [limitSending, setLimitSending] = useState(false);
   const [perDayMax, setPerDayMax] = useState('');
   const [perHourMax, setPerHourMax] = useState('');
   const [creating, setCreating] = useState(false);
@@ -1255,6 +1258,7 @@ function EmailChannelDialog({
     setImapUsername(cfg?.inbound?.username ?? '');
     setImapPassword('');
     setImapMailbox(cfg?.inbound?.mailbox ?? '');
+    setLimitSending(cfg?.sendLimits?.perDayMax != null || cfg?.sendLimits?.perHourMax != null);
     setPerDayMax(
       cfg?.sendLimits?.perDayMax != null ? String(cfg.sendLimits.perDayMax) : '',
     );
@@ -1301,6 +1305,7 @@ function EmailChannelDialog({
             }
           : {}),
         ...(() => {
+          if (!limitSending) return {};
           const sendLimits: { perDayMax?: number; perHourMax?: number } = {};
           const day = parsePositiveInt(perDayMax);
           const hour = parsePositiveInt(perHourMax);
@@ -1411,6 +1416,14 @@ function EmailChannelDialog({
                   aria-invalid={fieldErrors.smtpPort ? true : undefined}
                 />
               </FormField>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={smtpSecure}
+                  onChange={(e) => setSmtpSecure(e.target.checked)}
+                />
+                {t('email.secure')}
+              </label>
               <FormField label={t('email.username')}>
                 <Input
                   value={smtpUsername}
@@ -1427,14 +1440,6 @@ function EmailChannelDialog({
                   required={!isEdit}
                 />
               </FormField>
-              <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={smtpSecure}
-                  onChange={(e) => setSmtpSecure(e.target.checked)}
-                />
-                {t('email.secure')}
-              </label>
               <label className="flex items-start gap-2 text-sm sm:col-span-2">
                 <input
                   type="checkbox"
@@ -1450,9 +1455,22 @@ function EmailChannelDialog({
                 </span>
               </label>
               <div className="space-y-2 border-t border-rule-soft pt-3 sm:col-span-2">
-                <div className="text-sm font-medium">{t('email.sendLimitsLabel')}</div>
-                <p className="text-xs text-muted-foreground">{t('email.sendLimitsHelp')}</p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={limitSending}
+                    onChange={(e) => setLimitSending(e.target.checked)}
+                  />
+                  <span>
+                    {t('email.sendLimitsLabel')}
+                    <span className="block text-[11px] text-ink-mute">
+                      {t('email.sendLimitsHelp')}
+                    </span>
+                  </span>
+                </label>
+                {limitSending && (
+                <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
                   <FormField label={t('email.perDayMax')}>
                     <Input
                       type="number"
@@ -1476,6 +1494,7 @@ function EmailChannelDialog({
                     />
                   </FormField>
                 </div>
+                )}
               </div>
             </div>
           </fieldset>
@@ -1516,6 +1535,14 @@ function EmailChannelDialog({
                     aria-invalid={fieldErrors.imapPort ? true : undefined}
                   />
                 </FormField>
+                <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={imapSecure}
+                    onChange={(e) => setImapSecure(e.target.checked)}
+                  />
+                  {t('email.secure')}
+                </label>
                 <FormField label={t('email.username')}>
                   <Input
                     value={imapUsername}
@@ -1540,26 +1567,20 @@ function EmailChannelDialog({
                     maxLength={120}
                   />
                 </FormField>
-                <FormField label={t('email.defaultAgentModeLabel')}>
-                  <NativeSelect
-                    value={defaultAgentMode}
-                    onChange={(e) =>
-                      setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
-                    }
-                  >
-                    <option value="auto">{t('email.agentModeAuto')}</option>
-                    <option value="draft_only">{t('email.agentModeDraftOnly')}</option>
-                    <option value="off">{t('email.agentModeOff')}</option>
-                  </NativeSelect>
-                </FormField>
-                <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={imapSecure}
-                    onChange={(e) => setImapSecure(e.target.checked)}
-                  />
-                  {t('email.secure')}
-                </label>
+                <div className="sm:col-span-2">
+                  <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintEmail')}>
+                    <NativeSelect
+                      value={defaultAgentMode}
+                      onChange={(e) =>
+                        setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+                      }
+                    >
+                      <option value="auto">{t('agentReplies.auto')}</option>
+                      <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+                      <option value="off">{t('agentReplies.off')}</option>
+                    </NativeSelect>
+                  </FormField>
+                </div>
               </div>
             )}
           </fieldset>
@@ -2098,6 +2119,9 @@ function TwilioSmsChannelDialog({
   const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>(
     editChannel.defaultAgentMode ?? 'auto',
   );
+  const [sender, setSender] = useState<TwilioSender>(
+    editChannel.config?.messagingServiceSid ? 'service' : 'number',
+  );
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -2109,6 +2133,7 @@ function TwilioSmsChannelDialog({
     setAuthToken('');
     setFromNumber(editChannel.config?.fromNumber ?? '');
     setMessagingServiceSid(editChannel.config?.messagingServiceSid ?? '');
+    setSender(editChannel.config?.messagingServiceSid ? 'service' : 'number');
     setDefaultAgentMode(editChannel.defaultAgentMode ?? 'auto');
     setSubmitError(null);
     setFieldErrors({});
@@ -2121,8 +2146,9 @@ function TwilioSmsChannelDialog({
       ...(name.trim() ? { name: name.trim() } : {}),
       ...(accountSid.trim() ? { accountSid: accountSid.trim() } : {}),
       ...(authToken ? { authToken } : {}),
-      ...(fromNumber.trim() ? { fromNumber: fromNumber.trim() } : {}),
-      ...(messagingServiceSid.trim() ? { messagingServiceSid: messagingServiceSid.trim() } : {}),
+      ...(sender === 'service'
+        ? { messagingServiceSid: messagingServiceSid.trim(), fromNumber: null }
+        : { fromNumber: fromNumber.trim(), messagingServiceSid: null }),
       defaultAgentMode,
     };
     const parsed = ConfigureTwilioSmsBody.safeParse(payload);
@@ -2169,18 +2195,6 @@ function TwilioSmsChannelDialog({
               maxLength={120}
             />
           </FormField>
-          <FormField label={t('sms.defaultAgentModeLabel')} hint={t('sms.defaultAgentModeHint')}>
-            <NativeSelect
-              value={defaultAgentMode}
-              onChange={(e) =>
-                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
-              }
-            >
-              <option value="auto">{t('email.agentModeAuto')}</option>
-              <option value="draft_only">{t('email.agentModeDraftOnly')}</option>
-              <option value="off">{t('email.agentModeOff')}</option>
-            </NativeSelect>
-          </FormField>
           <FormField
             label={t('twilioSms.accountSidLabel')}
             hint={t('twilioSms.accountSidHint')}
@@ -2205,31 +2219,51 @@ function TwilioSmsChannelDialog({
               autoComplete="off"
             />
           </FormField>
-          <FormField
-            label={t('twilioSms.fromNumberLabel')}
-            hint={t('twilioSms.fromNumberHint')}
-            error={fieldErrors.fromNumber}
-          >
-            <Input
-              value={fromNumber}
-              onChange={(e) => setFromNumber(e.target.value)}
-              placeholder="+15551234567"
-              maxLength={32}
-            />
+          <FormField label={t('twilioSms.senderLabel')} hint={t('twilioSms.senderHint')}>
+            <NativeSelect value={sender} onChange={(e) => setSender(e.target.value as TwilioSender)}>
+              <option value="number">{t('twilioSms.senderNumber')}</option>
+              <option value="service">{t('twilioSms.senderService')}</option>
+            </NativeSelect>
           </FormField>
-          <FormField
-            label={t('twilioSms.messagingServiceSidLabel')}
-            hint={t('twilioSms.messagingServiceSidHint')}
-            error={fieldErrors.messagingServiceSid}
-          >
-            <Input
-              value={messagingServiceSid}
-              onChange={(e) => setMessagingServiceSid(e.target.value)}
-              placeholder="MG…"
-              maxLength={64}
-            />
+          {sender === 'number' ? (
+            <FormField
+              label={t('twilioSms.fromNumberLabel')}
+              hint={t('twilioSms.fromNumberHint')}
+              error={fieldErrors.fromNumber}
+            >
+              <Input
+                value={fromNumber}
+                onChange={(e) => setFromNumber(e.target.value)}
+                placeholder="+15551234567"
+                maxLength={32}
+              />
+            </FormField>
+          ) : (
+            <FormField
+              label={t('twilioSms.messagingServiceSidLabel')}
+              hint={t('twilioSms.messagingServiceSidHint')}
+              error={fieldErrors.messagingServiceSid}
+            >
+              <Input
+                value={messagingServiceSid}
+                onChange={(e) => setMessagingServiceSid(e.target.value)}
+                placeholder="MG…"
+                maxLength={64}
+              />
+            </FormField>
+          )}
+          <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
+            <NativeSelect
+              value={defaultAgentMode}
+              onChange={(e) =>
+                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+              }
+            >
+              <option value="auto">{t('agentReplies.auto')}</option>
+              <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+              <option value="off">{t('agentReplies.off')}</option>
+            </NativeSelect>
           </FormField>
-          <p className={dialogHintClass}>{t('twilioSms.fromOrServiceHint')}</p>
           {submitError && <FormError detail={submitError} />}
           <DialogFooter className={dialogFooterClass}>
             <Button
@@ -2462,18 +2496,6 @@ function MessageBirdSmsChannelDialog({
               maxLength={120}
             />
           </FormField>
-          <FormField label={t('sms.defaultAgentModeLabel')} hint={t('sms.defaultAgentModeHint')}>
-            <NativeSelect
-              value={defaultAgentMode}
-              onChange={(e) =>
-                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
-              }
-            >
-              <option value="auto">{t('email.agentModeAuto')}</option>
-              <option value="draft_only">{t('email.agentModeDraftOnly')}</option>
-              <option value="off">{t('email.agentModeOff')}</option>
-            </NativeSelect>
-          </FormField>
           <FormField
             label={t('messageBirdSms.accessKeyLabel')}
             hint={t('messageBirdSms.accessKeyHintEdit')}
@@ -2509,6 +2531,18 @@ function MessageBirdSmsChannelDialog({
               placeholder="+15551234567 or AcmeSupport"
               maxLength={32}
             />
+          </FormField>
+          <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
+            <NativeSelect
+              value={defaultAgentMode}
+              onChange={(e) =>
+                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+              }
+            >
+              <option value="auto">{t('agentReplies.auto')}</option>
+              <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+              <option value="off">{t('agentReplies.off')}</option>
+            </NativeSelect>
           </FormField>
           {submitError && <FormError detail={submitError} />}
           <DialogFooter className={dialogFooterClass}>
@@ -2675,6 +2709,8 @@ function AddSmsDialog({
   const [accessKey, setAccessKey] = useState('');
   const [signingKey, setSigningKey] = useState('');
   const [originator, setOriginator] = useState('');
+  const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>('auto');
+  const [sender, setSender] = useState<TwilioSender>('number');
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -2682,6 +2718,8 @@ function AddSmsDialog({
   useEffect(() => {
     if (!open) return;
     setVendor('twilio');
+    setDefaultAgentMode('auto');
+    setSender('number');
     setName('');
     setAccountSid('');
     setAuthToken('');
@@ -2696,10 +2734,10 @@ function AddSmsDialog({
   }, [open]);
 
   async function submitTwilio(): Promise<void> {
-    if (!fromNumber.trim() && !messagingServiceSid.trim()) {
+    const usingService = sender === 'service';
+    if (usingService ? !messagingServiceSid.trim() : !fromNumber.trim()) {
       setFieldErrors({
-        fromNumber: t('twilioSms.fromOrServiceRequired'),
-        messagingServiceSid: t('twilioSms.fromOrServiceRequired'),
+        [usingService ? 'messagingServiceSid' : 'fromNumber']: t('twilioSms.senderRequired'),
       });
       return;
     }
@@ -2707,8 +2745,10 @@ function AddSmsDialog({
       ...(name.trim() ? { name: name.trim() } : {}),
       ...(accountSid.trim() ? { accountSid: accountSid.trim() } : {}),
       ...(authToken ? { authToken } : {}),
-      ...(fromNumber.trim() ? { fromNumber: fromNumber.trim() } : {}),
-      ...(messagingServiceSid.trim() ? { messagingServiceSid: messagingServiceSid.trim() } : {}),
+      ...(usingService
+        ? { messagingServiceSid: messagingServiceSid.trim() }
+        : { fromNumber: fromNumber.trim() }),
+      defaultAgentMode,
     };
     const parsed = ConfigureTwilioSmsBody.safeParse(payload);
     if (!parsed.success) {
@@ -2738,6 +2778,7 @@ function AddSmsDialog({
       ...(accessKey ? { accessKey } : {}),
       ...(signingKey ? { signingKey } : {}),
       ...(originator.trim() ? { originator: originator.trim() } : {}),
+      defaultAgentMode,
     };
     const parsed = ConfigureMessageBirdSmsBody.safeParse(payload);
     if (!parsed.success) {
@@ -2825,31 +2866,42 @@ function AddSmsDialog({
                   required
                 />
               </FormField>
-              <FormField
-                label={t('twilioSms.fromNumberLabel')}
-                hint={t('twilioSms.fromNumberHint')}
-                error={fieldErrors.fromNumber}
-              >
-                <Input
-                  value={fromNumber}
-                  onChange={(e) => setFromNumber(e.target.value)}
-                  placeholder="+15551234567"
-                  maxLength={32}
-                />
+              <FormField label={t('twilioSms.senderLabel')} hint={t('twilioSms.senderHint')}>
+                <NativeSelect
+                  value={sender}
+                  onChange={(e) => setSender(e.target.value as TwilioSender)}
+                >
+                  <option value="number">{t('twilioSms.senderNumber')}</option>
+                  <option value="service">{t('twilioSms.senderService')}</option>
+                </NativeSelect>
               </FormField>
-              <FormField
-                label={t('twilioSms.messagingServiceSidLabel')}
-                hint={t('twilioSms.messagingServiceSidHint')}
-                error={fieldErrors.messagingServiceSid}
-              >
-                <Input
-                  value={messagingServiceSid}
-                  onChange={(e) => setMessagingServiceSid(e.target.value)}
-                  placeholder="MG…"
-                  maxLength={64}
-                />
-              </FormField>
-              <p className={dialogHintClass}>{t('twilioSms.fromOrServiceHint')}</p>
+              {sender === 'number' ? (
+                <FormField
+                  label={t('twilioSms.fromNumberLabel')}
+                  hint={t('twilioSms.fromNumberHint')}
+                  error={fieldErrors.fromNumber}
+                >
+                  <Input
+                    value={fromNumber}
+                    onChange={(e) => setFromNumber(e.target.value)}
+                    placeholder="+15551234567"
+                    maxLength={32}
+                  />
+                </FormField>
+              ) : (
+                <FormField
+                  label={t('twilioSms.messagingServiceSidLabel')}
+                  hint={t('twilioSms.messagingServiceSidHint')}
+                  error={fieldErrors.messagingServiceSid}
+                >
+                  <Input
+                    value={messagingServiceSid}
+                    onChange={(e) => setMessagingServiceSid(e.target.value)}
+                    placeholder="MG…"
+                    maxLength={64}
+                  />
+                </FormField>
+              )}
             </>
           ) : (
             <>
@@ -2901,6 +2953,18 @@ function AddSmsDialog({
               </FormField>
             </>
           )}
+          <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
+            <NativeSelect
+              value={defaultAgentMode}
+              onChange={(e) =>
+                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+              }
+            >
+              <option value="auto">{t('agentReplies.auto')}</option>
+              <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+              <option value="off">{t('agentReplies.off')}</option>
+            </NativeSelect>
+          </FormField>
           {submitError && <FormError detail={submitError} />}
           <DialogFooter className={dialogFooterClass}>
             <Button

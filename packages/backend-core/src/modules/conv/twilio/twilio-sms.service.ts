@@ -87,7 +87,10 @@ export class TwilioSmsService {
   async updateChannel(input: {
     channelId: string;
     name?: string;
-    config?: Partial<TwilioSmsConfigInput>;
+    config?: Partial<Omit<TwilioSmsConfigInput, 'fromNumber' | 'messagingServiceSid'>> & {
+      fromNumber?: string | null;
+      messagingServiceSid?: string | null;
+    };
     defaultAgentMode?: AgentMode;
   }): Promise<TwilioSmsChannelDto> {
     const ctx = getCurrentContext();
@@ -113,8 +116,11 @@ export class TwilioSmsService {
       encryptedAuthToken: input.config?.authToken
         ? await encryptString(input.config.authToken)
         : prev.encryptedAuthToken,
-      fromNumber: input.config?.fromNumber ?? prev.fromNumber,
-      messagingServiceSid: input.config?.messagingServiceSid ?? prev.messagingServiceSid,
+      fromNumber: resolveSender(input.config?.fromNumber, prev.fromNumber),
+      messagingServiceSid: resolveSender(
+        input.config?.messagingServiceSid,
+        prev.messagingServiceSid,
+      ),
     };
     if (!merged.fromNumber && !merged.messagingServiceSid) {
       throw new BadRequestException('either fromNumber or messagingServiceSid is required');
@@ -196,6 +202,14 @@ export class TwilioSmsService {
       },
     };
   }
+}
+
+function resolveSender(
+  incoming: string | null | undefined,
+  previous: string | undefined,
+): string | undefined {
+  if (incoming === null) return undefined;
+  return incoming ?? previous;
 }
 
 function nonSecretParts(stored: StoredTwilioSmsConfig): Record<string, unknown> {

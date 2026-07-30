@@ -100,8 +100,8 @@ export const ConfigureTwilioSmsBody = z
     name: z.string().min(1).max(120).optional(),
     accountSid: z.string().min(2).max(64).optional(),
     authToken: sensitive(z.string().min(1).max(256).optional()),
-    fromNumber: z.string().regex(E164, 'must be E.164').max(32).optional(),
-    messagingServiceSid: z.string().min(2).max(64).optional(),
+    fromNumber: z.string().regex(E164, 'must be E.164').max(32).nullable().optional(),
+    messagingServiceSid: z.string().min(2).max(64).nullable().optional(),
     defaultAgentMode: AgentModeSchema.optional(),
   })
   .refine(

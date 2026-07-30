@@ -41,14 +41,20 @@ export const ConfigureInput = z.object({
     .string()
     .min(2)
     .max(32)
+    .nullable()
     .optional()
-    .describe('E.164-formatted Twilio number to send from. Either this or messagingServiceSid is required.'),
+    .describe(
+      'E.164-formatted Twilio number to send from. Either this or messagingServiceSid is required. Pass null when updating to clear it, e.g. when switching this channel to a Messaging Service.',
+    ),
   messagingServiceSid: z
     .string()
     .min(2)
     .max(64)
+    .nullable()
     .optional()
-    .describe('Twilio Messaging Service SID (starts with "MG"). Alternative to fromNumber.'),
+    .describe(
+      'Twilio Messaging Service SID (starts with "MG"). Alternative to fromNumber, and required for US A2P 10DLC traffic. Pass null when updating to clear it.',
+    ),
 });
 
 @Injectable()
@@ -92,8 +98,8 @@ export class TwilioSmsAdminService {
       config: {
         accountSid: args.accountSid,
         authToken: args.authToken,
-        fromNumber: args.fromNumber,
-        messagingServiceSid: args.messagingServiceSid,
+        fromNumber: args.fromNumber ?? undefined,
+        messagingServiceSid: args.messagingServiceSid ?? undefined,
       },
     });
   }

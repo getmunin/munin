@@ -172,10 +172,13 @@ function ProposalRow({
 }) {
   const { locale, t } = useI18n();
   const contact = proposal.contact;
-  const name = contact?.name || contact?.email || proposal.contactId;
+  const name = contact?.name || contact?.email || contact?.phone || proposal.contactId;
   const campaignMeta = `${proposal.campaign?.name ?? proposal.campaignId} · ${proposal.kind}`;
   const hasEvidence = Object.keys(proposal.evidence ?? {}).length > 0;
   const line = decidedLine(proposal, state.decidedNow, t);
+  const delivery = proposal.delivery;
+  const isCall = delivery?.channelType === 'voice';
+  const destination = delivery?.destination ?? null;
 
   return (
     <div className="row">
@@ -198,9 +201,11 @@ function ProposalRow({
         <div className="row-main">
           <div className="row-who">
             <b>{name}</b>
-            {contact?.email && contact.name && <span className="mute"> · {contact.email}</span>}
+            {destination && contact?.name && <span className="mute"> · {destination}</span>}
           </div>
-          <div className="row-subject">{proposal.draftSubject ?? t('proposals.noSubject')}</div>
+          <div className="row-subject">
+            {proposal.draftSubject ?? (isCall ? t('proposals.noSubjectCall') : t('proposals.noSubject'))}
+          </div>
         </div>
         <span className="row-age">{formatAge(proposal.createdAt, locale, t('proposals.ageNow'))}</span>
         <span className="row-caret">{open ? '−' : '+'}</span>
@@ -222,6 +227,7 @@ function ProposalRow({
             <pre className="evidence">{JSON.stringify(proposal.evidence, null, 2)}</pre>
           )}
           {revisionNotice(proposal, t)}
+          {deliveryNotice(proposal, t)}
           {state.error && <p className="line line-error">{state.error}</p>}
           {proposal.status === 'pending' ? (
             <div className="actions">
@@ -230,7 +236,9 @@ function ProposalRow({
                 disabled={state.busy !== null}
                 onClick={onApprove}
               >
-                {state.busy === 'approve' ? t('proposals.approving') : t('proposals.approve')}
+                {state.busy === 'approve'
+                  ? t(isCall ? 'proposals.calling' : 'proposals.approving')
+                  : t(isCall ? 'proposals.approveCall' : 'proposals.approve')}
               </button>
               <button className="chip-btn" disabled={state.busy !== null} onClick={onDismiss}>
                 {state.busy === 'dismiss' ? t('proposals.dismissing') : t('proposals.dismiss')}
@@ -242,6 +250,38 @@ function ProposalRow({
         </div>
       )}
     </div>
+  );
+}
+
+function deliveryNotice(proposal: Proposal, t: Translator) {
+  const delivery = proposal.delivery;
+  if (!delivery || proposal.status !== 'pending') return null;
+  if (!delivery.destination) {
+    return (
+      <p className="line line-error">
+        {t(
+          delivery.channelType === 'email'
+            ? 'proposals.deliveryNoEmail'
+            : 'proposals.deliveryNoPhone',
+        )}
+      </p>
+    );
+  }
+  const key =
+    delivery.channelType === 'voice'
+      ? 'proposals.deliveryCall'
+      : delivery.channelType === 'sms'
+        ? 'proposals.deliverySms'
+        : 'proposals.deliveryEmail';
+  const appended = [
+    delivery.appendsCta ? t('proposals.deliveryAppendsCta') : null,
+    delivery.appendsUnsubscribe ? t('proposals.deliveryAppendsUnsubscribe') : null,
+  ].filter(Boolean);
+  return (
+    <p className="line line-mute">
+      {t(key, { destination: delivery.destination })}
+      {appended.length > 0 && ` ${t('proposals.deliveryAppends', { items: appended.join(', ') })}`}
+    </p>
   );
 }
 

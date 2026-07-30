@@ -12,6 +12,7 @@ import { KbService } from '../kb/kb.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
 import { OutreachService } from '../outreach/outreach.service.ts';
 import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
+import { VapiOutreachCaller } from '../conv/vapi/vapi-outreach-caller.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { SlackApiClient } from './slack-api.client.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
@@ -155,7 +156,7 @@ class FakeSlackApi extends SlackApiClient {
       conv,
       crm,
       new EmailService(),
-      new VapiClientService(db),
+      [new VapiOutreachCaller(new VapiClientService(db))],
       db,
     );
     const embeddingHolder = new (class extends EmbeddingProviderHolder {

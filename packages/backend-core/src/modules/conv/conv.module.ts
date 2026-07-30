@@ -24,6 +24,9 @@ import { ChannelCredentialTools } from './channels/channel-credential.tools.ts';
 import { CredentialHandoffModule } from '../credential-handoff/credential-handoff.module.ts';
 import { CredentialTargetRegistry } from '../credential-handoff/credential-target.ts';
 import { VapiAdminProvider } from './vapi/vapi-admin.provider.ts';
+import { VapiOutreachCaller } from './vapi/vapi-outreach-caller.ts';
+import { ThrellOutreachCaller } from './threll/threll-outreach-caller.ts';
+import { OUTREACH_VOICE_CALLERS } from './channels/outreach-voice.ts';
 import { ThrellAdminProvider } from './threll/threll-admin.provider.ts';
 import { TwilioSmsAdminProvider } from './twilio/twilio-sms-admin.provider.ts';
 import { MessageBirdSmsAdminProvider } from './messagebird/messagebird-sms-admin.provider.ts';
@@ -107,6 +110,13 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     WidgetChannelAdminService,
     WidgetAdminTools,
     WidgetThrottlerGuard,
+    VapiOutreachCaller,
+    ThrellOutreachCaller,
+    {
+      provide: OUTREACH_VOICE_CALLERS,
+      useFactory: (vapi: VapiOutreachCaller, threll: ThrellOutreachCaller) => [vapi, threll],
+      inject: [VapiOutreachCaller, ThrellOutreachCaller],
+    },
     {
       provide: CHANNEL_ADAPTERS,
       useFactory: (
@@ -149,6 +159,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     },
   ],
   exports: [
+    OUTREACH_VOICE_CALLERS,
     ConvService,
     ConversationClaimsService,
     EmailService,

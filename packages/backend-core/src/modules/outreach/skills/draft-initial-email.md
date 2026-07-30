@@ -115,6 +115,9 @@ Out of scope for this skill — see `skill://outreach/review-proposals`. The ope
 
 ## Related
 
+- `skill://outreach/draft-initial-sms` — the same pass on an SMS campaign, capped at 480 characters of plain text.
+- `skill://outreach/draft-initial-call` — the same pass on a voice campaign, where you draft what an AI agent says when the call connects.
+
 - `skill://outreach/draft-followup-email` — drafts the next sequence step when an initial filed by this pass sits unanswered past a campaign's `sequenceSteps` wait period.
 - `skill://kb/review-content` — symmetric pattern (per-conversation curator that proposes, human approves) for KB instead of outreach.
 - `skill://crm/clean-contact-data` — population-level dedup that catches duplicates this and other curators create.

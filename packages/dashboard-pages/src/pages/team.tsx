@@ -204,8 +204,9 @@ export function TeamPage() {
             ]}
           />
         ) : (
-          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
-          <table className="w-full min-w-[640px]">
+          <>
+          <div className="hidden md:block">
+          <table className="w-full">
             <thead>
               <tr className="border-b-[1px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('membersTableName')}</Th>
@@ -255,6 +256,41 @@ export function TeamPage() {
             </tbody>
           </table>
           </div>
+          <ul className="space-y-3 md:hidden">
+            {members.map((m) => (
+              <li
+                key={m.userId}
+                className="space-y-3 border-b-[1px] border-rule-soft pb-3 dark:border-rule-on-dark"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-ink dark:text-foreground">
+                    {m.name ?? '—'}
+                  </p>
+                  <p className="truncate font-mono text-xs text-ink-mute">{m.email}</p>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <RoleSelect
+                    value={m.role as MemberRole}
+                    onChange={(role) => void changeRole(m.userId, role)}
+                    labelOwner={t('roleOwner')}
+                    labelAdmin={t('roleAdmin')}
+                    labelMember={t('roleMember')}
+                  />
+                  <div className="inline-flex items-center gap-2">
+                    {(canEditAnyone || m.userId === currentUserId) && (
+                      <Button variant="outline" size="sm" onClick={() => setEditing(m)}>
+                        {tCommon('edit')}
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => void removeMember(m.userId)}>
+                      {t('remove')}
+                    </Button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          </>
         )}
       </section>
 
@@ -276,8 +312,9 @@ export function TeamPage() {
         ) : invites.length === 0 ? (
           <EmptyCallout title={t('invitesEmptyTitle')} body={t('invitesEmptyBody')} />
         ) : (
-          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
-          <table className="w-full min-w-[640px]">
+          <>
+          <div className="hidden md:block">
+          <table className="w-full">
             <thead>
               <tr className="border-b-[1px] border-rule-soft dark:border-rule-on-dark text-left">
                 <Th>{t('invitesTable.email')}</Th>
@@ -312,6 +349,27 @@ export function TeamPage() {
             </tbody>
           </table>
           </div>
+          <ul className="space-y-3 md:hidden">
+            {invites.map((inv) => (
+              <li
+                key={inv.id}
+                className="space-y-3 border-b-[1px] border-rule-soft pb-3 dark:border-rule-on-dark"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-sm font-medium text-ink dark:text-foreground">
+                    {inv.email}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <RoleChip role={inv.role as MemberRole} t={t} />
+                  <Button variant="outline" size="sm" onClick={() => void revokeInvite(inv)}>
+                    {tCommon('revoke')}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          </>
         )}
       </section>
 

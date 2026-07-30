@@ -29,6 +29,8 @@ export class OutreachInvalidError extends Error {
 export const PROPOSAL_KINDS = ['initial', 'reply', 'followup'] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
+export const CHANNELS_REQUIRING_HUMAN_APPROVAL: readonly string[] = ['voice', 'sms'];
+
 export const PROPOSAL_STATUSES = [
   'pending',
   'approved',
@@ -43,6 +45,7 @@ export interface CadenceRules {
   maxPerWeekPerContact?: number;
   quietHoursStart?: string;
   quietHoursEnd?: string;
+  quietHoursTimezone?: string;
   blackoutDates?: string[];
 }
 
@@ -750,6 +753,7 @@ export class OutreachService {
     if (proposal.status !== 'pending') {
       throw new OutreachInvalidError(`proposal ${id} is ${proposal.status}, not pending`);
     }
+    await this.assertApprovableNow(proposal, actor);
     if (proposal.kind === 'initial') {
       return this.approveInitial(proposal, actor, opts);
     }
@@ -1455,6 +1459,27 @@ export class OutreachService {
     };
   }
 
+  private async assertApprovableNow(
+    proposal: ProposalDto,
+    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+  ): Promise<void> {
+    const channelType = proposal.delivery?.channelType ?? 'email';
+    if (!CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) return;
+    if (actor.type !== 'user') {
+      throw new OutreachInvalidError(
+        `${channelType} proposals are approved by a signed-in person in the Munin dashboard, ` +
+          `not by an agent or API key — this caller is ${actor.type}`,
+      );
+    }
+    const campaign = await this.getCampaign(proposal.campaignId);
+    const blocked = outsideCallingWindow(campaign.cadenceRules, new Date());
+    if (blocked) {
+      throw new OutreachInvalidError(
+        `campaign ${campaign.id} does not ${channelType === 'voice' ? 'call' : 'message'} ${blocked}`,
+      );
+    }
+  }
+
   private async assertSegmentExists(segmentId: string): Promise<void> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
@@ -1726,6 +1751,57 @@ function toProposalDto(
     campaign: campaign && campaign.id ? { id: campaign.id, name: campaign.name ?? '' } : null,
     delivery,
   };
+}
+
+function outsideCallingWindow(rules: CadenceRules, now: Date): string | null {
+  const zone = rules.quietHoursTimezone;
+  const local = localDateAndMinute(now, zone);
+  if (rules.blackoutDates?.includes(local.date)) return `on ${local.date}`;
+  const { quietHoursStart, quietHoursEnd } = rules;
+  if (!quietHoursStart || !quietHoursEnd) return null;
+  const start = toMinuteOfDay(quietHoursStart);
+  const end = toMinuteOfDay(quietHoursEnd);
+  if (start === end) return null;
+  const quiet =
+    start < end
+      ? local.minute >= start && local.minute < end
+      : local.minute >= start || local.minute < end;
+  if (!quiet) return null;
+  const where = zone ? `${quietHoursStart}–${quietHoursEnd} ${zone}` : `${quietHoursStart}–${quietHoursEnd} UTC`;
+  return `between ${where}`;
+}
+
+function localDateAndMinute(now: Date, timeZone: string | undefined): { date: string; minute: number } {
+  const utc = {
+    date: now.toISOString().slice(0, 10),
+    minute: now.getUTCHours() * 60 + now.getUTCMinutes(),
+  };
+  if (!timeZone) return utc;
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+  } catch {
+    return utc;
+  }
+  const at = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+  const hour = at('hour') === '24' ? '00' : at('hour');
+  return {
+    date: `${at('year')}-${at('month')}-${at('day')}`,
+    minute: Number(hour) * 60 + Number(at('minute')),
+  };
+}
+
+function toMinuteOfDay(hhmm: string): number {
+  const [h, m] = hhmm.split(':');
+  return Number(h) * 60 + Number(m);
 }
 
 function toProposalDelivery(

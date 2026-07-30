@@ -6837,6 +6837,12 @@
               "type": "string",
               "pattern": "^[0-2]\\d:[0-5]\\d$"
             },
+            "quietHoursTimezone": {
+              "description": "IANA time zone the quiet hours and blackout dates are read in, e.g. \"Europe/Oslo\". Defaults to UTC.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
             "blackoutDates": {
               "maxItems": 50,
               "type": "array",
@@ -6985,6 +6991,12 @@
                       "quietHoursEnd": {
                         "type": "string",
                         "pattern": "^[0-2]\\d:[0-5]\\d$"
+                      },
+                      "quietHoursTimezone": {
+                        "description": "IANA time zone the quiet hours and blackout dates are read in, e.g. \"Europe/Oslo\". Defaults to UTC.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
                       },
                       "blackoutDates": {
                         "maxItems": 50,
@@ -7243,6 +7255,12 @@
                 "quietHoursEnd": {
                   "type": "string",
                   "pattern": "^[0-2]\\d:[0-5]\\d$"
+                },
+                "quietHoursTimezone": {
+                  "description": "IANA time zone the quiet hours and blackout dates are read in, e.g. \"Europe/Oslo\". Defaults to UTC.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
                 },
                 "blackoutDates": {
                   "maxItems": 50,

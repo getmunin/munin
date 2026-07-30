@@ -15,7 +15,11 @@ import { ConvService } from '../conv/conv.service.ts';
 import { ClaimedByOtherError, ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { CrmInvalidError, CrmService } from '../crm/crm.service.ts';
 import { KbConflictError, KbInvalidError, KbNotFoundError, KbService } from '../kb/kb.service.ts';
-import { OutreachInvalidError, OutreachService } from '../outreach/outreach.service.ts';
+import {
+  CHANNELS_REQUIRING_HUMAN_APPROVAL,
+  OutreachInvalidError,
+  OutreachService,
+} from '../outreach/outreach.service.ts';
 import { SlackApiClient } from './slack-api.client.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackService, decryptSecretValue } from './slack.service.ts';
@@ -248,6 +252,14 @@ export class SlackInteractionsService {
               return;
             case 'outreach_proposal':
               if (approve) {
+                const proposal = await this.outreach.getProposal(subject.subjectId);
+                const channelType = proposal.delivery?.channelType ?? 'email';
+                if (CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) {
+                  await ephemeral(
+                    `:telephone_receiver: ${channelType === 'voice' ? 'Calls' : 'Text messages'} are approved in the Munin dashboard, not from Slack — open the inbox to review and send this one.`,
+                  );
+                  return;
+                }
                 await this.outreach.approveProposal(subject.subjectId, {
                   publicBaseUrl: readApiBaseUrl(),
                 });

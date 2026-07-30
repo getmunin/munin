@@ -341,6 +341,20 @@ const skipReason = TEST_URL
       expect(listedProposals.find((p) => p.id === proposal.id)?.delivery?.destination).toBe(
         '+14155559999',
       );
+
+      const approved = await c.callTool({
+        name: 'outreach_approve_proposal',
+        arguments: { id: proposal.id },
+      });
+      expect(approved.isError).toBe(true);
+      expect(String(firstJson(approved))).toMatch(/signed-in person in the Munin dashboard/);
+
+      const after = await c.callTool({
+        name: 'outreach_list_proposals',
+        arguments: { campaignId: campaign.id },
+      });
+      const stillPending = firstJson(after) as Array<{ id: string; status: string }>;
+      expect(stillPending.find((p) => p.id === proposal.id)?.status).toBe('pending');
     });
   });
 

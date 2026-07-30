@@ -15,6 +15,7 @@ const IDLE: CardState = { busy: null, error: null, decidedNow: false };
 
 const DISPLAY_PAGE = 25;
 const REFRESH_LIMIT = 100;
+const DASHBOARD_ONLY_CHANNELS = ['voice', 'sms'];
 
 export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal[] }) {
   const { t } = useI18n();
@@ -179,6 +180,7 @@ function ProposalRow({
   const delivery = proposal.delivery;
   const isCall = delivery?.channelType === 'voice';
   const destination = delivery?.destination ?? null;
+  const dashboardOnly = delivery ? DASHBOARD_ONLY_CHANNELS.includes(delivery.channelType) : false;
 
   return (
     <div className="row">
@@ -231,15 +233,15 @@ function ProposalRow({
           {state.error && <p className="line line-error">{state.error}</p>}
           {proposal.status === 'pending' ? (
             <div className="actions">
-              <button
-                className="chip-btn chip-btn-solid"
-                disabled={state.busy !== null}
-                onClick={onApprove}
-              >
-                {state.busy === 'approve'
-                  ? t(isCall ? 'proposals.calling' : 'proposals.approving')
-                  : t(isCall ? 'proposals.approveCall' : 'proposals.approve')}
-              </button>
+              {!dashboardOnly && (
+                <button
+                  className="chip-btn chip-btn-solid"
+                  disabled={state.busy !== null}
+                  onClick={onApprove}
+                >
+                  {state.busy === 'approve' ? t('proposals.approving') : t('proposals.approve')}
+                </button>
+              )}
               <button className="chip-btn" disabled={state.busy !== null} onClick={onDismiss}>
                 {state.busy === 'dismiss' ? t('proposals.dismissing') : t('proposals.dismiss')}
               </button>
@@ -267,19 +269,25 @@ function deliveryNotice(proposal: Proposal, t: Translator) {
       </p>
     );
   }
-  const key =
-    delivery.channelType === 'voice'
-      ? 'proposals.deliveryCall'
-      : delivery.channelType === 'sms'
-        ? 'proposals.deliverySms'
-        : 'proposals.deliveryEmail';
+  if (DASHBOARD_ONLY_CHANNELS.includes(delivery.channelType)) {
+    return (
+      <p className="line line-accent">
+        {t(
+          delivery.channelType === 'voice'
+            ? 'proposals.dashboardOnlyCall'
+            : 'proposals.dashboardOnlySms',
+          { destination: delivery.destination },
+        )}
+      </p>
+    );
+  }
   const appended = [
     delivery.appendsCta ? t('proposals.deliveryAppendsCta') : null,
     delivery.appendsUnsubscribe ? t('proposals.deliveryAppendsUnsubscribe') : null,
   ].filter(Boolean);
   return (
     <p className="line line-mute">
-      {t(key, { destination: delivery.destination })}
+      {t('proposals.deliveryEmail', { destination: delivery.destination })}
       {appended.length > 0 && ` ${t('proposals.deliveryAppends', { items: appended.join(', ') })}`}
     </p>
   );

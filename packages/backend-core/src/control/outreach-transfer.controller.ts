@@ -35,6 +35,7 @@ const ImportBody = z.object({
             maxPerWeekPerContact: z.number().int().positive().max(7).optional(),
             quietHoursStart: z.string().optional(),
             quietHoursEnd: z.string().optional(),
+            quietHoursTimezone: z.string().optional(),
             blackoutDates: z.array(z.string()).optional(),
           })
           .default({}),

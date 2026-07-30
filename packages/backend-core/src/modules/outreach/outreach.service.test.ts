@@ -124,12 +124,16 @@ const skipReason = TEST_URL
   });
 
   function run<T>(fn: () => Promise<T>): Promise<T> {
+    return runAs(actor, fn);
+  }
+
+  function runAs<T>(as: ActorIdentity, fn: () => Promise<T>): Promise<T> {
     return appDb.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
       await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
       const ctx: RequestContext = {
         db: tx,
-        actor,
+        actor: as,
         correlationId: randomUUID(),
       };
       return withContext(ctx, fn);
@@ -1138,13 +1142,27 @@ const skipReason = TEST_URL
       globalThis.fetch = realFetch;
     });
 
-    function runAsSystem<T>(fn: () => Promise<T>): Promise<T> {
+    function humanActor(): ActorIdentity {
+      return new ActorIdentity(
+        'user',
+        'usr_outreach_voice_test',
+        orgId,
+        ['*'],
+        ['admin'],
+        undefined,
+        undefined,
+        undefined,
+        'usr_outreach_voice_test',
+      );
+    }
+
+    function runAsSystem<T>(fn: () => Promise<T>, as: ActorIdentity = actor): Promise<T> {
       return db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
         await tx.execute(
           sql`SELECT set_config('app.crypt_key', ${process.env.MUNIN_ENCRYPTION_KEY ?? ''}, true)`,
         );
-        const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+        const ctx: RequestContext = { db: tx, actor: as, correlationId: randomUUID() };
         return withContext(ctx, fn);
       });
     }
@@ -1311,8 +1329,9 @@ const skipReason = TEST_URL
           draftBody: 'Quick follow-up call.',
         }),
       );
-      const approved = await runAsSystem(() =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+      const approved = await runAsSystem(
+        () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+        humanActor(),
       );
       expect(approved.status).toBe('sent');
       expect(approved.conversationId).toBeTruthy();
@@ -1370,8 +1389,9 @@ const skipReason = TEST_URL
           draftBody: 'Hi.',
         }),
       );
-      const approved = await runAsSystem(() =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+      const approved = await runAsSystem(
+        () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+        humanActor(),
       );
       expect(approved.conversationId).toBe(preexistingId);
       const all = await db
@@ -1408,8 +1428,9 @@ const skipReason = TEST_URL
           draftBody: 'Quick call.',
         }),
       );
-      const approved = await runAsSystem(() =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+      const approved = await runAsSystem(
+        () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+        humanActor(),
       );
       await expect(
         run(() =>
@@ -1419,6 +1440,140 @@ const skipReason = TEST_URL
           }),
         ),
       ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('an agent cannot approve a voice proposal, and no call is placed', async () => {
+      const { calls } = stubVapiPlaceCall();
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-agent-refused',
+          brief: 'b',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: voiceContactId,
+          draftBody: 'Quick call.',
+        }),
+      );
+      await expect(
+        runAsSystem(() => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' })),
+      ).rejects.toThrow(/signed-in person in the Munin dashboard/);
+      expect(calls.length).toBe(0);
+      const after = await run(() => svc.getProposal(p.id));
+      expect(after.status).toBe('pending');
+    });
+
+    it('a human cannot approve a voice proposal inside the campaign quiet hours', async () => {
+      const { calls } = stubVapiPlaceCall();
+      const now = new Date();
+      const quietStart = new Date(now.getTime() - 60 * 60 * 1000);
+      const quietEnd = new Date(now.getTime() + 60 * 60 * 1000);
+      const hhmm = (d: Date) =>
+        `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-quiet-hours',
+          brief: 'b',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+          cadenceRules: { quietHoursStart: hhmm(quietStart), quietHoursEnd: hhmm(quietEnd) },
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: voiceContactId,
+          draftBody: 'Quick call.',
+        }),
+      );
+      await expect(
+        runAsSystem(
+          () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+          humanActor(),
+        ),
+      ).rejects.toThrow(/does not call between/);
+      expect(calls.length).toBe(0);
+    });
+
+    it('a human cannot approve a voice proposal on a blackout date', async () => {
+      const { calls } = stubVapiPlaceCall();
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-blackout',
+          brief: 'b',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+          cadenceRules: { blackoutDates: [new Date().toISOString().slice(0, 10)] },
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: voiceContactId,
+          draftBody: 'Quick call.',
+        }),
+      );
+      await expect(
+        runAsSystem(
+          () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+          humanActor(),
+        ),
+      ).rejects.toThrow(/does not call on /);
+      expect(calls.length).toBe(0);
+    });
+
+    it('an agent can still dismiss a voice proposal, since dismissing sends nothing', async () => {
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'voice-dismissable',
+          brief: 'b',
+          segmentId,
+          channelId: voiceChannelId,
+          enabled: true,
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: voiceContactId,
+          draftBody: 'Quick call.',
+        }),
+      );
+      const dismissed = await run(() =>
+        svc.dismissProposal({ id: p.id, reason: 'wrong list' }),
+      );
+      expect(dismissed.status).toBe('dismissed');
+    });
+
+    it('email approval is unaffected by the calling gate', async () => {
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'email-still-agent-approvable',
+          brief: 'b',
+          segmentId,
+          channelId,
+          enabled: true,
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId,
+          draftSubject: 'Hello',
+          draftBody: 'Body.',
+        }),
+      );
+      const approved = await run(() =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+      );
+      expect(approved.status).toBe('sent');
     });
   });
 });

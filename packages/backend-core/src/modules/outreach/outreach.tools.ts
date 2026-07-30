@@ -11,10 +11,28 @@ import {
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
+function isKnownTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const IanaTimeZone = z
+  .string()
+  .min(1)
+  .max(64)
+  .refine(isKnownTimeZone, { message: 'must be an IANA time zone, e.g. "Europe/Oslo"' });
+
 const CadenceRulesSchema = z.object({
   maxPerWeekPerContact: z.number().int().positive().max(7).optional(),
   quietHoursStart: z.string().regex(/^[0-2]\d:[0-5]\d$/).optional(),
   quietHoursEnd: z.string().regex(/^[0-2]\d:[0-5]\d$/).optional(),
+  quietHoursTimezone: IanaTimeZone.optional().describe(
+    'IANA time zone the quiet hours and blackout dates are read in, e.g. "Europe/Oslo". Defaults to UTC.',
+  ),
   blackoutDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(50).optional(),
 });
 

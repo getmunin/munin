@@ -41,5 +41,6 @@ Follow-up sequences are email-only. An SMS campaign cannot carry `sequenceSteps`
 ## Related
 
 - `skill://outreach/draft-initial-email` — the same pass for email, where you may draft at length.
+- `skill://outreach/draft-initial-call` — the spoken equivalent, with a higher bar for who is worth contacting.
 - `skill://outreach/review-proposals` — what the operator does with what you filed, and why you cannot do it for them.
 - `skill://conv/setup-voice-sms-channel` — configuring the number, including `defaultAgentMode` and how STOP suppression works.

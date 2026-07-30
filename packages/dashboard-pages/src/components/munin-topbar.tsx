@@ -57,7 +57,7 @@ export function DashboardTopbar({
           href={settingsHref}
           aria-label={settingsLabel}
           title={settingsLabel}
-          className="group inline-flex size-9 items-center justify-center text-ink-mute transition-colors duration-fast hover:text-ink dark:hover:text-foreground"
+          className="group inline-flex size-9 items-center justify-center text-ink-mute transition-colors duration-fast hover:text-ink dark:hover:text-foreground [@media(hover:none)]:!text-ink dark:[@media(hover:none)]:!text-foreground"
         >
           <SettingsIcon
             className="size-5 transition-transform duration-300 group-hover:rotate-[30deg]"
@@ -92,7 +92,7 @@ export function SettingsTopbar({
         href={backHref}
         aria-label={backLabel}
         title={backLabel}
-        className="group inline-flex items-center gap-2.5 self-center px-1 py-1.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute transition-colors duration-fast hover:text-ink dark:hover:text-foreground"
+        className="group inline-flex items-center gap-2.5 self-center px-1 py-1.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute transition-colors duration-fast hover:text-ink dark:hover:text-foreground [@media(hover:none)]:!text-ink dark:[@media(hover:none)]:!text-foreground"
       >
         <ArrowLeft
           aria-hidden
@@ -110,7 +110,7 @@ export function SettingsTopbar({
       <div className="ml-auto flex h-full items-center">
         {onMenuToggle ? (
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={onMenuToggle}
             aria-label={openMenuLabel ?? 'Open menu'}

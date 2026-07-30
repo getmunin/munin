@@ -233,13 +233,28 @@ const skipReason = TEST_URL
     });
   });
 
-  it('admin token sees both the self-service callback and the admin voice tools', async () => {
+  it('no MCP audience is offered a tool that places an outbound call', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name);
-      expect(names).toContain('conv_call_channel');
-      expect(names).toContain('conv_call_contact');
+      expect(names).not.toContain('conv_call_channel');
+      expect(names).not.toContain('conv_call_contact');
+      expect(names).not.toContain('conv_request_callback');
     });
+  });
+
+  it('an admin caller that names a removed call tool is refused', async () => {
+    const { calls } = stubVapiPlaceCall();
+    await withClient(adminKey, async (c) => {
+      for (const name of ['conv_call_channel', 'conv_call_contact']) {
+        const res = (await c.callTool({
+          name,
+          arguments: { conversationId: bobConvId, channelId: voiceChannelId, to: '+14155552222' },
+        })) as { isError?: boolean };
+        expect(res.isError).toBe(true);
+      }
+    });
+    expect(calls.length).toBe(0);
   });
 
   it('alice can request a callback in her own conversation', async () => {
@@ -322,22 +337,6 @@ const skipReason = TEST_URL
         .set({ phone: '+14155552222' })
         .where(sql`org_id = ${orgId} AND end_user_id = (SELECT id FROM end_users WHERE external_id = 'eu-bob-vcb' AND org_id = ${orgId})`);
     }
-  });
-
-  it('admin can place a callback for any conversation in the org via conv_call_contact', async () => {
-    const { calls } = stubVapiPlaceCall({ id: 'call_admin_002', status: 'ringing' });
-    const result = await withClient(adminKey, async (c) => {
-      return parseResult<{ initiated: boolean; callId: string }>(
-        await c.callTool({
-          name: 'conv_call_contact',
-          arguments: { conversationId: bobConvId },
-        }),
-      );
-    });
-    expect(result.initiated).toBe(true);
-    expect(result.callId).toBe('call_admin_002');
-    expect(calls.length).toBe(1);
-    expect(calls[0]!.body ?? '').toContain('"+14155552222"');
   });
 
 });

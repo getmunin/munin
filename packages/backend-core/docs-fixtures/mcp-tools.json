@@ -3714,37 +3714,6 @@
     }
   },
   {
-    "name": "conv_call_contact",
-    "title": "Conv: Place a voice call to this conversation's contact",
-    "description": "Place an outbound voice call to the contact attached to a conversation. Resolves the phone number from the conversation's contact. If your org has more than one active voice channel, pass `channelId` to pick one; with a single channel the call falls back to it. For arbitrary destinations, use `conv_call_channel` instead.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "conversationId": {
-          "type": "string"
-        },
-        "channelId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        }
-      },
-      "required": [
-        "conversationId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
     "name": "conv_widget_create_channel",
     "title": "Conv: Create chat-widget channel",
     "description": "Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the widget + tracker + CMS wiring end-to-end.",
@@ -4003,43 +3972,6 @@
       },
       "required": [
         "channelId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "conv_call_channel",
-    "title": "Conv: Place an outbound voice call",
-    "description": "Place an outbound voice call through a voice channel (any vendor). The channel’s configured assistant/worker runs the conversation.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "channelId": {
-          "type": "string"
-        },
-        "to": {
-          "type": "string",
-          "maxLength": 32,
-          "pattern": "^\\+[1-9]\\d{4,18}$"
-        },
-        "customerName": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        }
-      },
-      "required": [
-        "channelId",
-        "to"
       ],
       "additionalProperties": false
     }

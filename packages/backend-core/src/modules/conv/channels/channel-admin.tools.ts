@@ -7,8 +7,6 @@ import { ChannelCredentialService } from './channel-credential.service.ts';
 import type { ChannelAdminDto } from './channel-admin.ts';
 import type { CredentialLink } from '../../credential-handoff/credential-handoff.service.ts';
 
-const E164 = /^\+[1-9]\d{4,18}$/;
-
 const ConfigureInput = z.object({
   vendor: z
     .string()
@@ -30,12 +28,6 @@ const ConfigureInput = z.object({
 });
 
 const TestInput = z.object({ channelId: z.string() });
-
-const VoiceCallInput = z.object({
-  channelId: z.string(),
-  to: z.string().regex(E164, 'must be E.164').max(32),
-  customerName: z.string().min(1).max(120).optional(),
-});
 
 const SendTestInput = z.object({
   channelId: z.string(),
@@ -129,25 +121,6 @@ export class ChannelAdminTools {
   })
   test(args: z.infer<typeof TestInput>): Promise<unknown> {
     return this.svc.test(args.channelId);
-  }
-
-  @McpTool({
-    name: 'conv_call_channel',
-    title: 'Conv: Place an outbound voice call',
-    description:
-      'Place an outbound voice call through a voice channel (any vendor). The channel’s configured assistant/worker runs the conversation.',
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: VoiceCallInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
-  voiceCall(args: z.infer<typeof VoiceCallInput>): Promise<unknown> {
-    return this.svc.call({
-      channelId: args.channelId,
-      to: args.to,
-      customerName: args.customerName,
-    });
   }
 
   @McpTool({

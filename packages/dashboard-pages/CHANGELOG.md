@@ -1,5 +1,69 @@
 # @getmunin/dashboard-pages
 
+## 4.75.0
+
+### Minor Changes
+
+- cc87bb6: Outreach proposals say where they are going before you approve them
+
+  A proposal DTO now carries `delivery`: the campaign channel's type and vendor, the destination the approval would actually reach (email address for email campaigns, phone number for voice and SMS), and whether Munin will append the campaign CTA link and unsubscribe footer at send time. `contact` gains `phone` alongside `email`.
+
+  Both review surfaces use it. The MCP App panel and the dashboard drawer state the consequence in words — "Approving places a phone call to +1 415 555 9999", "Approving emails jane@acme.com. Munin appends the campaign CTA link, an unsubscribe footer" — and warn in red when the contact has no address or number on file, which is a send that would fail. A voice proposal's approve button reads "Approve & call" rather than "Approve & send", and its missing subject renders as "(spoken call — no subject)" instead of the bare "(no subject)" an email would show.
+
+  This matters most for voice campaigns, where approving dials a real phone number and the panel previously showed nothing but a subject-less body and an Approve button. It is worth having for email too: a reviewer approving a first-touch could not see the recipient address unless the contact happened to have no name.
+
+  The panel's `Proposal.kind` union was also missing `'followup'`, which every follow-up proposal has carried since sequences shipped.
+
+- c5a05c5: SMS channels can set how the agent handles inbound texts
+
+  `defaultAgentMode` has always been a `conv_channels` column, but only the email path could write it — the vendor-backed path that creates every SMS channel had no way to set it, and neither did the dashboard. Every SMS number was stuck on `auto`, replying to inbound texts automatically.
+
+  It is now settable on SMS channels through `conv_configure_channel`, the vendor tools, the `/v1` SMS endpoints, and a control in the Twilio and MessageBird dialogs alongside the one email already had. Set `draft_only` on a number you only run campaigns from and inbound replies are drafted for approval instead of auto-answered.
+
+  Voice channels reject it with an explanation rather than accepting a value that would do nothing: an inbound call is run by the vendor's assistant, not by the Munin agent, so there is no reply for the mode to govern.
+
+  Also corrects `conv_create_channel`'s description, which claimed "the `voice` and `sms` channel types are reserved and not yet wired to an adapter". Both SMS vendors and both voice vendors have shipped adapters; those channels are created with `conv_configure_channel`, which the description now says.
+
+### Patch Changes
+
+- 8e98f2d: Fix several mobile/touch dashboard UI issues
+
+  - Email channel dialog: the focused-input ring on the leftmost field was clipped, because `overflow-y-auto` forces `overflow-x` to compute as `auto` too, and the scrolling wrapper had no padding of its own to give the ring room. Added a small inset/outset pair so the ring renders without shifting any content.
+  - Settings topbar: the mobile menu button had a border (`variant="outline"`) inconsistent with the borderless cog icon elsewhere; switched to `variant="ghost"`.
+  - Settings topbar back arrow and dashboard topbar cog icon were styled gray-by-default with hover turning them black — correct for a mouse, but permanently gray on a touch device with no hover state. Both now force black via `[@media(hover:none)]`, leaving the hover-capable (desktop) behavior unchanged.
+  - Team page: the members and pending-invitations tables used a fixed `min-w-[640px]` with horizontal scroll on narrow viewports. Below `md`, both now render as a stacked card list instead — members show name/email, then role select + edit/remove actions in one row (role stays visible since it's the only place to change it, unlike the edit dialog which only renames); invitations show email, then role chip + revoke in one row, matching the same alignment pattern.
+
+- b98f618: Outbound calls and text messages are approved only by a person in the dashboard
+
+  A proposal whose campaign runs on a voice or SMS channel can now only be approved by a signed-in dashboard user. `outreach_approve_proposal` refuses every other caller — an MCP agent, an unrestricted admin API key on the control plane, a curator, the Slack approval button — and the proposal stays `pending`. Email approval is unchanged, including by agents and admin keys.
+
+  The check lives in `OutreachService.approveProposal`, so it holds regardless of which surface the call arrives through. It is not an MCP tool-visibility hint: hosts that don't implement MCP Apps still list the tool, and calling it on a voice proposal fails there too.
+
+  Slack declines these in-thread with a pointer to the dashboard rather than surfacing a service error. The Inspector panel drops the approve button for voice and SMS proposals — Dismiss stays, since dismissing sends nothing — and says where the call is actually placed.
+
+  Quiet hours and blackout dates are now enforced when a call or text is approved. They were previously stored on the campaign and consulted only when listing due follow-ups, so nothing stopped a call at 3am. `cadenceRules` gains an optional `quietHoursTimezone` (IANA, validated) that quiet hours and blackout dates are read in; without it they are read in UTC, which is not what a Norwegian campaign means by "no calls before 08:00".
+
+- 862b055: Remove the MCP tools that place outbound voice calls
+
+  `conv_call_channel` and `conv_call_contact` no longer exist on the MCP surface, so no connected agent can place a phone call. Anthropic's MCP directory does not list connectors that let an assistant dial third parties on its own, and an in-client tool-approval click does not clear that bar.
+
+  Nothing else changes. The `VoiceCallbackService` and `ChannelAdminService.call` service methods stay, the `/v1/conversations/channels/:id/call` endpoints stay, and the dashboard's per-channel test call keeps working — it is authenticated as a human dashboard session, not as an agent. `conv_request_callback` also stays: it is `self_service`-only, so it is reachable by an org's own end-user agents (the widget's "can you call me?" flow) and refused for admin callers by the audience gate in `dispatch.ts`.
+
+  The dashboard action is renamed from "Place a call" to "Make a test call", matching "Send test email" and "Send test SMS" — verifying a newly configured voice channel is what it is for.
+
+  Outbound calling as a product capability moves to `outreach`, where a voice campaign already drafts a proposal that a human approves before anything is dialed.
+
+- c5a05c5: SMS channel dialogs: agent-reply select on create, sender switching actually clears
+
+  The "Agent replies" select is now on the SMS create dialog, not just edit — a new channel no longer silently starts on `auto` until someone goes back and changes it. Renamed from "Default agent mode" / "Inbound replies" to a shared "Agent replies" across email and SMS dialogs, since "agent mode" is the database column name, not something an operator configuring a phone number has a mental model for.
+
+  Twilio's From-number and Messaging-Service-SID fields are now a single "Send from" choice instead of two always-visible inputs with an "either, both is also OK" caveat. Switching the choice on an existing channel now actually clears the field you switched away from — `updateChannel` previously merged with `?? prev`, so the old value survived a switch and both were sent on every message.
+
+- Updated dependencies [c5a05c5]
+- Updated dependencies [c5a05c5]
+  - @getmunin/types@4.75.0
+  - @getmunin/ui@4.75.0
+
 ## 4.74.0
 
 ### Minor Changes

@@ -1,5 +1,105 @@
 # @getmunin/backend-core
 
+## 4.75.0
+
+### Minor Changes
+
+- c5a05c5: Inbound SMS threads into the existing conversation, and STOP unsubscribes
+
+  Webhook-mode channels used to open a brand-new conversation for every inbound message. Two texts from the same person were two unrelated conversations, and no reply could ever be attributed to what it was replying to. Inbound messages now land in that contact's most recent open conversation on the channel, reopening it if it was snoozed; a closed conversation still starts a fresh one. New conversations also inherit the channel's `defaultAgentMode`, which the generic ingest path was dropping while the email path honoured it.
+
+  An inbound SMS whose entire body is an opt-out keyword — `STOP`, `STOPP`, `SLUTT`, `AVMELD`, `UNSUBSCRIBE`, `END`, `QUIT`, `CANCEL`, `STOPALL`, case-insensitive, trailing punctuation ignored — now suppresses the CRM contact holding that number: `doNotContact` set, `unsubscribedAt` stamped, and a `crm_activities` note recording why. The message is still ingested so the conversation reads truthfully, and suppressed contacts drop out of `crm_list_contacts_in_segment`, so they leave every outreach audience. A message that merely contains the word ("can you cancel my order?") is an ordinary message.
+
+  Honouring STOP is a legal requirement for SMS in the US and expected practice in the EU, so this lands before SMS outreach rather than alongside it.
+
+- cc87bb6: Outreach proposals say where they are going before you approve them
+
+  A proposal DTO now carries `delivery`: the campaign channel's type and vendor, the destination the approval would actually reach (email address for email campaigns, phone number for voice and SMS), and whether Munin will append the campaign CTA link and unsubscribe footer at send time. `contact` gains `phone` alongside `email`.
+
+  Both review surfaces use it. The MCP App panel and the dashboard drawer state the consequence in words — "Approving places a phone call to +1 415 555 9999", "Approving emails jane@acme.com. Munin appends the campaign CTA link, an unsubscribe footer" — and warn in red when the contact has no address or number on file, which is a send that would fail. A voice proposal's approve button reads "Approve & call" rather than "Approve & send", and its missing subject renders as "(spoken call — no subject)" instead of the bare "(no subject)" an email would show.
+
+  This matters most for voice campaigns, where approving dials a real phone number and the panel previously showed nothing but a subject-less body and an Approve button. It is worth having for email too: a reviewer approving a first-touch could not see the recipient address unless the contact happened to have no name.
+
+  The panel's `Proposal.kind` union was also missing `'followup'`, which every follow-up proposal has carried since sequences shipped.
+
+- 3269f5c: Outreach calls work on any registered voice vendor, not only Vapi
+
+  `loadOutreachChannel` accepted `voice:vapi` and nothing else, so a campaign could not run on a Threll channel even though Threll has shipped an adapter, admin service and dashboard support for as long as Vapi has. The restriction was an accident of the voice path being written against one vendor: `approveInitialVoice` called `VapiClientService` directly, read config with Vapi's parser, and hard-coded `vapiCallId` as the key linking a call back to its conversation.
+
+  Voice outreach now goes through a small `OutreachVoiceCaller` seam — vendor name, the metadata key its conversations are keyed by, and one `placeOutreachCall` method — registered per vendor and resolved by `channel.vendor`. Adding a third vendor is a class implementing that interface and a line in the module; nothing in `OutreachService` needs to know it exists. A voice channel whose vendor has no registered caller is refused at campaign-create time, naming the vendors that do work, rather than failing at approval.
+
+  Each vendor keeps the linkage its own webhook expects: Vapi carries the draft and the outreach ids in `assistantOverrides.metadata` and keys conversations on `vapiCallId`, Threll passes the draft as call `context` and keys on `threllCallId`. Both partial unique indexes already existed (0026 and 0040), so no migration was needed.
+
+- b98f618: Outbound calls and text messages are approved only by a person in the dashboard
+
+  A proposal whose campaign runs on a voice or SMS channel can now only be approved by a signed-in dashboard user. `outreach_approve_proposal` refuses every other caller — an MCP agent, an unrestricted admin API key on the control plane, a curator, the Slack approval button — and the proposal stays `pending`. Email approval is unchanged, including by agents and admin keys.
+
+  The check lives in `OutreachService.approveProposal`, so it holds regardless of which surface the call arrives through. It is not an MCP tool-visibility hint: hosts that don't implement MCP Apps still list the tool, and calling it on a voice proposal fails there too.
+
+  Slack declines these in-thread with a pointer to the dashboard rather than surfacing a service error. The Inspector panel drops the approve button for voice and SMS proposals — Dismiss stays, since dismissing sends nothing — and says where the call is actually placed.
+
+  Quiet hours and blackout dates are now enforced when a call or text is approved. They were previously stored on the campaign and consulted only when listing due follow-ups, so nothing stopped a call at 3am. `cadenceRules` gains an optional `quietHoursTimezone` (IANA, validated) that quiet hours and blackout dates are read in; without it they are read in UTC, which is not what a Norwegian campaign means by "no calls before 08:00".
+
+- 862b055: Remove the MCP tools that place outbound voice calls
+
+  `conv_call_channel` and `conv_call_contact` no longer exist on the MCP surface, so no connected agent can place a phone call. Anthropic's MCP directory does not list connectors that let an assistant dial third parties on its own, and an in-client tool-approval click does not clear that bar.
+
+  Nothing else changes. The `VoiceCallbackService` and `ChannelAdminService.call` service methods stay, the `/v1/conversations/channels/:id/call` endpoints stay, and the dashboard's per-channel test call keeps working — it is authenticated as a human dashboard session, not as an agent. `conv_request_callback` also stays: it is `self_service`-only, so it is reachable by an org's own end-user agents (the widget's "can you call me?" flow) and refused for admin callers by the audience gate in `dispatch.ts`.
+
+  The dashboard action is renamed from "Place a call" to "Make a test call", matching "Send test email" and "Send test SMS" — verifying a newly configured voice channel is what it is for.
+
+  Outbound calling as a product capability moves to `outreach`, where a voice campaign already drafts a proposal that a human approves before anything is dialed.
+
+- eedcba5: SMS outreach campaigns
+
+  An outreach campaign can now run on an SMS channel. `outreach_propose_initial` drafts a text against a contact's phone number, and a person approving it in the dashboard creates the outbound conversation and sends the message. As with voice, an agent cannot approve one.
+
+  Drafts are capped at 480 characters — roughly three billable segments — and rejected above it, with the limit stated in the tool schema so a curator can write to it rather than discover it. Composition is SMS-shaped: the campaign CTA is appended as a bare URL and the opt-out line as `Reply STOP to opt out.`, instead of the markdown link footer an email gets. `skill://outreach/draft-initial-sms` covers the writing rules, including why an emoji triples the cost of a message.
+
+  **Outbound SMS was never actually delivered.** `ConvService` enqueued a `conv_message_deliveries` row only for `channelType === 'email'`, so an agent or operator replying on an SMS conversation stored a message that silently never sent — the `OutboundDeliveryWorker` and both SMS adapters were fine, nothing was ever handed to them. The gate now covers email and SMS.
+
+  Follow-up sequences stay email-only: an SMS campaign rejects `sequenceSteps`, and `outreach_propose_followup` still refuses a text conversation. One touch, then the reply flow, which works because inbound texts thread into the outreach conversation.
+
+  `findOrCreateContactByPhone` was duplicated in the Vapi and Threll adapters and inlined a third time in the outreach voice path; it is now one shared helper taking the source as a parameter.
+
+- c5a05c5: SMS channels can set how the agent handles inbound texts
+
+  `defaultAgentMode` has always been a `conv_channels` column, but only the email path could write it — the vendor-backed path that creates every SMS channel had no way to set it, and neither did the dashboard. Every SMS number was stuck on `auto`, replying to inbound texts automatically.
+
+  It is now settable on SMS channels through `conv_configure_channel`, the vendor tools, the `/v1` SMS endpoints, and a control in the Twilio and MessageBird dialogs alongside the one email already had. Set `draft_only` on a number you only run campaigns from and inbound replies are drafted for approval instead of auto-answered.
+
+  Voice channels reject it with an explanation rather than accepting a value that would do nothing: an inbound call is run by the vendor's assistant, not by the Munin agent, so there is no reply for the mode to govern.
+
+  Also corrects `conv_create_channel`'s description, which claimed "the `voice` and `sms` channel types are reserved and not yet wired to an adapter". Both SMS vendors and both voice vendors have shipped adapters; those channels are created with `conv_configure_channel`, which the description now says.
+
+### Patch Changes
+
+- 77820b0: Add a skill for drafting outbound calls
+
+  `skill://outreach/draft-initial-call` covers the voice-campaign pass, which had no skill of its own — an agent had to infer from the email skill that `draftBody` on a voice campaign is what a text-to-speech agent says out loud, not a message that gets delivered.
+
+  It says what only a spoken channel needs said: write speech rather than prose, no markdown or emoji (read aloud or mangled), no URLs or reference codes (nobody can click on a phone call), identify the caller in the first sentence, give the voice agent a goal and boundaries rather than a script, and tell it what to do when the person is busy or asks whether it is a human. It also sets a higher bar for who is worth calling at all — matching a segment filter is a reason to email, not to phone — and states that approval is dashboard-only, so filing the proposal is where the agent stops.
+
+  Cross-links the three first-touch skills to each other and lists all of them in `review-proposals`, which named only the email ones.
+
+- c5a05c5: SMS channel dialogs: agent-reply select on create, sender switching actually clears
+
+  The "Agent replies" select is now on the SMS create dialog, not just edit — a new channel no longer silently starts on `auto` until someone goes back and changes it. Renamed from "Default agent mode" / "Inbound replies" to a shared "Agent replies" across email and SMS dialogs, since "agent mode" is the database column name, not something an operator configuring a phone number has a mental model for.
+
+  Twilio's From-number and Messaging-Service-SID fields are now a single "Send from" choice instead of two always-visible inputs with an "either, both is also OK" caveat. Switching the choice on an existing channel now actually clears the field you switched away from — `updateChannel` previously merged with `?? prev`, so the old value survived a switch and both were sent on every message.
+
+- Updated dependencies [cc87bb6]
+- Updated dependencies [b98f618]
+- Updated dependencies [c5a05c5]
+- Updated dependencies [c5a05c5]
+  - @getmunin/inspector-app@4.75.0
+  - @getmunin/types@4.75.0
+  - @getmunin/agent-runtime@4.75.0
+  - @getmunin/core@4.75.0
+  - @getmunin/db@4.75.0
+  - @getmunin/mcp-toolkit@4.75.0
+  - @getmunin/emails@4.75.0
+
 ## 4.74.0
 
 ### Minor Changes

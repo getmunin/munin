@@ -1,12 +1,14 @@
 ---
 title: Outreach: Review pending proposals
-description: Operator review pass over drafted outreach proposals — approve (which sends) or dismiss each pending draft, and the two agent-side corrections, revise and withdraw. In MCP App hosts this renders the interactive Munin Inspector panel; elsewhere, drive the same decision tools directly.
+description: Operator review pass over drafted outreach proposals — approve (which sends) or dismiss each pending draft, and the two agent-side corrections, revise and withdraw. Voice and SMS proposals are approved only in the Munin dashboard. In MCP App hosts this renders the interactive Munin Inspector panel.
 audiences: [admin]
 ---
 
 # Review pending outreach proposals
 
 Every outbound email in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-initial-email`, `skill://outreach/draft-reply-email`, `skill://outreach/draft-followup-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
+
+**Calls and text messages are approved in the dashboard, never here.** A proposal whose campaign runs on a voice or SMS channel can only be approved by a signed-in person in the Munin dashboard. `outreach_approve_proposal` refuses every other caller — an agent, an admin API key, the Slack button — with `outreach_invalid: … approved by a signed-in person in the Munin dashboard`. That is the safety floor for outbound calling, not a configuration you can route around: don't retry, don't look for another tool, and don't ask for a credential that would work. Present the draft, say it is waiting for someone to place the call from the dashboard inbox, and stop. You can still `outreach_revise_proposal`, `outreach_withdraw_proposal`, and `outreach_dismiss_proposal` on these — none of them send anything.
 
 **Approving sends.** `outreach_approve_proposal` is not a status flip: for an `initial` proposal it creates the outbound conversation and sends the first email through the campaign's channel (appending the CTA link and unsubscribe footer per campaign settings); for a `reply` or `followup` it sends the draft verbatim on the existing conversation. There is no undo. Never approve in bulk without reading each draft.
 
@@ -16,7 +18,7 @@ Every outbound email in Munin ships through a human-approved gate: curators file
 
 | Tool | Who it's for | What it means |
 |---|---|---|
-| `outreach_approve_proposal` | operator | Send it. No undo. |
+| `outreach_approve_proposal` | operator | Send it. No undo. Email only — voice and SMS are dashboard-only. |
 | `outreach_dismiss_proposal` | operator | *Rejected.* A judgement about this draft; on a `followup` it also stops the sequence. |
 | `outreach_revise_proposal` | agent | Same proposal, better text. Recipient and campaign are fixed. |
 | `outreach_withdraw_proposal` | agent | *Never mind* — the draft should not have been filed. Neutral. |
@@ -41,18 +43,21 @@ Because withdrawal clears the pending slot for that (campaign, contact, kind), y
 
 ## In an MCP App host (Claude, Claude Desktop, …)
 
-Call `outreach_list_proposals({ "status": "pending" })`. Hosts that support MCP Apps render the **Munin Inspector** panel (`ui://munin/inspector`) inline: one card per proposal with the contact, campaign, draft subject/body, and the curator's evidence, plus **Approve & send** and **Dismiss** buttons that call the decision tools directly. In these hosts the decision tools are **panel-only** (`_meta.ui.visibility: ["app"]`): they are hidden from you and only the operator's click can invoke them. Render the list and stop — the send decision is physically the human's.
+Call `outreach_list_proposals({ "status": "pending" })`. Hosts that support MCP Apps render the **Munin Inspector** panel (`ui://munin/inspector`) inline: one card per proposal with the contact, campaign, draft subject/body, the curator's evidence, and a `delivery` line naming the address or phone number the approval would reach. In these hosts the decision tools are **panel-only** (`_meta.ui.visibility: ["app"]`): they are hidden from you and only the operator's click can invoke them. Render the list and stop — the send decision is physically the human's.
+
+Email proposals get **Approve & send** and **Dismiss** buttons. Voice and SMS proposals get **Dismiss** only, plus a line pointing the operator at the dashboard — the panel cannot place a call, because the server refuses any approval that does not come from a signed-in dashboard session.
 
 ## Without a panel
 
-In hosts without MCP Apps support the decision tools appear normally, and the same flow works as plain tool calls:
+In hosts without MCP Apps support the decision tools appear as ordinary tools, and the same flow works as plain tool calls — for **email campaigns only**:
 
-1. **List** — `outreach_list_proposals({ "status": "pending" })`. Each row carries `id`, `kind`, `draftSubject`, `draftBody`, `evidence`, `proposedSendAt`, and nested `contact` / `campaign` summaries.
-2. **Present each draft** to the operator: who it goes to, which campaign, the subject, the full body, and anything notable in `evidence`. Don't paraphrase the body — the operator is approving the literal text.
-3. **Decide one at a time** on the operator's word:
+1. **List** — `outreach_list_proposals({ "status": "pending" })`. Each row carries `id`, `kind`, `draftSubject`, `draftBody`, `evidence`, `proposedSendAt`, nested `contact` / `campaign` summaries, and `delivery`.
+2. **Read `delivery` first.** It names the channel and the exact destination. If `delivery.channelType` is `voice` or `sms`, there is nothing for you to approve: present the draft and the number, tell the operator it is waiting in the dashboard inbox, and move on. If `delivery.destination` is `null`, the contact has no address or number on file and approval would fail — say so instead of trying.
+3. **Present each draft** to the operator: who it goes to, which campaign, the subject, the full body, and anything notable in `evidence`. Don't paraphrase the body — the operator is approving the literal text. `delivery.appendsCta` / `appendsUnsubscribe` tell you what the system will add on top, so the operator isn't surprised by a footer they didn't read.
+4. **Decide one at a time** on the operator's word:
    - `outreach_approve_proposal({ "id": "..." })` — sends immediately; the result carries `status: "sent"`, `conversationId`, `sentMessageId`.
    - `outreach_dismiss_proposal({ "id": "...", "reason": "..." })` — no send; the reason lands on the proposal for the curator's next pass.
-4. **Handle refusals cleanly.** Both tools reject non-`pending` proposals (someone else may have decided it since listing — refresh rather than retry). Approval also rejects when the campaign was disabled or the contact became suppressed since drafting, and — for `followup` proposals — when the prospect replied after the draft was filed (dismiss it; the reply flow owns the conversation now). That is the suppression floor and stop-on-reply working, not an error to route around.
+5. **Handle refusals cleanly.** Both tools reject non-`pending` proposals (someone else may have decided it since listing — refresh rather than retry). Approval also rejects when the campaign was disabled, when the contact became suppressed since drafting, when the campaign is inside its quiet hours or on a blackout date, and — for `followup` proposals — when the prospect replied after the draft was filed (dismiss it; the reply flow owns the conversation now). That is the safety floor working, not an error to route around.
 
 ## What not to do
 
@@ -60,3 +65,4 @@ In hosts without MCP Apps support the decision tools appear normally, and the sa
 - **Don't revise-and-approve in one breath.** A revision resets what the operator needs to read. Revise, re-present the full body, then wait for their word.
 - **Don't withdraw a draft to escape a refusal.** If approval failed because the contact was suppressed or the prospect replied, that is the safety floor doing its job — dismiss it (or leave it) rather than withdrawing to clear the slot and re-drafting around the block.
 - **Don't loop approve over the whole list** ("approve all") unless the operator explicitly reviewed every draft and said exactly that.
+- **Don't try to place a call.** If a voice or SMS approval is refused, that refusal is the product working as designed. There is no tool, key, or argument that makes it succeed — outbound calls and texts leave Munin only when a person clicks in the dashboard.

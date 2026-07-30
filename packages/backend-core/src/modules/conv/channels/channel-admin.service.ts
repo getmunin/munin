@@ -227,7 +227,7 @@ export class ChannelAdminService {
     const provider = this.byVendor.get(vendor);
     if (!provider) {
       throw new BadRequestException(
-        `unknown channel vendor '${vendor}'. Call conv_list_channel_vendors to see the available vendors.`,
+        `unknown channel vendor '${vendor}'. Call conv_list_voice_sms_vendors to see the available vendors.`,
       );
     }
     return provider;

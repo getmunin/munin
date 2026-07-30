@@ -6,6 +6,7 @@ import { AGENT_MODES, CHANNEL_TYPES, ConvService, STATUSES } from './conv.servic
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
+const SelfContainedChannelTypeSchema = z.enum(['email', 'chat']);
 const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
 
@@ -49,7 +50,7 @@ const SearchInput = z.object({
 });
 
 const CreateChannelInput = z.object({
-  type: ChannelTypeSchema,
+  type: SelfContainedChannelTypeSchema,
   vendor: z.string().min(1).max(32),
   name: z.string().min(1).max(120),
   config: z.record(z.string(), z.unknown()).optional(),
@@ -232,7 +233,7 @@ export class ConvAdminTools {
   @McpTool({
     name: 'conv_list_channels',
     title: 'Conv: List conversation channels',
-    description: 'List conversation channels configured for your org. Currently shipping adapters: email and chat (widget). The `voice` and `sms` channel types are reserved for upcoming adapters.',
+    description: 'List conversation channels of every kind configured for your org — email, chat (widget), SMS and voice.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: EmptyInput,
@@ -247,7 +248,7 @@ export class ConvAdminTools {
     name: 'conv_create_channel',
     title: 'Conv: Create conversation channel',
     description:
-      'Add a new conversation channel. Channel-specific configuration goes in `config`. Use this for `email` and `chat` (widget) channels; `voice` and `sms` channels are vendor-backed and are created with conv_configure_channel instead, which handles their credential handoff.',
+      'Add an `email` or `chat` (widget) conversation channel whose configuration is self-contained. Channel-specific configuration goes in `config`. Voice and SMS channels are vendor-backed and rejected here — they need the credential handoff that conv_configure_voice_sms_channel performs.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateChannelInput,

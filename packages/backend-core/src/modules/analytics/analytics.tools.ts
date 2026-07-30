@@ -190,7 +190,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_export_config',
-    title: 'Analytics: Export trackers + visitor identities',
+    title: 'Analytics: Export tracker configuration',
     description:
       'Export this org\'s analytics configuration — trackers and visitor-identity links — as a portable JSON payload. Low-volume, returned in one shot. Tracker identity-verification secrets are redacted (the ciphertext is useless on another server); the operator re-enters them after import. Pair with `analytics_export_events` (paginated) and feed both into `analytics_import` on another Munin server.',
     audiences: ['admin'],
@@ -313,7 +313,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_list_top_subjects',
-    title: 'Analytics: Top subjects by view count',
+    title: 'Analytics: List top subjects by view count',
     description:
       'List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`). Pass `endUserId` or `contactId` to restrict the ranking to one identified visitor — useful for "what has this lead been reading?".',
     audiences: ['admin'],
@@ -328,7 +328,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_list_top_countries',
-    title: 'Analytics: Visitors by country',
+    title: 'Analytics: List top countries by visitors',
     description:
       'Visitor and view counts grouped by ISO 3166-1 alpha-2 country code over a recent window. Requires the backend to have `MUNIN_GEOIP_DB_PATH` configured; rows recorded without a GeoIP DB carry `country = NULL` and roll up into an "unknown" bucket. Filter by `subjectType` (e.g. `page`, `cms_entry`) or `source` to scope.',
     audiences: ['admin'],
@@ -342,8 +342,8 @@ export class AnalyticsAdminTools {
   }
 
   @McpTool({
-    name: 'analytics_get_traffic_by_source',
-    title: 'Analytics: Traffic by UTM source',
+    name: 'analytics_list_traffic_sources',
+    title: 'Analytics: List traffic by UTM source',
     description:
       'Views and unique visitors grouped by `utm_source` (with `utm_medium` / `utm_campaign` breakdown). Use this to compare campaign attribution: which channels actually drive engaged traffic vs. just clicks. Rows where `utm_source` is NULL (no campaign params on the URL) roll into a single "direct/organic" bucket.',
     audiences: ['admin'],
@@ -359,7 +359,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_list_referrer_hosts',
-    title: 'Analytics: Top referrer hosts',
+    title: 'Analytics: List top referrer hosts',
     description:
       'External traffic sources grouped by the host portion of `referrer`. Use this to see which sites are linking to you (HN, Reddit, partner blogs). Same-origin referrers are excluded server-side via the `excludeHost` argument (typically your own production host); pass it to keep internal navigations from drowning out external referrals. Rows with NULL referrer (direct navigation, bookmarks, link-with-`rel=noreferrer`) roll into a single "direct" bucket.',
     audiences: ['admin'],
@@ -374,7 +374,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_get_views_over_time',
-    title: 'Analytics: Daily view time-series',
+    title: 'Analytics: Get daily view time-series',
     description:
       'Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches. In hosts that support MCP Apps this renders an inline time-series chart.',
     audiences: ['admin'],
@@ -390,7 +390,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_get_subject_engagement',
-    title: 'Analytics: Engagement for one subject',
+    title: 'Analytics: Get engagement for one subject',
     description:
       'View counts, unique visitors, and average dwell/read-depth for one subject (e.g. one CMS entry) over a recent window. Use this when judging whether a stale entry should be refreshed or archived.',
     audiences: ['admin'],
@@ -405,7 +405,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_get_funnel',
-    title: 'Analytics: Conversion funnel across ordered steps',
+    title: 'Analytics: Get conversion funnel across ordered steps',
     description:
       'Compute a conversion funnel over page-view events: how many distinct visitors reached each ordered step, and where they drop off. Pass 2–8 `steps`; each step matches a view event by `subjectType` and/or `subjectId` (e.g. `{ subjectType: "page", subjectId: "/pricing" }`) and/or a `pathLike` SQL LIKE pattern (e.g. `{ pathLike: "/blog/%" }`). Steps are strictly ordered — a visitor counts at step N only if they hit step N after reaching step N-1. Visitors are grouped by a stable actor key (their identified end-user when known, else their anonymous `visitor_id`), so a journey that spans the anonymous → identified transition is not double-counted. Set `stepWindowHours` to require each step to follow the previous within a time budget (e.g. signup within 24h of viewing pricing). Anonymous funnels work without any identity setup. Returns per-step actor counts plus conversion/drop rates.',
     audiences: ['admin'],
@@ -421,7 +421,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_get_contact_journey',
-    title: 'Analytics: Journey of subjects viewed by a contact',
+    title: 'Analytics: Get a contact’s view journey',
     description:
       'Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`. Events recorded under a `visitor_id` *before* that link was established are still included retroactively — the link is resolved at read time — so the journey spans the visitor\'s anonymous history too.',
     audiences: ['admin'],
@@ -437,7 +437,7 @@ export class AnalyticsAdminTools {
 
   @McpTool({
     name: 'analytics_list_zero_result_searches',
-    title: 'Analytics: Zero-result search queries',
+    title: 'Analytics: List zero-result searches',
     description:
       'List recent public search queries that returned zero results. The single best input for "what should we write about next" — readers are asking but Munin has no answer.',
     audiences: ['admin'],

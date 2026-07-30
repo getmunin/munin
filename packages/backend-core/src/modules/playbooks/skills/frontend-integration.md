@@ -45,7 +45,7 @@ Fail loudly at startup if the var is unset. Do not provide a fallback default �
 
 For the widget and tracker allowlists below: the full origin(s) the running frontend will be served from. Coding-agent platforms generate subdomains like `https://*.lovable.app`, `https://*.lovableproject.com`, `https://*.replit.dev`, `https://*.vercel.app`, `https://*.netlify.app`. Ask the operator for the current preview URL and copy the origin **exactly** (scheme + host, no path, no wildcards — allowlists do exact-match comparison).
 
-Also ask for the **production origin** so you can list both up front. Adding more later is one MCP call (`conv_widget_update_channel` / `analytics_update_tracker`) but you'll save a round-trip by getting them now.
+Also ask for the **production origin** so you can list both up front. Adding more later is one MCP call (`conv_update_widget_channel` / `analytics_update_tracker`) but you'll save a round-trip by getting them now.
 
 If the operator already minted keys, ask for those instead and skip the create steps — they may have provisioned the channel for a different reason.
 
@@ -55,7 +55,7 @@ If the operator already minted keys, ask for those instead and skip the create s
 
 ```jsonc
 {
-  "name": "conv_widget_create_channel",
+  "name": "conv_create_widget_channel",
   "arguments": {
     "name": "<customer site name>",
     "originAllowlist": [
@@ -236,7 +236,7 @@ If any of the three fails, the most likely cause is in this table:
 | Symptom | Probable cause |
 |---|---|
 | `[munin-widget] data-munin-host: data-munin-host is required` (or `data-widget-key`, `data-channel-id`) | Missing or mis-named attribute on the `<script>` tag. They are all required; names are exact. |
-| Widget loads but messages return 403 | `originAllowlist` doesn't include the *exact* origin shown in DevTools → Network → request headers → `Origin`. Update with `conv_widget_update_channel`. |
+| Widget loads but messages return 403 | `originAllowlist` doesn't include the *exact* origin shown in DevTools → Network → request headers → `Origin`. Update with `conv_update_widget_channel`. |
 | Tracker loads, `mn` global exists, but no events appear in `analytics_list_top_subjects` | `allowedOrigins` mismatch — same fix as widget, via `analytics_update_tracker`. |
 | `Access to fetch ... has been blocked by CORS policy` on `/v1/cms/...` | You're calling the CMS delivery API from the browser. Move the fetch server-side per step 3. |
 | 404 on `{{API_URL}}/embed/widget.js` or `{{API_URL}}/embed/tracker.js` | Old path. Both bundles are served from the root: `/widget.js` and `/tracker.js`. |

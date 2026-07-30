@@ -172,7 +172,7 @@ const skipReason = TEST_URL
     expect(listJson.items.find((i) => i.slug === 'hello-world')).toBeTruthy();
   }, 30_000);
 
-  it('drafts are NOT visible on the delivery API; cms_search admin sees them; public search hides them', async () => {
+  it('drafts are NOT visible on the delivery API; cms_search_entries admin sees them; public search hides them', async () => {
     await withClient(adminKey, async (c) => {
       await c.callTool({
         name: 'cms_create_entry',
@@ -186,7 +186,7 @@ const skipReason = TEST_URL
 
       const adminHits = parseToolResult<Array<{ slug: string }>>(
         await c.callTool({
-          name: 'cms_search',
+          name: 'cms_search_entries',
           arguments: { query: 'secret', collection: 'pages' },
         }),
       );
@@ -1238,7 +1238,7 @@ const skipReason = TEST_URL
     expect(noIncJson._refs).toBeUndefined();
   }, 30_000);
 
-  it('cms_search with include:["references"] expands reference fields and inline ref:// tokens', async () => {
+  it('cms_search_entries with include:["references"] expands reference fields and inline ref:// tokens', async () => {
     let targetId = '';
     await withClient(adminKey, async (c) => {
       await c.callTool({
@@ -1291,7 +1291,7 @@ const skipReason = TEST_URL
         }>
       >(
         await c.callTool({
-          name: 'cms_search',
+          name: 'cms_search_entries',
           arguments: { query: 'Searchabledoc', include: ['references'] },
         }),
       );
@@ -1301,7 +1301,7 @@ const skipReason = TEST_URL
       expect(hit!.refs?.[targetId]).toMatchObject({ slug: 'target-doc' });
 
       const plain = parseToolResult<Array<{ slug: string; data: { related: unknown }; refs?: unknown }>>(
-        await c.callTool({ name: 'cms_search', arguments: { query: 'Searchabledoc' } }),
+        await c.callTool({ name: 'cms_search_entries', arguments: { query: 'Searchabledoc' } }),
       );
       const plainHit = plain.find((h) => h.slug === 'searchabledoc');
       expect(plainHit!.data.related).toBe(targetId);
@@ -1398,7 +1398,7 @@ const skipReason = TEST_URL
         Array<{ slug: string; excerpt: string; data: { body?: string }; truncated?: boolean }>
       >(
         await c.callTool({
-          name: 'cms_search',
+          name: 'cms_search_entries',
           arguments: { query: 'Rannsaka', collection: 'journal' },
         }),
       );

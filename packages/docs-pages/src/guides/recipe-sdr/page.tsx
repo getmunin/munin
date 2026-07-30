@@ -30,7 +30,7 @@ Workflow:
 4. For each contact (up to volume), call crm_get_contact and pick one
    specific hook from their profile or recent activity. If you can't find
    one, drop the contact.
-5. Call outreach_propose_initial per contact. Subject: six words or fewer,
+5. Call outreach_propose_initial_message per contact. Subject: six words or fewer,
    lowercase. Body: hook, one-line value prop, soft CTA, sign-off — four
    lines total.
 
@@ -86,7 +86,7 @@ export default function RecipeSdr() {
             <dd>
               <code>crm_list_segments</code>, <code>crm_list_contacts_in_segment</code>,{' '}
               <code>crm_get_contact</code>, <code>outreach_create_campaign</code>,{' '}
-              <code>outreach_propose_initial</code>
+              <code>outreach_propose_initial_message</code>
             </dd>
           </dl>
 

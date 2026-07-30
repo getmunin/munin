@@ -334,7 +334,7 @@ export class OutreachAdminTools {
     name: 'outreach_approve_proposal',
     title: 'Outreach: Approve proposal',
     description:
-      "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and sends the first email (with CTA and unsubscribe footer per campaign settings) via the campaign's channel; a reply or follow-up proposal sends the draft verbatim on its existing conversation. Fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
+      "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. Fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: ApproveProposalInput,
@@ -407,10 +407,10 @@ export class OutreachAdminTools {
   }
 
   @McpTool({
-    name: 'outreach_propose_initial',
-    title: 'Outreach: Propose initial',
+    name: 'outreach_propose_initial_message',
+    title: 'Outreach: Propose initial message',
     description:
-      'File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.',
+      'File one drafted initial outreach message per (campaign, contact) for human approval — an email body, an SMS body, or the script for an outbound call, depending on the channel the campaign sends on. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: ProposeInitialInput,
@@ -455,7 +455,7 @@ export class OutreachAdminTools {
     name: 'outreach_propose_followup',
     title: 'Outreach: Propose follow-up',
     description:
-      "File a drafted sequence follow-up (step N of the campaign's `sequenceSteps`) on an outreach conversation, for human approval. `step` must be the next step for the conversation, its wait period must have elapsed, and the prospect must not have replied — any inbound reply permanently stops the sequence (the reply flow owns the conversation). One pending follow-up per (campaign, contact); a dismissed follow-up permanently stops the sequence for that contact, so operators who dislike the wording should edit-then-approve instead. Approving sends on the existing conversation with no subject or unsubscribe footer (the thread already carries both).",
+      "File a drafted sequence follow-up (step N of the campaign's `sequenceSteps`) on an outreach conversation, for human approval. Follow-up sequences run on email campaigns only. `step` must be the next step for the conversation, its wait period must have elapsed, and the prospect must not have replied — any inbound reply permanently stops the sequence (the reply flow owns the conversation). One pending follow-up per (campaign, contact); a dismissed follow-up permanently stops the sequence for that contact, so operators who dislike the wording should edit-then-approve instead. Approving sends on the existing conversation with no subject or unsubscribe footer (the thread already carries both).",
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: ProposeFollowupInput,

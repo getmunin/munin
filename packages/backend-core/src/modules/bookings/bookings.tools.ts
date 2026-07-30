@@ -55,8 +55,8 @@ export class BookingAdminTools {
   constructor(@Inject(BookingsService) private readonly bookings: BookingsService) {}
 
   @McpTool({
-    name: 'bookings_lookup_bookings',
-    title: 'Bookings: Look up a guest’s bookings',
+    name: 'bookings_list_guest_bookings',
+    title: 'Bookings: List a guest’s bookings',
     description:
       'List a guest’s bookings by email (most recent first), e.g. while handling their support conversation. `connectionId` is only needed when multiple booking connections are active.',
     audiences: ['admin'],
@@ -86,7 +86,7 @@ export class BookingAdminTools {
 
   @McpTool({
     name: 'bookings_check_availability',
-    title: 'Bookings: Check table availability',
+    title: 'Bookings: Check availability',
     description:
       'List open time slots for a date and party size at the connected booking system, so you can offer real times before creating a booking. `connectionId` is only needed when multiple booking connections are active.',
     audiences: ['admin', 'self_service'],
@@ -101,7 +101,7 @@ export class BookingAdminTools {
 
   @McpTool({
     name: 'bookings_create_booking',
-    title: 'Bookings: Book a table',
+    title: 'Bookings: Create a booking',
     description:
       'Create a booking in the connected booking system for a guest email at a date and time, for a given party size. Check bookings_check_availability first. Returns the new bookingRef.',
     audiences: ['admin'],
@@ -116,7 +116,7 @@ export class BookingAdminTools {
 
   @McpTool({
     name: 'bookings_update_booking',
-    title: 'Bookings: Modify a booking',
+    title: 'Bookings: Update a booking',
     description:
       'Change an existing booking (date, time, party size, or note) by `bookingRef`. Only the fields you pass are changed.',
     audiences: ['admin'],

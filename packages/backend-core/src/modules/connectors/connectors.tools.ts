@@ -59,7 +59,7 @@ export class ConnectorAdminTools {
 
   @McpTool({
     name: 'connectors_create_connection',
-    title: 'Connectors: Connect a system',
+    title: 'Connectors: Create a connection',
     description:
       'Create a connection to a third-party system. `config` takes the vendor’s non-secret fields only — connectors_list_vendors returns the exact fields and marks which are secret. Secret fields are rejected here: the connection is created pending and the response includes a one-time link for a human to enter the secrets in the dashboard. The vendor determines the domain (commerce, bookings). Connection names must be unique within the org.',
     audiences: ['admin'],

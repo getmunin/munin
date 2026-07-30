@@ -15,8 +15,8 @@ A common onboarding shape for a new customer: they want both an email channel fo
 ## TL;DR
 
 1. `conv_list_channels` — see whether any channel exists for this org.
-2. Email channel: `conv_setup_email_channel` → `conv_test_email_channel` to verify.
-3. Widget channel: `conv_widget_create_channel` → store the `widgetKey` server-side.
+2. Email channel: `conv_configure_email_channel` → `conv_test_email_channel` to verify.
+3. Widget channel: `conv_create_widget_channel` → store the `widgetKey` server-side.
 4. `conv_list_channels` again to confirm both are `active: true`.
 5. (Optional) `conv_create_topic` per topic so the inbox has Billing / Support / Bug topics ready.
 
@@ -39,7 +39,7 @@ Then:
 
 ```jsonc
 {
-  "name": "conv_setup_email_channel",
+  "name": "conv_configure_email_channel",
   "arguments": {
     "name": "Acme Support",
     "config": {
@@ -69,7 +69,7 @@ Per `skill://conv/setup-chat-widget`:
 
 ```jsonc
 {
-  "name": "conv_widget_create_channel",
+  "name": "conv_create_widget_channel",
   "arguments": {
     "name": "acme-storefront-bot",
     "originAllowlist": ["https://www.acme.com", "https://shop.acme.com"]
@@ -77,7 +77,7 @@ Per `skill://conv/setup-chat-widget`:
 }
 ```
 
-Response includes `widgetKey: "mn_widget_..."` — **shown once**. Hand it to the customer's developer to store server-side. Rotate later via `conv_widget_rotate_key` if it leaks.
+Response includes `widgetKey: "mn_widget_..."` — **shown once**. Hand it to the customer's developer to store server-side. Rotate later via `conv_rotate_widget_key` if it leaks.
 
 `originAllowlist` is enforced on every push from the widget endpoint; setting it correctly here saves a CORS bug report later.
 

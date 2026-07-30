@@ -126,7 +126,7 @@ Intro paragraph.
 More copy.
 ```
 
-The asset must already be uploaded (`uploaded: true`) — an inline reference to an unknown or unconfirmed asset is rejected when you create/update the entry. On read, the delivery API and `cms_get_entry`/`cms_search` rewrite each `asset://<assetId>` to the asset's `publicUrl` and attach an `_assets` map keyed by asset id so you can also read `altText`, `mime`, and `sizeBytes`.
+The asset must already be uploaded (`uploaded: true`) — an inline reference to an unknown or unconfirmed asset is rejected when you create/update the entry. On read, the delivery API and `cms_get_entry`/`cms_search_entries` rewrite each `asset://<assetId>` to the asset's `publicUrl` and attach an `_assets` map keyed by asset id so you can also read `altText`, `mime`, and `sizeBytes`.
 
 (Use `skill://cms/publish-entry` for the full update + publish dance.)
 

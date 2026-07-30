@@ -25,7 +25,7 @@ Workflow (run weekly, Tuesday 09:00 local):
    articles published or updated after the contact's last activity date.
    You need at least one real, recent article hit per contact — no hit, no
    draft.
-4. Call outreach_propose_initial(contactId, subject, body) with:
+4. Call outreach_propose_initial_message(contactId, subject, body) with:
    - subject: short, references the specific thing that changed
    - body: opens with what changed, names why this contact specifically
      cared, ends with one low-friction next step
@@ -87,7 +87,7 @@ export default function RecipeWinBack() {
             <dt>Tools</dt>
             <dd>
               <code>crm_search_contacts</code>, <code>crm_list_activities</code>,{' '}
-              <code>kb_search</code>, <code>outreach_propose_initial</code>
+              <code>kb_search</code>, <code>outreach_propose_initial_message</code>
             </dd>
           </dl>
 

@@ -14,7 +14,7 @@ Use this when the operator wants their team to triage Munin conversations from S
 2. Call `slack_get_install_url` and have the operator open and approve the link in a browser (workspace admin required).
 3. Call `slack_set_routing` with the channel ID conversations should mirror into; have the operator `/invite` the bot to that channel.
 4. Optionally route escalations to a second channel: `slack_set_routing` with `purpose: "escalations"` and a `mention` like `<!here>`.
-5. Verify with `slack_test`, then confirm `slack_get_status` shows `connected: true`.
+5. Verify with `slack_send_test_message`, then confirm `slack_get_status` shows `connected: true`.
 
 ## Step 0 — deployment prerequisites (self-host only)
 
@@ -98,7 +98,7 @@ Every route needs its own Slack channel (an escalations route pointing at the de
 
 ## Step 3 — verify
 
-Call `slack_test` — it posts a hello message to the default channel. Then confirm `slack_get_status` shows `connected: true` and the routes you expect. From now on, new conversation activity appears within a few seconds (the mirror worker polls its queue every 5 seconds).
+Call `slack_send_test_message` — it posts a hello message to the default channel. Then confirm `slack_get_status` shows `connected: true` and the routes you expect. From now on, new conversation activity appears within a few seconds (the mirror worker polls its queue every 5 seconds).
 
 ## What mirrors
 

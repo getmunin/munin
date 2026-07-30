@@ -109,7 +109,7 @@ For widget or email channels, the message is delivered to the recipient like any
 The mirrored doc should surface within ~5 seconds (embedding pipeline is async).
 
 ```jsonc
-{ "name": "cms_search", "arguments": { "query": "<title>", "limit": 5 } }
+{ "name": "cms_search_entries", "arguments": { "query": "<title>", "limit": 5 } }
 ```
 
 The published entry should be there too. If both surface and the announcement was sent, the publish + distribute step is complete.

@@ -16,10 +16,10 @@ Take the asymmetry seriously. A cold email is ignorable and a text is cheap; an 
 
 1. **List campaigns** with `outreach_list_campaigns` and keep the enabled ones. Confirm the campaign is on a voice channel before writing spoken copy — an existing proposal shows `delivery.channelType`.
 2. **Materialise the audience** with `crm_list_contacts_in_segment(campaign.segmentId)`. Already filtered for suppression and lawful basis.
-3. **Skip contacts with no `phone`** — `outreach_propose_initial` rejects them.
+3. **Skip contacts with no `phone`** — `outreach_propose_initial_message` rejects them.
 4. **Be stricter than the segment.** The segment says you *may* contact them. Calling asks whether you *should*: a call needs a reason this specific person would welcome one — they asked to be called, they started something and stopped, they are mid-deal. "They match the filter" is a reason to email, not to phone. Skip the rest and say why in `evidence`.
 5. **Dedupe** via `outreach_list_proposals({ kind: "initial", campaignId, contactId })` as the email pass does.
-6. **File** with `outreach_propose_initial({ campaignId, contactId, draftBody, evidence })`. No `draftSubject` — a call has no subject, and passing one is rejected.
+6. **File** with `outreach_propose_initial_message({ campaignId, contactId, draftBody, evidence })`. No `draftSubject` — a call has no subject, and passing one is rejected.
 7. **Stop.**
 
 ## Writing for a voice agent

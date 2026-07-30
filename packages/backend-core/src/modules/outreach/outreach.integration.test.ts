@@ -155,7 +155,7 @@ const skipReason = TEST_URL
           'outreach_list_due_followups',
           'outreach_list_proposals',
           'outreach_propose_followup',
-          'outreach_propose_initial',
+          'outreach_propose_initial_message',
           'outreach_propose_reply',
           'outreach_revise_proposal',
           'outreach_update_campaign',
@@ -224,7 +224,7 @@ const skipReason = TEST_URL
       expect(populatedList.map((r) => r.id)).toContain(campaignId);
 
       const proposed = await c.callTool({
-        name: 'outreach_propose_initial',
+        name: 'outreach_propose_initial_message',
         arguments: {
           campaignId,
           contactId,
@@ -305,7 +305,7 @@ const skipReason = TEST_URL
       const campaign = firstJson(created) as { id: string };
 
       const proposed = await c.callTool({
-        name: 'outreach_propose_initial',
+        name: 'outreach_propose_initial_message',
         arguments: {
           campaignId: campaign.id,
           contactId: callable!.id,
@@ -367,7 +367,7 @@ const skipReason = TEST_URL
       const campaignId = (firstJson(created) as { id: string }).id;
 
       const proposed = await c.callTool({
-        name: 'outreach_propose_initial',
+        name: 'outreach_propose_initial_message',
         arguments: { campaignId, contactId, draftSubject: 'First cut', draftBody: 'Original body.' },
       });
       const proposalId = (firstJson(proposed) as { id: string }).id;
@@ -538,7 +538,7 @@ const skipReason = TEST_URL
 
       const first = firstJson(
         (await c.callTool({
-          name: 'outreach_propose_initial',
+          name: 'outreach_propose_initial_message',
           arguments: { campaignId, contactId, draftSubject: 'Hi Jane', draftBody: 'First touch.' },
         })),
       ) as { id: string };
@@ -552,7 +552,7 @@ const skipReason = TEST_URL
 
     await withClient(adminKey, async (c) => {
       const blocked = await c.callTool({
-        name: 'outreach_propose_initial',
+        name: 'outreach_propose_initial_message',
         arguments: { campaignId, contactId, draftSubject: 'Hi again', draftBody: 'Second touch.' },
       });
       expect(blocked.isError).toBe(true);
@@ -566,7 +566,7 @@ const skipReason = TEST_URL
 
     await withClient(adminKey, async (c) => {
       const allowed = await c.callTool({
-        name: 'outreach_propose_initial',
+        name: 'outreach_propose_initial_message',
         arguments: { campaignId, contactId, draftSubject: 'Hi again', draftBody: 'Second touch.' },
       });
       expect(allowed.isError).not.toBe(true);
@@ -591,7 +591,7 @@ const skipReason = TEST_URL
 
       const proposed = firstJson(
         (await c.callTool({
-          name: 'outreach_propose_initial',
+          name: 'outreach_propose_initial_message',
           arguments: {
             campaignId: created.id,
             contactId,
@@ -669,7 +669,7 @@ const skipReason = TEST_URL
 
       const initial = firstJson(
         (await c.callTool({
-          name: 'outreach_propose_initial',
+          name: 'outreach_propose_initial_message',
           arguments: {
             campaignId: campaign.id,
             contactId: seqContact!.id,

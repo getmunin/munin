@@ -57,7 +57,7 @@ const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
   ],
   [
     'skill://crm/extract-contact-from-message',
-    ['conv_get_conversation', 'crm_find_contact', 'crm_create_contact', 'crm_update_contact'],
+    ['conv_get_conversation', 'crm_lookup_contact', 'crm_create_contact', 'crm_update_contact'],
   ],
   [
     'skill://outreach/draft-initial-email',
@@ -65,7 +65,7 @@ const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
       'outreach_list_campaigns',
       'crm_list_contacts_in_segment',
       'outreach_list_proposals',
-      'outreach_propose_initial',
+      'outreach_propose_initial_message',
       'kb_search',
     ],
   ],
@@ -96,7 +96,7 @@ const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
       'cms_list_entries',
       'cms_list_inbound_references',
       'cms_list_assets',
-      'cms_search',
+      'cms_search_entries',
       'cms_list_versions',
     ],
   ],

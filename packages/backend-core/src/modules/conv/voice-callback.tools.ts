@@ -16,7 +16,7 @@ export class VoiceCallbackTools {
 
   @McpTool({
     name: 'conv_request_callback',
-    title: 'Conv: Place a phone call to the user in this conversation',
+    title: 'Conv: Request a callback on this conversation',
     description:
       "Place an outbound phone call to the contact in this conversation. Use this only when the user has asked to be called — e.g. \"can you call me?\". The call goes to the phone number already on file for this conversation's contact; you cannot specify an arbitrary number. The org must have an active Vapi voice channel configured. After requesting the call, tell the user briefly that a call is on the way and stop replying — the rest of the conversation happens on the phone.",
     audiences: ['self_service'],

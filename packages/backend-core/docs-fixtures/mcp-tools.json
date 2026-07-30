@@ -23,7 +23,7 @@
   },
   {
     "name": "analytics_export_config",
-    "title": "Analytics: Export trackers + visitor identities",
+    "title": "Analytics: Export tracker configuration",
     "description": "Export this org's analytics configuration — trackers and visitor-identity links — as a portable JSON payload. Low-volume, returned in one shot. Tracker identity-verification secrets are redacted (the ciphertext is useless on another server); the operator re-enters them after import. Pair with `analytics_export_events` (paginated) and feed both into `analytics_import` on another Munin server.",
     "audiences": [
       "admin"
@@ -601,7 +601,7 @@
   },
   {
     "name": "analytics_list_top_subjects",
-    "title": "Analytics: Top subjects by view count",
+    "title": "Analytics: List top subjects by view count",
     "description": "List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`). Pass `endUserId` or `contactId` to restrict the ranking to one identified visitor — useful for \"what has this lead been reading?\".",
     "audiences": [
       "admin"
@@ -655,7 +655,7 @@
   },
   {
     "name": "analytics_list_top_countries",
-    "title": "Analytics: Visitors by country",
+    "title": "Analytics: List top countries by visitors",
     "description": "Visitor and view counts grouped by ISO 3166-1 alpha-2 country code over a recent window. Requires the backend to have `MUNIN_GEOIP_DB_PATH` configured; rows recorded without a GeoIP DB carry `country = NULL` and roll up into an \"unknown\" bucket. Filter by `subjectType` (e.g. `page`, `cms_entry`) or `source` to scope.",
     "audiences": [
       "admin"
@@ -702,8 +702,8 @@
     }
   },
   {
-    "name": "analytics_get_traffic_by_source",
-    "title": "Analytics: Traffic by UTM source",
+    "name": "analytics_list_traffic_sources",
+    "title": "Analytics: List traffic by UTM source",
     "description": "Views and unique visitors grouped by `utm_source` (with `utm_medium` / `utm_campaign` breakdown). Use this to compare campaign attribution: which channels actually drive engaged traffic vs. just clicks. Rows where `utm_source` is NULL (no campaign params on the URL) roll into a single \"direct/organic\" bucket.",
     "audiences": [
       "admin"
@@ -751,7 +751,7 @@
   },
   {
     "name": "analytics_list_referrer_hosts",
-    "title": "Analytics: Top referrer hosts",
+    "title": "Analytics: List top referrer hosts",
     "description": "External traffic sources grouped by the host portion of `referrer`. Use this to see which sites are linking to you (HN, Reddit, partner blogs). Same-origin referrers are excluded server-side via the `excludeHost` argument (typically your own production host); pass it to keep internal navigations from drowning out external referrals. Rows with NULL referrer (direct navigation, bookmarks, link-with-`rel=noreferrer`) roll into a single \"direct\" bucket.",
     "audiences": [
       "admin"
@@ -803,7 +803,7 @@
   },
   {
     "name": "analytics_get_views_over_time",
-    "title": "Analytics: Daily view time-series",
+    "title": "Analytics: Get daily view time-series",
     "description": "Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches. In hosts that support MCP Apps this renders an inline time-series chart.",
     "audiences": [
       "admin"
@@ -853,7 +853,7 @@
   },
   {
     "name": "analytics_get_subject_engagement",
-    "title": "Analytics: Engagement for one subject",
+    "title": "Analytics: Get engagement for one subject",
     "description": "View counts, unique visitors, and average dwell/read-depth for one subject (e.g. one CMS entry) over a recent window. Use this when judging whether a stale entry should be refreshed or archived.",
     "audiences": [
       "admin"
@@ -897,7 +897,7 @@
   },
   {
     "name": "analytics_get_funnel",
-    "title": "Analytics: Conversion funnel across ordered steps",
+    "title": "Analytics: Get conversion funnel across ordered steps",
     "description": "Compute a conversion funnel over page-view events: how many distinct visitors reached each ordered step, and where they drop off. Pass 2–8 `steps`; each step matches a view event by `subjectType` and/or `subjectId` (e.g. `{ subjectType: \"page\", subjectId: \"/pricing\" }`) and/or a `pathLike` SQL LIKE pattern (e.g. `{ pathLike: \"/blog/%\" }`). Steps are strictly ordered — a visitor counts at step N only if they hit step N after reaching step N-1. Visitors are grouped by a stable actor key (their identified end-user when known, else their anonymous `visitor_id`), so a journey that spans the anonymous → identified transition is not double-counted. Set `stepWindowHours` to require each step to follow the previous within a time budget (e.g. signup within 24h of viewing pricing). Anonymous funnels work without any identity setup. Returns per-step actor counts plus conversion/drop rates.",
     "audiences": [
       "admin"
@@ -967,7 +967,7 @@
   },
   {
     "name": "analytics_get_contact_journey",
-    "title": "Analytics: Journey of subjects viewed by a contact",
+    "title": "Analytics: Get a contact’s view journey",
     "description": "Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`. Events recorded under a `visitor_id` *before* that link was established are still included retroactively — the link is resolved at read time — so the journey spans the visitor's anonymous history too.",
     "audiences": [
       "admin"
@@ -1009,7 +1009,7 @@
   },
   {
     "name": "analytics_list_zero_result_searches",
-    "title": "Analytics: Zero-result search queries",
+    "title": "Analytics: List zero-result searches",
     "description": "List recent public search queries that returned zero results. The single best input for \"what should we write about next\" — readers are asking but Munin has no answer.",
     "audiences": [
       "admin"
@@ -2232,7 +2232,7 @@
     }
   },
   {
-    "name": "cms_search",
+    "name": "cms_search_entries",
     "title": "CMS: Search entries",
     "description": "Hybrid full-text + semantic search across CMS entries. Each hit carries a match excerpt, the derived title, and summarized field data — long text is shortened to a lead with a word count in `fieldSummary`. Returns drafts and published; the public delivery API runs the same engine but hard-filters to published-only.",
     "audiences": [
@@ -2919,7 +2919,7 @@
   {
     "name": "conv_list_channels",
     "title": "Conv: List conversation channels",
-    "description": "List conversation channels configured for your org. Currently shipping adapters: email and chat (widget). The `voice` and `sms` channel types are reserved for upcoming adapters.",
+    "description": "List conversation channels of every kind configured for your org — email, chat (widget), SMS and voice.",
     "audiences": [
       "admin"
     ],
@@ -2938,7 +2938,7 @@
   {
     "name": "conv_create_channel",
     "title": "Conv: Create conversation channel",
-    "description": "Add a new conversation channel. Channel-specific configuration goes in `config`. Use this for `email` and `chat` (widget) channels; `voice` and `sms` channels are vendor-backed and are created with conv_configure_channel instead, which handles their credential handoff.",
+    "description": "Add an `email` or `chat` (widget) conversation channel whose configuration is self-contained. Channel-specific configuration goes in `config`. Voice and SMS channels are vendor-backed and rejected here — they need the credential handoff that conv_configure_voice_sms_channel performs.",
     "audiences": [
       "admin"
     ],
@@ -2955,9 +2955,7 @@
           "type": "string",
           "enum": [
             "email",
-            "voice",
-            "chat",
-            "sms"
+            "chat"
           ]
         },
         "vendor": {
@@ -3405,8 +3403,8 @@
     }
   },
   {
-    "name": "conv_setup_email_channel",
-    "title": "Conv: Set up email channel",
+    "name": "conv_configure_email_channel",
+    "title": "Conv: Configure an email channel",
     "description": "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` on an outreach-only inbox so inbound replies are always drafted for human approval rather than auto-sent.",
     "audiences": [
       "admin"
@@ -3624,8 +3622,8 @@
     }
   },
   {
-    "name": "conv_send_email_test",
-    "title": "Conv: Send test email",
+    "name": "conv_send_email_channel_test",
+    "title": "Conv: Send a test email",
     "description": "Send a real test email through this channel's configured outbound transport (SMTP or Mailer). The message is addressed `to` the recipient you pass in. Useful for confirming credentials and deliverability end-to-end.",
     "audiences": [
       "admin"
@@ -3658,7 +3656,7 @@
   {
     "name": "conv_request_channel_credentials",
     "title": "Conv: Request a channel credential link",
-    "description": "Return a one-time link a human opens to enter an email channel’s secret credentials (SMTP/IMAP passwords) in the dashboard — passwords are never accepted in a conversation. conv_setup_email_channel already returns this link on create; use this tool to mint a fresh link when one expired or to rotate the stored passwords. The link expires after 24 hours.",
+    "description": "Return a one-time link a human opens to enter a channel’s secret credentials in the dashboard — secrets are never accepted in a conversation. Works for any channel kind: email (SMTP/IMAP passwords) as well as voice and SMS vendor keys. conv_configure_email_channel and conv_configure_voice_sms_channel already return this link on create; use this tool to mint a fresh link when one expired or to rotate the stored secrets. The link expires after 24 hours.",
     "audiences": [
       "admin"
     ],
@@ -3684,7 +3682,7 @@
   },
   {
     "name": "conv_request_callback",
-    "title": "Conv: Place a phone call to the user in this conversation",
+    "title": "Conv: Request a callback on this conversation",
     "description": "Place an outbound phone call to the contact in this conversation. Use this only when the user has asked to be called — e.g. \"can you call me?\". The call goes to the phone number already on file for this conversation's contact; you cannot specify an arbitrary number. The org must have an active Vapi voice channel configured. After requesting the call, tell the user briefly that a call is on the way and stop replying — the rest of the conversation happens on the phone.",
     "audiences": [
       "self_service"
@@ -3714,7 +3712,7 @@
     }
   },
   {
-    "name": "conv_widget_create_channel",
+    "name": "conv_create_widget_channel",
     "title": "Conv: Create chat-widget channel",
     "description": "Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the widget + tracker + CMS wiring end-to-end.",
     "audiences": [
@@ -3758,7 +3756,7 @@
     }
   },
   {
-    "name": "conv_widget_update_channel",
+    "name": "conv_update_widget_channel",
     "title": "Conv: Update chat-widget channel",
     "description": "Update a chat-widget channel's originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.",
     "audiences": [
@@ -3805,7 +3803,7 @@
     }
   },
   {
-    "name": "conv_widget_rotate_key",
+    "name": "conv_rotate_widget_key",
     "title": "Conv: Rotate widget API key",
     "description": "Revoke any active widget keys bound to this channel and mint a fresh `mn_widget_*` key. Returns the new plaintext key once. Existing inflight requests using the old key keep working until revocation lands.",
     "audiences": [
@@ -3831,7 +3829,7 @@
     }
   },
   {
-    "name": "conv_widget_rotate_identity_secret",
+    "name": "conv_rotate_widget_identity_secret",
     "title": "Conv: Rotate widget identity-verification secret",
     "description": "Generate a fresh per-channel HMAC secret used to verify browser-side `data-user-hash` values against `data-external-id`. The previous secret is replaced atomically; any previously-issued user hashes stop verifying immediately and the operator must re-render their pages with newly-computed hashes. Returns the new plaintext once.",
     "audiences": [
@@ -3857,9 +3855,9 @@
     }
   },
   {
-    "name": "conv_list_channel_vendors",
-    "title": "Conv: List configurable channel vendors",
-    "description": "List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_channel.",
+    "name": "conv_list_voice_sms_vendors",
+    "title": "Conv: List voice/SMS channel vendors",
+    "description": "List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_voice_sms_channel.",
     "audiences": [
       "admin"
     ],
@@ -3878,7 +3876,7 @@
   {
     "name": "conv_list_channel_options",
     "title": "Conv: List a channel vendor’s selectable options",
-    "description": "Discover the selectable options a channel’s vendor offers using the channel’s stored credentials — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_channel instead of guessing. The channel must have completed its credential link first. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.",
+    "description": "Discover the selectable options a channel’s vendor offers using the channel’s stored credentials — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_voice_sms_channel instead of guessing. The channel must have completed its credential link first. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.",
     "audiences": [
       "admin"
     ],
@@ -3903,9 +3901,9 @@
     }
   },
   {
-    "name": "conv_configure_channel",
+    "name": "conv_configure_voice_sms_channel",
     "title": "Conv: Configure a voice/SMS channel",
-    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_channel_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.",
+    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.",
     "audiences": [
       "admin"
     ],
@@ -3922,7 +3920,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 40,
-          "description": "Channel vendor, e.g. \"vapi\", \"threll\", \"twilio\", \"messagebird\". Call conv_list_channel_vendors for the full list and each vendor’s config fields."
+          "description": "Channel vendor, e.g. \"vapi\", \"threll\", \"twilio\", \"messagebird\". Call conv_list_voice_sms_vendors for the full list and each vendor’s config fields."
         },
         "channelId": {
           "description": "Pass an existing channel id to update; omit to create a new channel.",
@@ -3949,7 +3947,7 @@
             "type": "string"
           },
           "additionalProperties": {},
-          "description": "Vendor-specific configuration object with the non-secret fields only — conv_list_channel_vendors marks which fields are secret. Secret fields are rejected here; they are entered by a human through the credential link returned on create."
+          "description": "Vendor-specific configuration object with the non-secret fields only — conv_list_voice_sms_vendors marks which fields are secret. Secret fields are rejected here; they are entered by a human through the credential link returned on create."
         }
       },
       "required": [
@@ -3960,9 +3958,9 @@
     }
   },
   {
-    "name": "conv_test_channel",
-    "title": "Conv: Test a channel’s stored credentials",
-    "description": "Verify a channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific.",
+    "name": "conv_test_voice_sms_channel",
+    "title": "Conv: Test a voice/SMS channel’s stored credentials",
+    "description": "Verify a voice or SMS channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific. Email channels are tested with conv_test_email_channel instead.",
     "audiences": [
       "admin"
     ],
@@ -3986,9 +3984,9 @@
     }
   },
   {
-    "name": "conv_send_channel_test",
-    "title": "Conv: Send a real test message",
-    "description": "Send a real test message (e.g. SMS) through a channel that supports it, addressed to `to`. Useful for end-to-end deliverability checks.",
+    "name": "conv_send_voice_sms_channel_test",
+    "title": "Conv: Send a real test message on a voice/SMS channel",
+    "description": "Send a real test message through a voice or SMS channel that supports it, addressed to `to`. Useful for end-to-end deliverability checks. Email channels use conv_send_email_channel_test instead.",
     "audiences": [
       "admin"
     ],
@@ -4080,8 +4078,8 @@
     }
   },
   {
-    "name": "crm_find_contact",
-    "title": "CRM: Find contact by email or phone",
+    "name": "crm_lookup_contact",
+    "title": "CRM: Look up contact by email or phone",
     "description": "Find an existing contact by email and/or phone before creating a new one. Returns null if no match.",
     "audiences": [
       "admin"
@@ -4110,7 +4108,7 @@
   {
     "name": "crm_create_contact",
     "title": "CRM: Create contact",
-    "description": "Create a new contact. Search with crm_find_contact first to avoid duplicates.",
+    "description": "Create a new contact. Search with crm_lookup_contact first to avoid duplicates.",
     "audiences": [
       "admin"
     ],
@@ -4625,7 +4623,7 @@
     }
   },
   {
-    "name": "crm_change_stage",
+    "name": "crm_change_deal_stage",
     "title": "CRM: Change deal stage",
     "description": "Move a deal to a new stage. If the destination stage is a won/lost terminal, `closedAt` is stamped automatically.",
     "audiences": [
@@ -5954,7 +5952,7 @@
   },
   {
     "name": "crm_log_my_activity",
-    "title": "CRM: Log activity as end-user",
+    "title": "CRM: Log my activity",
     "description": "Record an activity attributed to the calling end-user agent (e.g. a voice agent logging \"spoke with customer for 4m, follow-up needed\"). Auto-scoped to the end-user's own CRM contact when one exists.",
     "audiences": [
       "self_service"
@@ -6443,8 +6441,8 @@
     }
   },
   {
-    "name": "kb_import_website_status",
-    "title": "KB: Website import status",
+    "name": "kb_get_website_import_status",
+    "title": "KB: Get website import status",
     "description": "Check the progress of a website import started with `kb_import_website`, by the job id it returned. Status is one of `pending` (queued or running), `done` (finished — `summary` reports how many documents were imported), `failed_retryable`/`dead` (will retry / gave up), or `failed`. While `pending`, poll again after a short delay.",
     "audiences": [
       "admin"
@@ -7399,7 +7397,7 @@
   {
     "name": "outreach_approve_proposal",
     "title": "Outreach: Approve proposal",
-    "description": "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and sends the first email (with CTA and unsubscribe footer per campaign settings) via the campaign's channel; a reply or follow-up proposal sends the draft verbatim on its existing conversation. Fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
+    "description": "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. Fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
     "audiences": [
       "admin"
     ],
@@ -7555,9 +7553,9 @@
     }
   },
   {
-    "name": "outreach_propose_initial",
-    "title": "Outreach: Propose initial",
-    "description": "File one drafted initial outreach email per (campaign, contact) for human approval. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.",
+    "name": "outreach_propose_initial_message",
+    "title": "Outreach: Propose initial message",
+    "description": "File one drafted initial outreach message per (campaign, contact) for human approval — an email body, an SMS body, or the script for an outbound call, depending on the channel the campaign sends on. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.",
     "audiences": [
       "admin"
     ],
@@ -7686,7 +7684,7 @@
   {
     "name": "outreach_propose_followup",
     "title": "Outreach: Propose follow-up",
-    "description": "File a drafted sequence follow-up (step N of the campaign's `sequenceSteps`) on an outreach conversation, for human approval. `step` must be the next step for the conversation, its wait period must have elapsed, and the prospect must not have replied — any inbound reply permanently stops the sequence (the reply flow owns the conversation). One pending follow-up per (campaign, contact); a dismissed follow-up permanently stops the sequence for that contact, so operators who dislike the wording should edit-then-approve instead. Approving sends on the existing conversation with no subject or unsubscribe footer (the thread already carries both).",
+    "description": "File a drafted sequence follow-up (step N of the campaign's `sequenceSteps`) on an outreach conversation, for human approval. Follow-up sequences run on email campaigns only. `step` must be the next step for the conversation, its wait period must have elapsed, and the prospect must not have replied — any inbound reply permanently stops the sequence (the reply flow owns the conversation). One pending follow-up per (campaign, contact); a dismissed follow-up permanently stops the sequence for that contact, so operators who dislike the wording should edit-then-approve instead. Approving sends on the existing conversation with no subject or unsubscribe footer (the thread already carries both).",
     "audiences": [
       "admin"
     ],
@@ -8054,7 +8052,7 @@
     }
   },
   {
-    "name": "slack_test",
+    "name": "slack_send_test_message",
     "title": "Slack: Send test message",
     "description": "Post a test message to the configured default Slack channel to verify the connection end-to-end. Fails with a specific error when the workspace is not connected, no default route is set, or the bot has not been invited to the channel.",
     "audiences": [
@@ -8214,7 +8212,7 @@
   },
   {
     "name": "connectors_create_connection",
-    "title": "Connectors: Connect a system",
+    "title": "Connectors: Create a connection",
     "description": "Create a connection to a third-party system. `config` takes the vendor’s non-secret fields only — connectors_list_vendors returns the exact fields and marks which are secret. Secret fields are rejected here: the connection is created pending and the response includes a one-time link for a human to enter the secrets in the dashboard. The vendor determines the domain (commerce, bookings). Connection names must be unique within the org.",
     "audiences": [
       "admin"
@@ -8501,8 +8499,8 @@
     }
   },
   {
-    "name": "commerce_lookup_orders",
-    "title": "Commerce: Look up a customer’s orders",
+    "name": "commerce_list_customer_orders",
+    "title": "Commerce: List a customer’s orders",
     "description": "List a customer’s recent store orders by email (newest first), e.g. while handling their support conversation. `connectionId` is only needed when multiple commerce connections are active.",
     "audiences": [
       "admin"
@@ -8623,7 +8621,7 @@
   },
   {
     "name": "commerce_get_product",
-    "title": "Commerce: One product with variants and stock",
+    "title": "Commerce: Get one product",
     "description": "Fetch one published product from the connected store, including description and per-variant price and availability (`availableForSale`; null when the store doesn’t expose stock). Identify it by `productRef` (from a catalog search) or `sku`. Returns not-found for unpublished products.",
     "audiences": [
       "admin",
@@ -8657,8 +8655,8 @@
     }
   },
   {
-    "name": "commerce_get_my_orders",
-    "title": "Commerce: My recent orders",
+    "name": "commerce_list_my_orders",
+    "title": "Commerce: List my recent orders",
     "description": "List the calling end-user’s recent store orders (newest first). Scoped server-side to the email on the end-user’s own record — other customers’ orders are never visible. `connectionId` is only needed when the org has multiple active store connections.",
     "audiences": [
       "self_service"
@@ -8691,7 +8689,7 @@
   },
   {
     "name": "commerce_get_my_order",
-    "title": "Commerce: One of my orders, with tracking",
+    "title": "Commerce: Get one of my orders",
     "description": "Fetch one of the calling end-user’s orders, including line items and shipment tracking. Identify it by `orderRef` (from an order listing) or the human-facing `orderNumber` on the order confirmation. Returns not-found unless the order belongs to the calling end-user.",
     "audiences": [
       "self_service"
@@ -8724,8 +8722,8 @@
     }
   },
   {
-    "name": "bookings_lookup_bookings",
-    "title": "Bookings: Look up a guest’s bookings",
+    "name": "bookings_list_guest_bookings",
+    "title": "Bookings: List a guest’s bookings",
     "description": "List a guest’s bookings by email (most recent first), e.g. while handling their support conversation. `connectionId` is only needed when multiple booking connections are active.",
     "audiences": [
       "admin"
@@ -8806,7 +8804,7 @@
   },
   {
     "name": "bookings_check_availability",
-    "title": "Bookings: Check table availability",
+    "title": "Bookings: Check availability",
     "description": "List open time slots for a date and party size at the connected booking system, so you can offer real times before creating a booking. `connectionId` is only needed when multiple booking connections are active.",
     "audiences": [
       "admin",
@@ -8849,7 +8847,7 @@
   },
   {
     "name": "bookings_create_booking",
-    "title": "Bookings: Book a table",
+    "title": "Bookings: Create a booking",
     "description": "Create a booking in the connected booking system for a guest email at a date and time, for a given party size. Check bookings_check_availability first. Returns the new bookingRef.",
     "audiences": [
       "admin"
@@ -8921,7 +8919,7 @@
   },
   {
     "name": "bookings_update_booking",
-    "title": "Bookings: Modify a booking",
+    "title": "Bookings: Update a booking",
     "description": "Change an existing booking (date, time, party size, or note) by `bookingRef`. Only the fields you pass are changed.",
     "audiences": [
       "admin"
@@ -9001,8 +8999,8 @@
     }
   },
   {
-    "name": "bookings_get_my_bookings",
-    "title": "Bookings: My bookings",
+    "name": "bookings_list_my_bookings",
+    "title": "Bookings: List my bookings",
     "description": "List the calling end-user’s restaurant/venue bookings (most recent first). Scoped server-side to the email on the end-user’s own record — other guests’ bookings are never visible. `connectionId` is only needed when the org has multiple active booking connections.",
     "audiences": [
       "self_service"
@@ -9035,7 +9033,7 @@
   },
   {
     "name": "bookings_get_my_booking",
-    "title": "Bookings: One of my bookings",
+    "title": "Bookings: Get one of my bookings",
     "description": "Fetch one of the calling end-user’s bookings, including party size, start time, and duration. Identify it by `bookingRef` from a listing, or `confirmationCode` where the venue’s system issues one. Returns not-found unless the booking belongs to the calling end-user.",
     "audiences": [
       "self_service"
@@ -9069,7 +9067,7 @@
   },
   {
     "name": "bookings_create_my_booking",
-    "title": "Bookings: Book a table for me",
+    "title": "Bookings: Create my booking",
     "description": "Create a booking for the calling end-user at a date and time for a party size. The booking is made under the end-user’s own email — you cannot book on behalf of anyone else. Check bookings_check_availability first.",
     "audiences": [
       "self_service"
@@ -9135,7 +9133,7 @@
   },
   {
     "name": "bookings_update_my_booking",
-    "title": "Bookings: Modify my booking",
+    "title": "Bookings: Update my booking",
     "description": "Change one of the calling end-user’s own bookings (date, time, party size, or note) by `bookingRef`. Returns not-found unless the booking belongs to the calling end-user.",
     "audiences": [
       "self_service"
@@ -9215,8 +9213,8 @@
     }
   },
   {
-    "name": "feedback_create",
-    "title": "Feedback: Create",
+    "name": "feedback_create_item",
+    "title": "Feedback: Create a feedback item",
     "description": "Submit feedback about Munin. Stays local until an org admin approves it; dismissal deletes the item. Set includeOrgName / includeUserName to attach attribution; both default false.",
     "audiences": [
       "admin"
@@ -9265,8 +9263,8 @@
     }
   },
   {
-    "name": "feedback_list",
-    "title": "Feedback: List pending",
+    "name": "feedback_list_pending_items",
+    "title": "Feedback: List pending feedback items",
     "description": "List feedback items in the local outbox awaiting admin action.",
     "audiences": [
       "admin"
@@ -9284,8 +9282,8 @@
     }
   },
   {
-    "name": "feedback_get",
-    "title": "Feedback: Get one",
+    "name": "feedback_get_item",
+    "title": "Feedback: Get one feedback item",
     "description": "Read a single feedback item by id.",
     "audiences": [
       "admin"
@@ -9362,9 +9360,9 @@
     }
   },
   {
-    "name": "feedback_search",
-    "title": "Feedback: Search global roadmap",
-    "description": "Search the public Munin roadmap for items matching a query. Call this before feedback_create to find an existing item to vote on instead of filing a duplicate. Returns only items the Munin team has published; pending and rejected items are hidden. sort defaults to votes (highest first); use \"recent\" for newest. limit is capped at 100.",
+    "name": "feedback_search_roadmap",
+    "title": "Feedback: Search the public roadmap",
+    "description": "Search the public Munin roadmap for items matching a query. Call this before feedback_create_item to find an existing item to vote on instead of filing a duplicate. Returns only items the Munin team has published; pending and rejected items are hidden. sort defaults to votes (highest first); use \"recent\" for newest. limit is capped at 100.",
     "audiences": [
       "admin"
     ],
@@ -9420,7 +9418,7 @@
     }
   },
   {
-    "name": "feedback_vote",
+    "name": "feedback_vote_on_roadmap_item",
     "title": "Feedback: Vote on roadmap item",
     "description": "Cast this instance's vote on a published roadmap item, optionally attaching a short comment. Idempotent: a second call from the same instance returns { alreadyVoted: true } without inflating the count. Throws feedback_item_not_found if the id is unknown or the item is not public, and feedback_vote_quota_exceeded if the per-instance quota has been hit.",
     "audiences": [

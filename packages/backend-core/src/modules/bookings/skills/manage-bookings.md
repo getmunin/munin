@@ -16,7 +16,7 @@ Always call `bookings_check_availability` with the `date` (YYYY-MM-DD) and `part
 
 Every self-service call is fixed to the calling end-user's own identity — you can never act on another guest's booking or book under a different email.
 
-- `bookings_get_my_bookings` / `bookings_get_my_booking` — the guest's own bookings.
+- `bookings_list_my_bookings` / `bookings_get_my_booking` — the guest's own bookings.
 - `bookings_create_my_booking` — book a table for the guest. The booking is made under their own email automatically. Pass `date`, `time` (HH:MM), `partySize`; optionally `name`, `phone`, `note`.
 - `bookings_update_my_booking` — change the guest's own booking (`date`, `time`, `partySize`, or `note`) by `bookingRef`.
 - `bookings_cancel_my_booking` — cancel the guest's own booking by `bookingRef`.
@@ -25,7 +25,7 @@ If the session has no email identity, these return an error — tell the guest y
 
 ## Admin (support agent working a conversation)
 
-- `bookings_lookup_bookings` / `bookings_lookup_booking` — look up by a guest's `email` (use the verified email of the contact whose conversation you're handling).
+- `bookings_list_guest_bookings` / `bookings_lookup_booking` — look up by a guest's `email` (use the verified email of the contact whose conversation you're handling).
 - `bookings_create_booking` — book a table for a guest `email`.
 - `bookings_update_booking` / `bookings_cancel_booking` — modify or cancel by `bookingRef`.
 

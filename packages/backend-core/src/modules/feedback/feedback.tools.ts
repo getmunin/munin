@@ -38,8 +38,8 @@ export class FeedbackTools {
   constructor(@Inject(FeedbackService) private readonly service: FeedbackService) {}
 
   @McpTool({
-    name: 'feedback_create',
-    title: 'Feedback: Create',
+    name: 'feedback_create_item',
+    title: 'Feedback: Create a feedback item',
     description:
       'Submit feedback about Munin. Stays local until an org admin approves it; dismissal deletes the item. Set includeOrgName / includeUserName to attach attribution; both default false.',
     audiences: ['admin'],
@@ -53,8 +53,8 @@ export class FeedbackTools {
   }
 
   @McpTool({
-    name: 'feedback_list',
-    title: 'Feedback: List pending',
+    name: 'feedback_list_pending_items',
+    title: 'Feedback: List pending feedback items',
     description: 'List feedback items in the local outbox awaiting admin action.',
     audiences: ['admin'],
     scopes: ['feedback:read'],
@@ -67,8 +67,8 @@ export class FeedbackTools {
   }
 
   @McpTool({
-    name: 'feedback_get',
-    title: 'Feedback: Get one',
+    name: 'feedback_get_item',
+    title: 'Feedback: Get one feedback item',
     description: 'Read a single feedback item by id.',
     audiences: ['admin'],
     scopes: ['feedback:read'],
@@ -112,10 +112,10 @@ export class FeedbackTools {
   }
 
   @McpTool({
-    name: 'feedback_search',
-    title: 'Feedback: Search global roadmap',
+    name: 'feedback_search_roadmap',
+    title: 'Feedback: Search the public roadmap',
     description:
-      'Search the public Munin roadmap for items matching a query. Call this before feedback_create to find an existing item to vote on instead of filing a duplicate. Returns only items the Munin team has published; pending and rejected items are hidden. sort defaults to votes (highest first); use "recent" for newest. limit is capped at 100.',
+      'Search the public Munin roadmap for items matching a query. Call this before feedback_create_item to find an existing item to vote on instead of filing a duplicate. Returns only items the Munin team has published; pending and rejected items are hidden. sort defaults to votes (highest first); use "recent" for newest. limit is capped at 100.',
     audiences: ['admin'],
     scopes: ['feedback:read'],
     input: SearchInput,
@@ -127,7 +127,7 @@ export class FeedbackTools {
   }
 
   @McpTool({
-    name: 'feedback_vote',
+    name: 'feedback_vote_on_roadmap_item',
     title: 'Feedback: Vote on roadmap item',
     description:
       'Cast this instance\'s vote on a published roadmap item, optionally attaching a short comment. Idempotent: a second call from the same instance returns { alreadyVoted: true } without inflating the count. Throws feedback_item_not_found if the id is unknown or the item is not public, and feedback_vote_quota_exceeded if the per-instance quota has been hit.',

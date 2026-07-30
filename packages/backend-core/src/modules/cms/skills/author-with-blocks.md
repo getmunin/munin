@@ -78,7 +78,7 @@ On the delivery API and `cms_get_entry`:
 
 - Typed `asset` props (and `array<asset>`) expand to the full asset object (`publicUrl`, `altText`, `mime`, `sizeBytes`).
 - Inline `asset://<id>` tokens in block prose are rewritten to the asset's `publicUrl`, and an `_assets` map (keyed by asset id) is attached alongside `data` for `altText`/dimensions.
-- `reference` props stay raw ids by default. Request expansion explicitly: delivery `GET /v1/cms/<org>/articles/<slug>?include=references`, or `cms_get_entry` / `cms_search` with `"include": ["references"]` (`cms_list_entries` returns summaries and never expands). Expanded references resolve **one level** to `{ id, slug, collection, locale, data }`; references inside the referenced entry are not followed.
+- `reference` props stay raw ids by default. Request expansion explicitly: delivery `GET /v1/cms/<org>/articles/<slug>?include=references`, or `cms_get_entry` / `cms_search_entries` with `"include": ["references"]` (`cms_list_entries` returns summaries and never expands). Expanded references resolve **one level** to `{ id, slug, collection, locale, data }`; references inside the referenced entry are not followed.
 
 ## Linking to another entry inline (`ref://`)
 

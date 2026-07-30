@@ -24,7 +24,7 @@ Workflow (run daily, 07:00 local):
    - green: positive recent activity.
    Roll this up and call crm_set_ai_summary on the deal with a 2-3 sentence
    summary including the colour.
-4. For yellow and red deals, call outreach_propose_initial drafting an
+4. For yellow and red deals, call outreach_propose_initial_message drafting an
    account-management email:
    - red: direct check-in, name the concern, propose a working session.
    - yellow: lighter touch, lead with a usage observation, ask one question.
@@ -82,7 +82,7 @@ export default function RecipeRenewalWatch() {
             <dt>Tools</dt>
             <dd>
               <code>crm_list_deals</code>, <code>crm_get_contact</code>,{' '}
-              <code>crm_set_ai_summary</code>, <code>outreach_propose_initial</code>
+              <code>crm_set_ai_summary</code>, <code>outreach_propose_initial_message</code>
             </dd>
           </dl>
 

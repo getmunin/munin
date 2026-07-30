@@ -509,6 +509,22 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('createChannel rejects vendor-backed voice and sms types, which need the credential handoff', async () => {
+    await withClient(adminKey, async (c) => {
+      for (const type of ['voice', 'sms']) {
+        const rejected = (await c.callTool({
+          name: 'conv_create_channel',
+          arguments: { type, vendor: 'twilioSms', name: `Rejected ${type}` },
+        })) as { isError?: boolean; content?: Array<{ text?: string }> };
+        expect(rejected.isError).toBe(true);
+      }
+      const channels = parseToolResult<{ name: string }[]>(
+        await c.callTool({ name: 'conv_list_channels', arguments: {} }),
+      );
+      expect(channels.map((ch) => ch.name).filter((n) => n.startsWith('Rejected'))).toEqual([]);
+    });
+  }, 30_000);
+
   it('assignConversation rejects a non-member assignee with an actionable error (not a 500)', async () => {
     await withClient(adminKey, async (c) => {
       const importId = `it-${Date.now()}`;

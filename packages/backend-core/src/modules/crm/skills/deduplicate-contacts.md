@@ -32,10 +32,10 @@ In your buffer, group by:
 
 Cluster sizes ≥ 2 are duplicates. Note that two real people sharing `support@acme.com` is legitimate — eyeball the cluster before merging.
 
-`crm_find_contact` is helpful for spot checks but not for full scans:
+`crm_lookup_contact` is helpful for spot checks but not for full scans:
 
 ```jsonc
-{ "name": "crm_find_contact", "arguments": { "email": "vita@acme.com" } }
+{ "name": "crm_lookup_contact", "arguments": { "email": "vita@acme.com" } }
 ```
 
 ## Step 3 — pick the keeper
@@ -125,4 +125,4 @@ If this skill is being run frequently, propose a first-class `crm_merge_contacts
 ## Related
 
 - `skill://crm/import-and-score-leads` — bulk import that already dedupes against existing contacts.
-- `skill://crm/onboard-new-customer` — single-contact dedupe pattern using `crm_find_contact`.
+- `skill://crm/onboard-new-customer` — single-contact dedupe pattern using `crm_lookup_contact`.

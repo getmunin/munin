@@ -11,7 +11,7 @@ export type AnalyticsPayload =
 
 const TOOL_BY_KIND: Record<AnalyticsPayload['kind'], string> = {
   series: 'analytics_get_views_over_time',
-  sources: 'analytics_get_traffic_by_source',
+  sources: 'analytics_list_traffic_sources',
   funnel: 'analytics_get_funnel',
   journey: 'analytics_get_contact_journey',
 };

@@ -11,7 +11,7 @@ Use this when a customer wants Munin to send and receive email under one of thei
 
 1. Decide outbound: their own SMTP server, or send through Munin's configured Mailer (Resend).
 2. Decide inbound: poll IMAP, or rely on the customer forwarding to a `MUNIN_EMAIL_REPLY_DOMAIN` address.
-3. Call `conv_setup_email_channel` with the non-secret config — **never ask for or pass passwords**. The response includes a one-time **credential link**.
+3. Call `conv_configure_email_channel` with the non-secret config — **never ask for or pass passwords**. The response includes a one-time **credential link**.
 4. Share the credential link — the human enters the SMTP/IMAP passwords in the dashboard; the channel activates and the passwords are verified against the servers on save. The link works once and expires after 24 hours; mint a fresh one with `conv_request_channel_credentials`.
 5. Confirm the channel appears in `conv_list_channels` with `active: true`; `conv_test_email_channel` re-verifies credentials any time.
 
@@ -27,11 +27,11 @@ Required from the operator:
   - `mailer` — no extra config; uses the Munin instance's configured Mailer. Best for self-host without an SMTP relay.
 - **Inbound (optional)**: IMAP host, port, secure, username, mailbox name (defaults to `INBOX`). The password comes through the credential link.
 
-Passwords are stored encrypted via pgcrypto and only enter Munin through the credential link. Re-calling `conv_setup_email_channel` for updates keeps the stored passwords — non-secret fields can be changed freely.
+Passwords are stored encrypted via pgcrypto and only enter Munin through the credential link. Re-calling `conv_configure_email_channel` for updates keeps the stored passwords — non-secret fields can be changed freely.
 
 ## Step 2 — create the channel
 
-Call `conv_setup_email_channel` (admin):
+Call `conv_configure_email_channel` (admin):
 
 ```jsonc
 {

@@ -5,14 +5,14 @@ audiences: [admin]
 ---
 
 # Progress a deal through the pipeline
-A deal lives in one stage of one pipeline. Pipelines are per-org, stages are ordered, and terminal stages are flagged `winLoss: 'won' | 'lost'`. Moving to a terminal stage **auto-stamps `closedAt`** — there's no "close the deal" tool separate from `crm_change_stage`.
+A deal lives in one stage of one pipeline. Pipelines are per-org, stages are ordered, and terminal stages are flagged `winLoss: 'won' | 'lost'`. Moving to a terminal stage **auto-stamps `closedAt`** — there's no "close the deal" tool separate from `crm_change_deal_stage`.
 
 ## TL;DR
 
 1. `crm_list_pipelines` — confirm stage layout.
 2. `crm_list_deals` — find deals to advance.
 3. For each: `crm_list_activities(dealId)` to verify gate criteria are met.
-4. `crm_change_stage` to advance. If the destination is `won`/`lost`, the deal is closed.
+4. `crm_change_deal_stage` to advance. If the destination is `won`/`lost`, the deal is closed.
 5. `crm_log_activity` recording why the deal moved.
 6. `crm_set_ai_summary` on the deal so the next person looking at it has fresh context.
 
@@ -54,7 +54,7 @@ These gates are conventions, not enforced by the platform. If the operator's pol
 
 ```jsonc
 {
-  "name": "crm_change_stage",
+  "name": "crm_change_deal_stage",
   "arguments": { "dealId": "<dealId>", "stageId": "<targetStageId>" }
 }
 ```
@@ -105,9 +105,9 @@ When the stage move closes the deal:
 
 ## What NOT to do
 
-- **Don't skip stages.** `crm_change_stage` accepts any `stageId` in the same pipeline, including jumps. The platform allows it; the audit trail makes it look like work was skipped. If you must jump, log a `note` explaining why.
+- **Don't skip stages.** `crm_change_deal_stage` accepts any `stageId` in the same pipeline, including jumps. The platform allows it; the audit trail makes it look like work was skipped. If you must jump, log a `note` explaining why.
 - **Don't move a deal to "Closed Won" without confirming `amountCents` is set.** Pipeline reporting (and the AI summary on the company) treats won deals with $0 as a data problem.
-- **Don't reuse `crm_change_stage` to "reopen" a closed deal.** It works (the platform stamps `closedAt` on terminal moves but doesn't clear it on reverse moves), but the deal will appear closed-but-active and reports get confused. Create a new deal instead with `metadata.relatedDealId`.
+- **Don't reuse `crm_change_deal_stage` to "reopen" a closed deal.** It works (the platform stamps `closedAt` on terminal moves but doesn't clear it on reverse moves), but the deal will appear closed-but-active and reports get confused. Create a new deal instead with `metadata.relatedDealId`.
 
 ## Related
 

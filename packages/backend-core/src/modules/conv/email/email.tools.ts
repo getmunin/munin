@@ -44,8 +44,8 @@ export class EmailAdminTools {
   ) {}
 
   @McpTool({
-    name: 'conv_setup_email_channel',
-    title: 'Conv: Set up email channel',
+    name: 'conv_configure_email_channel',
+    title: 'Conv: Configure an email channel',
     description:
       "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` on an outreach-only inbox so inbound replies are always drafted for human approval rather than auto-sent.",
     audiences: ['admin'],
@@ -106,8 +106,8 @@ export class EmailAdminTools {
   }
 
   @McpTool({
-    name: 'conv_send_email_test',
-    title: 'Conv: Send test email',
+    name: 'conv_send_email_channel_test',
+    title: 'Conv: Send a test email',
     description:
       "Send a real test email through this channel's configured outbound transport (SMTP or Mailer). The message is addressed `to` the recipient you pass in. Useful for confirming credentials and deliverability end-to-end.",
     audiences: ['admin'],

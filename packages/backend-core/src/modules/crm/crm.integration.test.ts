@@ -176,7 +176,7 @@ const skipReason = TEST_URL
       const wonStage = pipeline.stages.find((s) => s.name === 'Won')!;
       const moved = parseToolResult<{ closedAt: string | null }>(
         await c.callTool({
-          name: 'crm_change_stage',
+          name: 'crm_change_deal_stage',
           arguments: { dealId: deal.id, stageId: wonStage.id },
         }),
       );
@@ -212,7 +212,7 @@ const skipReason = TEST_URL
       expect(names).toContain('crm_update_my_contact');
       expect(names).toContain('crm_log_my_activity');
       expect(names).not.toContain('crm_create_contact');
-      expect(names).not.toContain('crm_change_stage');
+      expect(names).not.toContain('crm_change_deal_stage');
       expect(names).not.toContain('crm_list_companies');
 
       const mine = parseToolResult<{ id: string; name: string | null; phone: string | null }>(

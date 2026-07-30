@@ -6,7 +6,7 @@ audiences: [admin]
 
 # Connect an external system
 
-Connectors give agents read access to the org's third-party systems, grouped by domain: **commerce** (orders + product catalog — Shopify, Magento 2) and **bookings** (bookings — Gastroplanner). Admin agents use the lookup tools while handling a support conversation; customers' own agents get the self-service tools (`commerce_get_my_orders`, `bookings_get_my_bookings`), scoped server-side to their own records.
+Connectors give agents read access to the org's third-party systems, grouped by domain: **commerce** (orders + product catalog — Shopify, Magento 2) and **bookings** (bookings — Gastroplanner). Admin agents use the lookup tools while handling a support conversation; customers' own agents get the self-service tools (`commerce_list_my_orders`, `bookings_list_my_bookings`), scoped server-side to their own records.
 
 `connectors_list_vendors` returns the supported systems and the exact config fields each one needs.
 
@@ -99,4 +99,4 @@ Two rules follow:
 - **Only mint delegated tokens with emails your system has actually authenticated** (login session, verified email link). If you mint tokens from unauthenticated visitor input, you are asserting an identity you haven't checked, and that visitor's agent can read that email's order and booking history.
 - End-user records without an email can't look up anything — the tools refuse rather than guess.
 
-The end-user can never choose which email to query: the self-service tools take no email parameter. Admin lookup tools (`commerce_lookup_orders`, `bookings_lookup_bookings`) can query any email — that surface is for your own support staff and is never exposed to delegated tokens.
+The end-user can never choose which email to query: the self-service tools take no email parameter. Admin lookup tools (`commerce_list_customer_orders`, `bookings_list_guest_bookings`) can query any email — that surface is for your own support staff and is never exposed to delegated tokens.

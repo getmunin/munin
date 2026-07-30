@@ -36,6 +36,8 @@ A channel waiting on its credential link is `active: false` and every admin acti
 
 Replies thread. A second message from the same number on the same channel lands in that number's most recent open conversation rather than opening a new one; a snoozed conversation is reopened. A new conversation is started only when the previous one was closed.
 
+**Set `defaultAgentMode` per SMS channel.** `conv_configure_channel { channelId, vendor, defaultAgentMode }` decides what the agent does with texts arriving on that number: `auto` replies directly, `draft_only` files a draft for a human to approve, `off` does neither. Use `draft_only` on a number you only send campaigns from, so a reply is never auto-answered. It applies to SMS only — an inbound call is run by the vendor's assistant, not the Munin agent, so passing it on a voice channel is rejected.
+
 **SMS opt-out is automatic and irreversible from your side.** An inbound SMS whose entire body is an opt-out keyword — `STOP`, `STOPP`, `SLUTT`, `AVMELD`, `UNSUBSCRIBE`, `END`, `QUIT`, `CANCEL`, `STOPALL`, case-insensitive, trailing punctuation ignored — suppresses the CRM contact holding that phone number: `doNotContact` is set, `unsubscribedAt` is stamped, and a `crm_activities` note records it. The message is still ingested so the conversation reads truthfully. A sentence that merely contains one of those words ("can you cancel my order?") is an ordinary message and suppresses nothing.
 
 Suppressed contacts drop out of `crm_list_contacts_in_segment`, so they stop appearing in outreach audiences. Do not clear the flag to re-add someone — if they ask to opt back in, that is a new consent decision a human records.

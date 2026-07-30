@@ -573,6 +573,10 @@
         "description": "Pick a voice AI vendor and connect credentials. The vendor runs the call end-to-end (STT, LLM, TTS); Munin receives transcripts and call artifacts via the shared webhook.",
         "create": "Create voice channel"
       },
+      "sms": {
+        "defaultAgentModeLabel": "Inbound replies",
+        "defaultAgentModeHint": "What the agent does with texts arriving on this number. Use \"Draft only\" on an outreach-only number so nothing is auto-sent."
+      },
       "twilioSms": {
         "editTitle": "Edit Twilio SMS channel",
         "editDescription": "Update name, Account SID, or sender. Leave Auth Token blank to keep the stored credential — type a new one to rotate.",

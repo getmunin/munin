@@ -10,6 +10,7 @@ import {
   encryptSecretSql,
   getCurrentContext,
 } from '@getmunin/core';
+import type { AgentMode } from '@getmunin/types';
 import { schema, type Db } from '@getmunin/db';
 import { z } from 'zod';
 import { DB } from '../../../common/db/db.module.ts';
@@ -53,13 +54,18 @@ export interface TwilioSmsChannelDto {
   vendor: 'twilio';
   active: boolean;
   config: TwilioSmsConfigDto;
+  defaultAgentMode: AgentMode;
 }
 
 @Injectable()
 export class TwilioSmsService {
   constructor(@Inject(DB) private readonly _db: Db) {}
 
-  async createChannel(input: { name: string; config: TwilioSmsConfigInput }): Promise<TwilioSmsChannelDto> {
+  async createChannel(input: {
+    name: string;
+    config: TwilioSmsConfigInput;
+    defaultAgentMode?: AgentMode;
+  }): Promise<TwilioSmsChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const stored = await this.toStored(input.config);
@@ -71,16 +77,18 @@ export class TwilioSmsService {
         vendor: 'twilio',
         name: input.name,
         config: storedToJsonb(stored),
+        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
       })
       .returning();
     if (!row) throw new ConflictException('channel_create_failed');
-    return this.toDto(row.id, row.name, row.active, stored);
+    return this.toDto(row.id, row.name, row.active, stored, row.defaultAgentMode as AgentMode);
   }
 
   async updateChannel(input: {
     channelId: string;
     name?: string;
     config?: Partial<TwilioSmsConfigInput>;
+    defaultAgentMode?: AgentMode;
   }): Promise<TwilioSmsChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -115,13 +123,14 @@ export class TwilioSmsService {
       .update(schema.convChannels)
       .set({
         ...(input.name && { name: input.name }),
+        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
         config: storedToJsonb(merged),
         updatedAt: new Date(),
       })
       .where(eq(schema.convChannels.id, input.channelId))
       .returning();
     if (!row) throw new ConflictException('channel_update_failed');
-    return this.toDto(row.id, row.name, row.active, merged);
+    return this.toDto(row.id, row.name, row.active, merged, row.defaultAgentMode as AgentMode);
   }
 
   async rotateAuthToken(input: { channelId: string; authToken: string }): Promise<TwilioSmsChannelDto> {
@@ -165,13 +174,20 @@ export class TwilioSmsService {
     };
   }
 
-  private toDto(id: string, name: string, active: boolean, stored: StoredTwilioSmsConfig): TwilioSmsChannelDto {
+  private toDto(
+    id: string,
+    name: string,
+    active: boolean,
+    stored: StoredTwilioSmsConfig,
+    defaultAgentMode: AgentMode,
+  ): TwilioSmsChannelDto {
     return {
       id,
       name,
       type: 'sms',
       vendor: 'twilio',
       active,
+      defaultAgentMode,
       config: {
         accountSid: stored.accountSid,
         authToken: REDACTED,

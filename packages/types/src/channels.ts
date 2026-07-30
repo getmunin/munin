@@ -102,6 +102,7 @@ export const ConfigureTwilioSmsBody = z
     authToken: sensitive(z.string().min(1).max(256).optional()),
     fromNumber: z.string().regex(E164, 'must be E.164').max(32).optional(),
     messagingServiceSid: z.string().min(2).max(64).optional(),
+    defaultAgentMode: AgentModeSchema.optional(),
   })
   .refine(
     (v) =>
@@ -132,6 +133,7 @@ export const ConfigureMessageBirdSmsBody = z
     accessKey: sensitive(z.string().min(1).max(256).optional()),
     signingKey: sensitive(z.string().min(1).max(256).optional()),
     originator: z.string().min(1).max(32).optional(),
+    defaultAgentMode: AgentModeSchema.optional(),
   })
   .refine(
     (v) =>

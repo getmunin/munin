@@ -2095,6 +2095,9 @@ function TwilioSmsChannelDialog({
   const [messagingServiceSid, setMessagingServiceSid] = useState(
     editChannel.config?.messagingServiceSid ?? '',
   );
+  const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>(
+    editChannel.defaultAgentMode ?? 'auto',
+  );
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -2106,6 +2109,7 @@ function TwilioSmsChannelDialog({
     setAuthToken('');
     setFromNumber(editChannel.config?.fromNumber ?? '');
     setMessagingServiceSid(editChannel.config?.messagingServiceSid ?? '');
+    setDefaultAgentMode(editChannel.defaultAgentMode ?? 'auto');
     setSubmitError(null);
     setFieldErrors({});
     setSaving(false);
@@ -2119,6 +2123,7 @@ function TwilioSmsChannelDialog({
       ...(authToken ? { authToken } : {}),
       ...(fromNumber.trim() ? { fromNumber: fromNumber.trim() } : {}),
       ...(messagingServiceSid.trim() ? { messagingServiceSid: messagingServiceSid.trim() } : {}),
+      defaultAgentMode,
     };
     const parsed = ConfigureTwilioSmsBody.safeParse(payload);
     if (!parsed.success) {
@@ -2163,6 +2168,18 @@ function TwilioSmsChannelDialog({
               placeholder="e.g. main-twilio"
               maxLength={120}
             />
+          </FormField>
+          <FormField label={t('sms.defaultAgentModeLabel')} hint={t('sms.defaultAgentModeHint')}>
+            <NativeSelect
+              value={defaultAgentMode}
+              onChange={(e) =>
+                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+              }
+            >
+              <option value="auto">{t('email.agentModeAuto')}</option>
+              <option value="draft_only">{t('email.agentModeDraftOnly')}</option>
+              <option value="off">{t('email.agentModeOff')}</option>
+            </NativeSelect>
           </FormField>
           <FormField
             label={t('twilioSms.accountSidLabel')}
@@ -2373,6 +2390,9 @@ function MessageBirdSmsChannelDialog({
   const [accessKey, setAccessKey] = useState('');
   const [signingKey, setSigningKey] = useState('');
   const [originator, setOriginator] = useState(editChannel.config?.originator ?? '');
+  const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>(
+    editChannel.defaultAgentMode ?? 'auto',
+  );
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -2383,6 +2403,7 @@ function MessageBirdSmsChannelDialog({
     setAccessKey('');
     setSigningKey('');
     setOriginator(editChannel.config?.originator ?? '');
+    setDefaultAgentMode(editChannel.defaultAgentMode ?? 'auto');
     setSubmitError(null);
     setFieldErrors({});
     setSaving(false);
@@ -2395,6 +2416,7 @@ function MessageBirdSmsChannelDialog({
       ...(accessKey ? { accessKey } : {}),
       ...(signingKey ? { signingKey } : {}),
       ...(originator.trim() ? { originator: originator.trim() } : {}),
+      defaultAgentMode,
     };
     const parsed = ConfigureMessageBirdSmsBody.safeParse(payload);
     if (!parsed.success) {
@@ -2439,6 +2461,18 @@ function MessageBirdSmsChannelDialog({
               placeholder="e.g. nordic-messagebird"
               maxLength={120}
             />
+          </FormField>
+          <FormField label={t('sms.defaultAgentModeLabel')} hint={t('sms.defaultAgentModeHint')}>
+            <NativeSelect
+              value={defaultAgentMode}
+              onChange={(e) =>
+                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+              }
+            >
+              <option value="auto">{t('email.agentModeAuto')}</option>
+              <option value="draft_only">{t('email.agentModeDraftOnly')}</option>
+              <option value="off">{t('email.agentModeOff')}</option>
+            </NativeSelect>
           </FormField>
           <FormField
             label={t('messageBirdSms.accessKeyLabel')}

@@ -573,6 +573,10 @@
         "description": "Velg en stemme-AI-leverandør og koble til påloggingsinformasjon. Leverandøren kjører hele samtalen (STT, LLM, TTS); Munin mottar transkripsjoner og samtaledata via samme webhook.",
         "create": "Opprett stemmekanal"
       },
+      "sms": {
+        "defaultAgentModeLabel": "Innkommende svar",
+        "defaultAgentModeHint": "Hva agenten gjør med meldinger som kommer inn på dette nummeret. Bruk «Kun utkast» på et nummer som kun brukes til utgående kampanjer, så sendes ingenting automatisk."
+      },
       "twilioSms": {
         "editTitle": "Rediger Twilio SMS-kanal",
         "editDescription": "Oppdater navn, Account SID eller avsender. La Auth Token stå tom for å beholde lagret verdi — skriv en ny for å rotere.",

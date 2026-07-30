@@ -303,6 +303,41 @@ const skipReason = TEST_URL
     expect(after!.doNotContact).toBe(false);
   });
 
+  it('a draft_only channel opens inbound conversations in draft_only', async () => {
+    await db
+      .update(schema.convChannels)
+      .set({ defaultAgentMode: 'draft_only' })
+      .where(eq(schema.convChannels.id, channelId));
+
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
+    await postWebhook(
+      {
+        AccountSid: ACCOUNT_SID,
+        MessageSid: 'SM_draftonly_1',
+        From: '+14155556666',
+        To: FROM_NUMBER,
+        Body: 'is this thing on?',
+        NumMedia: '0',
+      },
+      url,
+    );
+
+    const rows = await db
+      .select({ agentMode: schema.convConversations.agentMode })
+      .from(schema.convConversations)
+      .innerJoin(
+        schema.convMessages,
+        eq(schema.convMessages.conversationId, schema.convConversations.id),
+      )
+      .where(sql`${schema.convMessages.metadata}->>'providerMessageId' = 'SM_draftonly_1'`);
+    expect(rows[0]!.agentMode).toBe('draft_only');
+
+    await db
+      .update(schema.convChannels)
+      .set({ defaultAgentMode: 'auto' })
+      .where(eq(schema.convChannels.id, channelId));
+  });
+
   it('updates conv_message_deliveries on a status callback', async () => {
     const conversationRows = await db
       .select({ id: schema.convConversations.id })

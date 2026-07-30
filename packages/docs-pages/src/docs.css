@@ -318,7 +318,8 @@
 }
 
 /* Mobile section-nav toggle — hidden on desktop, the list shows inline. */
-.docs-side-toggle {
+.docs-side-toggle,
+.docs-side-scrim {
   display: none;
 }
 
@@ -1269,6 +1270,8 @@
   }
   .docs-side-toggle {
     display: flex;
+    position: relative;
+    z-index: 5;
     width: 100%;
     align-items: center;
     justify-content: space-between;
@@ -1306,6 +1309,25 @@
   }
   .docs-side[data-open='true'] .docs-side-list {
     display: block;
+  }
+  .docs-side-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    background: rgb(0 0 0 / 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+  @media (prefers-color-scheme: dark) {
+    .docs-side-scrim {
+      background: rgb(0 0 0 / 0.7);
+    }
+  }
+  .docs-side[data-open='true'] .docs-side-scrim {
+    opacity: 1;
+    pointer-events: auto;
   }
   .docs-main {
     padding: 24px 20px 80px;

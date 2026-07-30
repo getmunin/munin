@@ -102,13 +102,15 @@ const ProposeInitialInput = z.object({
     .string()
     .max(300)
     .optional()
-    .describe('Required for email campaigns; omit for voice campaigns where the call has no subject.'),
+    .describe(
+      'Required for email campaigns; omit for SMS and voice campaigns, which have no subject.',
+    ),
   draftBody: z
     .string()
     .min(1)
     .max(20_000)
     .describe(
-      'For email campaigns: the email body. For voice campaigns: the opening line / talking-points the AI agent should use when the call connects.',
+      'For email campaigns: the email body. For SMS campaigns: the text message, capped at 480 characters, plain text — no markdown, and no opt-out line, which Munin appends. For voice campaigns: the opening line / talking-points the AI agent should use when the call connects.',
     ),
   evidence: z.record(z.string(), z.unknown()).optional(),
   proposedSendAt: z.string().datetime().optional(),

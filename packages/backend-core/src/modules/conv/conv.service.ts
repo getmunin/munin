@@ -49,6 +49,8 @@ export class AgentReplyRaceError extends Error {
 export const CHANNEL_TYPES = ['email', 'voice', 'chat', 'sms'] as const;
 export const STATUSES = ['open', 'snoozed', 'closed', 'spam'] as const;
 export const AGENT_MODES = ['auto', 'draft_only', 'off'] as const;
+
+const DELIVERABLE_CHANNEL_TYPES: readonly string[] = ['email', 'sms'];
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
 export type ConversationStatus = (typeof STATUSES)[number];
 export type AgentMode = (typeof AGENT_MODES)[number];
@@ -693,11 +695,11 @@ export class ConvService {
     });
 
     if (
-      channelType === 'email' &&
+      DELIVERABLE_CHANNEL_TYPES.includes(channelType) &&
       input.authorType !== 'end_user' &&
       input.authorType !== 'system'
     ) {
-      await this.enqueueEmailOutbound(firstMsg!.id, conv.id, conv.channelId);
+      await this.enqueueOutboundDelivery(firstMsg!.id, conv.id, conv.channelId);
     }
 
     if (input.authorType === 'end_user' && !input.topicId) {
@@ -899,17 +901,17 @@ export class ConvService {
       }
 
       if (
-        conv.channelType === 'email' &&
+        DELIVERABLE_CHANNEL_TYPES.includes(conv.channelType) &&
         input.authorType !== 'end_user' &&
         input.authorType !== 'system'
       ) {
-        await this.enqueueEmailOutbound(row!.id, conv.id, conv.channelId);
+        await this.enqueueOutboundDelivery(row!.id, conv.id, conv.channelId);
       }
     }
     return toMessageDto(row!);
   }
 
-  private async enqueueEmailOutbound(
+  private async enqueueOutboundDelivery(
     messageId: string,
     conversationId: string,
     channelId: string,

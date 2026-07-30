@@ -1350,7 +1350,7 @@ function EmailChannelDialog({
             void submit();
           }}
         >
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+          <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1">
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField label={t('nameLabel')}>
               <Input

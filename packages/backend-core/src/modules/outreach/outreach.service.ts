@@ -17,8 +17,10 @@ import { ConvService } from '../conv/conv.service.ts';
 import { CrmService, CrmInvalidError } from '../crm/crm.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
 import { findOrCreateContactByPhone } from '../conv/contact-by-phone.ts';
-import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
-import { jsonbToStored as vapiJsonbToStored } from '../conv/vapi/vapi.service.ts';
+import {
+  OUTREACH_VOICE_CALLERS,
+  type OutreachVoiceCaller,
+} from '../conv/channels/outreach-voice.ts';
 
 export class OutreachInvalidError extends Error {
   readonly code = 'outreach_invalid';
@@ -185,9 +187,13 @@ export class OutreachService {
     @Inject(ConvService) private readonly conv: ConvService,
     @Inject(CrmService) private readonly crm: CrmService,
     @Inject(EmailService) private readonly email: EmailService,
-    @Inject(VapiClientService) private readonly vapi: VapiClientService,
+    @Inject(OUTREACH_VOICE_CALLERS) voiceCallers: OutreachVoiceCaller[],
     @Inject(DB) private readonly db: Db,
-  ) {}
+  ) {
+    this.voiceCallers = new Map(voiceCallers.map((c) => [c.vendor, c]));
+  }
+
+  private readonly voiceCallers: Map<string, OutreachVoiceCaller>;
 
   async listCampaigns(): Promise<CampaignDto[]> {
     const ctx = getCurrentContext();
@@ -955,27 +961,17 @@ export class OutreachService {
     if (!contact.phone) {
       throw new OutreachInvalidError(`contact ${contact.id} has no phone — cannot call`);
     }
-    const config = vapiJsonbToStored(channel.config);
-    if (!config.phoneNumberId) {
-      throw new OutreachInvalidError(
-        'voice channel has no phoneNumberId — set one to place outbound PSTN calls',
-      );
-    }
-    const apiKey = await this.vapi.loadSecret(config.encryptedApiKey);
-    const callRes = await this.vapi
-      .placeCall({
-        apiKey,
-        assistantId: config.assistantId,
-        phoneNumberId: config.phoneNumberId,
+    const caller = this.requireVoiceCaller(channel.vendor);
+    const callRes = await caller
+      .placeOutreachCall({
+        channel,
         toNumber: contact.phone,
-        customer: contact.name ? { name: contact.name } : undefined,
-        assistantOverrides: {
-          metadata: {
-            outreachCampaignId: campaign.id,
-            outreachProposalId: proposal.id,
-            contactId: contact.id,
-            draftOpening: proposal.draftBody,
-          },
+        customerName: contact.name ?? undefined,
+        opening: proposal.draftBody,
+        context: {
+          outreachCampaignId: campaign.id,
+          outreachProposalId: proposal.id,
+          contactId: contact.id,
         },
       })
       .catch((err) => {
@@ -990,7 +986,8 @@ export class OutreachService {
       contact: { id: contact.id, name: contact.name, phone: contact.phone },
       proposal,
       campaign,
-      vapiCallId: callRes.id,
+      callIdKey: caller.callIdMetadataKey,
+      callId: callRes.callId,
     });
 
     const [updated] = await ctx.db
@@ -1005,8 +1002,8 @@ export class OutreachService {
         decidedAt: new Date(),
         evidence: {
           ...(proposal.evidence ?? {}),
-          vapiCallId: callRes.id,
-          vapiStatus: callRes.status,
+          [caller.callIdMetadataKey]: callRes.callId,
+          callStatus: callRes.status,
         },
         updatedAt: new Date(),
       })
@@ -1026,7 +1023,7 @@ export class OutreachService {
         contactId: contact.id,
         conversationId: conv.id,
         messageId: null,
-        vapiCallId: callRes.id,
+        callId: callRes.callId,
       },
     });
 
@@ -1039,7 +1036,8 @@ export class OutreachService {
     contact: { id: string; name: string | null; phone: string };
     proposal: ProposalDto;
     campaign: CampaignDto;
-    vapiCallId: string;
+    callIdKey: string;
+    callId: string;
   }): Promise<{ id: string }> {
     const actor = new ActorIdentity('system', 'outreach-voice', args.orgId, ['*'], ['admin']);
     return this.db.transaction(async (tx) => {
@@ -1075,7 +1073,7 @@ export class OutreachService {
         );
         const displayId = next[0]!.next;
         const stubMetadata = {
-          vapiCallId: args.vapiCallId,
+          [args.callIdKey]: args.callId,
           outreachProposalId: args.proposal.id,
           outreachCampaignId: args.campaign.id,
           crmContactId: args.contact.id,
@@ -1089,8 +1087,8 @@ export class OutreachService {
             (${newId}, ${args.orgId}, ${displayId}, ${args.channel.id}, ${convContactId},
              'open', NULL, ${args.campaign.id}, 'off',
              ${new Date().toISOString()}, ${JSON.stringify(stubMetadata)}::jsonb)
-          ON CONFLICT (org_id, channel_id, ((metadata ->> 'vapiCallId')))
-            WHERE (metadata ->> 'vapiCallId') IS NOT NULL
+          ON CONFLICT (org_id, channel_id, ((metadata ->> ${sql.raw(`'${args.callIdKey}'`)})))
+            WHERE (metadata ->> ${sql.raw(`'${args.callIdKey}'`)}) IS NOT NULL
           DO NOTHING
           RETURNING id
         `);
@@ -1103,7 +1101,7 @@ export class OutreachService {
             and(
               eq(schema.convConversations.orgId, args.orgId),
               eq(schema.convConversations.channelId, args.channel.id),
-              sql`${schema.convConversations.metadata}->>'vapiCallId' = ${args.vapiCallId}`,
+              sql`${schema.convConversations.metadata}->>${args.callIdKey} = ${args.callId}`,
             ),
           )
           .limit(1);
@@ -1547,6 +1545,14 @@ export class OutreachService {
     };
   }
 
+  private requireVoiceCaller(vendor: string): OutreachVoiceCaller {
+    const caller = this.voiceCallers.get(vendor);
+    if (!caller) {
+      throw new OutreachInvalidError(`voice vendor '${vendor}' cannot place outreach calls`);
+    }
+    return caller;
+  }
+
   private async assertApprovableNow(
     proposal: ProposalDto,
     actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
@@ -1591,9 +1597,14 @@ export class OutreachService {
     if (!channel) throw new OutreachInvalidError(`channel ${channelId} does not exist`);
     if (channel.type === 'email') return channel;
     if (channel.type === 'sms') return channel;
-    if (channel.type === 'voice' && channel.vendor === 'vapi') return channel;
+    if (channel.type === 'voice' && this.voiceCallers.has(channel.vendor)) return channel;
+    if (channel.type === 'voice') {
+      throw new OutreachInvalidError(
+        `voice vendor '${channel.vendor}' cannot place outreach calls; supported: ${[...this.voiceCallers.keys()].sort().join(', ')}`,
+      );
+    }
     throw new OutreachInvalidError(
-      `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email, sms, or voice:vapi channel`,
+      `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email, sms, or voice channel`,
     );
   }
 

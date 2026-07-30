@@ -41,7 +41,7 @@ Bad:
 
 ## What happens on approval
 
-A person approves in the dashboard. Munin hands the campaign's voice channel the destination number and your draft as the assistant's opening context, then creates a stub conversation linked to the campaign so the transcript lands somewhere. Approval is refused — before dialling — if the campaign is inside its `cadenceRules` quiet hours or on a blackout date. Quiet hours are read in the campaign's `quietHoursTimezone`, so set one; without it they are read in UTC, which is not what "no calls before 08:00" means anywhere in Europe.
+A person approves in the dashboard. Munin hands the campaign's voice channel the destination number and your draft as the assistant's opening context — every supported voice vendor works the same way here, so write for the channel, not for a particular provider — then creates a stub conversation linked to the campaign so the transcript lands somewhere. Approval is refused — before dialling — if the campaign is inside its `cadenceRules` quiet hours or on a blackout date. Quiet hours are read in the campaign's `quietHoursTimezone`, so set one; without it they are read in UTC, which is not what "no calls before 08:00" means anywhere in Europe.
 
 Follow-up sequences are not available on voice campaigns. One call, then whatever the conversation becomes.
 

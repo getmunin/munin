@@ -32,6 +32,7 @@ import {
   VapiClientService,
   verifyVapiWebhookSecret,
 } from './vapi-client.service.ts';
+import { findOrCreateContactByPhone } from '../contact-by-phone.ts';
 import { jsonbToStored } from './vapi.service.ts';
 import { VapiToolBridge, type VapiToolCall } from './vapi-tool-bridge.ts';
 import {
@@ -554,7 +555,7 @@ export class VapiAdapter implements ChannelAdapter {
     if (existing[0]) return existing[0];
 
     const phone = customer?.number;
-    const contact = await findOrCreateContactByPhone(tx, channel.orgId, phone, customer?.name);
+    const contact = await findOrCreateContactByPhone(tx, channel.orgId, phone, customer?.name, 'vapi-webhook');
 
     const next = await tx.execute<{ next: number } & Record<string, unknown>>(
       sql`SELECT conv_next_display_id(${channel.orgId}) AS next`,
@@ -607,61 +608,6 @@ export class VapiAdapter implements ChannelAdapter {
   }
 }
 
-async function findOrCreateContactByPhone(
-  tx: Db | Tx,
-  orgId: string,
-  phone: string | undefined,
-  name: string | undefined,
-): Promise<typeof schema.convContacts.$inferSelect | null> {
-  if (!phone) return null;
-  const existing = await tx
-    .select()
-    .from(schema.convContacts)
-    .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.phone, phone)))
-    .limit(1);
-  if (existing[0]) return existing[0];
-
-  const externalId = `phone:${phone}`;
-  const eu = await tx
-    .select()
-    .from(schema.endUsers)
-    .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
-    .limit(1);
-  let endUserId: string | null = eu[0]?.id ?? null;
-  if (!endUserId) {
-    try {
-      const [createdEu] = await tx
-        .insert(schema.endUsers)
-        .values({
-          orgId,
-          externalId,
-          phone,
-          name: name ?? null,
-          metadata: { source: 'vapi-webhook' },
-        })
-        .returning();
-      endUserId = createdEu?.id ?? null;
-    } catch {
-      const reread = await tx
-        .select()
-        .from(schema.endUsers)
-        .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
-        .limit(1);
-      endUserId = reread[0]?.id ?? null;
-    }
-  }
-  const [contact] = await tx
-    .insert(schema.convContacts)
-    .values({
-      orgId,
-      phone,
-      name: name ?? null,
-      endUserId,
-      metadata: {},
-    })
-    .returning();
-  return contact ?? null;
-}
 
 function headerOne(
   headers: Record<string, string | string[] | undefined>,

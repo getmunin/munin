@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { ConvService } from '../conv/conv.service.ts';
 import { CrmService, CrmInvalidError } from '../crm/crm.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
+import { findOrCreateContactByPhone } from '../conv/contact-by-phone.ts';
 import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
 import { jsonbToStored as vapiJsonbToStored } from '../conv/vapi/vapi.service.ts';
 
@@ -30,6 +31,8 @@ export const PROPOSAL_KINDS = ['initial', 'reply', 'followup'] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
 export const CHANNELS_REQUIRING_HUMAN_APPROVAL: readonly string[] = ['voice', 'sms'];
+
+export const SMS_DRAFT_MAX_CHARS = 480;
 
 export const PROPOSAL_STATUSES = [
   'pending',
@@ -426,9 +429,14 @@ export class OutreachService {
         `contact ${input.contactId} is suppressed or has no recorded lawful basis`,
       );
     }
-    if (channel.type === 'voice' && !contact.phone) {
+    if ((channel.type === 'voice' || channel.type === 'sms') && !contact.phone) {
       throw new OutreachInvalidError(
-        `contact ${input.contactId} has no phone number — required for voice campaigns`,
+        `contact ${input.contactId} has no phone number — required for ${channel.type} campaigns`,
+      );
+    }
+    if (channel.type === 'sms' && input.draftBody.length > SMS_DRAFT_MAX_CHARS) {
+      throw new OutreachInvalidError(
+        `draftBody is ${input.draftBody.length} characters — SMS drafts are capped at ${SMS_DRAFT_MAX_CHARS} so a message stays within a few billable segments`,
       );
     }
     const [contacted] = await ctx.db
@@ -787,6 +795,10 @@ export class OutreachService {
       return this.approveInitialVoice(proposal, campaign, contact, channel, actor);
     }
 
+    if (channel.type === 'sms') {
+      return this.approveInitialSms(proposal, campaign, contact, actor);
+    }
+
     if (!contact.email) {
       throw new OutreachInvalidError(`contact ${contact.id} has no email — cannot send`);
     }
@@ -812,6 +824,82 @@ export class OutreachService {
       channelId: campaign.channelId,
       body,
       subject: proposal.draftSubject ?? undefined,
+      contactId: convContact.id,
+      endUserId: contact.endUserId ?? undefined,
+      outreachCampaignId: campaign.id,
+      agentMode: 'draft_only',
+      authorType: 'agent',
+      authorId: actor.id,
+    });
+
+    const firstMessageId = conversation.messages[0]?.id ?? null;
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'sent',
+        conversationId: conversation.id,
+        sentMessageId: firstMessageId,
+        sentAt: new Date(),
+        decidedByActorType: actor.type,
+        decidedByActorId: actor.id,
+        decidedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.crmContacts.id, contact.id));
+
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: campaign.id,
+        contactId: contact.id,
+        conversationId: conversation.id,
+        messageId: firstMessageId,
+      },
+    });
+
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async approveInitialSms(
+    proposal: ProposalDto,
+    campaign: CampaignDto,
+    contact: { id: string; name: string | null; phone: string | null; endUserId?: string | null },
+    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    if (!contact.phone) {
+      throw new OutreachInvalidError(`contact ${contact.id} has no phone — cannot send`);
+    }
+
+    const convContact = await ctx.db.transaction(async (tx) => {
+      const found = await findOrCreateContactByPhone(
+        tx,
+        actor.orgId,
+        contact.phone!,
+        contact.name ?? undefined,
+        'outreach-sms',
+      );
+      if (!found) throw new OutreachInvalidError(`could not resolve a contact for ${contact.phone}`);
+      return found;
+    });
+
+    const body = composeSmsOutreachBody({
+      draftBody: proposal.draftBody,
+      ctaUrl: campaign.ctaUrl,
+      unsubscribeRequired: campaign.unsubscribeRequired,
+    });
+
+    const conversation = await this.conv.createConversation({
+      channelId: campaign.channelId,
+      body,
       contactId: convContact.id,
       endUserId: contact.endUserId ?? undefined,
       outreachCampaignId: campaign.id,
@@ -1502,9 +1590,10 @@ export class OutreachService {
     const channel = rows[0];
     if (!channel) throw new OutreachInvalidError(`channel ${channelId} does not exist`);
     if (channel.type === 'email') return channel;
+    if (channel.type === 'sms') return channel;
     if (channel.type === 'voice' && channel.vendor === 'vapi') return channel;
     throw new OutreachInvalidError(
-      `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email or voice:vapi channel`,
+      `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email, sms, or voice:vapi channel`,
     );
   }
 
@@ -1849,6 +1938,17 @@ function buildUnsubscribeUrl(input: {
   });
   const base = input.publicBaseUrl.replace(/\/+$/, '');
   return `${base}/v1/outreach/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
+function composeSmsOutreachBody(input: {
+  draftBody: string;
+  ctaUrl: string | null;
+  unsubscribeRequired: boolean;
+}): string {
+  let body = input.draftBody.trim();
+  if (input.ctaUrl) body += ` ${input.ctaUrl}`;
+  if (input.unsubscribeRequired) body += ' Reply STOP to opt out.';
+  return body;
 }
 
 function composeOutreachBody(input: {

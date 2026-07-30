@@ -34,8 +34,8 @@ export class CommerceAdminTools {
   constructor(@Inject(CommerceService) private readonly commerce: CommerceService) {}
 
   @McpTool({
-    name: 'commerce_lookup_orders',
-    title: 'Commerce: Look up a customer’s orders',
+    name: 'commerce_list_customer_orders',
+    title: 'Commerce: List a customer’s orders',
     description:
       'List a customer’s recent store orders by email (newest first), e.g. while handling their support conversation. `connectionId` is only needed when multiple commerce connections are active.',
     audiences: ['admin'],
@@ -81,7 +81,7 @@ export class CommerceAdminTools {
 
   @McpTool({
     name: 'commerce_get_product',
-    title: 'Commerce: One product with variants and stock',
+    title: 'Commerce: Get one product',
     description:
       'Fetch one published product from the connected store, including description and per-variant price and availability (`availableForSale`; null when the store doesn’t expose stock). Identify it by `productRef` (from a catalog search) or `sku`. Returns not-found for unpublished products.',
     audiences: ['admin', 'self_service'],

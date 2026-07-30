@@ -151,7 +151,7 @@ class StubImapFetcher implements ImapFetcher {
   it('inbound from new sender → new conversation; admin reply → outbound via mailer with Reply-To plus-address; replied inbound threads back', async () => {
     const rawResult = await withClient(adminKey, async (c) =>
       c.callTool({
-        name: 'conv_setup_email_channel',
+        name: 'conv_configure_email_channel',
         arguments: {
           name: 'Acme Support',
           config: {
@@ -170,7 +170,7 @@ class StubImapFetcher implements ImapFetcher {
       }),
     );
     if ((rawResult as { isError?: boolean }).isError) {
-      throw new Error(`conv_setup_email_channel failed: ${JSON.stringify(rawResult)}`);
+      throw new Error(`conv_configure_email_channel failed: ${JSON.stringify(rawResult)}`);
     }
     const channel = parseToolResult<{
       id: string;
@@ -196,7 +196,7 @@ class StubImapFetcher implements ImapFetcher {
       .where(
         and(
           eq(schema.auditLog.orgId, orgId),
-          eq(schema.auditLog.tool, 'conv_setup_email_channel'),
+          eq(schema.auditLog.tool, 'conv_configure_email_channel'),
         ),
       );
     expect(setupAudit).toHaveLength(1);
@@ -412,7 +412,7 @@ class StubImapFetcher implements ImapFetcher {
 
     const rawResult = await withClient(adminKey, async (c) =>
       c.callTool({
-        name: 'conv_setup_email_channel',
+        name: 'conv_configure_email_channel',
         arguments: {
           name: 'Acme Outreach',
           defaultAgentMode: 'draft_only',
@@ -432,7 +432,7 @@ class StubImapFetcher implements ImapFetcher {
       }),
     );
     if ((rawResult as { isError?: boolean }).isError) {
-      throw new Error(`conv_setup_email_channel failed: ${JSON.stringify(rawResult)}`);
+      throw new Error(`conv_configure_email_channel failed: ${JSON.stringify(rawResult)}`);
     }
     const outreachChannel = parseToolResult<{
       id: string;

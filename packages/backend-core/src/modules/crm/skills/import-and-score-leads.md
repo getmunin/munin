@@ -36,7 +36,7 @@ When a customer hands you a list of leads (CSV from a webinar, scraped from an e
 }
 ```
 
-Returns `{ created: <n>, skipped: <m> }`. Skipped rows match an existing contact by email/phone, **or** match a `doNotContact: true` contact (compliance). The tool does **not** tell you which rows were skipped — if you need to know, `crm_find_contact` per row first (slower but explicit).
+Returns `{ created: <n>, skipped: <m> }`. Skipped rows match an existing contact by email/phone, **or** match a `doNotContact: true` contact (compliance). The tool does **not** tell you which rows were skipped — if you need to know, `crm_lookup_contact` per row first (slower but explicit).
 
 Hard cap: 500 contacts per call. Chunk larger lists.
 
@@ -89,7 +89,7 @@ Pick the right pipeline. For each lead worth pursuing:
 }
 ```
 
-If `stageId` is omitted, the deal lands in the pipeline's first stage. Use `crm_change_stage` later to advance — see `skill://crm/progress-deal-through-pipeline`.
+If `stageId` is omitted, the deal lands in the pipeline's first stage. Use `crm_change_deal_stage` later to advance — see `skill://crm/progress-deal-through-pipeline`.
 
 ## Step 4 — log the source touchpoint
 

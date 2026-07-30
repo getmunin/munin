@@ -260,7 +260,7 @@ Returns `[{ country, views, visitors }]`. A row with `country: null` is the unkn
 
 ```jsonc
 // Which campaigns/channels drive traffic?
-{ "name": "analytics_get_traffic_by_source",
+{ "name": "analytics_list_traffic_sources",
   "arguments": { "subjectType": "page", "sinceDays": 30, "limit": 50 } }
 ```
 

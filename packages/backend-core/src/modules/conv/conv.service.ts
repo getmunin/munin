@@ -1083,7 +1083,7 @@ export class ConvService {
         userPrompt:
           `Run a CRM contact-extraction pass for conversation ${input.id}. ` +
           `Follow the skill exactly: read the conversation, extract identifying info ` +
-          `from end-user messages, dedupe via crm_find_contact, then either create ` +
+          `from end-user messages, dedupe via crm_lookup_contact, then either create ` +
           `(crm_create_contact) or backfill empty fields (crm_update_contact). ` +
           `Skip silently if nothing identifying was volunteered.`,
         sourceEventType: 'conversation.status_changed',

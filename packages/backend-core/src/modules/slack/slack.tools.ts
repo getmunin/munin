@@ -111,7 +111,7 @@ export class SlackAdminTools {
   }
 
   @McpTool({
-    name: 'slack_test',
+    name: 'slack_send_test_message',
     title: 'Slack: Send test message',
     description:
       'Post a test message to the configured default Slack channel to verify the connection end-to-end. Fails with a specific error when the workspace is not connected, no default route is set, or the bot has not been invited to the channel.',

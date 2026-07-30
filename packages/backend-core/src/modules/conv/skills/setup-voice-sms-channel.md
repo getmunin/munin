@@ -10,10 +10,10 @@ Use this when a customer wants Munin on a phone number — an AI voice line (Vap
 
 ## TL;DR
 
-1. `conv_list_channel_vendors` — see the supported vendors and each one's config fields; fields marked `secret: true` are never passed by you.
-2. `conv_configure_channel` with `vendor`, a `name`, and the **non-secret** config fields. The channel is created inactive and the response includes a one-time **credential link**.
+1. `conv_list_voice_sms_vendors` — see the supported vendors and each one's config fields; fields marked `secret: true` are never passed by you.
+2. `conv_configure_voice_sms_channel` with `vendor`, a `name`, and the **non-secret** config fields. The channel is created inactive and the response includes a one-time **credential link**.
 3. Share the credential link — the human enters the vendor API keys in the dashboard. Saving completes the vendor-side setup (webhook registration where applicable), verifies the credentials, and activates the channel. The link works once and expires after 24 hours; mint a fresh one with `conv_request_channel_credentials`.
-4. `conv_test_channel` re-verifies stored credentials any time; `conv_send_channel_test` (SMS) sends a real message.
+4. `conv_test_voice_sms_channel` re-verifies stored credentials any time; `conv_send_voice_sms_channel_test` (SMS) sends a real message.
 
 **Never ask for an API key, auth token, or signing key in the conversation** — the tool rejects secret fields.
 
@@ -26,17 +26,17 @@ Use this when a customer wants Munin on a phone number — an AI voice line (Vap
 
 ## While the channel is pending
 
-A channel waiting on its credential link is `active: false` and every admin action on it (`conv_test_channel`, `conv_send_channel_test`, `conv_list_channel_options`, updates) answers `conv_invalid: channel is awaiting credentials`. If the link expired, mint a new one with `conv_request_channel_credentials { channelId }`.
+A channel waiting on its credential link is `active: false` and every admin action on it (`conv_test_voice_sms_channel`, `conv_send_voice_sms_channel_test`, `conv_list_channel_options`, updates) answers `conv_invalid: channel is awaiting credentials`. If the link expired, mint a new one with `conv_request_channel_credentials { channelId }`.
 
 ## Picking assistant/worker ids
 
-`conv_list_channel_options` lists a vendor's selectable options (Vapi assistants, Threll workers) **using a channel's stored credentials** — so it works only after the credential link is completed. For the initial create, the human reads the id from the vendor dashboard; to switch later, complete setup first, then call `conv_list_channel_options { channelId }` and update with `conv_configure_channel`.
+`conv_list_channel_options` lists a vendor's selectable options (Vapi assistants, Threll workers) **using a channel's stored credentials** — so it works only after the credential link is completed. For the initial create, the human reads the id from the vendor dashboard; to switch later, complete setup first, then call `conv_list_channel_options { channelId }` and update with `conv_configure_voice_sms_channel`.
 
 ## Inbound behaviour
 
 Replies thread. A second message from the same number on the same channel lands in that number's most recent open conversation rather than opening a new one; a snoozed conversation is reopened. A new conversation is started only when the previous one was closed.
 
-**Set `defaultAgentMode` per SMS channel.** `conv_configure_channel { channelId, vendor, defaultAgentMode }` decides what the agent does with texts arriving on that number: `auto` replies directly, `draft_only` files a draft for a human to approve, `off` does neither. Use `draft_only` on a number you only send campaigns from, so a reply is never auto-answered. It applies to SMS only — an inbound call is run by the vendor's assistant, not the Munin agent, so passing it on a voice channel is rejected.
+**Set `defaultAgentMode` per SMS channel.** `conv_configure_voice_sms_channel { channelId, vendor, defaultAgentMode }` decides what the agent does with texts arriving on that number: `auto` replies directly, `draft_only` files a draft for a human to approve, `off` does neither. Use `draft_only` on a number you only send campaigns from, so a reply is never auto-answered. It applies to SMS only — an inbound call is run by the vendor's assistant, not the Munin agent, so passing it on a voice channel is rejected.
 
 **SMS opt-out is automatic and irreversible from your side.** An inbound SMS whose entire body is an opt-out keyword — `STOP`, `STOPP`, `SLUTT`, `AVMELD`, `UNSUBSCRIBE`, `END`, `QUIT`, `CANCEL`, `STOPALL`, case-insensitive, trailing punctuation ignored — suppresses the CRM contact holding that phone number: `doNotContact` is set, `unsubscribedAt` is stamped, and a `crm_activities` note records it. The message is still ingested so the conversation reads truthfully. A sentence that merely contains one of those words ("can you cancel my order?") is an ordinary message and suppresses nothing.
 
@@ -44,6 +44,6 @@ Suppressed contacts drop out of `crm_list_contacts_in_segment`, so they stop app
 
 ## Verify
 
-- `conv_test_channel { channelId }` — vendor-shaped credential check (Twilio account fetch, MessageBird balance, etc.), no message sent.
-- SMS: `conv_send_channel_test { channelId, to }` sends a real message end-to-end.
+- `conv_test_voice_sms_channel { channelId }` — vendor-shaped credential check (Twilio account fetch, MessageBird balance, etc.), no message sent.
+- SMS: `conv_send_voice_sms_channel_test { channelId, to }` sends a real message end-to-end.
 - Voice: there is no tool that places a call. A human verifies the channel end-to-end from the dashboard — Channels → the channel's ⋯ menu → **Make a test call**.

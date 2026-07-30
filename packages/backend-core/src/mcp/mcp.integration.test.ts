@@ -111,7 +111,7 @@ const skipReason = TEST_URL
       expect(names).toContain('kb_create_document');
       expect(names).toContain('kb_search');
       expect(names).toContain('ping');
-      expect(names).not.toContain('feedback_create');
+      expect(names).not.toContain('feedback_create_item');
 
       for (const t of tools) {
         expect(t.annotations, `tool ${t.name} missing annotations`).toBeDefined();
@@ -331,7 +331,7 @@ const skipReason = TEST_URL
         'kb_list_curation_candidates',
         'analytics_get_views_over_time',
         'analytics_get_funnel',
-        'analytics_get_traffic_by_source',
+        'analytics_list_traffic_sources',
         'analytics_get_contact_journey',
         'cms_list_assets',
       ];
@@ -610,7 +610,7 @@ const skipReason = TEST_URL
         expect(names).toContain('kb_get_document');
         expect(names).not.toContain('kb_create_document');
         expect(names).not.toContain('kb_delete_document');
-        expect(names).not.toContain('feedback_create');
+        expect(names).not.toContain('feedback_create_item');
 
         const hits = parseToolResult<Array<{ documentId: string; title: string }>>(
           await c.callTool({ name: 'kb_search', arguments: { query: 'widgets' } }),

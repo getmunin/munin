@@ -45,8 +45,8 @@ export class BookingSelfServiceTools {
   constructor(@Inject(BookingsService) private readonly bookings: BookingsService) {}
 
   @McpTool({
-    name: 'bookings_get_my_bookings',
-    title: 'Bookings: My bookings',
+    name: 'bookings_list_my_bookings',
+    title: 'Bookings: List my bookings',
     description:
       'List the calling end-user’s restaurant/venue bookings (most recent first). Scoped server-side to the email on the end-user’s own record — other guests’ bookings are never visible. `connectionId` is only needed when the org has multiple active booking connections.',
     audiences: ['self_service'],
@@ -61,7 +61,7 @@ export class BookingSelfServiceTools {
 
   @McpTool({
     name: 'bookings_get_my_booking',
-    title: 'Bookings: One of my bookings',
+    title: 'Bookings: Get one of my bookings',
     description:
       'Fetch one of the calling end-user’s bookings, including party size, start time, and duration. Identify it by `bookingRef` from a listing, or `confirmationCode` where the venue’s system issues one. Returns not-found unless the booking belongs to the calling end-user.',
     audiences: ['self_service'],
@@ -76,7 +76,7 @@ export class BookingSelfServiceTools {
 
   @McpTool({
     name: 'bookings_create_my_booking',
-    title: 'Bookings: Book a table for me',
+    title: 'Bookings: Create my booking',
     description:
       'Create a booking for the calling end-user at a date and time for a party size. The booking is made under the end-user’s own email — you cannot book on behalf of anyone else. Check bookings_check_availability first.',
     audiences: ['self_service'],
@@ -91,7 +91,7 @@ export class BookingSelfServiceTools {
 
   @McpTool({
     name: 'bookings_update_my_booking',
-    title: 'Bookings: Modify my booking',
+    title: 'Bookings: Update my booking',
     description:
       'Change one of the calling end-user’s own bookings (date, time, party size, or note) by `bookingRef`. Returns not-found unless the booking belongs to the calling end-user.',
     audiences: ['self_service'],

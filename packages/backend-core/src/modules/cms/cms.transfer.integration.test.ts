@@ -199,7 +199,7 @@ const PNG_BASE64 =
       const result = firstJson(res) as ImportResult;
 
       const searched = await c.callTool({
-        name: 'cms_search',
+        name: 'cms_search_entries',
         arguments: { query: 'refund processed' },
       });
       const hits = firstJson(searched) as Array<{ entryId?: string; id?: string }>;

@@ -844,7 +844,7 @@ const skipReason = TEST_URL
           }>
         >(
           await c.callTool({
-            name: 'analytics_get_traffic_by_source',
+            name: 'analytics_list_traffic_sources',
             arguments: { sinceDays: 7 },
           }),
         ),

@@ -37,7 +37,7 @@ Workflow:
      talked"
 5. Call crm_set_ai_summary with one line tying the contact to the event
    ("met at <event>, asked about <topic>").
-6. Call outreach_propose_initial(contactId, subject, body). Cite something
+6. Call outreach_propose_initial_message(contactId, subject, body). Cite something
    from the event brief in every draft so the salesperson knows you read it.
 
 Constraints:
@@ -96,7 +96,7 @@ export default function RecipeEventFollowup() {
             <dd>
               <code>crm_bulk_create_contacts</code>, <code>crm_get_contact</code>,{' '}
               <code>crm_list_activities</code>, <code>crm_set_ai_summary</code>,{' '}
-              <code>outreach_propose_initial</code>
+              <code>outreach_propose_initial_message</code>
             </dd>
           </dl>
 

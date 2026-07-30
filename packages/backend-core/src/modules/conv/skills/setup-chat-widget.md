@@ -9,7 +9,7 @@ Lets an external AI agent running as a chat widget on a customer's website push 
 
 ## 1. Create the channel and mint a widget key
 
-Call `conv_widget_create_channel`:
+Call `conv_create_widget_channel`:
 
 ```jsonc
 {
@@ -22,7 +22,7 @@ Response includes `widgetKey: "mn_widget_…"` — shown once. Store it server-s
 
 `originAllowlist` is required — the widget ingest endpoint rejects any request whose `Origin` header doesn't match one of the listed full origins (scheme + host + port, exact match). List every environment that should be allowed to ingest (`https://customer.example`, `https://staging.customer.example`, etc.).
 
-The widget key is bound to this channel via `api_keys.channel_id`. Rotate with `conv_widget_rotate_key`; update origins with `conv_widget_update_channel`.
+The widget key is bound to this channel via `api_keys.channel_id`. Rotate with `conv_rotate_widget_key`; update origins with `conv_update_widget_channel`.
 
 ## 2. Push transcripts from the agent
 
@@ -72,7 +72,7 @@ Same webhook surface used elsewhere in Munin — no widget-specific events.
 
 By default widget visitors are anonymous — contacts are keyed on `metadata.sessionId` (or `visitor.email` if sent). To tie a widget session to a *known* user (and gate anonymous access), attach a signed identity: a `verifiedExternalId` + `userHash` pair the ingest endpoint verifies against the channel's identity-verification secret.
 
-`conv_widget_create_channel` returns `identityVerificationSecret` once (alongside `widgetKey`). Treat it like an OAuth client secret — store it server-side, never embed it in browser JS. Rotate with `conv_widget_rotate_identity_secret` (previously-issued hashes stop verifying immediately). This is a **separate secret from the analytics tracker's** — sign widget hashes with the widget channel's secret, never the tracker secret.
+`conv_create_widget_channel` returns `identityVerificationSecret` once (alongside `widgetKey`). Treat it like an OAuth client secret — store it server-side, never embed it in browser JS. Rotate with `conv_rotate_widget_identity_secret` (previously-issued hashes stop verifying immediately). This is a **separate secret from the analytics tracker's** — sign widget hashes with the widget channel's secret, never the tracker secret.
 
 Compute the hash server-side:
 
@@ -98,7 +98,7 @@ The widget hash covers `externalId` **only** — no visitor binding. That's a de
 
 `data-external-id` and `data-user-hash` are all-or-nothing: sending one without the other is rejected (`identity_partial`). Render them only for signed-in users; omit both for anonymous visitors. (On browser-direct calls, the same values are passed as the `verifiedExternalId` + `userHash` params.)
 
-Set `requireVerifiedIdentity: true` on the channel (`conv_widget_create_channel` / `conv_widget_update_channel`) to reject unverified sessions outright; the default (`false`) allows anonymous ingest alongside verified ones.
+Set `requireVerifiedIdentity: true` on the channel (`conv_create_widget_channel` / `conv_update_widget_channel`) to reject unverified sessions outright; the default (`false`) allows anonymous ingest alongside verified ones.
 
 Because the widget and the analytics tracker share the same `localStorage` visitor id (`mn.vid`), identifying a visitor to the widget also stitches their prior anonymous analytics history — no separate `window.mn.identify` call needed for that visitor.
 
@@ -126,7 +126,7 @@ If you must call the endpoint from browser JS, the channel's `originAllowlist` r
 | Task | How |
 |---|---|
 | Disable the channel | Set `conv_channels.active=false`. Existing keys still auth but ingest returns 403. |
-| Rotate the widget key | `conv_widget_rotate_key`. Old key revoked; existing inflight requests with it 401. |
-| Rotate the identity secret | `conv_widget_rotate_identity_secret`. Previously-issued `data-user-hash` values stop verifying; re-render signed-in pages with freshly-computed hashes. |
-| Tighten `originAllowlist` | `conv_widget_update_channel`. |
+| Rotate the widget key | `conv_rotate_widget_key`. Old key revoked; existing inflight requests with it 401. |
+| Rotate the identity secret | `conv_rotate_widget_identity_secret`. Previously-issued `data-user-hash` values stop verifying; re-render signed-in pages with freshly-computed hashes. |
+| Tighten `originAllowlist` | `conv_update_widget_channel`. |
 | Inspect a conversation | Standard `conv_*` tools. The `metadata.sessionId`, `metadata.providerMessageId`, and `metadata.url` fields tell you the visitor's session. |

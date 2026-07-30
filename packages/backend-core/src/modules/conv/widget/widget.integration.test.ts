@@ -91,7 +91,7 @@ const skipReason = TEST_URL
         config: { hasIdentityVerificationSecret: boolean; requireVerifiedIdentity: boolean };
       }>(
         await c.callTool({
-          name: 'conv_widget_create_channel',
+          name: 'conv_create_widget_channel',
           arguments: {
             name: 'storefront-bot',
             originAllowlist: ['https://customer.example'],
@@ -492,7 +492,7 @@ const skipReason = TEST_URL
     const rotated = await withClient(adminKey, async (c) => {
       return parseToolResult<{ widgetKey: string }>(
         await c.callTool({
-          name: 'conv_widget_rotate_key',
+          name: 'conv_rotate_widget_key',
           arguments: { channelId },
         }),
       );
@@ -546,7 +546,7 @@ const skipReason = TEST_URL
         config: Record<string, unknown> & { hasIdentityVerificationSecret: boolean };
       }>(
         await c.callTool({
-          name: 'conv_widget_update_channel',
+          name: 'conv_update_widget_channel',
           arguments: { channelId, originAllowlist: ['https://customer.example/v2'] },
         }),
       );
@@ -559,7 +559,7 @@ const skipReason = TEST_URL
     const enabled = await withClient(adminKey, async (c) => {
       return parseToolResult<{ config: { requireVerifiedIdentity: boolean } }>(
         await c.callTool({
-          name: 'conv_widget_update_channel',
+          name: 'conv_update_widget_channel',
           arguments: { channelId, requireVerifiedIdentity: true },
         }),
       );
@@ -569,7 +569,7 @@ const skipReason = TEST_URL
     const disabled = await withClient(adminKey, async (c) => {
       return parseToolResult<{ config: { requireVerifiedIdentity: boolean } }>(
         await c.callTool({
-          name: 'conv_widget_update_channel',
+          name: 'conv_update_widget_channel',
           arguments: { channelId, requireVerifiedIdentity: false },
         }),
       );
@@ -582,7 +582,7 @@ const skipReason = TEST_URL
     const rotated = await withClient(adminKey, async (c) => {
       return parseToolResult<{ channelId: string; identityVerificationSecret: string }>(
         await c.callTool({
-          name: 'conv_widget_rotate_identity_secret',
+          name: 'conv_rotate_widget_identity_secret',
           arguments: { channelId },
         }),
       );
@@ -625,7 +625,7 @@ const skipReason = TEST_URL
       await withClient(otherAdminKey, async (c) => {
         return parseToolResult(
           await c.callTool({
-            name: 'conv_widget_rotate_identity_secret',
+            name: 'conv_rotate_widget_identity_secret',
             arguments: { channelId },
           }),
         );
@@ -730,7 +730,7 @@ const skipReason = TEST_URL
         identityVerificationSecret: string;
       }>(
         await c.callTool({
-          name: 'conv_widget_create_channel',
+          name: 'conv_create_widget_channel',
           arguments: {
             name: 'storefront-bot-2',
             originAllowlist: ['https://customer.example'],
@@ -1032,7 +1032,7 @@ const skipReason = TEST_URL
   it('rejects anonymous when requireVerifiedIdentity is on; verified passes', async () => {
     await withClient(adminKey, async (c) => {
       await c.callTool({
-        name: 'conv_widget_update_channel',
+        name: 'conv_update_widget_channel',
         arguments: { channelId, requireVerifiedIdentity: true },
       });
     });
@@ -1066,7 +1066,7 @@ const skipReason = TEST_URL
     } finally {
       await withClient(adminKey, async (c) => {
         await c.callTool({
-          name: 'conv_widget_update_channel',
+          name: 'conv_update_widget_channel',
           arguments: { channelId, requireVerifiedIdentity: false },
         });
       });
@@ -1328,7 +1328,7 @@ const skipReason = TEST_URL
     const second = await withClient(adminKey, async (c) => {
       return parseToolResult<{ id: string; widgetKey: string }>(
         await c.callTool({
-          name: 'conv_widget_create_channel',
+          name: 'conv_create_widget_channel',
           arguments: {
             name: 'storefront-bot-list-other',
             originAllowlist: ['https://customer.example'],

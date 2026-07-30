@@ -4,6 +4,7 @@ export interface ProposalContact {
   id: string;
   name: string | null;
   email: string | null;
+  phone: string | null;
 }
 
 export interface ProposalCampaign {
@@ -11,12 +12,21 @@ export interface ProposalCampaign {
   name: string;
 }
 
+export interface ProposalDelivery {
+  channelId: string;
+  channelType: string;
+  vendor: string;
+  destination: string | null;
+  appendsCta: boolean;
+  appendsUnsubscribe: boolean;
+}
+
 export interface Proposal {
   id: string;
   campaignId: string;
   contactId: string;
   conversationId: string | null;
-  kind: 'initial' | 'reply';
+  kind: 'initial' | 'reply' | 'followup';
   draftSubject: string | null;
   draftBody: string;
   evidence: Record<string, unknown>;
@@ -35,6 +45,7 @@ export interface Proposal {
   createdAt: string;
   contact: ProposalContact | null;
   campaign: ProposalCampaign | null;
+  delivery: ProposalDelivery | null;
 }
 
 export interface MergeContact {

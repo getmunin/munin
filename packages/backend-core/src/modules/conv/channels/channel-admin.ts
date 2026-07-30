@@ -17,6 +17,7 @@ export interface ChannelAdminDto {
   vendor: string;
   active: boolean;
   config: unknown;
+  defaultAgentMode?: string;
 }
 
 export interface ConfigureChannelInput {

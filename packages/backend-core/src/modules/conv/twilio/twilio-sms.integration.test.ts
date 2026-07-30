@@ -205,6 +205,139 @@ const skipReason = TEST_URL
     expect(rows.length).toBe(1);
   });
 
+  it('threads a second SMS from the same number into the same conversation', async () => {
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
+    const from = '+14155553333';
+    const base = { AccountSid: ACCOUNT_SID, From: from, To: FROM_NUMBER, NumMedia: '0' };
+    await postWebhook({ ...base, MessageSid: 'SM_thread_1', Body: 'first question' }, url);
+    await postWebhook({ ...base, MessageSid: 'SM_thread_2', Body: 'and another thing' }, url);
+
+    const rows = await db
+      .select({ conversationId: schema.convMessages.conversationId })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.orgId, orgId),
+          sql`${schema.convMessages.metadata}->>'providerMessageId' IN ('SM_thread_1', 'SM_thread_2')`,
+        ),
+      );
+    expect(rows.length).toBe(2);
+    expect(new Set(rows.map((r) => r.conversationId)).size).toBe(1);
+  });
+
+  it('an SMS reading STOP suppresses the matching CRM contact', async () => {
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
+    const from = '+14155554444';
+    const [crmContact] = await db
+      .insert(schema.crmContacts)
+      .values({
+        orgId,
+        name: 'Opt Out',
+        phone: from,
+        consentLawfulBasis: 'consent',
+        consentGivenAt: new Date(),
+        consentSource: 'imported-test',
+      })
+      .returning();
+
+    await postWebhook(
+      {
+        AccountSid: ACCOUNT_SID,
+        MessageSid: 'SM_optout_1',
+        From: from,
+        To: FROM_NUMBER,
+        Body: 'STOP',
+        NumMedia: '0',
+      },
+      url,
+    );
+
+    const [after] = await db
+      .select({
+        doNotContact: schema.crmContacts.doNotContact,
+        unsubscribedAt: schema.crmContacts.unsubscribedAt,
+      })
+      .from(schema.crmContacts)
+      .where(eq(schema.crmContacts.id, crmContact!.id));
+    expect(after!.doNotContact).toBe(true);
+    expect(after!.unsubscribedAt).not.toBeNull();
+
+    const activities = await db
+      .select({ subject: schema.crmActivities.subject })
+      .from(schema.crmActivities)
+      .where(eq(schema.crmActivities.contactId, crmContact!.id));
+    expect(activities.map((a) => a.subject)).toContain('Unsubscribed');
+  });
+
+  it('an ordinary SMS that merely mentions stopping does not suppress the contact', async () => {
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
+    const from = '+14155555555';
+    const [crmContact] = await db
+      .insert(schema.crmContacts)
+      .values({
+        orgId,
+        name: 'Still Subscribed',
+        phone: from,
+        consentLawfulBasis: 'consent',
+        consentGivenAt: new Date(),
+        consentSource: 'imported-test',
+      })
+      .returning();
+
+    await postWebhook(
+      {
+        AccountSid: ACCOUNT_SID,
+        MessageSid: 'SM_not_optout_1',
+        From: from,
+        To: FROM_NUMBER,
+        Body: 'can you stop the subscription renewal on my account?',
+        NumMedia: '0',
+      },
+      url,
+    );
+
+    const [after] = await db
+      .select({ doNotContact: schema.crmContacts.doNotContact })
+      .from(schema.crmContacts)
+      .where(eq(schema.crmContacts.id, crmContact!.id));
+    expect(after!.doNotContact).toBe(false);
+  });
+
+  it('a draft_only channel opens inbound conversations in draft_only', async () => {
+    await db
+      .update(schema.convChannels)
+      .set({ defaultAgentMode: 'draft_only' })
+      .where(eq(schema.convChannels.id, channelId));
+
+    const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
+    await postWebhook(
+      {
+        AccountSid: ACCOUNT_SID,
+        MessageSid: 'SM_draftonly_1',
+        From: '+14155556666',
+        To: FROM_NUMBER,
+        Body: 'is this thing on?',
+        NumMedia: '0',
+      },
+      url,
+    );
+
+    const rows = await db
+      .select({ agentMode: schema.convConversations.agentMode })
+      .from(schema.convConversations)
+      .innerJoin(
+        schema.convMessages,
+        eq(schema.convMessages.conversationId, schema.convConversations.id),
+      )
+      .where(sql`${schema.convMessages.metadata}->>'providerMessageId' = 'SM_draftonly_1'`);
+    expect(rows[0]!.agentMode).toBe('draft_only');
+
+    await db
+      .update(schema.convChannels)
+      .set({ defaultAgentMode: 'auto' })
+      .where(eq(schema.convChannels.id, channelId));
+  });
+
   it('updates conv_message_deliveries on a status callback', async () => {
     const conversationRows = await db
       .select({ id: schema.convConversations.id })

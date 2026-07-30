@@ -10,6 +10,7 @@ import {
   encryptSecretSql,
   getCurrentContext,
 } from '@getmunin/core';
+import type { AgentMode } from '@getmunin/types';
 import { schema, type Db } from '@getmunin/db';
 import { z } from 'zod';
 import { DB } from '../../../common/db/db.module.ts';
@@ -46,6 +47,7 @@ export interface MessageBirdSmsChannelDto {
   vendor: 'messagebird';
   active: boolean;
   config: MessageBirdSmsConfigDto;
+  defaultAgentMode: AgentMode;
 }
 
 @Injectable()
@@ -55,6 +57,7 @@ export class MessageBirdSmsService {
   async createChannel(input: {
     name: string;
     config: MessageBirdSmsConfigInput;
+    defaultAgentMode?: AgentMode;
   }): Promise<MessageBirdSmsChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -67,16 +70,18 @@ export class MessageBirdSmsService {
         vendor: 'messagebird',
         name: input.name,
         config: storedToJsonb(stored),
+        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
       })
       .returning();
     if (!row) throw new ConflictException('channel_create_failed');
-    return this.toDto(row.id, row.name, row.active, stored);
+    return this.toDto(row.id, row.name, row.active, stored, row.defaultAgentMode as AgentMode);
   }
 
   async updateChannel(input: {
     channelId: string;
     name?: string;
     config?: Partial<MessageBirdSmsConfigInput>;
+    defaultAgentMode?: AgentMode;
   }): Promise<MessageBirdSmsChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -109,13 +114,14 @@ export class MessageBirdSmsService {
       .update(schema.convChannels)
       .set({
         ...(input.name && { name: input.name }),
+        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
         config: storedToJsonb(merged),
         updatedAt: new Date(),
       })
       .where(eq(schema.convChannels.id, input.channelId))
       .returning();
     if (!row) throw new ConflictException('channel_update_failed');
-    return this.toDto(row.id, row.name, row.active, merged);
+    return this.toDto(row.id, row.name, row.active, merged, row.defaultAgentMode as AgentMode);
   }
 
   async completeSetup(
@@ -159,6 +165,7 @@ export class MessageBirdSmsService {
     name: string,
     active: boolean,
     stored: StoredMessageBirdSmsConfig,
+    defaultAgentMode: AgentMode,
   ): MessageBirdSmsChannelDto {
     return {
       id,
@@ -166,6 +173,7 @@ export class MessageBirdSmsService {
       type: 'sms',
       vendor: 'messagebird',
       active,
+      defaultAgentMode,
       config: {
         accessKey: REDACTED,
         signingKey: REDACTED,

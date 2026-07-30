@@ -9,7 +9,7 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
-import { OutreachService, OutreachInvalidError } from './outreach.service.ts';
+import { OutreachService, OutreachInvalidError, SMS_DRAFT_MAX_CHARS } from './outreach.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
@@ -1574,6 +1574,193 @@ const skipReason = TEST_URL
         svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
       );
       expect(approved.status).toBe('sent');
+    });
+  });
+
+  describe('sms campaigns', () => {
+    let smsChannelId: string;
+    let smsContactId: string;
+
+    beforeEach(async () => {
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'sms',
+          vendor: 'twilio',
+          name: 'outreach-sms',
+          active: true,
+          config: { accountSid: 'AC_test', encryptedAuthToken: 'fake', fromNumber: '+15550001111' },
+        })
+        .returning();
+      smsChannelId = channel!.id;
+
+      const [crm] = await db
+        .insert(schema.crmContacts)
+        .values({
+          orgId,
+          name: 'Text Me',
+          email: 'text@example.com',
+          phone: '+14155558888',
+          consentLawfulBasis: 'consent',
+          doNotContact: false,
+        })
+        .returning();
+      smsContactId = crm!.id;
+    });
+
+    function humanActor(): ActorIdentity {
+      return new ActorIdentity(
+        'user',
+        'usr_outreach_sms_test',
+        orgId,
+        ['*'],
+        ['admin'],
+        undefined,
+        undefined,
+        undefined,
+        'usr_outreach_sms_test',
+      );
+    }
+
+    async function campaign(overrides: { unsubscribeRequired?: boolean; ctaUrl?: string } = {}) {
+      return run(() =>
+        svc.createCampaign({
+          name: `sms-${Math.round(overrides.unsubscribeRequired === false ? 1 : 0)}-${smsChannelId.slice(-6)}`,
+          brief: 'b',
+          segmentId,
+          channelId: smsChannelId,
+          enabled: true,
+          ...overrides,
+        }),
+      );
+    }
+
+    it('accepts an sms channel and reports the phone as the delivery destination', async () => {
+      const c = await campaign();
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: smsContactId,
+          draftBody: 'Hei! Vi har lansert noe du ba om.',
+        }),
+      );
+      expect(p.draftSubject).toBeNull();
+      expect(p.delivery?.channelType).toBe('sms');
+      expect(p.delivery?.destination).toBe('+14155558888');
+      expect(p.delivery?.appendsUnsubscribe).toBe(false);
+    });
+
+    it('rejects a draft longer than the SMS cap', async () => {
+      const c = await campaign();
+      await expect(
+        run(() =>
+          svc.proposeInitial({
+            campaignId: c.id,
+            contactId: smsContactId,
+            draftBody: 'x'.repeat(SMS_DRAFT_MAX_CHARS + 1),
+          }),
+        ),
+      ).rejects.toThrow(/SMS drafts are capped/);
+    });
+
+    it('rejects a contact with no phone number', async () => {
+      const [phoneless] = await db
+        .insert(schema.crmContacts)
+        .values({
+          orgId,
+          name: 'No Phone',
+          email: 'nophone-sms@example.com',
+          consentLawfulBasis: 'consent',
+          doNotContact: false,
+        })
+        .returning();
+      const c = await campaign();
+      await expect(
+        run(() =>
+          svc.proposeInitial({ campaignId: c.id, contactId: phoneless!.id, draftBody: 'Hi.' }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('an agent cannot approve an sms proposal', async () => {
+      const c = await campaign();
+      const p = await run(() =>
+        svc.proposeInitial({ campaignId: c.id, contactId: smsContactId, draftBody: 'Hi.' }),
+      );
+      await expect(
+        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' })),
+      ).rejects.toThrow(/signed-in person in the Munin dashboard/);
+    });
+
+    it('a human approval sends the text, appends the opt-out line, and queues a delivery', async () => {
+      const c = await campaign();
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: smsContactId,
+          draftBody: 'Hei! Vi har lansert noe du ba om.',
+        }),
+      );
+      const approved = await runAs(humanActor(), () =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+      );
+      expect(approved.status).toBe('sent');
+      expect(approved.conversationId).toBeTruthy();
+
+      const messages = await db
+        .select({ id: schema.convMessages.id, body: schema.convMessages.body })
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.conversationId, approved.conversationId!));
+      expect(messages).toHaveLength(1);
+      expect(messages[0]!.body).toBe('Hei! Vi har lansert noe du ba om. Reply STOP to opt out.');
+      expect(messages[0]!.body).not.toContain('](');
+
+      const deliveries = await db
+        .select({ status: schema.convMessageDeliveries.status })
+        .from(schema.convMessageDeliveries)
+        .where(eq(schema.convMessageDeliveries.messageId, messages[0]!.id));
+      expect(deliveries).toHaveLength(1);
+      expect(deliveries[0]!.status).toBe('queued');
+
+      const convs = await db
+        .select({
+          agentMode: schema.convConversations.agentMode,
+          outreachCampaignId: schema.convConversations.outreachCampaignId,
+        })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, approved.conversationId!));
+      expect(convs[0]!.agentMode).toBe('draft_only');
+      expect(convs[0]!.outreachCampaignId).toBe(c.id);
+    });
+
+    it('omits the opt-out line when the campaign does not require unsubscribe', async () => {
+      const c = await campaign({ unsubscribeRequired: false });
+      const p = await run(() =>
+        svc.proposeInitial({ campaignId: c.id, contactId: smsContactId, draftBody: 'Kort melding.' }),
+      );
+      const approved = await runAs(humanActor(), () =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+      );
+      const messages = await db
+        .select({ body: schema.convMessages.body })
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.conversationId, approved.conversationId!));
+      expect(messages[0]!.body).toBe('Kort melding.');
+    });
+
+    it('rejects sequence steps on an sms campaign', async () => {
+      await expect(
+        run(() =>
+          svc.createCampaign({
+            name: 'sms-with-steps',
+            brief: 'b',
+            segmentId,
+            channelId: smsChannelId,
+            sequenceSteps: [{ waitDays: 3, brief: 'bump' }],
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
     });
   });
 });

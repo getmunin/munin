@@ -8,6 +8,7 @@ import {
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { schema } from '@getmunin/db';
+import type { AgentMode } from '@getmunin/types';
 import {
   CHANNEL_ADMIN_PROVIDERS,
   PENDING_SETUP_KEY,
@@ -47,24 +48,48 @@ export class ChannelAdminService {
       channelId?: string;
       name?: string;
       config: Record<string, unknown>;
+      defaultAgentMode?: AgentMode;
     },
     opts?: { rejectSecrets?: boolean },
   ): Promise<ChannelAdminDto> {
     const provider = this.requireVendor(input.vendor);
     if (opts?.rejectSecrets) this.assertNoSecrets(provider, input.config);
+    if (input.defaultAgentMode && provider.kind !== 'sms') {
+      throw new BadRequestException(
+        `defaultAgentMode does not apply to ${provider.kind} channels — an inbound call is run by the vendor's assistant, not by the Munin agent`,
+      );
+    }
     if (input.channelId) await this.assertNotPending(input.channelId);
     if (opts?.rejectSecrets && !input.channelId) {
-      return this.createPending(provider, { name: input.name, config: input.config });
+      const pending = await this.createPending(provider, {
+        name: input.name,
+        config: input.config,
+      });
+      return this.applyDefaultAgentMode(pending, input.defaultAgentMode);
     }
     const parsed = provider.configInput.safeParse(input.config);
     if (!parsed.success) {
       throw new BadRequestException(`invalid config for ${input.vendor}: ${parsed.error.message}`);
     }
-    return provider.configure({
+    const configured = await provider.configure({
       channelId: input.channelId,
       name: input.name,
       config: parsed.data,
     });
+    return this.applyDefaultAgentMode(configured, input.defaultAgentMode);
+  }
+
+  private async applyDefaultAgentMode(
+    channel: ChannelAdminDto,
+    defaultAgentMode: AgentMode | undefined,
+  ): Promise<ChannelAdminDto> {
+    if (!defaultAgentMode) return channel;
+    const ctx = getCurrentContext();
+    await ctx.db
+      .update(schema.convChannels)
+      .set({ defaultAgentMode, updatedAt: new Date() })
+      .where(eq(schema.convChannels.id, channel.id));
+    return { ...channel, defaultAgentMode };
   }
 
   async completeSetup(

@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
-import { sensitive } from '@getmunin/types';
+import { sensitive, AgentModeSchema } from '@getmunin/types';
 import { schema, type Db } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
@@ -18,6 +18,9 @@ export const ConfigureInput = z.object({
     .optional()
     .describe('Pass an existing channel id to update; omit to create a new channel.'),
   name: z.string().min(1).max(120).optional(),
+  defaultAgentMode: AgentModeSchema.optional().describe(
+    "How the agent handles inbound texts on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
+  ),
   accountSid: z
     .string()
     .min(2)
@@ -38,14 +41,20 @@ export const ConfigureInput = z.object({
     .string()
     .min(2)
     .max(32)
+    .nullable()
     .optional()
-    .describe('E.164-formatted Twilio number to send from. Either this or messagingServiceSid is required.'),
+    .describe(
+      'E.164-formatted Twilio number to send from. Either this or messagingServiceSid is required. Pass null when updating to clear it, e.g. when switching this channel to a Messaging Service.',
+    ),
   messagingServiceSid: z
     .string()
     .min(2)
     .max(64)
+    .nullable()
     .optional()
-    .describe('Twilio Messaging Service SID (starts with "MG"). Alternative to fromNumber.'),
+    .describe(
+      'Twilio Messaging Service SID (starts with "MG"). Alternative to fromNumber, and required for US A2P 10DLC traffic. Pass null when updating to clear it.',
+    ),
 });
 
 @Injectable()
@@ -68,6 +77,7 @@ export class TwilioSmsAdminService {
       return this.svc.updateChannel({
         channelId: args.channelId,
         name: args.name,
+        defaultAgentMode: args.defaultAgentMode,
         config: {
           accountSid: args.accountSid,
           authToken: args.authToken,
@@ -84,11 +94,12 @@ export class TwilioSmsAdminService {
     }
     return this.svc.createChannel({
       name: args.name,
+      defaultAgentMode: args.defaultAgentMode,
       config: {
         accountSid: args.accountSid,
         authToken: args.authToken,
-        fromNumber: args.fromNumber,
-        messagingServiceSid: args.messagingServiceSid,
+        fromNumber: args.fromNumber ?? undefined,
+        messagingServiceSid: args.messagingServiceSid ?? undefined,
       },
     });
   }

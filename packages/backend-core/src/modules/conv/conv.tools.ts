@@ -247,7 +247,7 @@ export class ConvAdminTools {
     name: 'conv_create_channel',
     title: 'Conv: Create conversation channel',
     description:
-      'Add a new conversation channel. Currently shipping adapters: `email` and `chat` (widget). Channel-specific configuration goes in `config`. The `voice` and `sms` channel types are reserved and not yet wired to an adapter.',
+      'Add a new conversation channel. Channel-specific configuration goes in `config`. Use this for `email` and `chat` (widget) channels; `voice` and `sms` channels are vendor-backed and are created with conv_configure_channel instead, which handles their credential handoff.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateChannelInput,

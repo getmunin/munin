@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { schema, type Db, type Tx } from '@getmunin/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import {
   ActorIdentity,
@@ -11,6 +11,7 @@ import {
 import { DB } from '../../../common/db/db.module.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
+import { reopenClosedConversation } from '../conversation-reopen.ts';
 import type { ChannelRow, InboundBatch } from './adapter.ts';
 
 @Injectable()
@@ -66,23 +67,9 @@ export class ChannelIngestService {
 
         const contact = await findOrCreateContact(tx, orgId, msg.fromIdentity);
 
-        const next = await tx.execute<{ next: number } & Record<string, unknown>>(
-          sql`SELECT conv_next_display_id(${orgId}) AS next`,
-        );
-        const displayId = next[0]!.next;
-        const [conversation] = await tx
-          .insert(schema.convConversations)
-          .values({
-            orgId,
-            displayId,
-            channelId: channel.id,
-            contactId: contact.id,
-            endUserId: contact.endUserId,
-            status: 'open',
-            subject: null,
-            lastMessageAt: msg.receivedAt,
-          })
-          .returning();
+        const conversation =
+          (await findThreadableConversation(tx, orgId, channel.id, contact.id)) ??
+          (await createConversation(tx, orgId, channel, contact, msg.receivedAt));
 
         const metadata: Record<string, unknown> = {
           providerMessageId: msg.providerMessageId,
@@ -94,7 +81,7 @@ export class ChannelIngestService {
           .insert(schema.convMessages)
           .values({
             orgId,
-            conversationId: conversation!.id,
+            conversationId: conversation.id,
             authorType: 'end_user',
             authorId: contact.id,
             body: msg.body,
@@ -107,24 +94,134 @@ export class ChannelIngestService {
         await tx
           .update(schema.convConversations)
           .set({ lastMessageAt: msg.receivedAt, updatedAt: new Date() })
-          .where(eq(schema.convConversations.id, conversation!.id));
+          .where(eq(schema.convConversations.id, conversation.id));
 
         await this.webhooks.emit({
           type: 'conversation.message.received',
           payload: {
-            conversationId: conversation!.id,
+            conversationId: conversation.id,
             messageId: stored!.id,
             authorType: 'end_user',
             internal: false,
           },
         });
+        if (channel.type === 'sms' && isOptOutKeyword(msg.body)) {
+          await suppressContactByPhone(tx, orgId, contact.phone, channel.id);
+        }
+
         await this.curatorJobs.enqueue(
-          buildSetTopicAndTitleJob({ conversationId: conversation!.id, channelType: channel.type }),
+          buildSetTopicAndTitleJob({ conversationId: conversation.id, channelType: channel.type }),
         );
         return true;
       });
     });
   }
+}
+
+const OPT_OUT_KEYWORDS = new Set([
+  'stop',
+  'stopp',
+  'slutt',
+  'stopall',
+  'unsubscribe',
+  'end',
+  'quit',
+  'cancel',
+  'avmeld',
+]);
+
+export function isOptOutKeyword(body: string): boolean {
+  const normalised = body
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?,;:]+$/g, '');
+  return OPT_OUT_KEYWORDS.has(normalised);
+}
+
+async function suppressContactByPhone(
+  tx: Db | Tx,
+  orgId: string,
+  phone: string | null,
+  channelId: string,
+): Promise<void> {
+  if (!phone) return;
+  const rows = await tx
+    .select({ id: schema.crmContacts.id, unsubscribedAt: schema.crmContacts.unsubscribedAt })
+    .from(schema.crmContacts)
+    .where(and(eq(schema.crmContacts.orgId, orgId), eq(schema.crmContacts.phone, phone)))
+    .limit(1);
+  const contact = rows[0];
+  if (!contact || contact.unsubscribedAt) return;
+  const now = new Date();
+  await tx
+    .update(schema.crmContacts)
+    .set({ unsubscribedAt: now, doNotContact: true, updatedAt: now })
+    .where(eq(schema.crmContacts.id, contact.id));
+  await tx.insert(schema.crmActivities).values({
+    orgId,
+    type: 'note',
+    subject: 'Unsubscribed',
+    body: 'Replied with an opt-out keyword over SMS',
+    contactId: contact.id,
+    actorType: 'system',
+    actorId: 'sms-opt-out',
+    metadata: { optOut: { channelId, via: 'sms_keyword' } },
+  });
+}
+
+async function findThreadableConversation(
+  tx: Db | Tx,
+  orgId: string,
+  channelId: string,
+  contactId: string,
+): Promise<typeof schema.convConversations.$inferSelect | null> {
+  const rows = await tx
+    .select()
+    .from(schema.convConversations)
+    .where(
+      and(
+        eq(schema.convConversations.orgId, orgId),
+        eq(schema.convConversations.channelId, channelId),
+        eq(schema.convConversations.contactId, contactId),
+        inArray(schema.convConversations.status, ['open', 'snoozed']),
+      ),
+    )
+    .orderBy(desc(schema.convConversations.lastMessageAt))
+    .limit(1);
+  const conversation = rows[0];
+  if (!conversation) return null;
+  if (conversation.status === 'snoozed') {
+    await reopenClosedConversation(tx, conversation.id);
+    return { ...conversation, status: 'open' };
+  }
+  return conversation;
+}
+
+async function createConversation(
+  tx: Db | Tx,
+  orgId: string,
+  channel: ChannelRow,
+  contact: typeof schema.convContacts.$inferSelect,
+  receivedAt: Date,
+): Promise<typeof schema.convConversations.$inferSelect> {
+  const next = await tx.execute<{ next: number } & Record<string, unknown>>(
+    sql`SELECT conv_next_display_id(${orgId}) AS next`,
+  );
+  const [conversation] = await tx
+    .insert(schema.convConversations)
+    .values({
+      orgId,
+      displayId: next[0]!.next,
+      channelId: channel.id,
+      contactId: contact.id,
+      endUserId: contact.endUserId,
+      status: 'open',
+      subject: null,
+      agentMode: channel.defaultAgentMode,
+      lastMessageAt: receivedAt,
+    })
+    .returning();
+  return conversation!;
 }
 
 async function findOrCreateContact(

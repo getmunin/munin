@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
-import { sensitive } from '@getmunin/types';
+import { sensitive, AgentModeSchema } from '@getmunin/types';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
@@ -17,6 +17,9 @@ export const ConfigureInput = z.object({
     .optional()
     .describe('Pass an existing channel id to update; omit to create a new channel.'),
   name: z.string().min(1).max(120).optional(),
+  defaultAgentMode: AgentModeSchema.optional().describe(
+    "How the agent handles inbound texts on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
+  ),
   accessKey: sensitive(
     z
       .string()
@@ -66,6 +69,7 @@ export class MessageBirdSmsAdminService {
       return this.svc.updateChannel({
         channelId: args.channelId,
         name: args.name,
+        defaultAgentMode: args.defaultAgentMode,
         config: {
           accessKey: args.accessKey,
           signingKey: args.signingKey,
@@ -79,6 +83,7 @@ export class MessageBirdSmsAdminService {
     if (!args.originator) throw new BadRequestException('originator is required when creating');
     return this.svc.createChannel({
       name: args.name,
+      defaultAgentMode: args.defaultAgentMode,
       config: {
         accessKey: args.accessKey,
         signingKey: args.signingKey,

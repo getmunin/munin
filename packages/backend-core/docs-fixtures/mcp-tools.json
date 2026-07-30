@@ -2938,7 +2938,7 @@
   {
     "name": "conv_create_channel",
     "title": "Conv: Create conversation channel",
-    "description": "Add a new conversation channel. Currently shipping adapters: `email` and `chat` (widget). Channel-specific configuration goes in `config`. The `voice` and `sms` channel types are reserved and not yet wired to an adapter.",
+    "description": "Add a new conversation channel. Channel-specific configuration goes in `config`. Use this for `email` and `chat` (widget) channels; `voice` and `sms` channels are vendor-backed and are created with conv_configure_channel instead, which handles their credential handoff.",
     "audiences": [
       "admin"
     ],
@@ -3905,7 +3905,7 @@
   {
     "name": "conv_configure_channel",
     "title": "Conv: Configure a voice/SMS channel",
-    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_channel_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create.",
+    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_channel_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.",
     "audiences": [
       "admin"
     ],
@@ -3933,6 +3933,15 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 120
+        },
+        "defaultAgentMode": {
+          "description": "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. SMS channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
+          "type": "string",
+          "enum": [
+            "auto",
+            "draft_only",
+            "off"
+          ]
         },
         "config": {
           "type": "object",

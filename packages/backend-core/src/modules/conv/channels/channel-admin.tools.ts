@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { sensitive } from '@getmunin/types';
+import { AgentModeSchema, sensitive } from '@getmunin/types';
 import { ChannelAdminService } from './channel-admin.service.ts';
 import { ChannelCredentialService } from './channel-credential.service.ts';
 import type { ChannelAdminDto } from './channel-admin.ts';
@@ -18,6 +18,9 @@ const ConfigureInput = z.object({
     .optional()
     .describe('Pass an existing channel id to update; omit to create a new channel.'),
   name: z.string().min(1).max(120).optional().describe('Channel display name. Required on create.'),
+  defaultAgentMode: AgentModeSchema.optional().describe(
+    "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. SMS channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
+  ),
   config: sensitive(
     z
       .record(z.string(), z.unknown())
@@ -84,7 +87,7 @@ export class ChannelAdminTools {
     name: 'conv_configure_channel',
     title: 'Conv: Configure a voice/SMS channel',
     description:
-      'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_channel_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create.',
+      'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_channel_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: ConfigureInput,
@@ -100,6 +103,7 @@ export class ChannelAdminTools {
         channelId: args.channelId,
         name: args.name,
         config: args.config,
+        defaultAgentMode: args.defaultAgentMode,
       },
       { rejectSecrets: true },
     );

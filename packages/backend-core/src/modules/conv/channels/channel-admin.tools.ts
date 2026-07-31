@@ -128,10 +128,10 @@ export class ChannelAdminTools {
   }
 
   @McpTool({
-    name: 'conv_send_voice_sms_channel_test',
-    title: 'Conv: Send a real test message on a voice/SMS channel',
+    name: 'conv_send_sms_channel_test',
+    title: 'Conv: Send a real test SMS on a channel',
     description:
-      'Send a real test message through a voice or SMS channel that supports it, addressed to `to`. Useful for end-to-end deliverability checks. Email channels use conv_send_email_channel_test instead.',
+      'Send a real test SMS through an SMS channel (Twilio, MessageBird), addressed to `to`. Useful for end-to-end deliverability checks. Voice channels have no test send — their credentials are checked with conv_test_voice_sms_channel, and a test call is placed by a human from the dashboard. Email channels use conv_send_email_channel_test.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SendTestInput,

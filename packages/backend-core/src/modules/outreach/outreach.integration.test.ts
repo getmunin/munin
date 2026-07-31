@@ -155,7 +155,7 @@ const skipReason = TEST_URL
           'outreach_list_due_followups',
           'outreach_list_proposals',
           'outreach_propose_followup',
-          'outreach_propose_initial_message',
+          'outreach_propose_first_touch',
           'outreach_propose_reply',
           'outreach_revise_proposal',
           'outreach_update_campaign',
@@ -179,7 +179,7 @@ const skipReason = TEST_URL
     });
   });
 
-  it('full admin flow: list (empty) → create → get → update → list (1) → propose_initial → list_proposals', async () => {
+  it('full admin flow: list (empty) → create → get → update → list (1) → propose_first_touch → list_proposals', async () => {
     let campaignId = '';
     let proposalId = '';
 
@@ -224,7 +224,7 @@ const skipReason = TEST_URL
       expect(populatedList.map((r) => r.id)).toContain(campaignId);
 
       const proposed = await c.callTool({
-        name: 'outreach_propose_initial_message',
+        name: 'outreach_propose_first_touch',
         arguments: {
           campaignId,
           contactId,
@@ -305,7 +305,7 @@ const skipReason = TEST_URL
       const campaign = firstJson(created) as { id: string };
 
       const proposed = await c.callTool({
-        name: 'outreach_propose_initial_message',
+        name: 'outreach_propose_first_touch',
         arguments: {
           campaignId: campaign.id,
           contactId: callable!.id,
@@ -367,7 +367,7 @@ const skipReason = TEST_URL
       const campaignId = (firstJson(created) as { id: string }).id;
 
       const proposed = await c.callTool({
-        name: 'outreach_propose_initial_message',
+        name: 'outreach_propose_first_touch',
         arguments: { campaignId, contactId, draftSubject: 'First cut', draftBody: 'Original body.' },
       });
       const proposalId = (firstJson(proposed) as { id: string }).id;
@@ -491,7 +491,7 @@ const skipReason = TEST_URL
     });
   });
 
-  it('automation flags default to autoDraftInitial=false / autoDraftReplies=true and are togglable', async () => {
+  it('automation flags default to autoDraftFirstTouch=false / autoDraftReplies=true and are togglable', async () => {
     await withClient(adminKey, async (c) => {
       const created = firstJson(
         (await c.callTool({
@@ -503,22 +503,22 @@ const skipReason = TEST_URL
             channelId,
           },
         })),
-      ) as { id: string; autoDraftInitial: boolean; autoDraftReplies: boolean };
-      expect(created.autoDraftInitial).toBe(false);
+      ) as { id: string; autoDraftFirstTouch: boolean; autoDraftReplies: boolean };
+      expect(created.autoDraftFirstTouch).toBe(false);
       expect(created.autoDraftReplies).toBe(true);
 
       const updated = firstJson(
         (await c.callTool({
           name: 'outreach_update_campaign',
-          arguments: { id: created.id, patch: { autoDraftInitial: true, autoDraftReplies: false } },
+          arguments: { id: created.id, patch: { autoDraftFirstTouch: true, autoDraftReplies: false } },
         })),
-      ) as { autoDraftInitial: boolean; autoDraftReplies: boolean };
-      expect(updated.autoDraftInitial).toBe(true);
+      ) as { autoDraftFirstTouch: boolean; autoDraftReplies: boolean };
+      expect(updated.autoDraftFirstTouch).toBe(true);
       expect(updated.autoDraftReplies).toBe(false);
     });
   });
 
-  it('propose_initial refuses a contact already sent a first-touch, but allows re-draft after dismissal', async () => {
+  it('propose_first_touch refuses a contact already sent a first-touch, but allows re-draft after dismissal', async () => {
     let campaignId = '';
     let firstProposalId = '';
 
@@ -538,7 +538,7 @@ const skipReason = TEST_URL
 
       const first = firstJson(
         (await c.callTool({
-          name: 'outreach_propose_initial_message',
+          name: 'outreach_propose_first_touch',
           arguments: { campaignId, contactId, draftSubject: 'Hi Jane', draftBody: 'First touch.' },
         })),
       ) as { id: string };
@@ -552,7 +552,7 @@ const skipReason = TEST_URL
 
     await withClient(adminKey, async (c) => {
       const blocked = await c.callTool({
-        name: 'outreach_propose_initial_message',
+        name: 'outreach_propose_first_touch',
         arguments: { campaignId, contactId, draftSubject: 'Hi again', draftBody: 'Second touch.' },
       });
       expect(blocked.isError).toBe(true);
@@ -566,7 +566,7 @@ const skipReason = TEST_URL
 
     await withClient(adminKey, async (c) => {
       const allowed = await c.callTool({
-        name: 'outreach_propose_initial_message',
+        name: 'outreach_propose_first_touch',
         arguments: { campaignId, contactId, draftSubject: 'Hi again', draftBody: 'Second touch.' },
       });
       expect(allowed.isError).not.toBe(true);
@@ -591,7 +591,7 @@ const skipReason = TEST_URL
 
       const proposed = firstJson(
         (await c.callTool({
-          name: 'outreach_propose_initial_message',
+          name: 'outreach_propose_first_touch',
           arguments: {
             campaignId: created.id,
             contactId,
@@ -669,7 +669,7 @@ const skipReason = TEST_URL
 
       const initial = firstJson(
         (await c.callTool({
-          name: 'outreach_propose_initial_message',
+          name: 'outreach_propose_first_touch',
           arguments: {
             campaignId: campaign.id,
             contactId: seqContact!.id,

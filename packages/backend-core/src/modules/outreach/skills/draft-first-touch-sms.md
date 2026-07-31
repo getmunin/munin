@@ -1,12 +1,12 @@
 ---
-title: "Outreach: Draft an initial text message"
+title: "Outreach: Draft a first-touch text message"
 description: Draft first-touch SMS outreach for a campaign running on an SMS channel. One pending proposal per (campaign, contact), capped at 480 characters, plain text. Only a signed-in person in the Munin dashboard can approve a text — an agent never sends one.
 audiences: [admin]
 ---
 
-# Draft an initial text message
+# Draft a first-touch text message
 
-Same shape as `skill://outreach/draft-initial-email`, with three differences that matter enough to be their own skill: a text is far shorter, it costs money per segment, and **you cannot send one**.
+Same shape as `skill://outreach/draft-first-touch-email`, with three differences that matter enough to be their own skill: a text is far shorter, it costs money per segment, and **you cannot send one**.
 
 **Approving a text is a dashboard-only action.** `outreach_approve_proposal` refuses any caller that is not a signed-in dashboard user — agents, admin API keys, the Slack button. Draft, file the proposal, tell the operator it is waiting in the dashboard inbox, and stop. Don't retry, don't look for another tool, and don't ask for a credential that would work. `outreach_revise_proposal`, `outreach_withdraw_proposal` and `outreach_dismiss_proposal` all still work on these — none of them send anything.
 
@@ -14,9 +14,9 @@ Same shape as `skill://outreach/draft-initial-email`, with three differences tha
 
 1. **List campaigns** with `outreach_list_campaigns` and keep the enabled ones. Check the campaign's channel is SMS before drafting text-shaped copy — `outreach_list_proposals` on an existing proposal shows `delivery.channelType`, or read the channel off `conv_list_channels`.
 2. **Materialise the audience** with `crm_list_contacts_in_segment(campaign.segmentId)`. Already filtered for suppression and lawful basis. Anyone who ever replied `STOP` to a text is suppressed automatically and will not appear.
-3. **Skip contacts with no `phone`.** `outreach_propose_initial_message` rejects them, and a rejection you could have predicted is a wasted call.
+3. **Skip contacts with no `phone`.** `outreach_propose_first_touch` rejects them, and a rejection you could have predicted is a wasted call.
 4. **Dedupe** via `outreach_list_proposals({ kind: "initial", campaignId, contactId })` exactly as the email pass does.
-5. **Draft** (rules below) and file with `outreach_propose_initial_message({ campaignId, contactId, draftBody, evidence })`. No `draftSubject` — a text has no subject.
+5. **Draft** (rules below) and file with `outreach_propose_first_touch({ campaignId, contactId, draftBody, evidence })`. No `draftSubject` — a text has no subject.
 6. **Stop.**
 
 ## Writing the text
@@ -40,7 +40,7 @@ Follow-up sequences are email-only. An SMS campaign cannot carry `sequenceSteps`
 
 ## Related
 
-- `skill://outreach/draft-initial-email` — the same pass for email, where you may draft at length.
-- `skill://outreach/draft-initial-call` — the spoken equivalent, with a higher bar for who is worth contacting.
+- `skill://outreach/draft-first-touch-email` — the same pass for email, where you may draft at length.
+- `skill://outreach/draft-first-touch-call` — the spoken equivalent, with a higher bar for who is worth contacting.
 - `skill://outreach/review-proposals` — what the operator does with what you filed, and why you cannot do it for them.
 - `skill://conv/setup-voice-sms-channel` — configuring the number, including `defaultAgentMode` and how STOP suppression works.

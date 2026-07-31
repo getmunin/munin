@@ -105,7 +105,7 @@ const skipReason = TEST_URL
       name: string;
       segmentId: string;
       channelId: string;
-      autoDraftInitial: boolean;
+      autoDraftFirstTouch: boolean;
       autoDraftReplies: boolean;
       sequenceSteps: Array<{ waitDays: number; brief: string }>;
     }>;
@@ -140,7 +140,7 @@ const skipReason = TEST_URL
             brief: 'Re-engage warm leads.',
             segmentId: segment.id,
             channelId: channel.id,
-            autoDraftInitial: true,
+            autoDraftFirstTouch: true,
             autoDraftReplies: false,
             sequenceSteps: [
               { waitDays: 3, brief: 'gentle bump' },
@@ -236,7 +236,7 @@ const skipReason = TEST_URL
     expect(migrated.onB.proposals.length).toBe(3);
     expect(migrated.onB.campaigns[0]!.segmentId).not.toBe(srcSegmentId);
     expect(migrated.onB.campaigns[0]!.segmentId).toBe(migrated.outreachRes.idMap[srcSegmentId]);
-    expect(migrated.onB.campaigns[0]!.autoDraftInitial).toBe(true);
+    expect(migrated.onB.campaigns[0]!.autoDraftFirstTouch).toBe(true);
     expect(migrated.onB.campaigns[0]!.autoDraftReplies).toBe(false);
     expect(migrated.onB.campaigns[0]!.sequenceSteps).toEqual([
       { waitDays: 3, brief: 'gentle bump' },

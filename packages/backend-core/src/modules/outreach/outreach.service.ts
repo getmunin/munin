@@ -80,7 +80,7 @@ export interface CampaignDto {
   sequenceSteps: SequenceStep[];
   ctaUrl: string | null;
   enabled: boolean;
-  autoDraftInitial: boolean;
+  autoDraftFirstTouch: boolean;
   autoDraftReplies: boolean;
   unsubscribeRequired: boolean;
   createdAt: string;
@@ -156,7 +156,7 @@ export interface OutreachCampaignExport {
   cadenceRules: CadenceRules;
   sequenceSteps: SequenceStep[];
   ctaUrl: string | null;
-  autoDraftInitial: boolean;
+  autoDraftFirstTouch: boolean;
   autoDraftReplies: boolean;
   unsubscribeRequired: boolean;
 }
@@ -224,7 +224,7 @@ export class OutreachService {
     sequenceSteps?: SequenceStep[];
     ctaUrl?: string | null;
     enabled?: boolean;
-    autoDraftInitial?: boolean;
+    autoDraftFirstTouch?: boolean;
     autoDraftReplies?: boolean;
     unsubscribeRequired?: boolean;
   }): Promise<CampaignDto> {
@@ -252,7 +252,7 @@ export class OutreachService {
           sequenceSteps: input.sequenceSteps ?? [],
           ctaUrl: input.ctaUrl ?? null,
           enabled: input.enabled ?? false,
-          autoDraftInitial: input.autoDraftInitial ?? false,
+          autoDraftFirstTouch: input.autoDraftFirstTouch ?? false,
           autoDraftReplies: input.autoDraftReplies ?? true,
           unsubscribeRequired: input.unsubscribeRequired ?? true,
           createdByActorType: actor.type,
@@ -279,7 +279,7 @@ export class OutreachService {
       sequenceSteps: SequenceStep[];
       ctaUrl: string | null;
       enabled: boolean;
-      autoDraftInitial: boolean;
+      autoDraftFirstTouch: boolean;
       autoDraftReplies: boolean;
       unsubscribeRequired: boolean;
     }>;
@@ -1624,7 +1624,7 @@ export class OutreachService {
         cadenceRules: c.cadenceRules,
         sequenceSteps: c.sequenceSteps,
         ctaUrl: c.ctaUrl,
-        autoDraftInitial: c.autoDraftInitial,
+        autoDraftFirstTouch: c.autoDraftFirstTouch,
         autoDraftReplies: c.autoDraftReplies,
         unsubscribeRequired: c.unsubscribeRequired,
       })),
@@ -1675,7 +1675,7 @@ export class OutreachService {
         sequenceSteps: campaign.sequenceSteps,
         ctaUrl: campaign.ctaUrl,
         enabled: false,
-        autoDraftInitial: campaign.autoDraftInitial,
+        autoDraftFirstTouch: campaign.autoDraftFirstTouch,
         autoDraftReplies: campaign.autoDraftReplies,
         unsubscribeRequired: campaign.unsubscribeRequired,
       });
@@ -1780,7 +1780,7 @@ function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): Campa
     sequenceSteps: row.sequenceSteps,
     ctaUrl: row.ctaUrl,
     enabled: row.enabled,
-    autoDraftInitial: row.autoDraftInitial,
+    autoDraftFirstTouch: row.autoDraftFirstTouch,
     autoDraftReplies: row.autoDraftReplies,
     unsubscribeRequired: row.unsubscribeRequired,
     createdAt: row.createdAt.toISOString(),

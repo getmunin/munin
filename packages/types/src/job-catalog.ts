@@ -12,7 +12,7 @@ export const KNOWN_SKILL_URIS: ReadonlySet<string> = new Set([
   'skill://crm/clean-contact-data',
   'skill://crm/extract-contact-from-message',
   'skill://cms/review-stale-entries',
-  'skill://outreach/draft-initial-email',
+  'skill://outreach/draft-first-touch-email',
   'skill://outreach/draft-reply-email',
   'skill://outreach/draft-followup-email',
   'skill://conv/strip-email-signature',
@@ -60,12 +60,12 @@ const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
     ['conv_get_conversation', 'crm_lookup_contact', 'crm_create_contact', 'crm_update_contact'],
   ],
   [
-    'skill://outreach/draft-initial-email',
+    'skill://outreach/draft-first-touch-email',
     [
       'outreach_list_campaigns',
       'crm_list_contacts_in_segment',
       'outreach_list_proposals',
-      'outreach_propose_initial_message',
+      'outreach_propose_first_touch',
       'kb_search',
     ],
   ],

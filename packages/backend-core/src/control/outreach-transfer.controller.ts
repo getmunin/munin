@@ -44,7 +44,7 @@ const ImportBody = z.object({
           .max(5)
           .default([]),
         ctaUrl: z.string().nullable().optional(),
-        autoDraftInitial: z.boolean().default(false),
+        autoDraftFirstTouch: z.boolean().default(false),
         autoDraftReplies: z.boolean().default(true),
         unsubscribeRequired: z.boolean(),
       }),

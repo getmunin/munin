@@ -141,6 +141,7 @@ export interface MuninRestClient {
     conversationId: string,
     input: { reason?: string; publicFallbackMessage?: string },
   ): Promise<void>;
+  setDraftReply(conversationId: string, body: string): Promise<void>;
   clearDraftReply(conversationId: string): Promise<void>;
   mintDelegatedToken(endUserId: string, ttlSeconds?: number): Promise<DelegatedToken>;
   toRuntimeHistory(detail: ConversationDetail): ConversationMessage[];
@@ -291,6 +292,12 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
               : {}),
           }),
         },
+      );
+    },
+    async setDraftReply(conversationId: string, body: string): Promise<void> {
+      await call<unknown>(
+        `/v1/conversations/${encodeURIComponent(conversationId)}/draft-reply`,
+        { method: 'POST', body: JSON.stringify({ body }) },
       );
     },
     async clearDraftReply(conversationId: string): Promise<void> {

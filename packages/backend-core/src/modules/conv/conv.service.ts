@@ -1274,6 +1274,36 @@ export class ConvService {
     return toConversationSummary(updated!);
   }
 
+  async setDraftReply(input: {
+    conversationId: string;
+    body: string;
+  }): Promise<{ id: string }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const [conv] = await ctx.db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .limit(1);
+    if (!conv) {
+      throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
+    }
+    await this.clearDraftReply(input.conversationId);
+    const [row] = await ctx.db
+      .insert(schema.convMessages)
+      .values({
+        orgId: actor.orgId,
+        conversationId: input.conversationId,
+        authorType: 'agent',
+        authorId: actor.id,
+        body: input.body,
+        internal: true,
+        metadata: { kind: 'draft_reply' },
+      })
+      .returning({ id: schema.convMessages.id });
+    return { id: row!.id };
+  }
+
   async clearDraftReply(conversationId: string): Promise<{ cleared: number }> {
     const ctx = getCurrentContext();
     const [latest] = await ctx.db

@@ -215,6 +215,12 @@ const skipReason = TEST_URL
       expect(pending).toHaveLength(1);
       expect(pending[0]!.contact?.email).toBe('jane@acme.com');
       expect(pending[0]!.campaign?.name).toBe('launch');
+      expect(pending[0]!).not.toHaveProperty('evidence');
+      expect(pending[0]!.hasEvidence).toBe(true);
+      expect(pending[0]!.draftBody).toBe('We just shipped X — would you like a quick demo?');
+
+      const full = await run(() => svc.getProposal(p.id));
+      expect(full.evidence).toEqual({ source: 'unit-test' });
 
       const approved = await run(() =>
         svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
@@ -485,6 +491,15 @@ const skipReason = TEST_URL
       );
       return p;
     }
+
+    it('listProposals reports hasEvidence false when the draft was filed without evidence', async () => {
+      const p = await pending('rev-no-evidence');
+      const rows = await run(() => svc.listProposals({ campaignId: p.campaignId }));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.hasEvidence).toBe(false);
+      expect(rows[0]!).not.toHaveProperty('evidence');
+      expect(await run(() => svc.getProposal(p.id)).then((f) => f.evidence)).toEqual({});
+    });
 
     it('reviseProposal rewrites the draft in place and records the revision', async () => {
       const p = await pending('rev-basic');

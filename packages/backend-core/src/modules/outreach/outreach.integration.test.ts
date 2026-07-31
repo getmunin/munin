@@ -150,6 +150,7 @@ const skipReason = TEST_URL
           'outreach_dismiss_proposal',
           'outreach_export',
           'outreach_get_campaign',
+          'outreach_get_proposal',
           'outreach_import',
           'outreach_list_campaigns',
           'outreach_list_due_followups',
@@ -415,6 +416,55 @@ const skipReason = TEST_URL
         arguments: { id: proposalId, reason: 'again' },
       });
       expect(withdrawTwice.isError).toBe(true);
+    });
+  });
+
+  it('list omits the evidence payload and outreach_get_proposal returns it', async () => {
+    await withClient(adminKey, async (c) => {
+      const created = await c.callTool({
+        name: 'outreach_create_campaign',
+        arguments: { name: 'Evidence split', brief: 'Keep list payloads bounded.', segmentId, channelId },
+      });
+      const campaignId = (firstJson(created) as { id: string }).id;
+
+      const evidence = { verifiedFacts: ['a'.repeat(2000)], angle: 'long-form curator notes' };
+      const proposed = await c.callTool({
+        name: 'outreach_propose_first_touch',
+        arguments: {
+          campaignId,
+          contactId,
+          draftSubject: 'Bounded',
+          draftBody: 'Short body.',
+          evidence,
+        },
+      });
+      const proposalId = (firstJson(proposed) as { id: string }).id;
+
+      const listed = await c.callTool({
+        name: 'outreach_list_proposals',
+        arguments: { campaignId },
+      });
+      const rows = firstJson(listed) as Array<Record<string, unknown>>;
+      const row = rows.find((r) => r.id === proposalId)!;
+      expect(row).toBeDefined();
+      expect(row).not.toHaveProperty('evidence');
+      expect(row.hasEvidence).toBe(true);
+      expect(row.draftBody).toBe('Short body.');
+      expect(JSON.stringify(listed).length).toBeLessThan(2000);
+
+      const fetched = await c.callTool({
+        name: 'outreach_get_proposal',
+        arguments: { id: proposalId },
+      });
+      expect(fetched.isError).toBeFalsy();
+      expect((firstJson(fetched) as { evidence: unknown }).evidence).toEqual(evidence);
+
+      const missing = await c.callTool({
+        name: 'outreach_get_proposal',
+        arguments: { id: 'oprp_does_not_exist' },
+      });
+      expect(missing.isError).toBe(true);
+      expect(String(firstJson(missing))).toMatch(/outreach_not_found/);
     });
   });
 

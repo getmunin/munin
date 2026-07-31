@@ -25,6 +25,7 @@ export function DocsSide({ label, children }: { label: string; children: ReactNo
       <div className="docs-side-list" onClick={closeOnLink}>
         {children}
       </div>
+      <div className="docs-side-scrim" aria-hidden onClick={() => setOpen(false)} />
     </nav>
   );
 }

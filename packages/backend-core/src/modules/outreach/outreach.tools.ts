@@ -92,8 +92,10 @@ const ListProposalsInput = z.object({
   campaignId: z.string().min(1).max(64).optional(),
   kind: z.enum(PROPOSAL_KINDS).optional(),
   contactId: z.string().min(1).max(64).optional(),
-  limit: z.number().int().positive().max(500).optional(),
+  limit: z.number().int().positive().max(200).optional().describe('Defaults to 25.'),
 });
+
+const GetProposalInput = z.object({ id: z.string().min(1).max(64) });
 
 const ProposeInitialInput = z.object({
   campaignId: z.string().min(1).max(64),
@@ -318,7 +320,7 @@ export class OutreachAdminTools {
     name: 'outreach_list_proposals',
     title: 'Outreach: List proposals',
     description:
-      'List drafted outreach proposals. Defaults to all statuses. The first-touch curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.',
+      'List drafted outreach proposals, newest first. Defaults to all statuses and to 25 rows; pass `status` and `limit` to narrow. Rows carry the full `draftSubject` / `draftBody` plus nested `contact`, `campaign` and `delivery` summaries, but not the curator `evidence` payload, which can run to thousands of characters per row — a boolean `hasEvidence` says whether there is any, and `outreach_get_proposal` returns it for one proposal. The first-touch curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.',
     audiences: ['admin'],
     scopes: ['outreach:read'],
     input: ListProposalsInput,
@@ -328,6 +330,21 @@ export class OutreachAdminTools {
   })
   listProposals(args: z.infer<typeof ListProposalsInput>) {
     return this.outreach.listProposals(args);
+  }
+
+  @McpTool({
+    name: 'outreach_get_proposal',
+    title: 'Outreach: Get proposal',
+    description:
+      'Read one outreach proposal by id, including the full curator `evidence` payload that `outreach_list_proposals` omits — the sources, compliance notes and reasoning recorded when the draft was filed. Also carries the draft, its status and decision history, and the nested `contact`, `campaign` and `delivery` summaries.',
+    audiences: ['admin'],
+    scopes: ['outreach:read'],
+    input: GetProposalInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getProposal(args: z.infer<typeof GetProposalInput>) {
+    return this.outreach.getProposal(args.id);
   }
 
   @McpTool({

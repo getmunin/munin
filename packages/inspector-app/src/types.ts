@@ -29,7 +29,8 @@ export interface Proposal {
   kind: 'initial' | 'reply' | 'followup';
   draftSubject: string | null;
   draftBody: string;
-  evidence: Record<string, unknown>;
+  evidence?: Record<string, unknown>;
+  hasEvidence?: boolean;
   proposedSendAt: string | null;
   status: 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed' | 'withdrawn';
   decidedAt: string | null;

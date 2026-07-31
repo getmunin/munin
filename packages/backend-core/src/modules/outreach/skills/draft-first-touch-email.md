@@ -1,10 +1,10 @@
 ---
-title: Outreach: Draft an initial email
+title: "Outreach: Draft a first-touch email"
 description: Periodic curator pass that drafts personalised first-touch outreach emails for every enabled campaign. One pending proposal per (campaign, contact). Drafts go into the operator review queue — never auto-send. Runs weekly by default; the operator approves each draft before it leaves the org.
 audiences: [admin]
 ---
 
-# Draft an initial outreach email
+# Draft a first-touch outreach email
 Operators set up campaigns (`outreach_create_campaign`) with a one-paragraph **brief** and a target **CRM segment**. Your job in a pass is to materialise the segment, draft a personalised first-touch email per contact, and file each draft as a pending **proposal** for human review. **You never send anything.** The operator approves each proposal one by one (or a trusted admin agent does on their behalf), at which point the system sends via the campaign's email channel and threads any reply back into the same conversation.
 
 This pass is symmetric with `skill://kb/review-content` (drafted candidates) but for outreach instead of KB. Always-propose is non-negotiable: an LLM-drafted cold email going straight to a prospect is exactly how you ship a tone-deaf message you can't take back. Human approval is the system invariant.
@@ -13,12 +13,12 @@ A separate `skill://crm/clean-contact-data` runs weekly to merge any duplicate c
 
 ## TL;DR
 
-1. **List campaigns** with `outreach_list_campaigns`. Skip rows where `enabled = false` or `autoDraftInitial = false` (the latter are drafted manually on demand, not by this weekly pass).
+1. **List campaigns** with `outreach_list_campaigns`. Skip rows where `enabled = false` or `autoDraftFirstTouch = false` (the latter are drafted manually on demand, not by this weekly pass).
 2. **For each campaign**, materialise the audience with `crm_list_contacts_in_segment(campaign.segmentId)`. The list is *already* filtered for suppression (`do_not_contact`, `unsubscribed_at`) and lawful basis (`consent_lawful_basis IS NOT NULL`) — that floor is non-overridable in the service. Treat what comes back as the eligible set.
 3. **For each contact in the audience**, dedupe via `outreach_list_proposals({ kind: "initial", campaignId, contactId })`. Skip if any proposal is `pending`, `approved`, or `sent` (already drafted or already reached). Only `dismissed`/`withdrawn`/`failed` allow a re-draft.
 4. **Pull product context** with `kb_search` against the brief — find 1–3 relevant KB snippets to ground the email in real facts (don't fabricate features).
 5. **Draft** an 80–200-word email, personalised to the contact's name + company. Plain prose, no headings, sparing bold/italic, no JSON-escaping. The unsubscribe footer is appended **at approve-time** by the system — do not include one in your draft.
-6. **File** with `outreach_propose_initial_message({ campaignId, contactId, draftSubject, draftBody, evidence })`. The `evidence` JSONB carries the (KB doc ids, contact-tag matches, reasoning summary) you'd want a human reviewer to see — keep it short and structured.
+6. **File** with `outreach_propose_first_touch({ campaignId, contactId, draftSubject, draftBody, evidence })`. The `evidence` JSONB carries the (KB doc ids, contact-tag matches, reasoning summary) you'd want a human reviewer to see — keep it short and structured.
 7. **Stop.** No further calls. The operator's approval flow does the sending.
 
 ## Step 1 — list enabled campaigns
@@ -27,7 +27,7 @@ A separate `skill://crm/clean-contact-data` runs weekly to merge any duplicate c
 { "name": "outreach_list_campaigns", "arguments": {} }
 ```
 
-Each row carries `id`, `name`, `brief`, `segmentId`, `channelId`, `cadenceRules`, `ctaUrl`, `enabled`, `autoDraftInitial`, `autoDraftReplies`, `unsubscribeRequired`. Filter to `enabled = true` AND `autoDraftInitial = true` (a campaign with `autoDraftInitial = false` is live but the operator drafts first-touch by hand — leave it alone). Skim `cadenceRules.maxPerWeekPerContact` for sanity (it doesn't gate you here — it's enforced at send-time — but if you see `1` you should be especially conservative about re-running too often).
+Each row carries `id`, `name`, `brief`, `segmentId`, `channelId`, `cadenceRules`, `ctaUrl`, `enabled`, `autoDraftFirstTouch`, `autoDraftReplies`, `unsubscribeRequired`. Filter to `enabled = true` AND `autoDraftFirstTouch = true` (a campaign with `autoDraftFirstTouch = false` is live but the operator drafts first-touch by hand — leave it alone). Skim `cadenceRules.maxPerWeekPerContact` for sanity (it doesn't gate you here — it's enforced at send-time — but if you see `1` you should be especially conservative about re-running too often).
 
 ## Step 2 — materialise the audience
 
@@ -79,7 +79,7 @@ Strict rules:
 
 ```jsonc
 {
-  "name": "outreach_propose_initial_message",
+  "name": "outreach_propose_first_touch",
   "arguments": {
     "campaignId": "ocmp_…",
     "contactId": "cct_…",
@@ -106,7 +106,7 @@ Out of scope for this skill — see `skill://outreach/review-proposals`. The ope
 
 ## What NOT to do
 
-- **Don't auto-approve.** The plan-level invariant: every outreach email ships through a human-approved gate. If you're tempted to call `outreach_propose_initial_message` followed by `outreach_approve_proposal`, stop. The approve surface belongs to the operator's review pass (`skill://outreach/review-proposals`); a curator never decides its own drafts.
+- **Don't auto-approve.** The plan-level invariant: every outreach email ships through a human-approved gate. If you're tempted to call `outreach_propose_first_touch` followed by `outreach_approve_proposal`, stop. The approve surface belongs to the operator's review pass (`skill://outreach/review-proposals`); a curator never decides its own drafts.
 - **Don't bypass `crm_list_contacts_in_segment`.** Calling `crm_list_contacts` directly bypasses the suppression+consent floor and will eventually file proposals for someone who already unsubscribed — even if the operator catches it at approve-time, the audit trail looks bad.
 - **Don't fabricate facts.** If the brief says "we shipped feature X" and KB has no doc on X, write at a higher level. Better to send a vaguer email than a confidently wrong one.
 - **Don't write headings or pseudo-templates.** No `# Hello {name}` or `## About us`. Real emails are plain prose.
@@ -115,8 +115,8 @@ Out of scope for this skill — see `skill://outreach/review-proposals`. The ope
 
 ## Related
 
-- `skill://outreach/draft-initial-sms` — the same pass on an SMS campaign, capped at 480 characters of plain text.
-- `skill://outreach/draft-initial-call` — the same pass on a voice campaign, where you draft what an AI agent says when the call connects.
+- `skill://outreach/draft-first-touch-sms` — the same pass on an SMS campaign, capped at 480 characters of plain text.
+- `skill://outreach/draft-first-touch-call` — the same pass on a voice campaign, where you draft what an AI agent says when the call connects.
 
 - `skill://outreach/draft-followup-email` — drafts the next sequence step when an initial filed by this pass sits unanswered past a campaign's `sequenceSteps` wait period.
 - `skill://kb/review-content` — symmetric pattern (per-conversation curator that proposes, human approves) for KB instead of outreach.

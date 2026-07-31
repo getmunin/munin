@@ -61,7 +61,7 @@ const CreateCampaignInput = z.object({
   sequenceSteps: SequenceStepsSchema.optional(),
   ctaUrl: z.string().url().nullable().optional(),
   enabled: z.boolean().optional(),
-  autoDraftInitial: z.boolean().optional(),
+  autoDraftFirstTouch: z.boolean().optional(),
   autoDraftReplies: z.boolean().optional(),
   unsubscribeRequired: z.boolean().optional(),
 });
@@ -78,7 +78,7 @@ const UpdateCampaignInput = z.object({
       sequenceSteps: SequenceStepsSchema.optional(),
       ctaUrl: z.string().url().nullable().optional(),
       enabled: z.boolean().optional(),
-      autoDraftInitial: z.boolean().optional(),
+      autoDraftFirstTouch: z.boolean().optional(),
       autoDraftReplies: z.boolean().optional(),
       unsubscribeRequired: z.boolean().optional(),
     })
@@ -187,7 +187,7 @@ const OutreachImportInput = z.object({
         cadenceRules: CadenceRulesSchema.default({}),
         sequenceSteps: SequenceStepsSchema.default([]),
         ctaUrl: z.string().nullable().optional(),
-        autoDraftInitial: z.boolean().default(false),
+        autoDraftFirstTouch: z.boolean().default(false),
         autoDraftReplies: z.boolean().default(true),
         unsubscribeRequired: z.boolean(),
       }),
@@ -219,7 +219,7 @@ export class OutreachAdminTools {
     name: 'outreach_list_campaigns',
     title: 'Outreach: List campaigns',
     description:
-      'List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (ordered follow-up steps drafted by the daily curator when the campaign is enabled; empty means no sequence), CTA URL, the enabled flag, and the two automation flags: `autoDraftInitial` (the weekly curator drafts first-touch emails only when true) and `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true). The draft-initial curator only drafts proposals for `enabled = true` campaigns with `autoDraftInitial = true`.',
+      'List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (ordered follow-up steps drafted by the daily curator when the campaign is enabled; empty means no sequence), CTA URL, the enabled flag, and the two automation flags: `autoDraftFirstTouch` (the weekly curator drafts first-touch emails only when true) and `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true). The weekly first-touch curator only drafts proposals for `enabled = true` campaigns with `autoDraftFirstTouch = true`.',
     audiences: ['admin'],
     scopes: ['outreach:read'],
     input: EmptyInput,
@@ -248,7 +248,7 @@ export class OutreachAdminTools {
     name: 'outreach_create_campaign',
     title: 'Outreach: Create campaign',
     description:
-      'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftInitial` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), while `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `sequenceSteps` (email campaigns only) defines a follow-up sequence — each step is a wait period plus a drafting brief; defining steps on an enabled campaign opts it into daily follow-up drafting for threads with no reply.',
+      'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftFirstTouch` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), while `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `sequenceSteps` (email campaigns only) defines a follow-up sequence — each step is a wait period plus a drafting brief; defining steps on an enabled campaign opts it into daily follow-up drafting for threads with no reply.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: CreateCampaignInput,
@@ -303,7 +303,7 @@ export class OutreachAdminTools {
     name: 'outreach_update_campaign',
     title: 'Outreach: Update campaign',
     description:
-      'Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled, toggle the automation flags `autoDraftInitial` (weekly first-touch drafting) and `autoDraftReplies` (auto-drafting replies to inbound prospect messages), or replace `sequenceSteps` (the follow-up sequence; pass the full array, email campaigns only, empty array removes the sequence).',
+      'Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled, toggle the automation flags `autoDraftFirstTouch` (weekly first-touch drafting) and `autoDraftReplies` (auto-drafting replies to inbound prospect messages), or replace `sequenceSteps` (the follow-up sequence; pass the full array, email campaigns only, empty array removes the sequence).',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: UpdateCampaignInput,
@@ -318,7 +318,7 @@ export class OutreachAdminTools {
     name: 'outreach_list_proposals',
     title: 'Outreach: List proposals',
     description:
-      'List drafted outreach proposals. Defaults to all statuses. The draft-initial curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.',
+      'List drafted outreach proposals. Defaults to all statuses. The first-touch curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.',
     audiences: ['admin'],
     scopes: ['outreach:read'],
     input: ListProposalsInput,
@@ -407,10 +407,10 @@ export class OutreachAdminTools {
   }
 
   @McpTool({
-    name: 'outreach_propose_initial_message',
-    title: 'Outreach: Propose initial message',
+    name: 'outreach_propose_first_touch',
+    title: 'Outreach: Propose first touch',
     description:
-      'File one drafted initial outreach message per (campaign, contact) for human approval — an email body, an SMS body, or the script for an outbound call, depending on the channel the campaign sends on. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.',
+      'File one first-touch outreach draft per (campaign, contact) for human approval — an email body, an SMS body, or the script for an outbound call, depending on the channel the campaign sends on. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: ProposeInitialInput,

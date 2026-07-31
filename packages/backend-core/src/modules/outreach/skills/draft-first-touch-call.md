@@ -1,12 +1,12 @@
 ---
-title: "Outreach: Draft an initial call"
+title: "Outreach: Draft a first-touch call"
 description: Draft the opening and talking points for a first-touch outbound call on a voice campaign. One pending proposal per (campaign, contact). Only a signed-in person in the Munin dashboard can place the call — an agent never can, on any host.
 audiences: [admin]
 ---
 
-# Draft an initial call
+# Draft a first-touch call
 
-Same pass as `skill://outreach/draft-initial-email`, for a campaign running on a voice channel. What you write is not a message that gets delivered — it is the **opening and talking points an AI voice agent speaks** when the call connects. Everything after the first few seconds is a live conversation you don't control.
+Same pass as `skill://outreach/draft-first-touch-email`, for a campaign running on a voice channel. What you write is not a message that gets delivered — it is the **opening and talking points an AI voice agent speaks** when the call connects. Everything after the first few seconds is a live conversation you don't control.
 
 **You cannot place the call.** `outreach_approve_proposal` refuses every caller that is not a signed-in dashboard user: agents, admin API keys, the Slack button. That is the safety floor for outbound calling and there is no argument, tool or credential that gets around it. Draft, file the proposal, tell the operator it is waiting in the dashboard inbox, and stop. `outreach_revise_proposal`, `outreach_withdraw_proposal` and `outreach_dismiss_proposal` all work — none of them dial.
 
@@ -16,10 +16,10 @@ Take the asymmetry seriously. A cold email is ignorable and a text is cheap; an 
 
 1. **List campaigns** with `outreach_list_campaigns` and keep the enabled ones. Confirm the campaign is on a voice channel before writing spoken copy — an existing proposal shows `delivery.channelType`.
 2. **Materialise the audience** with `crm_list_contacts_in_segment(campaign.segmentId)`. Already filtered for suppression and lawful basis.
-3. **Skip contacts with no `phone`** — `outreach_propose_initial_message` rejects them.
+3. **Skip contacts with no `phone`** — `outreach_propose_first_touch` rejects them.
 4. **Be stricter than the segment.** The segment says you *may* contact them. Calling asks whether you *should*: a call needs a reason this specific person would welcome one — they asked to be called, they started something and stopped, they are mid-deal. "They match the filter" is a reason to email, not to phone. Skip the rest and say why in `evidence`.
 5. **Dedupe** via `outreach_list_proposals({ kind: "initial", campaignId, contactId })` as the email pass does.
-6. **File** with `outreach_propose_initial_message({ campaignId, contactId, draftBody, evidence })`. No `draftSubject` — a call has no subject, and passing one is rejected.
+6. **File** with `outreach_propose_first_touch({ campaignId, contactId, draftBody, evidence })`. No `draftSubject` — a call has no subject, and passing one is rejected.
 7. **Stop.**
 
 ## Writing for a voice agent
@@ -47,7 +47,7 @@ Follow-up sequences are not available on voice campaigns. One call, then whateve
 
 ## Related
 
-- `skill://outreach/draft-initial-email` — the same pass where you may write at length.
-- `skill://outreach/draft-initial-sms` — the short-form written equivalent.
+- `skill://outreach/draft-first-touch-email` — the same pass where you may write at length.
+- `skill://outreach/draft-first-touch-sms` — the short-form written equivalent.
 - `skill://outreach/review-proposals` — what the operator does with what you filed, and why you cannot do it for them.
 - `skill://conv/setup-voice-sms-channel` — configuring the voice channel the campaign runs on.

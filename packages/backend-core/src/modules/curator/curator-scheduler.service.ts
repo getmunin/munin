@@ -21,8 +21,8 @@ const CRM_HYGIENE_PROMPT =
   'Run a CRM hygiene pass. Follow the skill. First fetch dismissed pairs via crm_list_merge_proposals so you do not refile rejected pairs. Then list contacts, build suspect pairs, judge each, and file high-confidence pairs as structured proposals via crm_propose_merge. Stop when there are no more new pairs to propose.';
 const CMS_STALE_PROMPT =
   'Run a CMS stale-content review pass. Follow the skill. Walk each collection, judge per-collection velocity, find stale drafts, find unrefreshed published entries, find orphaned assets. Produce a structured action report grouped by recommended action. Do not execute any mutating tool — propose only.';
-const OUTREACH_DRAFT_INITIAL_PROMPT =
-  'Run an outreach draft-initial pass. Follow skill://outreach/draft-initial-email exactly. List enabled campaigns, materialise each segment via crm_list_contacts_in_segment, dedupe via outreach_list_proposals, ground each draft in kb_search results, and file every new draft via outreach_propose_initial_message. Do NOT approve or send anything — drafts go to the operator review queue.';
+const OUTREACH_FIRST_TOUCH_PROMPT =
+  'Run an outreach first-touch drafting pass. Follow skill://outreach/draft-first-touch-email exactly. List enabled campaigns, materialise each segment via crm_list_contacts_in_segment, dedupe via outreach_list_proposals, ground each draft in kb_search results, and file every new draft via outreach_propose_first_touch. Do NOT approve or send anything — drafts go to the operator review queue.';
 const OUTREACH_DRAFT_FOLLOWUP_PROMPT =
   'Run an outreach follow-up pass. Follow skill://outreach/draft-followup-email exactly. List due follow-ups via outreach_list_due_followups, read each thread via conv_get_conversation, draft per the step brief, and file each via outreach_propose_followup. Do NOT approve or send anything — drafts go to the operator review queue.';
 
@@ -79,14 +79,14 @@ export class CuratorSchedulerService implements OnModuleInit {
         dedupeKey: 'cms-stale:scheduled',
       },
       {
-        name: 'curator-outreach-draft-initial',
+        name: 'curator-outreach-first-touch',
         cron: parseEnvCron({
-          name: 'MUNIN_CURATOR_OUTREACH_INITIAL_CRON',
+          name: 'MUNIN_CURATOR_OUTREACH_FIRST_TOUCH_CRON',
           default: CronExpression.EVERY_WEEK,
         }),
-        jobUri: 'skill://outreach/draft-initial-email',
-        userPrompt: OUTREACH_DRAFT_INITIAL_PROMPT,
-        dedupeKey: 'outreach-draft-initial:scheduled',
+        jobUri: 'skill://outreach/draft-first-touch-email',
+        userPrompt: OUTREACH_FIRST_TOUCH_PROMPT,
+        dedupeKey: 'outreach-first-touch:scheduled',
       },
       {
         name: 'curator-outreach-draft-followup',

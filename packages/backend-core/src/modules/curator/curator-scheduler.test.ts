@@ -31,7 +31,7 @@ describe('CuratorSchedulerService.onModuleInit', () => {
       'curator-crm-hygiene',
       'curator-kb-sweep',
       'curator-outreach-draft-followup',
-      'curator-outreach-draft-initial',
+      'curator-outreach-first-touch',
     ]);
   });
 

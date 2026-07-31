@@ -78,6 +78,6 @@ Behavior:
 
 ## Related
 
-- `skill://outreach/draft-initial-email` — drafts the first touch this sequence follows.
+- `skill://outreach/draft-first-touch-email` — drafts the first touch this sequence follows.
 - `skill://outreach/draft-reply-email` — takes over the conversation the moment the prospect replies; an inbound reply permanently stops this sequence.
 - `skill://outreach/review-proposals` — the operator flow that approves or dismisses these drafts.

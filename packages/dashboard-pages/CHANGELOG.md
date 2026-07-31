@@ -1,5 +1,49 @@
 # @getmunin/dashboard-pages
 
+## 4.77.0
+
+### Minor Changes
+
+- 2d14917: fix(outreach): keep `outreach_list_proposals` payloads bounded
+
+  `outreach_list_proposals` returned every column of every matching row, curator `evidence` included. Evidence is an unbounded JSONB the curator fills with sources, compliance notes and reasoning — around 4,000 characters per proposal in practice, roughly three quarters of a row. Combined with a default limit of 100 and a default of all statuses, a queue of ~16 proposals already produced an 80,000-character result that clients refuse, and 100 rows would have been half a million characters. The failure is silent-ish and total: the MCP Apps panel renders the size error instead of the review UI, and the model gets no data either, so the review pass just stops.
+
+  List rows now carry the draft, the nested `contact` / `campaign` / `delivery` summaries and a boolean `hasEvidence`, but not `evidence` itself. The default limit drops from 100 to 25 and the ceiling from 500 to 200.
+
+  The new `outreach_get_proposal` reads one proposal by id with the full evidence attached, so nothing became unreachable — this exposes the `getProposal` service method the Slack bridge and `GET /v1/outreach/proposals/:id` already used. The Inspector panel's **Evidence** toggle now fetches on click rather than receiving evidence for every card up front.
+
+  `GET /v1/outreach/proposals` and the inbox queue return the same trimmed rows. Nothing in the dashboard rendered `evidence` from a list response.
+
+- cfa7b4f: refactor(outreach): first-touch replaces "initial" on the public surface
+
+  `outreach_propose_initial_message` is now `outreach_propose_first_touch`, the campaign flag `autoDraftInitial` is now `autoDraftFirstTouch` (column `auto_draft_initial` → `auto_draft_first_touch`), and the three skills `skill://outreach/draft-initial-{email,sms,call}` are now `skill://outreach/draft-first-touch-{email,sms,call}`.
+
+  The three propose tools file the three proposal kinds (`initial`, `reply`, `followup`), but only the first carried a medium in its name — `_message` was filler to make `outreach_propose_initial` grammatical, and inaccurate besides: the tool also files the script for an outbound voice call, which is not a message. Its description now says "first-touch outreach draft", the neutral term the input schema already uses (`draftSubject` / `draftBody`). The campaign flag had the same defect: `autoDraftInitial` paired with `autoDraftReplies` put a bare adjective next to a noun, while the surrounding descriptions had already switched to saying "first-touch".
+
+  The weekly scheduled sweep follows: it is now `curator-outreach-first-touch`, reads `MUNIN_CURATOR_OUTREACH_FIRST_TOUCH_CRON`, and enqueues under the dedupe key `outreach-first-touch:scheduled`.
+
+  Internals that track the stored kind keep `initial`: the `outreach_proposals.kind` value and `OutreachService.proposeInitial`.
+
+  Breaking, with no aliases published:
+
+  - callers that hardcode `outreach_propose_initial_message`
+  - callers that send or read `autoDraftInitial` on `outreach_create_campaign` / `outreach_update_campaign` / `outreach_list_campaigns`
+  - callers that read the old `skill://outreach/draft-initial-*` URIs via `skills_read` / `resources/read`
+  - self-hosters who set `MUNIN_CURATOR_OUTREACH_INITIAL_CRON` — the old name is ignored and the sweep silently reverts to its weekly default, so rename it
+  - campaign JSON exported before this release fails `outreach_import` validation on the renamed field
+
+  Migration `0059_outreach_first_touch_rename` renames the column in place, so stored per-campaign values survive, and carries the persisted curator queue across. `job_uri`, `dedupe_key` and `source_event_type` are rewritten on every row — they point at things that were renamed, so history stays queryable and a pending row still dedupes against the next scheduled enqueue. `user_prompt` is rewritten only for `status = 'pending'` rows: the scheduler persists its prompt verbatim at enqueue time, so a queued job would otherwise wake up naming a tool and a skill that no longer exist, while a finished job's prompt is the record of what it was actually told. Every step is guarded and safe to re-run.
+
+### Patch Changes
+
+- 2808e5d: Eyebrows no longer echo the heading they sit above. The OAuth consent outcome screens paired "Authorization granted" with the H1 "Access granted." — and in Norwegian both collapsed to the identical string "Tilgang gitt", since `tilgang` covers both _authorization_ and _access_. They now name the flow state instead ("Authorization complete" / "Autorisering fullført", "Authorization cancelled" / "Autorisering avbrutt"), leaving the ✓ glyph and the heading to carry the outcome.
+
+  Two inspector panels repeated a noun the same way and now add information instead: the outreach proposals eyebrow reads "Awaiting approval" (was "Pending proposals", above "Outreach proposals"), and the merge panel reads "Possible duplicates" (was "Pending merge proposals", above "Contact merges").
+
+- Updated dependencies [cfa7b4f]
+  - @getmunin/types@4.77.0
+  - @getmunin/ui@4.77.0
+
 ## 4.76.0
 
 ### Minor Changes

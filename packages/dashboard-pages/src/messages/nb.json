@@ -923,7 +923,7 @@
       "actingAs": "Godkjenner som <user></user>",
       "switchAccount": "Ikke deg? Bytt konto",
       "granted": {
-        "eyebrow": "Tilgang gitt",
+        "eyebrow": "Autorisering fullført",
         "title": "Tilgang <em>gitt</em>.",
         "sub": "<client></client> kan nå handle i <strong>Munin</strong> innenfor de omfangene du godkjente. Sender deg tilbake til applikasjonen.",
         "panelTitle": "<client></client> er tilkoblet.",
@@ -931,7 +931,7 @@
         "redirecting": "Returnerer til {host} …"
       },
       "denied": {
-        "eyebrow": "Tilgang avslått",
+        "eyebrow": "Autorisering avbrutt",
         "title": "Tilgang <em>avslått</em>.",
         "sub": "Ingen token ble utstedt. <client></client> får ikke tilgang til noe i <strong>Munin</strong>. Sender deg tilbake til applikasjonen.",
         "panelTitle": "Ingenting ble delt.",
@@ -1554,7 +1554,7 @@
       "empty": "Tilkoblet — resultatet er en tom liste."
     },
     "proposals": {
-      "eyebrow": "Ventende forslag",
+      "eyebrow": "Venter på godkjenning",
       "title": "Utgående forslag",
       "sublineEmpty": "Ingenting venter — køen er tom.",
       "sublinePending": "{count} venter på gjennomgang — godkjenning leverer det.",
@@ -1602,7 +1602,7 @@
       "revisedAfterReview": "Endret {count}× etter at noen åpnet det til gjennomgang — les det på nytt før du godkjenner"
     },
     "merge": {
-      "eyebrow": "Ventende flettinger",
+      "eyebrow": "Mulige duplikater",
       "title": "Kontaktflettinger",
       "sublineEmpty": "Ingenting venter — køen er tom.",
       "sublinePending": "{count} venter på gjennomgang — å flette slår sammen kontaktene.",

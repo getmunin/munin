@@ -923,7 +923,7 @@
       "actingAs": "Authorizing as <user></user>",
       "switchAccount": "Not you? Switch account",
       "granted": {
-        "eyebrow": "Authorization granted",
+        "eyebrow": "Authorization complete",
         "title": "Access <em>granted</em>.",
         "sub": "<client></client> can now act in <strong>Munin</strong> within the scopes you approved. Sending you back to the app.",
         "panelTitle": "<client></client> is connected.",
@@ -931,7 +931,7 @@
         "redirecting": "Returning to {host}…"
       },
       "denied": {
-        "eyebrow": "Authorization denied",
+        "eyebrow": "Authorization cancelled",
         "title": "Access <em>denied</em>.",
         "sub": "No token was issued. <client></client> can't reach anything in <strong>Munin</strong>. Returning you to the app.",
         "panelTitle": "Nothing was shared.",
@@ -1554,7 +1554,7 @@
       "empty": "Connected — the result is an empty list."
     },
     "proposals": {
-      "eyebrow": "Pending proposals",
+      "eyebrow": "Awaiting approval",
       "title": "Outreach proposals",
       "sublineEmpty": "Nothing waiting — the queue is clear.",
       "sublinePending": "{count} waiting for review — approving delivers it.",
@@ -1602,7 +1602,7 @@
       "revisedAfterReview": "Revised {count}× after a reviewer opened it — read it again before approving"
     },
     "merge": {
-      "eyebrow": "Pending merge proposals",
+      "eyebrow": "Possible duplicates",
       "title": "Contact merges",
       "sublineEmpty": "Nothing waiting — the queue is clear.",
       "sublinePending": "{count} waiting for review — applying merges the contacts.",

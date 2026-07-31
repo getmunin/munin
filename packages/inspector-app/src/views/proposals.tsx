@@ -13,6 +13,12 @@ type CardState = {
 
 const IDLE: CardState = { busy: null, error: null, decidedNow: false };
 
+type EvidenceState = {
+  loading: boolean;
+  error: string | null;
+  value: Record<string, unknown> | null;
+};
+
 const DISPLAY_PAGE = 25;
 const REFRESH_LIMIT = 100;
 const DASHBOARD_ONLY_CHANNELS = ['voice', 'sms'];
@@ -22,6 +28,7 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
   const [proposals, setProposals] = useState<Proposal[]>(initial);
   const [openId, setOpenId] = useState<string | null>(initial[0]?.id ?? null);
   const [evidenceOpen, setEvidenceOpen] = useState<Record<string, boolean>>({});
+  const [evidence, setEvidence] = useState<Record<string, EvidenceState>>({});
   const [cards, setCards] = useState<Record<string, CardState>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
@@ -33,6 +40,41 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
 
   function patchCard(id: string, patch: Partial<CardState>) {
     setCards((prev) => ({ ...prev, [id]: { ...(prev[id] ?? IDLE), ...patch } }));
+  }
+
+  async function toggleEvidence(proposal: Proposal) {
+    const wasOpen = evidenceOpen[proposal.id] ?? false;
+    setEvidenceOpen((prev) => ({ ...prev, [proposal.id]: !wasOpen }));
+    if (wasOpen) return;
+    if (proposal.evidence || evidence[proposal.id]?.value) return;
+    setEvidence((prev) => ({ ...prev, [proposal.id]: { loading: true, error: null, value: null } }));
+    try {
+      const result = await app.callServerTool({
+        name: 'outreach_get_proposal',
+        arguments: { id: proposal.id },
+      });
+      const parsed = parseToolResult(result);
+      if (result.isError || !isProposal(parsed)) {
+        setEvidence((prev) => ({
+          ...prev,
+          [proposal.id]: { loading: false, error: errorText(result), value: null },
+        }));
+        return;
+      }
+      setEvidence((prev) => ({
+        ...prev,
+        [proposal.id]: { loading: false, error: null, value: parsed.evidence ?? {} },
+      }));
+    } catch (err) {
+      setEvidence((prev) => ({
+        ...prev,
+        [proposal.id]: {
+          loading: false,
+          error: err instanceof Error ? err.message : String(err),
+          value: null,
+        },
+      }));
+    }
   }
 
   async function decide(proposal: Proposal, action: 'approve' | 'dismiss') {
@@ -82,6 +124,7 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
         setProposals(parsed);
         setOpenId(parsed[0]?.id ?? null);
         setEvidenceOpen({});
+        setEvidence({});
         setCards({});
         setVisibleCount(DISPLAY_PAGE);
       }
@@ -128,10 +171,9 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
           state={cards[p.id] ?? IDLE}
           open={openId === p.id}
           evidenceOpen={evidenceOpen[p.id] ?? false}
+          evidence={evidence[p.id] ?? null}
           onToggle={() => setOpenId((cur) => (cur === p.id ? null : p.id))}
-          onToggleEvidence={() =>
-            setEvidenceOpen((prev) => ({ ...prev, [p.id]: !(prev[p.id] ?? false) }))
-          }
+          onToggleEvidence={() => void toggleEvidence(p)}
           onApprove={() => void decide(p, 'approve')}
           onDismiss={() => void decide(p, 'dismiss')}
         />
@@ -157,6 +199,7 @@ function ProposalRow({
   state,
   open,
   evidenceOpen,
+  evidence,
   onToggle,
   onToggleEvidence,
   onApprove,
@@ -166,6 +209,7 @@ function ProposalRow({
   state: CardState;
   open: boolean;
   evidenceOpen: boolean;
+  evidence: EvidenceState | null;
   onToggle: () => void;
   onToggleEvidence: () => void;
   onApprove: () => void;
@@ -175,7 +219,8 @@ function ProposalRow({
   const contact = proposal.contact;
   const name = contact?.name || contact?.email || contact?.phone || proposal.contactId;
   const campaignMeta = `${proposal.campaign?.name ?? proposal.campaignId} · ${proposal.kind}`;
-  const hasEvidence = Object.keys(proposal.evidence ?? {}).length > 0;
+  const inlineEvidence = proposal.evidence ?? evidence?.value ?? null;
+  const hasEvidence = proposal.hasEvidence ?? Object.keys(proposal.evidence ?? {}).length > 0;
   const line = decidedLine(proposal, state.decidedNow, t);
   const delivery = proposal.delivery;
   const isCall = delivery?.channelType === 'voice';
@@ -225,8 +270,14 @@ function ProposalRow({
               {evidenceOpen ? t('proposals.evidenceHide') : t('proposals.evidenceShow')}
             </button>
           )}
-          {hasEvidence && evidenceOpen && (
-            <pre className="evidence">{JSON.stringify(proposal.evidence, null, 2)}</pre>
+          {hasEvidence && evidenceOpen && evidence?.loading && (
+            <p className="line">{t('proposals.evidenceLoading')}</p>
+          )}
+          {hasEvidence && evidenceOpen && evidence?.error && (
+            <p className="line line-error">{evidence.error}</p>
+          )}
+          {hasEvidence && evidenceOpen && inlineEvidence && (
+            <pre className="evidence">{JSON.stringify(inlineEvidence, null, 2)}</pre>
           )}
           {revisionNotice(proposal, t)}
           {deliveryNotice(proposal, t)}

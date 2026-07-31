@@ -1572,6 +1572,7 @@
           "deliveryAppendsUnsubscribe": "en avmeldingsfot",
       "evidenceShow": "Grunnlag +",
       "evidenceHide": "Grunnlag −",
+      "evidenceLoading": "Henter grunnlag…",
       "approve": "Godkjenn & send",
       "approving": "Sender…",
       "dismiss": "Avvis",

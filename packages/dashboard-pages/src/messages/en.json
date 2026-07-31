@@ -1572,6 +1572,7 @@
           "deliveryAppendsUnsubscribe": "an unsubscribe footer",
       "evidenceShow": "Evidence +",
       "evidenceHide": "Evidence −",
+      "evidenceLoading": "Loading evidence…",
       "approve": "Approve & send",
       "approving": "Sending…",
       "dismiss": "Dismiss",

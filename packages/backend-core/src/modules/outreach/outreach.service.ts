@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { makeId, schema, type Db } from '@getmunin/db';
 import { DB } from '../../common/db/db.module.ts';
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import {
@@ -146,6 +146,12 @@ export interface ProposalDto {
   campaign: ProposalCampaignSummary | null;
   delivery: ProposalDelivery | null;
 }
+
+export type ProposalSummaryDto = Omit<ProposalDto, 'evidence'> & { hasEvidence: boolean };
+
+const { evidence: _proposalEvidenceColumn, ...PROPOSAL_SUMMARY_COLUMNS } = getTableColumns(
+  schema.outreachProposals,
+);
 
 export interface OutreachCampaignExport {
   id: string;
@@ -318,9 +324,9 @@ export class OutreachService {
     kind?: ProposalKind;
     contactId?: string;
     limit?: number;
-  }): Promise<ProposalDto[]> {
+  }): Promise<ProposalSummaryDto[]> {
     const ctx = getCurrentContext();
-    const limit = clampLimit(input.limit, 100, 500);
+    const limit = clampLimit(input.limit, 25, 200);
     const filters: SQL[] = [];
     if (input.status) filters.push(eq(schema.outreachProposals.status, input.status));
     if (input.campaignId) filters.push(eq(schema.outreachProposals.campaignId, input.campaignId));
@@ -328,7 +334,8 @@ export class OutreachService {
     if (input.contactId) filters.push(eq(schema.outreachProposals.contactId, input.contactId));
     const rows = await ctx.db
       .select({
-        proposal: schema.outreachProposals,
+        proposal: PROPOSAL_SUMMARY_COLUMNS,
+        hasEvidence: sql<boolean>`${schema.outreachProposals.evidence} <> '{}'::jsonb`,
         contact: {
           id: schema.crmContacts.id,
           name: schema.crmContacts.name,
@@ -358,8 +365,9 @@ export class OutreachService {
       .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(desc(schema.outreachProposals.createdAt))
       .limit(limit);
-    return rows.map((r) => toProposalDto(
+    return rows.map((r) => toProposalSummaryDto(
         r.proposal,
+        r.hasEvidence,
         r.contact,
         r.campaign,
         toProposalDelivery(r.contact, r.campaign, r.channel),
@@ -1851,6 +1859,22 @@ function toProposalDto(
     campaign: campaign && campaign.id ? { id: campaign.id, name: campaign.name ?? '' } : null,
     delivery,
   };
+}
+
+function toProposalSummaryDto(
+  row: Omit<typeof schema.outreachProposals.$inferSelect, 'evidence'>,
+  hasEvidence: boolean,
+  contact: Parameters<typeof toProposalDto>[1],
+  campaign: Parameters<typeof toProposalDto>[2],
+  delivery: ProposalDelivery | null,
+): ProposalSummaryDto {
+  const { evidence: _evidence, ...summary } = toProposalDto(
+    { ...row, evidence: {} },
+    contact,
+    campaign,
+    delivery,
+  );
+  return { ...summary, hasEvidence };
 }
 
 function outsideCallingWindow(rules: CadenceRules, now: Date): string | null {

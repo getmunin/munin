@@ -23,6 +23,7 @@ import {
   PROPOSAL_KINDS,
   PROPOSAL_STATUSES,
   type ProposalDto,
+  type ProposalSummaryDto,
 } from '../modules/outreach/outreach.service.ts';
 
 const StatusSchema = z.enum(PROPOSAL_STATUSES);
@@ -36,7 +37,7 @@ const UpdateBody = z.object({
 });
 
 interface ProposalListResponse {
-  items: ProposalDto[];
+  items: ProposalSummaryDto[];
 }
 
 @Controller('v1/outreach/proposals')

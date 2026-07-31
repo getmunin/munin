@@ -43,7 +43,7 @@ Because withdrawal clears the pending slot for that (campaign, contact, kind), y
 
 ## In an MCP App host (Claude, Claude Desktop, …)
 
-Call `outreach_list_proposals({ "status": "pending" })`. Hosts that support MCP Apps render the **Munin Inspector** panel (`ui://munin/inspector`) inline: one card per proposal with the contact, campaign, draft subject/body, the curator's evidence, and a `delivery` line naming the address or phone number the approval would reach. In these hosts the decision tools are **panel-only** (`_meta.ui.visibility: ["app"]`): they are hidden from you and only the operator's click can invoke them. Render the list and stop — the send decision is physically the human's.
+Call `outreach_list_proposals({ "status": "pending" })`. Hosts that support MCP Apps render the **Munin Inspector** panel (`ui://munin/inspector`) inline: one card per proposal with the contact, campaign, draft subject/body, an **Evidence** toggle that loads the curator's reasoning on click, and a `delivery` line naming the address or phone number the approval would reach. In these hosts the decision tools are **panel-only** (`_meta.ui.visibility: ["app"]`): they are hidden from you and only the operator's click can invoke them. Render the list and stop — the send decision is physically the human's.
 
 Email proposals get **Approve & send** and **Dismiss** buttons. Voice and SMS proposals get **Dismiss** only, plus a line pointing the operator at the dashboard — the panel cannot place a call, because the server refuses any approval that does not come from a signed-in dashboard session.
 
@@ -51,9 +51,9 @@ Email proposals get **Approve & send** and **Dismiss** buttons. Voice and SMS pr
 
 In hosts without MCP Apps support the decision tools appear as ordinary tools, and the same flow works as plain tool calls — for **email campaigns only**:
 
-1. **List** — `outreach_list_proposals({ "status": "pending" })`. Each row carries `id`, `kind`, `draftSubject`, `draftBody`, `evidence`, `proposedSendAt`, nested `contact` / `campaign` summaries, and `delivery`.
+1. **List** — `outreach_list_proposals({ "status": "pending" })`. Each row carries `id`, `kind`, `draftSubject`, `draftBody`, `proposedSendAt`, `hasEvidence`, nested `contact` / `campaign` summaries, and `delivery`. The curator's `evidence` is not in the list — it runs to thousands of characters per draft and would blow the result size on a queue of any depth. `outreach_get_proposal({ "id": "..." })` returns one proposal with the full `evidence` attached.
 2. **Read `delivery` first.** It names the channel and the exact destination. If `delivery.channelType` is `voice` or `sms`, there is nothing for you to approve: present the draft and the number, tell the operator it is waiting in the dashboard inbox, and move on. If `delivery.destination` is `null`, the contact has no address or number on file and approval would fail — say so instead of trying.
-3. **Present each draft** to the operator: who it goes to, which campaign, the subject, the full body, and anything notable in `evidence`. Don't paraphrase the body — the operator is approving the literal text. `delivery.appendsCta` / `appendsUnsubscribe` tell you what the system will add on top, so the operator isn't surprised by a footer they didn't read.
+3. **Present each draft** to the operator: who it goes to, which campaign, the subject, and the full body. Don't paraphrase the body — the operator is approving the literal text. Where `hasEvidence` is true and the operator wants the curator's reasoning or sources, fetch that one proposal with `outreach_get_proposal` rather than pulling evidence for the whole queue. `delivery.appendsCta` / `appendsUnsubscribe` tell you what the system will add on top, so the operator isn't surprised by a footer they didn't read.
 4. **Decide one at a time** on the operator's word:
    - `outreach_approve_proposal({ "id": "..." })` — sends immediately; the result carries `status: "sent"`, `conversationId`, `sentMessageId`.
    - `outreach_dismiss_proposal({ "id": "...", "reason": "..." })` — no send; the reason lands on the proposal for the curator's next pass.

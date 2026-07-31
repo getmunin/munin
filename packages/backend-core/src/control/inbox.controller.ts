@@ -26,7 +26,10 @@ import {
   type CurationCandidateSummary,
 } from '../modules/kb/kb.service.ts';
 import { CrmService, type MergeProposalDto } from '../modules/crm/crm.service.ts';
-import { OutreachService, type ProposalDto } from '../modules/outreach/outreach.service.ts';
+import {
+  OutreachService,
+  type ProposalSummaryDto,
+} from '../modules/outreach/outreach.service.ts';
 import { FeedbackService } from '../modules/feedback/feedback.service.ts';
 import type { FeedbackOutboxDto } from '../modules/feedback/feedback.service.ts';
 import { CmsService, type CmsDraftEntrySummary } from '../modules/cms/cms.service.ts';
@@ -43,7 +46,7 @@ interface InboxQueueResponse {
   queue: {
     kb: CurationCandidateSummary[];
     crm: MergeProposalDto[];
-    outreach: ProposalDto[];
+    outreach: ProposalSummaryDto[];
     cms: CmsDraftEntrySummary[];
     feedback?: FeedbackOutboxDto[];
   };

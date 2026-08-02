@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
   HttpCode,
@@ -17,6 +18,7 @@ import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
   KbService,
+  KbConflictError,
   KbInvalidError,
   KbNotFoundError,
   type CurationCandidateDto,
@@ -27,6 +29,7 @@ import {
 
 const PublishBody = z.object({
   targetSpaceSlug: z.string().min(1),
+  ifVersion: z.number().int().nonnegative(),
   audiences: z.array(z.string().min(1)).optional(),
 });
 const UpdateBody = z.object({
@@ -81,6 +84,7 @@ export class KbCandidatesController {
       this.kb.publishCurationCandidate({
         candidateDocumentId: id,
         targetSpaceSlug: parsed.data.targetSpaceSlug,
+        ifVersion: parsed.data.ifVersion,
         audiences: parsed.data.audiences,
       }),
     );
@@ -111,6 +115,7 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
+    if (err instanceof KbConflictError) throw new ConflictException(err.message);
     if (err instanceof KbInvalidError) throw new BadRequestException(err.message);
     if (err instanceof KbNotFoundError) throw new BadRequestException(err.message);
     throw err;

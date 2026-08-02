@@ -127,12 +127,15 @@ Read each one (`kb_get_document`), edit if needed (`kb_update_document`), then p
   "arguments": {
     "candidateDocumentId": "kdoc_…",
     "targetSpaceSlug": "support-faq",
+    "ifVersion": 1,
     "audiences": ["admin", "self_service"]
   }
 }
 ```
 
 That moves the doc into the target space, drops the candidate tags, and sets the audiences (default `['admin', 'self_service']` so the self-service agent can find it next time). Discarding instead? Just `kb_delete_document`.
+
+**Publishing is bound to the text that was reviewed.** `ifVersion` is the candidate's `version` as the operator read it. If the draft moved since — your own `kb_update_document`, or anyone else's — the publish fails with `kb_version_conflict` and nothing is written to the target space. Don't re-read the document and retry with the new version: that publishes text the operator never saw. Re-read it, show them the current body, and get their word on that. The same applies to a card in the panel or a Slack button posted before the edit; both refuse rather than publishing stale text.
 
 ## What NOT to do
 

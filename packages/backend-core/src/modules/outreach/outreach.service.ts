@@ -21,6 +21,9 @@ import {
   OUTREACH_VOICE_CALLERS,
   type OutreachVoiceCaller,
 } from '../conv/channels/outreach-voice.ts';
+import { draftFingerprint } from './proposal-fingerprint.ts';
+
+export { draftFingerprint } from './proposal-fingerprint.ts';
 
 export class OutreachInvalidError extends Error {
   readonly code = 'outreach_invalid';
@@ -118,6 +121,7 @@ export interface ProposalDto {
   sequenceStep: number | null;
   draftSubject: string | null;
   draftBody: string;
+  draftFingerprint: string;
   evidence: Record<string, unknown>;
   proposedSendAt: string | null;
   status: ProposalStatus;
@@ -768,12 +772,21 @@ export class OutreachService {
     }
   }
 
-  async approveProposal(id: string, opts: { publicBaseUrl: string }): Promise<ProposalDto> {
+  async approveProposal(
+    id: string,
+    opts: { publicBaseUrl: string; fingerprint: string },
+  ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const proposal = await this.getProposal(id);
     if (proposal.status !== 'pending') {
       throw new OutreachInvalidError(`proposal ${id} is ${proposal.status}, not pending`);
+    }
+    if (opts.fingerprint !== proposal.draftFingerprint) {
+      throw new ConflictException(
+        `outreach_conflict: proposal ${id} changed after the draft being approved was rendered — ` +
+          `nothing was sent and it stays pending; re-read the current draft and approve that`,
+      );
     }
     await this.assertApprovableNow(proposal, actor);
     if (proposal.kind === 'initial') {
@@ -1822,6 +1835,7 @@ function toProposalDto(
     sequenceStep: row.sequenceStep,
     draftSubject: row.draftSubject,
     draftBody: row.draftBody,
+    draftFingerprint: draftFingerprint(row),
     evidence: row.evidence,
     proposedSendAt: row.proposedSendAt?.toISOString() ?? null,
     status: row.status as ProposalStatus,

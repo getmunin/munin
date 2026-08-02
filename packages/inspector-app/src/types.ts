@@ -29,6 +29,7 @@ export interface Proposal {
   kind: 'initial' | 'reply' | 'followup';
   draftSubject: string | null;
   draftBody: string;
+  draftFingerprint: string;
   evidence?: Record<string, unknown>;
   hasEvidence?: boolean;
   proposedSendAt: string | null;

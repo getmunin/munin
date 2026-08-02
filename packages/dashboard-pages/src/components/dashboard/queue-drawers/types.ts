@@ -32,6 +32,7 @@ export interface OutreachProposalDto {
   sequenceStep?: number | null;
   draftSubject: string | null;
   draftBody: string;
+  draftFingerprint: string;
   campaign?: { name: string } | null;
   contact?: { name: string | null; email: string | null; phone?: string | null } | null;
   delivery?: {

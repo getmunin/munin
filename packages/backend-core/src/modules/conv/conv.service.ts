@@ -1468,6 +1468,13 @@ export class ConvService {
         result.skipped++;
         continue;
       }
+      let internal = msg.internal;
+      if (msg.authorType === 'system' && !internal) {
+        internal = true;
+        result.warnings.push(
+          `message ${msg.id} imported as internal: system messages are staff-only notes and cannot be public`,
+        );
+      }
       const [row] = await ctx.db
         .insert(schema.convMessages)
         .values({
@@ -1476,7 +1483,7 @@ export class ConvService {
           authorType: msg.authorType,
           authorId: msg.authorId,
           body: msg.body,
-          internal: msg.internal,
+          internal,
           inReplyToId: resolveId(result.idMap, msg.inReplyToId) ?? null,
         })
         .returning();

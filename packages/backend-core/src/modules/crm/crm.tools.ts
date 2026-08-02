@@ -171,6 +171,13 @@ const ListMergeProposalsInput = z.object({
 
 const ApplyMergeProposalInput = z.object({
   id: z.string().min(1).max(64),
+  fingerprint: z
+    .string()
+    .min(1)
+    .max(64)
+    .describe(
+      'The `mergeFingerprint` carried by the proposal as it was read, binding this apply to that exact keeper and patch.',
+    ),
 });
 
 const DismissMergeProposalInput = z.object({
@@ -600,7 +607,7 @@ export class CrmAdminTools {
     name: 'crm_apply_merge_proposal',
     title: 'CRM: Apply a merge proposal',
     description:
-      "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, reassigns the duplicate's activities, deals and relationships onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), dismisses any other pending proposals that reference the duplicate, and marks the proposal `applied`. Throws if the proposal is not in `pending` status.",
+      "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, reassigns the duplicate's activities, deals and relationships onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), dismisses any other pending proposals that reference the duplicate, and marks the proposal `applied`. The apply is bound to the proposal it was given: `fingerprint` must match the current `mergeFingerprint`, so a proposal whose keeper, patch or confidence changed since it was read is refused with a conflict and stays pending. Throws if the proposal is not in `pending` status.",
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: ApplyMergeProposalInput,

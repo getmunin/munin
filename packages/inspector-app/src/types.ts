@@ -61,6 +61,7 @@ export interface MergeContact {
 
 export interface MergeProposal {
   id: string;
+  mergeFingerprint: string;
   contactA: MergeContact;
   contactB: MergeContact;
   confidence: 'high' | 'medium';

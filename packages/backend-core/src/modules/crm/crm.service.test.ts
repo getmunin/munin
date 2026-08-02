@@ -494,7 +494,7 @@ const skipReason = TEST_URL
           recommendedPatch: { title: 'Head of Ops', tags: ['vip', 'lead'] },
         }),
       );
-      const applied = await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      const applied = await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
       expect(applied.status).toBe('applied');
       expect(applied.decidedAt).not.toBeNull();
       const refreshedKeeper = await run(() => svc.getContact(keeper.id));
@@ -504,6 +504,85 @@ const skipReason = TEST_URL
       expect(refreshedDup.tags.some((t) => t.startsWith('dedup-archived-'))).toBe(true);
       expect(refreshedDup.customFields.mergedInto).toBe(keeper.id);
       expect(refreshedDup.doNotContact).toBe(true);
+    });
+
+    it('applyMergeProposal refuses a fingerprint from before a re-propose flipped the keeper', async () => {
+      const ada = await run(() => svc.createContact({ name: 'Ada', email: 'a@y' }));
+      const dup = await run(() => svc.createContact({ name: 'A. Lovelace', email: 'a@y' }));
+      const asRead = await run(() =>
+        svc.proposeMerge({
+          contactAId: ada.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: { sameEmail: 'a@y' },
+          recommendedKeeperId: ada.id,
+        }),
+      );
+
+      const flipped = await run(() =>
+        svc.proposeMerge({
+          contactAId: ada.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: { sameEmail: 'a@y' },
+          recommendedKeeperId: dup.id,
+        }),
+      );
+      expect(flipped.id).toBe(asRead.id);
+      expect(flipped.mergeFingerprint).not.toBe(asRead.mergeFingerprint);
+
+      await expect(
+        run(() =>
+          svc.applyMergeProposal({ id: asRead.id, fingerprint: asRead.mergeFingerprint }),
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      const after = await run(() => svc.getMergeProposal(asRead.id));
+      expect(after.status).toBe('pending');
+      const untouchedAda = await run(() => svc.getContact(ada.id));
+      expect(untouchedAda.doNotContact).toBe(false);
+      expect(untouchedAda.customFields.mergedInto).toBeUndefined();
+    });
+
+    it('the merge fingerprint moves when the patch or the confidence changes', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'f@y' }));
+      const dup = await run(() => svc.createContact({ name: 'Dup', email: 'f@y' }));
+      const base = { contactAId: keeper.id, contactBId: dup.id, recommendedKeeperId: keeper.id };
+      const first = await run(() =>
+        svc.proposeMerge({ ...base, confidence: 'high', evidence: {}, recommendedPatch: { title: 'A' } }),
+      );
+      const patched = await run(() =>
+        svc.proposeMerge({ ...base, confidence: 'high', evidence: {}, recommendedPatch: { title: 'B' } }),
+      );
+      expect(patched.mergeFingerprint).not.toBe(first.mergeFingerprint);
+      const downgraded = await run(() =>
+        svc.proposeMerge({
+          ...base,
+          confidence: 'medium',
+          evidence: {},
+          recommendedPatch: { title: 'B' },
+        }),
+      );
+      expect(downgraded.mergeFingerprint).not.toBe(patched.mergeFingerprint);
+    });
+
+    it('a re-propose that changes only the evidence keeps the fingerprint stable', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'e@y' }));
+      const dup = await run(() => svc.createContact({ name: 'Dup', email: 'e@y' }));
+      const base = {
+        contactAId: keeper.id,
+        contactBId: dup.id,
+        recommendedKeeperId: keeper.id,
+        confidence: 'high' as const,
+        recommendedPatch: { title: 'Ops' },
+      };
+      const first = await run(() => svc.proposeMerge({ ...base, evidence: { note: 'one' } }));
+      const requeried = await run(() => svc.proposeMerge({ ...base, evidence: { note: 'two' } }));
+      expect(requeried.mergeFingerprint).toBe(first.mergeFingerprint);
+      const applied = await run(() =>
+        svc.applyMergeProposal({ id: first.id, fingerprint: first.mergeFingerprint }),
+      );
+      expect(applied.status).toBe('applied');
     });
 
     it('applyMergeProposal coerces ISO-string timestamps in the patch and drops unknown keys', async () => {
@@ -525,7 +604,7 @@ const skipReason = TEST_URL
           },
         }),
       );
-      const applied = await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      const applied = await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
       expect(applied.status).toBe('applied');
       const refreshedKeeper = await run(() => svc.getContact(keeper.id));
       expect(refreshedKeeper.consentGivenAt).toBe(givenAt);
@@ -575,7 +654,7 @@ const skipReason = TEST_URL
           recommendedKeeperId: keeper.id,
         }),
       );
-      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
 
       const keeperActivities = await run(() =>
         svc.listActivities({ contactId: keeper.id, limit: 50 }),
@@ -672,7 +751,7 @@ const skipReason = TEST_URL
           recommendedKeeperId: keeper.id,
         }),
       );
-      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
 
       const rows = await db
         .select()
@@ -721,7 +800,7 @@ const skipReason = TEST_URL
         }),
       );
 
-      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
 
       const superseded = await run(() => svc.getMergeProposal(dupThird.id));
       expect(superseded.status).toBe('dismissed');
@@ -744,7 +823,7 @@ const skipReason = TEST_URL
           recommendedKeeperId: keeper.id,
         }),
       );
-      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
 
       await expect(
         run(() =>
@@ -774,7 +853,7 @@ const skipReason = TEST_URL
           recommendedKeeperId: keeper.id,
         }),
       );
-      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
 
       await expect(
         run(() =>
@@ -829,7 +908,7 @@ const skipReason = TEST_URL
           recommendedKeeperId: keeper.id,
         }),
       );
-      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
       const refreshedKeeper = await run(() => svc.getContact(keeper.id));
       const refreshedDup = await run(() => svc.getContact(dup.id));
       expect(refreshedKeeper.endUserId).toBe(endUserId);
@@ -857,7 +936,7 @@ const skipReason = TEST_URL
           recommendedKeeperId: keeper.id,
         }),
       );
-      await run(() => svc.applyMergeProposal({ id: proposal.id }));
+      await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
       const refreshedKeeper = await run(() => svc.getContact(keeper.id));
       const refreshedDup = await run(() => svc.getContact(dup.id));
       expect(refreshedKeeper.endUserId).toBe(endUserId);
@@ -876,8 +955,8 @@ const skipReason = TEST_URL
           recommendedKeeperId: a.id,
         }),
       );
-      await run(() => svc.applyMergeProposal({ id: proposal.id }));
-      await expect(run(() => svc.applyMergeProposal({ id: proposal.id }))).rejects.toThrow(
+      await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
+      await expect(run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }))).rejects.toThrow(
         CrmInvalidError,
       );
     });

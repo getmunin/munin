@@ -8,6 +8,7 @@ import { SlackBridgeWorker } from './slack-bridge.worker.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { encryptSecretValue } from './slack.service.ts';
 import { draftFingerprint } from '../outreach/proposal-fingerprint.ts';
+import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -337,6 +338,14 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
     expect(posted.text).toContain('merge proposed');
     expect(posted.text).toContain('Ada Lovelace (ada@example.com)');
     expect(buttonLabels(posted.blocks)).toEqual(['Apply merge', 'Dismiss']);
+
+    const [row] = await db
+      .select()
+      .from(schema.crmMergeProposals)
+      .where(eq(schema.crmMergeProposals.id, proposalId));
+    expect(buttonValues(posted.blocks)[0]).toBe(
+      `crm_merge_proposal:${proposalId}#${mergeFingerprint(row!)}`,
+    );
 
     const link = await notificationLink('crm_merge_proposal', proposalId);
     expect(link?.slackTs).toBe(posted.ts);

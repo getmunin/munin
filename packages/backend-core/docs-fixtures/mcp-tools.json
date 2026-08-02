@@ -4907,7 +4907,7 @@
   {
     "name": "crm_apply_merge_proposal",
     "title": "CRM: Apply a merge proposal",
-    "description": "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, reassigns the duplicate's activities, deals and relationships onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), dismisses any other pending proposals that reference the duplicate, and marks the proposal `applied`. Throws if the proposal is not in `pending` status.",
+    "description": "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, reassigns the duplicate's activities, deals and relationships onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), dismisses any other pending proposals that reference the duplicate, and marks the proposal `applied`. The apply is bound to the proposal it was given: `fingerprint` must match the current `mergeFingerprint`, so a proposal whose keeper, patch or confidence changed since it was read is refused with a conflict and stays pending. Throws if the proposal is not in `pending` status.",
     "audiences": [
       "admin"
     ],
@@ -4924,10 +4924,17 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64
+        },
+        "fingerprint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "The `mergeFingerprint` carried by the proposal as it was read, binding this apply to that exact keeper and patch."
         }
       },
       "required": [
-        "id"
+        "id",
+        "fingerprint"
       ],
       "additionalProperties": false
     }

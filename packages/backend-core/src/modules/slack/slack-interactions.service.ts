@@ -247,7 +247,11 @@ export class SlackInteractionsService {
         await withContext(ctx, async () => {
           switch (subject.subjectType) {
             case 'crm_merge_proposal':
-              if (approve) await this.crm.applyMergeProposal({ id: subject.subjectId });
+              if (approve)
+                await this.crm.applyMergeProposal({
+                  id: subject.subjectId,
+                  fingerprint: subject.fingerprint ?? '',
+                });
               else await this.crm.dismissMergeProposal({ id: subject.subjectId });
               return;
             case 'outreach_proposal':

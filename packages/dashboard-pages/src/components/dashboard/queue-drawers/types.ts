@@ -48,6 +48,8 @@ export interface OutreachProposalDto {
   revisionCount?: number;
   lastRevisionReason?: string | null;
   revisedAfterReviewAt?: string | null;
+  proposedSendAt?: string | null;
+  scheduledSendAt?: string | null;
   createdAt: string;
 }
 

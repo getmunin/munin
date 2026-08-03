@@ -49,6 +49,28 @@ export const PROPOSAL_STATUSES = [
 ] as const;
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
 
+export const MAX_SEND_ATTEMPTS = 5;
+export const SEND_WORKER_ACTOR_ID = 'outreach-send-worker';
+
+export interface ApproveProposalOptions {
+  publicBaseUrl: string;
+  fingerprint: string;
+  sendAt?: string | null;
+}
+
+export interface ProposalSender {
+  type: string;
+  id: string;
+}
+
+export type ScheduledSendOutcome = 'sent' | 'deferred' | 'skipped';
+
+export interface ScheduledSendResult {
+  outcome: ScheduledSendOutcome;
+  proposal: ProposalDto;
+  reason?: string;
+}
+
 export interface CadenceRules {
   maxPerWeekPerContact?: number;
   quietHoursStart?: string;
@@ -124,6 +146,8 @@ export interface ProposalDto {
   draftFingerprint: string;
   evidence: Record<string, unknown>;
   proposedSendAt: string | null;
+  scheduledSendAt: string | null;
+  sendAttempts: number;
   status: ProposalStatus;
   proposedByActorType: string;
   proposedByActorId: string;
@@ -367,7 +391,11 @@ export class OutreachService {
       )
       .leftJoin(schema.convChannels, eq(schema.convChannels.id, schema.outreachCampaigns.channelId))
       .where(filters.length === 0 ? undefined : and(...filters))
-      .orderBy(desc(schema.outreachProposals.createdAt))
+      .orderBy(
+        input.status === 'approved'
+          ? asc(schema.outreachProposals.scheduledSendAt)
+          : desc(schema.outreachProposals.createdAt),
+      )
       .limit(limit);
     return rows.map((r) => toProposalSummaryDto(
         r.proposal,
@@ -513,9 +541,9 @@ export class OutreachService {
         toProposalDelivery(contact, campaign, channel),
       );
     } catch (err) {
-      if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
+      if (isUniqueViolation(err, 'outreach_proposals_open_pair_uq')) {
         throw new ConflictException(
-          `outreach_conflict: a pending initial proposal already exists for (campaign, contact)`,
+          `outreach_conflict: an initial proposal for (campaign, contact) is already pending review or scheduled to send`,
         );
       }
       throw err;
@@ -604,9 +632,9 @@ export class OutreachService {
         toProposalDelivery(crmContact, replyCampaign, replyChannel),
       );
     } catch (err) {
-      if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
+      if (isUniqueViolation(err, 'outreach_proposals_open_pair_uq')) {
         throw new ConflictException(
-          `outreach_conflict: a pending reply proposal already exists for this conversation`,
+          `outreach_conflict: a reply proposal on this conversation is already pending review or scheduled to send`,
         );
       }
       throw err;
@@ -702,14 +730,14 @@ export class OutreachService {
         and(
           eq(schema.outreachProposals.campaignId, campaign.id),
           eq(schema.outreachProposals.contactId, anchor.contactId),
-          eq(schema.outreachProposals.status, 'pending'),
+          inArray(schema.outreachProposals.status, ['pending', 'approved']),
           inArray(schema.outreachProposals.kind, ['followup', 'reply']),
         ),
       )
       .limit(1);
     if (queued) {
       throw new ConflictException(
-        `outreach_conflict: a pending ${queued.kind} proposal already exists for this contact`,
+        `outreach_conflict: a ${queued.kind} proposal for this contact is already pending review or scheduled to send`,
       );
     }
     const contact = await this.crm.getContact(anchor.contactId).catch((err) => {
@@ -763,19 +791,16 @@ export class OutreachService {
         toProposalDelivery(contact, campaign, channel),
       );
     } catch (err) {
-      if (isUniqueViolation(err, 'outreach_proposals_pending_pair_uq')) {
+      if (isUniqueViolation(err, 'outreach_proposals_open_pair_uq')) {
         throw new ConflictException(
-          `outreach_conflict: a pending follow-up proposal already exists for (campaign, contact)`,
+          `outreach_conflict: a follow-up proposal for (campaign, contact) is already pending review or scheduled to send`,
         );
       }
       throw err;
     }
   }
 
-  async approveProposal(
-    id: string,
-    opts: { publicBaseUrl: string; fingerprint: string },
-  ): Promise<ProposalDto> {
+  async approveProposal(id: string, opts: ApproveProposalOptions): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const proposal = await this.getProposal(id);
@@ -788,22 +813,169 @@ export class OutreachService {
           `nothing was sent and it stays pending; re-read the current draft and approve that`,
       );
     }
-    await this.assertApprovableNow(proposal, actor);
-    if (proposal.kind === 'initial') {
-      return this.approveInitial(proposal, actor, opts);
+    this.assertHumanApprovalAllowed(proposal, actor);
+    const sendAt = resolveAuthorizedSendAt(proposal, opts.sendAt);
+    if (!sendAt) {
+      await this.assertSendWindowOpen(proposal);
+      const decided = await this.stampApproval(proposal, actor, null);
+      return this.deliverProposal(decided, senderFor(actor), opts.publicBaseUrl);
     }
-    if (proposal.kind === 'followup') {
-      return this.approveFollowup(proposal, actor);
-    }
-    return this.approveReply(proposal, actor);
+    const scheduled = await this.stampApproval(proposal, actor, sendAt);
+    await this.webhooks.emit({
+      type: 'outreach.proposal.scheduled',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: proposal.campaignId,
+        contactId: proposal.contactId,
+        kind: proposal.kind,
+        sequenceStep: proposal.sequenceStep,
+        scheduledSendAt: sendAt.toISOString(),
+      },
+    });
+    return scheduled;
   }
 
-  private async approveInitial(
-    proposal: ProposalDto,
-    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+  async sendScheduledProposal(
+    id: string,
     opts: { publicBaseUrl: string },
+  ): Promise<ScheduledSendResult> {
+    const proposal = await this.getProposal(id);
+    if (proposal.status !== 'approved') {
+      return { outcome: 'skipped', proposal };
+    }
+    const closed = await this.sendWindowClosedReason(proposal);
+    if (closed) {
+      return { outcome: 'deferred', proposal, reason: closed };
+    }
+    const sent = await this.deliverProposal(
+      proposal,
+      {
+        type: proposal.decidedByActorType ?? 'system',
+        id: proposal.decidedByActorId ?? SEND_WORKER_ACTOR_ID,
+      },
+      opts.publicBaseUrl,
+    );
+    return { outcome: 'sent', proposal: sent };
+  }
+
+  async recordScheduledSendFailure(
+    id: string,
+    reason: string,
+    opts: { terminal: boolean },
   ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
+    const proposal = await this.getProposal(id);
+    const attempts = proposal.sendAttempts + 1;
+    const giveUp = opts.terminal || attempts >= MAX_SEND_ATTEMPTS;
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        sendAttempts: attempts,
+        ...(giveUp ? { status: 'failed' as const, failureReason: reason } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, id))
+      .returning();
+    if (giveUp) {
+      await this.webhooks.emit({
+        type: 'outreach.proposal.send_failed',
+        payload: {
+          proposalId: id,
+          campaignId: proposal.campaignId,
+          contactId: proposal.contactId,
+          kind: proposal.kind,
+          sequenceStep: proposal.sequenceStep,
+          scheduledSendAt: proposal.scheduledSendAt,
+          attempts,
+          reason,
+        },
+      });
+    }
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  async cancelScheduledSend(input: { id: string; reason: string }): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!input.reason.trim()) throw new OutreachInvalidError('reason must be non-empty');
+    const proposal = await this.getProposal(input.id);
+    if (proposal.status !== 'approved') {
+      throw new OutreachInvalidError(
+        `proposal ${input.id} is ${proposal.status}, not a scheduled send`,
+      );
+    }
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'pending',
+        scheduledSendAt: null,
+        sendAttempts: 0,
+        decidedByActorType: null,
+        decidedByActorId: null,
+        decidedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, input.id))
+      .returning();
+    await this.webhooks.emit({
+      type: 'outreach.proposal.send_canceled',
+      payload: {
+        proposalId: input.id,
+        campaignId: proposal.campaignId,
+        contactId: proposal.contactId,
+        kind: proposal.kind,
+        sequenceStep: proposal.sequenceStep,
+        scheduledSendAt: proposal.scheduledSendAt,
+        canceledByActorType: actor.type,
+        canceledByActorId: actor.id,
+        reason: input.reason,
+      },
+    });
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async stampApproval(
+    proposal: ProposalDto,
+    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+    sendAt: Date | null,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const now = new Date();
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        ...(sendAt ? { status: 'approved' as const, scheduledSendAt: sendAt } : {}),
+        decidedByActorType: actor.type,
+        decidedByActorId: actor.id,
+        decidedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private deliverProposal(
+    proposal: ProposalDto,
+    sender: ProposalSender,
+    publicBaseUrl: string,
+  ): Promise<ProposalDto> {
+    if (proposal.kind === 'initial') {
+      return this.deliverInitial(proposal, sender, publicBaseUrl);
+    }
+    if (proposal.kind === 'followup') {
+      return this.deliverFollowup(proposal, sender);
+    }
+    return this.deliverReply(proposal, sender);
+  }
+
+  private async deliverInitial(
+    proposal: ProposalDto,
+    sender: ProposalSender,
+    publicBaseUrl: string,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
     const campaign = await this.getCampaign(proposal.campaignId);
     if (!campaign.enabled) {
       throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
@@ -819,11 +991,11 @@ export class OutreachService {
     }
 
     if (channel.type === 'voice') {
-      return this.approveInitialVoice(proposal, campaign, contact, channel, actor);
+      return this.deliverInitialVoice(proposal, campaign, contact, channel);
     }
 
     if (channel.type === 'sms') {
-      return this.approveInitialSms(proposal, campaign, contact, actor);
+      return this.deliverInitialSms(proposal, campaign, contact, sender);
     }
 
     if (!contact.email) {
@@ -835,7 +1007,7 @@ export class OutreachService {
     });
 
     const unsubscribeUrl = buildUnsubscribeUrl({
-      publicBaseUrl: opts.publicBaseUrl,
+      publicBaseUrl,
       orgId: actor.orgId,
       contactId: contact.id,
       campaignId: campaign.id,
@@ -856,7 +1028,7 @@ export class OutreachService {
       outreachCampaignId: campaign.id,
       agentMode: 'draft_only',
       authorType: 'agent',
-      authorId: actor.id,
+      authorId: sender.id,
     });
 
     const firstMessageId = conversation.messages[0]?.id ?? null;
@@ -868,9 +1040,6 @@ export class OutreachService {
         conversationId: conversation.id,
         sentMessageId: firstMessageId,
         sentAt: new Date(),
-        decidedByActorType: actor.type,
-        decidedByActorId: actor.id,
-        decidedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(schema.outreachProposals.id, proposal.id))
@@ -895,13 +1064,14 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
-  private async approveInitialSms(
+  private async deliverInitialSms(
     proposal: ProposalDto,
     campaign: CampaignDto,
     contact: { id: string; name: string | null; phone: string | null; endUserId?: string | null },
-    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+    sender: ProposalSender,
   ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
+    const actor = ctx.actor!;
     if (!contact.phone) {
       throw new OutreachInvalidError(`contact ${contact.id} has no phone — cannot send`);
     }
@@ -932,7 +1102,7 @@ export class OutreachService {
       outreachCampaignId: campaign.id,
       agentMode: 'draft_only',
       authorType: 'agent',
-      authorId: actor.id,
+      authorId: sender.id,
     });
 
     const firstMessageId = conversation.messages[0]?.id ?? null;
@@ -944,9 +1114,6 @@ export class OutreachService {
         conversationId: conversation.id,
         sentMessageId: firstMessageId,
         sentAt: new Date(),
-        decidedByActorType: actor.type,
-        decidedByActorId: actor.id,
-        decidedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(schema.outreachProposals.id, proposal.id))
@@ -971,14 +1138,14 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
-  private async approveInitialVoice(
+  private async deliverInitialVoice(
     proposal: ProposalDto,
     campaign: CampaignDto,
     contact: { id: string; name: string | null; phone: string | null },
     channel: typeof schema.convChannels.$inferSelect,
-    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
   ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
+    const actor = ctx.actor!;
     if (!contact.phone) {
       throw new OutreachInvalidError(`contact ${contact.id} has no phone — cannot call`);
     }
@@ -1018,9 +1185,6 @@ export class OutreachService {
         conversationId: conv.id,
         sentMessageId: null,
         sentAt: new Date(),
-        decidedByActorType: actor.type,
-        decidedByActorId: actor.id,
-        decidedAt: new Date(),
         evidence: {
           ...(proposal.evidence ?? {}),
           [caller.callIdMetadataKey]: callRes.callId,
@@ -1142,9 +1306,9 @@ export class OutreachService {
     });
   }
 
-  private async approveReply(
+  private async deliverReply(
     proposal: ProposalDto,
-    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+    sender: ProposalSender,
   ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     if (!proposal.conversationId) {
@@ -1156,7 +1320,7 @@ export class OutreachService {
       conversationId: proposal.conversationId,
       body: proposal.draftBody,
       authorType: 'agent',
-      authorId: actor.id,
+      authorId: sender.id,
     });
 
     const [updated] = await ctx.db
@@ -1165,9 +1329,6 @@ export class OutreachService {
         status: 'sent',
         sentMessageId: sent.id,
         sentAt: new Date(),
-        decidedByActorType: actor.type,
-        decidedByActorId: actor.id,
-        decidedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(schema.outreachProposals.id, proposal.id))
@@ -1192,9 +1353,9 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
-  private async approveFollowup(
+  private async deliverFollowup(
     proposal: ProposalDto,
-    actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
+    sender: ProposalSender,
   ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     if (!proposal.conversationId) {
@@ -1231,7 +1392,7 @@ export class OutreachService {
       conversationId: proposal.conversationId,
       body: proposal.draftBody,
       authorType: 'agent',
-      authorId: actor.id,
+      authorId: sender.id,
     });
 
     const [updated] = await ctx.db
@@ -1240,9 +1401,6 @@ export class OutreachService {
         status: 'sent',
         sentMessageId: sent.id,
         sentAt: new Date(),
-        decidedByActorType: actor.type,
-        decidedByActorId: actor.id,
-        decidedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(schema.outreachProposals.id, proposal.id))
@@ -1574,10 +1732,10 @@ export class OutreachService {
     return caller;
   }
 
-  private async assertApprovableNow(
+  private assertHumanApprovalAllowed(
     proposal: ProposalDto,
     actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
-  ): Promise<void> {
+  ): void {
     const channelType = proposal.delivery?.channelType ?? 'email';
     if (!CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) return;
     if (actor.type !== 'user') {
@@ -1586,13 +1744,20 @@ export class OutreachService {
           `not by an agent or API key — this caller is ${actor.type}`,
       );
     }
+  }
+
+  private async sendWindowClosedReason(proposal: ProposalDto): Promise<string | null> {
+    const channelType = proposal.delivery?.channelType ?? 'email';
+    if (!CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) return null;
     const campaign = await this.getCampaign(proposal.campaignId);
     const blocked = outsideCallingWindow(campaign.cadenceRules, new Date());
-    if (blocked) {
-      throw new OutreachInvalidError(
-        `campaign ${campaign.id} does not ${channelType === 'voice' ? 'call' : 'message'} ${blocked}`,
-      );
-    }
+    if (!blocked) return null;
+    return `campaign ${campaign.id} does not ${channelType === 'voice' ? 'call' : 'message'} ${blocked}`;
+  }
+
+  private async assertSendWindowOpen(proposal: ProposalDto): Promise<void> {
+    const closed = await this.sendWindowClosedReason(proposal);
+    if (closed) throw new OutreachInvalidError(closed);
   }
 
   private async assertSegmentExists(segmentId: string): Promise<void> {
@@ -1729,6 +1894,11 @@ export class OutreachService {
         continue;
       }
       const conversationId = resolveId(result.idMap, proposal.conversationId) ?? null;
+      if (proposal.status === 'approved') {
+        result.warnings.push(
+          `proposal ${proposal.id} was scheduled to send on the source server — imported as pending instead, so nothing leaves this server without a fresh approval`,
+        );
+      }
       const [row] = await ctx.db
         .insert(schema.outreachProposals)
         .values({
@@ -1742,7 +1912,7 @@ export class OutreachService {
           draftBody: proposal.draftBody,
           evidence: proposal.evidence,
           proposedSendAt: proposal.proposedSendAt ? new Date(proposal.proposedSendAt) : null,
-          status: proposal.status,
+          status: proposal.status === 'approved' ? 'pending' : proposal.status,
           proposedByActorType: actor.type,
           proposedByActorId: actor.id,
         })
@@ -1838,6 +2008,8 @@ function toProposalDto(
     draftFingerprint: draftFingerprint(row),
     evidence: row.evidence,
     proposedSendAt: row.proposedSendAt?.toISOString() ?? null,
+    scheduledSendAt: row.scheduledSendAt?.toISOString() ?? null,
+    sendAttempts: row.sendAttempts,
     status: row.status as ProposalStatus,
     proposedByActorType: row.proposedByActorType,
     proposedByActorId: row.proposedByActorId,
@@ -1889,6 +2061,33 @@ function toProposalSummaryDto(
     delivery,
   );
   return { ...summary, hasEvidence };
+}
+
+function senderFor(actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>): ProposalSender {
+  return { type: actor.type, id: actor.id };
+}
+
+function resolveAuthorizedSendAt(
+  proposal: ProposalDto,
+  explicit: string | null | undefined,
+): Date | null {
+  if (explicit === null) return null;
+  if (explicit !== undefined) {
+    const at = new Date(explicit);
+    if (Number.isNaN(at.getTime())) {
+      throw new OutreachInvalidError('sendAt must be an ISO-8601 timestamp');
+    }
+    if (at.getTime() <= Date.now()) {
+      throw new OutreachInvalidError(
+        'sendAt must be in the future — omit it to send now, or pass null to override a scheduled draft',
+      );
+    }
+    return at;
+  }
+  if (!proposal.proposedSendAt) return null;
+  const proposed = new Date(proposal.proposedSendAt);
+  if (Number.isNaN(proposed.getTime()) || proposed.getTime() <= Date.now()) return null;
+  return proposed;
 }
 
 function outsideCallingWindow(rules: CadenceRules, now: Date): string | null {

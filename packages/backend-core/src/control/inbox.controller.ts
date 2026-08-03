@@ -47,6 +47,7 @@ interface InboxQueueResponse {
     kb: CurationCandidateSummary[];
     crm: MergeProposalDto[];
     outreach: ProposalSummaryDto[];
+    outreachScheduled: ProposalSummaryDto[];
     cms: CmsDraftEntrySummary[];
     feedback?: FeedbackOutboxDto[];
   };
@@ -68,14 +69,16 @@ export class InboxController {
 
   @Get()
   async queue(): Promise<InboxQueueResponse> {
-    const [live, kbItems, crmItems, outreachItems, cmsItems, feedbackItems] = await Promise.all([
-      this.loadLive(),
-      this.kb.listCurationCandidates(50),
-      this.crm.listMergeProposals({ status: 'pending', limit: 50 }),
-      this.outreach.listProposals({ status: 'pending', limit: 50 }),
-      this.cms.listDraftEntries(50),
-      this.feedback ? this.feedback.listPending() : Promise.resolve(undefined),
-    ]);
+    const [live, kbItems, crmItems, outreachItems, outreachScheduled, cmsItems, feedbackItems] =
+      await Promise.all([
+        this.loadLive(),
+        this.kb.listCurationCandidates(50),
+        this.crm.listMergeProposals({ status: 'pending', limit: 50 }),
+        this.outreach.listProposals({ status: 'pending', limit: 50 }),
+        this.outreach.listProposals({ status: 'approved', limit: 50 }),
+        this.cms.listDraftEntries(50),
+        this.feedback ? this.feedback.listPending() : Promise.resolve(undefined),
+      ]);
 
     return {
       live,
@@ -83,6 +86,7 @@ export class InboxController {
         kb: kbItems,
         crm: crmItems,
         outreach: outreachItems,
+        outreachScheduled,
         cms: cmsItems,
         ...(feedbackItems ? { feedback: feedbackItems } : {}),
       },

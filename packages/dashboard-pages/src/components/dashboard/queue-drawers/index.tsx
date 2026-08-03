@@ -29,7 +29,7 @@ export function QueueDrawer({
   loadError?: string;
   onRetry: () => void;
   pending: boolean;
-  onApprove: () => void;
+  onApprove: (sendAt?: string | null) => void;
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
   onSaveCmsDraft: (data: Record<string, unknown>) => Promise<void>;
@@ -47,7 +47,7 @@ export function QueueDrawer({
           loadError={loadError}
           onRetry={onRetry}
           pending={pending}
-          onApprove={onApprove}
+          onApprove={() => onApprove()}
           onDismiss={onDismiss}
           onSave={onSave}
           onClose={onClose}
@@ -58,7 +58,7 @@ export function QueueDrawer({
         <CrmQueueDrawer
           item={item}
           pending={pending}
-          onApprove={onApprove}
+          onApprove={() => onApprove()}
           onDismiss={onDismiss}
           onClose={onClose}
         />
@@ -79,7 +79,7 @@ export function QueueDrawer({
         <FeedbackQueueDrawer
           item={item}
           pending={pending}
-          onApprove={onApprove}
+          onApprove={() => onApprove()}
           onDismiss={onDismiss}
           onClose={onClose}
         />
@@ -92,7 +92,7 @@ export function QueueDrawer({
           loadError={loadError}
           onRetry={onRetry}
           pending={pending}
-          onApprove={onApprove}
+          onApprove={() => onApprove()}
           onDismiss={onDismiss}
           onSaveData={onSaveCmsDraft}
           onUploadAsset={onUploadCmsAsset}

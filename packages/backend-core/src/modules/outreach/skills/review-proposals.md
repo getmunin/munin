@@ -1,6 +1,6 @@
 ---
 title: Outreach: Review pending proposals
-description: Operator review pass over drafted outreach proposals — approve (which sends) or dismiss each pending draft, and the two agent-side corrections, revise and withdraw. Voice and SMS proposals are approved only in the Munin dashboard. In MCP App hosts this renders the interactive Munin Inspector panel.
+description: Operator review pass over drafted outreach proposals — approve each pending draft (sending it now or scheduling it for a named time), dismiss it, or call off a scheduled send, plus the two agent-side corrections, revise and withdraw. Voice and SMS proposals are approved only in the Munin dashboard. In MCP App hosts this renders the interactive Munin Inspector panel.
 audiences: [admin]
 ---
 
@@ -10,22 +10,44 @@ Every outbound message in Munin ships through a human-approved gate: curators fi
 
 **Calls and text messages are approved in the dashboard, never here.** A proposal whose campaign runs on a voice or SMS channel can only be approved by a signed-in person in the Munin dashboard. `outreach_approve_proposal` refuses every other caller — an agent, an admin API key, the Slack button — with `outreach_invalid: … approved by a signed-in person in the Munin dashboard`. That is the safety floor for outbound calling, not a configuration you can route around: don't retry, don't look for another tool, and don't ask for a credential that would work. Present the draft, say it is waiting for someone to place the call from the dashboard inbox, and stop. You can still `outreach_revise_proposal`, `outreach_withdraw_proposal`, and `outreach_dismiss_proposal` on these — none of them send anything.
 
-**Approving sends.** `outreach_approve_proposal` is not a status flip: for an `initial` proposal it creates the outbound conversation and sends the first email through the campaign's channel (appending the CTA link and unsubscribe footer per campaign settings); for a `reply` or `followup` it sends the draft verbatim on the existing conversation. There is no undo. Never approve in bulk without reading each draft.
+**Approving is the send decision.** `outreach_approve_proposal` is not a status flip: for an `initial` proposal it creates the outbound conversation and sends the first email through the campaign's channel (appending the CTA link and unsubscribe footer per campaign settings); for a `reply` or `followup` it sends the draft verbatim on the existing conversation. It happens the moment you approve — unless a future send time applies, in which case the proposal parks at `status: "approved"` and a worker delivers it at that time (see **Scheduling a send** below). Once a message is out there is no undo. Never approve in bulk without reading each draft.
 
 **Approval is bound to the draft, not to the id.** Every proposal carries a `draftFingerprint` — a digest of the campaign, the recipient, the subject, the body and the proposed send time — and `outreach_approve_proposal` requires it: `{ "id": "...", "fingerprint": "..." }`. Pass the fingerprint that came with the draft you actually read. If the draft moved since then — anyone's revision, yours included — the fingerprint no longer matches, the call fails with `outreach_conflict`, nothing is sent and the proposal stays pending. Don't re-fetch the proposal and retry with the new fingerprint: that is precisely the "approve whatever runs next" failure the check exists to stop. Re-read the current draft, present it, and get the operator's word on *that* text.
 
 **Dismissing a follow-up stops the sequence.** A dismissed `followup` permanently ends the campaign's follow-up sequence for that contact — no later step will be drafted. That makes dismiss the right call for "stop chasing this person" and the wrong call for "reword this". For wording, revise the draft in place (below) or edit it in the dashboard review drawer, then approve the edited version.
 
-## Four verbs, four different meanings
+## Five verbs, five different meanings
 
 | Tool | Who it's for | What it means |
 |---|---|---|
-| `outreach_approve_proposal` | operator | Send it. No undo. Email only — voice and SMS are dashboard-only. |
+| `outreach_approve_proposal` | operator | Send it — now, or at a named time. Email only — voice and SMS are dashboard-only. |
 | `outreach_dismiss_proposal` | operator | *Rejected.* A judgement about this draft; on a `followup` it also stops the sequence. |
+| `outreach_cancel_scheduled_send` | operator | *Not at that time after all.* Pulls an approved send back to `pending`; nothing was sent. |
 | `outreach_revise_proposal` | agent | Same proposal, better text. Recipient and campaign are fixed. |
 | `outreach_withdraw_proposal` | agent | *Never mind* — the draft should not have been filed. Neutral. |
 
 Dismiss is a decision about the draft; withdraw is the agent admitting the draft was a mistake. Don't reach for dismiss to clean up after yourself, and don't withdraw a draft an operator asked you to reject — the reasons land in different fields and read differently in the audit trail.
+
+## Scheduling a send
+
+A draft can carry `proposedSendAt` — the time the curator thinks it should go out. It is advisory until an operator approves; approval is what turns it into a real, authorized send time.
+
+**Which time wins**, when `outreach_approve_proposal` runs:
+
+| `sendAt` argument | `proposedSendAt` on the draft | Result |
+|---|---|---|
+| omitted | in the future | scheduled for `proposedSendAt` |
+| omitted | absent, or already past | sent now |
+| an ISO timestamp | anything | scheduled for that timestamp (must be in the future) |
+| `null` | in the future | sent now — the operator overrode the draft's time |
+
+A scheduled proposal comes back as `status: "approved"` with `scheduledSendAt` set, and no `sentMessageId` yet. `outreach_list_proposals({ "status": "approved" })` lists everything waiting, soonest first.
+
+**The send-time re-checks are the point.** Approval authorizes the message; it does not freeze the world. When the worker picks the proposal up it re-verifies the campaign is still enabled, the contact is still not suppressed and still has a lawful basis, and — for a `followup` — that the prospect has not replied in the meantime. A proposal that fails any of those lands on `status: "failed"` with `failureReason`, and an `outreach.proposal.send_failed` event fires. It is never sent to someone who became ineligible while it waited.
+
+Quiet hours and blackout dates behave differently from the other checks: on a voice or SMS campaign the worker holds the proposal rather than failing it, and sends when the window next opens. Scheduling a call for 06:00 on a campaign that does not call before 09:00 means the call goes out at 09:00, not that it errors.
+
+**Calling one off.** `outreach_cancel_scheduled_send({ "id": "...", "reason": "..." })` while the proposal is still `approved` puts it back on the review queue as `pending`, clears the approval, and sends nothing. This is the one genuine undo in outreach, and it exists only before delivery — after `status: "sent"` there is nothing to recall. Use it when the timing was wrong or the premise changed; then revise, re-approve, or dismiss as usual. Note it does *not* suppress the contact.
 
 ## Revising a pending draft
 
@@ -49,7 +71,7 @@ Because withdrawal clears the pending slot for that (campaign, contact, kind), y
 
 Call `outreach_list_proposals({ "status": "pending" })`. Hosts that support MCP Apps render the **Munin Inspector** panel (`ui://munin/inspector`) inline: one card per proposal with the contact, campaign, draft subject/body, an **Evidence** toggle that loads the curator's reasoning on click, and a `delivery` line naming the address or phone number the approval would reach. In these hosts the decision tools are **panel-only** (`_meta.ui.visibility: ["app"]`): they are hidden from you and only the operator's click can invoke them. Render the list and stop — the send decision is physically the human's.
 
-Email proposals get **Approve & send** and **Dismiss** buttons. Voice and SMS proposals get **Dismiss** only, plus a line pointing the operator at the dashboard — the panel cannot place a call, because the server refuses any approval that does not come from a signed-in dashboard session.
+Email proposals get **Approve & send** and **Dismiss** buttons — the approve button reads **Approve & schedule** on a draft carrying a future `proposedSendAt`, with the time spelled out above it, so the operator can see they are authorizing a later send rather than an immediate one. Voice and SMS proposals get **Dismiss** only, plus a line pointing the operator at the dashboard — the panel cannot place a call, because the server refuses any approval that does not come from a signed-in dashboard session.
 
 ## Without a panel
 
@@ -59,9 +81,10 @@ In hosts without MCP Apps support the decision tools appear as ordinary tools, a
 2. **Read `delivery` first.** It names the channel and the exact destination. If `delivery.channelType` is `voice` or `sms`, there is nothing for you to approve: present the draft and the number, tell the operator it is waiting in the dashboard inbox, and move on. If `delivery.destination` is `null`, the contact has no address or number on file and approval would fail — say so instead of trying.
 3. **Present each draft** to the operator: who it goes to, which campaign, the subject, and the full body. Don't paraphrase the body — the operator is approving the literal text. Where `hasEvidence` is true and the operator wants the curator's reasoning or sources, fetch that one proposal with `outreach_get_proposal` rather than pulling evidence for the whole queue. `delivery.appendsCta` / `appendsUnsubscribe` tell you what the system will add on top, so the operator isn't surprised by a footer they didn't read.
 4. **Decide one at a time** on the operator's word:
-   - `outreach_approve_proposal({ "id": "...", "fingerprint": "..." })` — sends immediately; the result carries `status: "sent"`, `conversationId`, `sentMessageId`. The `fingerprint` is the `draftFingerprint` of the draft you presented.
+   - `outreach_approve_proposal({ "id": "...", "fingerprint": "..." })` — sends now, or schedules when the draft carries a future `proposedSendAt`. The `fingerprint` is the `draftFingerprint` of the draft you presented. The result carries `status: "sent"` with `conversationId` and `sentMessageId` on an immediate send, or `status: "approved"` with `scheduledSendAt` on a scheduled one. **Say which of the two happened** — "sent" and "will send Tuesday 09:00" are different answers, and the operator needs the right one.
+   - `outreach_approve_proposal({ "id": "...", "fingerprint": "...", "sendAt": "2026-08-11T07:00:00Z" })` — schedule for a time the operator named. Pass `"sendAt": null` instead to send now despite the draft proposing a later time.
    - `outreach_dismiss_proposal({ "id": "...", "reason": "..." })` — no send; the reason lands on the proposal for the curator's next pass.
-5. **Handle refusals cleanly.** Both tools reject non-`pending` proposals (someone else may have decided it since listing — refresh rather than retry). Approval also rejects a stale `fingerprint` (the draft changed after the operator read it), and rejects when the campaign was disabled, when the contact became suppressed since drafting, when the campaign is inside its quiet hours or on a blackout date, and — for `followup` proposals — when the prospect replied after the draft was filed (dismiss it; the reply flow owns the conversation now). That is the safety floor working, not an error to route around.
+5. **Handle refusals cleanly.** Both tools reject non-`pending` proposals (someone else may have decided it since listing — refresh rather than retry; a proposal now `approved` is scheduled, not available to decide again). Approval also rejects a stale `fingerprint` (the draft changed after the operator read it), and rejects when the campaign was disabled, when the contact became suppressed since drafting, when an immediate send would land inside the campaign's quiet hours or on a blackout date, and — for `followup` proposals — when the prospect replied after the draft was filed (dismiss it; the reply flow owns the conversation now). That is the safety floor working, not an error to route around. A `sendAt` in the past is also refused: drop the argument to send now.
 
 ## What not to do
 
@@ -69,4 +92,5 @@ In hosts without MCP Apps support the decision tools appear as ordinary tools, a
 - **Don't revise-and-approve in one breath.** A revision resets what the operator needs to read. Revise, re-present the full body, then wait for their word.
 - **Don't withdraw a draft to escape a refusal.** If approval failed because the contact was suppressed or the prospect replied, that is the safety floor doing its job — dismiss it (or leave it) rather than withdrawing to clear the slot and re-drafting around the block.
 - **Don't loop approve over the whole list** ("approve all") unless the operator explicitly reviewed every draft and said exactly that.
+- **Don't schedule a send the operator didn't ask for a time on.** If they said "send it", send it. `sendAt` carries their instruction, not your idea of a better moment — and a draft that already proposes a time needs that time said out loud before they approve it.
 - **Don't try to place a call.** If a voice or SMS approval is refused, that refusal is the product working as designed. There is no tool, key, or argument that makes it succeed — outbound calls and texts leave Munin only when a person clicks in the dashboard.

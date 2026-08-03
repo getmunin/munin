@@ -64,7 +64,7 @@ Read what was already sent — the follow-up must not repeat the initial's pitch
 Behavior:
 
 - The proposal lands in `pending` status, visible to the operator on `/dashboard/inbox` with a Follow-up badge and step number.
-- Approving sends the body verbatim via `conv_send_message` on the same conversation. If the prospect replied in the meantime, approval fails and the operator dismisses — the reply flow has taken over.
+- Approving sends the body verbatim via `conv_send_message` on the same conversation, either immediately or at a scheduled time the operator names. If the prospect replied in the meantime, approval fails and the operator dismisses — the reply flow has taken over. A reply that arrives *after* a scheduled follow-up was approved stops it too: the send-time re-check fails the proposal instead of delivering it.
 - **Dismissing a follow-up permanently stops the sequence for that contact.** Operators who dislike the wording should edit-then-approve instead. Write drafts worth editing, not dismissing.
 - **Withdrawing one does not stop the sequence.** If *you* filed a follow-up you shouldn't have, `outreach_withdraw_proposal({ id, reason })` retracts it and leaves the step eligible again — that is the difference from dismiss, and the reason to never use dismiss to tidy up your own drafts.
 

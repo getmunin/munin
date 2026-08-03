@@ -6956,7 +6956,7 @@
   {
     "name": "outreach_import",
     "title": "Outreach: Import data",
-    "description": "Import outreach `records` produced by `outreach_export`. Campaigns are upserted by name and proposals by (campaign, contact, kind) — plus `sequenceStep` for follow-ups — so re-running is idempotent. Segment, channel, contact and conversation foreign keys are resolved through the supplied `idMap` (pass the idMap returned by the CRM and Conversations imports). Campaigns are imported **disabled** — re-enable them after re-entering the channel credentials. Returns counts plus the merged `idMap`.",
+    "description": "Import outreach `records` produced by `outreach_export`. Campaigns are upserted by name and proposals by (campaign, contact, kind) — plus `sequenceStep` for follow-ups — so re-running is idempotent. Segment, channel, contact and conversation foreign keys are resolved through the supplied `idMap` (pass the idMap returned by the CRM and Conversations imports). Campaigns are imported **disabled** — re-enable them after re-entering the channel credentials. Proposals that were approved and awaiting a scheduled send on the source server arrive as `pending` with a warning, so no timer follows the data across servers. Returns counts plus the merged `idMap`.",
     "audiences": [
       "admin"
     ],
@@ -7357,7 +7357,7 @@
   {
     "name": "outreach_list_proposals",
     "title": "Outreach: List proposals",
-    "description": "List drafted outreach proposals, newest first. Defaults to all statuses and to 25 rows; pass `status` and `limit` to narrow. Rows carry the full `draftSubject` / `draftBody` plus nested `contact`, `campaign` and `delivery` summaries, but not the curator `evidence` payload, which can run to thousands of characters per row — a boolean `hasEvidence` says whether there is any, and `outreach_get_proposal` returns it for one proposal. The first-touch curator queries `status: \"pending\", kind: \"initial\"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: \"pending\"`. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.",
+    "description": "List drafted outreach proposals, newest first. Defaults to all statuses and to 25 rows; pass `status` and `limit` to narrow. Rows carry the full `draftSubject` / `draftBody` plus nested `contact`, `campaign` and `delivery` summaries, but not the curator `evidence` payload, which can run to thousands of characters per row — a boolean `hasEvidence` says whether there is any, and `outreach_get_proposal` returns it for one proposal. The first-touch curator queries `status: \"pending\", kind: \"initial\"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: \"pending\"`. `status: \"approved\"` lists approved sends still waiting for their `scheduledSendAt`, soonest first. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.",
     "audiences": [
       "admin"
     ],
@@ -7440,7 +7440,7 @@
   {
     "name": "outreach_approve_proposal",
     "title": "Outreach: Approve proposal",
-    "description": "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. The approval is bound to the draft it was given: `fingerprint` must match the proposal's current `draftFingerprint`, so a draft revised since it was read is refused with a conflict and stays pending. Also fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
+    "description": "Approve one pending outreach proposal, authorizing it to go out: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. Sends immediately unless a future send time applies, in which case the proposal returns `status: \"approved\"` with `scheduledSendAt` and a background worker delivers it then, re-checking campaign state, suppression and quiet hours at that moment. The approval is bound to the draft it was given: `fingerprint` must match the proposal's current `draftFingerprint`, so a draft revised since it was read is refused with a conflict and stays pending. Also fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId` and `sentMessageId` on an immediate send.",
     "audiences": [
       "admin"
     ],
@@ -7463,6 +7463,19 @@
           "minLength": 1,
           "maxLength": 64,
           "description": "The `draftFingerprint` carried by the proposal as it was read, binding this approval to that exact draft."
+        },
+        "sendAt": {
+          "description": "When the approved message should go out, ISO-8601 and in the future. Omit to use the time the draft carries in `proposedSendAt`, or to send now when it carries none. Pass null to send now even though the draft proposes a later time.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -7473,9 +7486,44 @@
     }
   },
   {
+    "name": "outreach_cancel_scheduled_send",
+    "title": "Outreach: Cancel scheduled send",
+    "description": "Call off a scheduled outreach send before the worker delivers it, returning the proposal to `status: \"pending\"` so it goes back on the review queue with its draft and revision history intact. The approval is cleared, so sending it later takes a fresh approval. Nothing is sent and the contact is not suppressed. Fails when the proposal is not an approved, still-scheduled send — a proposal already delivered cannot be recalled. Takes a required `reason`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Why the scheduled send is being called off. Recorded on the audit trail."
+        }
+      },
+      "required": [
+        "id",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "outreach_dismiss_proposal",
     "title": "Outreach: Dismiss proposal",
-    "description": "Dismiss one pending outreach proposal without sending, optionally recording a reason. The decision (actor and timestamp) is kept on the proposal for audit. Fails if the proposal is not pending. Returns the proposal with `status: \"dismissed\"`.",
+    "description": "Dismiss one pending outreach proposal without sending, optionally recording a reason. The decision (actor and timestamp) is kept on the proposal for audit. Fails if the proposal is not pending — an approved send waiting on its schedule has to be called off with `outreach_cancel_scheduled_send` first, which puts it back in `pending`. Returns the proposal with `status: \"dismissed\"`.",
     "audiences": [
       "admin"
     ],
@@ -7507,7 +7555,7 @@
   {
     "name": "outreach_revise_proposal",
     "title": "Outreach: Revise proposal",
-    "description": "Rewrite the draft on one pending outreach proposal in place, keeping the same proposal id, campaign, and contact — those three cannot be changed here; a different recipient or campaign is a different proposal. Pass any of `draftSubject`, `draftBody`, `proposedSendAt` plus a required `reason`. The revision is recorded on the proposal: `revisionCount`, `lastRevisedAt`, `lastRevisionReason`, and the revising actor, plus `revisedAfterReviewAt` when someone else had already opened the draft for review before the change. Fails if the proposal is not pending. Returns the revised proposal.",
+    "description": "Rewrite the draft on one pending outreach proposal in place, keeping the same proposal id, campaign, and contact — those three cannot be changed here; a different recipient or campaign is a different proposal. Pass any of `draftSubject`, `draftBody`, `proposedSendAt` plus a required `reason`. The revision is recorded on the proposal: `revisionCount`, `lastRevisedAt`, `lastRevisionReason`, and the revising actor, plus `revisedAfterReviewAt` when someone else had already opened the draft for review before the change. `proposedSendAt` is the send time an operator inherits when they approve without naming one of their own. Fails if the proposal is not pending — an approved send waiting on its schedule has to be called off with `outreach_cancel_scheduled_send` before its draft can change. Returns the revised proposal.",
     "audiences": [
       "admin"
     ],
@@ -7647,6 +7695,7 @@
           "additionalProperties": {}
         },
         "proposedSendAt": {
+          "description": "When this draft should ideally go out, ISO-8601. Advisory: the operator who approves it inherits this time unless they name their own, and a time already in the past is treated as send-now.",
           "type": "string",
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"

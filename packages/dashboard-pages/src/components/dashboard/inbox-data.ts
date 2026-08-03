@@ -11,7 +11,13 @@ import {
 } from '../../lib/upload-image';
 import { getErrorCode, useTranslateError } from '../../i18n/translate-error';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
-import type { CmsAssetExpanded, CmsDraftDetailDto, KbCandidateDto, QueueItem } from './queue-drawers/types';
+import type {
+  CmsAssetExpanded,
+  CmsDraftDetailDto,
+  KbCandidateDto,
+  OutreachProposalDto,
+  QueueItem,
+} from './queue-drawers/types';
 import {
   clearKey,
   contactLabel,
@@ -94,6 +100,7 @@ export function useInboxData(): InboxController {
   const [items, setItems] = useState<LiveSummary[]>([]);
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [scheduledSends, setScheduledSends] = useState<OutreachProposalDto[]>([]);
   const [kbBodies, setKbBodies] = useState<Record<string, string>>({});
   const [cmsDetails, setCmsDetails] = useState<Record<string, CmsDraftDetailDto>>({});
   const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
@@ -115,6 +122,7 @@ export function useInboxData(): InboxController {
       setItems(res.live);
       setDetails((prev) => mergeLive(prev, res.live));
       setQueue(buildQueue(res.queue));
+      setScheduledSends(res.queue.outreachScheduled ?? []);
       setLoadError(null);
       setHasLoadedOnce(true);
     } catch (err) {
@@ -386,7 +394,7 @@ export function useInboxData(): InboxController {
   );
 
   const approveQueue = useCallback(
-    async (item: QueueItem) => {
+    async (item: QueueItem, sendAt?: string | null) => {
       setPending(true);
       try {
         if (item.kind === 'kb') {
@@ -407,7 +415,10 @@ export function useInboxData(): InboxController {
         } else {
           await api(`/v1/outreach/proposals/${item.id}/approve`, {
             method: 'POST',
-            body: JSON.stringify({ fingerprint: item.raw.draftFingerprint }),
+            body: JSON.stringify({
+              fingerprint: item.raw.draftFingerprint,
+              ...(sendAt === undefined ? {} : { sendAt }),
+            }),
           });
         }
         await loadInbox();
@@ -556,6 +567,25 @@ export function useInboxData(): InboxController {
     [loadInbox, translateErr],
   );
 
+  const cancelScheduledSend = useCallback(
+    async (id: string, reason: string) => {
+      setPending(true);
+      try {
+        await api(`/v1/outreach/proposals/${id}/cancel-scheduled-send`, {
+          method: 'POST',
+          body: JSON.stringify({ reason }),
+        });
+        await loadInbox();
+      } catch (err) {
+        notify.error(translateErr(err));
+        throw err;
+      } finally {
+        setPending(false);
+      }
+    },
+    [loadInbox, translateErr],
+  );
+
   const scheduleQueue = useCallback(
     async (item: QueueItem, scheduledAt: string) => {
       if (item.kind !== 'cms') return;
@@ -608,6 +638,8 @@ export function useInboxData(): InboxController {
     closeConv,
     send,
     approveQueue,
+    scheduledSends,
+    cancelScheduledSend,
     saveQueue,
     saveCmsDraft,
     uploadCmsAsset,

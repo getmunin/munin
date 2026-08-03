@@ -1797,6 +1797,8 @@ export const outreachProposals = pgTable(
     draftBody: text('draft_body').notNull(),
     evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
     proposedSendAt: timestamp('proposed_send_at', { withTimezone: true }),
+    scheduledSendAt: timestamp('scheduled_send_at', { withTimezone: true }),
+    sendAttempts: integer('send_attempts').notNull().default(0),
     status: varchar('status', { length: 16 }).notNull().default('pending'),
     // 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed' | 'withdrawn'
     proposedByActorType: varchar('proposed_by_actor_type', { length: 16 }).notNull(),
@@ -1828,9 +1830,12 @@ export const outreachProposals = pgTable(
     campaignIdx: index('outreach_proposals_campaign_idx').on(t.campaignId),
     contactIdx: index('outreach_proposals_contact_idx').on(t.contactId),
     conversationIdx: index('outreach_proposals_conversation_idx').on(t.conversationId),
-    pendingPairUq: uniqueIndex('outreach_proposals_pending_pair_uq')
+    scheduledSendIdx: index('outreach_proposals_scheduled_send_idx')
+      .on(t.scheduledSendAt)
+      .where(sql`status = 'approved'`),
+    openPairUq: uniqueIndex('outreach_proposals_open_pair_uq')
       .on(t.campaignId, t.contactId, t.kind)
-      .where(sql`status = 'pending'`),
+      .where(sql`status IN ('pending', 'approved')`),
   }),
 );
 

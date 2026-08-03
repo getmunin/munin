@@ -54,6 +54,14 @@ The body never carries an unsubscribe **URL**. A tracking link in a cold DM is a
 
 `POST /api/compose` returns no fullname for the created message, so a DM's `providerMessageId` is `null`. That is fine — DM threading is contact-based — but it means DMs cannot be correlated back to a Reddit object the way comments can (`/api/comment` does return `t1_…`).
 
+### The Reddit token cache key is a keyed fingerprint, not a password hash
+
+`RedditClientService` caches the OAuth bearer and the last observed rate-limit window per credential set, keyed by a digest of `(clientId, clientSecret, username, password)`. CodeQL flagged the original bare SHA-256 as `js/insufficient-password-hash`, and while the digest is never stored, logged or transmitted, the finding pointed at something real: `clientId` and `username` are not secrets, so a leaked digest — one stray log line printing a map key would do it — reduces to brute-forcing the two secret fields, unsalted, at SHA-256 speed. It is now `createHmac('sha256', CACHE_KEY_SALT)` with a 32-byte per-process random salt, so the digest is meaningless outside the process that produced it.
+
+The secrets stay *in* the key deliberately. Keying on the non-secret `clientId` + `username` alone would be a cross-tenant credential-confusion hole: one org could register a channel with another org's client id and username plus a wrong password, collide on the cache key, and be handed the other org's cached bearer token without ever proving the password. The key must remain a function of the full credential set; the salt is what makes it safe to derive.
+
+The separator between fields was also a **literal NUL byte** rather than the `' '` escape. Intent was right — an unambiguous separator so `("ab","c")` cannot collide with `("a","bc")`, and that property is preserved — but a raw NUL makes `file` classify the source as binary, which makes `grep` and `ripgrep` **silently skip the entire file**: searching it for any symbol returns no matches at all, with no error. Nothing else caught it, because a raw NUL in a TS string literal is valid to the compiler, the linter and the tests. `src/source-text.test.ts` now fails on any NUL byte under `src/`.
+
 ### Vendor-backed channels can no longer be created with plaintext secrets
 
 `conv_create_channel` accepted any `chat` vendor with a free-form `config`, because until now every `chat` channel was the self-contained widget. Reddit is `chat` *and* vendor-backed, so that route would have created a live Reddit channel with the client secret and account password sitting in `conv_channels.config` as plaintext — bypassing pgcrypto, the credential handoff, and the inactive-until-verified rule. `ConvService.createChannel` now refuses any vendor that has a registered `ChannelAdminProvider`, which closes it for Reddit and doubles as a backstop for the voice and SMS vendors that were previously excluded only by the type enum.

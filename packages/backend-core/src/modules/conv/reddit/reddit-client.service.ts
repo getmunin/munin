@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
 export const REDDIT_TOKEN_URL = 'https://www.reddit.com/api/v1/access_token';
@@ -839,15 +839,17 @@ export function stripSubredditPrefix(value: string): string {
   return value.replace(/^\/?r\//i, '').trim();
 }
 
+const CACHE_KEY_SALT = randomBytes(32);
+
 function credentialKey(credentials: RedditCredentials): string {
-  return createHash('sha256')
+  return createHmac('sha256', CACHE_KEY_SALT)
     .update(
       [
         credentials.clientId,
         credentials.clientSecret,
         credentials.username,
         credentials.password,
-      ].join(' '),
+      ].join('\u0000'),
     )
     .digest('hex');
 }

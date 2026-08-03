@@ -252,7 +252,7 @@ export class ConvService {
     const actor = ctx.actor!;
     if (this.vendorBacked.providerFor(input.vendor)) {
       throw new ConvInvalidError(
-        `channel vendor '${input.vendor}' is vendor-backed — create it with conv_configure_channel, which encrypts its credentials and verifies them before activating the channel`,
+        `channel vendor '${input.vendor}' is vendor-backed — create it with conv_configure_vendor_channel, which encrypts its credentials and verifies them before activating the channel`,
       );
     }
     const [row] = await ctx.db

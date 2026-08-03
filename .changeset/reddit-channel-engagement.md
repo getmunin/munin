@@ -58,16 +58,22 @@ The body never carries an unsubscribe **URL**. A tracking link in a cold DM is a
 
 `conv_create_channel` accepted any `chat` vendor with a free-form `config`, because until now every `chat` channel was the self-contained widget. Reddit is `chat` *and* vendor-backed, so that route would have created a live Reddit channel with the client secret and account password sitting in `conv_channels.config` as plaintext — bypassing pgcrypto, the credential handoff, and the inactive-until-verified rule. `ConvService.createChannel` now refuses any vendor that has a registered `ChannelAdminProvider`, which closes it for Reddit and doubles as a backstop for the voice and SMS vendors that were previously excluded only by the type enum.
 
-### Renamed: the generic channel-admin tools
+### Renamed: the channel-admin tools now name the boundary they actually have
 
-A chat vendor now registers through them, so voice/SMS names had become untrue — `conv_list_voice_sms_vendors` would list Reddit:
+Reddit registers as a `ChannelAdminProvider`, so the voice/SMS names became untrue — `conv_list_voice_sms_vendors` would list Reddit:
 
 - `conv_list_voice_sms_vendors` → `conv_list_channel_vendors`
-- `conv_configure_voice_sms_channel` → `conv_configure_channel`
-- `conv_test_voice_sms_channel` → `conv_test_channel`
-- `conv_send_sms_channel_test` → `conv_send_channel_test_message`
+- `conv_configure_voice_sms_channel` → `conv_configure_vendor_channel`
+- `conv_test_voice_sms_channel` → `conv_test_vendor_channel`
+- `conv_send_sms_channel_test` → `conv_send_vendor_channel_test_message`
 
-Breaking, with no aliases published: callers that hardcode the old names must update. These tools were always generic over any registered `ChannelAdminProvider`; only the names were narrow.
+`conv_list_channel_options` was already generic and is unchanged.
+
+This is the second rename of these four, and the previous one (`1461e0e`) went the other way — from unqualified names to `voice_sms` — for a good reason: these tools resolve vendors only in the `ChannelAdminProvider` registry, so `conv_test_channel` sounded universal while failing on an email channel with `unknown channel vendor 'smtp'`. That reasoning still holds; a plain `conv_test_channel` would re-introduce exactly that defect. But `voice_sms` no longer describes the set either, and `voice_sms_reddit` does not scale.
+
+So the names now say what the set actually is: a **vendor-backed** channel is one provisioned through a vendor credential handoff. Today that is Vapi, Threll, Twilio, MessageBird and Reddit. Email and widget are not vendor-backed and keep their own tools (`conv_configure_email_channel`, `conv_create_widget_channel`, `conv_test_email_channel`, `conv_send_email_channel_test`), which the descriptions now state outright rather than leaving to be discovered by a failed call. It is the same concept the new `conv_create_channel` guard enforces, so the surface and the invariant use one vocabulary.
+
+Breaking, with no aliases published: callers that hardcode the old names must update.
 
 ### New surface
 

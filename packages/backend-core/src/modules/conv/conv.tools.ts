@@ -248,7 +248,7 @@ export class ConvAdminTools {
     name: 'conv_create_channel',
     title: 'Conv: Create conversation channel',
     description:
-      'Add an `email` or `chat` (widget) conversation channel whose configuration is self-contained. Channel-specific configuration goes in `config`. Vendor-backed channels — voice, SMS, and Reddit — are rejected here: they need the credential handoff that conv_configure_channel performs, which encrypts their credentials and verifies them before activating the channel.',
+      'Add an `email` or `chat` (widget) conversation channel whose configuration is self-contained. Channel-specific configuration goes in `config`. Vendor-backed channels — voice, SMS, and Reddit — are rejected here: they need the credential handoff that conv_configure_vendor_channel performs, which encrypts their credentials and verifies them before activating the channel.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateChannelInput,

@@ -13,9 +13,9 @@ This channel is **bring-your-own-key**: the customer registers their own Reddit 
 ## TL;DR
 
 1. The human creates a **script** app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) — "create another app…", type **script**. Note the client id (under the app name) and the client secret.
-2. `conv_configure_channel` with `vendor: 'reddit'`, a `name`, and the **non-secret** config: `clientId` and `username`. The channel is created inactive and the response includes a one-time **credential link**.
+2. `conv_configure_vendor_channel` with `vendor: 'reddit'`, a `name`, and the **non-secret** config: `clientId` and `username`. The channel is created inactive and the response includes a one-time **credential link**.
 3. Share the credential link — the human enters `clientSecret` and `password` in the dashboard. Saving verifies the credentials against Reddit and activates the channel. The link works once and expires after 24 hours; mint a fresh one with `conv_request_channel_credentials`.
-4. `conv_test_channel { channelId }` re-verifies the stored credentials any time. `conv_send_channel_test_message { channelId, to }` sends a real DM to a username you supply.
+4. `conv_test_vendor_channel { channelId }` re-verifies the stored credentials any time. `conv_send_vendor_channel_test_message { channelId, to }` sends a real DM to a username you supply.
 
 **Never ask for the client secret or the account password in the conversation** — the tool rejects secret fields.
 
@@ -69,7 +69,7 @@ Two different threading rules, because Reddit has two different shapes of conver
 - **DMs thread per person.** A second DM from the same account lands in that account's most recent open conversation; a snoozed one is reopened. Each redditor becomes a contact identified by their `handle`.
 - **Thread comments thread per thread.** Every reply in a thread Munin commented in lands in that thread's single conversation, whoever wrote it, each message attributed to its own author. So one conversation can hold many people — that is correct, not a bug.
 
-**Set `defaultAgentMode` on the channel.** `conv_configure_channel { channelId, vendor: 'reddit', defaultAgentMode }` decides what the agent does with inbound Reddit messages: `auto` replies directly, `draft_only` files a draft for a human, `off` does neither. **Prefer `draft_only`.** A wrong auto-reply in a public thread is public and permanent, and cannot be recalled.
+**Set `defaultAgentMode` on the channel.** `conv_configure_vendor_channel { channelId, vendor: 'reddit', defaultAgentMode }` decides what the agent does with inbound Reddit messages: `auto` replies directly, `draft_only` files a draft for a human, `off` does neither. **Prefer `draft_only`.** A wrong auto-reply in a public thread is public and permanent, and cannot be recalled.
 
 ## Opting out
 
@@ -79,8 +79,8 @@ When anyone asks to be left alone — in a DM or publicly in a thread — set `d
 
 ## Verify
 
-- `conv_test_channel { channelId }` — fetches the authenticated account from Reddit, so it confirms the app credentials, the password grant, and which account Munin will speak as. No message sent.
-- `conv_send_channel_test_message { channelId, to }` — sends a real DM to a username you supply. Use a colleague's account or a throwaway; do not test against a prospect.
+- `conv_test_vendor_channel { channelId }` — fetches the authenticated account from Reddit, so it confirms the app credentials, the password grant, and which account Munin will speak as. No message sent.
+- `conv_send_vendor_channel_test_message { channelId, to }` — sends a real DM to a username you supply. Use a colleague's account or a throwaway; do not test against a prospect.
 
 ## Related
 

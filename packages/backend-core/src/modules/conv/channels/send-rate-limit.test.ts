@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   decideRateLimit,
   parseRateLimitDeferral,
+  providerDeferralError,
   rateLimitDeferralError,
   type SendCounts,
 } from './send-rate-limit.ts';
@@ -120,5 +121,32 @@ describe('rateLimitDeferralError / parseRateLimitDeferral', () => {
     expect(parseRateLimitDeferral(null)).toBeNull();
     expect(parseRateLimitDeferral('SMTP refused')).toBeNull();
     expect(parseRateLimitDeferral('rate_limited:bad')).toBeNull();
+  });
+});
+
+describe('providerDeferralError', () => {
+  const until = new Date('2026-05-15T08:00:00.000Z');
+
+  it('keeps the provider detail readable alongside the retry time', () => {
+    const encoded = providerDeferralError(until, 'Reddit 429, ratelimit exhausted');
+    expect(parseRateLimitDeferral(encoded)).toEqual({
+      reason: 'provider',
+      until,
+      detail: 'Reddit 429, ratelimit exhausted',
+    });
+  });
+
+  it('stays parseable when the provider detail is empty', () => {
+    expect(parseRateLimitDeferral(providerDeferralError(until, '   '))).toEqual({
+      reason: 'provider',
+      until,
+    });
+  });
+
+  it('strips separators a provider message could use to corrupt the encoding', () => {
+    const encoded = providerDeferralError(until, 'first|second\nthird');
+    const parsed = parseRateLimitDeferral(encoded);
+    expect(parsed?.until).toEqual(until);
+    expect(parsed?.detail).toBe('first second third');
   });
 });

@@ -21,9 +21,11 @@ import {
 } from './adapter.ts';
 import {
   decideRateLimit,
+  providerDeferralError,
   rateLimitDeferralError,
   type SendCounts,
 } from './send-rate-limit.ts';
+import { ChannelSendDeferredError, ChannelSendTerminalError } from './send-outcome.ts';
 
 const POLL_INTERVAL_MS = parseEnvInt({
   name: 'MUNIN_OUTBOUND_DELIVERY_WORKER_INTERVAL_MS',
@@ -143,6 +145,21 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
       };
       result = await adapter.send(sendCtx);
     } catch (err) {
+      if (err instanceof ChannelSendDeferredError) {
+        await this.recordDeferral(
+          deliveryId,
+          err.nextAttemptAt,
+          providerDeferralError(err.nextAttemptAt, err.message),
+        );
+        this.logger.log(
+          `delivery ${deliveryId} on channel ${ctx.channel.id} deferred by adapter until ${err.nextAttemptAt.toISOString()}: ${err.message}`,
+        );
+        return 'deferred';
+      }
+      if (err instanceof ChannelSendTerminalError) {
+        await this.recordTerminalFailure(deliveryId, ctx.attempt, err.message);
+        return 'failed';
+      }
       await this.recordFailure(deliveryId, ctx.attempt, errorMessage(err));
       return 'failed';
     }
@@ -232,40 +249,69 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
     const final = next >= MAX_ATTEMPTS;
     const backoff = BACKOFF_BASE_MS * 2 ** priorAttempts;
     const jitter = Math.floor(backoff * 0.1 * Math.random());
+    await this.writeFailure(
+      deliveryId,
+      next,
+      error,
+      final ? null : new Date(Date.now() + backoff + jitter),
+    );
+    if (final) await this.emitDeliveryFailed(deliveryId, error, next);
+  }
+
+  private async recordTerminalFailure(
+    deliveryId: string,
+    priorAttempts: number,
+    error: string,
+  ): Promise<void> {
+    const next = priorAttempts + 1;
+    await this.writeFailure(deliveryId, next, error, null);
+    this.logger.warn(`delivery ${deliveryId} failed terminally, not retrying: ${error}`);
+    await this.emitDeliveryFailed(deliveryId, error, next);
+  }
+
+  private async writeFailure(
+    deliveryId: string,
+    attempt: number,
+    error: string,
+    nextAttemptAt: Date | null,
+  ): Promise<void> {
     await this.db
       .update(schema.convMessageDeliveries)
       .set({
-        status: final ? 'dead' : 'failed',
-        attempt: next,
+        status: nextAttemptAt ? 'failed' : 'dead',
+        attempt,
         error,
-        nextAttemptAt: final ? null : new Date(Date.now() + backoff + jitter),
+        nextAttemptAt,
         updatedAt: new Date(),
       })
       .where(eq(schema.convMessageDeliveries.id, deliveryId));
+  }
 
-    if (final) {
-      const row = await this.db
-        .select()
-        .from(schema.convMessageDeliveries)
-        .where(eq(schema.convMessageDeliveries.id, deliveryId))
-        .limit(1);
-      const d = row[0];
-      if (d) {
-        const msg = await this.db
-          .select({ conversationId: schema.convMessages.conversationId })
-          .from(schema.convMessages)
-          .where(eq(schema.convMessages.id, d.messageId))
-          .limit(1);
-        await this.fireWebhook('conversation.message.delivery_failed', {
-          orgId: d.orgId,
-          conversationId: msg[0]?.conversationId ?? '',
-          messageId: d.messageId,
-          channelId: d.channelId,
-          error,
-          attempts: next,
-        });
-      }
-    }
+  private async emitDeliveryFailed(
+    deliveryId: string,
+    error: string,
+    attempts: number,
+  ): Promise<void> {
+    const row = await this.db
+      .select()
+      .from(schema.convMessageDeliveries)
+      .where(eq(schema.convMessageDeliveries.id, deliveryId))
+      .limit(1);
+    const d = row[0];
+    if (!d) return;
+    const msg = await this.db
+      .select({ conversationId: schema.convMessages.conversationId })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.id, d.messageId))
+      .limit(1);
+    await this.fireWebhook('conversation.message.delivery_failed', {
+      orgId: d.orgId,
+      conversationId: msg[0]?.conversationId ?? '',
+      messageId: d.messageId,
+      channelId: d.channelId,
+      error,
+      attempts,
+    });
   }
 
   private async fireWebhook(type: string, payload: Record<string, unknown>): Promise<void> {

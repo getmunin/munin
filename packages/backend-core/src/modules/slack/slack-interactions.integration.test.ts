@@ -150,7 +150,7 @@ class FakeSlackApi extends SlackApiClient {
     const dispatcher = new WebhookDispatcher();
     dispatcher.registerSink(new SlackEventSink());
     const claims = new ConversationClaimsService(dispatcher);
-    const conv = new ConvService(dispatcher, claims, new CuratorJobsService(dispatcher), new AlertsService(dispatcher));
+    const conv = new ConvService(dispatcher, claims, new CuratorJobsService(dispatcher), new AlertsService(dispatcher), [], { providerFor: () => undefined });
     const crm = new CrmService(dispatcher, new DefaultQuotasService());
     const outreach = new OutreachService(
       dispatcher,

@@ -26,6 +26,7 @@ export interface ContactDto {
   name: string | null;
   email: string | null;
   phone: string | null;
+  handle: string | null;
   title: string | null;
   address: string | null;
   companyId: string | null;
@@ -142,6 +143,7 @@ export interface MergeProposalContactSummary {
   name: string | null;
   email: string | null;
   phone: string | null;
+  handle: string | null;
   companyId: string | null;
   endUserId: string | null;
 }
@@ -201,6 +203,7 @@ export interface CrmContactExport {
   name: string | null;
   email: string | null;
   phone: string | null;
+  handle: string | null;
   title: string | null;
   address: string | null;
   tags: string[];
@@ -306,14 +309,19 @@ export class CrmService {
     return toContactDto(rows[0]);
   }
 
-  async findContact(input: { email?: string; phone?: string }): Promise<ContactDto | null> {
+  async findContact(input: {
+    email?: string;
+    phone?: string;
+    handle?: string;
+  }): Promise<ContactDto | null> {
     const ctx = getCurrentContext();
-    if (!input.email && !input.phone) {
-      throw new CrmInvalidError('at least one of email or phone is required');
+    if (!input.email && !input.phone && !input.handle) {
+      throw new CrmInvalidError('at least one of email, phone or handle is required');
     }
     const filters: SQL[] = [];
     if (input.email) filters.push(eq(schema.crmContacts.email, input.email));
     if (input.phone) filters.push(eq(schema.crmContacts.phone, input.phone));
+    if (input.handle) filters.push(eq(schema.crmContacts.handle, input.handle));
     const rows = await ctx.db
       .select()
       .from(schema.crmContacts)
@@ -327,6 +335,7 @@ export class CrmService {
     name?: string;
     email?: string;
     phone?: string;
+    handle?: string;
     title?: string;
     address?: string;
     companyId?: string;
@@ -352,6 +361,7 @@ export class CrmService {
         name: input.name ?? null,
         email: input.email ?? null,
         phone: input.phone ?? null,
+        handle: input.handle ?? null,
         title: input.title ?? null,
         address: input.address ?? null,
         companyId: input.companyId ?? null,
@@ -384,6 +394,7 @@ export class CrmService {
       const existing = await this.findContact({
         email: input.email,
         phone: input.phone,
+        handle: input.handle,
       }).catch(() => null);
       if (existing?.doNotContact) {
         skipped += 1;
@@ -405,6 +416,7 @@ export class CrmService {
       name: string;
       email: string;
       phone: string;
+      handle: string;
       title: string;
       address: string;
       companyId: string | null;
@@ -663,6 +675,7 @@ export class CrmService {
         or(
           ilike(schema.crmContacts.name, q),
           ilike(schema.crmContacts.email, q),
+          ilike(schema.crmContacts.handle, q),
           ilike(schema.crmContacts.title, q),
         )!,
       );
@@ -975,6 +988,7 @@ export class CrmService {
           ilike(schema.crmContacts.name, `%${trimmed}%`),
           ilike(schema.crmContacts.email, `%${trimmed}%`),
           ilike(schema.crmContacts.phone, `%${trimmed}%`),
+          ilike(schema.crmContacts.handle, `%${trimmed}%`),
           ilike(schema.crmContacts.title, `%${trimmed}%`),
         ),
       )
@@ -1409,6 +1423,7 @@ export class CrmService {
         name: c.name,
         email: c.email,
         phone: c.phone,
+        handle: c.handle,
         title: c.title,
         address: c.address,
         tags: c.tags,
@@ -1523,6 +1538,7 @@ export class CrmService {
           name: contact.name ?? undefined,
           email: contact.email ?? undefined,
           phone: contact.phone ?? undefined,
+          handle: contact.handle ?? undefined,
           title: contact.title ?? undefined,
           address: contact.address ?? undefined,
           companyId: resolveId(result.idMap, contact.companyId),
@@ -1869,6 +1885,7 @@ function toContactDto(row: typeof schema.crmContacts.$inferSelect): ContactDto {
     name: row.name,
     email: row.email,
     phone: row.phone,
+    handle: row.handle,
     title: row.title,
     address: row.address,
     companyId: row.companyId,
@@ -1963,6 +1980,7 @@ function toContactSummary(row: typeof schema.crmContacts.$inferSelect): MergePro
     name: row.name,
     email: row.email,
     phone: row.phone,
+    handle: row.handle,
     companyId: row.companyId,
     endUserId: row.endUserId,
   };
@@ -2022,6 +2040,7 @@ const MERGE_PATCH_ALLOWED_FIELDS = new Set([
   'name',
   'email',
   'phone',
+  'handle',
   'title',
   'address',
   'companyId',

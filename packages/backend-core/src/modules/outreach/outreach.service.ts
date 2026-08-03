@@ -17,6 +17,7 @@ import { ConvService } from '../conv/conv.service.ts';
 import { CrmService, CrmInvalidError } from '../crm/crm.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
 import { findOrCreateContactByPhone } from '../conv/contact-by-phone.ts';
+import { findOrCreateContactByHandle } from '../conv/contact-by-handle.ts';
 import {
   OUTREACH_VOICE_CALLERS,
   type OutreachVoiceCaller,
@@ -32,8 +33,14 @@ export class OutreachInvalidError extends Error {
   }
 }
 
-export const PROPOSAL_KINDS = ['initial', 'reply', 'followup'] as const;
+export const PROPOSAL_KINDS = ['initial', 'reply', 'followup', 'thread_comment'] as const;
+const DELIVERABLE_KINDS: readonly string[] = PROPOSAL_KINDS;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
+
+export const CAMPAIGN_KINDS = ['segment', 'engagement'] as const;
+export type CampaignKind = (typeof CAMPAIGN_KINDS)[number];
+
+export const ENGAGEMENT_CHANNEL_VENDORS = new Set(['reddit']);
 
 export const CHANNELS_REQUIRING_HUMAN_APPROVAL: readonly string[] = ['voice', 'sms'];
 
@@ -73,11 +80,23 @@ export interface ScheduledSendResult {
 
 export interface CadenceRules {
   maxPerWeekPerContact?: number;
+  maxPerWeekPerSubreddit?: number;
+  maxCommentsPerDay?: number;
   quietHoursStart?: string;
   quietHoursEnd?: string;
   quietHoursTimezone?: string;
   blackoutDates?: string[];
 }
+
+export interface ThreadTarget {
+  threadId: string;
+  permalink: string;
+  subreddit: string;
+  title: string;
+  opHandle?: string | null;
+}
+
+export type SendDecision = { allowed: true } | { allowed: false; reason: string };
 
 export interface SequenceStep {
   waitDays: number;
@@ -99,7 +118,8 @@ export interface CampaignDto {
   id: string;
   name: string;
   brief: string;
-  segmentId: string;
+  kind: CampaignKind;
+  segmentId: string | null;
   channelId: string;
   cadenceRules: CadenceRules;
   sequenceSteps: SequenceStep[];
@@ -117,6 +137,7 @@ export interface ProposalContactSummary {
   name: string | null;
   email: string | null;
   phone: string | null;
+  handle: string | null;
   companyId: string | null;
 }
 
@@ -137,9 +158,10 @@ export interface ProposalDelivery {
 export interface ProposalDto {
   id: string;
   campaignId: string;
-  contactId: string;
+  contactId: string | null;
   conversationId: string | null;
   kind: ProposalKind;
+  target: ThreadTarget | null;
   sequenceStep: number | null;
   draftSubject: string | null;
   draftBody: string;
@@ -185,7 +207,8 @@ export interface OutreachCampaignExport {
   id: string;
   name: string;
   brief: string;
-  segmentId: string;
+  kind: CampaignKind;
+  segmentId: string | null;
   channelId: string;
   cadenceRules: CadenceRules;
   sequenceSteps: SequenceStep[];
@@ -198,9 +221,10 @@ export interface OutreachCampaignExport {
 export interface OutreachProposalExport {
   id: string;
   campaignId: string;
-  contactId: string;
+  contactId: string | null;
   conversationId: string | null;
   kind: ProposalKind;
+  target: ThreadTarget | null;
   sequenceStep: number | null;
   draftSubject: string | null;
   draftBody: string;
@@ -252,7 +276,8 @@ export class OutreachService {
   async createCampaign(input: {
     name: string;
     brief: string;
-    segmentId: string;
+    kind?: CampaignKind;
+    segmentId?: string | null;
     channelId: string;
     cadenceRules?: CadenceRules;
     sequenceSteps?: SequenceStep[];
@@ -266,8 +291,12 @@ export class OutreachService {
     const actor = ctx.actor!;
     if (!input.name.trim()) throw new OutreachInvalidError('name must be non-empty');
     if (!input.brief.trim()) throw new OutreachInvalidError('brief must be non-empty');
-    await this.assertSegmentExists(input.segmentId);
+    const kind: CampaignKind = input.kind ?? 'segment';
+    const segmentId = input.segmentId ?? null;
+    assertCampaignShape(kind, segmentId, input.sequenceSteps ?? []);
+    if (segmentId) await this.assertSegmentExists(segmentId);
     const channel = await this.loadOutreachChannel(input.channelId);
+    assertCampaignChannel(kind, channel);
     if (input.sequenceSteps?.length && channel.type !== 'email') {
       throw new OutreachInvalidError(
         'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
@@ -281,7 +310,8 @@ export class OutreachService {
           orgId: actor.orgId,
           name: input.name,
           brief: input.brief,
-          segmentId: input.segmentId,
+          kind,
+          segmentId,
           channelId: input.channelId,
           cadenceRules: input.cadenceRules ?? {},
           sequenceSteps: input.sequenceSteps ?? [],
@@ -308,6 +338,7 @@ export class OutreachService {
     patch: Partial<{
       name: string;
       brief: string;
+      kind: CampaignKind;
       segmentId: string;
       channelId: string;
       cadenceRules: CadenceRules;
@@ -320,18 +351,24 @@ export class OutreachService {
     }>;
   }): Promise<CampaignDto> {
     const ctx = getCurrentContext();
+    if (input.patch.kind !== undefined) {
+      throw new OutreachInvalidError(
+        'kind cannot be patched — a segment campaign and an engagement campaign target different things, ' +
+          'and switching would orphan the proposals already filed against this campaign',
+      );
+    }
+    const current = await this.getCampaign(input.id);
+    const segmentId = input.patch.segmentId ?? current.segmentId;
+    const steps = input.patch.sequenceSteps ?? current.sequenceSteps;
+    assertCampaignShape(current.kind, segmentId, steps);
     if (input.patch.segmentId) await this.assertSegmentExists(input.patch.segmentId);
-    if (input.patch.channelId) await this.loadOutreachChannel(input.patch.channelId);
-    if (input.patch.sequenceSteps?.length || input.patch.channelId) {
-      const current = await this.getCampaign(input.id);
-      const steps = input.patch.sequenceSteps ?? current.sequenceSteps;
-      if (steps.length > 0) {
-        const channel = await this.loadOutreachChannel(input.patch.channelId ?? current.channelId);
-        if (channel.type !== 'email') {
-          throw new OutreachInvalidError(
-            'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
-          );
-        }
+    if (input.patch.channelId || steps.length > 0) {
+      const channel = await this.loadOutreachChannel(input.patch.channelId ?? current.channelId);
+      assertCampaignChannel(current.kind, channel);
+      if (steps.length > 0 && channel.type !== 'email') {
+        throw new OutreachInvalidError(
+          'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
+        );
       }
     }
     if (input.patch.name !== undefined) {
@@ -374,6 +411,7 @@ export class OutreachService {
           name: schema.crmContacts.name,
           email: schema.crmContacts.email,
           phone: schema.crmContacts.phone,
+          handle: schema.crmContacts.handle,
           companyId: schema.crmContacts.companyId,
         },
         campaign: {
@@ -407,7 +445,7 @@ export class OutreachService {
         r.hasEvidence,
         r.contact,
         r.campaign,
-        toProposalDelivery(r.contact, r.campaign, r.channel),
+        toProposalDelivery(r.contact, r.campaign, r.channel, toThreadTarget(r.proposal.target)),
       ));
   }
 
@@ -421,6 +459,7 @@ export class OutreachService {
           name: schema.crmContacts.name,
           email: schema.crmContacts.email,
           phone: schema.crmContacts.phone,
+          handle: schema.crmContacts.handle,
           companyId: schema.crmContacts.companyId,
         },
         campaign: {
@@ -449,7 +488,12 @@ export class OutreachService {
       rows[0].proposal,
       rows[0].contact,
       rows[0].campaign,
-      toProposalDelivery(rows[0].contact, rows[0].campaign, rows[0].channel),
+      toProposalDelivery(
+        rows[0].contact,
+        rows[0].campaign,
+        rows[0].channel,
+        toThreadTarget(rows[0].proposal.target),
+      ),
     );
   }
 
@@ -475,14 +519,15 @@ export class OutreachService {
       if (err instanceof CrmInvalidError) throw new OutreachInvalidError(err.message);
       throw err;
     });
-    if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
-      throw new OutreachInvalidError(
-        `contact ${input.contactId} is suppressed or has no recorded lawful basis`,
-      );
-    }
+    assertContactEligible(contact, 'propose');
     if ((channel.type === 'voice' || channel.type === 'sms') && !contact.phone) {
       throw new OutreachInvalidError(
         `contact ${input.contactId} has no phone number — required for ${channel.type} campaigns`,
+      );
+    }
+    if (isEngagementChannel(channel) && !contact.handle) {
+      throw new OutreachInvalidError(
+        `contact ${input.contactId} has no handle — required for ${channel.vendor} campaigns, which address people by username`,
       );
     }
     if (channel.type === 'sms' && input.draftBody.length > SMS_DRAFT_MAX_CHARS) {
@@ -571,49 +616,73 @@ export class OutreachService {
     }
     const replyCampaign = await this.getCampaign(conv.outreachCampaignId);
     const replyChannel = await this.loadOutreachChannel(replyCampaign.channelId);
-    if (replyChannel.type !== 'email') {
-      throw new OutreachInvalidError(
-        `reply proposals are only supported on email campaigns; this conversation is on ${replyChannel.type}:${replyChannel.vendor}`,
-      );
+    const threadTarget = await this.loadConversationThreadTarget(input.conversationId);
+    const gate = canSendNow({ contactId: conv.contactId, threadTarget }, replyChannel);
+    if (!gate.allowed) throw new OutreachInvalidError(gate.reason);
+
+    let replyContact: ProposalContactSummary | null = null;
+    let replyTarget: ThreadTarget | null = null;
+    if (isEngagementChannel(replyChannel)) {
+      replyContact = await this.resolveEngagementReplyContact(conv.contactId);
+      if (!replyContact) {
+        if (!threadTarget) {
+          throw new OutreachInvalidError(
+            `conversation ${input.conversationId} has neither a CRM contact for its participant nor a thread target — cannot file reply draft`,
+          );
+        }
+        replyTarget = threadTarget;
+        await this.assertNoPendingContactlessReply(replyCampaign.id, input.conversationId);
+      }
+    } else {
+      if (!conv.contactId) {
+        throw new OutreachInvalidError(
+          `conversation ${input.conversationId} has no contact bound — cannot file reply draft`,
+        );
+      }
+      const convContactRows = await ctx.db
+        .select({ email: schema.convContacts.email })
+        .from(schema.convContacts)
+        .where(eq(schema.convContacts.id, conv.contactId))
+        .limit(1);
+      const email = convContactRows[0]?.email;
+      if (!email) {
+        throw new OutreachInvalidError(
+          `conv contact ${conv.contactId} has no email — cannot resolve to a CRM contact`,
+        );
+      }
+      const crmContact = await this.crm.findContact({ email });
+      if (!crmContact) {
+        throw new OutreachInvalidError(
+          `no CRM contact found for ${email} on conversation ${input.conversationId}`,
+        );
+      }
+      replyContact = {
+        id: crmContact.id,
+        name: crmContact.name,
+        email: crmContact.email,
+        phone: crmContact.phone,
+        handle: crmContact.handle,
+        companyId: crmContact.companyId,
+      };
     }
-    if (!conv.contactId) {
-      throw new OutreachInvalidError(
-        `conversation ${input.conversationId} has no contact bound — cannot file reply draft`,
-      );
-    }
-    const convContactRows = await ctx.db
-      .select({ email: schema.convContacts.email })
-      .from(schema.convContacts)
-      .where(eq(schema.convContacts.id, conv.contactId))
-      .limit(1);
-    const email = convContactRows[0]?.email;
-    if (!email) {
-      throw new OutreachInvalidError(
-        `conv contact ${conv.contactId} has no email — cannot resolve to a CRM contact`,
-      );
-    }
-    const crmContact = await this.crm.findContact({ email });
-    if (!crmContact) {
-      throw new OutreachInvalidError(
-        `no CRM contact found for ${email} on conversation ${input.conversationId}`,
-      );
-    }
-    const [openReply] = await ctx.db
-      .select({ status: schema.outreachProposals.status })
-      .from(schema.outreachProposals)
-      .where(
-        and(
-          eq(schema.outreachProposals.campaignId, conv.outreachCampaignId),
-          eq(schema.outreachProposals.contactId, crmContact.id),
-          eq(schema.outreachProposals.kind, 'reply'),
-          inArray(schema.outreachProposals.status, ['pending', 'approved']),
-        ),
-      )
-      .limit(1);
-    if (openReply) {
-      throw new ConflictException(
-        `outreach_conflict: a ${openReply.status} reply proposal already exists for this conversation`,
-      );
+    if (replyContact) {
+      const [openReply] = await ctx.db
+        .select({ status: schema.outreachProposals.status })
+        .from(schema.outreachProposals)
+        .where(
+          and(
+            eq(schema.outreachProposals.campaignId, conv.outreachCampaignId),
+            eq(schema.outreachProposals.contactId, replyContact.id),
+            eq(schema.outreachProposals.kind, 'reply'),
+            inArray(schema.outreachProposals.status, ['pending', 'approved']),
+          ),
+        )
+        .limit(1);
+      if (openReply) {
+        throw new ConflictException(
+          `outreach_conflict: a ${openReply.status} reply proposal already exists for this conversation`,
+        );
+      }
     }
     try {
       const [row] = await ctx.db
@@ -621,9 +690,10 @@ export class OutreachService {
         .values({
           orgId: actor.orgId,
           campaignId: conv.outreachCampaignId,
-          contactId: crmContact.id,
+          contactId: replyContact?.id ?? null,
           conversationId: input.conversationId,
           kind: 'reply',
+          target: replyTarget ? { ...replyTarget } : null,
           draftBody: input.draftBody,
           evidence: input.evidence ?? {},
           status: 'pending',
@@ -643,20 +713,19 @@ export class OutreachService {
       });
       return toProposalDto(
         row!,
-        {
-          id: crmContact.id,
-          name: crmContact.name,
-          email: crmContact.email,
-          phone: crmContact.phone,
-          companyId: crmContact.companyId,
-        },
+        replyContact,
         { id: replyCampaign.id, name: replyCampaign.name },
-        toProposalDelivery(crmContact, replyCampaign, replyChannel),
+        toProposalDelivery(replyContact, replyCampaign, replyChannel, replyTarget),
       );
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_proposals_open_pair_uq')) {
         throw new ConflictException(
           `outreach_conflict: a reply proposal on this conversation is already pending review or scheduled to send`,
+        );
+      }
+      if (isUniqueViolation(err, 'outreach_proposals_open_conv_uq')) {
+        throw new ConflictException(
+          `outreach_conflict: a pending reply proposal already exists for this conversation`,
         );
       }
       throw err;
@@ -766,11 +835,7 @@ export class OutreachService {
       if (err instanceof CrmInvalidError) throw new OutreachInvalidError(err.message);
       throw err;
     });
-    if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
-      throw new OutreachInvalidError(
-        `contact ${anchor.contactId} is suppressed or has no recorded lawful basis`,
-      );
-    }
+    assertContactEligible(contact, 'propose');
     try {
       const [row] = await ctx.db
         .insert(schema.outreachProposals)
@@ -822,6 +887,69 @@ export class OutreachService {
     }
   }
 
+  async proposeThreadComment(input: {
+    campaignId: string;
+    target: ThreadTarget;
+    draftBody: string;
+    evidence?: Record<string, unknown>;
+  }): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!input.draftBody.trim()) throw new OutreachInvalidError('draftBody must be non-empty');
+    const campaign = await this.getCampaign(input.campaignId);
+    if (campaign.kind !== 'engagement') {
+      throw new OutreachInvalidError(
+        `campaign ${campaign.id} is a ${campaign.kind} campaign — thread comments belong to engagement campaigns`,
+      );
+    }
+    const channel = await this.loadOutreachChannel(campaign.channelId);
+    const target = assertThreadTarget(input.target);
+    await this.assertThreadUncommented(campaign.id, target);
+    await this.assertSubredditCadence(campaign, target);
+    try {
+      const [row] = await ctx.db
+        .insert(schema.outreachProposals)
+        .values({
+          orgId: actor.orgId,
+          campaignId: campaign.id,
+          contactId: null,
+          kind: 'thread_comment',
+          target: { ...target },
+          draftSubject: target.title,
+          draftBody: input.draftBody,
+          evidence: input.evidence ?? {},
+          status: 'pending',
+          proposedByActorType: actor.type,
+          proposedByActorId: actor.id,
+        })
+        .returning();
+      await this.webhooks.emit({
+        type: 'outreach.proposal.created',
+        payload: {
+          proposalId: row!.id,
+          campaignId: row!.campaignId,
+          contactId: row!.contactId,
+          kind: row!.kind,
+          threadId: target.threadId,
+          subreddit: target.subreddit,
+        },
+      });
+      return toProposalDto(
+        row!,
+        null,
+        { id: campaign.id, name: campaign.name },
+        toProposalDelivery(null, campaign, channel, target),
+      );
+    } catch (err) {
+      if (isUniqueViolation(err, 'outreach_proposals_thread_comment_uq')) {
+        throw new ConflictException(
+          `outreach_conflict: thread ${target.threadId} already carries a comment proposal in campaign ${campaign.id}`,
+        );
+      }
+      throw err;
+    }
+  }
+
   async approveProposal(id: string, opts: ApproveProposalOptions): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -833,6 +961,11 @@ export class OutreachService {
       throw new ConflictException(
         `outreach_conflict: proposal ${id} changed after the draft being approved was rendered — ` +
           `nothing was sent and it stays pending; re-read the current draft and approve that`,
+      );
+    }
+    if (!DELIVERABLE_KINDS.includes(proposal.kind)) {
+      throw new OutreachInvalidError(
+        `proposal ${id} has kind '${proposal.kind}', which has no delivery path`,
       );
     }
     this.assertHumanApprovalAllowed(proposal, actor);
@@ -988,7 +1121,17 @@ export class OutreachService {
     if (proposal.kind === 'followup') {
       return this.deliverFollowup(proposal, sender);
     }
-    return this.deliverReply(proposal, sender);
+    if (proposal.kind === 'thread_comment') {
+      return this.deliverThreadComment(proposal, sender);
+    }
+    if (proposal.kind === 'reply') {
+      return this.deliverReply(proposal, sender);
+    }
+    return Promise.reject(
+      new OutreachInvalidError(
+        `proposal ${proposal.id} has kind '${proposal.kind}', which has no delivery path`,
+      ),
+    );
   }
 
   private async deliverInitial(
@@ -1005,12 +1148,8 @@ export class OutreachService {
 
     const channel = await this.loadOutreachChannel(campaign.channelId);
 
-    const contact = await this.crm.getContact(proposal.contactId);
-    if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
-      throw new OutreachInvalidError(
-        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
-      );
-    }
+    const contact = await this.crm.getContact(requireProposalContactId(proposal));
+    assertContactEligible(contact, 'approve');
 
     if (channel.type === 'voice') {
       return this.deliverInitialVoice(proposal, campaign, contact, channel);
@@ -1018,6 +1157,10 @@ export class OutreachService {
 
     if (channel.type === 'sms') {
       return this.deliverInitialSms(proposal, campaign, contact, sender);
+    }
+
+    if (isEngagementChannel(channel)) {
+      return this.deliverInitialDirectMessage(proposal, campaign, contact, channel, sender);
     }
 
     if (!contact.email) {
@@ -1119,6 +1262,85 @@ export class OutreachService {
     const conversation = await this.conv.createConversation({
       channelId: campaign.channelId,
       body,
+      contactId: convContact.id,
+      endUserId: contact.endUserId ?? undefined,
+      outreachCampaignId: campaign.id,
+      agentMode: 'draft_only',
+      authorType: 'agent',
+      authorId: sender.id,
+    });
+
+    const firstMessageId = conversation.messages[0]?.id ?? null;
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'sent',
+        conversationId: conversation.id,
+        sentMessageId: firstMessageId,
+        sentAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.crmContacts.id, contact.id));
+
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: campaign.id,
+        contactId: contact.id,
+        conversationId: conversation.id,
+        messageId: firstMessageId,
+      },
+    });
+
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async deliverInitialDirectMessage(
+    proposal: ProposalDto,
+    campaign: CampaignDto,
+    contact: { id: string; name: string | null; handle: string | null; endUserId?: string | null },
+    channel: typeof schema.convChannels.$inferSelect,
+    sender: ProposalSender,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!contact.handle) {
+      throw new OutreachInvalidError(`contact ${contact.id} has no handle — cannot send`);
+    }
+
+    const convContact = await ctx.db.transaction(async (tx) => {
+      const found = await findOrCreateContactByHandle(
+        tx,
+        actor.orgId,
+        contact.handle!,
+        channel.vendor,
+        contact.name ?? undefined,
+        `outreach-${channel.vendor}`,
+      );
+      if (!found) {
+        throw new OutreachInvalidError(`could not resolve a contact for ${contact.handle}`);
+      }
+      return found;
+    });
+
+    const body = composeHandleOutreachBody({
+      draftBody: proposal.draftBody,
+      ctaUrl: campaign.ctaUrl,
+      unsubscribeRequired: campaign.unsubscribeRequired,
+    });
+
+    const conversation = await this.conv.createConversation({
+      channelId: campaign.channelId,
+      body,
+      subject: proposal.draftSubject ?? undefined,
       contactId: convContact.id,
       endUserId: contact.endUserId ?? undefined,
       outreachCampaignId: campaign.id,
@@ -1356,10 +1578,12 @@ export class OutreachService {
       .where(eq(schema.outreachProposals.id, proposal.id))
       .returning();
 
-    await ctx.db
-      .update(schema.crmContacts)
-      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.crmContacts.id, proposal.contactId));
+    if (proposal.contactId) {
+      await ctx.db
+        .update(schema.crmContacts)
+        .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+        .where(eq(schema.crmContacts.id, proposal.contactId));
+    }
 
     await this.webhooks.emit({
       type: 'outreach.proposal.sent',
@@ -1373,6 +1597,137 @@ export class OutreachService {
     });
 
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async deliverThreadComment(
+    proposal: ProposalDto,
+    sender: ProposalSender,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const target = proposal.target;
+    if (!target) {
+      throw new OutreachInvalidError(
+        `thread proposal ${proposal.id} has no target — cannot post a comment`,
+      );
+    }
+    const campaign = await this.getCampaign(proposal.campaignId);
+    if (!campaign.enabled) {
+      throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
+    }
+    const channel = await this.loadOutreachChannel(campaign.channelId);
+    await this.assertThreadUncommented(campaign.id, target, proposal.id);
+    await this.assertSubredditCadence(campaign, target);
+
+    const conversation = await this.createThreadConversation({
+      orgId: actor.orgId,
+      channel,
+      campaign,
+      target,
+    });
+
+    const sent = await this.conv.sendMessage({
+      conversationId: conversation.id,
+      body: proposal.draftBody,
+      authorType: 'agent',
+      authorId: sender.id,
+    });
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'sent',
+        conversationId: conversation.id,
+        sentMessageId: sent.id,
+        sentAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: campaign.id,
+        contactId: null,
+        conversationId: conversation.id,
+        messageId: sent.id,
+        threadId: target.threadId,
+        subreddit: target.subreddit,
+      },
+    });
+
+    return toProposalDto(updated!, null, proposal.campaign, proposal.delivery);
+  }
+
+  private async createThreadConversation(args: {
+    orgId: string;
+    channel: typeof schema.convChannels.$inferSelect;
+    campaign: CampaignDto;
+    target: ThreadTarget;
+  }): Promise<{ id: string }> {
+    const actor = new ActorIdentity('system', 'outreach-engagement', args.orgId, ['*'], ['admin']);
+    const conversationKey = `reddit:thread:${args.target.threadId}`;
+    const metadata = {
+      conversationKey,
+      redditTarget: 'comment',
+      redditThreadId: args.target.threadId,
+      redditSubreddit: args.target.subreddit,
+      redditPermalink: args.target.permalink,
+      redditParentFullname: `t3_${args.target.threadId}`,
+    };
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const requestCtx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+      return withContext(requestCtx, async () => {
+        const next = await tx.execute<{ next: number } & Record<string, unknown>>(
+          sql`SELECT conv_next_display_id(${args.orgId}) AS next`,
+        );
+        const displayId = next[0]!.next;
+        const newId = makeId('ccv');
+        const inserted = await tx.execute<{ id: string }>(sql`
+          INSERT INTO conv_conversations
+            (id, org_id, display_id, channel_id, contact_id, status, subject,
+             outreach_campaign_id, agent_mode, last_message_at, metadata)
+          VALUES
+            (${newId}, ${args.orgId}, ${displayId}, ${args.channel.id}, NULL,
+             'open', ${args.target.title}, ${args.campaign.id}, 'draft_only',
+             ${new Date().toISOString()}, ${JSON.stringify(metadata)}::jsonb)
+          ON CONFLICT (org_id, channel_id, ((metadata ->> 'conversationKey')))
+            WHERE (metadata ->> 'conversationKey') IS NOT NULL
+          DO NOTHING
+          RETURNING id
+        `);
+        const insertedId = inserted[0]?.id;
+        if (insertedId) return { id: insertedId };
+        const existing = await tx
+          .select({ id: schema.convConversations.id, metadata: schema.convConversations.metadata })
+          .from(schema.convConversations)
+          .where(
+            and(
+              eq(schema.convConversations.orgId, args.orgId),
+              eq(schema.convConversations.channelId, args.channel.id),
+              sql`${schema.convConversations.metadata}->>'conversationKey' = ${conversationKey}`,
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) {
+          throw new OutreachInvalidError(
+            `could not open a conversation for thread ${args.target.threadId} in r/${args.target.subreddit} — retry the approval`,
+          );
+        }
+        await tx
+          .update(schema.convConversations)
+          .set({
+            outreachCampaignId: args.campaign.id,
+            metadata: { ...existing[0].metadata, ...metadata },
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.convConversations.id, existing[0].id));
+        return { id: existing[0].id };
+      });
+    });
   }
 
   private async deliverFollowup(
@@ -1389,12 +1744,9 @@ export class OutreachService {
     if (!campaign.enabled) {
       throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
     }
-    const contact = await this.crm.getContact(proposal.contactId);
-    if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
-      throw new OutreachInvalidError(
-        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
-      );
-    }
+    const followupContactId = requireProposalContactId(proposal);
+    const contact = await this.crm.getContact(followupContactId);
+    assertContactEligible(contact, 'approve');
     const [inbound] = await ctx.db
       .select({ id: schema.convMessages.id })
       .from(schema.convMessages)
@@ -1431,14 +1783,14 @@ export class OutreachService {
     await ctx.db
       .update(schema.crmContacts)
       .set({ lastContactedAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.crmContacts.id, proposal.contactId));
+      .where(eq(schema.crmContacts.id, followupContactId));
 
     await this.webhooks.emit({
       type: 'outreach.proposal.sent',
       payload: {
         proposalId: proposal.id,
         campaignId: proposal.campaignId,
-        contactId: proposal.contactId,
+        contactId: followupContactId,
         conversationId: proposal.conversationId,
         messageId: sent.id,
         sequenceStep: proposal.sequenceStep,
@@ -1737,7 +2089,7 @@ export class OutreachService {
       .orderBy(desc(schema.outreachProposals.sentAt))
       .limit(1);
     const row = rows[0];
-    if (!row || !row.sentAt) return null;
+    if (!row || !row.sentAt || !row.contactId) return null;
     return {
       kind: row.kind as ProposalKind,
       sequenceStep: row.sequenceStep,
@@ -1759,10 +2111,12 @@ export class OutreachService {
     actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>,
   ): void {
     const channelType = proposal.delivery?.channelType ?? 'email';
-    if (!CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) return;
+    const isThreadComment = proposal.kind === 'thread_comment';
+    if (!isThreadComment && !CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) return;
+    const label = isThreadComment ? 'thread comment' : channelType;
     if (actor.type !== 'user') {
       throw new OutreachInvalidError(
-        `${channelType} proposals are approved by a signed-in person in the Munin dashboard, ` +
+        `${label} proposals are approved by a signed-in person in the Munin dashboard, ` +
           `not by an agent or API key — this caller is ${actor.type}`,
       );
     }
@@ -1770,16 +2124,147 @@ export class OutreachService {
 
   private async sendWindowClosedReason(proposal: ProposalDto): Promise<string | null> {
     const channelType = proposal.delivery?.channelType ?? 'email';
-    if (!CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) return null;
+    const isThreadComment = proposal.kind === 'thread_comment';
+    if (!isThreadComment && !CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) return null;
     const campaign = await this.getCampaign(proposal.campaignId);
     const blocked = outsideCallingWindow(campaign.cadenceRules, new Date());
     if (!blocked) return null;
-    return `campaign ${campaign.id} does not ${channelType === 'voice' ? 'call' : 'message'} ${blocked}`;
+    const verb = isThreadComment ? 'comment' : channelType === 'voice' ? 'call' : 'message';
+    return `campaign ${campaign.id} does not ${verb} ${blocked}`;
   }
 
   private async assertSendWindowOpen(proposal: ProposalDto): Promise<void> {
     const closed = await this.sendWindowClosedReason(proposal);
     if (closed) throw new OutreachInvalidError(closed);
+  }
+
+  private async assertThreadUncommented(
+    campaignId: string,
+    target: ThreadTarget,
+    exceptProposalId?: string,
+  ): Promise<void> {
+    const ctx = getCurrentContext();
+    const filters: SQL[] = [
+      eq(schema.outreachProposals.campaignId, campaignId),
+      eq(schema.outreachProposals.kind, 'thread_comment'),
+      inArray(schema.outreachProposals.status, ['pending', 'approved', 'sent']),
+      sql`${schema.outreachProposals.target}->>'threadId' = ${target.threadId}`,
+    ];
+    if (exceptProposalId) {
+      filters.push(sql`${schema.outreachProposals.id} <> ${exceptProposalId}`);
+    }
+    const [claimed] = await ctx.db
+      .select({ id: schema.outreachProposals.id, status: schema.outreachProposals.status })
+      .from(schema.outreachProposals)
+      .where(and(...filters))
+      .limit(1);
+    if (claimed) {
+      throw new ConflictException(
+        `outreach_conflict: thread ${target.threadId} already has a ${claimed.status} comment proposal ` +
+          `(${claimed.id}) in campaign ${campaignId} — Munin comments in a thread once`,
+      );
+    }
+  }
+
+  private async assertNoPendingContactlessReply(
+    campaignId: string,
+    conversationId: string,
+  ): Promise<void> {
+    const ctx = getCurrentContext();
+    const [pending] = await ctx.db
+      .select({ id: schema.outreachProposals.id })
+      .from(schema.outreachProposals)
+      .where(
+        and(
+          eq(schema.outreachProposals.campaignId, campaignId),
+          eq(schema.outreachProposals.conversationId, conversationId),
+          eq(schema.outreachProposals.kind, 'reply'),
+          eq(schema.outreachProposals.status, 'pending'),
+          sql`${schema.outreachProposals.contactId} IS NULL`,
+        ),
+      )
+      .limit(1);
+    if (pending) {
+      throw new ConflictException(
+        `outreach_conflict: a pending reply proposal (${pending.id}) already exists for this conversation`,
+      );
+    }
+  }
+
+  private async assertSubredditCadence(
+    campaign: CampaignDto,
+    target: ThreadTarget,
+  ): Promise<void> {
+    const perWeek = campaign.cadenceRules.maxPerWeekPerSubreddit;
+    const perDay = campaign.cadenceRules.maxCommentsPerDay;
+    if (perWeek === undefined && perDay === undefined) return;
+    const ctx = getCurrentContext();
+    const rows = await ctx.db.execute<{ week_in_subreddit: number; day_all: number }>(sql`
+      SELECT
+        COUNT(*) FILTER (
+          WHERE p.target ->> 'subreddit' = ${target.subreddit}
+            AND p.sent_at > now() - interval '7 days'
+        )::int AS week_in_subreddit,
+        COUNT(*) FILTER (WHERE p.sent_at > now() - interval '24 hours')::int AS day_all
+      FROM outreach_proposals p
+      WHERE p.campaign_id = ${campaign.id}
+        AND p.kind = 'thread_comment'
+        AND p.status IN ('approved', 'sent')
+        AND (p.target ->> 'threadId') IS NOT NULL
+    `);
+    const counts = rows[0] ?? { week_in_subreddit: 0, day_all: 0 };
+    if (perWeek !== undefined && counts.week_in_subreddit >= perWeek) {
+      throw new ConflictException(
+        `outreach_conflict: campaign ${campaign.id} is at its cadence cap of ${perWeek} ` +
+          `comments per week in r/${target.subreddit} (${counts.week_in_subreddit} in the last 7 days)`,
+      );
+    }
+    if (perDay !== undefined && counts.day_all >= perDay) {
+      throw new ConflictException(
+        `outreach_conflict: campaign ${campaign.id} is at its cadence cap of ${perDay} ` +
+          `comments per day (${counts.day_all} in the last 24 hours)`,
+      );
+    }
+  }
+
+  private async loadConversationThreadTarget(conversationId: string): Promise<ThreadTarget | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ metadata: schema.convConversations.metadata })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId))
+      .limit(1);
+    return threadTargetFromMetadata(rows[0]?.metadata ?? null);
+  }
+
+  private async resolveEngagementReplyContact(
+    convContactId: string | null,
+  ): Promise<ProposalContactSummary | null> {
+    if (!convContactId) return null;
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ email: schema.convContacts.email, handle: schema.convContacts.handle })
+      .from(schema.convContacts)
+      .where(eq(schema.convContacts.id, convContactId))
+      .limit(1);
+    const convContact = rows[0];
+    if (!convContact) return null;
+    const lookup = convContact.handle
+      ? { handle: convContact.handle }
+      : convContact.email
+        ? { email: convContact.email }
+        : null;
+    if (!lookup) return null;
+    const crmContact = await this.crm.findContact(lookup);
+    if (!crmContact) return null;
+    return {
+      id: crmContact.id,
+      name: crmContact.name,
+      email: crmContact.email,
+      phone: crmContact.phone,
+      handle: crmContact.handle,
+      companyId: crmContact.companyId,
+    };
   }
 
   private async assertSegmentExists(segmentId: string): Promise<void> {
@@ -1832,8 +2317,10 @@ export class OutreachService {
         `voice vendor '${channel.vendor}' cannot place outreach calls; supported: ${[...this.voiceCallers.keys()].sort().join(', ')}`,
       );
     }
+    if (isEngagementChannel(channel)) return channel;
     throw new OutreachInvalidError(
-      `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email, sms, or voice channel`,
+      `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email, sms, or voice channel, ` +
+        `or an engagement channel (${[...ENGAGEMENT_CHANNEL_VENDORS].sort().join(', ')}) for engagement campaigns`,
     );
   }
 
@@ -1848,6 +2335,7 @@ export class OutreachService {
         id: c.id,
         name: c.name,
         brief: c.brief,
+        kind: c.kind as CampaignKind,
         segmentId: c.segmentId,
         channelId: c.channelId,
         cadenceRules: c.cadenceRules,
@@ -1863,6 +2351,7 @@ export class OutreachService {
         contactId: p.contactId,
         conversationId: p.conversationId,
         kind: p.kind as ProposalKind,
+        target: toThreadTarget(p.target),
         sequenceStep: p.sequenceStep,
         draftSubject: p.draftSubject,
         draftBody: p.draftBody,
@@ -1880,9 +2369,10 @@ export class OutreachService {
     result.idMap = { ...priorIdMap };
 
     for (const campaign of data.campaigns) {
-      const segmentId = resolveId(result.idMap, campaign.segmentId);
+      const kind: CampaignKind = campaign.kind ?? 'segment';
+      const segmentId = campaign.segmentId ? resolveId(result.idMap, campaign.segmentId) : null;
       const channelId = resolveId(result.idMap, campaign.channelId);
-      if (!segmentId || !channelId) {
+      if ((kind === 'segment' && !segmentId) || !channelId) {
         result.warnings.push(
           `campaign "${campaign.name}" skipped: ${!segmentId ? 'segment' : 'channel'} was not part of this import — import CRM and Conversations first and pass their idMap`,
         );
@@ -1898,6 +2388,7 @@ export class OutreachService {
       const created = await this.createCampaign({
         name: campaign.name,
         brief: campaign.brief,
+        kind,
         segmentId,
         channelId,
         cadenceRules: campaign.cadenceRules,
@@ -1917,20 +2408,25 @@ export class OutreachService {
 
     for (const proposal of data.proposals) {
       const campaignId = resolveId(result.idMap, proposal.campaignId);
-      const contactId = resolveId(result.idMap, proposal.contactId);
-      if (!campaignId || !contactId) {
+      const target = toThreadTarget(proposal.target);
+      const contactId = proposal.contactId
+        ? resolveId(result.idMap, proposal.contactId)
+        : null;
+      if (!campaignId || (!contactId && !target)) {
         result.warnings.push(
           `proposal ${proposal.id} skipped: its campaign or contact was not part of this import`,
         );
         result.skipped++;
         continue;
       }
-      const existing = await this.findProposalByKey(
-        campaignId,
-        contactId,
-        proposal.kind,
-        proposal.sequenceStep,
-      );
+      const existing = target
+        ? await this.findThreadProposalByKey(campaignId, target.threadId, proposal.kind)
+        : await this.findProposalByKey(
+            campaignId,
+            contactId!,
+            proposal.kind,
+            proposal.sequenceStep,
+          );
       if (existing) {
         result.idMap[proposal.id] = existing.id;
         result.skipped++;
@@ -1950,6 +2446,7 @@ export class OutreachService {
           contactId,
           conversationId,
           kind: proposal.kind,
+          target: target ? { ...target } : null,
           sequenceStep: proposal.sequenceStep ?? null,
           draftSubject: proposal.draftSubject,
           draftBody: proposal.draftBody,
@@ -2001,6 +2498,26 @@ export class OutreachService {
       .limit(1);
     return rows[0] ?? null;
   }
+
+  private async findThreadProposalByKey(
+    campaignId: string,
+    threadId: string,
+    kind: ProposalKind,
+  ): Promise<{ id: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.outreachProposals.id })
+      .from(schema.outreachProposals)
+      .where(
+        and(
+          eq(schema.outreachProposals.campaignId, campaignId),
+          eq(schema.outreachProposals.kind, kind),
+          sql`${schema.outreachProposals.target}->>'threadId' = ${threadId}`,
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
 }
 
 function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): CampaignDto {
@@ -2008,6 +2525,7 @@ function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): Campa
     id: row.id,
     name: row.name,
     brief: row.brief,
+    kind: row.kind as CampaignKind,
     segmentId: row.segmentId,
     channelId: row.channelId,
     cadenceRules: row.cadenceRules,
@@ -2029,6 +2547,7 @@ function toProposalDto(
     name: string | null;
     email: string | null;
     phone?: string | null;
+    handle?: string | null;
     companyId: string | null;
   } | null = null,
   campaign: {
@@ -2045,6 +2564,7 @@ function toProposalDto(
     contactId: row.contactId,
     conversationId: row.conversationId,
     kind: row.kind as ProposalKind,
+    target: toThreadTarget(row.target),
     sequenceStep: row.sequenceStep,
     draftSubject: row.draftSubject,
     draftBody: row.draftBody,
@@ -2082,6 +2602,7 @@ function toProposalDto(
             name: contact.name,
             email: contact.email,
             phone: contact.phone ?? null,
+            handle: contact.handle ?? null,
             companyId: contact.companyId,
           }
         : null,
@@ -2185,12 +2706,37 @@ function toMinuteOfDay(hhmm: string): number {
 }
 
 function toProposalDelivery(
-  contact: { email: string | null; phone?: string | null } | null,
+  contact: { email: string | null; phone?: string | null; handle?: string | null } | null,
   campaign: { ctaUrl?: string | null; unsubscribeRequired?: boolean | null } | null,
   channel: { id: string | null; type: string | null; vendor: string | null } | null,
+  target: ThreadTarget | null = null,
 ): ProposalDelivery | null {
   if (!channel?.id || !channel.type) return null;
+  if (target) {
+    return {
+      channelId: channel.id,
+      channelType: channel.type,
+      vendor: channel.vendor ?? '',
+      destination: target.permalink,
+      appendsCta: false,
+      appendsUnsubscribe: false,
+    };
+  }
   const isEmail = channel.type === 'email';
+  const isEngagement = isEngagementChannel({
+    type: channel.type,
+    vendor: channel.vendor ?? '',
+  });
+  if (isEngagement) {
+    return {
+      channelId: channel.id,
+      channelType: channel.type,
+      vendor: channel.vendor ?? '',
+      destination: contact?.handle ?? null,
+      appendsCta: Boolean(campaign?.ctaUrl),
+      appendsUnsubscribe: campaign?.unsubscribeRequired === true,
+    };
+  }
   return {
     channelId: channel.id,
     channelType: channel.type,
@@ -2198,6 +2744,155 @@ function toProposalDelivery(
     destination: (isEmail ? contact?.email : contact?.phone) ?? null,
     appendsCta: isEmail && Boolean(campaign?.ctaUrl),
     appendsUnsubscribe: isEmail && campaign?.unsubscribeRequired === true,
+  };
+}
+
+function isEngagementChannel(channel: { type: string; vendor: string }): boolean {
+  return channel.type === 'chat' && ENGAGEMENT_CHANNEL_VENDORS.has(channel.vendor);
+}
+
+export function canSendNow(
+  conversation: { contactId: string | null; threadTarget: ThreadTarget | null },
+  channel: { type: string; vendor: string },
+): SendDecision {
+  if (channel.type === 'email') return { allowed: true };
+  if (isEngagementChannel(channel)) {
+    if (conversation.contactId || conversation.threadTarget) return { allowed: true };
+    return {
+      allowed: false,
+      reason:
+        `conversation is on ${channel.type}:${channel.vendor} but carries neither a contact ` +
+        `nor a thread target — there is nothing to reply to`,
+    };
+  }
+  return {
+    allowed: false,
+    reason: `reply proposals are only supported on email campaigns; this conversation is on ${channel.type}:${channel.vendor}`,
+  };
+}
+
+function assertCampaignShape(
+  kind: CampaignKind,
+  segmentId: string | null,
+  sequenceSteps: SequenceStep[],
+): void {
+  if (kind === 'segment' && !segmentId) {
+    throw new OutreachInvalidError(
+      'a segment campaign requires segmentId — it names the CRM audience the curator materialises',
+    );
+  }
+  if (kind === 'engagement' && segmentId) {
+    throw new OutreachInvalidError(
+      'an engagement campaign must not carry a segmentId — it targets public threads, not a CRM audience',
+    );
+  }
+  if (kind === 'engagement' && sequenceSteps.length > 0) {
+    throw new OutreachInvalidError(
+      'an engagement campaign cannot carry sequenceSteps — Munin comments in a thread once and never bumps it',
+    );
+  }
+}
+
+function assertCampaignChannel(
+  kind: CampaignKind,
+  channel: { type: string; vendor: string },
+): void {
+  const engagementChannel = isEngagementChannel(channel);
+  if (kind === 'engagement' && !engagementChannel) {
+    throw new OutreachInvalidError(
+      `an engagement campaign requires an engagement channel (${[...ENGAGEMENT_CHANNEL_VENDORS].sort().join(', ')}); this channel is ${channel.type}:${channel.vendor}`,
+    );
+  }
+  if (kind === 'segment' && engagementChannel) {
+    throw new OutreachInvalidError(
+      `channel ${channel.type}:${channel.vendor} posts in public forums — pair it with an engagement campaign, not a CRM segment`,
+    );
+  }
+}
+
+function assertContactEligible(
+  contact: {
+    id: string;
+    doNotContact: boolean;
+    unsubscribedAt: string | Date | null;
+    consentLawfulBasis: string | null;
+  },
+  phase: 'propose' | 'approve',
+): void {
+  if (!contact.doNotContact && !contact.unsubscribedAt && contact.consentLawfulBasis) return;
+  throw new OutreachInvalidError(
+    phase === 'propose'
+      ? `contact ${contact.id} is suppressed or has no recorded lawful basis`
+      : `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
+  );
+}
+
+function requireProposalContactId(proposal: ProposalDto): string {
+  if (!proposal.contactId) {
+    throw new OutreachInvalidError(
+      `proposal ${proposal.id} has no contact — ${proposal.kind} proposals are sent to a CRM contact`,
+    );
+  }
+  return proposal.contactId;
+}
+
+function assertThreadTarget(target: ThreadTarget): ThreadTarget {
+  const threadId = target.threadId?.trim();
+  const permalink = target.permalink?.trim();
+  const subreddit = normalizeSubreddit(target.subreddit ?? '');
+  const title = target.title?.trim();
+  if (!threadId) throw new OutreachInvalidError('target.threadId must be non-empty');
+  if (!subreddit) throw new OutreachInvalidError('target.subreddit must be non-empty');
+  if (!permalink || !isRedditUrl(permalink)) {
+    throw new OutreachInvalidError(
+      'target.permalink must be an absolute reddit.com URL pointing at the thread',
+    );
+  }
+  if (!title) throw new OutreachInvalidError('target.title must be non-empty');
+  const opHandle = target.opHandle?.replace(/^\/?(u\/)/i, '').trim() || null;
+  return { threadId, permalink, subreddit, title, opHandle };
+}
+
+function normalizeSubreddit(value: string): string {
+  return value.replace(/^\/?(r\/)/i, '').trim();
+}
+
+function isRedditUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+  const host = url.hostname.toLowerCase();
+  return host === 'reddit.com' || host.endsWith('.reddit.com');
+}
+
+function toThreadTarget(value: unknown): ThreadTarget | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const threadId = typeof raw.threadId === 'string' ? raw.threadId : null;
+  if (!threadId) return null;
+  return {
+    threadId,
+    permalink: typeof raw.permalink === 'string' ? raw.permalink : '',
+    subreddit: typeof raw.subreddit === 'string' ? raw.subreddit : '',
+    title: typeof raw.title === 'string' ? raw.title : '',
+    opHandle: typeof raw.opHandle === 'string' ? raw.opHandle : null,
+  };
+}
+
+function threadTargetFromMetadata(metadata: Record<string, unknown> | null): ThreadTarget | null {
+  if (!metadata) return null;
+  const threadId = metadata.redditThreadId;
+  if (typeof threadId !== 'string' || !threadId) return null;
+  return {
+    threadId,
+    permalink: typeof metadata.redditPermalink === 'string' ? metadata.redditPermalink : '',
+    subreddit: typeof metadata.redditSubreddit === 'string' ? metadata.redditSubreddit : '',
+    title: '',
+    opHandle: null,
   };
 }
 
@@ -2239,6 +2934,19 @@ function composeSmsOutreachBody(input: {
   let body = input.draftBody.trim();
   if (input.ctaUrl) body += ` ${input.ctaUrl}`;
   if (input.unsubscribeRequired) body += ' Reply STOP to opt out.';
+  return body;
+}
+
+function composeHandleOutreachBody(input: {
+  draftBody: string;
+  ctaUrl: string | null;
+  unsubscribeRequired: boolean;
+}): string {
+  let body = input.draftBody.trimEnd();
+  if (input.ctaUrl) body += `\n\n${input.ctaUrl}`;
+  if (input.unsubscribeRequired) {
+    body += `\n\nReply to this message if you'd rather not hear from me again.`;
+  }
   return body;
 }
 

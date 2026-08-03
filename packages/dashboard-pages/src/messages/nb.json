@@ -466,6 +466,7 @@
       "label": "Agentsvar",
       "hintEmail": "Hva agenten gjør når noen skriver til denne innboksen. Utgående kampanjer lager alltid utkast til godkjenning, uansett hva du velger her.",
       "hintSms": "Hva agenten gjør når noen sender melding til dette nummeret. Utgående kampanjer lager alltid utkast til godkjenning, uansett hva du velger her.",
+      "hintReddit": "Hva agenten gjør når noen svarer deg på Reddit. Utgående kampanjer lager alltid utkast til godkjenning, uansett hva du velger her.",
       "auto": "Auto · svar og send",
       "draftOnly": "Kun utkast · krever godkjenning",
       "off": "Av · ingen svar"
@@ -478,6 +479,7 @@
       "addEmail": "E-post",
       "addSms": "SMS",
       "addVoice": "Stemme",
+      "addReddit": "Reddit",
       "createWidgetTitle": "Legg til en chat-widget-kanal",
       "createWidgetDescription": "Lager en `mn_widget_*` API-nøkkel knyttet til denne kanalen. Widgeten lastes på de konfigurerte opphavene og poster via /v1/widget/messages.",
       "nameHint": "Til din egen referanse. Små bokstaver, ingen mellomrom.",
@@ -524,6 +526,7 @@
       "typeMessageBirdSms": "MessageBird",
       "typeVapi": "Vapi",
       "typeThrell": "Threll.ai",
+      "typeReddit": "Reddit",
       "anyOrigin": "alle opphav",
       "moreActions": "Flere handlinger",
       "deleteChannel": "Slett kanal",
@@ -600,6 +603,11 @@
         "title": "Legg til en stemmekanal",
         "description": "Velg en stemme-AI-leverandør og koble til påloggingsinformasjon. Leverandøren kjører hele samtalen (STT, LLM, TTS); Munin mottar transkripsjoner og samtaledata via samme webhook.",
         "create": "Opprett stemmekanal"
+      },
+      "addRedditDialog": {
+        "title": "Legg til en Reddit-kanal",
+        "description": "Koble en Reddit-konto til som samtalekanal. Kommentarer og meldinger kontoen mottar kommer inn som chat-samtaler, og svar sendes fra samme konto.",
+        "create": "Opprett Reddit-kanal"
       },
       "twilioSms": {
         "editTitle": "Rediger Twilio SMS-kanal",
@@ -749,6 +757,17 @@
           "success": "Testsamtale til {to} startet."
         }
       },
+      "reddit": {
+        "nameHint": "Til din egen referanse. Små bokstaver, ingen mellomrom.",
+        "clientIdLabel": "Client ID",
+        "clientIdHint": "Fra Reddit-appen av typen «script» som du registrerte på reddit.com/prefs/apps, eid av kontoen nedenfor.",
+        "clientSecretLabel": "Client secret",
+        "clientSecretHintCreate": "Hemmeligheten som står ved siden av client ID på samme Reddit-app.",
+        "usernameLabel": "Reddit-brukernavn",
+        "usernameHint": "Kontoen Munin poster og svarer som, uten u/-prefikset.",
+        "passwordLabel": "Reddit-passord",
+        "passwordHintCreate": "Passordet til kontoen. Reddit krever det for innlogging fra en script-app, så kontoen kan ikke ha tofaktorautentisering slått på."
+      },
       "errors": {
         "load": "Kunne ikke laste kanaler.",
         "create": "Kunne ikke opprette kanal.",
@@ -768,6 +787,7 @@
         "createThrell": "Kunne ikke opprette Threll stemmekanal.",
         "updateThrell": "Kunne ikke oppdatere Threll stemmekanal.",
         "placeThrellCall": "Kunne ikke starte stemmeanrop.",
+        "createReddit": "Kunne ikke opprette Reddit-kanal.",
         "rotate": "Kunne ikke rotere nøkkel.",
         "rotateIdentity": "Kunne ikke rotere identitetshemmelighet.",
         "test": "Kunne ikke teste påloggingsinformasjon for e-post.",

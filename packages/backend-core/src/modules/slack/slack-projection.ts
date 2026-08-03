@@ -377,7 +377,7 @@ function quotedBodyLines(body: string, budget: number): string[] {
 export function outreachProposalApprovalText(snap: OutreachProposalApprovalSnapshot): string {
   const header = [
     `:outbox_tray: *Outreach draft awaiting approval* — ${escapeSlackText(snap.kind)} for *${escapeSlackText(snap.campaignName)}*`,
-    `*To:* ${escapeSlackText(snap.contactLabel)}`,
+    `${snap.kind === 'thread_comment' ? '*In:*' : '*To:*'} ${escapeSlackText(snap.contactLabel)}`,
   ];
   if (snap.draftSubject) header.push(`*Subject:* ${escapeSlackText(snap.draftSubject)}`);
   const footer = `<${snap.dashboardUrl}|Review in Munin>`;

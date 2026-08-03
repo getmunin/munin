@@ -13,6 +13,24 @@ import { ConvService, ConvInvalidError } from './conv.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
+import type { ChannelAdapter, ChannelKind } from './channels/adapter.ts';
+
+function stubAdapter(
+  kind: ChannelKind,
+  vendor: string,
+  outboundDelivery: 'queued' | 'none',
+): ChannelAdapter {
+  return {
+    kind,
+    vendors: [vendor],
+    outboundDelivery,
+    inbound: null,
+    send: () => Promise.resolve({ providerMessageId: null }),
+  };
+}
+
+const queuedAdapter = (kind: ChannelKind, vendor: string) => stubAdapter(kind, vendor, 'queued');
+const unqueuedAdapter = (kind: ChannelKind, vendor: string) => stubAdapter(kind, vendor, 'none');
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -53,6 +71,8 @@ const skipReason = TEST_URL
       new ConversationClaimsService(dispatcher),
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      [queuedAdapter('email', 'smtp'), unqueuedAdapter('chat', 'munin')],
+      { providerFor: () => undefined },
     );
   });
 

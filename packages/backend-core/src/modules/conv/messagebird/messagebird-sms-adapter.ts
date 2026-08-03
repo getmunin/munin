@@ -23,6 +23,7 @@ import { jsonbToStored } from './messagebird-sms.service.ts';
 export class MessageBirdSmsAdapter implements ChannelAdapter {
   readonly kind = 'sms' as const;
   readonly vendors = ['messagebird'] as const;
+  readonly outboundDelivery = 'queued' as const;
 
   private readonly logger = new Logger(MessageBirdSmsAdapter.name);
 

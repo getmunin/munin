@@ -131,6 +131,7 @@ class ImapFlowFetcher implements ImapFetcher {
 export class EmailAdapter implements ChannelAdapter {
   readonly kind = 'email' as const;
   readonly vendors = ['smtp', 'mailer'] as const;
+  readonly outboundDelivery = 'queued' as const;
 
   private readonly logger = new Logger(EmailAdapter.name);
   private fetcher: ImapFetcher = new ImapFlowFetcher();

@@ -12,6 +12,7 @@ export interface CrmContactSummary {
   name: string | null;
   email: string | null;
   phone: string | null;
+  handle?: string | null;
 }
 
 export interface CrmMergeProposalDto {

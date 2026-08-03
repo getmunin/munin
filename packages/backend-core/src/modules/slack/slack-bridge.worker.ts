@@ -650,9 +650,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       text = outreachProposalApprovalText({
         kind: proposal?.kind ?? 'draft',
         campaignName: campaign?.name ?? 'a campaign',
-        contactLabel: proposal
-          ? await this.contactLabel(proposal.contactId)
-          : 'unknown contact',
+        contactLabel: proposal ? await this.outreachProposalLabel(proposal) : 'unknown contact',
         draftSubject: proposal?.draftSubject ?? null,
         draftBody: proposal?.draftBody ?? '',
         dashboardUrl,
@@ -714,6 +712,20 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       blocks: approvalBlocks(text, value, { approveLabel }, resolution),
       resolved: resolution !== null,
     };
+  }
+
+  private async outreachProposalLabel(
+    proposal: typeof schema.outreachProposals.$inferSelect,
+  ): Promise<string> {
+    const target = proposal.target ?? {};
+    const subreddit = typeof target.subreddit === 'string' ? target.subreddit : '';
+    if (subreddit) {
+      const threadTitle = typeof target.title === 'string' ? target.title : '';
+      const title = threadTitle || proposal.draftSubject;
+      return title ? `r/${subreddit} — ${title}` : `r/${subreddit}`;
+    }
+    if (proposal.contactId) return this.contactLabel(proposal.contactId);
+    return 'unknown contact';
   }
 
   private async contactLabel(contactId: string): Promise<string> {

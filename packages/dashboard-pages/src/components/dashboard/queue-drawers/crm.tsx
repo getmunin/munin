@@ -31,7 +31,8 @@ export function CrmQueueDrawer({
     proposal.recommendedKeeperId === proposal.contactA.id ? proposal.contactA : proposal.contactB;
   const loser =
     proposal.recommendedKeeperId === proposal.contactA.id ? proposal.contactB : proposal.contactA;
-  const fmt = (c: CrmContactSummary) => [c.name, c.email].filter(Boolean).join(' · ') || c.id;
+  const fmt = (c: CrmContactSummary) =>
+    [c.name, c.email, c.handle].filter(Boolean).join(' · ') || c.id;
 
   return (
     <>

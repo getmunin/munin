@@ -466,6 +466,7 @@
       "label": "Agent replies",
       "hintEmail": "What the agent does when someone writes to this inbox. Outreach campaigns always draft their replies for approval, whatever you pick here.",
       "hintSms": "What the agent does when someone texts this number. Outreach campaigns always draft their replies for approval, whatever you pick here.",
+      "hintReddit": "What the agent does when someone replies to you on Reddit. Outreach campaigns always draft their replies for approval, whatever you pick here.",
       "auto": "Auto · reply and send",
       "draftOnly": "Draft only · needs approval",
       "off": "Off · no replies"
@@ -478,6 +479,7 @@
       "addEmail": "Email",
       "addSms": "SMS",
       "addVoice": "Voice",
+      "addReddit": "Reddit",
       "createWidgetTitle": "Add a chat widget channel",
       "createWidgetDescription": "Mints a `mn_widget_*` API key bound to this channel. The widget loads on the configured origins and posts via /v1/widget/messages.",
       "nameLabel": "Internal name",
@@ -543,6 +545,7 @@
       "typeMessageBirdSms": "MessageBird",
       "typeVapi": "Vapi",
       "typeThrell": "Threll.ai",
+      "typeReddit": "Reddit",
       "anyOrigin": "any origin",
       "moreActions": "More actions",
       "deleteChannel": "Delete channel",
@@ -600,6 +603,11 @@
         "title": "Add a voice channel",
         "description": "Pick a voice AI vendor and connect credentials. The vendor runs the call end-to-end (STT, LLM, TTS); Munin receives transcripts and call artifacts via the shared webhook.",
         "create": "Create voice channel"
+      },
+      "addRedditDialog": {
+        "title": "Add a Reddit channel",
+        "description": "Connect a Reddit account as a conversation channel. Comments and messages it receives arrive as chat conversations; replies are sent from the same account.",
+        "create": "Create Reddit channel"
       },
       "twilioSms": {
         "editTitle": "Edit Twilio SMS channel",
@@ -749,6 +757,17 @@
           "success": "Test call to {to} initiated."
         }
       },
+      "reddit": {
+        "nameHint": "For your reference. Lowercase, no spaces.",
+        "clientIdLabel": "Client ID",
+        "clientIdHint": "From the script-type Reddit app you registered at reddit.com/prefs/apps, owned by the account below.",
+        "clientSecretLabel": "Client secret",
+        "clientSecretHintCreate": "The secret shown next to the client ID on the same Reddit app.",
+        "usernameLabel": "Reddit username",
+        "usernameHint": "The account Munin posts and replies as, without the u/ prefix.",
+        "passwordLabel": "Reddit password",
+        "passwordHintCreate": "The account password. Reddit needs it for script-app login, so the account cannot have two-factor authentication enabled."
+      },
       "errors": {
         "load": "Could not load channels.",
         "create": "Could not create channel.",
@@ -768,6 +787,7 @@
         "createThrell": "Could not create Threll voice channel.",
         "updateThrell": "Could not update Threll voice channel.",
         "placeThrellCall": "Could not place voice call.",
+        "createReddit": "Could not create Reddit channel.",
         "rotate": "Could not rotate key.",
         "rotateIdentity": "Could not rotate identity secret.",
         "test": "Could not test email credentials.",

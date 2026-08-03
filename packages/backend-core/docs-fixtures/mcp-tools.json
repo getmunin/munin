@@ -2938,7 +2938,7 @@
   {
     "name": "conv_create_channel",
     "title": "Conv: Create conversation channel",
-    "description": "Add an `email` or `chat` (widget) conversation channel whose configuration is self-contained. Channel-specific configuration goes in `config`. Voice and SMS channels are vendor-backed and rejected here — they need the credential handoff that conv_configure_voice_sms_channel performs.",
+    "description": "Add an `email` or `chat` (widget) conversation channel whose configuration is self-contained. Channel-specific configuration goes in `config`. Vendor-backed channels — voice, SMS, and Reddit — are rejected here: they need the credential handoff that conv_configure_channel performs, which encrypts their credentials and verifies them before activating the channel.",
     "audiences": [
       "admin"
     ],
@@ -3656,7 +3656,7 @@
   {
     "name": "conv_request_channel_credentials",
     "title": "Conv: Request a channel credential link",
-    "description": "Return a one-time link a human opens to enter a channel’s secret credentials in the dashboard — secrets are never accepted in a conversation. Works for any channel kind: email (SMTP/IMAP passwords) as well as voice and SMS vendor keys. conv_configure_email_channel and conv_configure_voice_sms_channel already return this link on create; use this tool to mint a fresh link when one expired or to rotate the stored secrets. The link expires after 24 hours.",
+    "description": "Return a one-time link a human opens to enter a channel’s secret credentials in the dashboard — secrets are never accepted in a conversation. Works for any channel kind: email (SMTP/IMAP passwords) as well as voice and SMS vendor keys. conv_configure_email_channel and conv_configure_channel already return this link on create; use this tool to mint a fresh link when one expired or to rotate the stored secrets. The link expires after 24 hours.",
     "audiences": [
       "admin"
     ],
@@ -3676,6 +3676,155 @@
       },
       "required": [
         "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_search_reddit_threads",
+    "title": "Conv: Search Reddit threads",
+    "description": "Search Reddit posts by keyword, optionally restricted to one subreddit, using a Reddit channel's stored credentials. Returns post id, title, author, subreddit, score, comment count, permalink and a truncated excerpt of the body. Use it to find public threads that are worth answering. Titles and excerpts are capped, so the payload stays small enough to hand to a model.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "description": "Reddit channel whose stored script-app credentials are used for the request."
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Reddit search query."
+        },
+        "subreddit": {
+          "description": "Restrict the search to one subreddit. Omit to search all of Reddit.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40
+        },
+        "limit": {
+          "description": "Maximum posts to return (default 10, hard cap 25).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        },
+        "sort": {
+          "description": "Result ordering (default relevance).",
+          "type": "string",
+          "enum": [
+            "relevance",
+            "hot",
+            "top",
+            "new",
+            "comments"
+          ]
+        },
+        "time": {
+          "description": "Age window for results (default month).",
+          "type": "string",
+          "enum": [
+            "hour",
+            "day",
+            "week",
+            "month",
+            "year",
+            "all"
+          ]
+        }
+      },
+      "required": [
+        "channelId",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_get_reddit_thread",
+    "title": "Conv: Read a Reddit thread and its comments",
+    "description": "Read one Reddit post plus a bounded slice of its comment tree, using a Reddit channel's stored credentials. Comments are flattened with a depth field, capped in count and depth, and each body is truncated; the response reports what was cut and whether more comments exist. Use it to read the full context of a thread before deciding whether and how to reply.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "description": "Reddit channel whose stored script-app credentials are used for the request."
+        },
+        "threadId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "description": "Post id, with or without the \"t3_\" prefix."
+        },
+        "commentLimit": {
+          "description": "Maximum comments to return (default 20, hard cap 50).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "maxDepth": {
+          "description": "How deep into the reply tree to descend (default 2).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        }
+      },
+      "required": [
+        "channelId",
+        "threadId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_get_subreddit_rules",
+    "title": "Conv: Read a subreddit's rules",
+    "description": "Read a subreddit's posted rules and the site-wide rules, using a Reddit channel's stored credentials. Returns each rule's short name, what it applies to, its violation reason and a truncated description. Use it to check what a subreddit permits before posting there.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "description": "Reddit channel whose stored script-app credentials are used for the request."
+        },
+        "subreddit": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40,
+          "description": "Subreddit name, with or without the \"r/\" prefix."
+        }
+      },
+      "required": [
+        "channelId",
+        "subreddit"
       ],
       "additionalProperties": false
     }
@@ -3855,9 +4004,9 @@
     }
   },
   {
-    "name": "conv_list_voice_sms_vendors",
-    "title": "Conv: List voice/SMS channel vendors",
-    "description": "List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_voice_sms_channel.",
+    "name": "conv_list_channel_vendors",
+    "title": "Conv: List vendor-backed channel vendors",
+    "description": "List the vendor-backed channel vendors that can be configured, with each vendor’s `kind` (voice, sms, chat), capabilities (call/sendTest), and config fields (name, required, secret, description). The config fields are the ones conv_configure_channel accepts for that vendor.",
     "audiences": [
       "admin"
     ],
@@ -3876,7 +4025,7 @@
   {
     "name": "conv_list_channel_options",
     "title": "Conv: List a channel vendor’s selectable options",
-    "description": "Discover the selectable options a channel’s vendor offers using the channel’s stored credentials — e.g. Threll workers, Vapi assistants — so you can pass a valid id to conv_configure_voice_sms_channel instead of guessing. The channel must have completed its credential link first. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.",
+    "description": "Discover the selectable options a channel’s vendor offers using the channel’s stored credentials — e.g. Threll workers, Vapi assistants — so a valid id can be passed to conv_configure_channel instead of guessed. The channel must have completed its credential link first. Returns option `groups` (e.g. `workers`, `assistants`), each with `{ value, label, hint }`.",
     "audiences": [
       "admin"
     ],
@@ -3901,9 +4050,9 @@
     }
   },
   {
-    "name": "conv_configure_voice_sms_channel",
-    "title": "Conv: Configure a voice/SMS channel",
-    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.",
+    "name": "conv_configure_channel",
+    "title": "Conv: Configure a vendor-backed channel",
+    "description": "Create or update a vendor-backed channel — voice, SMS or chat — for any supported vendor. Takes `vendor` plus that vendor’s non-secret `config` fields, as listed by conv_list_channel_vendors. Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to every kind except voice.",
     "audiences": [
       "admin"
     ],
@@ -3920,7 +4069,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 40,
-          "description": "Channel vendor, e.g. \"vapi\", \"threll\", \"twilio\", \"messagebird\". Call conv_list_voice_sms_vendors for the full list and each vendor’s config fields."
+          "description": "Channel vendor, e.g. \"vapi\", \"threll\", \"twilio\", \"messagebird\". conv_list_channel_vendors returns the full list and each vendor’s config fields."
         },
         "channelId": {
           "description": "Pass an existing channel id to update; omit to create a new channel.",
@@ -3933,7 +4082,7 @@
           "maxLength": 120
         },
         "defaultAgentMode": {
-          "description": "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. SMS channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
+          "description": "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. Applies to every channel kind except voice, where an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only channel so replies are never auto-sent.",
           "type": "string",
           "enum": [
             "auto",
@@ -3947,7 +4096,7 @@
             "type": "string"
           },
           "additionalProperties": {},
-          "description": "Vendor-specific configuration object with the non-secret fields only — conv_list_voice_sms_vendors marks which fields are secret. Secret fields are rejected here; they are entered by a human through the credential link returned on create."
+          "description": "Vendor-specific configuration object with the non-secret fields only — conv_list_channel_vendors marks which fields are secret. Secret fields are rejected here; they are entered by a human through the credential link returned on create."
         }
       },
       "required": [
@@ -3958,9 +4107,9 @@
     }
   },
   {
-    "name": "conv_test_voice_sms_channel",
-    "title": "Conv: Test a voice/SMS channel’s stored credentials",
-    "description": "Verify a voice or SMS channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific. Email channels are tested with conv_test_email_channel instead.",
+    "name": "conv_test_channel",
+    "title": "Conv: Test a channel’s stored credentials",
+    "description": "Verify a vendor-backed channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific. Email channels are tested with conv_test_email_channel instead.",
     "audiences": [
       "admin"
     ],
@@ -3984,9 +4133,9 @@
     }
   },
   {
-    "name": "conv_send_sms_channel_test",
-    "title": "Conv: Send a real test SMS on a channel",
-    "description": "Send a real test SMS through an SMS channel (Twilio, MessageBird), addressed to `to`. Useful for end-to-end deliverability checks. Voice channels have no test send — their credentials are checked with conv_test_voice_sms_channel, and a test call is placed by a human from the dashboard. Email channels use conv_send_email_channel_test.",
+    "name": "conv_send_channel_test_message",
+    "title": "Conv: Send a real test message on a channel",
+    "description": "Send a real test message through a vendor-backed channel, addressed to `to` — an E.164 number on an SMS vendor, a recipient handle on a chat vendor. Useful for end-to-end deliverability checks. A vendor without a test send answers `channel vendor '<vendor>' does not support test sends`; voice credentials are checked with conv_test_channel and a test call is placed by a human from the dashboard. Email channels use conv_send_email_channel_test.",
     "audiences": [
       "admin"
     ],
@@ -4079,8 +4228,8 @@
   },
   {
     "name": "crm_lookup_contact",
-    "title": "CRM: Look up contact by email or phone",
-    "description": "Find an existing contact by email and/or phone before creating a new one. Returns null if no match.",
+    "title": "CRM: Look up contact by email, phone or handle",
+    "description": "Find an existing contact by email, phone and/or platform handle. Returns null if no match.",
     "audiences": [
       "admin"
     ],
@@ -4100,6 +4249,11 @@
         },
         "phone": {
           "type": "string"
+        },
+        "handle": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Platform username, stored without the leading \"u/\" or \"@\" (e.g. a Reddit username). Used on channels that address people by handle rather than by email or phone."
         }
       },
       "additionalProperties": false
@@ -4108,7 +4262,7 @@
   {
     "name": "crm_create_contact",
     "title": "CRM: Create contact",
-    "description": "Create a new contact. Search with crm_lookup_contact first to avoid duplicates.",
+    "description": "Create a new contact. Identity can be any combination of email, phone, and platform handle — a contact reached only by handle (e.g. a Reddit username) needs no email. Creates unconditionally: it does not dedupe against existing rows.",
     "audiences": [
       "admin"
     ],
@@ -4134,6 +4288,11 @@
         "phone": {
           "type": "string",
           "maxLength": 40
+        },
+        "handle": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Platform username, stored without the leading \"u/\" or \"@\" (e.g. a Reddit username). Used on channels that address people by handle rather than by email or phone."
         },
         "title": {
           "type": "string",
@@ -4172,7 +4331,7 @@
   {
     "name": "crm_update_contact",
     "title": "CRM: Update contact",
-    "description": "Update fields on a contact. Only keys present in `patch` are touched; omitted keys are preserved. `customFields` is a partial patch — keys you send replace the corresponding keys; keys you omit are preserved (send `key: null` to clear a single custom field). Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
+    "description": "Update fields on a contact, including the identity fields `email`, `phone`, and `handle` (a platform username such as a Reddit one, stored without its `u/` prefix). Only keys present in `patch` are touched; omitted keys are preserved. `customFields` is a partial patch — keys you send replace the corresponding keys; keys you omit are preserved (send `key: null` to clear a single custom field). Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
     "audiences": [
       "admin"
     ],
@@ -4204,6 +4363,11 @@
             "phone": {
               "type": "string",
               "maxLength": 40
+            },
+            "handle": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Platform username, stored without the leading \"u/\" or \"@\" (e.g. a Reddit username). Used on channels that address people by handle rather than by email or phone."
             },
             "title": {
               "type": "string",
@@ -4274,7 +4438,7 @@
   {
     "name": "crm_bulk_create_contacts",
     "title": "CRM: Bulk-create contacts",
-    "description": "Bulk-create contacts with dedupe + compliance checks: rows whose email or phone already match a do_not_contact contact are skipped, as are rows that would duplicate an existing contact.",
+    "description": "Bulk-create contacts with dedupe + compliance checks: rows whose email, phone, or platform handle already match a do_not_contact contact are skipped, as are rows that would duplicate an existing contact.",
     "audiences": [
       "admin"
     ],
@@ -4306,6 +4470,11 @@
               "phone": {
                 "type": "string",
                 "maxLength": 40
+              },
+              "handle": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Platform username, stored without the leading \"u/\" or \"@\" (e.g. a Reddit username). Used on channels that address people by handle rather than by email or phone."
               },
               "title": {
                 "type": "string",
@@ -4351,7 +4520,7 @@
   {
     "name": "crm_search_contacts",
     "title": "CRM: Search contacts",
-    "description": "Substring search across name, email, phone, and title. Returns contacts ordered newest-updated first.",
+    "description": "Substring search across name, email, phone, handle, and title. Returns contacts ordered newest-updated first.",
     "audiences": [
       "admin"
     ],
@@ -5021,7 +5190,7 @@
   {
     "name": "crm_create_segment",
     "title": "CRM: Create segment",
-    "description": "Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.",
+    "description": "Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/handle/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.",
     "audiences": [
       "admin"
     ],
@@ -5318,7 +5487,7 @@
   {
     "name": "crm_import",
     "title": "CRM: Import data",
-    "description": "Import CRM `records` produced by `crm_export` (typically from another Munin server). Records are imported in dependency order (pipelines → segments → companies → contacts → deals → activities → relationships). Pipelines are upserted by slug, segments by name, companies by domain (else name), and contacts by email — so re-running is idempotent. Deals, activities, and relationships get fresh ids each run with their parents resolved through the `idMap`. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.",
+    "description": "Import CRM `records` produced by `crm_export` (typically from another Munin server). Records are imported in dependency order (pipelines → segments → companies → contacts → deals → activities → relationships). Pipelines are upserted by slug, segments by name, companies by domain (else name), and contacts by email — so re-running is idempotent. A contact's platform handle travels with the record but is not an import match key. Deals, activities, and relationships get fresh ids each run with their parents resolved through the `idMap`. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.",
     "audiences": [
       "admin"
     ],
@@ -5563,6 +5732,17 @@
                       {
                         "type": "string",
                         "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "handle": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 64
                       },
                       {
                         "type": "null"
@@ -6809,7 +6989,7 @@
   {
     "name": "outreach_create_campaign",
     "title": "Outreach: Create campaign",
-    "description": "Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftFirstTouch` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), while `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `sequenceSteps` (email campaigns only) defines a follow-up sequence — each step is a wait period plus a drafting brief; defining steps on an enabled campaign opts it into daily follow-up drafting for threads with no reply.",
+    "description": "Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftFirstTouch` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), while `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `sequenceSteps` (email campaigns only) defines a follow-up sequence — each step is a wait period plus a drafting brief; defining steps on an enabled campaign opts it into daily follow-up drafting for threads with no reply. Set `kind: \"engagement\"` for a campaign that answers public forum threads instead of a CRM audience: it takes a forum channel, no `segmentId` and no `sequenceSteps`, and its drafts are filed with `outreach_propose_thread_comment` under the `maxPerWeekPerSubreddit` / `maxCommentsPerDay` cadence rules.",
     "audiences": [
       "admin"
     ],
@@ -6832,7 +7012,16 @@
           "minLength": 1,
           "maxLength": 5000
         },
+        "kind": {
+          "description": "Defaults to \"segment\": a CRM audience reached one contact at a time. \"engagement\" targets public threads on a forum channel and takes no segment.",
+          "type": "string",
+          "enum": [
+            "segment",
+            "engagement"
+          ]
+        },
         "segmentId": {
+          "description": "Required for segment campaigns, and must be omitted for engagement campaigns.",
           "type": "string",
           "minLength": 1,
           "maxLength": 64
@@ -6849,6 +7038,18 @@
               "type": "integer",
               "exclusiveMinimum": 0,
               "maximum": 7
+            },
+            "maxPerWeekPerSubreddit": {
+              "description": "Engagement campaigns: how many comments this campaign may have posted in one subreddit over the trailing 7 days.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 20
+            },
+            "maxCommentsPerDay": {
+              "description": "Engagement campaigns: how many comments this campaign may have posted across all subreddits over the trailing 24 hours.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 50
             },
             "quietHoursStart": {
               "type": "string",
@@ -6928,7 +7129,6 @@
       "required": [
         "name",
         "brief",
-        "segmentId",
         "channelId"
       ],
       "additionalProperties": false
@@ -6990,8 +7190,23 @@
                     "minLength": 1,
                     "maxLength": 5000
                   },
+                  "kind": {
+                    "default": "segment",
+                    "type": "string",
+                    "enum": [
+                      "segment",
+                      "engagement"
+                    ]
+                  },
                   "segmentId": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "channelId": {
                     "type": "string"
@@ -7004,6 +7219,18 @@
                         "type": "integer",
                         "exclusiveMinimum": 0,
                         "maximum": 7
+                      },
+                      "maxPerWeekPerSubreddit": {
+                        "description": "Engagement campaigns: how many comments this campaign may have posted in one subreddit over the trailing 7 days.",
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 20
+                      },
+                      "maxCommentsPerDay": {
+                        "description": "Engagement campaigns: how many comments this campaign may have posted across all subreddits over the trailing 24 hours.",
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 50
                       },
                       "quietHoursStart": {
                         "type": "string",
@@ -7083,7 +7310,7 @@
                   "id",
                   "name",
                   "brief",
-                  "segmentId",
+                  "kind",
                   "channelId",
                   "cadenceRules",
                   "sequenceSteps",
@@ -7106,7 +7333,14 @@
                     "type": "string"
                   },
                   "contactId": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "conversationId": {
                     "anyOf": [
@@ -7123,7 +7357,56 @@
                     "enum": [
                       "initial",
                       "reply",
-                      "followup"
+                      "followup",
+                      "thread_comment"
+                    ]
+                  },
+                  "target": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "threadId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "description": "The thread's id on the forum, without a type prefix — e.g. \"1abc2de\"."
+                          },
+                          "permalink": {
+                            "type": "string",
+                            "maxLength": 2000,
+                            "format": "uri",
+                            "description": "Absolute reddit.com URL of the thread the comment is drafted for."
+                          },
+                          "subreddit": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "description": "Subreddit name without the \"r/\" prefix."
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300,
+                            "description": "The thread title, shown as the subject line in the review queue."
+                          },
+                          "opHandle": {
+                            "description": "Reddit username of the thread author, without the \"u/\" prefix.",
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "threadId",
+                          "permalink",
+                          "subreddit",
+                          "title"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "sequenceStep": {
@@ -7185,7 +7468,6 @@
                 "required": [
                   "id",
                   "campaignId",
-                  "contactId",
                   "kind",
                   "draftBody",
                   "evidence",
@@ -7251,6 +7533,14 @@
               "minLength": 1,
               "maxLength": 5000
             },
+            "kind": {
+              "description": "Rejected: a campaign cannot change kind once proposals reference it.",
+              "type": "string",
+              "enum": [
+                "segment",
+                "engagement"
+              ]
+            },
             "segmentId": {
               "type": "string",
               "minLength": 1,
@@ -7268,6 +7558,18 @@
                   "type": "integer",
                   "exclusiveMinimum": 0,
                   "maximum": 7
+                },
+                "maxPerWeekPerSubreddit": {
+                  "description": "Engagement campaigns: how many comments this campaign may have posted in one subreddit over the trailing 7 days.",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20
+                },
+                "maxCommentsPerDay": {
+                  "description": "Engagement campaigns: how many comments this campaign may have posted across all subreddits over the trailing 24 hours.",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 50
                 },
                 "quietHoursStart": {
                   "type": "string",
@@ -7391,7 +7693,8 @@
           "enum": [
             "initial",
             "reply",
-            "followup"
+            "followup",
+            "thread_comment"
           ]
         },
         "contactId": {
@@ -7440,7 +7743,7 @@
   {
     "name": "outreach_approve_proposal",
     "title": "Outreach: Approve proposal",
-    "description": "Approve one pending outreach proposal, authorizing it to go out: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. Sends immediately unless a future send time applies, in which case the proposal returns `status: \"approved\"` with `scheduledSendAt` and a background worker delivers it then, re-checking campaign state, suppression and quiet hours at that moment. The approval is bound to the draft it was given: `fingerprint` must match the proposal's current `draftFingerprint`, so a draft revised since it was read is refused with a conflict and stays pending. Also fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId` and `sentMessageId` on an immediate send.",
+    "description": "Approve one pending outreach proposal, authorizing it to go out: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation; a thread-comment proposal opens a conversation for the thread and posts the comment publicly, and is approvable only by a signed-in person in the Munin dashboard. Sends immediately unless a future send time applies, in which case the proposal returns `status: \"approved\"` with `scheduledSendAt` and a background worker delivers it then, re-checking campaign state, suppression and quiet hours at that moment. The approval is bound to the draft it was given: `fingerprint` must match the proposal's current `draftFingerprint`, so a draft revised since it was read is refused with a conflict and stays pending. Also fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId` and `sentMessageId` on an immediate send.",
     "audiences": [
       "admin"
     ],
@@ -7823,6 +8126,91 @@
       "required": [
         "conversationId",
         "step",
+        "draftBody"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_propose_thread_comment",
+    "title": "Outreach: Propose thread comment",
+    "description": "File a drafted public comment on one forum thread for human approval, on a campaign whose `kind` is \"engagement\". Use it when a thread on the campaign's channel is a genuine fit for the campaign brief and a public answer is the useful response; use `outreach_propose_first_touch` instead when the useful response is a private message to one person. `target` identifies the thread (`threadId`, `permalink`, `subreddit`, `title`, optional `opHandle`) and its title becomes the subject in the review queue. No contact and no consent record are involved — a thread is public speech, not a data subject — so the limits here are cadence-based: one comment per thread per campaign for the campaign's lifetime, plus the campaign's `maxPerWeekPerSubreddit` and `maxCommentsPerDay` rules. Refuses a thread the campaign already has a pending, approved or posted comment on. Nothing is posted until a signed-in person approves in the Munin dashboard.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaignId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "threadId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "The thread's id on the forum, without a type prefix — e.g. \"1abc2de\"."
+            },
+            "permalink": {
+              "type": "string",
+              "maxLength": 2000,
+              "format": "uri",
+              "description": "Absolute reddit.com URL of the thread the comment is drafted for."
+            },
+            "subreddit": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Subreddit name without the \"r/\" prefix."
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "The thread title, shown as the subject line in the review queue."
+            },
+            "opHandle": {
+              "description": "Reddit username of the thread author, without the \"u/\" prefix.",
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "threadId",
+            "permalink",
+            "subreddit",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        "draftBody": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000,
+          "description": "The comment text exactly as it should be posted, in the thread language. Markdown as Reddit renders it. No tracking links and no unsubscribe footer — Munin appends nothing to a comment."
+        },
+        "evidence": {
+          "description": "Reasoning and sources kept for the reviewer: the subreddit rules checked, why the thread qualifies against the campaign brief, and the affiliation disclosure used.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "campaignId",
+        "target",
         "draftBody"
       ],
       "additionalProperties": false

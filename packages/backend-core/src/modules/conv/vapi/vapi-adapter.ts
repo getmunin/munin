@@ -73,6 +73,7 @@ interface VapiConversationEntry {
 export class VapiAdapter implements ChannelAdapter {
   readonly kind = 'voice' as const;
   readonly vendors = ['vapi'] as const;
+  readonly outboundDelivery = 'none' as const;
 
   private readonly logger = new Logger(VapiAdapter.name);
 

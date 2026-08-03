@@ -12,7 +12,7 @@ import { DB } from '../../../common/db/db.module.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
-import type { ChannelRow, InboundBatch } from './adapter.ts';
+import { CONVERSATION_KEY_METADATA_FIELD, type ChannelRow, type InboundBatch } from './adapter.ts';
 
 @Injectable()
 export class ChannelIngestService {
@@ -65,11 +65,14 @@ export class ChannelIngestService {
           .limit(1);
         if (dup[0]) return false;
 
-        const contact = await findOrCreateContact(tx, orgId, msg.fromIdentity);
+        const contact = await findOrCreateContact(tx, orgId, channel, msg.fromIdentity);
 
-        const conversation =
-          (await findThreadableConversation(tx, orgId, channel.id, contact.id)) ??
-          (await createConversation(tx, orgId, channel, contact, msg.receivedAt));
+        const key = msg.conversationKey?.trim() || null;
+        const conversation = key
+          ? ((await findConversationByKey(tx, orgId, channel.id, key)) ??
+            (await createConversation(tx, orgId, channel, contact, msg.receivedAt, key)))
+          : ((await findThreadableConversation(tx, orgId, channel.id, contact.id)) ??
+            (await createConversation(tx, orgId, channel, contact, msg.receivedAt, null)));
 
         const metadata: Record<string, unknown> = {
           providerMessageId: msg.providerMessageId,
@@ -197,12 +200,39 @@ async function findThreadableConversation(
   return conversation;
 }
 
+async function findConversationByKey(
+  tx: Db | Tx,
+  orgId: string,
+  channelId: string,
+  key: string,
+): Promise<typeof schema.convConversations.$inferSelect | null> {
+  const rows = await tx
+    .select()
+    .from(schema.convConversations)
+    .where(
+      and(
+        eq(schema.convConversations.orgId, orgId),
+        eq(schema.convConversations.channelId, channelId),
+        sql`${schema.convConversations.metadata}->>${CONVERSATION_KEY_METADATA_FIELD} = ${key}`,
+      ),
+    )
+    .limit(1);
+  const conversation = rows[0];
+  if (!conversation) return null;
+  if (conversation.status === 'closed' || conversation.status === 'snoozed') {
+    await reopenClosedConversation(tx, conversation.id);
+    return { ...conversation, status: 'open' };
+  }
+  return conversation;
+}
+
 async function createConversation(
   tx: Db | Tx,
   orgId: string,
   channel: ChannelRow,
   contact: typeof schema.convContacts.$inferSelect,
   receivedAt: Date,
+  conversationKey: string | null,
 ): Promise<typeof schema.convConversations.$inferSelect> {
   const next = await tx.execute<{ next: number } & Record<string, unknown>>(
     sql`SELECT conv_next_display_id(${orgId}) AS next`,
@@ -219,6 +249,7 @@ async function createConversation(
       subject: null,
       agentMode: channel.defaultAgentMode,
       lastMessageAt: receivedAt,
+      metadata: conversationKey ? { [CONVERSATION_KEY_METADATA_FIELD]: conversationKey } : {},
     })
     .returning();
   return conversation!;
@@ -227,10 +258,12 @@ async function createConversation(
 async function findOrCreateContact(
   tx: Db | Tx,
   orgId: string,
+  channel: ChannelRow,
   identity: InboundBatch['messages'][number]['fromIdentity'],
 ): Promise<typeof schema.convContacts.$inferSelect> {
   const email = identity.email?.trim().toLowerCase() || null;
   const phone = identity.phone?.trim() || null;
+  const handle = identity.handle?.trim() || null;
   const name = identity.name?.trim() || null;
 
   if (email) {
@@ -249,8 +282,22 @@ async function findOrCreateContact(
       .limit(1);
     if (existing[0]) return existing[0];
   }
+  if (handle) {
+    const existing = await tx
+      .select()
+      .from(schema.convContacts)
+      .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.handle, handle)))
+      .limit(1);
+    if (existing[0]) return existing[0];
+  }
 
-  const externalId = email ? `email:${email}` : phone ? `phone:${phone}` : null;
+  const externalId = email
+    ? `email:${email}`
+    : phone
+      ? `phone:${phone}`
+      : handle
+        ? `${channel.vendor}:${handle}`
+        : null;
   let endUserId: string | null = null;
   if (externalId) {
     const existingEu = await tx
@@ -291,6 +338,7 @@ async function findOrCreateContact(
       orgId,
       email,
       phone,
+      handle,
       name,
       endUserId,
       metadata: {},

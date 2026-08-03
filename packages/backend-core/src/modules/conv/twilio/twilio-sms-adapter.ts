@@ -26,6 +26,7 @@ const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>
 export class TwilioSmsAdapter implements ChannelAdapter {
   readonly kind = 'sms' as const;
   readonly vendors = ['twilio'] as const;
+  readonly outboundDelivery = 'queued' as const;
 
   private readonly logger = new Logger(TwilioSmsAdapter.name);
 

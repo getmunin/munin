@@ -68,6 +68,16 @@ const skipReason = TEST_URL
       claims,
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      [
+        {
+          kind: 'email' as const,
+          vendors: ['smtp'],
+          outboundDelivery: 'queued' as const,
+          inbound: null,
+          send: () => Promise.resolve({ providerMessageId: null }),
+        },
+      ],
+      { providerFor: () => undefined },
     );
     svc = new OutreachService(
       dispatcher,

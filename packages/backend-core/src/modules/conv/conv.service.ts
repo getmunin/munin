@@ -14,6 +14,16 @@ import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
+import {
+  CHANNEL_ADAPTERS,
+  ChannelAdapterRegistry,
+  type ChannelAdapter,
+} from './channels/adapter.ts';
+import { ChannelAdminService } from './channels/channel-admin.service.ts';
+
+export interface VendorBackedChannels {
+  providerFor(vendor: string): { vendor: string } | undefined;
+}
 import { countSignatureHints, isTrailingSignatureSplit } from './email/reply-history.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
@@ -50,7 +60,6 @@ export const CHANNEL_TYPES = ['email', 'voice', 'chat', 'sms'] as const;
 export const STATUSES = ['open', 'snoozed', 'closed', 'spam'] as const;
 export const AGENT_MODES = ['auto', 'draft_only', 'off'] as const;
 
-const DELIVERABLE_CHANNEL_TYPES: readonly string[] = ['email', 'sms'];
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
 export type ConversationStatus = (typeof STATUSES)[number];
 export type AgentMode = (typeof AGENT_MODES)[number];
@@ -160,12 +169,18 @@ export interface ConvExportData {
 export class ConvService {
   private readonly logger = new Logger(ConvService.name);
 
+  private readonly registry: ChannelAdapterRegistry;
+
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(ConversationClaimsService) private readonly claims: ConversationClaimsService,
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
     @Inject(AlertsService) private readonly alerts: AlertsService,
-  ) {}
+    @Inject(CHANNEL_ADAPTERS) adapters: ChannelAdapter[],
+    @Inject(ChannelAdminService) private readonly vendorBacked: VendorBackedChannels,
+  ) {
+    this.registry = new ChannelAdapterRegistry(adapters);
+  }
 
 
   async listChannels(): Promise<ChannelDto[]> {
@@ -235,6 +250,11 @@ export class ConvService {
   }): Promise<ChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    if (this.vendorBacked.providerFor(input.vendor)) {
+      throw new ConvInvalidError(
+        `channel vendor '${input.vendor}' is vendor-backed — create it with conv_configure_channel, which encrypts its credentials and verifies them before activating the channel`,
+      );
+    }
     const [row] = await ctx.db
       .insert(schema.convChannels)
       .values({
@@ -639,6 +659,7 @@ export class ConvService {
         id: schema.convChannels.id,
         active: schema.convChannels.active,
         type: schema.convChannels.type,
+        vendor: schema.convChannels.vendor,
         defaultAgentMode: schema.convChannels.defaultAgentMode,
       })
       .from(schema.convChannels)
@@ -649,6 +670,7 @@ export class ConvService {
       throw new ConvInvalidError(`channel ${input.channelId} is not active`);
     }
     const channelType = channelRows[0].type;
+    const channelVendor = channelRows[0].vendor;
 
     const conv = await this.insertConversationWithRetry({
       orgId: actor.orgId,
@@ -695,7 +717,7 @@ export class ConvService {
     });
 
     if (
-      DELIVERABLE_CHANNEL_TYPES.includes(channelType) &&
+      this.registry.deliversOutbound(channelType, channelVendor) &&
       input.authorType !== 'end_user' &&
       input.authorType !== 'system'
     ) {
@@ -743,6 +765,7 @@ export class ConvService {
         id: schema.convConversations.id,
         channelId: schema.convConversations.channelId,
         channelType: schema.convChannels.type,
+        channelVendor: schema.convChannels.vendor,
         needsHumanAttention: schema.convConversations.needsHumanAttention,
         outreachCampaignId: schema.convConversations.outreachCampaignId,
         agentMode: schema.convConversations.agentMode,
@@ -901,7 +924,7 @@ export class ConvService {
       }
 
       if (
-        DELIVERABLE_CHANNEL_TYPES.includes(conv.channelType) &&
+        this.registry.deliversOutbound(conv.channelType, conv.channelVendor) &&
         input.authorType !== 'end_user' &&
         input.authorType !== 'system'
       ) {

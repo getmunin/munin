@@ -54,7 +54,7 @@ export class ChannelAdminService {
   ): Promise<ChannelAdminDto> {
     const provider = this.requireVendor(input.vendor);
     if (opts?.rejectSecrets) this.assertNoSecrets(provider, input.config);
-    if (input.defaultAgentMode && provider.kind !== 'sms') {
+    if (input.defaultAgentMode && provider.kind === 'voice') {
       throw new BadRequestException(
         `defaultAgentMode does not apply to ${provider.kind} channels — an inbound call is run by the vendor's assistant, not by the Munin agent`,
       );
@@ -227,7 +227,7 @@ export class ChannelAdminService {
     const provider = this.byVendor.get(vendor);
     if (!provider) {
       throw new BadRequestException(
-        `unknown channel vendor '${vendor}'. Call conv_list_voice_sms_vendors to see the available vendors.`,
+        `unknown channel vendor '${vendor}'. Call conv_list_channel_vendors to see the available vendors.`,
       );
     }
     return provider;

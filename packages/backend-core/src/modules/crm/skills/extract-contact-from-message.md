@@ -1,6 +1,6 @@
 ---
 title: CRM: Extract a contact from a message
-description: When a conversation closes, read the thread for identifying info the end-user volunteered (name, email, phone, company, title) and persist it to the CRM as a contact — auto-applied, no proposal queue. Designed to fire on every `conversation.closed` event so visitor-volunteered identity becomes structured CRM data without operator intervention.
+description: When a conversation closes, read the thread for identifying info the end-user volunteered (name, email, phone, handle, company, title) and persist it to the CRM as a contact — auto-applied, no proposal queue. Designed to fire on every `conversation.closed` event so visitor-volunteered identity becomes structured CRM data without operator intervention.
 audiences: [admin]
 ---
 
@@ -13,9 +13,9 @@ A separate, scheduled `skill://crm/clean-contact-data` curator runs weekly to me
 
 1. **Read the conversation** with `conv_get_conversation(<conversationId>)`. The user prompt names the conversation; do not list or scan others.
 2. **Check the first end-user message's `metadata.senderClassification`** (email channel only). If `isMailingList`, `isAutoReply`, or `isBounce` is true → skip the conversation entirely, no writes. These aren't real people we should be CRM-tracking.
-3. **Extract identifying fields** from `end_user`-authored messages only: `email`, `phone`, `name`, `companyId`/`companyName`, `title`. Ignore agent and system messages — those are operator output, not user-volunteered identity. **For email messages, also read `metadata.signatureText`** — the trailing block already pulled out of the body. Signatures are the strongest identity source we have (the sender themselves typed it as their canonical "this is who I am") and should take precedence over inline mentions in the body.
-4. **Skip if nothing identifying was said.** If you found neither email nor phone nor a clear self-introduced name, finish silently — no writes.
-5. **Look up an existing contact** with `crm_lookup_contact({ email?, phone? })` before creating. Match keys: extracted email or phone.
+3. **Extract identifying fields** from `end_user`-authored messages only: `email`, `phone`, `handle`, `name`, `companyId`/`companyName`, `title`. Ignore agent and system messages — those are operator output, not user-volunteered identity. **For email messages, also read `metadata.signatureText`** — the trailing block already pulled out of the body. Signatures are the strongest identity source we have (the sender themselves typed it as their canonical "this is who I am") and should take precedence over inline mentions in the body.
+4. **Skip if nothing identifying was said.** If you found neither email nor phone nor handle nor a clear self-introduced name, finish silently — no writes.
+5. **Look up an existing contact** with `crm_lookup_contact({ email?, phone?, handle? })` before creating. Match keys: extracted email, phone, or handle.
 6. **Create or backfill, never overwrite.** If `crm_lookup_contact` returns null → `crm_create_contact` with the extracted fields and the conversation's `endUserId`. If it returns an existing row → `crm_update_contact` and ONLY fill fields that are currently null/empty on the existing row. Do not overwrite a non-empty field.
 7. **Stop.** One `crm_create_contact` or one `crm_update_contact`. No further actions.
 
@@ -42,6 +42,7 @@ For each field:
 
 - **Email** — From-address (`conv_get_conversation` returns it on the conversation; it's the From of every end-user email). Inline mentions are secondary. Skip emails that look like third parties they're forwarding to ("send it to legal@partner.com").
 - **Phone** — signature first, then inline. Normalise to E.164 if you can infer the country from context; otherwise keep as typed.
+- **Handle** — the platform username on channels that address people by handle instead of email or phone (a Reddit username, and later Bluesky / Mastodon / Discord). Take it from the message author's own identity on that channel, not from usernames they mention in passing. Store it bare: `u/vivisectus` and `@vivisectus` are both persisted as `vivisectus`.
 - **Name** — signature first (the line right after the closing, e.g. "Best,\nJane Doe"). Otherwise only when the user explicitly self-introduces ("I'm Jane", "this is Jane Doe"). Don't infer from email local-part — `j.doe@acme.com` doesn't tell you they're "Jane Doe". Don't pick up names of third parties they're discussing.
 - **Title / company** — signature first (typical layout: name → title → company). Otherwise only when self-stated ("I'm head of ops at Acme"). Don't infer company from email domain alone unless they also self-introduce: "I'm Jane from Acme" + `jane@acme.com` is fine, just `jane@acme.com` is not.
 
@@ -65,9 +66,9 @@ Parse line by line. The first non-closing line is the name. Subsequent lines are
 ## Step 3 — when to skip entirely
 
 - The first end-user message's `metadata.senderClassification` has `isMailingList`, `isAutoReply`, or `isBounce` set to true → skip. These are not human correspondents.
-- No email AND no phone AND no clear self-introduced name → skip, no writes.
+- No email AND no phone AND no handle AND no clear self-introduced name → skip, no writes.
 - Conversation has no `endUserId` (channel doesn't track participants) → skip; nothing to attribute the contact to.
-- The conversation's `endUserId` already maps to a `crm_contacts` row (via `endUserId` join) AND that row already has email + phone + name populated → skip, nothing to backfill.
+- The conversation's `endUserId` already maps to a `crm_contacts` row (via `endUserId` join) AND that row already has email + phone + handle + name populated → skip, nothing to backfill.
 
 ## Step 4 — dedupe before creating
 
@@ -75,9 +76,15 @@ Parse line by line. The first non-closing line is the name. Subsequent lines are
 { "name": "crm_lookup_contact", "arguments": { "email": "jane@acme.com" } }
 ```
 
-Or by phone if no email. If `crm_lookup_contact` returns `null`, you'll create a new contact in step 5. Otherwise, you'll backfill.
+Or by phone if no email, or by handle on a handle-addressed channel:
 
-If you have BOTH email and phone, run `crm_lookup_contact` for email first; if no hit, run for phone. The first hit wins.
+```jsonc
+{ "name": "crm_lookup_contact", "arguments": { "handle": "vivisectus" } }
+```
+
+If `crm_lookup_contact` returns `null`, you'll create a new contact in step 5. Otherwise, you'll backfill.
+
+If you have more than one of email, phone, and handle, run `crm_lookup_contact` for email first, then phone, then handle. The first hit wins.
 
 ## Step 5a — create (no existing match)
 
@@ -88,6 +95,7 @@ If you have BOTH email and phone, run `crm_lookup_contact` for email first; if n
     "name": "Jane Doe",
     "email": "jane@acme.com",
     "phone": "+47 555-1234",
+    "handle": "janedoe",
     "title": "Head of Ops",
     "endUserId": "eu_...",
     "tags": ["from-chat"]
@@ -106,7 +114,7 @@ Add the `from-chat` tag so operators can filter contacts that came in via this c
   "name": "crm_update_contact",
   "arguments": {
     "id": "cct_existing",
-    "patch": { "phone": "+47 555-1234", "title": "Head of Ops" },
+    "patch": { "phone": "+47 555-1234", "handle": "janedoe", "title": "Head of Ops" },
     "mode": "fill-null"
   }
 }

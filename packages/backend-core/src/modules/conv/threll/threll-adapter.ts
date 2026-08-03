@@ -73,6 +73,7 @@ interface ThrellEvent {
 export class ThrellAdapter implements ChannelAdapter {
   readonly kind = 'voice' as const;
   readonly vendors = ['threll'] as const;
+  readonly outboundDelivery = 'none' as const;
 
   private readonly logger = new Logger(ThrellAdapter.name);
 

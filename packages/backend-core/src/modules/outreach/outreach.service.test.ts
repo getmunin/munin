@@ -28,6 +28,21 @@ import { VapiService } from '../conv/vapi/vapi.service.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
+import type { ChannelAdapter, ChannelKind, OutboundDeliveryMode } from '../conv/channels/adapter.ts';
+
+function stubAdapter(
+  kind: ChannelKind,
+  vendor: string,
+  outboundDelivery: OutboundDeliveryMode,
+): ChannelAdapter {
+  return {
+    kind,
+    vendors: [vendor],
+    outboundDelivery,
+    inbound: null,
+    send: () => Promise.resolve({ providerMessageId: null }),
+  };
+}
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -64,7 +79,12 @@ const skipReason = TEST_URL
     crm = new CrmService(dispatcher, new DefaultQuotasService());
     const claims = new ConversationClaimsService(dispatcher);
     const curatorJobs = new CuratorJobsService(dispatcher);
-    conv = new ConvService(dispatcher, claims, curatorJobs, new AlertsService(dispatcher));
+    conv = new ConvService(dispatcher, claims, curatorJobs, new AlertsService(dispatcher), [
+      stubAdapter('email', 'smtp', 'queued'),
+      stubAdapter('sms', 'twilio', 'queued'),
+      stubAdapter('chat', 'reddit', 'queued'),
+      stubAdapter('chat', 'munin', 'none'),
+    ], { providerFor: () => undefined });
     const email = new EmailService();
     const vapiCaller = new VapiOutreachCaller(new VapiClientService(db));
     const threllCaller = new ThrellOutreachCaller(new ThrellClientService(db));
@@ -2200,6 +2220,666 @@ const skipReason = TEST_URL
           }),
         ),
       ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+  });
+
+  describe('engagement campaigns', () => {
+    let redditChannelId: string;
+
+    const target = {
+      threadId: '1abc2de',
+      permalink: 'https://www.reddit.com/r/selfhosted/comments/1abc2de/looking_for_a_crm/',
+      subreddit: 'selfhosted',
+      title: 'Looking for a self-hosted CRM that an agent can drive',
+      opHandle: 'u/curious_dev',
+    };
+
+    function humanActor(): ActorIdentity {
+      return new ActorIdentity(
+        'user',
+        'usr_outreach_engagement_test',
+        orgId,
+        ['*'],
+        ['admin'],
+        undefined,
+        undefined,
+        undefined,
+        'usr_outreach_engagement_test',
+      );
+    }
+
+    beforeEach(async () => {
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'chat',
+          vendor: 'reddit',
+          name: 'reddit-engagement',
+          active: true,
+          config: {},
+        })
+        .returning();
+      redditChannelId = channel!.id;
+    });
+
+    function createEngagementCampaign(
+      patch: Partial<Parameters<typeof svc.createCampaign>[0]> = {},
+    ) {
+      return run(() =>
+        svc.createCampaign({
+          name: 'reddit-listening',
+          brief: 'Answer self-hosting threads where Munin is genuinely the answer.',
+          kind: 'engagement',
+          channelId: redditChannelId,
+          enabled: true,
+          ...patch,
+        }),
+      );
+    }
+
+    it('creates an engagement campaign with a reddit channel and no segment', async () => {
+      const c = await createEngagementCampaign();
+      expect(c.kind).toBe('engagement');
+      expect(c.segmentId).toBeNull();
+    });
+
+    describe('direct messages to a handle', () => {
+      async function seedHandleContact(handle: string | null): Promise<string> {
+        const [row] = await db
+          .insert(schema.crmContacts)
+          .values({
+            orgId,
+            name: 'Curious Dev',
+            handle,
+            consentLawfulBasis: 'legitimate_interest',
+            consentGivenAt: new Date(),
+            consentSource: 'public thread where they asked about this',
+          })
+          .returning();
+        return row!.id;
+      }
+
+      it('refuses a first touch to a contact with no handle', async () => {
+        const c = await createEngagementCampaign();
+        const noHandle = await seedHandleContact(null);
+        await expect(
+          run(() =>
+            svc.proposeInitial({
+              campaignId: c.id,
+              contactId: noHandle,
+              draftBody: 'Hei — saw your thread.',
+            }),
+          ),
+        ).rejects.toBeInstanceOf(OutreachInvalidError);
+      });
+
+      it('reports the handle as the destination rather than a missing address', async () => {
+        const c = await createEngagementCampaign();
+        const withHandle = await seedHandleContact('curious_dev');
+        const p = await run(() =>
+          svc.proposeInitial({
+            campaignId: c.id,
+            contactId: withHandle,
+            draftBody: 'Hei — saw your thread.',
+          }),
+        );
+        expect(p.delivery?.destination).toBe('curious_dev');
+        expect(p.delivery?.channelType).toBe('chat');
+        expect(p.delivery?.vendor).toBe('reddit');
+      });
+
+      it('sends a first-touch dm and binds the conversation to a handle contact', async () => {
+        const c = await createEngagementCampaign();
+        const withHandle = await seedHandleContact('curious_dev');
+        const p = await run(() =>
+          svc.proposeInitial({
+            campaignId: c.id,
+            contactId: withHandle,
+            draftBody: 'Hei — saw your thread about self-hosted CRMs.',
+          }),
+        );
+        const approved = await runAs(humanActor(), () =>
+          svc.approveProposal(p.id, { publicBaseUrl: 'https://munin.test', fingerprint: p.draftFingerprint }),
+        );
+        expect(approved.status).toBe('sent');
+        expect(approved.conversationId).not.toBeNull();
+
+        const convs = await db
+          .select()
+          .from(schema.convConversations)
+          .where(eq(schema.convConversations.id, approved.conversationId!));
+        expect(convs[0]!.contactId).not.toBeNull();
+        const convContacts = await db
+          .select()
+          .from(schema.convContacts)
+          .where(eq(schema.convContacts.id, convs[0]!.contactId!));
+        expect(convContacts[0]!.handle).toBe('curious_dev');
+      });
+
+      it('never puts an unsubscribe url in a dm body', async () => {
+        const c = await createEngagementCampaign({
+          unsubscribeRequired: true,
+          ctaUrl: 'https://munin.test/docs',
+        });
+        const withHandle = await seedHandleContact('curious_dev');
+        const p = await run(() =>
+          svc.proposeInitial({
+            campaignId: c.id,
+            contactId: withHandle,
+            draftBody: 'Hei — saw your thread.',
+          }),
+        );
+        const approved = await runAs(humanActor(), () =>
+          svc.approveProposal(p.id, { publicBaseUrl: 'https://munin.test', fingerprint: p.draftFingerprint }),
+        );
+        const messages = await db
+          .select()
+          .from(schema.convMessages)
+          .where(eq(schema.convMessages.conversationId, approved.conversationId!));
+        expect(messages[0]!.body).not.toContain('/v1/outreach/unsubscribe');
+        expect(messages[0]!.body).not.toContain('Unsubscribe');
+        expect(messages[0]!.body.toLowerCase()).toContain('rather not hear from me');
+      });
+
+      it('queues one outbound delivery for an approved dm', async () => {
+        const c = await createEngagementCampaign();
+        const withHandle = await seedHandleContact('curious_dev');
+        const p = await run(() =>
+          svc.proposeInitial({
+            campaignId: c.id,
+            contactId: withHandle,
+            draftBody: 'Hei — saw your thread.',
+          }),
+        );
+        const approved = await runAs(humanActor(), () =>
+          svc.approveProposal(p.id, { publicBaseUrl: 'https://munin.test', fingerprint: p.draftFingerprint }),
+        );
+        const deliveries = await db.execute<{ n: number }>(
+          sql`SELECT count(*)::int AS n FROM conv_message_deliveries
+              WHERE message_id = ${approved.sentMessageId}`,
+        );
+        expect(deliveries[0]!.n).toBe(1);
+      });
+    });
+
+    it('rejects an engagement campaign that also names a CRM segment', async () => {
+      await expect(createEngagementCampaign({ segmentId })).rejects.toBeInstanceOf(
+        OutreachInvalidError,
+      );
+    });
+
+    it('rejects a segment campaign with no segmentId', async () => {
+      await expect(
+        run(() => svc.createCampaign({ name: 'no-segment', brief: 'b', channelId })),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('rejects a segment campaign pointed at a forum channel', async () => {
+      await expect(
+        run(() =>
+          svc.createCampaign({
+            name: 'segment-on-reddit',
+            brief: 'b',
+            segmentId,
+            channelId: redditChannelId,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('rejects an engagement campaign pointed at an email channel', async () => {
+      await expect(
+        run(() =>
+          svc.createCampaign({
+            name: 'engagement-on-email',
+            brief: 'b',
+            kind: 'engagement',
+            channelId,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('rejects sequenceSteps on an engagement campaign — a thread is never bumped', async () => {
+      await expect(
+        createEngagementCampaign({ sequenceSteps: [{ waitDays: 3, brief: 'bump the thread' }] }),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('refuses to patch a campaign from one kind to the other', async () => {
+      const c = await createEngagementCampaign();
+      await expect(
+        run(() => svc.updateCampaign({ id: c.id, patch: { kind: 'segment' } })),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('refuses to patch a segmentId onto an engagement campaign', async () => {
+      const c = await createEngagementCampaign();
+      await expect(
+        run(() => svc.updateCampaign({ id: c.id, patch: { segmentId } })),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('refuses to patch a segment campaign onto a forum channel', async () => {
+      const c = await run(() =>
+        svc.createCampaign({ name: 'stays-segment', brief: 'b', segmentId, channelId }),
+      );
+      await expect(
+        run(() => svc.updateCampaign({ id: c.id, patch: { channelId: redditChannelId } })),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('proposes a thread comment with no contact and the permalink as its destination', async () => {
+      const c = await createEngagementCampaign();
+      const p = await run(() =>
+        svc.proposeThreadComment({
+          campaignId: c.id,
+          target,
+          draftBody: 'I work on Munin, so grain of salt — here is what actually matters for that.',
+          evidence: { subredditRules: 'no promo posts; comments allowed with disclosure' },
+        }),
+      );
+      expect(p.kind).toBe('thread_comment');
+      expect(p.status).toBe('pending');
+      expect(p.contactId).toBeNull();
+      expect(p.contact).toBeNull();
+      expect(p.draftSubject).toBe(target.title);
+      expect(p.target).toEqual({
+        threadId: target.threadId,
+        permalink: target.permalink,
+        subreddit: 'selfhosted',
+        title: target.title,
+        opHandle: 'curious_dev',
+      });
+      expect(p.delivery?.destination).toBe(target.permalink);
+      expect(p.delivery?.appendsUnsubscribe).toBe(false);
+      expect(p.delivery?.appendsCta).toBe(false);
+    });
+
+    it('rejects a thread comment on a segment campaign', async () => {
+      const c = await run(() =>
+        svc.createCampaign({ name: 'segment-cmp', brief: 'b', segmentId, channelId }),
+      );
+      await expect(
+        run(() => svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'hello' })),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('rejects a permalink that is not a reddit.com URL', async () => {
+      const c = await createEngagementCampaign();
+      await expect(
+        run(() =>
+          svc.proposeThreadComment({
+            campaignId: c.id,
+            target: { ...target, permalink: 'https://example.com/threads/1abc2de' },
+            draftBody: 'hello',
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('rejects an empty threadId, subreddit or draftBody before touching the database', async () => {
+      const c = await createEngagementCampaign();
+      await expect(
+        run(() => svc.proposeThreadComment({ campaignId: c.id, target, draftBody: '   ' })),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+      await expect(
+        run(() =>
+          svc.proposeThreadComment({
+            campaignId: c.id,
+            target: { ...target, threadId: '' },
+            draftBody: 'x',
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+      await expect(
+        run(() =>
+          svc.proposeThreadComment({
+            campaignId: c.id,
+            target: { ...target, subreddit: '' },
+            draftBody: 'x',
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('runs no consent check — a thread proposal succeeds in an org whose contacts are all suppressed', async () => {
+      await db.execute(sql`UPDATE crm_contacts SET do_not_contact = true WHERE org_id = ${orgId}`);
+      const c = await createEngagementCampaign();
+      const p = await run(() =>
+        svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'A useful answer.' }),
+      );
+      expect(p.status).toBe('pending');
+      expect(p.contactId).toBeNull();
+    });
+
+    it('refuses a second pending comment on a thread it already drafted for', async () => {
+      const c = await createEngagementCampaign();
+      await run(() =>
+        svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'First take.' }),
+      );
+      await expect(
+        run(() => svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'Second take.' })),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('refuses a comment on a thread it already posted in', async () => {
+      const c = await createEngagementCampaign();
+      await db.insert(schema.outreachProposals).values({
+        orgId,
+        campaignId: c.id,
+        contactId: null,
+        kind: 'thread_comment',
+        target,
+        draftBody: 'Already posted.',
+        status: 'sent',
+        sentAt: new Date(),
+        proposedByActorType: 'agent',
+        proposedByActorId: 'seed',
+      });
+      await expect(
+        run(() => svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'Again.' })),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('refuses a comment once maxPerWeekPerSubreddit is reached in that subreddit', async () => {
+      const c = await createEngagementCampaign({ cadenceRules: { maxPerWeekPerSubreddit: 1 } });
+      await db.insert(schema.outreachProposals).values({
+        orgId,
+        campaignId: c.id,
+        contactId: null,
+        kind: 'thread_comment',
+        target: { ...target, threadId: 'other1' },
+        draftBody: 'Posted this week.',
+        status: 'sent',
+        sentAt: new Date(),
+        proposedByActorType: 'agent',
+        proposedByActorId: 'seed',
+      });
+      await expect(
+        run(() => svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'One more.' })),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('counts only the capped subreddit against maxPerWeekPerSubreddit', async () => {
+      const c = await createEngagementCampaign({ cadenceRules: { maxPerWeekPerSubreddit: 1 } });
+      await db.insert(schema.outreachProposals).values({
+        orgId,
+        campaignId: c.id,
+        contactId: null,
+        kind: 'thread_comment',
+        target: { ...target, threadId: 'other1', subreddit: 'devops' },
+        draftBody: 'Different subreddit.',
+        status: 'sent',
+        sentAt: new Date(),
+        proposedByActorType: 'agent',
+        proposedByActorId: 'seed',
+      });
+      const p = await run(() =>
+        svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'Fine to post.' }),
+      );
+      expect(p.status).toBe('pending');
+    });
+
+    it('refuses a comment once maxCommentsPerDay is reached across all subreddits', async () => {
+      const c = await createEngagementCampaign({ cadenceRules: { maxCommentsPerDay: 1 } });
+      await db.insert(schema.outreachProposals).values({
+        orgId,
+        campaignId: c.id,
+        contactId: null,
+        kind: 'thread_comment',
+        target: { ...target, threadId: 'other1', subreddit: 'devops' },
+        draftBody: 'Posted today.',
+        status: 'sent',
+        sentAt: new Date(),
+        proposedByActorType: 'agent',
+        proposedByActorId: 'seed',
+      });
+      await expect(
+        run(() => svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'One more.' })),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('does not spend the cold-comment cadence budget on replies inside a thread we already joined', async () => {
+      const c = await createEngagementCampaign({
+        cadenceRules: { maxCommentsPerDay: 1, maxPerWeekPerSubreddit: 1 },
+      });
+      await db.insert(schema.outreachProposals).values({
+        orgId,
+        campaignId: c.id,
+        contactId: null,
+        kind: 'reply',
+        target: { ...target, threadId: 'other1' },
+        draftBody: 'Answering someone who replied to us.',
+        status: 'sent',
+        sentAt: new Date(),
+        proposedByActorType: 'agent',
+        proposedByActorId: 'seed',
+      });
+      const p = await run(() =>
+        svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'Fine to post.' }),
+      );
+      expect(p.status).toBe('pending');
+    });
+
+    it('ignores comments older than the cadence window', async () => {
+      const c = await createEngagementCampaign({ cadenceRules: { maxPerWeekPerSubreddit: 1 } });
+      await db.insert(schema.outreachProposals).values({
+        orgId,
+        campaignId: c.id,
+        contactId: null,
+        kind: 'thread_comment',
+        target: { ...target, threadId: 'other1' },
+        draftBody: 'Posted last month.',
+        status: 'sent',
+        sentAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        proposedByActorType: 'agent',
+        proposedByActorId: 'seed',
+      });
+      const p = await run(() =>
+        svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'Fine to post.' }),
+      );
+      expect(p.status).toBe('pending');
+    });
+
+    it('refuses to approve a thread comment for anyone but a signed-in dashboard user', async () => {
+      const c = await createEngagementCampaign();
+      const p = await run(() =>
+        svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'A useful answer.' }),
+      );
+      await expect(
+        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('approve posts the comment into a contactless conversation carrying the thread metadata', async () => {
+      const c = await createEngagementCampaign();
+      const p = await run(() =>
+        svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'A useful answer.' }),
+      );
+      const approved = await runAs(humanActor(), () =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
+      );
+      expect(approved.status).toBe('sent');
+      expect(approved.conversationId).toBeTruthy();
+      expect(approved.sentMessageId).toBeTruthy();
+
+      const [conversation] = await db
+        .select()
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, approved.conversationId!));
+      expect(conversation!.contactId).toBeNull();
+      expect(conversation!.channelId).toBe(redditChannelId);
+      expect(conversation!.outreachCampaignId).toBe(c.id);
+      expect(conversation!.subject).toBe(target.title);
+      expect(conversation!.agentMode).toBe('draft_only');
+      expect(conversation!.metadata).toEqual({
+        conversationKey: `reddit:thread:${target.threadId}`,
+        redditTarget: 'comment',
+        redditThreadId: target.threadId,
+        redditSubreddit: 'selfhosted',
+        redditPermalink: target.permalink,
+        redditParentFullname: `t3_${target.threadId}`,
+      });
+
+      const messages = await db
+        .select()
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.conversationId, approved.conversationId!));
+      expect(messages).toHaveLength(1);
+      expect(messages[0]!.body).toBe('A useful answer.');
+      expect(messages[0]!.authorType).toBe('agent');
+
+      const deliveries = await db.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM conv_message_deliveries WHERE message_id = ${approved.sentMessageId!}`,
+      );
+      expect(deliveries[0]!.count).toBe(1);
+    });
+
+    it('leaves no CRM contact touched when a thread comment is approved', async () => {
+      const c = await createEngagementCampaign();
+      const p = await run(() =>
+        svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'A useful answer.' }),
+      );
+      await runAs(humanActor(), () =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
+      );
+      const [contact] = await db
+        .select({ lastContactedAt: schema.crmContacts.lastContactedAt })
+        .from(schema.crmContacts)
+        .where(eq(schema.crmContacts.id, contactId));
+      expect(contact!.lastContactedAt).toBeNull();
+    });
+
+    it('allows a reply on the thread conversation the comment opened', async () => {
+      const c = await createEngagementCampaign();
+      const p = await run(() =>
+        svc.proposeThreadComment({ campaignId: c.id, target, draftBody: 'A useful answer.' }),
+      );
+      const approved = await runAs(humanActor(), () =>
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
+      );
+      const reply = await run(() =>
+        svc.proposeReply({
+          conversationId: approved.conversationId!,
+          draftBody: 'Good question — the answer is yes.',
+        }),
+      );
+      expect(reply.kind).toBe('reply');
+      expect(reply.contactId).toBeNull();
+      expect(reply.target?.threadId).toBe(target.threadId);
+
+      await expect(
+        run(() =>
+          svc.proposeReply({
+            conversationId: approved.conversationId!,
+            draftBody: 'Second draft.',
+          }),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('binds a reply on a reddit DM conversation to the CRM contact matched by handle', async () => {
+      const c = await createEngagementCampaign();
+      const [convContact] = await db
+        .insert(schema.convContacts)
+        .values({ orgId, name: 'Curious Dev', handle: 'curious_dev' })
+        .returning();
+      const [crmContact] = await db
+        .insert(schema.crmContacts)
+        .values({
+          orgId,
+          name: 'Curious Dev',
+          handle: 'curious_dev',
+          consentLawfulBasis: 'legitimate_interest',
+        })
+        .returning();
+      const [conversation] = await db
+        .insert(schema.convConversations)
+        .values({
+          orgId,
+          channelId: redditChannelId,
+          contactId: convContact!.id,
+          displayId: 4242,
+          status: 'open',
+          outreachCampaignId: c.id,
+          metadata: { conversationKey: 'reddit:dm:curious_dev' },
+        })
+        .returning();
+      const reply = await run(() =>
+        svc.proposeReply({
+          conversationId: conversation!.id,
+          draftBody: 'Answering your DM.',
+        }),
+      );
+      expect(reply.contactId).toBe(crmContact!.id);
+      expect(reply.target).toBeNull();
+    });
+
+    it('still refuses a reply proposal on an sms conversation', async () => {
+      const [channelRow] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'sms',
+          vendor: 'twilio',
+          name: 'reply-gate-sms',
+          active: true,
+          config: { accountSid: 'AC', encryptedAuthToken: 'x', fromNumber: '+15550002222' },
+        })
+        .returning();
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'sms-reply-gate',
+          brief: 'b',
+          segmentId,
+          channelId: channelRow!.id,
+          enabled: true,
+        }),
+      );
+      const [conversation] = await db
+        .insert(schema.convConversations)
+        .values({
+          orgId,
+          channelId: channelRow!.id,
+          displayId: 4343,
+          status: 'open',
+          outreachCampaignId: c.id,
+        })
+        .returning();
+      await expect(
+        run(() => svc.proposeReply({ conversationId: conversation!.id, draftBody: 'nope' })),
+      ).rejects.toThrow('reply proposals are only supported on email campaigns');
+    });
+
+    it('throws instead of falling through to the reply path on an unknown proposal kind', async () => {
+      const c = await createEngagementCampaign();
+      const [row] = await db
+        .insert(schema.outreachProposals)
+        .values({
+          orgId,
+          campaignId: c.id,
+          contactId: null,
+          kind: 'sky_writing',
+          target,
+          draftBody: 'Skywriting is not a channel.',
+          status: 'pending',
+          proposedByActorType: 'agent',
+          proposedByActorId: 'seed',
+        })
+        .returning();
+      const asRead = await run(() => svc.getProposal(row!.id));
+      await expect(
+        runAs(humanActor(), () =>
+          svc.approveProposal(row!.id, {
+            publicBaseUrl: 'https://test.local',
+            fingerprint: asRead.draftFingerprint,
+          }),
+        ),
+      ).rejects.toThrow('has no delivery path');
+      const untouched = await run(() => svc.getProposal(row!.id));
+      expect(untouched.status).toBe('pending');
     });
   });
 });

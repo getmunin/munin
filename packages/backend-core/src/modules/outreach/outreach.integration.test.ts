@@ -139,7 +139,7 @@ const skipReason = TEST_URL
     return null;
   }
 
-  it('discovers all 16 outreach tools on tools/list', async () => {
+  it('discovers all 18 outreach tools on tools/list', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name).filter((n) => n.startsWith('outreach_')).sort();
@@ -159,6 +159,7 @@ const skipReason = TEST_URL
           'outreach_propose_followup',
           'outreach_propose_first_touch',
           'outreach_propose_reply',
+          'outreach_propose_thread_comment',
           'outreach_revise_proposal',
           'outreach_update_campaign',
           'outreach_withdraw_proposal',
@@ -960,6 +961,120 @@ const skipReason = TEST_URL
         },
       });
       expect(result.isError).toBe(true);
+    });
+  });
+
+  it('engagement flow over /mcp: create campaign → propose thread comment → conflict on the same thread, no 500s', async () => {
+    const [redditChannel] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'chat',
+        vendor: 'reddit',
+        name: 'reddit-it',
+        active: true,
+        config: {},
+      })
+      .returning();
+
+    const target = {
+      threadId: 'it1thread',
+      permalink: 'https://www.reddit.com/r/selfhosted/comments/it1thread/agentic_crm/',
+      subreddit: 'selfhosted',
+      title: 'Agentic CRM recommendations?',
+      opHandle: 'curious_dev',
+    };
+
+    await withClient(adminKey, async (c) => {
+      const withSegment = await c.callTool({
+        name: 'outreach_create_campaign',
+        arguments: {
+          name: 'engagement-bad-shape',
+          brief: 'Should be refused.',
+          kind: 'engagement',
+          segmentId,
+          channelId: redditChannel!.id,
+        },
+      });
+      expect(withSegment.isError).toBe(true);
+      expect(JSON.stringify(withSegment)).not.toContain('Internal server error');
+      expect(JSON.stringify(withSegment)).toContain('must not carry a segmentId');
+
+      const created = await c.callTool({
+        name: 'outreach_create_campaign',
+        arguments: {
+          name: 'engagement-it',
+          brief: 'Answer self-hosting threads where Munin is genuinely the answer.',
+          kind: 'engagement',
+          channelId: redditChannel!.id,
+          cadenceRules: { maxPerWeekPerSubreddit: 2 },
+        },
+      });
+      expect(created.isError).not.toBe(true);
+      const campaign = firstJson(created) as { id: string; kind: string; segmentId: string | null };
+      expect(campaign.kind).toBe('engagement');
+      expect(campaign.segmentId).toBeNull();
+
+      const proposed = await c.callTool({
+        name: 'outreach_propose_thread_comment',
+        arguments: {
+          campaignId: campaign.id,
+          target,
+          draftBody: 'I work on Munin, so grain of salt — here is what matters for that setup.',
+          evidence: { subredditRules: 'comments allowed with disclosure' },
+        },
+      });
+      expect(proposed.isError).not.toBe(true);
+      const proposal = firstJson(proposed) as {
+        id: string;
+        kind: string;
+        contactId: string | null;
+        draftSubject: string | null;
+        draftFingerprint: string;
+        delivery: { destination: string | null; appendsUnsubscribe: boolean } | null;
+      };
+      expect(proposal.kind).toBe('thread_comment');
+      expect(proposal.contactId).toBeNull();
+      expect(proposal.draftSubject).toBe(target.title);
+      expect(proposal.delivery?.destination).toBe(target.permalink);
+      expect(proposal.delivery?.appendsUnsubscribe).toBe(false);
+
+      const again = await c.callTool({
+        name: 'outreach_propose_thread_comment',
+        arguments: { campaignId: campaign.id, target, draftBody: 'A second angle.' },
+      });
+      expect(again.isError).toBe(true);
+      expect(JSON.stringify(again)).toContain('outreach_conflict');
+      expect(JSON.stringify(again)).not.toContain('Internal server error');
+
+      const badPermalink = await c.callTool({
+        name: 'outreach_propose_thread_comment',
+        arguments: {
+          campaignId: campaign.id,
+          target: { ...target, threadId: 'it2thread', permalink: 'https://example.com/t/it2thread' },
+          draftBody: 'Wrong host.',
+        },
+      });
+      expect(badPermalink.isError).toBe(true);
+      expect(JSON.stringify(badPermalink)).not.toContain('Internal server error');
+
+      const approved = await c.callTool({
+        name: 'outreach_approve_proposal',
+        arguments: { id: proposal.id, fingerprint: proposal.draftFingerprint },
+      });
+      expect(approved.isError).toBe(true);
+      expect(JSON.stringify(approved)).toContain('signed-in person in the Munin dashboard');
+      expect(JSON.stringify(approved)).not.toContain('Internal server error');
+
+      const listed = firstJson(
+        await c.callTool({
+          name: 'outreach_list_proposals',
+          arguments: { campaignId: campaign.id, kind: 'thread_comment' },
+        }),
+      ) as Array<{ id: string; contact: unknown; target: { subreddit: string } | null }>;
+      expect(listed).toHaveLength(1);
+      expect(listed[0]!.contact).toBeNull();
+      expect(listed[0]!.target?.subreddit).toBe('selfhosted');
     });
   });
 });

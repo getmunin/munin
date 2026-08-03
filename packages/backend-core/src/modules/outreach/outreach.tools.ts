@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { readApiBaseUrl } from '@getmunin/core';
 import {
+  CAMPAIGN_KINDS,
   OutreachInvalidError,
   OutreachService,
   PROPOSAL_KINDS,
@@ -28,6 +29,24 @@ const IanaTimeZone = z
 
 const CadenceRulesSchema = z.object({
   maxPerWeekPerContact: z.number().int().positive().max(7).optional(),
+  maxPerWeekPerSubreddit: z
+    .number()
+    .int()
+    .positive()
+    .max(20)
+    .optional()
+    .describe(
+      'Engagement campaigns: how many comments this campaign may have posted in one subreddit over the trailing 7 days.',
+    ),
+  maxCommentsPerDay: z
+    .number()
+    .int()
+    .positive()
+    .max(50)
+    .optional()
+    .describe(
+      'Engagement campaigns: how many comments this campaign may have posted across all subreddits over the trailing 24 hours.',
+    ),
   quietHoursStart: z.string().regex(/^[0-2]\d:[0-5]\d$/).optional(),
   quietHoursEnd: z.string().regex(/^[0-2]\d:[0-5]\d$/).optional(),
   quietHoursTimezone: IanaTimeZone.optional().describe(
@@ -55,7 +74,18 @@ const SequenceStepsSchema = z.array(SequenceStepSchema).max(5);
 const CreateCampaignInput = z.object({
   name: z.string().min(1).max(120),
   brief: z.string().min(1).max(5000),
-  segmentId: z.string().min(1).max(64),
+  kind: z
+    .enum(CAMPAIGN_KINDS)
+    .optional()
+    .describe(
+      'Defaults to "segment": a CRM audience reached one contact at a time. "engagement" targets public threads on a forum channel and takes no segment.',
+    ),
+  segmentId: z
+    .string()
+    .min(1)
+    .max(64)
+    .optional()
+    .describe('Required for segment campaigns, and must be omitted for engagement campaigns.'),
   channelId: z.string().min(1).max(64),
   cadenceRules: CadenceRulesSchema.optional(),
   sequenceSteps: SequenceStepsSchema.optional(),
@@ -72,6 +102,10 @@ const UpdateCampaignInput = z.object({
     .object({
       name: z.string().min(1).max(120).optional(),
       brief: z.string().min(1).max(5000).optional(),
+      kind: z
+        .enum(CAMPAIGN_KINDS)
+        .optional()
+        .describe('Rejected: a campaign cannot change kind once proposals reference it.'),
       segmentId: z.string().min(1).max(64).optional(),
       channelId: z.string().min(1).max(64).optional(),
       cadenceRules: CadenceRulesSchema.optional(),
@@ -128,6 +162,48 @@ const ProposeReplyInput = z.object({
   conversationId: z.string().min(1).max(64),
   draftBody: z.string().min(1).max(20_000),
   evidence: z.record(z.string(), z.unknown()).optional(),
+});
+
+const ThreadTargetSchema = z.object({
+  threadId: z
+    .string()
+    .min(1)
+    .max(64)
+    .describe('The thread\'s id on the forum, without a type prefix — e.g. "1abc2de".'),
+  permalink: z
+    .string()
+    .url()
+    .max(2000)
+    .describe('Absolute reddit.com URL of the thread the comment is drafted for.'),
+  subreddit: z.string().min(1).max(64).describe('Subreddit name without the "r/" prefix.'),
+  title: z
+    .string()
+    .min(1)
+    .max(300)
+    .describe('The thread title, shown as the subject line in the review queue.'),
+  opHandle: z
+    .string()
+    .max(64)
+    .optional()
+    .describe('Reddit username of the thread author, without the "u/" prefix.'),
+});
+
+const ProposeThreadCommentInput = z.object({
+  campaignId: z.string().min(1).max(64),
+  target: ThreadTargetSchema,
+  draftBody: z
+    .string()
+    .min(1)
+    .max(10_000)
+    .describe(
+      'The comment text exactly as it should be posted, in the thread language. Markdown as Reddit renders it. No tracking links and no unsubscribe footer — Munin appends nothing to a comment.',
+    ),
+  evidence: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe(
+      'Reasoning and sources kept for the reviewer: the subreddit rules checked, why the thread qualifies against the campaign brief, and the affiliation disclosure used.',
+    ),
 });
 
 const ProposeFollowupInput = z.object({
@@ -216,7 +292,8 @@ const OutreachImportInput = z.object({
         id: z.string(),
         name: z.string().min(1).max(120),
         brief: z.string().min(1).max(5000),
-        segmentId: z.string(),
+        kind: z.enum(CAMPAIGN_KINDS).default('segment'),
+        segmentId: z.string().nullable().optional(),
         channelId: z.string(),
         cadenceRules: CadenceRulesSchema.default({}),
         sequenceSteps: SequenceStepsSchema.default([]),
@@ -230,9 +307,10 @@ const OutreachImportInput = z.object({
       z.object({
         id: z.string(),
         campaignId: z.string(),
-        contactId: z.string(),
+        contactId: z.string().nullable().optional(),
         conversationId: z.string().nullable().optional(),
         kind: z.enum(PROPOSAL_KINDS),
+        target: ThreadTargetSchema.nullable().optional(),
         sequenceStep: z.number().int().min(1).max(5).nullable().optional(),
         draftSubject: z.string().nullable().optional(),
         draftBody: z.string().min(1),
@@ -282,7 +360,7 @@ export class OutreachAdminTools {
     name: 'outreach_create_campaign',
     title: 'Outreach: Create campaign',
     description:
-      'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftFirstTouch` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), while `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `sequenceSteps` (email campaigns only) defines a follow-up sequence — each step is a wait period plus a drafting brief; defining steps on an enabled campaign opts it into daily follow-up drafting for threads with no reply.',
+      'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftFirstTouch` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), while `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `sequenceSteps` (email campaigns only) defines a follow-up sequence — each step is a wait period plus a drafting brief; defining steps on an enabled campaign opts it into daily follow-up drafting for threads with no reply. Set `kind: "engagement"` for a campaign that answers public forum threads instead of a CRM audience: it takes a forum channel, no `segmentId` and no `sequenceSteps`, and its drafts are filed with `outreach_propose_thread_comment` under the `maxPerWeekPerSubreddit` / `maxCommentsPerDay` cadence rules.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: CreateCampaignInput,
@@ -290,7 +368,7 @@ export class OutreachAdminTools {
     destructiveHint: true,
   })
   createCampaign(args: z.infer<typeof CreateCampaignInput>) {
-    return this.outreach.createCampaign(args);
+    return translateInvalid(() => this.outreach.createCampaign(args));
   }
 
   @McpTool({
@@ -321,10 +399,16 @@ export class OutreachAdminTools {
   })
   importOutreach(args: z.infer<typeof OutreachImportInput>) {
     const records = {
-      campaigns: args.records.campaigns.map((c) => ({ ...c, ctaUrl: c.ctaUrl ?? null })),
+      campaigns: args.records.campaigns.map((c) => ({
+        ...c,
+        segmentId: c.segmentId ?? null,
+        ctaUrl: c.ctaUrl ?? null,
+      })),
       proposals: args.records.proposals.map((p) => ({
         ...p,
+        contactId: p.contactId ?? null,
         conversationId: p.conversationId ?? null,
+        target: p.target ? { ...p.target, opHandle: p.target.opHandle ?? null } : null,
         sequenceStep: p.sequenceStep ?? null,
         draftSubject: p.draftSubject ?? null,
         proposedSendAt: p.proposedSendAt ?? null,
@@ -345,7 +429,7 @@ export class OutreachAdminTools {
     destructiveHint: true,
   })
   updateCampaign(args: z.infer<typeof UpdateCampaignInput>) {
-    return this.outreach.updateCampaign(args);
+    return translateInvalid(() => this.outreach.updateCampaign(args));
   }
 
   @McpTool({
@@ -383,7 +467,7 @@ export class OutreachAdminTools {
     name: 'outreach_approve_proposal',
     title: 'Outreach: Approve proposal',
     description:
-      "Approve one pending outreach proposal, authorizing it to go out: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. Sends immediately unless a future send time applies, in which case the proposal returns `status: \"approved\"` with `scheduledSendAt` and a background worker delivers it then, re-checking campaign state, suppression and quiet hours at that moment. The approval is bound to the draft it was given: `fingerprint` must match the proposal's current `draftFingerprint`, so a draft revised since it was read is refused with a conflict and stays pending. Also fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId` and `sentMessageId` on an immediate send.",
+      "Approve one pending outreach proposal, authorizing it to go out: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation; a thread-comment proposal opens a conversation for the thread and posts the comment publicly, and is approvable only by a signed-in person in the Munin dashboard. Sends immediately unless a future send time applies, in which case the proposal returns `status: \"approved\"` with `scheduledSendAt` and a background worker delivers it then, re-checking campaign state, suppression and quiet hours at that moment. The approval is bound to the draft it was given: `fingerprint` must match the proposal's current `draftFingerprint`, so a draft revised since it was read is refused with a conflict and stays pending. Also fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId` and `sentMessageId` on an immediate send.",
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: ApproveProposalInput,
@@ -534,6 +618,28 @@ export class OutreachAdminTools {
   })
   proposeFollowup(args: z.infer<typeof ProposeFollowupInput>) {
     return this.outreach.proposeFollowup(args);
+  }
+
+  @McpTool({
+    name: 'outreach_propose_thread_comment',
+    title: 'Outreach: Propose thread comment',
+    description:
+      'File a drafted public comment on one forum thread for human approval, on a campaign whose `kind` is "engagement". Use it when a thread on the campaign\'s channel is a genuine fit for the campaign brief and a public answer is the useful response; use `outreach_propose_first_touch` instead when the useful response is a private message to one person. `target` identifies the thread (`threadId`, `permalink`, `subreddit`, `title`, optional `opHandle`) and its title becomes the subject in the review queue. No contact and no consent record are involved — a thread is public speech, not a data subject — so the limits here are cadence-based: one comment per thread per campaign for the campaign\'s lifetime, plus the campaign\'s `maxPerWeekPerSubreddit` and `maxCommentsPerDay` rules. Refuses a thread the campaign already has a pending, approved or posted comment on. Nothing is posted until a signed-in person approves in the Munin dashboard.',
+    audiences: ['admin'],
+    scopes: ['outreach:write'],
+    input: ProposeThreadCommentInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  proposeThreadComment(args: z.infer<typeof ProposeThreadCommentInput>) {
+    return translateInvalid(() =>
+      this.outreach.proposeThreadComment({
+        campaignId: args.campaignId,
+        target: { ...args.target, opHandle: args.target.opHandle ?? null },
+        draftBody: args.draftBody,
+        evidence: args.evidence,
+      }),
+    );
   }
 }
 

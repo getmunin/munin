@@ -23,19 +23,28 @@ const ListContactsInput = z.object({
 
 const GetContactInput = z.object({ id: z.string() });
 
+const HandleSchema = z
+  .string()
+  .max(64)
+  .describe(
+    'Platform username, stored without the leading "u/" or "@" (e.g. a Reddit username). Used on channels that address people by handle rather than by email or phone.',
+  );
+
 const FindContactInput = z
   .object({
     email: z.string().email().optional(),
     phone: z.string().optional(),
+    handle: HandleSchema.optional(),
   })
-  .refine((v) => v.email || v.phone, {
-    message: 'at least one of email or phone is required',
+  .refine((v) => v.email || v.phone || v.handle, {
+    message: 'at least one of email, phone or handle is required',
   });
 
 const ContactPatchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   email: z.string().email().optional(),
   phone: z.string().max(40).optional(),
+  handle: HandleSchema.optional(),
   title: z.string().max(120).optional(),
   address: z.string().max(500).optional(),
   companyId: z.string().nullable().optional(),
@@ -49,6 +58,7 @@ const CreateContactInput = z.object({
   name: z.string().min(1).max(200).optional(),
   email: z.string().email().optional(),
   phone: z.string().max(40).optional(),
+  handle: HandleSchema.optional(),
   title: z.string().max(120).optional(),
   address: z.string().max(500).optional(),
   companyId: z.string().optional(),
@@ -271,6 +281,7 @@ const CrmImportInput = z.object({
         name: z.string().max(200).nullable().optional(),
         email: z.string().nullable().optional(),
         phone: z.string().max(40).nullable().optional(),
+        handle: z.string().max(64).nullable().optional(),
         title: z.string().max(120).nullable().optional(),
         address: z.string().max(500).nullable().optional(),
         tags: TagsSchema,
@@ -355,9 +366,9 @@ export class CrmAdminTools {
 
   @McpTool({
     name: 'crm_lookup_contact',
-    title: 'CRM: Look up contact by email or phone',
+    title: 'CRM: Look up contact by email, phone or handle',
     description:
-      'Find an existing contact by email and/or phone before creating a new one. Returns null if no match.',
+      'Find an existing contact by email, phone and/or platform handle. Returns null if no match.',
     audiences: ['admin'],
     scopes: ['crm:read'],
     input: FindContactInput,
@@ -371,7 +382,8 @@ export class CrmAdminTools {
   @McpTool({
     name: 'crm_create_contact',
     title: 'CRM: Create contact',
-    description: 'Create a new contact. Search with crm_lookup_contact first to avoid duplicates.',
+    description:
+      'Create a new contact. Identity can be any combination of email, phone, and platform handle — a contact reached only by handle (e.g. a Reddit username) needs no email. Creates unconditionally: it does not dedupe against existing rows.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: CreateContactInput,
@@ -386,7 +398,7 @@ export class CrmAdminTools {
     name: 'crm_update_contact',
     title: 'CRM: Update contact',
     description:
-      "Update fields on a contact. Only keys present in `patch` are touched; omitted keys are preserved. `customFields` is a partial patch — keys you send replace the corresponding keys; keys you omit are preserved (send `key: null` to clear a single custom field). Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
+      "Update fields on a contact, including the identity fields `email`, `phone`, and `handle` (a platform username such as a Reddit one, stored without its `u/` prefix). Only keys present in `patch` are touched; omitted keys are preserved. `customFields` is a partial patch — keys you send replace the corresponding keys; keys you omit are preserved (send `key: null` to clear a single custom field). Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: UpdateContactInput,
@@ -401,7 +413,7 @@ export class CrmAdminTools {
     name: 'crm_bulk_create_contacts',
     title: 'CRM: Bulk-create contacts',
     description:
-      'Bulk-create contacts with dedupe + compliance checks: rows whose email or phone already match a do_not_contact contact are skipped, as are rows that would duplicate an existing contact.',
+      'Bulk-create contacts with dedupe + compliance checks: rows whose email, phone, or platform handle already match a do_not_contact contact are skipped, as are rows that would duplicate an existing contact.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: BulkCreateInput,
@@ -416,7 +428,7 @@ export class CrmAdminTools {
     name: 'crm_search_contacts',
     title: 'CRM: Search contacts',
     description:
-      'Substring search across name, email, phone, and title. Returns contacts ordered newest-updated first.',
+      'Substring search across name, email, phone, handle, and title. Returns contacts ordered newest-updated first.',
     audiences: ['admin'],
     scopes: ['crm:read'],
     input: SearchContactsInput,
@@ -668,7 +680,7 @@ export class CrmAdminTools {
     name: 'crm_create_segment',
     title: 'CRM: Create segment',
     description:
-      'Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.',
+      'Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/handle/title), and contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp). Combine fields and they AND together.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: CreateSegmentInput,
@@ -756,7 +768,7 @@ export class CrmAdminTools {
     name: 'crm_import',
     title: 'CRM: Import data',
     description:
-      'Import CRM `records` produced by `crm_export` (typically from another Munin server). Records are imported in dependency order (pipelines → segments → companies → contacts → deals → activities → relationships). Pipelines are upserted by slug, segments by name, companies by domain (else name), and contacts by email — so re-running is idempotent. Deals, activities, and relationships get fresh ids each run with their parents resolved through the `idMap`. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.',
+      'Import CRM `records` produced by `crm_export` (typically from another Munin server). Records are imported in dependency order (pipelines → segments → companies → contacts → deals → activities → relationships). Pipelines are upserted by slug, segments by name, companies by domain (else name), and contacts by email — so re-running is idempotent. A contact\'s platform handle travels with the record but is not an import match key. Deals, activities, and relationships get fresh ids each run with their parents resolved through the `idMap`. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.',
     audiences: ['admin'],
     scopes: ['crm:write'],
     input: CrmImportInput,
@@ -779,6 +791,7 @@ function toCrmExportData(records: z.infer<typeof CrmImportInput>['records']) {
       name: c.name ?? null,
       email: c.email ?? null,
       phone: c.phone ?? null,
+      handle: c.handle ?? null,
       title: c.title ?? null,
       address: c.address ?? null,
     })),

@@ -78,6 +78,8 @@ const skipReason = TEST_URL
       claims,
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      [],
+      { providerFor: () => undefined },
     );
     const factory = new InProcessMuninRestClientFactoryService(
       db,
@@ -110,6 +112,8 @@ const skipReason = TEST_URL
       claims,
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      [],
+      { providerFor: () => undefined },
     );
     const factory = new InProcessMuninRestClientFactoryService(
       db,
@@ -158,6 +162,8 @@ const skipReason = TEST_URL
       claims,
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      [],
+      { providerFor: () => undefined },
     );
     const factory = new InProcessMuninRestClientFactoryService(
       db,

@@ -119,8 +119,58 @@ const skipReason = TEST_URL
       expect(miss).toBeNull();
     });
 
-    it('findContact rejects when neither email nor phone is provided', async () => {
+    it('findContact rejects when neither email nor phone nor handle is provided', async () => {
       await expect(run(() => svc.findContact({}))).rejects.toThrow(CrmInvalidError);
+    });
+
+    it('createContact persists handle as an identity field, no email required', async () => {
+      const c = await run(() => svc.createContact({ name: 'Vita', handle: 'vivisectus' }));
+      expect(c.handle).toBe('vivisectus');
+      expect(c.email).toBeNull();
+      const refreshed = await run(() => svc.getContact(c.id));
+      expect(refreshed.handle).toBe('vivisectus');
+    });
+
+    it('findContact matches a handle-only contact by handle alone', async () => {
+      await run(() => svc.createContact({ handle: 'vivisectus' }));
+      const hit = await run(() => svc.findContact({ handle: 'vivisectus' }));
+      expect(hit).not.toBeNull();
+      expect(hit!.handle).toBe('vivisectus');
+      const miss = await run(() => svc.findContact({ handle: 'someone_else' }));
+      expect(miss).toBeNull();
+    });
+
+    it('updateContact sets handle on an existing contact', async () => {
+      const c = await run(() => svc.createContact({ name: 'A', email: 'a@x' }));
+      const updated = await run(() =>
+        svc.updateContact({ id: c.id, patch: { handle: 'vivisectus' } }),
+      );
+      expect(updated.handle).toBe('vivisectus');
+    });
+
+    it('updateContact fill-null fills a null handle but refuses to overwrite an existing one', async () => {
+      const c = await run(() => svc.createContact({ name: 'A', email: 'a@x' }));
+      const filled = await run(() =>
+        svc.updateContact({ id: c.id, patch: { handle: 'first' }, mode: 'fill-null' }),
+      );
+      expect(filled.handle).toBe('first');
+      const kept = await run(() =>
+        svc.updateContact({ id: c.id, patch: { handle: 'second' }, mode: 'fill-null' }),
+      );
+      expect(kept.handle).toBe('first');
+    });
+
+    it('bulkCreateContacts treats handle as a dedupe key', async () => {
+      await run(() => svc.createContact({ handle: 'vivisectus' }));
+      const result = await run(() =>
+        svc.bulkCreateContacts([
+          { name: 'Same person', handle: 'vivisectus' },
+          { name: 'New person', handle: 'someone_else' },
+        ]),
+      );
+      expect(result).toEqual({ created: 1, skipped: 1 });
+      const list = await run(() => svc.listContacts({}));
+      expect(list.map((c) => c.handle).sort()).toEqual(['someone_else', 'vivisectus']);
     });
 
     it('getMyContact returns the contact bound to the actor end-user; 404 if none', async () => {
@@ -375,6 +425,13 @@ const skipReason = TEST_URL
       expect(byTitle).toHaveLength(1);
     });
 
+    it('searchContacts matches by handle', async () => {
+      await run(() => svc.createContact({ name: 'Vita', handle: 'vivisectus' }));
+      await run(() => svc.createContact({ name: 'Other', email: 'o@x' }));
+      const byHandle = await run(() => svc.searchContacts({ query: 'VIVISECT' }));
+      expect(byHandle.map((c) => c.handle)).toEqual(['vivisectus']);
+    });
+
     it('searchContacts returns an empty array for empty/whitespace query', async () => {
       const empty = await run(() => svc.searchContacts({ query: '   ' }));
       expect(empty).toEqual([]);
@@ -610,6 +667,29 @@ const skipReason = TEST_URL
       expect(refreshedKeeper.consentGivenAt).toBe(givenAt);
       expect(refreshedKeeper.consentLawfulBasis).toBe('consent');
       expect(refreshedKeeper.consentSource).toBe('self-test-outreach-flow');
+    });
+
+    it('applyMergeProposal copies handle onto the keeper: it survives patch normalization', async () => {
+      const keeper = await run(() => svc.createContact({ name: 'Keeper', email: 'k@y' }));
+      const dup = await run(() =>
+        svc.createContact({ name: 'Dup', email: 'k@y', handle: 'vivisectus' }),
+      );
+      const proposal = await run(() =>
+        svc.proposeMerge({
+          contactAId: keeper.id,
+          contactBId: dup.id,
+          confidence: 'high',
+          evidence: { sameEmail: 'k@y' },
+          recommendedKeeperId: keeper.id,
+          recommendedPatch: { handle: 'vivisectus' },
+        }),
+      );
+      const applied = await run(() => svc.applyMergeProposal({ id: proposal.id, fingerprint: proposal.mergeFingerprint }));
+      expect(applied.status).toBe('applied');
+      const dupSummary = applied.contactA.id === dup.id ? applied.contactA : applied.contactB;
+      expect(dupSummary.handle).toBe('vivisectus');
+      const refreshedKeeper = await run(() => svc.getContact(keeper.id));
+      expect(refreshedKeeper.handle).toBe('vivisectus');
     });
 
     it('applyMergeProposal reassigns activities, deals, and contact-typed relationships from duplicate to keeper', async () => {
@@ -1084,6 +1164,23 @@ const skipReason = TEST_URL
       expect(ids).toContain(cWithConsent.id);
       expect(ids).not.toContain(cNoConsent.id);
       expect(ids).not.toContain(cSuppressed.id);
+    });
+
+    it('listContactsInSegment searchQuery matches handle as well as name and email', async () => {
+      const seg = await run(() =>
+        svc.createSegment({ name: 'handle search', filter: { searchQuery: 'vivisect' } }),
+      );
+      const byHandle = await run(() => svc.createContact({ name: 'Vita', handle: 'vivisectus' }));
+      await run(() =>
+        svc.setContactConsent({ contactId: byHandle.id, lawfulBasis: 'consent', source: 'reddit' }),
+      );
+      const unrelated = await run(() => svc.createContact({ name: 'Other', email: 'o@x.com' }));
+      await run(() =>
+        svc.setContactConsent({ contactId: unrelated.id, lawfulBasis: 'consent', source: 'crm' }),
+      );
+
+      const ids = (await run(() => svc.listContactsInSegment({ id: seg.id }))).map((c) => c.id);
+      expect(ids).toEqual([byHandle.id]);
     });
 
     it('listContactsInSegment respects the filter (tagsAll AND companyId)', async () => {

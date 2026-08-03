@@ -82,6 +82,33 @@ export function ThrellLogo(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function RedditLogo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      aria-hidden
+      {...props}
+    >
+      <circle cx="16" cy="16" r="16" fill="#FF4500" />
+      <circle cx="7.6" cy="16.6" r="3" fill="white" />
+      <circle cx="24.4" cy="16.6" r="3" fill="white" />
+      <ellipse cx="16" cy="18.4" rx="9" ry="6.4" fill="white" />
+      <path d="M15.1 12.6 18.5 6.1 20.1 6.9 16.7 13.4Z" fill="white" />
+      <circle cx="20.6" cy="6" r="2.4" fill="white" />
+      <circle cx="12.7" cy="17.7" r="1.7" fill="#FF4500" />
+      <circle cx="19.3" cy="17.7" r="1.7" fill="#FF4500" />
+      <path
+        d="M12.5 21.3C13.5 22.2 14.7 22.6 16 22.6C17.3 22.6 18.5 22.2 19.5 21.3"
+        stroke="#FF4500"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function VapiLogo(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

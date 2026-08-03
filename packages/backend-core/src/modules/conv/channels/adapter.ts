@@ -5,12 +5,16 @@ export interface ChannelAdapter {
 
   readonly vendors: readonly string[];
 
+  readonly outboundDelivery: OutboundDeliveryMode;
+
   send(ctx: SendContext): Promise<SendResult>;
 
   readonly inbound: InboundMode | null;
 }
 
 export type ChannelKind = 'email' | 'chat' | 'sms' | 'voice';
+
+export type OutboundDeliveryMode = 'queued' | 'none';
 
 export type InboundMode =
   | { mode: 'poll'; intervalMs: number; tick(channel: ChannelRow): Promise<PollTickResult> }
@@ -65,16 +69,19 @@ export interface IncomingWebhookRequest {
 
 export interface InboundBatch {
   messages: Array<{
-    fromIdentity: { email?: string; phone?: string; name?: string };
+    fromIdentity: { email?: string; phone?: string; name?: string; handle?: string };
     body: string;
     bodyHtml?: string | null;
     providerMessageId: string;
     inReplyTo?: string | null;
+    conversationKey?: string | null;
     receivedAt: Date;
     raw?: Record<string, unknown>;
   }>;
   responseOverride?: WebhookResponse;
 }
+
+export const CONVERSATION_KEY_METADATA_FIELD = 'conversationKey';
 
 export interface InboundCursorIo<TCursor extends Record<string, unknown>> {
   read(channelId: string): Promise<TCursor | null>;
@@ -104,6 +111,10 @@ export class ChannelAdapterRegistry {
 
   get(kind: string, vendor: string): ChannelAdapter | null {
     return this.byKey.get(`${kind}:${vendor}`) ?? null;
+  }
+
+  deliversOutbound(kind: string, vendor: string): boolean {
+    return this.get(kind, vendor)?.outboundDelivery === 'queued';
   }
 
   pollAdapters(): Array<ChannelAdapter & { inbound: Extract<InboundMode, { mode: 'poll' }> }> {

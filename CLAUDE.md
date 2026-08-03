@@ -20,7 +20,7 @@ Monorepo on pnpm + Turborepo.
 | Module | Tools prefix | Notes |
 |---|---|---|
 | `kb` | `kb_*` | Documents, spaces, hybrid search (BM25 + pgvector), curation candidates. |
-| `conv` | `conv_*` | Email / SMS / voice / widget channels via the channel-adapter contract (`packages/backend-core/src/modules/conv/CLAUDE.md`). |
+| `conv` | `conv_*` | Email / SMS / voice / widget / Reddit channels via the channel-adapter contract (`packages/backend-core/src/modules/conv/CLAUDE.md`). |
 | `crm` | `crm_*` | Contacts, companies, deals, pipelines, segments, merge proposals. |
 | `cms` | `cms_*` | Collections, entries, locales, assets, scheduled publishing, public delivery API. |
 | `outreach` | `outreach_*` | Propose-only outbound campaigns. Never auto-sends. |
@@ -38,7 +38,7 @@ Each module typically has `<mod>.module.ts`, `<mod>.service.ts`, `<mod>.tools.ts
 
 Three integration categories, three homes. Route new "integrate with X" work by asking what X is:
 
-- **Messaging channel** — a surface customers write to us on (email, SMS, voice, widget). Implement a channel adapter in `conv` (contract: `packages/backend-core/src/modules/conv/CLAUDE.md`).
+- **Messaging channel** — a surface customers write to us on (email, SMS, voice, widget, Reddit). Implement a channel adapter in `conv` (contract: `packages/backend-core/src/modules/conv/CLAUDE.md`).
 - **Operator bridge** — where our team works (Slack; later Teams). One root module per vendor. Bridges subscribe to domain events by registering an `EventSink` on `WebhookDispatcher` (`packages/core/src/webhooks.ts`); sinks run inside the emitting transaction and must only enqueue durable work — external I/O belongs in the module's own out-of-band worker. Inbound vendor webhooks are signature-verified public controllers, and inbound actions run through existing module services as the mapped org member.
 - **Connector** — a customer's system of record we answer questions from (Shopify, Magento, Gastroplanner). Plumbing lives in the `connectors` trunk module (connection storage, credential encryption, vendor registry, `connectors_*` admin tools); typed read surfaces live in domain modules (`commerce`, `bookings`) whose vendor adapters register into the trunk registry. A domain module is a distinct customer-facing noun with its own contract (orders, bookings, invoices) — never a vendor. Connector data is live: nothing is persisted in Munin. Most domains are read-only; bookings also writes (availability + create/modify/cancel) directly to the vendor.
 

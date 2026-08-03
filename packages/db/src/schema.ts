@@ -780,6 +780,7 @@ export const convContacts = pgTable(
     name: text('name'),
     email: text('email'),
     phone: text('phone'),
+    handle: text('handle'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
     updatedAt,
@@ -787,6 +788,7 @@ export const convContacts = pgTable(
   (t) => ({
     orgIdx: index('conv_contacts_org_idx').on(t.orgId),
     emailIdx: index('conv_contacts_email_idx').on(t.orgId, t.email),
+    handleIdx: index('conv_contacts_handle_idx').on(t.orgId, t.handle),
     endUserIdx: index('conv_contacts_end_user_idx').on(t.endUserId),
   }),
 );
@@ -1051,6 +1053,7 @@ export const crmContacts = pgTable(
     name: text('name'),
     email: text('email'),
     phone: text('phone'),
+    handle: text('handle'),
     title: text('title'),
     address: text('address'),
     ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
@@ -1075,6 +1078,7 @@ export const crmContacts = pgTable(
     orgIdx: index('crm_contacts_org_idx').on(t.orgId),
     emailIdx: index('crm_contacts_email_idx').on(t.orgId, t.email),
     phoneIdx: index('crm_contacts_phone_idx').on(t.orgId, t.phone),
+    handleIdx: index('crm_contacts_handle_idx').on(t.orgId, t.handle),
     endUserIdx: index('crm_contacts_end_user_idx').on(t.endUserId),
     companyIdx: index('crm_contacts_company_idx').on(t.companyId),
   }),
@@ -1736,17 +1740,19 @@ export const outreachCampaigns = pgTable(
       .references(() => orgs.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     brief: text('brief').notNull(),
-    segmentId: text('segment_id')
-      .notNull()
-      .references(() => crmSegments.id, { onDelete: 'restrict' }),
+    kind: varchar('kind', { length: 16 }).notNull().default('segment'),
+    segmentId: text('segment_id').references(() => crmSegments.id, { onDelete: 'restrict' }),
     channelId: text('channel_id')
       .notNull()
       .references(() => convChannels.id, { onDelete: 'restrict' }),
     cadenceRules: jsonb('cadence_rules')
       .$type<{
         maxPerWeekPerContact?: number;
+        maxPerWeekPerSubreddit?: number;
+        maxCommentsPerDay?: number;
         quietHoursStart?: string;
         quietHoursEnd?: string;
+        quietHoursTimezone?: string;
         blackoutDates?: string[];
       }>()
       .notNull()
@@ -1784,14 +1790,13 @@ export const outreachProposals = pgTable(
     campaignId: text('campaign_id')
       .notNull()
       .references(() => outreachCampaigns.id, { onDelete: 'cascade' }),
-    contactId: text('contact_id')
-      .notNull()
-      .references(() => crmContacts.id, { onDelete: 'cascade' }),
+    contactId: text('contact_id').references(() => crmContacts.id, { onDelete: 'cascade' }),
     conversationId: text('conversation_id').references(() => convConversations.id, {
       onDelete: 'set null',
     }),
     kind: varchar('kind', { length: 16 }).notNull(),
-    // 'initial' | 'reply' | 'followup'
+    // 'initial' | 'reply' | 'followup' | 'thread_comment'
+    target: jsonb('target').$type<Record<string, unknown>>(),
     sequenceStep: integer('sequence_step'),
     draftSubject: text('draft_subject'),
     draftBody: text('draft_body').notNull(),

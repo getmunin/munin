@@ -15,7 +15,7 @@ Run periodically. Don't run inline per CRM mutation — batching is cheaper and 
 
 1. **Skim already-decided pairs** with `crm_list_merge_proposals({ status: "dismissed" })` *and* `crm_list_merge_proposals({ status: "applied" })` — build a Set of decided `(contactA, contactB)` pairs to skip.
 2. **List contacts** with `crm_list_contacts`, paginating until you've seen the population (filter by `tag` or `companyId` for very large orgs). Drop every contact with `customFields.mergedInto` set — those rows are already merged away and are not merge candidates.
-3. **Find suspect pairs** in your remaining buffer: same lowercased email, same E.164 phone, very-similar name, or same name + company.
+3. **Find suspect pairs** in your remaining buffer: same lowercased email, same E.164 phone, same platform handle, very-similar name, or same name + company.
 4. **Judge each pair.** Skip clearly-not-the-same (different companies, shared inbox like `info@acme.com`, ambiguous role/title combinations). Keep clearly-same (same email + phone, same email + similar name, same phone + same company).
 5. **Pick the keeper** for each kept pair (heuristics below) and build a `recommendedPatch` of fields to copy from the duplicate onto the keeper.
 6. **File each pair** with `crm_propose_merge`. Idempotent on the pair while pending — re-running next week without the operator acting just upserts the pending row with refreshed evidence. Refreshing `evidence` alone is free; changing the keeper, the patch or the confidence invalidates any review already in flight (see step 7).
@@ -46,6 +46,7 @@ In your buffer, build clusters keyed by:
 
 - Lowercased trimmed `email` — strongest dedup signal.
 - E.164-normalized `phone` — drop spaces, parens, dashes; if the number is ambiguous (no `+` prefix, can't infer country), skip it rather than guess.
+- Lowercased trimmed `handle` — within one platform a handle is as strong an identity key as email: a username is unique there and belongs to one account, so two contacts carrying the same handle are the same person. Compare bare handles (`u/vivisectus`, `@vivisectus` and `vivisectus` are one value); a handle-only row and an email-only row that share nothing else are not a pair.
 - Normalized `name` (lowercased, trimmed, whitespace-collapsed first + last) — soft-match suggestion only; more false positives.
 - `companyId` — a very-similar name at the same company is a stronger signal than the same name across two different companies.
 
@@ -55,7 +56,7 @@ A pair is a *suspect pair* if any of those keys match. A cluster of size ≥ 2 e
 
 For each suspect pair (skipping the dismissed set from step 1), decide:
 
-- **High confidence** — same email *and* same phone; same email + similar name; same phone + same `companyId`. → propose with `confidence: "high"`.
+- **High confidence** — same email *and* same phone; same email + similar name; same phone + same `companyId`; same `handle`. → propose with `confidence: "high"`.
 - **Medium confidence** — similar name + same `companyId`, no email/phone overlap; same email but inbox-shaped (`info@`, `support@`, `team@`) and the names match. → propose with `confidence: "medium"`.
 - **Skip** — shared inbox with different names; different `companyId` and no overlap; clearly different role titles at the same company.
 - **Can't tell** — skip and note the pair in your pass summary so a human can eyeball it later.
@@ -103,7 +104,7 @@ Construct `recommendedPatch`: the set of fields to copy from the duplicate onto 
 Notes:
 
 - `tags` and `customFields` in `recommendedPatch` are **full replacements** in the apply step (matching `crm_update_contact` semantics). If you want the union of both contacts' tags, build the union here.
-- Don't put email/phone in the patch unless the duplicate's value is genuinely better — these are dedup keys and changing them on the keeper risks creating *new* duplicates.
+- Don't put email/phone/handle in the patch unless the duplicate's value is genuinely better — these are dedup keys and changing them on the keeper risks creating *new* duplicates. Copying a handle onto a keeper that has none is the one clearly-good case: it gives the surviving row the identity it was missing on that platform.
 - `evidence` is freeform jsonb; include whatever helps the reviewer trust the proposal at a glance.
 
 ## Step 7 — operator review (NOT the curator's job)
@@ -130,8 +131,8 @@ The dashboard "Needs attention" backlog card surfaces the count of pending propo
 - **Don't re-propose a pair with a different keeper while the operator is reviewing it.** The row is updated in place under the same id, so the card silently changes. If your judgement of the keeper changed, say so; the apply will be refused until the operator re-reads it.
 - **Don't auto-apply.** v1 is propose-only. The cost of a wrong merge (lost activity history, wrong `endUserId` link) is much higher than the cost of one extra human review per pair.
 - **Don't propose pairs the operator already decided.** Step 1 exists for a reason — dismissed *and* applied. If you skip it, you'll churn the operator's review queue with pairs they already resolved; a merged pair re-proposed next week looks like the merge never happened.
-- **Don't treat an archived duplicate as a merge candidate.** A row with `customFields.mergedInto` set is the losing side of a completed merge. It keeps its email and phone forever, so it matches every dedup key it originally matched.
-- **Don't include private end-user data in `evidence` beyond what's needed to decide.** No payment info, no internal account states, no health/legal/financial details. The matched email, the matched phone, the names, the companyId — that's enough.
+- **Don't treat an archived duplicate as a merge candidate.** A row with `customFields.mergedInto` set is the losing side of a completed merge. It keeps its email, phone and handle forever, so it matches every dedup key it originally matched.
+- **Don't include private end-user data in `evidence` beyond what's needed to decide.** No payment info, no internal account states, no health/legal/financial details. The matched email, the matched phone, the matched handle, the names, the companyId — that's enough.
 - **Don't run on every conversation.** This is a periodic batch pass — your scheduler triggers it. If you're being asked to do it inline as part of a chat reply, push back — that's the wrong shape.
 - **Don't use `crm_update_contact` to "manually merge" instead of proposing.** The proposals table is the audit trail and the operator's review queue. Bypassing it loses both.
 

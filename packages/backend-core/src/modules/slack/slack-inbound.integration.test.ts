@@ -157,6 +157,8 @@ class FakeSlackApi extends SlackApiClient {
       new ConversationClaimsService(dispatcher),
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      [],
+      { providerFor: () => undefined },
     );
     const mapping = new SlackUserMappingService(db, api);
     inbound = new SlackInboundService(db, api, conv, mapping);

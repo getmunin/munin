@@ -523,6 +523,25 @@ const skipReason = TEST_URL
       );
       expect(channels.map((ch) => ch.name).filter((n) => n.startsWith('Rejected'))).toEqual([]);
     });
+  });
+
+  it('createChannel refuses a vendor-backed chat vendor, which the type enum cannot exclude', async () => {
+    await withClient(adminKey, async (c) => {
+      const rejected = (await c.callTool({
+        name: 'conv_create_channel',
+        arguments: {
+          type: 'chat',
+          vendor: 'reddit',
+          name: 'Rejected reddit',
+          config: { clientId: 'abc', clientSecret: 'plaintext', username: 'x', password: 'plaintext' },
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(rejected.isError).toBe(true);
+      const channels = parseToolResult<{ name: string }[]>(
+        await c.callTool({ name: 'conv_list_channels', arguments: {} }),
+      );
+      expect(channels.map((ch) => ch.name).filter((n) => n === 'Rejected reddit')).toEqual([]);
+    });
   }, 30_000);
 
   it('assignConversation rejects a non-member assignee with an actionable error (not a 500)', async () => {

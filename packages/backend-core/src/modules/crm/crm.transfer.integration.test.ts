@@ -110,7 +110,12 @@ const skipReason = TEST_URL
     pipelines: Array<{ id: string; slug: string; stages: Array<{ id: string; name: string }> }>;
     segments: Array<{ id: string; name: string }>;
     companies: Array<{ id: string; name: string; domain: string | null }>;
-    contacts: Array<{ id: string; email: string | null; companyId: string | null }>;
+    contacts: Array<{
+      id: string;
+      email: string | null;
+      handle: string | null;
+      companyId: string | null;
+    }>;
     deals: Array<{ id: string; name: string; pipelineId: string; stageId: string }>;
     activities: Array<{ id: string; contactId: string | null; dealId: string | null }>;
     relationships: Array<{ id: string; fromId: string; toId: string }>;
@@ -154,7 +159,12 @@ const skipReason = TEST_URL
       const contact = firstJson(
         (await c.callTool({
           name: 'crm_create_contact',
-          arguments: { name: 'Ada Lovelace', email: 'ada@acme.example', companyId: company.id },
+          arguments: {
+            name: 'Ada Lovelace',
+            email: 'ada@acme.example',
+            handle: 'adalovelace',
+            companyId: company.id,
+          },
         })),
       ) as { id: string };
 
@@ -187,6 +197,7 @@ const skipReason = TEST_URL
     expect(seeded.exported.segments.length).toBe(1);
     expect(seeded.exported.companies.length).toBe(1);
     expect(seeded.exported.contacts.length).toBe(1);
+    expect(seeded.exported.contacts[0]!.handle).toBe('adalovelace');
     expect(seeded.exported.deals.length).toBe(1);
     expect(seeded.exported.activities.length).toBe(1);
 
@@ -205,7 +216,7 @@ const skipReason = TEST_URL
       ) as Array<{ id: string; domain: string | null }>;
       const contacts = firstJson(
         (await c.callTool({ name: 'crm_list_contacts', arguments: {} })),
-      ) as Array<{ id: string; companyId: string | null }>;
+      ) as Array<{ id: string; companyId: string | null; handle: string | null }>;
       const deals = firstJson(
         (await c.callTool({ name: 'crm_list_deals', arguments: {} })),
       ) as Array<{ id: string; pipelineId: string }>;
@@ -226,6 +237,7 @@ const skipReason = TEST_URL
     const newCompanyId = firstImport.result.idMap[srcCompanyId];
     const newContact = firstImport.contacts.find((x) => x.companyId === newCompanyId);
     expect(newContact).toBeTruthy();
+    expect(newContact!.handle).toBe('adalovelace');
     expect(firstImport.deals[0]!.pipelineId).toBe(firstImport.result.idMap[srcPipelineId]);
 
     const secondImport = await withClient(adminKeyB, async (c) => {

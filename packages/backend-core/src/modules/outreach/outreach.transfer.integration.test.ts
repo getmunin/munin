@@ -103,13 +103,21 @@ const skipReason = TEST_URL
     campaigns: Array<{
       id: string;
       name: string;
-      segmentId: string;
+      kind: string;
+      segmentId: string | null;
       channelId: string;
       autoDraftFirstTouch: boolean;
       autoDraftReplies: boolean;
       sequenceSteps: Array<{ waitDays: number; brief: string }>;
     }>;
-    proposals: Array<{ id: string; campaignId: string; contactId: string; kind: string; sequenceStep: number | null }>;
+    proposals: Array<{
+      id: string;
+      campaignId: string;
+      contactId: string | null;
+      kind: string;
+      target: { threadId: string; permalink: string; subreddit: string; title: string } | null;
+      sequenceStep: number | null;
+    }>;
   }
 
   it('moves campaigns + proposals to a different org, remapping segment/channel/contact FKs via the threaded idMap', async () => {
@@ -235,7 +243,7 @@ const skipReason = TEST_URL
     expect(migrated.onB.campaigns.length).toBe(1);
     expect(migrated.onB.proposals.length).toBe(3);
     expect(migrated.onB.campaigns[0]!.segmentId).not.toBe(srcSegmentId);
-    expect(migrated.onB.campaigns[0]!.segmentId).toBe(migrated.outreachRes.idMap[srcSegmentId]);
+    expect(migrated.onB.campaigns[0]!.segmentId).toBe(migrated.outreachRes.idMap[srcSegmentId!]);
     expect(migrated.onB.campaigns[0]!.autoDraftFirstTouch).toBe(true);
     expect(migrated.onB.campaigns[0]!.autoDraftReplies).toBe(false);
     expect(migrated.onB.campaigns[0]!.sequenceSteps).toEqual([
@@ -250,5 +258,114 @@ const skipReason = TEST_URL
 
     expect(migrated.reimport.created).toBe(0);
     expect(migrated.reimport.skipped).toBe(4);
+  });
+
+  it('carries an engagement campaign and its contactless thread proposal across orgs', async () => {
+    const threadTarget = {
+      threadId: '9zz8yy',
+      permalink: 'https://www.reddit.com/r/selfhosted/comments/9zz8yy/agent_driven_crm/',
+      subreddit: 'selfhosted',
+      title: 'Anyone running an agent-driven CRM?',
+      opHandle: 'curious_dev',
+    };
+
+    const [redditChannel] = await db
+      .insert(schema.convChannels)
+      .values({ orgId: orgAId, type: 'chat', vendor: 'reddit', name: 'Reddit', active: true })
+      .returning();
+
+    const seeded = await withClient(adminKeyA, async (c) => {
+      const channel = { id: redditChannel!.id };
+      const campaign = firstJson(
+        await c.callTool({
+          name: 'outreach_create_campaign',
+          arguments: {
+            name: 'Reddit listening',
+            brief: 'Answer self-hosting threads.',
+            kind: 'engagement',
+            channelId: channel.id,
+            cadenceRules: { maxPerWeekPerSubreddit: 2, maxCommentsPerDay: 3 },
+          },
+        }),
+      ) as { id: string; kind: string; segmentId: string | null };
+      return { channel, campaign };
+    });
+
+    expect(seeded.campaign.kind).toBe('engagement');
+    expect(seeded.campaign.segmentId).toBeNull();
+
+    await db.insert(schema.outreachProposals).values({
+      orgId: orgAId,
+      campaignId: seeded.campaign.id,
+      contactId: null,
+      kind: 'thread_comment',
+      target: threadTarget,
+      draftSubject: threadTarget.title,
+      draftBody: 'I work on Munin, so grain of salt — here is what matters.',
+      status: 'pending',
+      proposedByActorType: 'agent',
+      proposedByActorId: 'seed',
+    });
+
+    const exports = await withClient(adminKeyA, async (c) => ({
+      crm: firstJson(await c.callTool({ name: 'crm_export', arguments: {} })),
+      conv: firstJson(await c.callTool({ name: 'conv_export', arguments: {} })),
+      outreach: firstJson(
+        await c.callTool({ name: 'outreach_export', arguments: {} }),
+      ) as OutreachExportData,
+    }));
+
+    const srcCampaign = exports.outreach.campaigns.find((x) => x.name === 'Reddit listening')!;
+    expect(srcCampaign.kind).toBe('engagement');
+    expect(srcCampaign.segmentId).toBeNull();
+    const srcProposal = exports.outreach.proposals.find((x) => x.kind === 'thread_comment')!;
+    expect(srcProposal.contactId).toBeNull();
+    expect(srcProposal.target).toMatchObject({ threadId: threadTarget.threadId });
+
+    const migrated = await withClient(adminKeyB, async (c) => {
+      const crmRes = firstJson(
+        await c.callTool({ name: 'crm_import', arguments: { records: exports.crm } }),
+      ) as ImportResult;
+      const convRes = firstJson(
+        await c.callTool({
+          name: 'conv_import',
+          arguments: { records: exports.conv, idMap: crmRes.idMap },
+        }),
+      ) as ImportResult;
+      const outreachRes = firstJson(
+        await c.callTool({
+          name: 'outreach_import',
+          arguments: { records: exports.outreach, idMap: convRes.idMap },
+        }),
+      ) as ImportResult;
+      const onB = firstJson(
+        await c.callTool({ name: 'outreach_export', arguments: {} }),
+      ) as OutreachExportData;
+      const reimport = firstJson(
+        await c.callTool({
+          name: 'outreach_import',
+          arguments: { records: exports.outreach, idMap: convRes.idMap },
+        }),
+      ) as ImportResult;
+      return { outreachRes, onB, reimport };
+    });
+
+    const onBCampaign = migrated.onB.campaigns.find((x) => x.name === 'Reddit listening')!;
+    expect(onBCampaign.kind).toBe('engagement');
+    expect(onBCampaign.segmentId).toBeNull();
+    expect(onBCampaign.id).toBe(migrated.outreachRes.idMap[srcCampaign.id]);
+
+    const onBProposal = migrated.onB.proposals.find((x) => x.kind === 'thread_comment')!;
+    expect(onBProposal.contactId).toBeNull();
+    expect(onBProposal.campaignId).toBe(onBCampaign.id);
+    expect(onBProposal.target).toEqual({
+      threadId: threadTarget.threadId,
+      permalink: threadTarget.permalink,
+      subreddit: threadTarget.subreddit,
+      title: threadTarget.title,
+      opHandle: threadTarget.opHandle,
+    });
+
+    expect(migrated.reimport.created).toBe(0);
   });
 });

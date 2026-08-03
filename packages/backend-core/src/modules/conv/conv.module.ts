@@ -51,6 +51,12 @@ import { ThrellService } from './threll/threll.service.ts';
 import { ThrellToolBridge } from './threll/threll-tool-bridge.ts';
 import { VoiceCallbackService } from './voice-callback.service.ts';
 import { VoiceCallbackTools } from './voice-callback.tools.ts';
+import { RedditClientService } from './reddit/reddit-client.service.ts';
+import { RedditAdapter } from './reddit/reddit-adapter.ts';
+import { RedditAdminService } from './reddit/reddit-admin.service.ts';
+import { RedditAdminProvider } from './reddit/reddit-admin.provider.ts';
+import { RedditAdminTools } from './reddit/reddit.tools.ts';
+import { RedditService } from './reddit/reddit.service.ts';
 import { TwilioClientService } from './twilio/twilio-client.service.ts';
 import { TwilioSmsAdapter } from './twilio/twilio-sms-adapter.ts';
 import { TwilioSmsAdminService } from './twilio/twilio-sms-admin.service.ts';
@@ -87,6 +93,11 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     MessageBirdSmsService,
     MessageBirdSmsAdapter,
     MessageBirdSmsAdminService,
+    RedditClientService,
+    RedditService,
+    RedditAdapter,
+    RedditAdminService,
+    RedditAdminTools,
     TwilioClientService,
     TwilioSmsService,
     TwilioSmsAdapter,
@@ -126,7 +137,8 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
         vapi: VapiAdapter,
         threll: ThrellAdapter,
         widget: WidgetAdapter,
-      ) => [email, twilioSms, messageBirdSms, vapi, threll, widget],
+        reddit: RedditAdapter,
+      ) => [email, twilioSms, messageBirdSms, vapi, threll, widget, reddit],
       inject: [
         EmailAdapter,
         TwilioSmsAdapter,
@@ -134,12 +146,14 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
         VapiAdapter,
         ThrellAdapter,
         WidgetAdapter,
+        RedditAdapter,
       ],
     },
     VapiAdminProvider,
     ThrellAdminProvider,
     TwilioSmsAdminProvider,
     MessageBirdSmsAdminProvider,
+    RedditAdminProvider,
     ChannelAdminService,
     ChannelAdminTools,
     {
@@ -149,12 +163,14 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
         threll: ThrellAdminProvider,
         twilioSms: TwilioSmsAdminProvider,
         messageBirdSms: MessageBirdSmsAdminProvider,
-      ): ChannelAdminProvider[] => [vapi, threll, twilioSms, messageBirdSms],
+        reddit: RedditAdminProvider,
+      ): ChannelAdminProvider[] => [vapi, threll, twilioSms, messageBirdSms, reddit],
       inject: [
         VapiAdminProvider,
         ThrellAdminProvider,
         TwilioSmsAdminProvider,
         MessageBirdSmsAdminProvider,
+        RedditAdminProvider,
       ],
     },
   ],
@@ -170,6 +186,11 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     MessageBirdSmsService,
     MessageBirdSmsAdapter,
     MessageBirdSmsAdminService,
+    RedditClientService,
+    RedditService,
+    RedditAdapter,
+    RedditAdminService,
+    RedditAdminTools,
     TwilioClientService,
     TwilioSmsService,
     TwilioSmsAdapter,

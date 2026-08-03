@@ -60,6 +60,34 @@ export const EmailChannelConfigInput = z.object({
 
 export type EmailChannelConfigInputT = z.infer<typeof EmailChannelConfigInput>;
 
+const REDDIT_USERNAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,19}$/;
+
+export const RedditUsernameSchema = z
+  .string()
+  .min(2)
+  .max(20)
+  .regex(REDDIT_USERNAME_RE, 'must be a Reddit username without the u/ prefix');
+
+export const RedditChannelConfigInput = z.object({
+  clientId: z
+    .string()
+    .min(1)
+    .max(128)
+    .describe('Client id of the "script" app created at reddit.com/prefs/apps.'),
+  clientSecret: sensitive(
+    z.string().min(1).max(256).describe('Client secret of that same script app.'),
+  ),
+  username: RedditUsernameSchema.describe(
+    'Reddit account the script app is registered to, without the "u/" prefix. Comments and DMs are posted as this account.',
+  ),
+  password: sensitive(
+    z.string().min(1).max(256).describe('Password of that Reddit account.'),
+  ),
+  sendLimits: SendLimitsSchema.optional(),
+});
+
+export type RedditChannelConfigInputT = z.infer<typeof RedditChannelConfigInput>;
+
 export const CreateWidgetBody = z.object({
   name: z.string().min(1).max(120),
   originAllowlist: z.array(z.string().url()).default([]),
@@ -217,6 +245,7 @@ export const ConfigureChannelBody = z.object({
   vendor: z.string().min(1).max(40),
   channelId: z.string().optional(),
   name: z.string().min(1).max(120).optional(),
+  defaultAgentMode: AgentModeSchema.optional(),
   config: z.record(z.string(), z.unknown()),
 });
 

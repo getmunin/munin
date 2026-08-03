@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 export interface FingerprintableDraft {
   campaignId: string;
-  contactId: string;
+  contactId: string | null;
   kind: string;
   draftSubject: string | null;
   draftBody: string;

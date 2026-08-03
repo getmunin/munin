@@ -8,6 +8,7 @@ import {
   Mail,
   MessageCircle,
   MessageSquare,
+  MessagesSquare,
   MoreHorizontal,
   Phone,
   RefreshCw,
@@ -37,6 +38,8 @@ import {
   VapiCallInitiateBody,
   ConfigureThrellBody,
   ThrellCallInitiateBody,
+  ConfigureChannelBody,
+  RedditChannelConfigInput,
 } from '@getmunin/types';
 import { dialogButtonClass, dialogFooterClass, dialogHintClass, dialogLabelClass } from '../lib/dialog-style';
 import {
@@ -58,7 +61,7 @@ import {
   SectionHead,
   cn,
 } from '@getmunin/ui';
-import { MessageBirdLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
+import { MessageBirdLogo, RedditLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
 
 interface ChannelDto {
   id: string;
@@ -140,6 +143,15 @@ interface ThrellChannelDto extends ChannelDto {
   };
 }
 
+interface RedditChannelDto extends ChannelDto {
+  type: 'chat';
+  vendor: 'reddit';
+  config: {
+    clientId?: string;
+    username?: string;
+  };
+}
+
 interface ChannelOptionItem {
   value: string;
   label: string;
@@ -210,6 +222,7 @@ export function ChannelsPage() {
   const [editTwilioSms, setEditTwilioSms] = useState<TwilioSmsChannelDto | null>(null);
   const [editMessageBirdSms, setEditMessageBirdSms] = useState<MessageBirdSmsChannelDto | null>(null);
   const [addVoiceOpen, setAddVoiceOpen] = useState(false);
+  const [addRedditOpen, setAddRedditOpen] = useState(false);
   const [editVapi, setEditVapi] = useState<VapiChannelDto | null>(null);
   const [placeVapiCallFor, setPlaceVapiCallFor] = useState<VapiChannelDto | null>(null);
   const [editThrell, setEditThrell] = useState<ThrellChannelDto | null>(null);
@@ -457,6 +470,14 @@ export function ChannelsPage() {
         }}
       />
 
+      <AddRedditDialog
+        open={addRedditOpen}
+        onOpenChange={setAddRedditOpen}
+        onSaved={() => {
+          void tryLoad();
+        }}
+      />
+
       {editVapi && (
         <VapiChannelDialog
           open
@@ -526,6 +547,10 @@ export function ChannelsPage() {
                 <DropdownMenuItem onClick={() => setAddVoiceOpen(true)}>
                   <Phone className="size-4" />
                   {t('addVoice')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAddRedditOpen(true)}>
+                  <MessagesSquare className="size-4" />
+                  {t('addReddit')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -621,7 +646,8 @@ function ChannelRow({
 }) {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
-  const isChat = channel.type === 'chat';
+  const isReddit = channel.type === 'chat' && channel.vendor === 'reddit';
+  const isChat = channel.type === 'chat' && !isReddit;
   const isTwilioSms = channel.type === 'sms' && channel.vendor === 'twilio';
   const isMessageBirdSms = channel.type === 'sms' && channel.vendor === 'messagebird';
   const isVapiVoice = channel.type === 'voice' && channel.vendor === 'vapi';
@@ -636,22 +662,25 @@ function ChannelRow({
     : null;
   const vapiConfig = isVapiVoice ? (channel.config as VapiChannelDto['config']) : null;
   const threllConfig = isThrellVoice ? (channel.config as ThrellChannelDto['config']) : null;
+  const redditConfig = isReddit ? (channel.config as RedditChannelDto['config']) : null;
   const origins = widgetConfig?.originAllowlist ?? [];
 
   const badgeKind = channel.type;
   const badgeLabel = isChat
     ? t('typeChat')
-    : isTwilioSms
-      ? t('typeTwilioSms')
-      : isMessageBirdSms
-        ? t('typeMessageBirdSms')
-        : isVapiVoice
-          ? t('typeVapi')
-          : isThrellVoice
-            ? t('typeThrell')
-            : channel.type === 'email'
-              ? t('typeEmail')
-              : channel.type;
+    : isReddit
+      ? t('typeReddit')
+      : isTwilioSms
+        ? t('typeTwilioSms')
+        : isMessageBirdSms
+          ? t('typeMessageBirdSms')
+          : isVapiVoice
+            ? t('typeVapi')
+            : isThrellVoice
+              ? t('typeThrell')
+              : channel.type === 'email'
+                ? t('typeEmail')
+                : channel.type;
 
   const isDeactivated = !channel.active;
 
@@ -678,6 +707,15 @@ function ChannelRow({
               ) : (
                 <OriginChip text={t('anyOrigin')} muted />
               )
+            ) : isReddit ? (
+              <>
+                <VendorLogo vendor="reddit" className="size-4" />
+                {redditConfig?.username && (
+                  <span className="font-mono text-[11px] text-ink dark:text-foreground">
+                    u/{redditConfig.username}
+                  </span>
+                )}
+              </>
             ) : isTwilioSms ? (
               <>
                 <VendorLogo vendor="twilio" className="size-4" />
@@ -893,7 +931,7 @@ function TypeBadge({ kind, label }: { kind: 'chat' | 'email' | 'voice' | 'sms'; 
   );
 }
 
-type ChannelVendor = 'twilio' | 'messagebird' | 'vapi' | 'threll';
+type ChannelVendor = 'twilio' | 'messagebird' | 'vapi' | 'threll' | 'reddit';
 
 function VendorLogo({
   vendor,
@@ -909,9 +947,11 @@ function VendorLogo({
         ? MessageBirdLogo
         : vendor === 'threll'
           ? ThrellLogo
-          : VapiLogo;
+          : vendor === 'reddit'
+            ? RedditLogo
+            : VapiLogo;
   const colorClass =
-    vendor === 'twilio'
+    vendor === 'twilio' || vendor === 'reddit'
       ? ''
       : 'text-ink dark:text-foreground';
   return <Logo className={cn('shrink-0', colorClass, className)} />;
@@ -3346,6 +3386,207 @@ function AddVoiceDialog({
             </form>
           </>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddRedditDialog({
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [name, setName] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>(
+    'draft_only',
+  );
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    setName('');
+    setClientId('');
+    setClientSecret('');
+    setUsername('');
+    setPassword('');
+    setDefaultAgentMode('draft_only');
+    setSubmitError(null);
+    setFieldErrors({});
+    setSaving(false);
+  }, [open]);
+
+  async function submit(): Promise<void> {
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = t('errors.required');
+    if (!clientId.trim()) errors.clientId = t('errors.required');
+    if (!clientSecret) errors.clientSecret = t('errors.required');
+    if (!username.trim()) errors.username = t('errors.required');
+    if (!password) errors.password = t('errors.required');
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    const config = RedditChannelConfigInput.safeParse({
+      clientId: clientId.trim(),
+      clientSecret,
+      username: username.trim(),
+      password,
+    });
+    if (!config.success) {
+      setFieldErrors(zodIssuesToFieldErrors(config.error.issues, t));
+      return;
+    }
+    const parsed = ConfigureChannelBody.safeParse({
+      vendor: 'reddit',
+      name: name.trim(),
+      defaultAgentMode,
+      config: config.data,
+    });
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/v1/conversations/channels', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setSubmitError(toFormError(err, translate(err) || t('errors.createReddit')));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{t('addRedditDialog.title')}</DialogTitle>
+          <DialogDescription>{t('addRedditDialog.description')}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('nameLabel')} hint={t('reddit.nameHint')} error={fieldErrors.name}>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. main-reddit"
+              maxLength={120}
+              required
+            />
+          </FormField>
+          <FormField
+            label={t('reddit.clientIdLabel')}
+            hint={t('reddit.clientIdHint')}
+            error={fieldErrors.clientId}
+          >
+            <Input
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              autoComplete="off"
+              maxLength={128}
+              required
+            />
+          </FormField>
+          <FormField
+            label={t('reddit.clientSecretLabel')}
+            hint={t('reddit.clientSecretHintCreate')}
+            error={fieldErrors.clientSecret}
+          >
+            <Input
+              type="password"
+              value={clientSecret}
+              onChange={(e) => setClientSecret(e.target.value)}
+              autoComplete="off"
+              required
+            />
+          </FormField>
+          <FormField
+            label={t('reddit.usernameLabel')}
+            hint={t('reddit.usernameHint')}
+            error={fieldErrors.username}
+          >
+            <Input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="acme_support"
+              autoComplete="off"
+              maxLength={20}
+              required
+            />
+          </FormField>
+          <FormField
+            label={t('reddit.passwordLabel')}
+            hint={t('reddit.passwordHintCreate')}
+            error={fieldErrors.password}
+          >
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="off"
+              required
+            />
+          </FormField>
+          <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintReddit')}>
+            <NativeSelect
+              value={defaultAgentMode}
+              onChange={(e) =>
+                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+              }
+            >
+              <option value="auto">{t('agentReplies.auto')}</option>
+              <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+              <option value="off">{t('agentReplies.off')}</option>
+            </NativeSelect>
+          </FormField>
+          {submitError && <FormError detail={submitError} />}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving}
+              pending={saving}
+            >
+              {saving ? tCommon('creating') : t('addRedditDialog.create')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

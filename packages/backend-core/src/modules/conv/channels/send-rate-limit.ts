@@ -11,6 +11,8 @@ export interface SendCounts {
   oldestSentAtInLastDay: Date | null;
 }
 
+export type DeferralReason = 'per_hour' | 'per_day' | 'provider';
+
 export type RateLimitDecision =
   | { kind: 'allowed' }
   | { kind: 'deferred'; nextAttemptAt: Date; reason: 'per_hour' | 'per_day' };
@@ -58,13 +60,24 @@ export function rateLimitDeferralError(decision: Extract<RateLimitDecision, { ki
   return `rate_limited:${decision.reason}:until=${decision.nextAttemptAt.toISOString()}`;
 }
 
+export function providerDeferralError(nextAttemptAt: Date, detail: string): string {
+  const encoded = `rate_limited:provider:until=${nextAttemptAt.toISOString()}`;
+  const trimmed = detail.trim().replace(/[|\r\n]+/g, ' ');
+  return trimmed ? `${encoded}|${trimmed}` : encoded;
+}
+
 export function parseRateLimitDeferral(
   error: string | null,
-): { reason: 'per_hour' | 'per_day'; until: Date } | null {
+): { reason: DeferralReason; until: Date; detail?: string } | null {
   if (!error) return null;
-  const m = /^rate_limited:(per_hour|per_day):until=(.+)$/.exec(error);
+  const m = /^rate_limited:(per_hour|per_day|provider):until=([^|]+)(?:\|(.*))?$/.exec(error);
   if (!m) return null;
   const date = new Date(m[2]!);
   if (Number.isNaN(date.getTime())) return null;
-  return { reason: m[1] as 'per_hour' | 'per_day', until: date };
+  const parsed: { reason: DeferralReason; until: Date; detail?: string } = {
+    reason: m[1] as DeferralReason,
+    until: date,
+  };
+  if (m[3]) parsed.detail = m[3];
+  return parsed;
 }

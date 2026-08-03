@@ -14,12 +14,21 @@ import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
+  CAMPAIGN_KINDS,
   OutreachService,
   PROPOSAL_KINDS,
   PROPOSAL_STATUSES,
   type OutreachExportData,
 } from '../modules/outreach/outreach.service.ts';
 import { IdMapSchema, type ImportResult } from '../common/transfer/transfer.types.ts';
+
+const ThreadTargetBody = z.object({
+  threadId: z.string().min(1).max(64),
+  permalink: z.string().min(1).max(2000),
+  subreddit: z.string().min(1).max(64),
+  title: z.string().min(1).max(300),
+  opHandle: z.string().max(64).nullable().optional(),
+});
 
 const ImportBody = z.object({
   records: z.object({
@@ -28,11 +37,14 @@ const ImportBody = z.object({
         id: z.string(),
         name: z.string().min(1).max(120),
         brief: z.string().min(1).max(5000),
-        segmentId: z.string(),
+        kind: z.enum(CAMPAIGN_KINDS).default('segment'),
+        segmentId: z.string().nullable().optional(),
         channelId: z.string(),
         cadenceRules: z
           .object({
             maxPerWeekPerContact: z.number().int().positive().max(7).optional(),
+            maxPerWeekPerSubreddit: z.number().int().positive().max(20).optional(),
+            maxCommentsPerDay: z.number().int().positive().max(50).optional(),
             quietHoursStart: z.string().optional(),
             quietHoursEnd: z.string().optional(),
             quietHoursTimezone: z.string().optional(),
@@ -53,9 +65,10 @@ const ImportBody = z.object({
       z.object({
         id: z.string(),
         campaignId: z.string(),
-        contactId: z.string(),
+        contactId: z.string().nullable().optional(),
         conversationId: z.string().nullable().optional(),
         kind: z.enum(PROPOSAL_KINDS),
+        target: ThreadTargetBody.nullable().optional(),
         sequenceStep: z.number().int().min(1).max(5).nullable().optional(),
         draftSubject: z.string().nullable().optional(),
         draftBody: z.string().min(1),
@@ -85,10 +98,16 @@ export class OutreachTransferController {
     const parsed = ImportBody.safeParse(body ?? {});
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     const records = {
-      campaigns: parsed.data.records.campaigns.map((c) => ({ ...c, ctaUrl: c.ctaUrl ?? null })),
+      campaigns: parsed.data.records.campaigns.map((c) => ({
+        ...c,
+        segmentId: c.segmentId ?? null,
+        ctaUrl: c.ctaUrl ?? null,
+      })),
       proposals: parsed.data.records.proposals.map((p) => ({
         ...p,
+        contactId: p.contactId ?? null,
         conversationId: p.conversationId ?? null,
+        target: p.target ? { ...p.target, opHandle: p.target.opHandle ?? null } : null,
         sequenceStep: p.sequenceStep ?? null,
         draftSubject: p.draftSubject ?? null,
         proposedSendAt: p.proposedSendAt ?? null,

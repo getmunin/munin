@@ -1,7 +1,7 @@
 import { isSensitiveSchema } from '@getmunin/types';
 import type { z } from 'zod';
 
-export type ChannelAdminKind = 'voice' | 'sms';
+export type ChannelAdminKind = 'voice' | 'sms' | 'chat';
 
 export interface ChannelConfigFieldInfo {
   name: string;

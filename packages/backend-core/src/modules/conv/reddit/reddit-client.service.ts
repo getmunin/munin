@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createHmac, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
 export const REDDIT_TOKEN_URL = 'https://www.reddit.com/api/v1/access_token';
@@ -10,6 +9,7 @@ const TOKEN_EXPIRY_SAFETY_MS = 60_000;
 const DEFAULT_DEFERRAL_SECONDS = 600;
 
 export interface RedditCredentials {
+  cacheKey: string;
   clientId: string;
   clientSecret: string;
   username: string;
@@ -608,7 +608,7 @@ export class RedditClientService {
   }
 
   private assertWriteBudget(credentials: RedditCredentials): void {
-    const key = credentialKey(credentials);
+    const key = credentials.cacheKey;
     const budget = this.budgets.get(key);
     if (!budget) return;
     const { remaining, reset } = budget.rateLimit;
@@ -651,9 +651,9 @@ export class RedditClientService {
       ...(body === undefined ? {} : { body }),
     });
     const rateLimit = parseRedditRateLimit(res.headers);
-    this.budgets.set(credentialKey(credentials), { rateLimit, observedAt: Date.now() });
+    this.budgets.set(credentials.cacheKey, { rateLimit, observedAt: Date.now() });
 
-    if (res.status === 401) this.tokens.delete(credentialKey(credentials));
+    if (res.status === 401) this.tokens.delete(credentials.cacheKey);
 
     const statusFailure = classifyRedditStatus(res.status, res.headers);
     if (statusFailure) {
@@ -686,7 +686,7 @@ export class RedditClientService {
   }
 
   private async accessToken(credentials: RedditCredentials): Promise<string> {
-    const key = credentialKey(credentials);
+    const key = credentials.cacheKey;
     const cached = this.tokens.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.token;
 
@@ -837,21 +837,6 @@ export function stripFullnamePrefix(value: string): string {
 
 export function stripSubredditPrefix(value: string): string {
   return value.replace(/^\/?r\//i, '').trim();
-}
-
-const CACHE_KEY_SALT = randomBytes(32);
-
-function credentialKey(credentials: RedditCredentials): string {
-  return createHmac('sha256', CACHE_KEY_SALT)
-    .update(
-      [
-        credentials.clientId,
-        credentials.clientSecret,
-        credentials.username,
-        credentials.password,
-      ].join('\u0000'),
-    )
-    .digest('hex');
 }
 
 function deferralSecondsFromHeaders(headers: Record<string, string>): number {

@@ -1115,21 +1115,22 @@ export class OutreachService {
     sender: ProposalSender,
     publicBaseUrl: string,
   ): Promise<ProposalDto> {
-    if (proposal.kind === 'initial') {
+    const kind: string = proposal.kind;
+    if (kind === 'initial') {
       return this.deliverInitial(proposal, sender, publicBaseUrl);
     }
-    if (proposal.kind === 'followup') {
+    if (kind === 'followup') {
       return this.deliverFollowup(proposal, sender);
     }
-    if (proposal.kind === 'thread_comment') {
+    if (kind === 'thread_comment') {
       return this.deliverThreadComment(proposal, sender);
     }
-    if (proposal.kind === 'reply') {
+    if (kind === 'reply') {
       return this.deliverReply(proposal, sender);
     }
     return Promise.reject(
       new OutreachInvalidError(
-        `proposal ${proposal.id} has kind '${proposal.kind}', which has no delivery path`,
+        `proposal ${proposal.id} has kind '${kind}', which has no delivery path`,
       ),
     );
   }

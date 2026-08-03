@@ -313,8 +313,9 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
 
     it('decrypts both credentials back to plaintext for the adapter', async () => {
       const stored = jsonbToStored((await loadChannelRow(channelId)).config);
-      const credentials = await reddit.loadCredentials(stored);
+      const credentials = await reddit.loadCredentials(channelId, stored);
       expect(credentials).toEqual({
+        cacheKey: channelId,
         clientId: CLIENT_ID,
         clientSecret: CLIENT_SECRET,
         username: REDDIT_USERNAME,

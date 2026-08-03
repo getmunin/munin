@@ -74,7 +74,7 @@ export class RedditAdapter implements ChannelAdapter {
 
   async send(ctx: SendContext): Promise<SendResult> {
     const config = jsonbToStored(ctx.channel.config);
-    const credentials = await this.reddit.loadCredentials(config);
+    const credentials = await this.reddit.loadCredentials(ctx.channel.id, config);
     try {
       if (isThreadConversation(ctx.conversation.metadata)) {
         return await this.sendComment(ctx, credentials);
@@ -171,7 +171,7 @@ export class RedditAdapter implements ChannelAdapter {
 
     let credentials: RedditCredentials;
     try {
-      credentials = await this.reddit.loadCredentials(config);
+      credentials = await this.reddit.loadCredentials(channel.id, config);
     } catch (err) {
       await this.writeCursor(channel.id, state.cursor);
       return { messagesIngested: 0, lastError: errorMessage(err) };

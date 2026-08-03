@@ -181,13 +181,17 @@ export class RedditService {
     return channel;
   }
 
-  async loadCredentials(stored: StoredRedditChannelConfig): Promise<RedditCredentials> {
+  async loadCredentials(
+    channelId: string,
+    stored: StoredRedditChannelConfig,
+  ): Promise<RedditCredentials> {
     if (needsCredentials(stored)) {
       throw new BadRequestException(
         'conv_invalid: reddit channel has no stored credentials yet — complete the credential link first',
       );
     }
     return this.db.transaction(async (tx) => ({
+      cacheKey: channelId,
       clientId: stored.clientId,
       clientSecret: await decryptString(tx, stored.encryptedClientSecret),
       username: stored.username,

@@ -119,7 +119,7 @@ export class RedditAdminService {
     | { ok: false; error: string }
   > {
     const channel = await this.svc.requireChannel(args.channelId);
-    const credentials = await this.svc.loadCredentials(jsonbToStored(channel.config));
+    const credentials = await this.svc.loadCredentials(channel.id, jsonbToStored(channel.config));
     try {
       const me = await this.client.getMe(credentials);
       return {
@@ -142,7 +142,7 @@ export class RedditAdminService {
   }): Promise<{ delivered: true; fullname: string | null }> {
     const channel = await this.svc.requireChannel(args.channelId);
     const config = jsonbToStored(channel.config);
-    const credentials = await this.svc.loadCredentials(config);
+    const credentials = await this.svc.loadCredentials(channel.id, config);
     const recipient = args.to.replace(/^\/?u\//i, '').trim();
     if (!recipient) {
       throw new BadRequestException('conv_invalid: to must be a Reddit username');

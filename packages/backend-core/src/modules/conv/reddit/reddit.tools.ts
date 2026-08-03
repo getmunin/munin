@@ -268,7 +268,7 @@ export class RedditAdminTools {
 
   private async credentialsFor(channelId: string): Promise<RedditCredentials> {
     const channel = await this.reddit.requireChannel(channelId);
-    return this.reddit.loadCredentials(jsonbToStored(channel.config));
+    return this.reddit.loadCredentials(channel.id, jsonbToStored(channel.config));
   }
 
   private async callReddit<T>(fn: () => Promise<T>): Promise<T> {

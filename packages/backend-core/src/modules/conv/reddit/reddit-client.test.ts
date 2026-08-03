@@ -15,6 +15,7 @@ import {
 } from './reddit-client.service.ts';
 
 const CREDENTIALS: RedditCredentials = {
+  cacheKey: 'cch_test',
   clientId: 'cid',
   clientSecret: 'csecret',
   username: 'munin_bot',
@@ -198,6 +199,18 @@ describe('RedditClientService', () => {
     await client.getMe(CREDENTIALS);
 
     expect(http.seen.filter((r) => r.url.includes('access_token'))).toHaveLength(1);
+  });
+
+  it('never reuses one channel’s bearer token for another channel, even on the same reddit account', async () => {
+    http.pushToken();
+    http.push(json({ name: 'munin_bot' }));
+    http.pushToken();
+    http.push(json({ name: 'munin_bot' }));
+
+    await client.getMe(CREDENTIALS);
+    await client.getMe({ ...CREDENTIALS, cacheKey: 'cch_other' });
+
+    expect(http.seen.filter((r) => r.url.includes('access_token'))).toHaveLength(2);
   });
 
   it('rejects bad script app credentials terminally', async () => {

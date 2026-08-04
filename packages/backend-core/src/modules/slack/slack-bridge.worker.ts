@@ -43,6 +43,7 @@ import {
 } from './slack.constants.ts';
 import { mcpResourceOrigin } from '../../oauth/oauth.constants.ts';
 import { draftFingerprint } from '../outreach/proposal-fingerprint.ts';
+import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
 
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_SLACK_POLL_MS', default: 5000 });
 const MAX_ATTEMPTS = 5;
@@ -618,6 +619,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         confidence: proposal?.confidence ?? str(payload.confidence) ?? 'unknown',
         dashboardUrl,
       });
+      fingerprint = proposal ? mergeFingerprint(proposal) : null;
       approveLabel = 'Apply merge';
       const status = proposal?.status ?? str(payload.status);
       const derived: ApprovalOutcome | null =

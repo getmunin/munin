@@ -396,7 +396,10 @@ export function useInboxData(): InboxController {
             body: JSON.stringify({ targetSpaceSlug: targetSlug, ifVersion: item.raw.version }),
           });
         } else if (item.kind === 'crm') {
-          await api(`/v1/crm/merge-proposals/${item.id}/apply`, { method: 'POST' });
+          await api(`/v1/crm/merge-proposals/${item.id}/apply`, {
+            method: 'POST',
+            body: JSON.stringify({ fingerprint: item.raw.mergeFingerprint }),
+          });
         } else if (item.kind === 'feedback') {
           await api(`/v1/feedback/${item.id}/approve`, { method: 'POST' });
         } else if (item.kind === 'cms') {

@@ -315,6 +315,7 @@ const skipReason = TEST_URL
       });
       const proposal = firstJson(proposed) as {
         id: string;
+        draftFingerprint: string;
         draftSubject: string | null;
         delivery?: {
           channelType: string;
@@ -345,7 +346,7 @@ const skipReason = TEST_URL
 
       const approved = await c.callTool({
         name: 'outreach_approve_proposal',
-        arguments: { id: proposal.id },
+        arguments: { id: proposal.id, fingerprint: proposal.draftFingerprint },
       });
       expect(approved.isError).toBe(true);
       expect(String(firstJson(approved))).toMatch(/signed-in person in the Munin dashboard/);
@@ -649,7 +650,7 @@ const skipReason = TEST_URL
             draftBody: 'Reviewed in the panel.',
           },
         })),
-      ) as { id: string };
+      ) as { id: string; draftFingerprint: string };
 
       const dismissed = await c.callTool({
         name: 'outreach_dismiss_proposal',
@@ -667,7 +668,7 @@ const skipReason = TEST_URL
 
       const approveAfter = await c.callTool({
         name: 'outreach_approve_proposal',
-        arguments: { id: proposed.id },
+        arguments: { id: proposed.id, fingerprint: proposed.draftFingerprint },
       });
       expect(approveAfter.isError).toBe(true);
       expect(JSON.stringify(approveAfter)).toContain('not pending');
@@ -681,7 +682,7 @@ const skipReason = TEST_URL
 
       const missing = await c.callTool({
         name: 'outreach_approve_proposal',
-        arguments: { id: 'op_doesnotexist' },
+        arguments: { id: 'op_doesnotexist', fingerprint: 'whatever' },
       });
       expect(missing.isError).toBe(true);
     });
@@ -727,12 +728,12 @@ const skipReason = TEST_URL
             draftBody: 'Initial pitch.',
           },
         })),
-      ) as { id: string };
+      ) as { id: string; draftFingerprint: string };
 
       const sent = firstJson(
         (await c.callTool({
           name: 'outreach_approve_proposal',
-          arguments: { id: initial.id },
+          arguments: { id: initial.id, fingerprint: initial.draftFingerprint },
         })),
       ) as { id: string; conversationId: string };
 
@@ -766,14 +767,14 @@ const skipReason = TEST_URL
             draftBody: 'Just floating this back up.',
           },
         })),
-      ) as { id: string; kind: string; sequenceStep: number };
+      ) as { id: string; kind: string; sequenceStep: number; draftFingerprint: string };
       expect(followup.kind).toBe('followup');
       expect(followup.sequenceStep).toBe(1);
 
       const approved = firstJson(
         (await c.callTool({
           name: 'outreach_approve_proposal',
-          arguments: { id: followup.id },
+          arguments: { id: followup.id, fingerprint: followup.draftFingerprint },
         })),
       ) as { status: string; conversationId: string; sentMessageId: string };
       expect(approved.status).toBe('sent');

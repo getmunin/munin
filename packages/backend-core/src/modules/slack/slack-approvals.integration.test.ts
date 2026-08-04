@@ -7,6 +7,7 @@ import { SlackApiError, SlackApiClient } from './slack-api.client.ts';
 import { SlackBridgeWorker } from './slack-bridge.worker.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { encryptSecretValue } from './slack.service.ts';
+import { draftFingerprint } from '../outreach/proposal-fingerprint.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -81,6 +82,14 @@ function buttonLabels(blocks: unknown[] | undefined): string[] {
       typeof b === 'object' && b !== null && (b as { type?: string }).type === 'actions',
   );
   return actions?.elements.map((e) => e.text.text) ?? [];
+}
+
+function buttonValues(blocks: unknown[] | undefined): string[] {
+  const actions = (blocks ?? []).find(
+    (b): b is { type: string; elements: { value: string }[] } =>
+      typeof b === 'object' && b !== null && (b as { type?: string }).type === 'actions',
+  );
+  return actions?.elements.map((e) => e.value) ?? [];
 }
 
 (skipReason ? describe.skip : describe)('Slack approval notifications', () => {
@@ -523,6 +532,41 @@ function buttonLabels(blocks: unknown[] | undefined): string[] {
 
     const resolvedParent = await notificationLink('outreach_campaign', campaignId);
     expect(resolvedParent?.resolvedAt).not.toBeNull();
+  });
+
+  it('binds the approve button to the draft it rendered, and rebinds it when the draft is revised', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const proposalId = await seedOutreachProposal();
+
+    await emit('outreach.proposal.created', { proposalId });
+    await worker.tick();
+
+    const [filed] = await db
+      .select()
+      .from(schema.outreachProposals)
+      .where(eq(schema.outreachProposals.id, proposalId));
+    const reply = api.posted[1]!;
+    expect(buttonValues(reply.blocks)[0]).toBe(
+      `outreach_proposal:${proposalId}#${draftFingerprint(filed!)}`,
+    );
+
+    await db
+      .update(schema.outreachProposals)
+      .set({ draftBody: 'Rewritten pitch — want a demo next week?', revisionCount: 1 })
+      .where(eq(schema.outreachProposals.id, proposalId));
+    await emit('outreach.proposal.updated', { proposalId });
+    await worker.tick();
+
+    const [revised] = await db
+      .select()
+      .from(schema.outreachProposals)
+      .where(eq(schema.outreachProposals.id, proposalId));
+    const rerendered = api.updated.find((u) => u.ts === reply.ts);
+    expect(draftFingerprint(revised!)).not.toBe(draftFingerprint(filed!));
+    expect(buttonValues(rerendered?.blocks)[0]).toBe(
+      `outreach_proposal:${proposalId}#${draftFingerprint(revised!)}`,
+    );
   });
 
   it('reuses the campaign parent for further drafts and bumps the pending count', async () => {

@@ -143,7 +143,16 @@ const ListDueFollowupsInput = z.object({
 
 const EmptyInput = z.object({});
 
-const ApproveProposalInput = z.object({ id: z.string().min(1).max(64) });
+const ApproveProposalInput = z.object({
+  id: z.string().min(1).max(64),
+  fingerprint: z
+    .string()
+    .min(1)
+    .max(64)
+    .describe(
+      'The `draftFingerprint` carried by the proposal as it was read, binding this approval to that exact draft.',
+    ),
+});
 
 const DismissProposalInput = z.object({
   id: z.string().min(1).max(64),
@@ -351,7 +360,7 @@ export class OutreachAdminTools {
     name: 'outreach_approve_proposal',
     title: 'Outreach: Approve proposal',
     description:
-      "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. Fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
+      "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. The approval is bound to the draft it was given: `fingerprint` must match the proposal's current `draftFingerprint`, so a draft revised since it was read is refused with a conflict and stays pending. Also fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: ApproveProposalInput,
@@ -361,7 +370,10 @@ export class OutreachAdminTools {
   })
   approveProposal(args: z.infer<typeof ApproveProposalInput>) {
     return translateInvalid(() =>
-      this.outreach.approveProposal(args.id, { publicBaseUrl: readApiBaseUrl() }),
+      this.outreach.approveProposal(args.id, {
+        publicBaseUrl: readApiBaseUrl(),
+        fingerprint: args.fingerprint,
+      }),
     );
   }
 

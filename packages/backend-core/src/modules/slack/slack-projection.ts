@@ -306,19 +306,26 @@ const APPROVAL_SUBJECT_TYPES = [
 
 export type ApprovalSubjectType = (typeof APPROVAL_SUBJECT_TYPES)[number];
 
-export function encodeApprovalValue(subjectType: ApprovalSubjectType, subjectId: string): string {
-  return `${subjectType}:${subjectId}`;
+export function encodeApprovalValue(
+  subjectType: ApprovalSubjectType,
+  subjectId: string,
+  fingerprint?: string | null,
+): string {
+  return `${subjectType}:${subjectId}${fingerprint ? `#${fingerprint}` : ''}`;
 }
 
 export function parseApprovalValue(
   value: string,
-): { subjectType: ApprovalSubjectType; subjectId: string } | null {
-  const sep = value.indexOf(':');
+): { subjectType: ApprovalSubjectType; subjectId: string; fingerprint: string | null } | null {
+  const hash = value.indexOf('#');
+  const fingerprint = hash >= 0 ? value.slice(hash + 1) : null;
+  const head = hash >= 0 ? value.slice(0, hash) : value;
+  const sep = head.indexOf(':');
   if (sep <= 0) return null;
-  const subjectType = value.slice(0, sep) as ApprovalSubjectType;
-  const subjectId = value.slice(sep + 1);
+  const subjectType = head.slice(0, sep) as ApprovalSubjectType;
+  const subjectId = head.slice(sep + 1);
   if (!APPROVAL_SUBJECT_TYPES.includes(subjectType) || subjectId.length === 0) return null;
-  return { subjectType, subjectId };
+  return { subjectType, subjectId, fingerprint: fingerprint || null };
 }
 
 export interface MergeProposalApprovalSnapshot {

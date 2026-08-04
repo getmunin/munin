@@ -193,6 +193,17 @@ describe('approval value codec', () => {
     expect(parseApprovalValue(value)).toEqual({
       subjectType: 'crm_merge_proposal',
       subjectId: 'cmp_abc123',
+      fingerprint: null,
+    });
+  });
+
+  it('carries the draft fingerprint of the message the button was rendered on', () => {
+    const value = encodeApprovalValue('outreach_proposal', 'oprp_abc123', 'deadbeef');
+    expect(value).toBe('outreach_proposal:oprp_abc123#deadbeef');
+    expect(parseApprovalValue(value)).toEqual({
+      subjectType: 'outreach_proposal',
+      subjectId: 'oprp_abc123',
+      fingerprint: 'deadbeef',
     });
   });
 
@@ -201,6 +212,7 @@ describe('approval value codec', () => {
     expect(parseApprovalValue('crm_merge_proposal:')).toBeNull();
     expect(parseApprovalValue('no-separator')).toBeNull();
     expect(parseApprovalValue(':orphan')).toBeNull();
+    expect(parseApprovalValue('outreach_proposal:#deadbeef')).toBeNull();
   });
 });
 

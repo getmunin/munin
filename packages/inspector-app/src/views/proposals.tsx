@@ -82,11 +82,19 @@ export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal
     try {
       const result = await app.callServerTool({
         name: action === 'approve' ? 'outreach_approve_proposal' : 'outreach_dismiss_proposal',
-        arguments: { id: proposal.id },
+        arguments:
+          action === 'approve'
+            ? { id: proposal.id, fingerprint: proposal.draftFingerprint }
+            : { id: proposal.id },
       });
       const parsed = parseToolResult(result);
       if (result.isError || !isProposal(parsed)) {
-        patchCard(proposal.id, { busy: null, error: errorText(result) });
+        const message = errorText(result);
+        if (action === 'approve') {
+          await refresh();
+          setOpenId(proposal.id);
+        }
+        patchCard(proposal.id, { busy: null, error: message });
         return;
       }
       const updated = proposals.map((p) => (p.id === parsed.id ? parsed : p));

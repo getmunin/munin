@@ -33,6 +33,7 @@ export interface Proposal {
   evidence?: Record<string, unknown>;
   hasEvidence?: boolean;
   proposedSendAt: string | null;
+  scheduledSendAt?: string | null;
   status: 'pending' | 'approved' | 'sent' | 'failed' | 'dismissed' | 'withdrawn';
   decidedAt: string | null;
   firstViewedAt: string | null;

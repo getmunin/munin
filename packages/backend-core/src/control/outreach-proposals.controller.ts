@@ -28,9 +28,13 @@ import {
 
 const StatusSchema = z.enum(PROPOSAL_STATUSES);
 const KindSchema = z.enum(PROPOSAL_KINDS);
-const ApproveBody = z.object({ fingerprint: z.string().min(1).max(64) });
+const ApproveBody = z.object({
+  fingerprint: z.string().min(1).max(64),
+  sendAt: z.string().datetime().nullable().optional(),
+});
 const DismissBody = z.object({ reason: z.string().max(500).optional() });
 const WithdrawBody = z.object({ reason: z.string().min(1).max(500) });
+const CancelScheduledSendBody = z.object({ reason: z.string().min(1).max(500) });
 const UpdateBody = z.object({
   draftSubject: z.string().max(500).nullable().optional(),
   draftBody: z.string().min(1).optional(),
@@ -116,7 +120,21 @@ export class OutreachProposalsController {
     if (!parsed.success) throw new BadRequestException(parsed.error.message);
     const publicBaseUrl = readApiBaseUrl();
     return translate(() =>
-      this.outreach.approveProposal(id, { publicBaseUrl, fingerprint: parsed.data.fingerprint }),
+      this.outreach.approveProposal(id, {
+        publicBaseUrl,
+        fingerprint: parsed.data.fingerprint,
+        sendAt: parsed.data.sendAt,
+      }),
+    );
+  }
+
+  @Post(':id/cancel-scheduled-send')
+  @HttpCode(200)
+  async cancelScheduledSend(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
+    const parsed = CancelScheduledSendBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(() =>
+      this.outreach.cancelScheduledSend({ id, reason: parsed.data.reason }),
     );
   }
 

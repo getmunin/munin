@@ -1,13 +1,25 @@
 'use client';
 
+import { useState } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { useTranslations } from 'next-intl';
-import { Button, Pill, Sheet, SheetContent } from '@getmunin/ui';
+import { useFormatter, useTranslations } from 'next-intl';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Pill,
+  Sheet,
+  SheetContent,
+} from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import { QueueDrawer } from './queue-drawers';
 import { DrawerHeader, DrawerLoadFailed } from './queue-drawers/shared';
 import { queueLabelKey, queueTone } from './queue-drawers/types';
-import type { QueueItem } from './queue-drawers/types';
+import type { OutreachProposalDto, QueueItem } from './queue-drawers/types';
 import { useInboxData } from './inbox-data';
 import { truncate } from './inbox-helpers';
 import {
@@ -105,6 +117,124 @@ export function QueueSection({ controller }: { controller: InboxController }) {
           />
         ))}
       </ul>
+    </section>
+  );
+}
+
+export function ScheduledSendsSection({ controller }: { controller: InboxController }) {
+  const t = useTranslations('dashboard.overview.scheduledSends');
+  const format = useFormatter();
+  const { scheduledSends, pending, cancelScheduledSend } = controller;
+  const [canceling, setCanceling] = useState<OutreachProposalDto | null>(null);
+  const [reason, setReason] = useState('');
+  if (scheduledSends.length === 0) return null;
+
+  const submitCancel = async () => {
+    if (!canceling || !reason.trim()) return;
+    try {
+      await cancelScheduledSend(canceling.id, reason.trim());
+      setCanceling(null);
+      setReason('');
+    } catch (err) {
+      console.warn('[scheduled-sends] cancel failed', err);
+    }
+  };
+
+  return (
+    <section>
+      <div className="flex items-baseline justify-between gap-4 border-b-[1px] border-rule-soft pb-2.5 dark:border-rule-on-dark">
+        <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground">
+          {t('eyebrow')} · {scheduledSends.length}
+        </h2>
+        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+          {t('subtitle')}
+        </span>
+      </div>
+      <ul>
+        {scheduledSends.map((p) => (
+          <li key={p.id} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+            <div className="group/srow flex items-center gap-4 px-4 py-3">
+              <span className="shrink-0">
+                <Pill tone="out">{t('pill')}</Pill>
+              </span>
+              <div className="min-w-0 flex-1 truncate">
+                <span className="text-sm font-medium text-ink dark:text-foreground">
+                  {p.draftSubject ?? p.campaign?.name ?? t('untitled')}
+                </span>
+                <span className="ml-2 text-sm text-ink-mute">
+                  {' '}
+                  — {p.delivery?.destination ?? p.contact?.email ?? t('unknownDestination')}
+                </span>
+              </div>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+                {p.scheduledSendAt
+                  ? format.dateTime(new Date(p.scheduledSendAt), {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : ''}
+              </span>
+              <div className="shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setReason('');
+                    setCanceling(p);
+                  }}
+                  disabled={pending}
+                >
+                  {t('cancel')}
+                </Button>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <Dialog
+        open={canceling !== null}
+        onOpenChange={(o) => {
+          if (!o) setCanceling(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('cancelTitle')}</DialogTitle>
+            <DialogDescription>{t('cancelDescription')}</DialogDescription>
+          </DialogHeader>
+          <form
+            className="mt-4 flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submitCancel();
+            }}
+          >
+            <label className="flex flex-col gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+                {t('cancelReasonLabel')}
+              </span>
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={500}
+                className="rounded-input border-[1px] border-rule-soft bg-paper px-3 py-2 font-sans text-sm text-ink outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:border-rule-on-dark dark:bg-card dark:text-foreground"
+                autoFocus
+              />
+            </label>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCanceling(null)}>
+                {t('cancelDismiss')}
+              </Button>
+              <Button type="submit" variant="accent" disabled={pending || !reason.trim()}>
+                {t('cancelConfirm')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

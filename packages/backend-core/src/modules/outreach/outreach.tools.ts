@@ -115,7 +115,13 @@ const ProposeInitialInput = z.object({
       'For email campaigns: the email body. For SMS campaigns: the text message, capped at 480 characters, plain text — no markdown, and no opt-out line, which Munin appends. For voice campaigns: the opening line / talking-points the AI agent should use when the call connects.',
     ),
   evidence: z.record(z.string(), z.unknown()).optional(),
-  proposedSendAt: z.string().datetime().optional(),
+  proposedSendAt: z
+    .string()
+    .datetime()
+    .optional()
+    .describe(
+      'When this draft should ideally go out, ISO-8601. Advisory: the operator who approves it inherits this time unless they name their own, and a time already in the past is treated as send-now.',
+    ),
 });
 
 const ProposeReplyInput = z.object({
@@ -152,6 +158,23 @@ const ApproveProposalInput = z.object({
     .describe(
       'The `draftFingerprint` carried by the proposal as it was read, binding this approval to that exact draft.',
     ),
+  sendAt: z
+    .string()
+    .datetime()
+    .nullable()
+    .optional()
+    .describe(
+      'When the approved message should go out, ISO-8601 and in the future. Omit to use the time the draft carries in `proposedSendAt`, or to send now when it carries none. Pass null to send now even though the draft proposes a later time.',
+    ),
+});
+
+const CancelScheduledSendInput = z.object({
+  id: z.string().min(1).max(64),
+  reason: z
+    .string()
+    .min(1)
+    .max(500)
+    .describe('Why the scheduled send is being called off. Recorded on the audit trail.'),
 });
 
 const DismissProposalInput = z.object({
@@ -289,7 +312,7 @@ export class OutreachAdminTools {
     name: 'outreach_import',
     title: 'Outreach: Import data',
     description:
-      'Import outreach `records` produced by `outreach_export`. Campaigns are upserted by name and proposals by (campaign, contact, kind) — plus `sequenceStep` for follow-ups — so re-running is idempotent. Segment, channel, contact and conversation foreign keys are resolved through the supplied `idMap` (pass the idMap returned by the CRM and Conversations imports). Campaigns are imported **disabled** — re-enable them after re-entering the channel credentials. Returns counts plus the merged `idMap`.',
+      'Import outreach `records` produced by `outreach_export`. Campaigns are upserted by name and proposals by (campaign, contact, kind) — plus `sequenceStep` for follow-ups — so re-running is idempotent. Segment, channel, contact and conversation foreign keys are resolved through the supplied `idMap` (pass the idMap returned by the CRM and Conversations imports). Campaigns are imported **disabled** — re-enable them after re-entering the channel credentials. Proposals that were approved and awaiting a scheduled send on the source server arrive as `pending` with a warning, so no timer follows the data across servers. Returns counts plus the merged `idMap`.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: OutreachImportInput,
@@ -329,7 +352,7 @@ export class OutreachAdminTools {
     name: 'outreach_list_proposals',
     title: 'Outreach: List proposals',
     description:
-      'List drafted outreach proposals, newest first. Defaults to all statuses and to 25 rows; pass `status` and `limit` to narrow. Rows carry the full `draftSubject` / `draftBody` plus nested `contact`, `campaign` and `delivery` summaries, but not the curator `evidence` payload, which can run to thousands of characters per row — a boolean `hasEvidence` says whether there is any, and `outreach_get_proposal` returns it for one proposal. The first-touch curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.',
+      'List drafted outreach proposals, newest first. Defaults to all statuses and to 25 rows; pass `status` and `limit` to narrow. Rows carry the full `draftSubject` / `draftBody` plus nested `contact`, `campaign` and `delivery` summaries, but not the curator `evidence` payload, which can run to thousands of characters per row — a boolean `hasEvidence` says whether there is any, and `outreach_get_proposal` returns it for one proposal. The first-touch curator queries `status: "pending", kind: "initial"` filtered by `(campaignId, contactId)` to dedupe before drafting a new candidate. The operator review surface queries `status: "pending"`. `status: "approved"` lists approved sends still waiting for their `scheduledSendAt`, soonest first. In hosts that support MCP Apps this renders an interactive review panel with per-proposal approve/dismiss actions.',
     audiences: ['admin'],
     scopes: ['outreach:read'],
     input: ListProposalsInput,
@@ -360,7 +383,7 @@ export class OutreachAdminTools {
     name: 'outreach_approve_proposal',
     title: 'Outreach: Approve proposal',
     description:
-      "Approve one pending outreach proposal, which sends it: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. The approval is bound to the draft it was given: `fingerprint` must match the proposal's current `draftFingerprint`, so a draft revised since it was read is refused with a conflict and stays pending. Also fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId`, and `sentMessageId`.",
+      "Approve one pending outreach proposal, authorizing it to go out: an initial proposal creates the outbound conversation and delivers the first touch on the campaign's channel — an email (with CTA and unsubscribe footer per campaign settings), an SMS, or an outbound call placed through the channel's voice vendor; a reply or follow-up proposal sends the draft verbatim on its existing conversation. Sends immediately unless a future send time applies, in which case the proposal returns `status: \"approved\"` with `scheduledSendAt` and a background worker delivers it then, re-checking campaign state, suppression and quiet hours at that moment. The approval is bound to the draft it was given: `fingerprint` must match the proposal's current `draftFingerprint`, so a draft revised since it was read is refused with a conflict and stays pending. Also fails if the proposal is not pending, if the campaign is disabled, if the contact became suppressed since drafting, or — for follow-ups — if the prospect replied after the draft was filed (dismiss it; the reply flow takes over). Returns the proposal with `status: \"sent\"`, `conversationId` and `sentMessageId` on an immediate send.",
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: ApproveProposalInput,
@@ -373,7 +396,25 @@ export class OutreachAdminTools {
       this.outreach.approveProposal(args.id, {
         publicBaseUrl: readApiBaseUrl(),
         fingerprint: args.fingerprint,
+        sendAt: args.sendAt,
       }),
+    );
+  }
+
+  @McpTool({
+    name: 'outreach_cancel_scheduled_send',
+    title: 'Outreach: Cancel scheduled send',
+    description:
+      'Call off a scheduled outreach send before the worker delivers it, returning the proposal to `status: "pending"` so it goes back on the review queue with its draft and revision history intact. The approval is cleared, so sending it later takes a fresh approval. Nothing is sent and the contact is not suppressed. Fails when the proposal is not an approved, still-scheduled send — a proposal already delivered cannot be recalled. Takes a required `reason`.',
+    audiences: ['admin'],
+    scopes: ['outreach:write'],
+    input: CancelScheduledSendInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  cancelScheduledSend(args: z.infer<typeof CancelScheduledSendInput>) {
+    return translateInvalid(() =>
+      this.outreach.cancelScheduledSend({ id: args.id, reason: args.reason }),
     );
   }
 
@@ -381,7 +422,7 @@ export class OutreachAdminTools {
     name: 'outreach_dismiss_proposal',
     title: 'Outreach: Dismiss proposal',
     description:
-      'Dismiss one pending outreach proposal without sending, optionally recording a reason. The decision (actor and timestamp) is kept on the proposal for audit. Fails if the proposal is not pending. Returns the proposal with `status: "dismissed"`.',
+      'Dismiss one pending outreach proposal without sending, optionally recording a reason. The decision (actor and timestamp) is kept on the proposal for audit. Fails if the proposal is not pending — an approved send waiting on its schedule has to be called off with `outreach_cancel_scheduled_send` first, which puts it back in `pending`. Returns the proposal with `status: "dismissed"`.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: DismissProposalInput,
@@ -399,7 +440,7 @@ export class OutreachAdminTools {
     name: 'outreach_revise_proposal',
     title: 'Outreach: Revise proposal',
     description:
-      'Rewrite the draft on one pending outreach proposal in place, keeping the same proposal id, campaign, and contact — those three cannot be changed here; a different recipient or campaign is a different proposal. Pass any of `draftSubject`, `draftBody`, `proposedSendAt` plus a required `reason`. The revision is recorded on the proposal: `revisionCount`, `lastRevisedAt`, `lastRevisionReason`, and the revising actor, plus `revisedAfterReviewAt` when someone else had already opened the draft for review before the change. Fails if the proposal is not pending. Returns the revised proposal.',
+      'Rewrite the draft on one pending outreach proposal in place, keeping the same proposal id, campaign, and contact — those three cannot be changed here; a different recipient or campaign is a different proposal. Pass any of `draftSubject`, `draftBody`, `proposedSendAt` plus a required `reason`. The revision is recorded on the proposal: `revisionCount`, `lastRevisedAt`, `lastRevisionReason`, and the revising actor, plus `revisedAfterReviewAt` when someone else had already opened the draft for review before the change. `proposedSendAt` is the send time an operator inherits when they approve without naming one of their own. Fails if the proposal is not pending — an approved send waiting on its schedule has to be called off with `outreach_cancel_scheduled_send` before its draft can change. Returns the revised proposal.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: ReviseProposalInput,

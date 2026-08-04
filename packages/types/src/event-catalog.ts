@@ -49,7 +49,10 @@ export const CONVERSATION_EVENT_TYPES = [
 export const OUTREACH_EVENT_TYPES = [
   'outreach.proposal.created',
   'outreach.proposal.updated',
+  'outreach.proposal.scheduled',
   'outreach.proposal.sent',
+  'outreach.proposal.send_canceled',
+  'outreach.proposal.send_failed',
   'outreach.proposal.dismissed',
   'outreach.proposal.withdrawn',
 ] as const;

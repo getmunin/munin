@@ -9,7 +9,13 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
-import { OutreachService, OutreachInvalidError, SMS_DRAFT_MAX_CHARS } from './outreach.service.ts';
+import {
+  MAX_SEND_ATTEMPTS,
+  OutreachService,
+  OutreachInvalidError,
+  SEND_WORKER_ACTOR_ID,
+  SMS_DRAFT_MAX_CHARS,
+} from './outreach.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
@@ -223,7 +229,10 @@ const skipReason = TEST_URL
       expect(full.evidence).toEqual({ source: 'unit-test' });
 
       const approved = await run(() =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
+        svc.approveProposal(p.id, {
+          publicBaseUrl: 'https://test.local',
+          fingerprint: p.draftFingerprint,
+        }),
       );
       expect(approved.status).toBe('sent');
       expect(approved.conversationId).toBeTruthy();
@@ -682,6 +691,297 @@ const skipReason = TEST_URL
       await expect(run(() => svc.withdrawProposal({ id: p.id, reason: 'again' }))).rejects.toThrow(
         OutreachInvalidError,
       );
+    });
+  });
+
+  describe('scheduled sends', () => {
+    const IN_AN_HOUR = () => new Date(Date.now() + 3_600_000);
+    const PUBLIC_URL = { publicBaseUrl: 'https://test.local' };
+    const approveOpts = (p: { draftFingerprint: string }) => ({
+      ...PUBLIC_URL,
+      fingerprint: p.draftFingerprint,
+    });
+
+    function systemActor(): ActorIdentity {
+      return new ActorIdentity('system', SEND_WORKER_ACTOR_ID, orgId, ['*'], ['admin']);
+    }
+
+    function humanActor(): ActorIdentity {
+      return new ActorIdentity(
+        'user',
+        'usr_scheduled_test',
+        orgId,
+        ['*'],
+        ['admin'],
+        undefined,
+        undefined,
+        undefined,
+        'usr_scheduled_test',
+      );
+    }
+
+    async function campaign(name: string) {
+      return run(() =>
+        svc.createCampaign({ name, brief: 'b', segmentId, channelId, enabled: true }),
+      );
+    }
+
+    async function draft(name: string, proposedSendAt?: Date) {
+      const c = await campaign(name);
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId,
+          draftSubject: 'Hi Jane',
+          draftBody: 'body',
+          ...(proposedSendAt ? { proposedSendAt: proposedSendAt.toISOString() } : {}),
+        }),
+      );
+      return { campaign: c, proposal: p };
+    }
+
+    async function messageCount(): Promise<number> {
+      const rows = await db.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM conv_messages WHERE org_id = ${orgId}`,
+      );
+      return rows[0]!.count;
+    }
+
+    it('approve inherits a future proposedSendAt and sends nothing yet', async () => {
+      const at = IN_AN_HOUR();
+      const { proposal } = await draft('sched-inherit', at);
+      const approved = await run(() => svc.approveProposal(proposal.id, approveOpts(proposal)));
+
+      expect(approved.status).toBe('approved');
+      expect(approved.scheduledSendAt).toBe(at.toISOString());
+      expect(approved.sentAt).toBeNull();
+      expect(approved.sentMessageId).toBeNull();
+      expect(approved.conversationId).toBeNull();
+      expect(approved.decidedAt).toBeTruthy();
+      expect(approved.decidedByActorId).toBe(actor.id);
+      expect(await messageCount()).toBe(0);
+    });
+
+    it('an explicit sendAt overrides the time on the draft', async () => {
+      const at = new Date(Date.now() + 7_200_000);
+      const { proposal } = await draft('sched-override', IN_AN_HOUR());
+      const approved = await run(() =>
+        svc.approveProposal(proposal.id, { ...approveOpts(proposal), sendAt: at.toISOString() }),
+      );
+      expect(approved.scheduledSendAt).toBe(at.toISOString());
+    });
+
+    it('sendAt null sends now even though the draft proposes a later time', async () => {
+      const { proposal } = await draft('sched-now', IN_AN_HOUR());
+      const approved = await run(() =>
+        svc.approveProposal(proposal.id, { ...approveOpts(proposal), sendAt: null }),
+      );
+      expect(approved.status).toBe('sent');
+      expect(approved.scheduledSendAt).toBeNull();
+      expect(approved.sentMessageId).toBeTruthy();
+    });
+
+    it('a proposedSendAt that has already passed sends now', async () => {
+      const { proposal } = await draft('sched-stale');
+      await db
+        .update(schema.outreachProposals)
+        .set({ proposedSendAt: new Date(Date.now() - 60_000) })
+        .where(eq(schema.outreachProposals.id, proposal.id));
+      const stale = await run(() => svc.getProposal(proposal.id));
+      const approved = await run(() => svc.approveProposal(proposal.id, approveOpts(stale)));
+      expect(approved.status).toBe('sent');
+    });
+
+    it('an explicit sendAt in the past is refused', async () => {
+      const { proposal } = await draft('sched-past');
+      await expect(
+        run(() =>
+          svc.approveProposal(proposal.id, {
+            ...approveOpts(proposal),
+            sendAt: new Date(Date.now() - 60_000).toISOString(),
+          }),
+        ),
+      ).rejects.toThrow(/must be in the future/);
+    });
+
+    it('the worker delivers a scheduled send and credits the approver as author', async () => {
+      const { proposal } = await draft('sched-deliver', IN_AN_HOUR());
+      const approver = humanActor();
+      const approved = await runAs(approver, () => svc.approveProposal(proposal.id, approveOpts(proposal)));
+      expect(approved.status).toBe('approved');
+
+      const result = await runAs(systemActor(), () =>
+        svc.sendScheduledProposal(proposal.id, PUBLIC_URL),
+      );
+      expect(result.outcome).toBe('sent');
+      expect(result.proposal.status).toBe('sent');
+      expect(result.proposal.sentMessageId).toBeTruthy();
+      expect(result.proposal.decidedByActorId).toBe(approver.id);
+      expect(result.proposal.decidedAt).toBe(approved.decidedAt);
+
+      const rows = await db.execute<{ author_id: string; author_type: string }>(
+        sql`SELECT author_id, author_type FROM conv_messages WHERE id = ${result.proposal.sentMessageId!}`,
+      );
+      expect(rows[0]!.author_id).toBe(approver.id);
+    });
+
+    it('the worker skips a proposal that is no longer approved', async () => {
+      const { proposal } = await draft('sched-skip');
+      const result = await runAs(systemActor(), () =>
+        svc.sendScheduledProposal(proposal.id, PUBLIC_URL),
+      );
+      expect(result.outcome).toBe('skipped');
+      expect(await messageCount()).toBe(0);
+    });
+
+    it('a contact suppressed after approval is never delivered to', async () => {
+      const { proposal } = await draft('sched-suppressed', IN_AN_HOUR());
+      await run(() => svc.approveProposal(proposal.id, approveOpts(proposal)));
+      await run(() => crm.updateContact({ id: contactId, patch: { doNotContact: true } }));
+
+      await expect(
+        runAs(systemActor(), () => svc.sendScheduledProposal(proposal.id, PUBLIC_URL)),
+      ).rejects.toThrow(OutreachInvalidError);
+      expect(await messageCount()).toBe(0);
+
+      const failed = await runAs(systemActor(), () =>
+        svc.recordScheduledSendFailure(proposal.id, 'contact is no longer eligible', {
+          terminal: true,
+        }),
+      );
+      expect(failed.status).toBe('failed');
+      expect(failed.failureReason).toBe('contact is no longer eligible');
+      expect(failed.sendAttempts).toBe(1);
+    });
+
+    it('a transient failure retries until MAX_SEND_ATTEMPTS, then gives up', async () => {
+      const { proposal } = await draft('sched-retry', IN_AN_HOUR());
+      await run(() => svc.approveProposal(proposal.id, approveOpts(proposal)));
+
+      for (let attempt = 1; attempt < MAX_SEND_ATTEMPTS; attempt += 1) {
+        const held = await runAs(systemActor(), () =>
+          svc.recordScheduledSendFailure(proposal.id, 'smtp unreachable', { terminal: false }),
+        );
+        expect(held.status).toBe('approved');
+        expect(held.sendAttempts).toBe(attempt);
+      }
+
+      const gaveUp = await runAs(systemActor(), () =>
+        svc.recordScheduledSendFailure(proposal.id, 'smtp unreachable', { terminal: false }),
+      );
+      expect(gaveUp.status).toBe('failed');
+      expect(gaveUp.sendAttempts).toBe(MAX_SEND_ATTEMPTS);
+      expect(gaveUp.failureReason).toBe('smtp unreachable');
+    });
+
+    it('cancelScheduledSend returns the draft to the review queue and clears the approval', async () => {
+      const { proposal } = await draft('sched-cancel', IN_AN_HOUR());
+      await run(() => svc.approveProposal(proposal.id, approveOpts(proposal)));
+
+      const canceled = await run(() =>
+        svc.cancelScheduledSend({ id: proposal.id, reason: 'wrong week' }),
+      );
+      expect(canceled.status).toBe('pending');
+      expect(canceled.scheduledSendAt).toBeNull();
+      expect(canceled.decidedAt).toBeNull();
+      expect(canceled.decidedByActorId).toBeNull();
+      expect(await messageCount()).toBe(0);
+
+      const pendingRows = await run(() => svc.listProposals({ status: 'pending' }));
+      expect(pendingRows.map((p) => p.id)).toContain(proposal.id);
+    });
+
+    it('cancelScheduledSend refuses a pending draft, a sent proposal, and an empty reason', async () => {
+      const { proposal } = await draft('sched-cancel-invalid', IN_AN_HOUR());
+      await expect(
+        run(() => svc.cancelScheduledSend({ id: proposal.id, reason: 'not scheduled yet' })),
+      ).rejects.toThrow(/not a scheduled send/);
+
+      await run(() => svc.approveProposal(proposal.id, approveOpts(proposal)));
+      await expect(
+        run(() => svc.cancelScheduledSend({ id: proposal.id, reason: '  ' })),
+      ).rejects.toThrow(/reason must be non-empty/);
+
+      await runAs(systemActor(), () => svc.sendScheduledProposal(proposal.id, PUBLIC_URL));
+      await expect(
+        run(() => svc.cancelScheduledSend({ id: proposal.id, reason: 'too late' })),
+      ).rejects.toThrow(/not a scheduled send/);
+    });
+
+    it('a scheduled first-touch blocks a fresh draft for the same contact', async () => {
+      const { campaign: c, proposal } = await draft('sched-dedupe', IN_AN_HOUR());
+      await run(() => svc.approveProposal(proposal.id, approveOpts(proposal)));
+
+      await expect(
+        run(() =>
+          svc.proposeInitial({
+            campaignId: c.id,
+            contactId,
+            draftSubject: 'again',
+            draftBody: 'again',
+          }),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('listProposals status approved orders by the soonest send', async () => {
+      const later = await draft('sched-order-late', new Date(Date.now() + 7_200_000));
+      const sooner = await draft('sched-order-soon', IN_AN_HOUR());
+      await run(() => svc.approveProposal(later.proposal.id, approveOpts(later.proposal)));
+      await run(() => svc.approveProposal(sooner.proposal.id, approveOpts(sooner.proposal)));
+
+      const scheduled = await run(() => svc.listProposals({ status: 'approved' }));
+      expect(scheduled.map((p) => p.id)).toEqual([sooner.proposal.id, later.proposal.id]);
+    });
+
+    it('holds an sms send that comes due inside a blackout date instead of failing it', async () => {
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'sms',
+          vendor: 'twilio',
+          name: 'sched-sms',
+          active: true,
+          config: { accountSid: 'AC_test', encryptedAuthToken: 'fake', fromNumber: '+15550001111' },
+        })
+        .returning();
+      const [smsContact] = await db
+        .insert(schema.crmContacts)
+        .values({
+          orgId,
+          name: 'Text Me',
+          email: 'blackout@example.com',
+          phone: '+14155559999',
+          consentLawfulBasis: 'consent',
+        })
+        .returning();
+      const c = await run(() =>
+        svc.createCampaign({
+          name: 'sched-blackout',
+          brief: 'b',
+          segmentId,
+          channelId: channel!.id,
+          enabled: true,
+          cadenceRules: { blackoutDates: [new Date().toISOString().slice(0, 10)] },
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId: smsContact!.id,
+          draftBody: 'Hei!',
+          proposedSendAt: IN_AN_HOUR().toISOString(),
+        }),
+      );
+      const approved = await runAs(humanActor(), () => svc.approveProposal(p.id, approveOpts(p)));
+      expect(approved.status).toBe('approved');
+
+      const result = await runAs(systemActor(), () => svc.sendScheduledProposal(p.id, PUBLIC_URL));
+      expect(result.outcome).toBe('deferred');
+      expect(result.reason).toMatch(/does not message/);
+      expect(result.proposal.status).toBe('approved');
+      expect(await messageCount()).toBe(0);
     });
   });
 

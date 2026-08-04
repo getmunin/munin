@@ -4348,6 +4348,37 @@
         ]
       }
     },
+    "/v1/outreach/proposals/{id}/cancel-scheduled-send": {
+      "post": {
+        "operationId": "OutreachProposalsController_cancelScheduledSend",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachProposals"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/outreach/proposals/{id}/dismiss": {
       "post": {
         "operationId": "OutreachProposalsController_dismiss",

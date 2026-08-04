@@ -421,6 +421,13 @@
       "when": 1785481562706,
       "tag": "0059_outreach_first_touch_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1785764379398,
+      "tag": "0060_outreach_scheduled_send",
+      "breakpoints": true
     }
   ]
 }

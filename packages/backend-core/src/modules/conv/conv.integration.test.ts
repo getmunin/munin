@@ -345,6 +345,73 @@ const skipReason = TEST_URL
     void flagged;
   }, 30_000);
 
+  it('stamps handoverResolvedAt when a handover is answered, and filters on it', async () => {
+    type Summary = {
+      id: string;
+      needsHumanAttention: boolean;
+      needsHumanAttentionAt: string | null;
+      handoverResolvedAt: string | null;
+    };
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+      body: 'My invoice has the wrong VAT rate.',
+    });
+    const conv = startResp.body;
+    const listIds = async (
+      c: Parameters<Parameters<typeof withClient>[1]>[0],
+      args: Record<string, unknown>,
+    ) =>
+      parseToolResult<Summary[]>(
+        await c.callTool({ name: 'conv_list_conversations', arguments: args }),
+      ).map((row) => row.id);
+
+    await withClient(adminKey, async (c) => {
+      expect(await listIds(c, { handover: 'never' })).toContain(conv.id);
+
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: { conversationId: conv.id, reason: 'VAT question' },
+      });
+      expect(await listIds(c, { handover: 'active' })).toContain(conv.id);
+      expect(await listIds(c, { handover: 'resolved' })).not.toContain(conv.id);
+
+      await c.callTool({
+        name: 'conv_send_message',
+        arguments: { conversationId: conv.id, body: 'Fixed — a corrected invoice is on its way.' },
+      });
+      const resolved = parseToolResult<Summary>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      expect(resolved.needsHumanAttention).toBe(false);
+      expect(resolved.needsHumanAttentionAt).toBeNull();
+      expect(resolved.handoverResolvedAt).not.toBeNull();
+
+      expect(await listIds(c, { handover: 'resolved' })).toContain(conv.id);
+      expect(await listIds(c, { handover: 'active' })).not.toContain(conv.id);
+      expect(await listIds(c, { handover: 'never' })).not.toContain(conv.id);
+
+      const past = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      expect(await listIds(c, { handover: 'resolved', since: past })).toContain(conv.id);
+      expect(await listIds(c, { handover: 'resolved', since: future })).not.toContain(conv.id);
+
+      const bad = await c.callTool({
+        name: 'conv_list_conversations',
+        arguments: { since: 'last tuesday' },
+      });
+      expect(bad.isError).toBe(true);
+
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: { conversationId: conv.id, reason: 'reopened' },
+      });
+      const reflagged = parseToolResult<Summary>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      expect(reflagged.handoverResolvedAt).toBeNull();
+      expect(await listIds(c, { handover: 'resolved' })).not.toContain(conv.id);
+    });
+  }, 30_000);
+
   it('admin handover with publicFallbackMessage posts a public agent message visible to end-user', async () => {
     const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'Are you there?',

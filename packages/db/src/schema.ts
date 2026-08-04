@@ -852,6 +852,10 @@ export const convConversations = pgTable(
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
     needsHumanAttention: boolean('needs_human_attention').notNull().default(false),
     needsHumanAttentionAt: timestamp('needs_human_attention_at', { withTimezone: true }),
+    // Stamped when a handover is answered; both attention columns are cleared at
+    // that moment, so without this a resolved handover is indistinguishable from
+    // a conversation that never needed a human.
+    handoverResolvedAt: timestamp('handover_resolved_at', { withTimezone: true }),
     runnerHolder: text('runner_holder'),
     runnerLeaseExpiresAt: timestamp('runner_lease_expires_at', { withTimezone: true }),
     outreachCampaignId: text('outreach_campaign_id').references(
@@ -874,6 +878,9 @@ export const convConversations = pgTable(
     needsAttentionIdx: index('conv_conversations_needs_attention_idx')
       .on(t.orgId, t.needsHumanAttentionAt)
       .where(sql`needs_human_attention = true`),
+    handoverResolvedIdx: index('conv_conversations_handover_resolved_idx')
+      .on(t.orgId, t.handoverResolvedAt)
+      .where(sql`handover_resolved_at IS NOT NULL`),
     outreachCampaignIdx: index('conv_conversations_outreach_campaign_idx').on(t.outreachCampaignId),
   }),
 );

@@ -19,7 +19,7 @@ Both modes share Steps 2–6 below. Don't refile a candidate that's already in `
 ## TL;DR
 
 0. **Fetch prior decisions** with `kb_list_curation_decisions` and drop those source conversations from consideration — they were already judged.
-1. **List recently-resolved handovers** with `conv_list_conversations`, then narrow to the ones that needed human attention but no longer do.
+1. **List recently-resolved handovers** with `conv_list_conversations({ handover: "resolved", since })` — the server returns only conversations where a human was called in and answered inside your window.
 2. **Read each conversation's messages** with `conv_get_conversation` and pull out the (end-user question, human-reply) pair.
 3. **Skip duplicates and fluff.** If a candidate is functionally identical to one you've already filed, skip. If the human reply is a one-off ("yes", "ok"), skip.
 4. **Draft each candidate** as a short FAQ-style markdown doc — plain prose, no headings (the `subject` is the title). Pass `sourceConversationId` and `proposedTargetSpaceSlug` as structured fields so the review UI can surface them.
@@ -29,19 +29,26 @@ Both modes share Steps 2–6 below. Don't refile a candidate that's already in `
 ## Step 1 — list candidates
 
 ```jsonc
-// MCP call
+// MCP call — a weekly pass; move `since` to match your window
 {
   "name": "conv_list_conversations",
   "arguments": {
     "status": "closed",
+    "handover": "resolved",
+    "since": "2026-07-27T00:00:00Z",
     "limit": 100
   }
 }
 ```
 
-The tool returns a page of `ConversationSummary` rows. For each row, the `needsHumanAttentionAt` field is set whenever the conversation was *ever* flagged for handover, even if the flag has since been cleared by the human reply. That's the signal you want: filter to rows where `needsHumanAttentionAt !== null` and the conversation is now `status: 'closed'` (or open with an `assigneeUserId` set, meaning a human is actively working it).
+`handover: "resolved"` is the signal you want: a human was called in and answered, which is exactly the gap a KB document closes. The server applies it — the rows you get back are already the eligible set, so don't widen the query and filter by eye. `handover: "active"` (still waiting on a human) and `handover: "never"` (the agent handled it alone) are the other two states; neither belongs in a curation pass.
 
-If you want to scope to a window (recommended), pass `since` (ISO timestamp) and only consider conversations whose `lastMessageAt` is within the window. A weekly pass typically covers the last 7 days.
+Run it a second time with `status: "open"` if you also want conversations a human is still working: those carry an `assigneeUserId`.
+
+Two things the filters can't tell you, so check them yourself in Step 2:
+
+- `handoverResolvedAt` is stamped when the handover clears. It is null for anything resolved before this field shipped, so old conversations won't appear under `handover: "resolved"` at all.
+- A resolved handover is not proof a *human* typed the answer — an admin agent clears the flag the same way. Read the messages.
 
 ## Step 2 — read each pair
 

@@ -1,5 +1,208 @@
 # @getmunin/backend-core
 
+## 4.78.0
+
+### Minor Changes
+
+- 1974c11: CMS: migrated content keeps its original publication date
+
+  `publishedAt` was stamped `new Date()` on every path that publishes an entry, and nothing could override it. It was not accepted by `cms_create_entry` or `cms_publish_entry`, `cms_schedule_publish` refuses past dates, and `cms_export` did not carry the column at all — so `cms_import` re-created every published entry through `createEntry` and dated the whole set to the moment of the import. Moving a blog between two Munin servers silently collapsed its archive into a single day, and importing one from another CMS had no way to keep the real dates. The workaround was to duplicate the date into a `publishedAt` field on the collection and sort the frontend on `data.publishedAt` instead of the built-in column.
+
+  - `cms_create_entry` accepts an optional `publishedAt` (ISO 8601) alongside `status: "published"`. Passing it on a draft is a `cms_invalid` error rather than a silently ignored argument; an unparseable value is rejected the same way.
+  - `cms_publish_entry` accepts the same optional `publishedAt`, so an entry imported as a draft can be published with its historical date. Omitting it still stamps now.
+  - `cms_export` emits `publishedAt` per entry and `cms_import` (and `POST /v1/cms/transfer/import`) restores it when creating a published entry, so a server-to-server transfer round-trips the date. Importing an export produced by an older server leaves the field absent and falls back to the previous behavior.
+
+  The delivery API already orders by `publishedAt` descending, so a frontend archive sorts on the built-in column with no duplicate field in `data`. `skill://cms/migrate-content`, `skill://cms/publish-entry`, `skill://cms/design-collection` and `skill://playbooks/data-migration` document this; the blog archetype in `design-collection` no longer suggests a redundant `publishedAt` field.
+
+  The same import loop flattened the other two statuses. `cms_import` mapped every non-published entry to `draft`, so archived entries came back as live drafts in the editing queue and the `scheduledAt` that `cms_export` emitted was never read by anything:
+
+  - Archived entries import as `archived`.
+  - An entry still scheduled for a future time imports as `scheduled` with its `scheduledAt`, and the target's schedule worker publishes it.
+  - An entry whose `scheduledAt` has already passed imports as a `draft` with a warning naming the entry and the stale time. A months-old export must not publish unreviewed content on the target the minute it lands, so the schedule is dropped deliberately rather than honored late — re-schedule with `cms_schedule_publish` or publish directly.
+
+  Entries that already exist on the target are unchanged here: import still patches their content and leaves the target's own `status`, `publishedAt` and `scheduledAt` alone.
+
+- 5802b45: Outreach: `proposedSendAt` now actually schedules a send
+
+  A proposal's `proposedSendAt` used to be inert metadata — it was stored, revisable and exported, but approval always delivered immediately and no worker ever read the column. Approving a draft that said "send Tuesday 09:00" sent it on the spot.
+
+  Approval is now the authorization, and the send time is honored:
+
+  - `outreach_approve_proposal` takes an optional `sendAt`. With no argument it inherits the draft's `proposedSendAt` when that is still in the future; `sendAt: null` forces an immediate send; a `sendAt` in the past is refused. A scheduled proposal parks at `status: 'approved'` with `scheduledSendAt` set, and `outreach_list_proposals({ status: 'approved' })` lists what is waiting, soonest first.
+  - A new `OutreachSendWorker` drains due proposals (default every 60s, `MUNIN_OUTREACH_SEND_POLL_MS`, disabled by `MUNIN_OUTREACH_SEND_WORKER_DISABLED`) and re-runs every eligibility check at send time: campaign still enabled, contact not suppressed and still consented, and no prospect reply on a follow-up. A proposal that fails any of them goes to `status: 'failed'` with `failureReason` instead of being delivered. Quiet hours and blackout dates hold the send until the window opens rather than failing it. Transient delivery errors retry up to five attempts (`send_attempts`) before giving up.
+  - New `outreach_cancel_scheduled_send` pulls an approved send back to `pending` before it goes out — the one real undo in outreach, and only before delivery.
+  - New events: `outreach.proposal.scheduled`, `outreach.proposal.send_canceled`, `outreach.proposal.send_failed`.
+  - The dashboard drawer names the inherited time on its approve button and offers Send now / Schedule…; a Scheduled sends section lists what is queued with a call-off action. The Inspector panel labels the button **Approve & schedule** and spells out the time above it.
+
+  The one-proposal-per-(campaign, contact, kind) unique index now covers `approved` alongside `pending`, so a contact with a scheduled send cannot pick up a second in-flight draft. Proposals that were scheduled on a source server import as `pending` with a warning — no timer follows the data across servers.
+
+### Patch Changes
+
+- f3db6e6: fix(conv): the channel listing stops handing out credential material
+
+  `toChannelDto` surfaced `conv_channels.config` as stored, so both consumers of the channel list — `GET /v1/conversations/channels` (the dashboard) and `conv_list_channels` (MCP, admin audience) — returned every secret the jsonb holds: the pgcrypto ciphertext of the Twilio auth token, the MessageBird access + signing keys, the Vapi and Threll API keys and webhook secrets, the nested SMTP/IMAP passwords, and — in plaintext, since the widget never encrypted it — the chat widget's `identityVerificationSecret`.
+
+  Only the ciphertexts need `MUNIN_ENCRYPTION_KEY` to be worth anything, and that key is not in the payload; the widget secret needs nothing. What made all of it worth removing is that nothing on either side reads these fields, while an agent's copy of a tool result travels: into a transcript, a log line, or an LLM provider's request body. Credential-derived material crossing that boundary widens the blast radius of any unrelated leak, and it does so for no gain.
+
+  A single projection, `publicChannelConfig` (`conv/channels/public-config.ts`), now walks the stored config recursively before it is surfaced. An `encrypted<Field>` key becomes `<field>: '••••'` when a secret is stored and `<field>: ''` when it is not, which is the shape the per-vendor DTOs and the dashboard already expect — so the list and the configure responses finally agree, and "credentials present" stays readable without the ciphertext. The widget's `identityVerificationSecret` collapses to `hasIdentityVerificationSecret`, matching that module's own sanitizer. Being a rule about key shape rather than a per-vendor list, it covers a vendor added later.
+
+  `needsCredentials` was email-only and therefore wrong for all five vendor-backed kinds — a Twilio channel parked on an unopened credential link reported `false`. It now reads the `pendingSetup` marker too, so the flag is truthful for every channel.
+
+  That truthful flag needed somewhere to lead. The dashboard's only credential form was the email SMTP/IMAP one, so a pending Twilio or Vapi channel could be created by an agent and then only be finished by opening the one-time credential link — an odd detour for someone already signed in to the dashboard, and the reason a vendor channel's "Awaiting credentials" state had nowhere to go. Channels now renders the same generic form the connectors page already uses: the secret fields come from `GET /v1/conversations/channels/vendors` (`configFields` where `secret: true`), and saving posts to the existing `POST /v1/conversations/channels/:id/credentials`, which completes the vendor-side setup and activates the channel. No new endpoint, and the credential link keeps working for handing the job to someone who is not in the dashboard.
+
+  A pending channel row now reads like a pending connector card — the same `StatusLine` dot, an outline "Enter credentials" as the only action, and no Edit button or test/place-call entry in the ⋯ menu, since every one of those is rejected while the channel is awaiting credentials.
+
+- fdf6734: Give every locale variant of a CMS entry its own slug.
+
+  `cms_entries` was already unique per `(collection, slug, locale)`, so a Norwegian row with slug `varlansering-2026` next to an English `spring-launch-2026` always stored fine. What blocked it was identity: the shared slug _was_ the link between locale variants — `skill://cms/localize-entry` told agents to create siblings with the same slug — so the moment the slugs diverged there was no way to answer "what are the other languages of this entry?". That question drives `hreflang`, language switchers, "which locales are still missing", and any decision about fallback.
+
+  Entries now carry `translation_group_id`. Variants share it, `(org, group, locale)` is unique, and no locale in a group is privileged — which matters because `cms_set_default_locale` can flip the default at any time, and a parent/child model would have made that a data migration. Slug and group are independent: a shared slug across locales is now a stylistic choice (fine for product codes, wrong for prose) rather than the mechanism.
+
+  `cms_create_entry` takes `translationOf` — the id of any entry in the group to join — and pre-checks the locale so a second `nb` variant conflicts with `cms_translation_conflict` instead of poisoning the request transaction into a bare 500. `cms_list_entry_translations` returns every variant with its own slug and status. `cms_link_translation` joins two entries that were authored separately and should have been linked; `cms_unlink_translation` undoes a wrong link by minting a fresh group of one. Changing an entry's `locale` through `cms_update_entry` gets the same group pre-check.
+
+  The delivery API adds `_locales: [{ locale, slug }, …]` to a published entry — every _published_ variant in its group, which is what `hreflang` and a language switcher need, and which drafts never enter. It still matches on both slug and locale, and a pair with no published row is still a `404`: `skill://cms/localize-entry` claimed a server-side fallback to the default locale that the controller never implemented, and the honest fix is documenting the `404` rather than shipping the fallback. Serving English under a Norwegian URL is worse than a miss, and `_locales` lets a frontend redirect deliberately.
+
+  Export/import keeps variants linked: `translationGroupId` rides along in the payload and is remapped to local groups on import. Payloads written before this change fall back to grouping by `(collection, slug)` — the old convention — and a variant whose target group already holds its locale is imported standalone with a warning rather than failing the import.
+
+  Migration `0062_cms_entry_translation_groups` backfills the same way, deriving the group id from `(collection_id, slug)` so it is idempotent and identical across environments. It sets `app.bypass_rls` inside the backfill: `cms_entries` is `FORCE ROW LEVEL SECURITY` and no `app.org_id` is set during a migration, so without it the `UPDATE` matches zero rows on a real deploy while a fresh CI database looks green.
+
+- 59634b2: Let `conv_list_conversations` express the curation sweep's eligibility rule.
+
+  `skill://kb/review-content` told the sweep agent to scope to "the last 7 days of resolved handovers" and to pass `since` to `conv_list_conversations`. That tool had no `since` and no handover filter, so both rules were prose the agent could skip — and on 2 August the weekly sweep skipped both, drafting KB candidates from six-week-old conversations that never had a handover at all.
+
+  Worse, the field the skill named as the handover signal does not survive the handover. It claimed `needsHumanAttentionAt` "is set whenever the conversation was _ever_ flagged, even if the flag has since been cleared". Both clear paths — a non-internal staff reply, and closing the conversation — set `needsHumanAttention = false` **and** `needsHumanAttentionAt = null`. A resolved handover was indistinguishable from a conversation the agent handled alone.
+
+  `conv_conversations.handover_resolved_at` is stamped when the flag clears (only for rows that were actually flagged) and nulled when a handover is re-requested. `conv_list_conversations` gains:
+
+  - `handover: 'active' | 'resolved' | 'never'` — waiting on a human, answered and cleared, or no handover on record.
+  - `since` — ISO 8601; keeps conversations whose `lastMessageAt` is at or after it. A malformed value is a `conv_invalid` error, not a 500.
+
+  `handoverResolvedAt` is on the conversation DTO. It is null for everything resolved before this migration — there is nothing to backfill, since the timestamp was being erased — so old conversations do not appear under `handover: 'resolved'`. The skill says so, and the sweep prompt now names the exact call.
+
+- 5b4fb1a: Bind merge application to the proposal that was reviewed.
+
+  `crm_apply_merge_proposal` took only `{ id }`, and `crm_propose_merge` does not always create a proposal: on a pair that already has a pending one it updates that row in place, overwriting `confidence`, `evidence`, `recommendedKeeperId` and `recommendedPatch` under the same id. Merge proposals also have none of the review tracking outreach has — no `revisionCount`, no `revisedAfterReviewAt` — so the rewrite was completely silent. A curator pass that re-filed a pair with the keeper flipped would change the card an operator was reading, and their click would retire the contact they meant to keep.
+
+  Applying is not a small write: it copies the patch onto the keeper, repoints activities, deals and relationships, archives the duplicate with `doNotContact: true` and a cleared `endUserId`, auto-dismisses pending outreach proposals for the duplicate, and auto-dismisses other pending merge proposals touching it. Unwinding all of that by hand is not realistic, and the dismissed outreach followups do not come back.
+
+  Proposals now carry a `mergeFingerprint` over `(contactAId, contactBId, recommendedKeeperId, confidence, recommendedPatch)` and apply requires it — `{ id, fingerprint }` on the MCP tool, `{ fingerprint }` in the body of `POST /v1/crm/merge-proposals/:id/apply`. A mismatch is a `409` with `crm_conflict`: nothing is merged and the proposal stays pending. The Slack apply button carries the digest in its action value; the panel and the dashboard pass what they rendered, and the panel re-lists on a refusal so the operator lands on the current proposal with the conflict still shown.
+
+  The digest deliberately covers the proposal row and not the contact rows behind it. `crm_update_contact` can change the name or email a card displays, but it cannot change which record survives or what patch lands, and digesting live contact fields would invalidate queued cards on ordinary CRM activity — conflicts on untampered work teach operators to click through them.
+
+  `evidence` is also excluded, so the weekly hygiene pass can refresh its reasoning on a pending pair without invalidating a queue the operator is working through. Only a changed decision invalidates a review.
+
+- 992f78a: Make a dismissed KB curation candidate stay dismissed.
+
+  Candidates are `kb_documents` rows that are deleted on dismiss and on publish, and the only thing stopping a curation pass from refiling a source conversation was a candidate still sitting in `kb-curation-inbox`. Empty the inbox — review a batch, publish two, dismiss the rest — and the next weekly sweep redrafts the same conversations from scratch. That happened in production: candidates reviewed on 26 July came back on 2 August, six weeks after the conversations themselves.
+
+  `kb_curation_decisions` records one row per decision (`dismissed` or `published`) with the reason, the deciding actor, and the published document when there is one. Rows outlive the candidate and the source conversation. `kb_propose_curation_candidate` now pre-checks the source conversation and throws `kb_curation_decided` when one exists, so the gate is enforced in the service rather than described in the skill — the "last 7 days" and "resolved handovers only" rules were prose-only, and the sweep that produced those drafts honored neither.
+
+  Blocking is coarse and permanent, matching `crm_merge_proposals`: one decision retires the whole conversation, and there is no un-dismiss. Title matching would lose to rewording — the June and August drafts of the same answer had different titles. Something genuinely new from a decided conversation goes in with `kb_create_document`.
+
+  New tools: `kb_dismiss_curation_candidate` (deletes the draft, records the decision, takes an optional `reason` and the reviewed `ifVersion`) and `kb_list_curation_decisions` (filter by `outcome` or `sourceConversationId`). Dismissing with `kb_delete_document` still records a reasonless decision, so the Slack button, the dashboard drawer and the Inspector panel are all covered by the same choke point in `removeDocument`.
+
+  `POST /v1/kb/curation/candidates/:id/dismiss` accepts `reason` and `ifVersion`; `KbCurationDecidedError` maps to a 409 there. The dashboard drawer and the panel now say the dismissal is permanent.
+
+- f5b2992: Bind KB curation publishing to the version that was reviewed.
+
+  A curation candidate is an ordinary KB document, `kb_update_document` rewrites its title and body, and `publishCurationCandidate` copies `candidate.title` and `candidate.body` verbatim into the target space. So an agent could rewrite the draft after the review card rendered and the operator's click would publish text nobody read.
+
+  `kb_publish_curation_candidate` now requires `ifVersion`, the same optimistic-concurrency argument `kb_update_document`, `kb_delete_document` and `kb_restore_version` already take, and `POST /v1/kb/curation/candidates/:id/publish` takes it in the body. A mismatch throws `KbConflictError`, nothing is written to the target space and the candidate stays in the inbox. The check runs before target-space resolution, so a refused publish no longer auto-creates a space as a side effect.
+
+  `KbConflictError` now maps to a 409 in the candidates controller. It was unmapped, so a version conflict on that route surfaced as a bare 500.
+
+  The Slack publish button carries the reviewed version in its action value, which the approval codec already had a slot for. Without it the Slack path would have read the current version and passed that back, making the check vacuously true on the one surface where the card can sit unread the longest.
+
+  Also fixes the Inspector panel's Dismiss button, which called `kb_delete_document` without the required `ifVersion` and therefore failed schema validation on every click. Both panel actions now use the version of the body the operator actually opened, falling back to the list version. Publish re-lists on a refusal so the operator lands on the current draft with the conflict still shown.
+
+- d78ff2a: Bind outreach approval to the draft that was reviewed, not to the proposal id.
+
+  `outreach_approve_proposal` took only `{ id }`, so it meant "send proposal #a3f9", never "send the email I just read". `outreach_revise_proposal` is model-callable and mutates a pending draft in place, so an agent could rewrite the body after the panel, the dashboard drawer or the Slack card had rendered it — and the operator's click would send the rewrite. The revision count on the card was the only tell, and it was advisory: a human had to notice it on a card they had already decided about.
+
+  Every proposal now carries a `draftFingerprint` (a digest of campaign, contact, kind, subject, body and proposed send time) and approval requires it — `{ id, fingerprint }` on the MCP tool, `{ fingerprint }` in the body of `POST /v1/outreach/proposals/:id/approve`. A mismatch is a `409` with `outreach_conflict`: nothing is sent and the proposal stays pending, so the drift goes back through review instead of through the wire. Approve already re-checked campaign state, contact suppression and superseding replies at click time; the draft text is now one of those conditions.
+
+  All three review surfaces pass what they rendered. The Slack approve button carries the digest in its action value, and the bridge already re-renders the card on `outreach.proposal.updated`, so a revised draft rebinds its button and a card that missed the update refuses rather than sending stale text. The Inspector panel re-lists on a refused approval so the operator lands on the current draft with the conflict still shown.
+
+  This deliberately stops short of single-use tokens. The proposal state machine already refuses anything non-pending, which covers replay; what was missing was binding the decision to the content, and a digest does that without an issuance store or a secret inside the iframe. `crm_apply_merge_proposal` and `kb_publish_curation_candidate` are still id-bound and want the same treatment.
+
+- f9f4d11: fix(outreach): duplicate proposals and campaign names return a conflict, not a 500
+
+  Four outreach write paths leaned on a `try/catch` around the insert (or nothing at
+  all) to turn a unique violation into a `ConflictException`. That never worked over
+  `/mcp`: the handler runs inside the request's tenant transaction, so the violation
+  poisons it and the _commit_ fails after the handler returns — past the catch —
+  surfacing as a bare `{"statusCode":500,"message":"Internal server error"}`.
+
+  Each now pre-checks with a `SELECT` before the failing statement:
+
+  - `outreach_propose_first_touch` — a second **pending** first-touch for the same
+    (campaign, contact) was unguarded; the pre-check only looked for `sent` /
+    `approved`.
+  - `outreach_propose_reply` — a second pending reply for the same conversation had
+    no pre-check at all.
+  - `outreach_create_campaign` — duplicate campaign name within the org.
+  - `outreach_update_campaign` — renaming a campaign onto an existing name had
+    neither a pre-check nor a catch, so it was always a raw 500.
+
+  The existing catches stay as backstops for genuine races. `outreach_propose_followup`
+  already pre-checked and is unchanged. The pre-checks also mean these paths no longer
+  depend on the unique index's _name_, which is what made the failure invisible until
+  an index rename exposed it.
+
+- 180727a: fix(slack): mirrored replies lose their signature when the strip lands late
+
+  An inbound email is mirrored into Slack the moment it is ingested, but the
+  signature stripper is a curator job that runs afterwards — so the dashboard
+  showed the cleaned one-liner while the Slack thread kept the full sign-off and
+  contact block. `conv_strip_message_signature` now emits
+  `conversation.message.body_revised`, and the Slack bridge edits the reply it
+  already posted (`chat.update`) instead of leaving the stale copy in place.
+
+  `slack_message_links.author_labeled` records whether the mirror had to embed the
+  speaker's name in the message text (the `chat:write.customize` fallback), so the
+  edit reproduces the same shape rather than silently dropping the author line.
+
+- cfa0241: Withhold the agent reply when the audit pass marks a conversation as spam, and stop the assistant redirecting senders off-channel.
+
+  The audit pass runs after generation but before delivery, so a `mark_spam` verdict flipped the conversation to `spam` and then posted the generated reply anyway — a cold pitch got both a spam label and a polite answer. The verdict now gates delivery: on spam the reply is withheld and parked as a `draft_reply` instead, so a misclassified customer is one click from recovery rather than a silently dropped thread. `shouldRespond` already skips non-open conversations, so later turns stay silent too.
+
+  Parking needs a way to author a draft without requesting a handover, so `conv.setDraftReply` and `POST /v1/conversations/:id/draft-reply` are new; the endpoint replaces any existing draft rather than stacking, and pre-checks the conversation so an unknown id is a 404 rather than a poisoned transaction.
+
+  The seed system prompt scoped its no-redirect rule to handovers only, so it never bound on a reply that wasn't one. That rule is now unconditional, adds "never name a contact address the sender already wrote to" (inbound mail has by definition already reached the right inbox), and tells the assistant to decline pitches briefly without routing anyone anywhere. Existing orgs keep the prompt they already have in KB — the seed only applies to orgs that don't have the document yet.
+
+- 144a49c: fix(agent-runtime): close three prompt-injection holes in how untrusted text reaches the model
+
+  Three gaps in the runtime's untrusted-content handling, all reachable by text an outsider controls. A new `untrusted.ts` module in `@getmunin/agent-runtime` is now the single place that fences untrusted text: `fenceUntrusted(tag, body, attrs)` wraps content in a reserved tag and escapes any reserved framing tag inside it, so a fenced region can only be closed by the fence itself.
+
+  **Tool results could break out of their own `<data>` wrapper.** `runAgent` wraps every tool result in `<tool_result tool="…"><data>…</data></tool_result>` and pairs it with a system note telling the model to treat everything inside `<data>` as information, never as instructions. The wrapper interpolated the tool body verbatim, so a KB document, CRM field, or inbound email containing the literal `</data></tool_result>` closed the region early and everything after it read as sitting _outside_ the untrusted frame — the whole defense was a string-delimiter contract with no escaping, the same shape of bug as unescaped SQL. Escaping is tolerant of casing, internal whitespace and attributes, and leaves `<database>`-style lookalikes alone. The `tool` attribute is sanitized too: the name comes from the model's tool call, so a crafted name could otherwise escape the attribute even when the call itself resolves to an unknown tool.
+
+  **Scraped third-party HTML reached the customer-facing agent's system prompt.** `kb_import_website` crawls a site, summarises it into a `company-profile` KB document, and the conversation runtime concatenated that document verbatim into the system prompt of every end-user conversation. Neither stage was defended: the summariser called the provider directly (bypassing `runAgent`, so it never got the untrusted-data note) and pasted raw page markdown into a plain user turn, and the runtime pasted the result straight into its most-trusted channel. A crawl reaching any page with third-party content — a blog comment, a review widget, a forum, a stale subdomain — could therefore write instructions into the support agent's system prompt. Scraped pages are now fenced per page as `<source_page url="…" title="…">` with the summariser told explicitly that page content is data to describe and never instructions to follow, and the runtime wraps the profile in `<company_context>` behind a note marking it as reference material. The block is still omitted entirely when no profile exists.
+
+  **Imported conversation history could plant a real system turn.** `historyToChatMessage` mapped a message with `authorType: 'system'` to a genuine `role: 'system'` message. Every system note Munin writes itself is `internal: true` and filtered out of runtime history, so the branch was unreachable in practice — except through `conv_import`, whose schema accepts `authorType: 'system'` with `internal: false`. Migration payloads are exactly where third-party text lives (a Zendesk or Intercom export is full of end-user prose), which made this a path from an untrusted export straight into the agent's most-trusted channel. Fixed at both ends: system-authored history is now rendered as an assistant-side `[System note]`, matching how staff messages are already handled, and `conv_import` stores `system` messages as internal staff-only notes regardless of the payload flag, reporting each coercion in `warnings`.
+
+  **Connected MCP hosts were told none of this.** The untrusted-data note lives inside Munin's own runtime, so an admin agent driving `/mcp` from claude.ai or any other host received raw tool results — arbitrary customer and end-user prose — into a session holding `kb:write`, `crm:write` and the rest, with nothing marking it as third-party text. The server `instructions` every host surfaces at initialize now carry a data-provenance paragraph naming which modules return text Munin did not author, and a note that the `agent-runtime` and `website-import` KB spaces are live agent configuration rather than reference material, so edits there change how the org's support agent behaves in every future conversation.
+
+  None of this changes normal operation — no code path produced a public `system` message, no legitimate tool result or company profile contains its own closing framing tags, and the profile's content and wording are unchanged.
+
+- Updated dependencies [fdf6734]
+- Updated dependencies [59634b2]
+- Updated dependencies [5b4fb1a]
+- Updated dependencies [992f78a]
+- Updated dependencies [f5b2992]
+- Updated dependencies [d78ff2a]
+- Updated dependencies [5802b45]
+- Updated dependencies [180727a]
+- Updated dependencies [cfa0241]
+- Updated dependencies [144a49c]
+- Updated dependencies [6dd772d]
+  - @getmunin/db@4.78.0
+  - @getmunin/inspector-app@4.78.0
+  - @getmunin/types@4.78.0
+  - @getmunin/agent-runtime@4.78.0
+  - @getmunin/core@4.78.0
+  - @getmunin/mcp-toolkit@4.78.0
+  - @getmunin/emails@4.78.0
+
 ## 4.77.0
 
 ### Minor Changes

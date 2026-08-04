@@ -1,5 +1,81 @@
 # @getmunin/db
 
+## 4.78.0
+
+### Minor Changes
+
+- 5802b45: Outreach: `proposedSendAt` now actually schedules a send
+
+  A proposal's `proposedSendAt` used to be inert metadata — it was stored, revisable and exported, but approval always delivered immediately and no worker ever read the column. Approving a draft that said "send Tuesday 09:00" sent it on the spot.
+
+  Approval is now the authorization, and the send time is honored:
+
+  - `outreach_approve_proposal` takes an optional `sendAt`. With no argument it inherits the draft's `proposedSendAt` when that is still in the future; `sendAt: null` forces an immediate send; a `sendAt` in the past is refused. A scheduled proposal parks at `status: 'approved'` with `scheduledSendAt` set, and `outreach_list_proposals({ status: 'approved' })` lists what is waiting, soonest first.
+  - A new `OutreachSendWorker` drains due proposals (default every 60s, `MUNIN_OUTREACH_SEND_POLL_MS`, disabled by `MUNIN_OUTREACH_SEND_WORKER_DISABLED`) and re-runs every eligibility check at send time: campaign still enabled, contact not suppressed and still consented, and no prospect reply on a follow-up. A proposal that fails any of them goes to `status: 'failed'` with `failureReason` instead of being delivered. Quiet hours and blackout dates hold the send until the window opens rather than failing it. Transient delivery errors retry up to five attempts (`send_attempts`) before giving up.
+  - New `outreach_cancel_scheduled_send` pulls an approved send back to `pending` before it goes out — the one real undo in outreach, and only before delivery.
+  - New events: `outreach.proposal.scheduled`, `outreach.proposal.send_canceled`, `outreach.proposal.send_failed`.
+  - The dashboard drawer names the inherited time on its approve button and offers Send now / Schedule…; a Scheduled sends section lists what is queued with a call-off action. The Inspector panel labels the button **Approve & schedule** and spells out the time above it.
+
+  The one-proposal-per-(campaign, contact, kind) unique index now covers `approved` alongside `pending`, so a contact with a scheduled send cannot pick up a second in-flight draft. Proposals that were scheduled on a source server import as `pending` with a warning — no timer follows the data across servers.
+
+### Patch Changes
+
+- fdf6734: Give every locale variant of a CMS entry its own slug.
+
+  `cms_entries` was already unique per `(collection, slug, locale)`, so a Norwegian row with slug `varlansering-2026` next to an English `spring-launch-2026` always stored fine. What blocked it was identity: the shared slug _was_ the link between locale variants — `skill://cms/localize-entry` told agents to create siblings with the same slug — so the moment the slugs diverged there was no way to answer "what are the other languages of this entry?". That question drives `hreflang`, language switchers, "which locales are still missing", and any decision about fallback.
+
+  Entries now carry `translation_group_id`. Variants share it, `(org, group, locale)` is unique, and no locale in a group is privileged — which matters because `cms_set_default_locale` can flip the default at any time, and a parent/child model would have made that a data migration. Slug and group are independent: a shared slug across locales is now a stylistic choice (fine for product codes, wrong for prose) rather than the mechanism.
+
+  `cms_create_entry` takes `translationOf` — the id of any entry in the group to join — and pre-checks the locale so a second `nb` variant conflicts with `cms_translation_conflict` instead of poisoning the request transaction into a bare 500. `cms_list_entry_translations` returns every variant with its own slug and status. `cms_link_translation` joins two entries that were authored separately and should have been linked; `cms_unlink_translation` undoes a wrong link by minting a fresh group of one. Changing an entry's `locale` through `cms_update_entry` gets the same group pre-check.
+
+  The delivery API adds `_locales: [{ locale, slug }, …]` to a published entry — every _published_ variant in its group, which is what `hreflang` and a language switcher need, and which drafts never enter. It still matches on both slug and locale, and a pair with no published row is still a `404`: `skill://cms/localize-entry` claimed a server-side fallback to the default locale that the controller never implemented, and the honest fix is documenting the `404` rather than shipping the fallback. Serving English under a Norwegian URL is worse than a miss, and `_locales` lets a frontend redirect deliberately.
+
+  Export/import keeps variants linked: `translationGroupId` rides along in the payload and is remapped to local groups on import. Payloads written before this change fall back to grouping by `(collection, slug)` — the old convention — and a variant whose target group already holds its locale is imported standalone with a warning rather than failing the import.
+
+  Migration `0062_cms_entry_translation_groups` backfills the same way, deriving the group id from `(collection_id, slug)` so it is idempotent and identical across environments. It sets `app.bypass_rls` inside the backfill: `cms_entries` is `FORCE ROW LEVEL SECURITY` and no `app.org_id` is set during a migration, so without it the `UPDATE` matches zero rows on a real deploy while a fresh CI database looks green.
+
+- 59634b2: Let `conv_list_conversations` express the curation sweep's eligibility rule.
+
+  `skill://kb/review-content` told the sweep agent to scope to "the last 7 days of resolved handovers" and to pass `since` to `conv_list_conversations`. That tool had no `since` and no handover filter, so both rules were prose the agent could skip — and on 2 August the weekly sweep skipped both, drafting KB candidates from six-week-old conversations that never had a handover at all.
+
+  Worse, the field the skill named as the handover signal does not survive the handover. It claimed `needsHumanAttentionAt` "is set whenever the conversation was _ever_ flagged, even if the flag has since been cleared". Both clear paths — a non-internal staff reply, and closing the conversation — set `needsHumanAttention = false` **and** `needsHumanAttentionAt = null`. A resolved handover was indistinguishable from a conversation the agent handled alone.
+
+  `conv_conversations.handover_resolved_at` is stamped when the flag clears (only for rows that were actually flagged) and nulled when a handover is re-requested. `conv_list_conversations` gains:
+
+  - `handover: 'active' | 'resolved' | 'never'` — waiting on a human, answered and cleared, or no handover on record.
+  - `since` — ISO 8601; keeps conversations whose `lastMessageAt` is at or after it. A malformed value is a `conv_invalid` error, not a 500.
+
+  `handoverResolvedAt` is on the conversation DTO. It is null for everything resolved before this migration — there is nothing to backfill, since the timestamp was being erased — so old conversations do not appear under `handover: 'resolved'`. The skill says so, and the sweep prompt now names the exact call.
+
+- 992f78a: Make a dismissed KB curation candidate stay dismissed.
+
+  Candidates are `kb_documents` rows that are deleted on dismiss and on publish, and the only thing stopping a curation pass from refiling a source conversation was a candidate still sitting in `kb-curation-inbox`. Empty the inbox — review a batch, publish two, dismiss the rest — and the next weekly sweep redrafts the same conversations from scratch. That happened in production: candidates reviewed on 26 July came back on 2 August, six weeks after the conversations themselves.
+
+  `kb_curation_decisions` records one row per decision (`dismissed` or `published`) with the reason, the deciding actor, and the published document when there is one. Rows outlive the candidate and the source conversation. `kb_propose_curation_candidate` now pre-checks the source conversation and throws `kb_curation_decided` when one exists, so the gate is enforced in the service rather than described in the skill — the "last 7 days" and "resolved handovers only" rules were prose-only, and the sweep that produced those drafts honored neither.
+
+  Blocking is coarse and permanent, matching `crm_merge_proposals`: one decision retires the whole conversation, and there is no un-dismiss. Title matching would lose to rewording — the June and August drafts of the same answer had different titles. Something genuinely new from a decided conversation goes in with `kb_create_document`.
+
+  New tools: `kb_dismiss_curation_candidate` (deletes the draft, records the decision, takes an optional `reason` and the reviewed `ifVersion`) and `kb_list_curation_decisions` (filter by `outcome` or `sourceConversationId`). Dismissing with `kb_delete_document` still records a reasonless decision, so the Slack button, the dashboard drawer and the Inspector panel are all covered by the same choke point in `removeDocument`.
+
+  `POST /v1/kb/curation/candidates/:id/dismiss` accepts `reason` and `ifVersion`; `KbCurationDecidedError` maps to a 409 there. The dashboard drawer and the panel now say the dismissal is permanent.
+
+- 180727a: fix(slack): mirrored replies lose their signature when the strip lands late
+
+  An inbound email is mirrored into Slack the moment it is ingested, but the
+  signature stripper is a curator job that runs afterwards — so the dashboard
+  showed the cleaned one-liner while the Slack thread kept the full sign-off and
+  contact block. `conv_strip_message_signature` now emits
+  `conversation.message.body_revised`, and the Slack bridge edits the reply it
+  already posted (`chat.update`) instead of leaving the stale copy in place.
+
+  `slack_message_links.author_labeled` records whether the mirror had to embed the
+  speaker's name in the message text (the `chat:write.customize` fallback), so the
+  edit reproduces the same shape rather than silently dropping the author line.
+
+- Updated dependencies [5802b45]
+- Updated dependencies [180727a]
+  - @getmunin/types@4.78.0
+
 ## 4.77.0
 
 ### Minor Changes

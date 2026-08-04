@@ -84,6 +84,11 @@ The tool will refuse to apply changes if:
 
 A refusal is fine — the original body stays in place.
 
+An applied cut emits `conversation.message.body_revised`. Operator bridges use
+that event to edit the copy of the message they already mirrored (the Slack
+thread reply), so the signature disappears there too — you don't need to do
+anything else.
+
 ## Examples
 
 **Example 1 — typical iPhone reply**

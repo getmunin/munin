@@ -556,6 +556,106 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     expect(reply.text).toContain('legacy install message');
   });
 
+  it('edits the mirrored reply when a signature strip revises the body afterwards', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const conversationId = await seedConversation();
+    const messageId = await seedMessage(
+      conversationId,
+      "Sure, let's talk!\n\nKjell Rune Monsø\nCTO\nApps AS\n+47 414 25 762",
+    );
+    await enqueue('conversation.message.received', conversationId, {
+      conversationId,
+      messageId,
+      authorType: 'end_user',
+      internal: false,
+    });
+    await worker.tick();
+
+    const reply = api.posted.at(-1)!;
+    expect(reply.text).toContain('+47 414 25 762');
+
+    await db
+      .update(schema.convMessages)
+      .set({ body: "Sure, let's talk!" })
+      .where(eq(schema.convMessages.id, messageId));
+    await enqueue('conversation.message.body_revised', conversationId, {
+      conversationId,
+      messageId,
+      authorType: 'end_user',
+      internal: false,
+      reason: 'signature_stripped',
+    });
+
+    const result = await worker.tick();
+    expect(result.delivered).toBe(1);
+
+    const edit = api.updated.at(-1)!;
+    expect(edit.ts).toBe(reply.ts);
+    expect(edit.channel).toBe(reply.channel);
+    expect(edit.text).toBe("Sure, let's talk!");
+  });
+
+  it('keeps the author label when editing a reply mirrored without chat:write.customize', async () => {
+    const api = new FakeSlackApi();
+    api.rejectCustomizedPosts = true;
+    const worker = new SlackBridgeWorker(db, api);
+    const conversationId = await seedConversation();
+    const messageId = await seedMessage(conversationId, 'Sounds good!\n\nAda\nada@example.com');
+    await enqueue('conversation.message.received', conversationId, {
+      conversationId,
+      messageId,
+      authorType: 'end_user',
+      internal: false,
+    });
+    await worker.tick();
+
+    await db
+      .update(schema.convMessages)
+      .set({ body: 'Sounds good!' })
+      .where(eq(schema.convMessages.id, messageId));
+    await enqueue('conversation.message.body_revised', conversationId, {
+      conversationId,
+      messageId,
+    });
+    await worker.tick();
+
+    const edit = api.updated.at(-1)!;
+    expect(edit.text).toContain('Ada Lovelace');
+    expect(edit.text).toContain('Sounds good!');
+    expect(edit.text).not.toContain('ada@example.com');
+  });
+
+  it('leaves a body revision alone when the message came in from Slack', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const conversationId = await seedConversation();
+    const messageId = await seedMessage(conversationId, 'typed in Slack');
+    await db.insert(schema.slackConversationLinks).values({
+      orgId,
+      integrationId,
+      conversationId,
+      slackChannelId: 'C_DEFAULT',
+      slackThreadTs: '1690000000.000101',
+    });
+    await db.insert(schema.slackMessageLinks).values({
+      orgId,
+      conversationId,
+      messageId,
+      slackChannelId: 'C_DEFAULT',
+      slackTs: '1690000000.000102',
+      origin: 'slack',
+    });
+
+    await enqueue('conversation.message.body_revised', conversationId, {
+      conversationId,
+      messageId,
+    });
+    const result = await worker.tick();
+    expect(result.delivered).toBe(1);
+    expect(api.updated.filter((u) => u.ts === '1690000000.000102')).toHaveLength(0);
+  });
+
   it('hides the Claim button on the parent while the conversation is claimed', async () => {
     const api = new FakeSlackApi();
     const worker = new SlackBridgeWorker(db, api);

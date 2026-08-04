@@ -247,6 +247,61 @@ const skipReason = TEST_URL
     expect(released.body.released).toBe(true);
   }, 30_000);
 
+  it('draft-reply parks a draft and replaces it instead of stacking', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'Want to buy a directory listing?' },
+    );
+    expect(startResp.status).toBe(201);
+    const started = startResp.body;
+
+    type Detail = {
+      messages: Array<{
+        body: string;
+        internal?: boolean;
+        metadata?: Record<string, unknown> | null;
+      }>;
+    };
+    const drafts = (d: Detail): string[] =>
+      d.messages
+        .filter((m) => m.internal && m.metadata?.['kind'] === 'draft_reply')
+        .map((m) => m.body);
+
+    const first = await rest<{ id: string }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${started.id}/draft-reply`,
+      { body: 'Thanks, but we are not interested.' },
+    );
+    expect(first.status).toBe(200);
+    expect(first.body.id).toBeTruthy();
+
+    const second = await rest<{ id: string }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${started.id}/draft-reply`,
+      { body: 'Thanks for reaching out — we will pass on this.' },
+    );
+    expect(second.status).toBe(200);
+
+    const detail = await rest<Detail>(adminKeyA, 'GET', `/v1/conversations/${started.id}`);
+    expect(drafts(detail.body)).toEqual([
+      'Thanks for reaching out — we will pass on this.',
+    ]);
+  }, 30_000);
+
+  it('draft-reply on an unknown conversation is a 404, not a 500', async () => {
+    const resp = await rest<unknown>(
+      adminKeyA,
+      'POST',
+      '/v1/conversations/00000000-0000-0000-0000-000000000000/draft-reply',
+      { body: 'nobody home' },
+    );
+    expect(resp.status).toBe(404);
+  }, 30_000);
+
   it('clear-draft removes the suggested handover draft', async () => {
     const startResp = await rest<{ id: string }>(
       endUserToken,

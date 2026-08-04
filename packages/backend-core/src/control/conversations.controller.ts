@@ -74,6 +74,10 @@ const HandoverBody = z
   })
   .partial();
 
+const DraftReplyBody = z.object({
+  body: z.string().min(1).max(50_000),
+});
+
 const TopicBody = z.object({
   topicId: z.string().nullable(),
 });
@@ -285,6 +289,16 @@ export class ConversationsController {
         reason: parsed.data.reason,
         publicFallbackMessage: parsed.data.publicFallbackMessage,
       }),
+    );
+  }
+
+  @Post(':id/draft-reply')
+  @HttpCode(200)
+  async setDraftReply(@Param('id') id: string, @Body() body: unknown): Promise<{ id: string }> {
+    const parsed = DraftReplyBody.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(() =>
+      this.conv.setDraftReply({ conversationId: id, body: parsed.data.body }),
     );
   }
 

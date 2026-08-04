@@ -542,6 +542,146 @@ const skipReason = TEST_URL
     });
   });
 
+  it('a duplicate pending first-touch conflicts over /mcp instead of failing the transaction', async () => {
+    await withClient(adminKey, async (c) => {
+      const created = firstJson(
+        await c.callTool({
+          name: 'outreach_create_campaign',
+          arguments: {
+            name: 'pending-dup-guard',
+            brief: 'A second pending first-touch must not reach the unique index.',
+            segmentId,
+            channelId,
+          },
+        }),
+      ) as { id: string };
+
+      const first = await c.callTool({
+        name: 'outreach_propose_first_touch',
+        arguments: {
+          campaignId: created.id,
+          contactId,
+          draftSubject: 'Hi Jane',
+          draftBody: 'First touch.',
+        },
+      });
+      expect(first.isError, JSON.stringify(first)).not.toBe(true);
+
+      const dup = await c.callTool({
+        name: 'outreach_propose_first_touch',
+        arguments: {
+          campaignId: created.id,
+          contactId,
+          draftSubject: 'Hi Jane again',
+          draftBody: 'Second touch.',
+        },
+      });
+      const raw = JSON.stringify(dup);
+      expect(dup.isError).toBe(true);
+      expect(raw).toContain('outreach_conflict');
+      expect(raw).toContain('pending');
+      expect(raw).not.toContain('duplicate key value');
+      expect(raw).not.toContain('Internal server error');
+    });
+  });
+
+  it('a duplicate pending reply conflicts over /mcp instead of failing the transaction', async () => {
+    const [convContact] = await db
+      .insert(schema.convContacts)
+      .values({ orgId, email: 'jane@acme.com', name: 'Jane Doe' })
+      .returning();
+    const nextDisplay = await db.execute<{ next: number }>(
+      sql`SELECT conv_next_display_id(${orgId}) AS next`,
+    );
+    const [campaign] = await db
+      .insert(schema.outreachCampaigns)
+      .values({
+        orgId,
+        name: 'reply-dup-guard',
+        brief: 'A second pending reply must not reach the unique index.',
+        segmentId,
+        channelId,
+        enabled: true,
+        unsubscribeRequired: true,
+        createdByActorType: 'admin_agent',
+        createdByActorId: 'outreach-it-setup',
+      })
+      .returning();
+    const [conv] = await db
+      .insert(schema.convConversations)
+      .values({
+        orgId,
+        channelId,
+        contactId: convContact!.id,
+        displayId: nextDisplay[0]!.next,
+        status: 'open',
+        outreachCampaignId: campaign!.id,
+      })
+      .returning();
+
+    await withClient(adminKey, async (c) => {
+      const first = await c.callTool({
+        name: 'outreach_propose_reply',
+        arguments: { conversationId: conv!.id, draftBody: 'Happy to help.' },
+      });
+      expect(first.isError, JSON.stringify(first)).not.toBe(true);
+
+      const dup = await c.callTool({
+        name: 'outreach_propose_reply',
+        arguments: { conversationId: conv!.id, draftBody: 'Happy to help, again.' },
+      });
+      const raw = JSON.stringify(dup);
+      expect(dup.isError).toBe(true);
+      expect(raw).toContain('outreach_conflict');
+      expect(raw).not.toContain('duplicate key value');
+      expect(raw).not.toContain('Internal server error');
+    });
+  });
+
+  it('create_campaign and update_campaign conflict on a duplicate name instead of failing the transaction', async () => {
+    await withClient(adminKey, async (c) => {
+      const args = {
+        name: 'name-dup-guard',
+        brief: 'Campaign names are unique per org.',
+        segmentId,
+        channelId,
+      };
+      const created = firstJson(
+        await c.callTool({ name: 'outreach_create_campaign', arguments: args }),
+      ) as { id: string };
+
+      const dup = await c.callTool({ name: 'outreach_create_campaign', arguments: args });
+      const dupRaw = JSON.stringify(dup);
+      expect(dup.isError).toBe(true);
+      expect(dupRaw).toContain('outreach_conflict');
+      expect(dupRaw).not.toContain('duplicate key value');
+      expect(dupRaw).not.toContain('Internal server error');
+
+      const other = firstJson(
+        await c.callTool({
+          name: 'outreach_create_campaign',
+          arguments: { ...args, name: 'name-dup-guard-other' },
+        }),
+      ) as { id: string };
+
+      const renameClash = await c.callTool({
+        name: 'outreach_update_campaign',
+        arguments: { id: other.id, patch: { name: args.name } },
+      });
+      const renameRaw = JSON.stringify(renameClash);
+      expect(renameClash.isError).toBe(true);
+      expect(renameRaw).toContain('outreach_conflict');
+      expect(renameRaw).not.toContain('duplicate key value');
+      expect(renameRaw).not.toContain('Internal server error');
+
+      const renameSelf = await c.callTool({
+        name: 'outreach_update_campaign',
+        arguments: { id: created.id, patch: { name: args.name } },
+      });
+      expect(renameSelf.isError, JSON.stringify(renameSelf)).not.toBe(true);
+    });
+  });
+
   it('automation flags default to autoDraftFirstTouch=false / autoDraftReplies=true and are togglable', async () => {
     await withClient(adminKey, async (c) => {
       const created = firstJson(

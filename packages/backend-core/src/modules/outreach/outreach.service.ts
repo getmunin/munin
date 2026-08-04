@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { makeId, schema, type Db } from '@getmunin/db';
 import { DB } from '../../common/db/db.module.ts';
-import { and, asc, desc, eq, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, inArray, ne, sql, type SQL } from 'drizzle-orm';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import {
@@ -249,6 +249,7 @@ export class OutreachService {
         'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
       );
     }
+    await this.assertCampaignNameFree(input.name);
     try {
       const [row] = await ctx.db
         .insert(schema.outreachCampaigns)
@@ -308,6 +309,10 @@ export class OutreachService {
           );
         }
       }
+    }
+    if (input.patch.name !== undefined) {
+      if (!input.patch.name.trim()) throw new OutreachInvalidError('name must be non-empty');
+      await this.assertCampaignNameFree(input.patch.name, input.id);
     }
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     for (const [k, v] of Object.entries(input.patch)) {
@@ -465,7 +470,7 @@ export class OutreachService {
           eq(schema.outreachProposals.campaignId, input.campaignId),
           eq(schema.outreachProposals.contactId, input.contactId),
           eq(schema.outreachProposals.kind, 'initial'),
-          inArray(schema.outreachProposals.status, ['sent', 'approved']),
+          inArray(schema.outreachProposals.status, ['pending', 'sent', 'approved']),
         ),
       )
       .limit(1);
@@ -563,6 +568,23 @@ export class OutreachService {
     if (!crmContact) {
       throw new OutreachInvalidError(
         `no CRM contact found for ${email} on conversation ${input.conversationId}`,
+      );
+    }
+    const [openReply] = await ctx.db
+      .select({ status: schema.outreachProposals.status })
+      .from(schema.outreachProposals)
+      .where(
+        and(
+          eq(schema.outreachProposals.campaignId, conv.outreachCampaignId),
+          eq(schema.outreachProposals.contactId, crmContact.id),
+          eq(schema.outreachProposals.kind, 'reply'),
+          inArray(schema.outreachProposals.status, ['pending', 'approved']),
+        ),
+      )
+      .limit(1);
+    if (openReply) {
+      throw new ConflictException(
+        `outreach_conflict: a ${openReply.status} reply proposal already exists for this conversation`,
       );
     }
     try {
@@ -1603,6 +1625,27 @@ export class OutreachService {
       .where(eq(schema.crmSegments.id, segmentId))
       .limit(1);
     if (!rows[0]) throw new OutreachInvalidError(`segment ${segmentId} does not exist`);
+  }
+
+  private async assertCampaignNameFree(name: string, exceptId?: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const [taken] = await ctx.db
+      .select({ id: schema.outreachCampaigns.id })
+      .from(schema.outreachCampaigns)
+      .where(
+        and(
+          eq(schema.outreachCampaigns.orgId, actor.orgId),
+          eq(schema.outreachCampaigns.name, name),
+          exceptId ? ne(schema.outreachCampaigns.id, exceptId) : undefined,
+        ),
+      )
+      .limit(1);
+    if (taken) {
+      throw new ConflictException(
+        `outreach_conflict: campaign with name "${name}" already exists`,
+      );
+    }
   }
 
   private async loadOutreachChannel(

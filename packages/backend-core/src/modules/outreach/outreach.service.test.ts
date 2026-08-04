@@ -223,7 +223,7 @@ const skipReason = TEST_URL
       expect(full.evidence).toEqual({ source: 'unit-test' });
 
       const approved = await run(() =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
       );
       expect(approved.status).toBe('sent');
       expect(approved.conversationId).toBeTruthy();
@@ -269,7 +269,7 @@ const skipReason = TEST_URL
         crm.updateContact({ id: contactId, patch: { doNotContact: true } }),
       );
       await expect(
-        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' })),
+        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
       ).rejects.toThrow(OutreachInvalidError);
     });
 
@@ -292,7 +292,7 @@ const skipReason = TEST_URL
         }),
       );
       await expect(
-        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' })),
+        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
       ).rejects.toThrow(OutreachInvalidError);
     });
 
@@ -353,7 +353,7 @@ const skipReason = TEST_URL
         }),
       );
       const approved = await run(() =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
       );
       const rows = await db.execute<{ agent_mode: string }>(
         sql`SELECT agent_mode FROM conv_conversations WHERE id = ${approved.conversationId!}`,
@@ -374,7 +374,7 @@ const skipReason = TEST_URL
         }),
       );
       const sent = await run(() =>
-        svc.approveProposal(initial.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(initial.id, { publicBaseUrl: 'https://test.local', fingerprint: initial.draftFingerprint }),
       );
       const reply = await run(() =>
         svc.proposeReply({
@@ -402,7 +402,7 @@ const skipReason = TEST_URL
         }),
       );
       const sent = await run(() =>
-        svc.approveProposal(initial.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(initial.id, { publicBaseUrl: 'https://test.local', fingerprint: initial.draftFingerprint }),
       );
       const reply = await run(() =>
         svc.proposeReply({
@@ -411,7 +411,7 @@ const skipReason = TEST_URL
         }),
       );
       const approved = await run(() =>
-        svc.approveProposal(reply.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(reply.id, { publicBaseUrl: 'https://test.local', fingerprint: reply.draftFingerprint }),
       );
       expect(approved.status).toBe('sent');
       expect(approved.conversationId).toBe(sent.conversationId);
@@ -584,6 +584,62 @@ const skipReason = TEST_URL
       ).rejects.toThrow(OutreachInvalidError);
     });
 
+    it('reviseProposal moves the draft fingerprint', async () => {
+      const p = await pending('rev-fingerprint');
+      const revised = await run(() =>
+        svc.reviseProposal({ id: p.id, reason: 'new angle', draftBody: 'second' }),
+      );
+      expect(revised.draftFingerprint).not.toBe(p.draftFingerprint);
+      const fetched = await run(() => svc.getProposal(p.id));
+      expect(fetched.draftFingerprint).toBe(revised.draftFingerprint);
+      const [listed] = await run(() => svc.listProposals({ campaignId: p.campaignId }));
+      expect(listed!.draftFingerprint).toBe(revised.draftFingerprint);
+    });
+
+    it('approveProposal refuses a fingerprint from a draft that was revised since, and sends nothing', async () => {
+      const p = await pending('approve-stale-fingerprint');
+      await run(() =>
+        svc.reviseProposal({ id: p.id, reason: 'rewrote the pitch', draftBody: 'swapped' }),
+      );
+      await expect(
+        run(() =>
+          svc.approveProposal(p.id, {
+            publicBaseUrl: 'https://test.local',
+            fingerprint: p.draftFingerprint,
+          }),
+        ),
+      ).rejects.toThrow(ConflictException);
+      const after = await run(() => svc.getProposal(p.id));
+      expect(after.status).toBe('pending');
+      expect(after.sentAt).toBeNull();
+      expect(after.conversationId).toBeNull();
+    });
+
+    it('approveProposal accepts the fingerprint of the current draft after a revision', async () => {
+      const p = await pending('approve-fresh-fingerprint');
+      const revised = await run(() =>
+        svc.reviseProposal({ id: p.id, reason: 'rewrote the pitch', draftBody: 'swapped' }),
+      );
+      const sent = await run(() =>
+        svc.approveProposal(revised.id, {
+          publicBaseUrl: 'https://test.local',
+          fingerprint: revised.draftFingerprint,
+        }),
+      );
+      expect(sent.status).toBe('sent');
+      expect(sent.draftBody).toBe('swapped');
+    });
+
+    it('approveProposal refuses a garbage fingerprint', async () => {
+      const p = await pending('approve-bogus-fingerprint');
+      await expect(
+        run(() =>
+          svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: 'nope' }),
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(await run(() => svc.getProposal(p.id)).then((f) => f.status)).toBe('pending');
+    });
+
     it('withdrawProposal retracts a pending draft neutrally', async () => {
       const p = await pending('wd-basic');
       const withdrawn = await run(() =>
@@ -670,7 +726,7 @@ const skipReason = TEST_URL
           draftBody: 'Initial pitch.',
         }),
       );
-      return run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }));
+      return run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }));
     }
 
     async function backdateSent(proposalId: string, days: number) {
@@ -784,7 +840,7 @@ const skipReason = TEST_URL
         svc.proposeFollowup({ conversationId: sent2.conversationId!, step: 1, draftBody: 'bump' }),
       );
       const approved = await run(() =>
-        svc.approveProposal(p1.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(p1.id, { publicBaseUrl: 'https://test.local', fingerprint: p1.draftFingerprint }),
       );
       await backdateSent(approved.id, 2);
       await expect(
@@ -893,7 +949,7 @@ const skipReason = TEST_URL
         }),
       );
       const approved = await run(() =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
       );
       expect(approved.status).toBe('sent');
       expect(approved.conversationId).toBe(sent.conversationId);
@@ -918,7 +974,7 @@ const skipReason = TEST_URL
       );
       await insertInbound(sent.conversationId!);
       await expect(
-        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' })),
+        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
       ).rejects.toThrow(/replied after this follow-up was drafted/);
       const rows = await db.execute<{ status: string }>(
         sql`SELECT status FROM outreach_proposals WHERE id = ${p.id}`,
@@ -935,7 +991,7 @@ const skipReason = TEST_URL
       );
       await run(() => svc.updateCampaign({ id: c.id, patch: { enabled: false } }));
       await expect(
-        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' })),
+        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
       ).rejects.toThrow(/disabled/);
 
       await run(() => svc.updateCampaign({ id: c.id, patch: { enabled: true } }));
@@ -944,7 +1000,7 @@ const skipReason = TEST_URL
         .set({ unsubscribedAt: new Date() })
         .where(eq(schema.crmContacts.id, contactId));
       await expect(
-        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' })),
+        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
       ).rejects.toThrow(/no longer eligible/);
     });
 
@@ -956,7 +1012,7 @@ const skipReason = TEST_URL
         svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
       );
       const f1 = await run(() =>
-        svc.approveProposal(p1.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(p1.id, { publicBaseUrl: 'https://test.local', fingerprint: p1.draftFingerprint }),
       );
       await expect(
         run(() =>
@@ -1075,7 +1131,7 @@ const skipReason = TEST_URL
           svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
         );
         const f1 = await run(() =>
-          svc.approveProposal(p1.id, { publicBaseUrl: 'https://test.local' }),
+          svc.approveProposal(p1.id, { publicBaseUrl: 'https://test.local', fingerprint: p1.draftFingerprint }),
         );
         await backdateSent(f1.id, 5);
         const due = await run(() => svc.listDueFollowups({}));
@@ -1413,7 +1469,7 @@ const skipReason = TEST_URL
         }),
       );
       const approved = await runAsSystem(
-        () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+        () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001', fingerprint: p.draftFingerprint }),
         humanActor(),
       );
       expect(approved.status).toBe('sent');
@@ -1473,7 +1529,7 @@ const skipReason = TEST_URL
         }),
       );
       const approved = await runAsSystem(
-        () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+        () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001', fingerprint: p.draftFingerprint }),
         humanActor(),
       );
       expect(approved.conversationId).toBe(preexistingId);
@@ -1512,7 +1568,7 @@ const skipReason = TEST_URL
         }),
       );
       const approved = await runAsSystem(
-        () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+        () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001', fingerprint: p.draftFingerprint }),
         humanActor(),
       );
       await expect(
@@ -1544,7 +1600,7 @@ const skipReason = TEST_URL
         }),
       );
       await expect(
-        runAsSystem(() => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' })),
+        runAsSystem(() => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001', fingerprint: p.draftFingerprint })),
       ).rejects.toThrow(/signed-in person in the Munin dashboard/);
       expect(calls.length).toBe(0);
       const after = await run(() => svc.getProposal(p.id));
@@ -1577,7 +1633,7 @@ const skipReason = TEST_URL
       );
       await expect(
         runAsSystem(
-          () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+          () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001', fingerprint: p.draftFingerprint }),
           humanActor(),
         ),
       ).rejects.toThrow(/does not call between/);
@@ -1605,7 +1661,7 @@ const skipReason = TEST_URL
       );
       await expect(
         runAsSystem(
-          () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001' }),
+          () => svc.approveProposal(p.id, { publicBaseUrl: 'http://localhost:3001', fingerprint: p.draftFingerprint }),
           humanActor(),
         ),
       ).rejects.toThrow(/does not call on /);
@@ -1654,7 +1710,7 @@ const skipReason = TEST_URL
         }),
       );
       const approved = await run(() =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
       );
       expect(approved.status).toBe('sent');
     });
@@ -1772,7 +1828,7 @@ const skipReason = TEST_URL
         svc.proposeInitial({ campaignId: c.id, contactId: smsContactId, draftBody: 'Hi.' }),
       );
       await expect(
-        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' })),
+        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
       ).rejects.toThrow(/signed-in person in the Munin dashboard/);
     });
 
@@ -1786,7 +1842,7 @@ const skipReason = TEST_URL
         }),
       );
       const approved = await runAs(humanActor(), () =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
       );
       expect(approved.status).toBe('sent');
       expect(approved.conversationId).toBeTruthy();
@@ -1823,7 +1879,7 @@ const skipReason = TEST_URL
         svc.proposeInitial({ campaignId: c.id, contactId: smsContactId, draftBody: 'Kort melding.' }),
       );
       const approved = await runAs(humanActor(), () =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local' }),
+        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
       );
       const messages = await db
         .select({ body: schema.convMessages.body })

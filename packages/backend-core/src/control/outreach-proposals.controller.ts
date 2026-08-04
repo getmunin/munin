@@ -28,6 +28,7 @@ import {
 
 const StatusSchema = z.enum(PROPOSAL_STATUSES);
 const KindSchema = z.enum(PROPOSAL_KINDS);
+const ApproveBody = z.object({ fingerprint: z.string().min(1).max(64) });
 const DismissBody = z.object({ reason: z.string().max(500).optional() });
 const WithdrawBody = z.object({ reason: z.string().min(1).max(500) });
 const UpdateBody = z.object({
@@ -110,9 +111,13 @@ export class OutreachProposalsController {
 
   @Post(':id/approve')
   @HttpCode(200)
-  async approve(@Param('id') id: string): Promise<ProposalDto> {
+  async approve(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
+    const parsed = ApproveBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     const publicBaseUrl = readApiBaseUrl();
-    return translate(() => this.outreach.approveProposal(id, { publicBaseUrl }));
+    return translate(() =>
+      this.outreach.approveProposal(id, { publicBaseUrl, fingerprint: parsed.data.fingerprint }),
+    );
   }
 
   @Post(':id/dismiss')

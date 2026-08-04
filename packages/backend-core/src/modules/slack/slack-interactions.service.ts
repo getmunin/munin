@@ -262,6 +262,7 @@ export class SlackInteractionsService {
                 }
                 await this.outreach.approveProposal(subject.subjectId, {
                   publicBaseUrl: readApiBaseUrl(),
+                  fingerprint: subject.fingerprint ?? '',
                 });
               } else {
                 await this.outreach.dismissProposal({ id: subject.subjectId });

@@ -42,6 +42,7 @@ import {
   readWebBaseUrl,
 } from './slack.constants.ts';
 import { mcpResourceOrigin } from '../../oauth/oauth.constants.ts';
+import { draftFingerprint } from '../outreach/proposal-fingerprint.ts';
 
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_SLACK_POLL_MS', default: 5000 });
 const MAX_ATTEMPTS = 5;
@@ -591,15 +592,12 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     outcome: ApprovalOutcome | null,
   ): Promise<{ text: string; blocks: SlackBlock[]; resolved: boolean }> {
     const dashboardUrl = `${readWebBaseUrl()}/dashboard`;
-    const value = encodeApprovalValue(
-      subject.subjectType as Parameters<typeof encodeApprovalValue>[0],
-      subject.subjectId,
-    );
     const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 
     let text: string;
     let approveLabel: string | null;
     let resolution: ApprovalResolution | null;
+    let fingerprint: string | null = null;
 
     if (subject.subjectType === 'crm_merge_proposal') {
       const [proposal] = await this.db
@@ -657,6 +655,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         draftBody: proposal?.draftBody ?? '',
         dashboardUrl,
       });
+      fingerprint = proposal ? draftFingerprint(proposal) : null;
       approveLabel = 'Approve & send';
       const derived: ApprovalOutcome | null =
         outcome ??
@@ -700,6 +699,11 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         : null;
     }
 
+    const value = encodeApprovalValue(
+      subject.subjectType as Parameters<typeof encodeApprovalValue>[0],
+      subject.subjectId,
+      fingerprint,
+    );
     return {
       text: resolution
         ? `${text}\n${approvalResolvedLine(resolution.outcome, resolution.decidedByName)}`

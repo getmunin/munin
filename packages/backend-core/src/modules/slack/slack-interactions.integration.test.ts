@@ -576,6 +576,41 @@ class FakeSlackApi extends SlackApiClient {
       expect(api.ephemerals).toHaveLength(0);
     });
 
+    it('refuses an approve button whose fingerprint no longer matches the draft', async () => {
+      const proposalId = await seedOutreachProposal();
+      await linkSubject('outreach_proposal', proposalId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `outreach_proposal:${proposalId}#stale`),
+      );
+
+      const [proposal] = await db
+        .select()
+        .from(schema.outreachProposals)
+        .where(eq(schema.outreachProposals.id, proposalId));
+      expect(proposal!.status).toBe('pending');
+      expect(proposal!.sentAt).toBeNull();
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('outreach_conflict');
+    });
+
+    it('refuses an approve button that carries no fingerprint at all', async () => {
+      const proposalId = await seedOutreachProposal();
+      await linkSubject('outreach_proposal', proposalId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `outreach_proposal:${proposalId}`),
+      );
+
+      const [proposal] = await db
+        .select()
+        .from(schema.outreachProposals)
+        .where(eq(schema.outreachProposals.id, proposalId));
+      expect(proposal!.status).toBe('pending');
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('outreach_conflict');
+    });
+
     it('surfaces a service rejection (already dismissed) as an ephemeral', async () => {
       const proposalId = await seedOutreachProposal('dismissed');
       await linkSubject('outreach_proposal', proposalId);

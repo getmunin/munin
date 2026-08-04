@@ -402,7 +402,10 @@ export function useInboxData(): InboxController {
         } else if (item.kind === 'cms') {
           await api(`/v1/cms/drafts/${item.id}/approve`, { method: 'POST', body: '{}' });
         } else {
-          await api(`/v1/outreach/proposals/${item.id}/approve`, { method: 'POST' });
+          await api(`/v1/outreach/proposals/${item.id}/approve`, {
+            method: 'POST',
+            body: JSON.stringify({ fingerprint: item.raw.draftFingerprint }),
+          });
         }
         await loadInbox();
         setQueueDrawer(null);

@@ -75,12 +75,20 @@ const GetEntryInput = z.object({ id: z.string(), include: IncludeInput });
 
 const GetPreviewLinkInput = z.object({ id: z.string() });
 
+const PublishedAtInput = z
+  .string()
+  .datetime()
+  .describe(
+    'Original publication timestamp (ISO 8601). Set this when migrating existing content so the entry keeps its real publication date; defaults to now.',
+  );
+
 const CreateEntryInput = z.object({
   collection: z.string(),
   slug: z.string().min(1).max(200),
   locale: z.string().optional(),
   data: z.record(z.string(), z.unknown()),
   status: z.enum(['draft', 'published']).optional(),
+  publishedAt: PublishedAtInput.optional(),
 });
 
 const UpdateEntryInput = z.object({
@@ -94,6 +102,10 @@ const UpdateEntryInput = z.object({
 const PublishInput = z.object({
   id: z.string(),
   ifVersion: z.number().int().nonnegative(),
+});
+
+const PublishEntryInput = PublishInput.extend({
+  publishedAt: PublishedAtInput.optional(),
 });
 
 const ScheduleInput = z.object({
@@ -206,6 +218,7 @@ const CmsImportInput = z.object({
         locale: z.string().min(1).max(16),
         status: z.enum(ENTRY_STATUSES),
         data: z.record(z.string(), z.unknown()),
+        publishedAt: z.string().nullable().optional(),
         scheduledAt: z.string().nullable().optional(),
       }),
     ),
@@ -354,7 +367,7 @@ export class CmsAdminTools {
     name: 'cms_create_entry',
     title: 'CMS: Create entry',
     description:
-      'Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: "published"` to publish on creation; default is draft.',
+      'Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: "published"` to publish on creation; default is draft. Published entries are stamped with `publishedAt` — pass one to preserve the original date when migrating existing content.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: CreateEntryInput,
@@ -383,14 +396,15 @@ export class CmsAdminTools {
   @McpTool({
     name: 'cms_publish_entry',
     title: 'CMS: Publish entry',
-    description: 'Flip an entry to status="published". Stamps publishedAt and fires cms.entry.published.',
+    description:
+      'Flip an entry to status="published". Stamps publishedAt (now, or the `publishedAt` you pass for migrated content) and fires cms.entry.published.',
     audiences: ['admin'],
     scopes: ['cms:write'],
-    input: PublishInput,
+    input: PublishEntryInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  publishEntry(args: z.infer<typeof PublishInput>) {
+  publishEntry(args: z.infer<typeof PublishEntryInput>) {
     return this.cms.publishEntry(args);
   }
 
@@ -678,6 +692,7 @@ export class CmsAdminTools {
       })),
       entries: args.records.entries.map((e) => ({
         ...e,
+        publishedAt: e.publishedAt ?? null,
         scheduledAt: e.scheduledAt ?? null,
       })),
       assets: args.records.assets.map((a) => ({

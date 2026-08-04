@@ -22,7 +22,7 @@ Run modules in this order and carry one growing `idMap` through all of them:
 
 1. **KB** — `kb_export` → `kb_import`
 2. **CRM** — `crm_export` → `crm_import` (pass the idMap from KB; harmless, keeps one map)
-3. **CMS** — `cms_export` → `cms_import` (assets included as base64 ≤ 5 MB; re-uploaded to the target's storage)
+3. **CMS** — `cms_export` → `cms_import` (assets included as base64 ≤ 5 MB; re-uploaded to the target's storage; published entries keep their original `publishedAt`, archived entries stay archived, and a still-future `scheduledAt` carries over — a schedule whose time has already passed lands as a draft with a warning)
 4. **Conversations** — `conv_export` → `conv_import`
 5. **Outreach** — `outreach_export` → `outreach_import` (**must** run after CRM and Conv: campaigns reference a CRM segment + conv channel, proposals reference CRM contacts/conversations — all resolved via the carried idMap; campaigns import **disabled**)
 6. **Analytics** — `analytics_export_config` → then page `analytics_export_events` → `analytics_import`
@@ -64,6 +64,8 @@ Always read `result.warnings` from every import and act on them.
 - **End-users and agents are not part of content transfer.** They are identity, provisioned per server. Analytics visitor-identity bridges and some conversation links reference end-users; on a fresh target those rows are skipped with a warning until the corresponding end-users exist. Provision end-users on the target first if you need those links to resolve.
 - **Infrastructure is never moved**: users/sessions, OAuth clients, API keys, audit log, webhooks secrets. Re-create them on the target.
 - CMS assets larger than 5 MB are exported as metadata only (warning emitted); move those files out of band.
+- **A CMS publish schedule that has already come due does not follow the data.** Entries still `scheduled` for a future time import as `scheduled` and the target's worker publishes them; one whose `scheduledAt` has passed imports as a draft with a warning, so an old export can't publish unreviewed content on the target the moment it lands. Re-schedule those with `cms_schedule_publish`, or publish them directly.
+- Entries that exist on the target already keep the target's `status` and `publishedAt` — import updates their content, it does not re-run their lifecycle.
 
 ## Verify
 

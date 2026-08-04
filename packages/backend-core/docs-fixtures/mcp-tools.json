@@ -1579,7 +1579,7 @@
   {
     "name": "cms_create_entry",
     "title": "CMS: Create entry",
-    "description": "Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: \"published\"` to publish on creation; default is draft.",
+    "description": "Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: \"published\"` to publish on creation; default is draft. Published entries are stamped with `publishedAt` — pass one to preserve the original date when migrating existing content.",
     "audiences": [
       "admin"
     ],
@@ -1616,6 +1616,12 @@
             "draft",
             "published"
           ]
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "description": "Original publication timestamp (ISO 8601). Set this when migrating existing content so the entry keeps its real publication date; defaults to now."
         }
       },
       "required": [
@@ -1676,7 +1682,7 @@
   {
     "name": "cms_publish_entry",
     "title": "CMS: Publish entry",
-    "description": "Flip an entry to status=\"published\". Stamps publishedAt and fires cms.entry.published.",
+    "description": "Flip an entry to status=\"published\". Stamps publishedAt (now, or the `publishedAt` you pass for migrated content) and fires cms.entry.published.",
     "audiences": [
       "admin"
     ],
@@ -1696,6 +1702,12 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "description": "Original publication timestamp (ISO 8601). Set this when migrating existing content so the entry keeps its real publication date; defaults to now."
         }
       },
       "required": [
@@ -2451,6 +2463,16 @@
                       "type": "string"
                     },
                     "additionalProperties": {}
+                  },
+                  "publishedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "scheduledAt": {
                     "anyOf": [

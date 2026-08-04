@@ -278,6 +278,46 @@ class StubStorage implements AssetStorage {
       expect(types).toContain('cms.entry.published');
     });
 
+    it('createEntry keeps a caller-supplied publishedAt instead of stamping now', async () => {
+      const col = await seedCollection();
+      const original = '2019-04-12T08:30:00.000Z';
+      const entry = await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'migrated',
+          data: { title: 'Migrated' },
+          status: 'published',
+          publishedAt: original,
+        }),
+      );
+      expect(entry.publishedAt).toBe(original);
+    });
+
+    it('createEntry rejects publishedAt on a draft and rejects a non-ISO publishedAt', async () => {
+      const col = await seedCollection();
+      await expect(
+        run(() =>
+          svc.createEntry({
+            collection: col.slug,
+            slug: 'draft-dated',
+            data: { title: 'D' },
+            publishedAt: '2019-04-12T08:30:00.000Z',
+          }),
+        ),
+      ).rejects.toThrow(CmsInvalidError);
+      await expect(
+        run(() =>
+          svc.createEntry({
+            collection: col.slug,
+            slug: 'bad-date',
+            data: { title: 'D' },
+            status: 'published',
+            publishedAt: 'not-iso',
+          }),
+        ),
+      ).rejects.toThrow(CmsInvalidError);
+    });
+
     it('createEntry validates fields and rejects invalid data', async () => {
       const col = await seedCollection();
       await expect(
@@ -433,6 +473,18 @@ class StubStorage implements AssetStorage {
       const types = await eventTypes();
       expect(types).toContain('cms.entry.published');
       expect(types).toContain('cms.entry.unpublished');
+    });
+
+    it('publishEntry backdates publishedAt when one is supplied', async () => {
+      const col = await seedCollection();
+      const original = '2020-11-02T12:00:00.000Z';
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'backdated', data: { title: 'B' } }),
+      );
+      const published = await run(() =>
+        svc.publishEntry({ id: entry.id, ifVersion: 1, publishedAt: original }),
+      );
+      expect(published.publishedAt).toBe(original);
     });
 
     it('publishEntry rejects stale ifVersion', async () => {

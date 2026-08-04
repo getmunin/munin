@@ -24,6 +24,8 @@ import {
 
 const StatusSchema = z.enum(MERGE_STATUSES);
 
+const ApplyBody = z.object({ fingerprint: z.string().min(1).max(64) });
+
 const DismissBody = z
   .object({
     reason: z.string().max(500).optional(),
@@ -65,8 +67,12 @@ export class CrmMergeProposalsController {
 
   @Post(':id/apply')
   @HttpCode(200)
-  async apply(@Param('id') id: string): Promise<MergeProposalDto> {
-    return translate(() => this.crm.applyMergeProposal({ id }));
+  async apply(@Param('id') id: string, @Body() body: unknown): Promise<MergeProposalDto> {
+    const parsed = ApplyBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return translate(() =>
+      this.crm.applyMergeProposal({ id, fingerprint: parsed.data.fingerprint }),
+    );
   }
 
   @Post(':id/dismiss')

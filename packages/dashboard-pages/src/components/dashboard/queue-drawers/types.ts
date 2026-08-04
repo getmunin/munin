@@ -15,6 +15,7 @@ export interface CrmContactSummary {
 }
 
 export interface CrmMergeProposalDto {
+  mergeFingerprint: string;
   id: string;
   contactA: CrmContactSummary;
   contactB: CrmContactSummary;

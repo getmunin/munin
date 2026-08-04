@@ -18,7 +18,7 @@ Run periodically. Don't run inline per CRM mutation — batching is cheaper and 
 3. **Find suspect pairs** in your remaining buffer: same lowercased email, same E.164 phone, very-similar name, or same name + company.
 4. **Judge each pair.** Skip clearly-not-the-same (different companies, shared inbox like `info@acme.com`, ambiguous role/title combinations). Keep clearly-same (same email + phone, same email + similar name, same phone + same company).
 5. **Pick the keeper** for each kept pair (heuristics below) and build a `recommendedPatch` of fields to copy from the duplicate onto the keeper.
-6. **File each pair** with `crm_propose_merge`. Idempotent on the pair while pending — re-running next week without the operator acting just upserts the pending row with refreshed evidence.
+6. **File each pair** with `crm_propose_merge`. Idempotent on the pair while pending — re-running next week without the operator acting just upserts the pending row with refreshed evidence. Refreshing `evidence` alone is free; changing the keeper, the patch or the confidence invalidates any review already in flight (see step 7).
 7. **Stop.** The operator's review flow takes over — they call `crm_apply_merge_proposal` or `crm_dismiss_merge_proposal` at their cadence. In hosts that support MCP Apps, `crm_list_merge_proposals` renders a side-by-side review panel and apply/dismiss happen as human clicks inside it (those two tools are panel-only there). Render the panel and stop — don't restate the proposals in chat; the panel already shows every field, and the merge decision is physically the human's.
 
 ## Step 1 — fetch already-decided pairs
@@ -116,13 +116,18 @@ After the curator's pass, the operator (human or admin agent acting on their aut
 
 For each pending proposal, the operator either:
 
-- **Applies it:** `crm_apply_merge_proposal({ id })`. In a single transaction: copies `recommendedPatch` onto the keeper; reassigns the duplicate's `crm_activities`, `crm_deals` (primary contact), and `crm_relationships` (contact-typed `from_id` / `to_id`) onto the keeper; transfers the duplicate's `endUserId` to the keeper if the keeper had none; archives the duplicate (`dedup-archived-YYYY-MM` tag + `customFields.mergedInto: <keeperId>` + `doNotContact: true`, `endUserId` cleared); dismisses every other pending proposal that references the duplicate; marks the proposal `applied`.
+- **Applies it:** `crm_apply_merge_proposal({ id, fingerprint })`. In a single transaction: copies `recommendedPatch` onto the keeper; reassigns the duplicate's `crm_activities`, `crm_deals` (primary contact), and `crm_relationships` (contact-typed `from_id` / `to_id`) onto the keeper; transfers the duplicate's `endUserId` to the keeper if the keeper had none; archives the duplicate (`dedup-archived-YYYY-MM` tag + `customFields.mergedInto: <keeperId>` + `doNotContact: true`, `endUserId` cleared); dismisses every other pending proposal that references the duplicate; marks the proposal `applied`.
 - **Dismisses it:** `crm_dismiss_merge_proposal({ id, reason })`. Records the rejection so the next curator pass skips this pair.
+
+**Applying is bound to the proposal that was reviewed.** Every proposal carries a `mergeFingerprint` over its two contacts, the recommended keeper, the recommended patch and the confidence, and `crm_apply_merge_proposal` requires it. Pass the fingerprint that came with the proposal the operator actually read.
+
+This matters because `crm_propose_merge` does not always create a new row: on a pair that already has a pending proposal it **updates that row in place**, keeping the same id. So a curator pass that re-files the same pair with a different keeper silently rewrites the card the operator is looking at. With the fingerprint, the apply is refused with `crm_conflict` instead: nothing is merged, the proposal stays pending, and the operator re-reads it. Don't re-fetch the proposal and retry with the new fingerprint — that applies a merge nobody approved. Note that a re-propose which only refreshes `evidence` leaves the fingerprint alone, so the weekly hygiene pass does not invalidate a queue the operator is working through.
 
 The dashboard "Needs attention" backlog card surfaces the count of pending proposals via `/v1/overview/backlog`.
 
 ## What NOT to do
 
+- **Don't re-propose a pair with a different keeper while the operator is reviewing it.** The row is updated in place under the same id, so the card silently changes. If your judgement of the keeper changed, say so; the apply will be refused until the operator re-reads it.
 - **Don't auto-apply.** v1 is propose-only. The cost of a wrong merge (lost activity history, wrong `endUserId` link) is much higher than the cost of one extra human review per pair.
 - **Don't propose pairs the operator already decided.** Step 1 exists for a reason — dismissed *and* applied. If you skip it, you'll churn the operator's review queue with pairs they already resolved; a merged pair re-proposed next week looks like the merge never happened.
 - **Don't treat an archived duplicate as a merge candidate.** A row with `customFields.mergedInto` set is the losing side of a completed merge. It keeps its email and phone forever, so it matches every dedup key it originally matched.

@@ -5,6 +5,9 @@ import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
+import { mergeFingerprint } from './merge-fingerprint.ts';
+
+export { mergeFingerprint } from './merge-fingerprint.ts';
 
 export class CrmInvalidError extends Error {
   readonly code = 'crm_invalid';
@@ -147,6 +150,7 @@ export interface MergeProposalDto {
   id: string;
   contactA: MergeProposalContactSummary;
   contactB: MergeProposalContactSummary;
+  mergeFingerprint: string;
   confidence: MergeConfidence;
   evidence: Record<string, unknown>;
   recommendedKeeperId: string;
@@ -1135,7 +1139,7 @@ export class CrmService {
     return toMergeProposalDto(proposal, a, b);
   }
 
-  async applyMergeProposal(input: { id: string }): Promise<MergeProposalDto> {
+  async applyMergeProposal(input: { id: string; fingerprint: string }): Promise<MergeProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const rows = await ctx.db
@@ -1147,6 +1151,12 @@ export class CrmService {
     if (!proposal) throw new NotFoundException(`crm_not_found: merge proposal ${input.id}`);
     if (proposal.status !== 'pending') {
       throw new CrmInvalidError(`merge proposal ${input.id} is ${proposal.status}, not pending`);
+    }
+    if (mergeFingerprint(proposal) !== input.fingerprint) {
+      throw new ConflictException(
+        `crm_conflict: merge proposal ${input.id} changed after the version being applied was read — ` +
+          `nothing was merged and it stays pending; re-read the current proposal and apply that`,
+      );
     }
     const keeperId = proposal.recommendedKeeperId;
     const duplicateId = keeperId === proposal.contactAId ? proposal.contactBId : proposal.contactAId;
@@ -1967,6 +1977,7 @@ function toMergeProposalDto(
     id: row.id,
     contactA: toContactSummary(contactA),
     contactB: toContactSummary(contactB),
+    mergeFingerprint: mergeFingerprint(row),
     confidence: row.confidence as MergeConfidence,
     evidence: row.evidence,
     recommendedKeeperId: row.recommendedKeeperId,

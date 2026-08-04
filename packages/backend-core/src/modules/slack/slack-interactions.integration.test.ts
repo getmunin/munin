@@ -19,6 +19,7 @@ import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInteractionsService } from './slack-interactions.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackService, encryptSecretValue } from './slack.service.ts';
+import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -537,9 +538,16 @@ class FakeSlackApi extends SlackApiClient {
     it('apply-merge button applies the proposal as the mapped member and enqueues the resolution', async () => {
       const proposalId = await seedMergeProposal();
       await linkSubject('crm_merge_proposal', proposalId);
+      const [seeded] = await db
+        .select()
+        .from(schema.crmMergeProposals)
+        .where(eq(schema.crmMergeProposals.id, proposalId));
 
       await interactions.processBlockActions(
-        approvalPayload('munin_approval_approve', `crm_merge_proposal:${proposalId}`),
+        approvalPayload(
+          'munin_approval_approve',
+          `crm_merge_proposal:${proposalId}#${mergeFingerprint(seeded!)}`,
+        ),
       );
 
       const [proposal] = await db
@@ -656,6 +664,35 @@ class FakeSlackApi extends SlackApiClient {
         .innerJoin(schema.kbSpaces, eq(schema.kbSpaces.id, schema.kbDocuments.spaceId))
         .where(eq(schema.kbDocuments.orgId, orgId));
       expect(published).toEqual([{ title: 'Weekend hours', slug: 'faq' }]);
+    });
+
+    it('refuses an apply-merge button whose fingerprint no longer matches the proposal', async () => {
+      const proposalId = await seedMergeProposal();
+      await linkSubject('crm_merge_proposal', proposalId);
+      const [seeded] = await db
+        .select()
+        .from(schema.crmMergeProposals)
+        .where(eq(schema.crmMergeProposals.id, proposalId));
+      await db
+        .update(schema.crmMergeProposals)
+        .set({ recommendedKeeperId: seeded!.contactBId })
+        .where(eq(schema.crmMergeProposals.id, proposalId));
+
+      await interactions.processBlockActions(
+        approvalPayload(
+          'munin_approval_approve',
+          `crm_merge_proposal:${proposalId}#${mergeFingerprint(seeded!)}`,
+        ),
+      );
+
+      const [proposal] = await db
+        .select()
+        .from(schema.crmMergeProposals)
+        .where(eq(schema.crmMergeProposals.id, proposalId));
+      expect(proposal!.status).toBe('pending');
+      expect(proposal!.decidedAt).toBeNull();
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('crm_conflict');
     });
 
     it('refuses a publish button whose version no longer matches the candidate', async () => {

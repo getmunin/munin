@@ -43,11 +43,19 @@ export function MergeProposalsView({ app, initial }: { app: McpApp; initial: Mer
     try {
       const result = await app.callServerTool({
         name: action === 'apply' ? 'crm_apply_merge_proposal' : 'crm_dismiss_merge_proposal',
-        arguments: { id: proposal.id },
+        arguments:
+          action === 'apply'
+            ? { id: proposal.id, fingerprint: proposal.mergeFingerprint }
+            : { id: proposal.id },
       });
       const parsed = parseToolResult(result);
       if (result.isError || !isMergeProposal(parsed)) {
-        patchCard(proposal.id, { busy: null, error: errorText(result) });
+        const message = errorText(result);
+        if (action === 'apply') {
+          await refresh();
+          setOpenId(proposal.id);
+        }
+        patchCard(proposal.id, { busy: null, error: message });
         return;
       }
       const updated = proposals.map((p) => (p.id === parsed.id ? parsed : p));

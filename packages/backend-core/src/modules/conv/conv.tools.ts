@@ -351,7 +351,7 @@ export class ConvAdminTools {
     name: 'conv_import',
     title: 'Conv: Import data',
     description:
-      'Import conversation `records` produced by `conv_export` (typically from another Munin server). Channels are upserted by (type, vendor, name) and recreated without credentials — re-enter them on this server. Conversations and messages are append-only with no natural key: fresh ids are generated and parent FKs (channelId, conversationId) are resolved through the `idMap`. Returns counts, `warnings`, and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents. Re-running within a single migration is idempotent via the idMap, but messages are not deduplicated across separate runs.',
+      'Import conversation `records` produced by `conv_export` (typically from another Munin server). Channels are upserted by (type, vendor, name) and recreated without credentials — re-enter them on this server. Conversations and messages are append-only with no natural key: fresh ids are generated and parent FKs (channelId, conversationId) are resolved through the `idMap`. Messages with `authorType: "system"` are always stored as internal staff-only notes regardless of the `internal` flag in the payload, and each coercion is reported in `warnings`. Returns counts, `warnings`, and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents. Re-running within a single migration is idempotent via the idMap, but messages are not deduplicated across separate runs.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: ConvImportInput,

@@ -7,7 +7,6 @@ import {
   Copy,
   Mail,
   MessageCircle,
-  MessageSquare,
   MessagesSquare,
   MoreHorizontal,
   Phone,
@@ -61,7 +60,7 @@ import {
   SectionHead,
   cn,
 } from '@getmunin/ui';
-import { MessageBirdLogo, RedditLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
+import { MessageBirdLogo, RedditGlyph, RedditLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
 
 interface ChannelDto {
   id: string;
@@ -533,7 +532,7 @@ export function ChannelsPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setWidgetOpen(true)}>
-                  <MessageSquare className="size-4" />
+                  <MessagesSquare className="size-4" />
                   {t('addWidget')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setEmailOpen(true)}>
@@ -548,8 +547,9 @@ export function ChannelsPage() {
                   <Phone className="size-4" />
                   {t('addVoice')}
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setAddRedditOpen(true)}>
-                  <MessagesSquare className="size-4" />
+                  <RedditGlyph className="size-4" />
                   {t('addReddit')}
                 </DropdownMenuItem>
               </DropdownMenuContent>

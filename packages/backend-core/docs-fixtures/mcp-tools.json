@@ -2666,7 +2666,7 @@
   {
     "name": "conv_list_conversations",
     "title": "Conv: List conversations",
-    "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, or topic.",
+    "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp. `handover: \"resolved\"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window.",
     "audiences": [
       "admin"
     ],
@@ -2693,6 +2693,21 @@
         },
         "topicId": {
           "type": "string"
+        },
+        "handover": {
+          "description": "`active` = waiting on a human right now, `resolved` = a handover was answered and cleared, `never` = no handover on record.",
+          "type": "string",
+          "enum": [
+            "active",
+            "resolved",
+            "never"
+          ]
+        },
+        "since": {
+          "description": "ISO 8601 timestamp; keeps only conversations whose last message is at or after it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
         },
         "limit": {
           "type": "integer",

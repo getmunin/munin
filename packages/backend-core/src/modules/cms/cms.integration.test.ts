@@ -494,6 +494,169 @@ const skipReason = TEST_URL
     expect(((await enQuery.json()) as { locale: string }).locale).toBe('en');
   }, 30_000);
 
+  it('locale variants keep their own slugs, stay linked through the translation group, and surface as _locales', async () => {
+    const { en, nb } = await withClient(adminKey, async (c) => {
+      await c.callTool({ name: 'cms_create_locale', arguments: { code: 'nb', name: 'Norsk' } });
+      const enEntry = parseToolResult<{ id: string; translationGroupId: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'pages',
+            slug: 'spring-launch',
+            locale: 'en',
+            data: { title: 'Spring Launch', slug: 'spring-launch', body: 'English body.' },
+            status: 'published',
+          },
+        }),
+      );
+      const nbEntry = parseToolResult<{ id: string; translationGroupId: string; slug: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'pages',
+            slug: 'varlansering',
+            locale: 'nb',
+            translationOf: enEntry.id,
+            data: { title: 'Vårlansering', slug: 'varlansering', body: 'Norsk brødtekst.' },
+            status: 'published',
+          },
+        }),
+      );
+      return { en: enEntry, nb: nbEntry };
+    });
+
+    expect(nb.slug).toBe('varlansering');
+    expect(nb.translationGroupId).toBe(en.translationGroupId);
+
+    const translations = await withClient(adminKey, async (c) =>
+      parseToolResult<{
+        translationGroupId: string;
+        translations: Array<{
+          id: string;
+          locale: string;
+          slug: string;
+          status: string;
+          updatedAt: string;
+        }>;
+      }>(
+        await c.callTool({
+          name: 'cms_list_entry_translations',
+          arguments: { entryId: en.id },
+        }),
+      ),
+    );
+    expect(
+      translations.translations.map((t) => ({
+        id: t.id,
+        locale: t.locale,
+        slug: t.slug,
+        status: t.status,
+      })),
+    ).toEqual([
+      { id: en.id, locale: 'en', slug: 'spring-launch', status: 'published' },
+      { id: nb.id, locale: 'nb', slug: 'varlansering', status: 'published' },
+    ]);
+    expect(translations.translations.every((t) => typeof t.updatedAt === 'string')).toBe(true);
+
+    const delivered = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/varlansering?locale=nb`);
+    expect(delivered.status).toBe(200);
+    const body = (await delivered.json()) as {
+      slug: string;
+      locale: string;
+      _locales: Array<{ locale: string; slug: string }>;
+    };
+    expect(body.slug).toBe('varlansering');
+    expect(body._locales).toEqual([
+      { locale: 'en', slug: 'spring-launch' },
+      { locale: 'nb', slug: 'varlansering' },
+    ]);
+
+    const crossLocale = await fetch(`${baseUrl}/v1/cms/${orgId}/pages/varlansering?locale=en`);
+    expect(crossLocale.status).toBe(404);
+  }, 30_000);
+
+  it('a second entry for a locale already in the translation group conflicts instead of 500', async () => {
+    const conflict = await withClient(adminKey, async (c) => {
+      const first = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'pages',
+            slug: 'group-dup-en',
+            locale: 'en',
+            data: { title: 'Group dup', slug: 'group-dup-en', body: 'Body.' },
+          },
+        }),
+      );
+      return (await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'group-dup-en-other',
+          locale: 'en',
+          translationOf: first.id,
+          data: { title: 'Group dup other', slug: 'group-dup-en-other', body: 'Body.' },
+        },
+      })) as { isError?: boolean; content?: Array<{ text: string }> };
+    });
+    expect(conflict.isError).toBe(true);
+    expect(conflict.content?.[0]?.text).toContain('cms_translation_conflict');
+  }, 30_000);
+
+  it('separately authored entries can be linked and unlinked after the fact', async () => {
+    const { first, second } = await withClient(adminKey, async (c) => {
+      await c.callTool({ name: 'cms_create_locale', arguments: { code: 'de', name: 'Deutsch' } });
+      const a = parseToolResult<{ id: string; translationGroupId: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'pages',
+            slug: 'late-link-en',
+            locale: 'en',
+            data: { title: 'Late link', slug: 'late-link-en', body: 'Body.' },
+          },
+        }),
+      );
+      const b = parseToolResult<{ id: string; translationGroupId: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'pages',
+            slug: 'spaeter-verlinken',
+            locale: 'de',
+            data: { title: 'Später verlinken', slug: 'spaeter-verlinken', body: 'Körper.' },
+          },
+        }),
+      );
+      return { first: a, second: b };
+    });
+    expect(second.translationGroupId).not.toBe(first.translationGroupId);
+
+    const linked = await withClient(adminKey, async (c) =>
+      parseToolResult<{ translationGroupId: string }>(
+        await c.callTool({
+          name: 'cms_link_translation',
+          arguments: { id: second.id, translationOf: first.id },
+        }),
+      ),
+    );
+    expect(linked.translationGroupId).toBe(first.translationGroupId);
+
+    const unlinked = await withClient(adminKey, async (c) =>
+      parseToolResult<{ translationGroupId: string }>(
+        await c.callTool({ name: 'cms_unlink_translation', arguments: { id: second.id } }),
+      ),
+    );
+    expect(unlinked.translationGroupId).not.toBe(first.translationGroupId);
+
+    const remaining = await withClient(adminKey, async (c) =>
+      parseToolResult<{ translations: Array<{ locale: string }> }>(
+        await c.callTool({ name: 'cms_list_entry_translations', arguments: { entryId: first.id } }),
+      ),
+    );
+    expect(remaining.translations.map((t) => t.locale)).toEqual(['en']);
+  }, 30_000);
+
   it('delivery: asset fields are expanded inline with publicUrl/mime/altText', async () => {
     const [asset] = await db
       .insert(schema.cmsAssets)

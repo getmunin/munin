@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { schema } from '@getmunin/db';
+import { makeId, schema } from '@getmunin/db';
 import type { AssetVariant } from '@getmunin/types';
 import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import {
@@ -100,6 +100,7 @@ export interface EntryDto {
   collectionSlug: string;
   slug: string;
   locale: string;
+  translationGroupId: string;
   status: EntryStatus;
   data: Record<string, unknown>;
   assets?: Record<string, AssetSummary>;
@@ -117,6 +118,7 @@ export interface EntrySummaryDto {
   collectionSlug: string;
   slug: string;
   locale: string;
+  translationGroupId: string;
   status: EntryStatus;
   title: string | null;
   titleFieldName: string | null;
@@ -199,6 +201,20 @@ export interface LocaleDto {
   position: number;
 }
 
+export interface EntryTranslationDto {
+  id: string;
+  locale: string;
+  slug: string;
+  status: EntryStatus;
+  updatedAt: string;
+}
+
+export interface EntryTranslationsResult {
+  translationGroupId: string;
+  collectionSlug: string;
+  translations: EntryTranslationDto[];
+}
+
 export interface CmsLocaleExport {
   id: string;
   code: string;
@@ -221,6 +237,7 @@ export interface CmsEntryExport {
   collectionId: string;
   slug: string;
   locale: string;
+  translationGroupId?: string;
   status: EntryStatus;
   data: Record<string, unknown>;
   publishedAt: string | null;
@@ -605,10 +622,140 @@ export class CmsService {
     }
   }
 
+  private async findTranslationInLocale(
+    orgId: string,
+    translationGroupId: string,
+    locale: string,
+    exceptId?: string,
+  ): Promise<{ id: string; slug: string } | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.cmsEntries.id, slug: schema.cmsEntries.slug })
+      .from(schema.cmsEntries)
+      .where(
+        and(
+          eq(schema.cmsEntries.orgId, orgId),
+          eq(schema.cmsEntries.translationGroupId, translationGroupId),
+          eq(schema.cmsEntries.locale, locale),
+        ),
+      )
+      .limit(2);
+    return rows.find((r) => r.id !== exceptId) ?? null;
+  }
+
+  private async assertTranslationLocaleFree(
+    orgId: string,
+    translationGroupId: string,
+    locale: string,
+    exceptId?: string,
+  ): Promise<void> {
+    const clash = await this.findTranslationInLocale(orgId, translationGroupId, locale, exceptId);
+    if (clash) {
+      throw new ConflictException(
+        `cms_translation_conflict: locale ${locale} already exists in this translation group as "${clash.slug}"`,
+      );
+    }
+  }
+
+  private async resolveTranslationGroup(
+    orgId: string,
+    collectionId: string,
+    translationOf: string,
+  ): Promise<string> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({
+        collectionId: schema.cmsEntries.collectionId,
+        translationGroupId: schema.cmsEntries.translationGroupId,
+      })
+      .from(schema.cmsEntries)
+      .where(and(eq(schema.cmsEntries.orgId, orgId), eq(schema.cmsEntries.id, translationOf)))
+      .limit(1);
+    const sibling = rows[0];
+    if (!sibling) throw new NotFoundException(`cms_not_found: entry ${translationOf}`);
+    if (sibling.collectionId !== collectionId) {
+      throw new CmsInvalidError(
+        `translationOf entry ${translationOf} belongs to a different collection`,
+      );
+    }
+    return sibling.translationGroupId;
+  }
+
+  async listEntryTranslations(entryId: string): Promise<EntryTranslationsResult> {
+    const ctx = getCurrentContext();
+    const entry = await this.loadEntryRow(entryId);
+    const collection = await this.getCollectionById(entry.collectionId);
+    const rows = await ctx.db
+      .select({
+        id: schema.cmsEntries.id,
+        locale: schema.cmsEntries.locale,
+        slug: schema.cmsEntries.slug,
+        status: schema.cmsEntries.status,
+        updatedAt: schema.cmsEntries.updatedAt,
+      })
+      .from(schema.cmsEntries)
+      .where(
+        and(
+          eq(schema.cmsEntries.orgId, entry.orgId),
+          eq(schema.cmsEntries.translationGroupId, entry.translationGroupId),
+        ),
+      )
+      .orderBy(asc(schema.cmsEntries.locale));
+    return {
+      translationGroupId: entry.translationGroupId,
+      collectionSlug: collection.slug,
+      translations: rows.map((r) => ({
+        id: r.id,
+        locale: r.locale,
+        slug: r.slug,
+        status: r.status as EntryStatus,
+        updatedAt: r.updatedAt.toISOString(),
+      })),
+    };
+  }
+
+  async linkTranslation(input: { id: string; translationOf: string }): Promise<EntryDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (input.id === input.translationOf) {
+      throw new CmsInvalidError('an entry cannot be a translation of itself');
+    }
+    const entry = await this.loadEntryRow(input.id);
+    const collection = await this.getCollectionById(entry.collectionId);
+    const groupId = await this.resolveTranslationGroup(
+      actor.orgId,
+      entry.collectionId,
+      input.translationOf,
+    );
+    if (groupId === entry.translationGroupId) {
+      return toEntryDto(entry, collection.slug, collection.fields);
+    }
+    await this.assertTranslationLocaleFree(actor.orgId, groupId, entry.locale, entry.id);
+    const [updated] = await ctx.db
+      .update(schema.cmsEntries)
+      .set({ translationGroupId: groupId, updatedAt: new Date() })
+      .where(eq(schema.cmsEntries.id, entry.id))
+      .returning();
+    return toEntryDto(updated!, collection.slug, collection.fields);
+  }
+
+  async unlinkTranslation(input: { id: string }): Promise<EntryDto> {
+    const ctx = getCurrentContext();
+    const entry = await this.loadEntryRow(input.id);
+    const collection = await this.getCollectionById(entry.collectionId);
+    const [updated] = await ctx.db
+      .update(schema.cmsEntries)
+      .set({ translationGroupId: makeId('cmg'), updatedAt: new Date() })
+      .where(eq(schema.cmsEntries.id, entry.id))
+      .returning();
+    return toEntryDto(updated!, collection.slug, collection.fields);
+  }
+
   async createEntry(input: {
     collection: string;
     slug: string;
     locale?: string;
+    translationOf?: string;
     data: Record<string, unknown>;
     status?: 'draft' | 'published';
     publishedAt?: string;
@@ -627,6 +774,13 @@ export class CmsService {
     }
     await this.assertAssetsExist(actor.orgId, collection.fields, input.data);
     await this.assertEntrySlugFree(actor.orgId, collection.id, input.slug, locale);
+
+    const translationGroupId = input.translationOf
+      ? await this.resolveTranslationGroup(actor.orgId, collection.id, input.translationOf)
+      : makeId('cmg');
+    if (input.translationOf) {
+      await this.assertTranslationLocaleFree(actor.orgId, translationGroupId, locale);
+    }
 
     await this.quotas.assertCanAdd('cms_entries');
 
@@ -651,6 +805,7 @@ export class CmsService {
         collectionId: collection.id,
         slug: input.slug,
         locale,
+        translationGroupId,
         status,
         data: input.data,
         version: 1,
@@ -718,6 +873,14 @@ export class CmsService {
         actor.orgId,
         existing.collectionId,
         newSlug,
+        newLocale,
+        existing.id,
+      );
+    }
+    if (newLocale !== existing.locale) {
+      await this.assertTranslationLocaleFree(
+        actor.orgId,
+        existing.translationGroupId,
         newLocale,
         existing.id,
       );
@@ -1246,6 +1409,7 @@ export class CmsService {
         collectionId: e.collectionId,
         slug: e.slug,
         locale: e.locale,
+        translationGroupId: e.translationGroupId,
         status: e.status as EntryStatus,
         data: e.data,
         publishedAt: e.publishedAt?.toISOString() ?? null,
@@ -1332,6 +1496,7 @@ export class CmsService {
       }
     }
 
+    const translationAnchors = new Map<string, { entryId: string; groupId: string }>();
     for (const entry of data.entries) {
       const targetCollectionId = resolveId(result.idMap, entry.collectionId);
       if (!targetCollectionId) {
@@ -1344,6 +1509,7 @@ export class CmsService {
       const collection = await this.getCollectionById(targetCollectionId);
       const remappedData = remapEntryData(collection.fields, entry.data, result.idMap);
 
+      const sourceGroup = entry.translationGroupId ?? `${entry.collectionId}:${entry.slug}`;
       const existing = await this.findEntryForImport(
         actor.orgId,
         targetCollectionId,
@@ -1352,6 +1518,12 @@ export class CmsService {
       );
       if (existing) {
         result.idMap[entry.id] = existing.id;
+        if (!translationAnchors.has(sourceGroup)) {
+          translationAnchors.set(sourceGroup, {
+            entryId: existing.id,
+            groupId: existing.translationGroupId,
+          });
+        }
         if (existing.contentHash !== contentHash(
           `${entry.slug}|${entry.locale}|${existing.status}`,
           JSON.stringify(remappedData),
@@ -1366,16 +1538,39 @@ export class CmsService {
           result.skipped++;
         }
       } else {
+        const anchor = translationAnchors.get(sourceGroup);
+        let translationOf: string | undefined;
+        if (anchor) {
+          const taken = await this.findTranslationInLocale(
+            actor.orgId,
+            anchor.groupId,
+            entry.locale,
+          );
+          if (taken) {
+            result.warnings.push(
+              `entry "${entry.slug}" (${entry.locale}) imported as a standalone translation group: its siblings' group already has a ${entry.locale} entry ("${taken.slug}")`,
+            );
+          } else {
+            translationOf = anchor.entryId;
+          }
+        }
         const published = entry.status === 'published';
         const created = await this.createEntry({
           collection: targetCollectionId,
           slug: entry.slug,
           locale: entry.locale,
+          translationOf,
           data: remappedData,
           status: published ? 'published' : 'draft',
           publishedAt: published ? entry.publishedAt ?? undefined : undefined,
         });
         result.idMap[entry.id] = created.id;
+        if (!translationAnchors.has(sourceGroup)) {
+          translationAnchors.set(sourceGroup, {
+            entryId: created.id,
+            groupId: created.translationGroupId,
+          });
+        }
         result.created++;
         await this.restoreImportedStatus(created, entry, result);
       }
@@ -1438,7 +1633,13 @@ export class CmsService {
     collectionId: string,
     slug: string,
     locale: string,
-  ): Promise<{ id: string; version: number; status: EntryStatus; contentHash: string } | null> {
+  ): Promise<{
+    id: string;
+    version: number;
+    status: EntryStatus;
+    contentHash: string;
+    translationGroupId: string;
+  } | null> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select({
@@ -1446,6 +1647,7 @@ export class CmsService {
         version: schema.cmsEntries.version,
         status: schema.cmsEntries.status,
         contentHash: schema.cmsEntries.contentHash,
+        translationGroupId: schema.cmsEntries.translationGroupId,
       })
       .from(schema.cmsEntries)
       .where(
@@ -1459,7 +1661,13 @@ export class CmsService {
       .limit(1);
     const row = rows[0];
     if (!row) return null;
-    return { id: row.id, version: row.version, status: row.status as EntryStatus, contentHash: row.contentHash };
+    return {
+      id: row.id,
+      version: row.version,
+      status: row.status as EntryStatus,
+      contentHash: row.contentHash,
+      translationGroupId: row.translationGroupId,
+    };
   }
 
   private async findAssetForImport(
@@ -1758,6 +1966,7 @@ function toEntryDto(
     collectionSlug,
     slug: row.slug,
     locale: row.locale,
+    translationGroupId: row.translationGroupId,
     status: row.status as EntryStatus,
     data: projectData(fields, row.data),
     version: row.version,
@@ -1783,6 +1992,7 @@ function toEntrySummaryDto(
     collectionSlug,
     slug: row.slug,
     locale: row.locale,
+    translationGroupId: row.translationGroupId,
     status: row.status as EntryStatus,
     title: derived.title,
     titleFieldName: derived.fieldName,

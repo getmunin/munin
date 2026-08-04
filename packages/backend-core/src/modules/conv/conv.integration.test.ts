@@ -471,6 +471,68 @@ const skipReason = TEST_URL
     expect(stillOne[0]!.n).toBe(1);
   }, 30_000);
 
+  it('stripMessageSignature emits conversation.message.body_revised so mirrors can catch up', async () => {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+      body: "Sure, let's talk!\n\nSam Rivera\nCTO\nNorthwind Labs\n+1 555 0142\nsam@northwind.example",
+    });
+    const conv = startResp.body;
+
+    const messages = (await db.execute(
+      sql`SELECT id FROM conv_messages WHERE conversation_id = ${conv.id} AND author_type = 'end_user'`,
+    )) as unknown as Array<{ id: string }>;
+    const messageId = messages[0]!.id;
+
+    await withClient(adminKey, async (c) => {
+      const result = parseToolResult<{ updated: boolean }>(
+        await c.callTool({
+          name: 'conv_strip_message_signature',
+          arguments: {
+            messageId,
+            body: "Sure, let's talk!",
+            signatureText:
+              'Sam Rivera\nCTO\nNorthwind Labs\n+1 555 0142\nsam@northwind.example',
+          },
+        }),
+      );
+      expect(result.updated).toBe(true);
+    });
+
+    const revisions = (await db.execute(
+      sql`SELECT payload FROM events WHERE org_id = ${orgId} AND type = 'conversation.message.body_revised' AND payload->>'messageId' = ${messageId}`,
+    )) as unknown as Array<{ payload: { conversationId?: string; reason?: string } }>;
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]!.payload.conversationId).toBe(conv.id);
+    expect(revisions[0]!.payload.reason).toBe('signature_stripped');
+  }, 30_000);
+
+  it('stripMessageSignature emits nothing when it refuses the cut', async () => {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+      body: 'The invoice total looks wrong, can you check line 4?',
+    });
+    const conv = startResp.body;
+
+    const messages = (await db.execute(
+      sql`SELECT id FROM conv_messages WHERE conversation_id = ${conv.id} AND author_type = 'end_user'`,
+    )) as unknown as Array<{ id: string }>;
+    const messageId = messages[0]!.id;
+
+    await withClient(adminKey, async (c) => {
+      const result = parseToolResult<{ updated: boolean; reason?: string }>(
+        await c.callTool({
+          name: 'conv_strip_message_signature',
+          arguments: { messageId, body: 'wrong' },
+        }),
+      );
+      expect(result.updated).toBe(false);
+      expect(result.reason).toBe('too_aggressive');
+    });
+
+    const revisions = (await db.execute(
+      sql`SELECT count(*)::int AS n FROM events WHERE org_id = ${orgId} AND type = 'conversation.message.body_revised' AND payload->>'messageId' = ${messageId}`,
+    )) as unknown as Array<{ n: number }>;
+    expect(revisions[0]!.n).toBe(0);
+  }, 30_000);
+
   it('changeStatus to closed clears needsHumanAttention', async () => {
     const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'My invoice has the wrong VAT.',

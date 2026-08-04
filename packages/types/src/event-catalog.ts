@@ -43,6 +43,7 @@ export const CONVERSATION_EVENT_TYPES = [
   'conversation.greet_requested',
   'conversation.message.received',
   'conversation.message.sent',
+  'conversation.message.body_revised',
   'conversation.voice.call_ended',
 ] as const;
 

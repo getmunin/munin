@@ -2045,6 +2045,7 @@ export const slackMessageLinks = pgTable(
     slackTs: text('slack_ts').notNull(),
     origin: varchar('origin', { length: 16 }).notNull(),
     // 'mirrored' (Munin → Slack) | 'slack' (operator reply from Slack)
+    authorLabeled: boolean('author_labeled').notNull().default(false),
     createdAt,
   },
   (t) => ({

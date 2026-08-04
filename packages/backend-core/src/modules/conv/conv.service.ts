@@ -986,6 +986,16 @@ export class ConvService {
       .update(schema.convMessages)
       .set({ body: newBody, metadata: patchedMeta })
       .where(eq(schema.convMessages.id, input.messageId));
+    await this.webhooks.emit({
+      type: 'conversation.message.body_revised',
+      payload: {
+        conversationId: row.conversationId,
+        messageId: input.messageId,
+        authorType: row.authorType,
+        internal: row.internal,
+        reason: 'signature_stripped',
+      },
+    });
     return { updated: true };
   }
 

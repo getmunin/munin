@@ -214,6 +214,8 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       case 'conversation.message.received':
       case 'conversation.message.sent':
         return await this.mirrorMessage({ row, payload, context, link, token });
+      case 'conversation.message.body_revised':
+        return await this.reviseMirroredMessage({ payload, context, token });
       case 'conversation.handover_requested': {
         const reason = typeof payload.reason === 'string' ? payload.reason : null;
         await this.postThreadReply(token, link, handoverRequestedText(reason));
@@ -290,6 +292,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     };
     const identity = speakerIdentity(authorKind, authorName);
     let posted;
+    let authorLabeled = false;
     try {
       posted = await this.api.postMessage({
         token,
@@ -304,6 +307,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       });
     } catch (err) {
       if (!(err instanceof SlackApiError) || err.apiError !== 'missing_scope') throw err;
+      authorLabeled = true;
       posted = await this.api.postMessage({
         token,
         channel: link.slackChannelId,
@@ -320,8 +324,48 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         slackChannelId: posted.channel,
         slackTs: posted.ts,
         origin: 'mirrored',
+        authorLabeled,
       })
       .onConflictDoNothing();
+  }
+
+  private async reviseMirroredMessage(input: {
+    payload: Record<string, unknown>;
+    context: ConversationContext;
+    token: string;
+  }): Promise<void> {
+    const { payload, context, token } = input;
+    const messageId = typeof payload.messageId === 'string' ? payload.messageId : null;
+    if (!messageId) return;
+
+    const [link] = await this.db
+      .select()
+      .from(schema.slackMessageLinks)
+      .where(eq(schema.slackMessageLinks.messageId, messageId))
+      .limit(1);
+    if (!link || link.origin !== 'mirrored') return;
+
+    const [message] = await this.db
+      .select()
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.id, messageId))
+      .limit(1);
+    if (!message) throw new TerminalDeliveryError('message_missing');
+
+    const authorKind = message.authorType as AuthorKind;
+    const snapshot = {
+      authorKind,
+      authorName: await this.authorName(authorKind, message.authorId, context),
+      internal: message.internal,
+      body: message.body,
+      attachments: parseMessageAttachments(message.attachments),
+    };
+    await this.api.updateMessage({
+      token,
+      channel: link.slackChannelId,
+      ts: link.slackTs,
+      text: link.authorLabeled ? messageText(snapshot) : messageBodyText(snapshot),
+    });
   }
 
   private async handleNotification(input: {

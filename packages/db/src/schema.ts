@@ -1371,6 +1371,9 @@ export const cmsCollections = pgTable(
 // flattened concat of searchable fields (populated by CmsService on
 // every write); `fts` (added in cms.sql) is a generated tsvector over
 // it; `embedding` is the vector for hybrid search.
+// `translation_group_id` ties the locale variants of one piece of content
+// together so each locale can carry its own slug; siblings share the group
+// and at most one row per (group, locale) exists.
 export const cmsEntries = pgTable(
   'cms_entries',
   {
@@ -1383,6 +1386,9 @@ export const cmsEntries = pgTable(
       .references(() => cmsCollections.id, { onDelete: 'cascade' }),
     slug: varchar('slug', { length: 200 }).notNull(),
     locale: varchar('locale', { length: 16 }).notNull(),
+    translationGroupId: text('translation_group_id')
+      .notNull()
+      .$defaultFn(() => makeId('cmg')),
     status: varchar('status', { length: 16 }).notNull().default('draft'),
     // 'draft' | 'published' | 'scheduled' | 'archived'
     data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
@@ -1411,6 +1417,11 @@ export const cmsEntries = pgTable(
     ),
     scheduledIdx: index('cms_entries_scheduled_idx').on(t.scheduledAt),
     slugUq: uniqueIndex('cms_entries_slug_uq').on(t.orgId, t.collectionId, t.slug, t.locale),
+    translationGroupLocaleUq: uniqueIndex('cms_entries_translation_group_locale_uq').on(
+      t.orgId,
+      t.translationGroupId,
+      t.locale,
+    ),
   }),
 );
 

@@ -256,6 +256,24 @@ export class CmsDeliveryController {
     return { ...body, status: row.status };
   }
 
+  private async fetchLocaleAlternates(
+    orgId: string,
+    row: typeof schema.cmsEntries.$inferSelect,
+  ): Promise<Array<{ locale: string; slug: string }>> {
+    const rows = await this.db
+      .select({ locale: schema.cmsEntries.locale, slug: schema.cmsEntries.slug })
+      .from(schema.cmsEntries)
+      .where(
+        and(
+          eq(schema.cmsEntries.orgId, orgId),
+          eq(schema.cmsEntries.translationGroupId, row.translationGroupId),
+          eq(schema.cmsEntries.status, 'published'),
+        ),
+      )
+      .orderBy(schema.cmsEntries.locale);
+    return rows;
+  }
+
   private async renderEntry(
     orgId: string,
     collection: typeof schema.cmsCollections.$inferSelect,
@@ -275,12 +293,14 @@ export class CmsDeliveryController {
       refSidecar = buildReferenceSidecar(fields, data, entryMap);
       data = applyReferenceExpansion(fields, data, entryMap);
     }
+    const locales = await this.fetchLocaleAlternates(orgId, row);
     return {
       slug: row.slug,
       locale: row.locale,
       data,
       ...(Object.keys(assetSidecar).length > 0 ? { _assets: assetSidecar } : {}),
       ...(Object.keys(refSidecar).length > 0 ? { _refs: refSidecar } : {}),
+      ...(locales.length > 0 ? { _locales: locales } : {}),
       version: row.version,
       publishedAt: row.publishedAt?.toISOString() ?? null,
       updatedAt: row.updatedAt.toISOString(),

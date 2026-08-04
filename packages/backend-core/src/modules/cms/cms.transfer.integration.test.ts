@@ -125,6 +125,7 @@ const ORIGINAL_PUBLISHED_AT = '2019-04-12T08:30:00.000Z';
       slug: string;
       locale: string;
       publishedAt: string | null;
+      translationGroupId: string;
     }>;
     assets: Array<{ id: string; name: string; base64Body: string | null }>;
   }
@@ -357,6 +358,62 @@ const ORIGINAL_PUBLISHED_AT = '2019-04-12T08:30:00.000Z';
       .from(schema.cmsEntries)
       .where(eq(schema.cmsEntries.id, imported.result.idMap['cme_src_future']!));
     expect(scheduledRow[0]!.scheduledAt?.toISOString()).toBe(futureAt);
+  });
+
+  it('locale variants with different slugs stay one translation group across export → import', async () => {
+    const exported = await withClient(adminKeyA, async (c) => {
+      await c.callTool({ name: 'cms_create_locale', arguments: { code: 'nb', name: 'Norsk' } });
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Guides',
+          slug: 'guides',
+          fields: [{ name: 'title', type: 'text', required: true }],
+        },
+      });
+      const base = firstJson(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'guides',
+            slug: 'getting-started',
+            locale: 'en',
+            data: { title: 'Getting started' },
+          },
+        }),
+      ) as { id: string; translationGroupId: string };
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'guides',
+          slug: 'kom-i-gang',
+          locale: 'nb',
+          translationOf: base.id,
+          data: { title: 'Kom i gang' },
+        },
+      });
+      return firstJson(await c.callTool({ name: 'cms_export', arguments: {} })) as CmsExportData;
+    });
+
+    const guideEntries = exported.entries.filter((e) => ['getting-started', 'kom-i-gang'].includes(e.slug));
+    expect(guideEntries).toHaveLength(2);
+    expect(new Set(guideEntries.map((e) => e.translationGroupId)).size).toBe(1);
+
+    const imported = await withClient(adminKeyB, async (c) => {
+      await c.callTool({ name: 'cms_import', arguments: { records: exported } });
+      const entries = firstJson(await c.callTool({ name: 'cms_list_entries', arguments: {} })) as {
+        entries: Array<{ slug: string; locale: string; translationGroupId: string }>;
+      };
+      return entries.entries.filter((e) => ['getting-started', 'kom-i-gang'].includes(e.slug));
+    });
+
+    expect(imported).toHaveLength(2);
+    expect(new Set(imported.map((e) => e.translationGroupId)).size).toBe(1);
+    expect(imported[0]!.translationGroupId).not.toBe(guideEntries[0]!.translationGroupId);
+    expect(imported.map((e) => `${e.locale}:${e.slug}`).sort()).toEqual([
+      'en:getting-started',
+      'nb:kom-i-gang',
+    ]);
   });
 
   it('does not persist SVG asset bytes on import (XSS-prone uploads blocked)', async () => {

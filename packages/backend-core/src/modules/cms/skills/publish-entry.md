@@ -53,6 +53,21 @@ If you get a `cms_version_conflict` error, re-read with `cms_get_entry` and retr
 
 Stamps `publishedAt`, flips `status: 'published'`, returns the entry at version 9.
 
+### Backdated (migrated content)
+
+```jsonc
+{
+  "name": "cms_publish_entry",
+  "arguments": {
+    "id": "<entryId>",
+    "ifVersion": 8,
+    "publishedAt": "2019-04-12T08:30:00Z"
+  }
+}
+```
+
+Pass `publishedAt` when the entry was originally published somewhere else — importing a blog from another CMS, for instance. Without it every migrated article gets today's date and the archive loses its chronological order. `cms_create_entry` takes the same field alongside `status: "published"`, so a one-shot import can set it at creation time. The delivery API orders by `publishedAt` descending, so this is what a frontend archive sorts on — no need to duplicate the date into a `data` field.
+
 ### Scheduled
 
 ```jsonc

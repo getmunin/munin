@@ -45,6 +45,7 @@ const ImportBody = z.object({
         locale: z.string().min(1).max(16),
         status: z.enum(['draft', 'published', 'scheduled', 'archived']),
         data: z.record(z.string(), z.unknown()),
+        publishedAt: z.string().nullable().optional(),
         scheduledAt: z.string().nullable().optional(),
       }),
     ),
@@ -89,6 +90,7 @@ export class CmsTransferController {
       })),
       entries: parsed.data.records.entries.map((e) => ({
         ...e,
+        publishedAt: e.publishedAt ?? null,
         scheduledAt: e.scheduledAt ?? null,
       })),
       assets: parsed.data.records.assets.map((a) => ({

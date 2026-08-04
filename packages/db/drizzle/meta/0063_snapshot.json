@@ -1,6 +1,6 @@
 {
-  "id": "5a5b5302-ca06-4e40-8d7a-5bf1714d8bbf",
-  "prevId": "ac197f84-7759-45e4-ab88-6197fb6e2e58",
+  "id": "be6350e5-2922-476b-bff4-822a65c96024",
+  "prevId": "5a5b5302-ca06-4e40-8d7a-5bf1714d8bbf",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3366,6 +3366,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "handover_resolved_at": {
+          "name": "handover_resolved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "runner_holder": {
           "name": "runner_holder",
           "type": "text",
@@ -3540,6 +3546,28 @@
           ],
           "isUnique": false,
           "where": "needs_human_attention = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "conv_conversations_handover_resolved_idx": {
+          "name": "conv_conversations_handover_resolved_idx",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "handover_resolved_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "handover_resolved_at IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

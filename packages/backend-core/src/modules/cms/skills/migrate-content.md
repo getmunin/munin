@@ -89,6 +89,15 @@ for row in source:
     cms_create_entry(collection="blog", slug=row.slug, locale=row.locale, data=payload, status="draft")
 ```
 
+Carry the source row's original publish date across — `cms_create_entry` and `cms_publish_entry` both take a `publishedAt` (ISO 8601) alongside `status: "published"`:
+
+```
+cms_create_entry(collection="blog", slug=row.slug, data=payload,
+                 status="published", publishedAt=row.published_date)
+```
+
+Without it every migrated post is stamped with the moment of the import and the archive loses its chronological order. Don't work around this by adding a `publishedAt` field to the collection — the entry-level one is what the delivery API sorts on.
+
 For assets referenced inline (images in body, hero images): use `skill://cms/upload-asset-and-embed` to upload, then put the new asset id in the entry's `data`. Build a `sourceAssetUrl → muninAssetId` map as you go so you don't re-upload duplicates.
 
 For body content with rich-text references to other entries (cross-links), defer until step 4.
@@ -118,7 +127,7 @@ Verify with `cms_list_inbound_references` on a few entries — outbound links fr
 { "name": "cms_list_entries", "arguments": { "collection": "blog", "limit": 200 } }
 ```
 
-Sanity-check `returned` against the source count. Entries come back as summaries with long text shortened, so body fidelity needs `cms_get_entry` on 2–3 spot checks — or `cms_list_entries` with `"fields": ["body"]` on a handful of `ids` to compare several at once. Then publish in batches per `skill://cms/publish-entry`.
+Sanity-check `returned` against the source count. Entries come back as summaries with long text shortened, so body fidelity needs `cms_get_entry` on 2–3 spot checks — or `cms_list_entries` with `"fields": ["body"]` on a handful of `ids` to compare several at once. Then publish in batches per `skill://cms/publish-entry`, passing each row's original `publishedAt`.
 
 ## What NOT to do
 

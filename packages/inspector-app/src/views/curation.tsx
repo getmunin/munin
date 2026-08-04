@@ -147,8 +147,11 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
     patchCard(candidate.id, { busy: 'dismiss', error: null });
     try {
       const result = await app.callServerTool({
-        name: 'kb_delete_document',
-        arguments: { id: candidate.id, ifVersion: reviewedVersion(candidate) },
+        name: 'kb_dismiss_curation_candidate',
+        arguments: {
+          candidateDocumentId: candidate.id,
+          ifVersion: reviewedVersion(candidate),
+        },
       });
       if (result.isError) {
         patchCard(candidate.id, { busy: null, error: errorText(result) });

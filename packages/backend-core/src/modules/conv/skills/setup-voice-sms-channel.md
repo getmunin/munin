@@ -28,6 +28,10 @@ Use this when a customer wants Munin on a phone number — an AI voice line (Vap
 
 A channel waiting on its credential link is `active: false` and every admin action on it (`conv_test_voice_sms_channel`, `conv_send_sms_channel_test`, `conv_list_channel_options`, updates) answers `conv_invalid: channel is awaiting credentials`. If the link expired, mint a new one with `conv_request_channel_credentials { channelId }`.
 
+`conv_list_channels` marks such a channel `needsCredentials: true`. A human already signed in to the dashboard does not need the link at all — Channels shows the channel as **Awaiting credentials** with an **Enter credentials** button that asks for exactly that vendor's secret fields. The link is for handing the job to someone who is not in the dashboard.
+
+Once setup is complete the stored secrets show up as `••••` in that listing — vendor keys, auth tokens and signing keys never leave Munin, in any form, so there is nothing to read back or repeat.
+
 ## Picking assistant/worker ids
 
 `conv_list_channel_options` lists a vendor's selectable options (Vapi assistants, Threll workers) **using a channel's stored credentials** — so it works only after the credential link is completed. For the initial create, the human reads the id from the vendor dashboard; to switch later, complete setup first, then call `conv_list_channel_options { channelId }` and update with `conv_configure_voice_sms_channel`.

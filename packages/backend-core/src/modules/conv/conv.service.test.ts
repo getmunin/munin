@@ -158,6 +158,132 @@ const skipReason = TEST_URL
       const found = await run(() => svc.firstActiveChannel());
       expect(found).toBeNull();
     });
+
+    describe('credential material', () => {
+      const CIPHERTEXT = '\\xc30d04020302fake-ciphertext-that-must-not-be-surfaced';
+      const IDENTITY_SECRET = 'i'.repeat(64);
+      const VENDOR_CHANNELS: Array<{
+        name: string;
+        type: 'email' | 'chat' | 'sms' | 'voice';
+        vendor: string;
+        config: Record<string, unknown>;
+      }> = [
+        {
+          name: 'twilio line',
+          type: 'sms',
+          vendor: 'twilio',
+          config: { accountSid: 'AC1', encryptedAuthToken: CIPHERTEXT, fromNumber: '+15005550006' },
+        },
+        {
+          name: 'messagebird line',
+          type: 'sms',
+          vendor: 'messagebird',
+          config: {
+            encryptedAccessKey: CIPHERTEXT,
+            encryptedSigningKey: CIPHERTEXT,
+            originator: 'Munin',
+          },
+        },
+        {
+          name: 'vapi line',
+          type: 'voice',
+          vendor: 'vapi',
+          config: {
+            encryptedApiKey: CIPHERTEXT,
+            encryptedWebhookSecret: CIPHERTEXT,
+            assistantId: 'asst_1',
+          },
+        },
+        {
+          name: 'threll line',
+          type: 'voice',
+          vendor: 'threll',
+          config: {
+            encryptedApiKey: CIPHERTEXT,
+            encryptedWebhookSecret: CIPHERTEXT,
+            accountId: 'acct_1',
+            workerId: 'wrk_1',
+          },
+        },
+        {
+          name: 'email inbox',
+          type: 'email',
+          vendor: 'smtp',
+          config: {
+            addressing: { fromAddress: 'support@example.com' },
+            outbound: {
+              provider: 'smtp',
+              host: 'smtp.example.com',
+              port: 587,
+              secure: true,
+              username: 'support@example.com',
+              encryptedPassword: CIPHERTEXT,
+            },
+            inbound: {
+              provider: 'imap',
+              host: 'imap.example.com',
+              port: 993,
+              secure: true,
+              username: 'support@example.com',
+              encryptedPassword: CIPHERTEXT,
+            },
+          },
+        },
+        {
+          name: 'widget',
+          type: 'chat',
+          vendor: 'munin',
+          config: {
+            provider: 'widget',
+            originAllowlist: ['https://example.com'],
+            identityVerificationSecret: IDENTITY_SECRET,
+          },
+        },
+      ];
+
+      it('listChannels surfaces none of it, for any vendor', async () => {
+        await db.insert(schema.convChannels).values(
+          VENDOR_CHANNELS.map((c) => ({
+            orgId,
+            type: c.type,
+            vendor: c.vendor,
+            name: c.name,
+            config: c.config,
+          })),
+        );
+        const list = await run(() => svc.listChannels());
+        expect(list.map((c) => c.vendor).sort()).toEqual(
+          VENDOR_CHANNELS.map((c) => c.vendor).sort(),
+        );
+        const serialized = JSON.stringify(list);
+        expect(serialized).not.toContain(CIPHERTEXT);
+        expect(serialized).not.toContain(IDENTITY_SECRET);
+        expect(serialized).not.toContain('encrypted');
+        expect(serialized).not.toContain('identityVerificationSecret');
+        const twilio = list.find((c) => c.vendor === 'twilio')!;
+        expect(twilio.config).toEqual({
+          accountSid: 'AC1',
+          authToken: '••••',
+          fromNumber: '+15005550006',
+        });
+      });
+
+      it('listChannels reports a vendor channel awaiting its credential link', async () => {
+        await db.insert(schema.convChannels).values({
+          orgId,
+          type: 'sms',
+          vendor: 'twilio',
+          name: 'pending line',
+          active: false,
+          config: { pendingSetup: { accountSid: 'AC1', fromNumber: '+15005550006' } },
+        });
+        const [pending] = await run(() => svc.listChannels());
+        expect(pending!.needsCredentials).toBe(true);
+        expect(pending!.config).toEqual({
+          pendingSetup: { accountSid: 'AC1', fromNumber: '+15005550006' },
+        });
+      });
+    });
   });
 
   describe('topics', () => {

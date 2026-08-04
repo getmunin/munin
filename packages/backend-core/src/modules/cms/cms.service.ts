@@ -223,6 +223,7 @@ export interface CmsEntryExport {
   locale: string;
   status: EntryStatus;
   data: Record<string, unknown>;
+  publishedAt: string | null;
   scheduledAt: string | null;
 }
 
@@ -610,6 +611,7 @@ export class CmsService {
     locale?: string;
     data: Record<string, unknown>;
     status?: 'draft' | 'published';
+    publishedAt?: string;
   }): Promise<EntryDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -629,6 +631,10 @@ export class CmsService {
     await this.quotas.assertCanAdd('cms_entries');
 
     const status: EntryStatus = input.status === 'published' ? 'published' : 'draft';
+    if (input.publishedAt !== undefined && status !== 'published') {
+      throw new CmsInvalidError('publishedAt requires status "published"');
+    }
+    const publishedAt = status === 'published' ? parsePublishedAt(input.publishedAt) : null;
     const hash = contentHash(`${input.slug}|${locale}|${status}`, JSON.stringify(input.data));
     const searchText = buildSearchText(
       collection.fields,
@@ -651,7 +657,7 @@ export class CmsService {
         contentHash: hash,
         searchText,
         embedding,
-        publishedAt: status === 'published' ? new Date() : null,
+        publishedAt,
         createdByType: tag,
         createdById: actor.id,
         updatedByType: tag,
@@ -766,8 +772,13 @@ export class CmsService {
     return dto;
   }
 
-  async publishEntry(input: { id: string; ifVersion: number }): Promise<EntryDto> {
-    return this.transition(input, 'published');
+  async publishEntry(input: {
+    id: string;
+    ifVersion: number;
+    publishedAt?: string;
+  }): Promise<EntryDto> {
+    const { publishedAt, ...rest } = input;
+    return this.transition({ ...rest, publishedAt: parsePublishedAt(publishedAt) }, 'published');
   }
 
   async unpublishEntry(input: { id: string; ifVersion: number }): Promise<EntryDto> {
@@ -1237,6 +1248,7 @@ export class CmsService {
         locale: e.locale,
         status: e.status as EntryStatus,
         data: e.data,
+        publishedAt: e.publishedAt?.toISOString() ?? null,
         scheduledAt: e.scheduledAt?.toISOString() ?? null,
       })),
       assets: assetExports,
@@ -1354,19 +1366,45 @@ export class CmsService {
           result.skipped++;
         }
       } else {
+        const published = entry.status === 'published';
         const created = await this.createEntry({
           collection: targetCollectionId,
           slug: entry.slug,
           locale: entry.locale,
           data: remappedData,
-          status: entry.status === 'published' ? 'published' : 'draft',
+          status: published ? 'published' : 'draft',
+          publishedAt: published ? entry.publishedAt ?? undefined : undefined,
         });
         result.idMap[entry.id] = created.id;
         result.created++;
+        await this.restoreImportedStatus(created, entry, result);
       }
     }
 
     return result;
+  }
+
+  private async restoreImportedStatus(
+    created: EntryDto,
+    entry: CmsEntryExport,
+    result: ImportResult,
+  ): Promise<void> {
+    if (entry.status === 'archived') {
+      await this.transition({ id: created.id, ifVersion: created.version }, 'archived');
+      return;
+    }
+    if (entry.status !== 'scheduled') return;
+    const at = entry.scheduledAt ? new Date(entry.scheduledAt) : null;
+    if (!at || Number.isNaN(at.getTime()) || at.getTime() <= Date.now()) {
+      result.warnings.push(
+        `entry "${entry.slug}" imported as a draft: its source publish schedule (${entry.scheduledAt ?? 'none recorded'}) is not in the future, so this server will not publish it unattended`,
+      );
+      return;
+    }
+    await this.transition(
+      { id: created.id, ifVersion: created.version, scheduledAt: at },
+      'scheduled',
+    );
   }
 
   private async findLocaleForImport(
@@ -1474,7 +1512,7 @@ export class CmsService {
   }
 
   private async transition(
-    input: { id: string; ifVersion: number; scheduledAt?: Date },
+    input: { id: string; ifVersion: number; scheduledAt?: Date; publishedAt?: Date },
     status: EntryStatus,
   ): Promise<EntryDto> {
     const ctx = getCurrentContext();
@@ -1494,7 +1532,7 @@ export class CmsService {
       updatedById: actor.id,
     };
     if (status === 'published') {
-      updates.publishedAt = new Date();
+      updates.publishedAt = input.publishedAt ?? new Date();
       updates.scheduledAt = null;
     } else if (status === 'scheduled') {
       updates.scheduledAt = input.scheduledAt;
@@ -1801,6 +1839,15 @@ function toLocaleDto(row: typeof schema.cmsLocales.$inferSelect): LocaleDto {
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
+}
+
+function parsePublishedAt(value: string | undefined): Date {
+  if (value === undefined) return new Date();
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) {
+    throw new CmsInvalidError('publishedAt must be ISO 8601');
+  }
+  return at;
 }
 
 function remapEntryData(

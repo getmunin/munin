@@ -553,6 +553,7 @@
         "button": "Legg inn tilgang",
         "title": "Legg inn tilgang for kanalen",
         "description": "Legg inn passordene for {name}. De krypteres i hvile og vises aldri igjen.",
+        "vendorDescription": "Legg inn nøklene fra leverandøren for {name}. De krypteres i hvile og vises aldri igjen. Når du lagrer, verifiseres de og kanalen skrus på.",
         "smtpLabel": "SMTP-passord",
         "imapLabel": "IMAP-passord",
         "submit": "Lagre",

@@ -59,6 +59,7 @@ import {
   cn,
 } from '@getmunin/ui';
 import { MessageBirdLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
+import { StatusLine } from '../components/integrations/integration-card';
 
 interface ChannelDto {
   id: string;
@@ -70,6 +71,20 @@ interface ChannelDto {
   defaultAgentMode?: 'auto' | 'draft_only' | 'off';
   needsCredentials?: boolean;
   createdAt: string;
+}
+
+interface ChannelVendorFieldDto {
+  name: string;
+  required: boolean;
+  secret: boolean;
+  description?: string;
+}
+
+interface ChannelVendorDto {
+  vendor: string;
+  kind: 'sms' | 'voice';
+  displayName: string;
+  configFields: ChannelVendorFieldDto[];
 }
 
 interface EmailChannelDto extends ChannelDto {
@@ -219,25 +234,35 @@ export function ChannelsPage() {
   const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
   const [sendTestFor, setSendTestFor] = useState<EmailChannelDto | null>(null);
   const [enterCredsFor, setEnterCredsFor] = useState<EmailChannelDto | null>(null);
+  const [enterVendorCredsFor, setEnterVendorCredsFor] = useState<ChannelDto | null>(null);
+  const [vendors, setVendors] = useState<ChannelVendorDto[]>([]);
   const [sendSmsTestFor, setSendSmsTestFor] = useState<TwilioSmsChannelDto | null>(null);
   const [sendMessageBirdTestFor, setSendMessageBirdTestFor] =
     useState<MessageBirdSmsChannelDto | null>(null);
   const [alerts, setAlerts] = useState<Record<string, ChannelAlertDto>>({});
 
   const load = useCallback(async () => {
-    const [list, alertsRes] = await Promise.all([
+    const [list, alertsRes, vendorsRes] = await Promise.all([
       api<{ items: ChannelDto[] }>('/v1/conversations/channels'),
       api<{ items: ChannelAlertDto[] }>('/v1/system/alerts?source=channel_inbound').catch(() => ({
         items: [],
       })),
+      api<ChannelVendorDto[]>('/v1/conversations/channels/vendors').catch(() => []),
     ]);
     setChannels(list.items);
+    setVendors(vendorsRes);
     const byChannel: Record<string, ChannelAlertDto> = {};
     for (const alert of alertsRes.items) {
       if (alert.subjectId && !alert.resolvedAt) byChannel[alert.subjectId] = alert;
     }
     setAlerts(byChannel);
   }, []);
+
+  const secretFieldsFor = useCallback(
+    (vendor: string) =>
+      vendors.find((v) => v.vendor === vendor)?.configFields.filter((f) => f.secret) ?? [],
+    [vendors],
+  );
 
   const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
   const buildLoadFailedProps = useSettingsLoadFailedProps();
@@ -435,6 +460,18 @@ export function ChannelsPage() {
         />
       )}
 
+      {enterVendorCredsFor && (
+        <EnterVendorCredentialsDialog
+          channel={enterVendorCredsFor}
+          fields={secretFieldsFor(enterVendorCredsFor.vendor)}
+          onClose={() => setEnterVendorCredsFor(null)}
+          onDone={() => {
+            setEnterVendorCredsFor(null);
+            void tryLoad();
+          }}
+        />
+      )}
+
       {sendSmsTestFor && (
         <SendTestSmsDialog
           channel={sendSmsTestFor}
@@ -557,8 +594,12 @@ export function ChannelsPage() {
                   void deleteChannel(c);
                 }}
                 onShowEmbed={() => setEmbedFor(c)}
+                canEnterCredentials={
+                  c.type === 'email' || secretFieldsFor(c.vendor).length > 0
+                }
                 onEnterCredentials={() => {
                   if (c.type === 'email') setEnterCredsFor(c as EmailChannelDto);
+                  else setEnterVendorCredsFor(c);
                 }}
                 onEdit={() => {
                   if (c.type === 'sms' && c.vendor === 'twilio') {
@@ -604,6 +645,7 @@ function ChannelRow({
   onRotateIdentity,
   onDelete,
   onShowEmbed,
+  canEnterCredentials,
   onEnterCredentials,
   onEdit,
   onSendTest,
@@ -615,6 +657,7 @@ function ChannelRow({
   onRotateIdentity: () => void;
   onDelete: () => void;
   onShowEmbed: () => void;
+  canEnterCredentials: boolean;
   onEnterCredentials: () => void;
   onEdit: () => void;
   onSendTest: () => void;
@@ -654,6 +697,10 @@ function ChannelRow({
               : channel.type;
 
   const isDeactivated = !channel.active;
+  const awaitingCredentials = channel.needsCredentials === true;
+  const canEdit =
+    !awaitingCredentials &&
+    (channel.type === 'email' || isTwilioSms || isMessageBirdSms || isVapiVoice || isThrellVoice);
 
   return (
     <li className="border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
@@ -665,9 +712,7 @@ function ChannelRow({
               {channel.name}
             </h3>
             {channel.needsCredentials && (
-              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                {t('status.awaitingCredentials')}
-              </span>
+              <StatusLine tone="pending" label={t('status.awaitingCredentials')} />
             )}
           </div>
 
@@ -747,13 +792,13 @@ function ChannelRow({
                 <Code className="size-3.5" />
                 {t('showEmbed')}
               </Button>
-            ) : channel.type === 'email' || isTwilioSms || isMessageBirdSms || isVapiVoice || isThrellVoice ? (
+            ) : canEdit ? (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 {tCommon('edit')}
               </Button>
             ) : null}
-            {channel.needsCredentials && (
-              <Button size="sm" onClick={onEnterCredentials}>
+            {awaitingCredentials && canEnterCredentials && (
+              <Button variant="outline" size="sm" onClick={onEnterCredentials}>
                 {t('enterCredentials.button')}
               </Button>
             )}
@@ -781,7 +826,7 @@ function ChannelRow({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {channel.type === 'email' && (
+                {!awaitingCredentials && channel.type === 'email' && (
                   <>
                     <DropdownMenuItem onClick={onSendTest}>
                       {t('sendTestEmail')}
@@ -789,7 +834,7 @@ function ChannelRow({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {isTwilioSms && (
+                {!awaitingCredentials && isTwilioSms && (
                   <>
                     <DropdownMenuItem onClick={onSendTest}>
                       {t('twilioSms.sendTest')}
@@ -797,7 +842,7 @@ function ChannelRow({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {isMessageBirdSms && (
+                {!awaitingCredentials && isMessageBirdSms && (
                   <>
                     <DropdownMenuItem onClick={onSendTest}>
                       {t('messageBirdSms.sendTest')}
@@ -805,7 +850,7 @@ function ChannelRow({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {isVapiVoice && (
+                {!awaitingCredentials && isVapiVoice && (
                   <>
                     <DropdownMenuItem onClick={onSendTest}>
                       {t('vapi.placeCall')}
@@ -813,7 +858,7 @@ function ChannelRow({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {isThrellVoice && (
+                {!awaitingCredentials && isThrellVoice && (
                   <>
                     <DropdownMenuItem onClick={onSendTest}>
                       {t('threll.placeCall')}
@@ -1696,6 +1741,117 @@ function EnterChannelCredentialsDialog({
               />
             </FormField>
           )}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={saving}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving || !canSubmit}
+              pending={saving}
+            >
+              {t('enterCredentials.submit')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const VENDOR_COPY_NAMESPACE: Record<string, string> = {
+  twilio: 'twilioSms',
+  messagebird: 'messageBirdSms',
+  vapi: 'vapi',
+  threll: 'threll',
+};
+
+function EnterVendorCredentialsDialog({
+  channel,
+  fields,
+  onClose,
+  onDone,
+}: {
+  channel: ChannelDto;
+  fields: ChannelVendorFieldDto[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const namespace = VENDOR_COPY_NAMESPACE[channel.vendor];
+  const labelFor = (field: string): string => {
+    const key = namespace ? `${namespace}.${field}Label` : '';
+    return key && t.has(key) ? t(key) : field;
+  };
+  const canSubmit = fields.every((f) => !f.required || values[f.name]?.trim());
+
+  async function submit() {
+    setSaving(true);
+    setError(null);
+    try {
+      const secrets: Record<string, string> = {};
+      for (const f of fields) {
+        const value = values[f.name]?.trim();
+        if (value) secrets[f.name] = value;
+      }
+      const res = await api<{ ok: boolean; detail?: string; error?: string }>(
+        `/v1/conversations/channels/${channel.id}/credentials`,
+        { method: 'POST', body: JSON.stringify({ secrets }) },
+      );
+      if (res.ok) notify.success(t('enterCredentials.saved'));
+      else notify.info(t('enterCredentials.savedUntested', { error: res.error ?? '' }));
+      onDone();
+    } catch (err) {
+      setError(translate(err) || t('enterCredentials.error'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('enterCredentials.title')}</DialogTitle>
+          <DialogDescription>
+            {t('enterCredentials.vendorDescription', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          {fields.map((f, i) => (
+            <FormField
+              key={f.name}
+              label={labelFor(f.name)}
+              error={i === fields.length - 1 ? (error ?? undefined) : undefined}
+            >
+              <Input
+                type="password"
+                autoComplete="off"
+                value={values[f.name] ?? ''}
+                onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+              />
+            </FormField>
+          ))}
           <DialogFooter className={dialogFooterClass}>
             <Button
               type="button"

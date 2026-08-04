@@ -1,0 +1,1 @@
+ALTER TABLE "slack_message_links" ADD COLUMN IF NOT EXISTS "author_labeled" boolean DEFAULT false NOT NULL;

@@ -75,6 +75,7 @@ export interface InboxQueueResponse {
     kb: KbCandidateDto[];
     crm: CrmMergeProposalDto[];
     outreach: OutreachProposalDto[];
+    outreachScheduled?: OutreachProposalDto[];
     cms: CmsDraftSummaryDto[];
     feedback?: FeedbackOutboxDto[];
   };
@@ -119,7 +120,9 @@ export interface InboxController {
   release: (id: string) => Promise<void>;
   closeConv: (id: string) => Promise<void>;
   send: (id: string, body: string, options?: { claim?: boolean; closeDrawer?: boolean }) => Promise<void>;
-  approveQueue: (item: QueueItem) => Promise<void>;
+  approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<void>;
+  scheduledSends: OutreachProposalDto[];
+  cancelScheduledSend: (id: string, reason: string) => Promise<void>;
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
   saveCmsDraft: (item: QueueItem, data: Record<string, unknown>) => Promise<void>;
   uploadCmsAsset: (item: QueueItem, file: File) => Promise<CmsAssetExpanded>;

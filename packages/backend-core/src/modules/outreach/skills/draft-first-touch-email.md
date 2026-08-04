@@ -48,7 +48,7 @@ If the segment returns 0 contacts, skip this campaign entirely.
 }
 ```
 
-If any returned proposal is `pending`, `approved`, or `sent`, skip the contact — they already have a draft in flight or were already reached. Don't re-propose; the service will reject you anyway (the pending unique index for a pending draft, an `outreach_conflict` for a sent/approved first-touch), and you'll waste an LLM call. Three statuses leave the contact eligible for a fresh draft: `dismissed` (the operator rejected a prior draft), `withdrawn` (a curator retracted its own draft), and `failed` (a send that didn't land).
+If any returned proposal is `pending`, `approved`, or `sent`, skip the contact — they already have a draft in flight or were already reached. `approved` means an operator has authorized the send and it is waiting for its scheduled time; that contact is spoken for. Don't re-propose; the service will reject you anyway (a unique index covers pending and approved drafts alike, and an `outreach_conflict` covers a sent first-touch), and you'll waste an LLM call. Three statuses leave the contact eligible for a fresh draft: `dismissed` (the operator rejected a prior draft), `withdrawn` (a curator retracted its own draft), and `failed` (a send that didn't land).
 
 You may also want to skip when the contact's `lastContactedAt` was within `cadenceRules.maxPerWeekPerContact / 7` days — but for the initial pass, skipping based on an existing non-dismissed proposal is the only hard rule.
 
@@ -98,11 +98,13 @@ Behavior:
 
 - The proposal lands in `pending` status, visible to the operator on `/dashboard/inbox` (Outreach drafts tab).
 - An `outreach.proposal.created` realtime event fires.
-- Re-running this skill on the same (campaign, contact) while a pending draft exists, or after a first-touch was already sent/approved, will reject with a conflict — that's the dedup signal.
+- Re-running this skill on the same (campaign, contact) while a pending or approved draft exists, or after a first-touch was already sent, will reject with a conflict — that's the dedup signal.
+
+You may add `proposedSendAt` (ISO-8601) when the brief implies timing — a launch date to line up with, a working-hours slot for a contact in another timezone. It is a suggestion, not a schedule: the operator inherits it when they approve without naming a time of their own, and a time that has already passed at approve-time just sends immediately. Leave it off when you have no real reason for a specific moment; an arbitrary delay on an otherwise-ready draft only makes the queue harder to reason about.
 
 ## Step 7 — review and approve (the operator's loop)
 
-Out of scope for this skill — see `skill://outreach/review-proposals`. The operator (or a trusted admin agent acting on their authority) calls `outreach_list_proposals({ status: "pending" })`, reviews each draft (MCP App hosts render the Munin Inspector review panel inline), then either approves via `outreach_approve_proposal` (which sends via the campaign's email channel and creates an outbound conversation) or dismisses via `outreach_dismiss_proposal` with a reason.
+Out of scope for this skill — see `skill://outreach/review-proposals`. The operator (or a trusted admin agent acting on their authority) calls `outreach_list_proposals({ status: "pending" })`, reviews each draft (MCP App hosts render the Munin Inspector review panel inline), then either approves via `outreach_approve_proposal` (which sends via the campaign's email channel and creates an outbound conversation — immediately, or at a scheduled time they name or inherit from your `proposedSendAt`) or dismisses via `outreach_dismiss_proposal` with a reason.
 
 ## What NOT to do
 

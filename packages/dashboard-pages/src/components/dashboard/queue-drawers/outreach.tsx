@@ -1,9 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
-import { DrawerFooter, DrawerHeader, Markdown, useCmdEnter } from './shared';
+import {
+  DrawerFooter,
+  DrawerHeader,
+  Markdown,
+  toDateTimeLocalValue,
+  useCmdEnter,
+} from './shared';
 import type { OutreachProposalDto } from './types';
 
 export function OutreachQueueDrawer({
@@ -16,7 +31,7 @@ export function OutreachQueueDrawer({
 }: {
   item: { id: string; title: string; snippet: string; createdAt: string; raw: OutreachProposalDto };
   pending: boolean;
-  onApprove: () => void;
+  onApprove: (sendAt?: string | null) => void;
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
   onClose: () => void;
@@ -24,13 +39,21 @@ export function OutreachQueueDrawer({
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
   const age = useRelative();
+  const format = useFormatter();
   const initialBody = item.raw.draftBody;
   const [editing, setEditing] = useState(false);
   const [editedBody, setEditedBody] = useState(initialBody);
+  const [schedulerOpen, setSchedulerOpen] = useState(false);
+  const [sendAt, setSendAt] = useState('');
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const proposedSendAt = futureDate(item.raw.proposedSendAt);
 
   useEffect(() => {
     setEditing(false);
     setEditedBody(initialBody);
+    setSchedulerOpen(false);
+    setScheduleError(null);
+    setSendAt('');
   }, [item.id, initialBody]);
 
   const cancelEdit = useCallback(() => {
@@ -44,8 +67,25 @@ export function OutreachQueueDrawer({
     setEditing(false);
   };
 
+  const openScheduler = () => {
+    setSendAt(toDateTimeLocalValue(proposedSendAt ?? tomorrow()));
+    setScheduleError(null);
+    setSchedulerOpen(true);
+  };
+
+  const submitSchedule = () => {
+    const at = new Date(sendAt);
+    if (Number.isNaN(at.getTime()) || at.getTime() <= Date.now()) {
+      setScheduleError(t('outreachScheduleError'));
+      return;
+    }
+    setScheduleError(null);
+    setSchedulerOpen(false);
+    onApprove(at.toISOString());
+  };
+
   useCmdEnter(() => {
-    if (pending) return;
+    if (pending || schedulerOpen) return;
     if (editing) void saveEdit();
     else onApprove();
   });
@@ -75,6 +115,8 @@ export function OutreachQueueDrawer({
     item.raw.campaign?.name ??
     t('handleFallback');
   const revisionCount = item.raw.revisionCount ?? 0;
+  const stamp = (d: Date) =>
+    format.dateTime(d, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   return (
     <>
@@ -144,6 +186,12 @@ export function OutreachQueueDrawer({
           )}
         </section>
 
+        {proposedSendAt && !editing && (
+          <p className="border-l-2 border-rule px-3 py-2 text-xs text-ink-mute">
+            {t('outreachProposedSendAt', { when: stamp(proposedSendAt) })}
+          </p>
+        )}
+
         {delivery && !editing && (
           <p
             className={`border-l-2 px-3 py-2 text-xs ${
@@ -170,6 +218,57 @@ export function OutreachQueueDrawer({
         )}
       </div>
 
+      <Dialog
+        open={schedulerOpen}
+        onOpenChange={(o) => {
+          setSchedulerOpen(o);
+          if (!o) setScheduleError(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('outreachScheduleTitle')}</DialogTitle>
+            <DialogDescription>{t('outreachScheduleDescription')}</DialogDescription>
+          </DialogHeader>
+          <form
+            className="mt-4 flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitSchedule();
+            }}
+          >
+            <label className="flex flex-col gap-1.5">
+              <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+                {t('outreachScheduleLabel')}
+              </span>
+              <input
+                type="datetime-local"
+                value={sendAt}
+                onChange={(e) => {
+                  setSendAt(e.target.value);
+                  if (scheduleError) setScheduleError(null);
+                }}
+                className="rounded-input border-[1px] border-rule-soft bg-paper px-3 py-2 font-sans text-sm text-ink outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:border-rule-on-dark dark:bg-card dark:text-foreground"
+                autoFocus
+              />
+            </label>
+            {scheduleError && (
+              <span className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
+                {scheduleError}
+              </span>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setSchedulerOpen(false)}>
+                {t('outreachScheduleCancel')}
+              </Button>
+              <Button type="submit" variant="accent" disabled={pending || !sendAt}>
+                {t('outreachScheduleConfirm')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {editing ? (
         <DrawerFooter
           primary={{
@@ -182,9 +281,29 @@ export function OutreachQueueDrawer({
         />
       ) : (
         <DrawerFooter
-          primary={{ label: t('approve'), onClick: onApprove, disabled: pending }}
+          primary={{
+            label: proposedSendAt
+              ? t('outreachApproveScheduled', { when: stamp(proposedSendAt) })
+              : t('approve'),
+            onClick: () => onApprove(),
+            disabled: pending,
+          }}
           secondary={[
             { label: t('edit'), onClick: () => setEditing(true), disabled: pending },
+            ...(proposedSendAt
+              ? [
+                  {
+                    label: t('outreachSendNow'),
+                    onClick: () => onApprove(null),
+                    disabled: pending,
+                  },
+                ]
+              : []),
+            {
+              label: proposedSendAt ? t('outreachReschedule') : t('outreachSchedule'),
+              onClick: openScheduler,
+              disabled: pending,
+            },
             { label: t('dismiss'), onClick: onDismiss, disabled: pending },
           ]}
           shortcut={t('shortcutApprove')}
@@ -192,4 +311,17 @@ export function OutreachQueueDrawer({
       )}
     </>
   );
+}
+
+function futureDate(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime()) || at.getTime() <= Date.now()) return null;
+  return at;
+}
+
+function tomorrow(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d;
 }

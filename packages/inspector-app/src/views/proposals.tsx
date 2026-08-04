@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { App as McpApp } from '@modelcontextprotocol/ext-apps';
 import { errorText, isProposal, parseToolResult, type Proposal } from '../types';
 import { Chrome } from '../chrome';
-import { formatAge } from '../format';
+import { formatAge, formatDateTime } from '../format';
 import { useI18n, type Translator } from '../i18n';
 
 type CardState = {
@@ -229,11 +229,12 @@ function ProposalRow({
   const campaignMeta = `${proposal.campaign?.name ?? proposal.campaignId} · ${proposal.kind}`;
   const inlineEvidence = proposal.evidence ?? evidence?.value ?? null;
   const hasEvidence = proposal.hasEvidence ?? Object.keys(proposal.evidence ?? {}).length > 0;
-  const line = decidedLine(proposal, state.decidedNow, t);
+  const line = decidedLine(proposal, state.decidedNow, locale, t);
   const delivery = proposal.delivery;
   const isCall = delivery?.channelType === 'voice';
   const destination = delivery?.destination ?? null;
   const dashboardOnly = delivery ? DASHBOARD_ONLY_CHANNELS.includes(delivery.channelType) : false;
+  const willSchedule = isFuture(proposal.proposedSendAt);
 
   return (
     <div className="row">
@@ -289,6 +290,7 @@ function ProposalRow({
           )}
           {revisionNotice(proposal, t)}
           {deliveryNotice(proposal, t)}
+          {scheduleNotice(proposal, locale, t)}
           {state.error && <p className="line line-error">{state.error}</p>}
           {proposal.status === 'pending' ? (
             <div className="actions">
@@ -298,7 +300,9 @@ function ProposalRow({
                   disabled={state.busy !== null}
                   onClick={onApprove}
                 >
-                  {state.busy === 'approve' ? t('proposals.approving') : t('proposals.approve')}
+                  {state.busy === 'approve'
+                    ? t(willSchedule ? 'proposals.approvingScheduled' : 'proposals.approving')
+                    : t(willSchedule ? 'proposals.approveScheduled' : 'proposals.approve')}
                 </button>
               )}
               <button className="chip-btn" disabled={state.busy !== null} onClick={onDismiss}>
@@ -352,6 +356,23 @@ function deliveryNotice(proposal: Proposal, t: Translator) {
   );
 }
 
+function isFuture(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const at = new Date(iso).getTime();
+  return !Number.isNaN(at) && at > Date.now();
+}
+
+function scheduleNotice(proposal: Proposal, locale: string, t: Translator) {
+  if (proposal.status !== 'pending' || !isFuture(proposal.proposedSendAt)) return null;
+  return (
+    <p className="line line-accent">
+      {t('proposals.proposedSendAt', {
+        when: formatDateTime(proposal.proposedSendAt!, locale),
+      })}
+    </p>
+  );
+}
+
 function revisionNotice(proposal: Proposal, t: Translator) {
   if (!proposal.revisionCount) return null;
   const key = proposal.revisedAfterReviewAt
@@ -369,6 +390,7 @@ function revisionNotice(proposal: Proposal, t: Translator) {
 function decidedLine(
   proposal: Proposal,
   decidedNow: boolean,
+  locale: string,
   t: Translator,
 ): { text: string; className: string } | null {
   switch (proposal.status) {
@@ -378,7 +400,14 @@ function decidedLine(
         className: 'line-accent',
       };
     case 'approved':
-      return { text: t('proposals.approved'), className: 'line-accent' };
+      return {
+        text: proposal.scheduledSendAt
+          ? t('proposals.approvedScheduled', {
+              when: formatDateTime(proposal.scheduledSendAt, locale),
+            })
+          : t('proposals.approved'),
+        className: 'line-accent',
+      };
     case 'dismissed':
       return {
         text: proposal.dismissReason

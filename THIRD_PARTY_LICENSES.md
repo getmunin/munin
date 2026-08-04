@@ -19362,7 +19362,7 @@ Original Author, when distributed with the Software.
 
 ---
 
-## brace-expansion@1.1.16, 2.1.2, 5.0.8
+## brace-expansion@1.1.16, 2.1.4, 5.0.8
 
 > Brace expansion as known from sh/bash
 - Homepage: https://github.com/juliangruber/brace-expansion#readme
@@ -26520,7 +26520,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## ip-address@10.2.0
+## ip-address@10.4.0
 
 > A library for parsing IPv4 and IPv6 IP addresses in node and the browser.
 - Homepage: https://github.com/beaugunderson/ip-address#readme
@@ -38171,7 +38171,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.9
+## tldts@7.4.10
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -38196,7 +38196,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.9
+## tldts-core@7.4.10
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme
@@ -38988,7 +38988,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## undici@7.28.0
+## undici@7.29.0
 
 > An HTTP/1.1 client, written from scratch for Node.js
 - Homepage: https://undici.nodejs.org

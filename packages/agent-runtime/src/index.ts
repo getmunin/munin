@@ -1,5 +1,12 @@
 export { runAgent, compactHistory } from './runtime.ts';
 export {
+  fenceUntrusted,
+  neutralizeFraming,
+  sanitizeAttributeValue,
+  sanitizeToolName,
+  RESERVED_FRAMING_TAGS,
+} from './untrusted.ts';
+export {
   openAiCompatibleProvider,
   ProviderError,
   classifyProviderError,

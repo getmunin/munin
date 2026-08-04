@@ -5,12 +5,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import {
+  ActorIdentity,
   decryptSecretSql,
   encryptSecretSql,
   getCurrentContext,
   setEncryptionKeySql,
+  withContext,
+  type RequestContext,
 } from '@getmunin/core';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import { z } from 'zod';
@@ -21,14 +24,39 @@ import {
   type RedditChannelConfigInputT,
   type SendLimits,
 } from '@getmunin/types';
+import { randomUUID } from 'node:crypto';
 import { DB } from '../../../common/db/db.module.ts';
 import { readPendingSetup } from '../channels/channel-admin.ts';
-import type { RedditCredentials } from './reddit-client.service.ts';
+import { RedditClientService, type RedditCredentials } from './reddit-client.service.ts';
+import {
+  REDDIT_CONNECT_STATE_TTL_MS,
+  REDDIT_OAUTH_SCOPES,
+  buildRedditAuthorizeUrl,
+  redditOAuthRedirectUri,
+  signRedditConnectState,
+  verifyRedditConnectState,
+} from './reddit-oauth.ts';
 
 export { RedditChannelConfigInput };
 export type { RedditChannelConfigInputT };
 
 const REDACTED_SECRET = '••••';
+
+export interface RedditConnectUrlResult {
+  url: string;
+  redirectUri: string;
+  expiresAt: string;
+}
+
+function readConnectStateSecret(): string {
+  const secret = process.env.MUNIN_AUTH_SECRET;
+  if (!secret) {
+    throw new BadRequestException(
+      'conv_invalid: MUNIN_AUTH_SECRET is not set — it signs the Reddit connect state',
+    );
+  }
+  return secret;
+}
 
 export const REDDIT_CHANNEL_TYPE = 'chat' as const;
 export const REDDIT_CHANNEL_VENDOR = 'reddit' as const;
@@ -39,7 +67,7 @@ export const StoredRedditChannelConfigSchema = z.object({
   clientId: z.string().min(1),
   encryptedClientSecret: z.string(),
   username: z.string().min(1),
-  encryptedPassword: z.string(),
+  encryptedRefreshToken: z.string(),
   sendLimits: SendLimitsSchema.optional(),
 });
 
@@ -49,7 +77,7 @@ export interface RedditChannelConfigDto {
   clientId: string;
   clientSecret: typeof REDACTED_SECRET;
   username: string;
-  password: typeof REDACTED_SECRET;
+  connected: boolean;
   sendLimits?: SendLimits;
 }
 
@@ -67,13 +95,15 @@ export type RedditChannelConfigPatch = {
   clientId?: string;
   clientSecret?: string;
   username?: string;
-  password?: string;
   sendLimits?: SendLimits;
 };
 
 @Injectable()
 export class RedditService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(RedditClientService) private readonly client: RedditClientService,
+  ) {}
 
   async createChannel(input: {
     name: string;
@@ -148,12 +178,26 @@ export class RedditService {
         `conv_invalid: config for reddit: ${flattenError(parsed.error)}`,
       );
     }
+    const previous = pending ? null : jsonbToStored(channel.config);
     const stored = await this.toStored(parsed.data);
+    const next: StoredRedditChannelConfig = {
+      ...stored,
+      encryptedRefreshToken: previous?.encryptedRefreshToken ?? '',
+    };
     await ctx.db
       .update(schema.convChannels)
-      .set({ config: storedToJsonb(stored), active: true, updatedAt: new Date() })
+      .set({
+        config: storedToJsonb(next),
+        active: !needsCredentials(next),
+        updatedAt: new Date(),
+      })
       .where(eq(schema.convChannels.id, channelId));
-    return { ok: true, detail: 'credentials saved' };
+    return {
+      ok: true,
+      detail: needsCredentials(next)
+        ? 'client secret saved — connect the Reddit account to activate the channel'
+        : 'credentials saved',
+    };
   }
 
   async requireChannel(channelId: string): Promise<typeof schema.convChannels.$inferSelect> {
@@ -181,6 +225,88 @@ export class RedditService {
     return channel;
   }
 
+  connectUrl(channelId: string, stored: StoredRedditChannelConfig): RedditConnectUrlResult {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!stored.encryptedClientSecret) {
+      throw new BadRequestException(
+        'conv_invalid: reddit channel has no client secret yet — enter it before connecting the account',
+      );
+    }
+    const exp = Date.now() + REDDIT_CONNECT_STATE_TTL_MS;
+    const state = signRedditConnectState(
+      { orgId: actor.orgId, channelId, exp },
+      readConnectStateSecret(),
+    );
+    return {
+      url: buildRedditAuthorizeUrl({ clientId: stored.clientId, state }),
+      redirectUri: redditOAuthRedirectUri(),
+      expiresAt: new Date(exp).toISOString(),
+    };
+  }
+
+  async completeOAuth(input: { code: string; state: string }): Promise<{ orgId: string }> {
+    const state = verifyRedditConnectState(input.state, readConnectStateSecret());
+    if (!state) throw new BadRequestException('conv_invalid: reddit_invalid_state');
+
+    const actor = new ActorIdentity('system', 'reddit-oauth', state.orgId, ['*'], ['admin']);
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const requestCtx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+      return withContext(requestCtx, async () => {
+        const rows = await tx
+          .select()
+          .from(schema.convChannels)
+          .where(
+            and(
+              eq(schema.convChannels.id, state.channelId),
+              eq(schema.convChannels.orgId, state.orgId),
+              eq(schema.convChannels.vendor, REDDIT_CHANNEL_VENDOR),
+              isNull(schema.convChannels.archivedAt),
+            ),
+          )
+          .limit(1);
+        const channel = rows[0];
+        if (!channel) throw new BadRequestException('conv_invalid: reddit_channel_missing');
+
+        const stored = jsonbToStored(channel.config);
+        const clientSecret = await decryptString(tx, stored.encryptedClientSecret);
+        const exchanged = await this.client.exchangeAuthorizationCode({
+          clientId: stored.clientId,
+          clientSecret,
+          code: input.code,
+          redirectUri: redditOAuthRedirectUri(),
+        });
+
+        const authorized = await this.client.identityFromAccessToken(exchanged.accessToken);
+        if (authorized.toLowerCase() !== stored.username.toLowerCase()) {
+          throw new BadRequestException(
+            `conv_invalid: reddit_account_mismatch: this channel is configured for u/${stored.username} ` +
+              `but the authorization came from u/${authorized}`,
+          );
+        }
+
+        const missing = REDDIT_OAUTH_SCOPES.filter((scope) => !exchanged.scopes.includes(scope));
+        if (missing.length > 0) {
+          throw new BadRequestException(
+            `conv_invalid: reddit_missing_scopes: Reddit granted ${exchanged.scopes.join(', ') || 'nothing'} ` +
+              `but this channel needs ${missing.join(', ')} as well`,
+          );
+        }
+
+        const next: StoredRedditChannelConfig = {
+          ...stored,
+          encryptedRefreshToken: await encryptStringWith(tx, exchanged.refreshToken),
+        };
+        await tx
+          .update(schema.convChannels)
+          .set({ config: storedToJsonb(next), active: true, updatedAt: new Date() })
+          .where(eq(schema.convChannels.id, channel.id));
+        return { orgId: state.orgId };
+      });
+    });
+  }
+
   async loadCredentials(
     channelId: string,
     stored: StoredRedditChannelConfig,
@@ -195,7 +321,7 @@ export class RedditService {
       clientId: stored.clientId,
       clientSecret: await decryptString(tx, stored.encryptedClientSecret),
       username: stored.username,
-      password: await decryptString(tx, stored.encryptedPassword),
+      refreshToken: await decryptString(tx, stored.encryptedRefreshToken),
     }));
   }
 
@@ -204,7 +330,7 @@ export class RedditService {
       clientId: input.clientId,
       encryptedClientSecret: input.clientSecret ? await encryptString(input.clientSecret) : '',
       username: input.username,
-      encryptedPassword: input.password ? await encryptString(input.password) : '',
+      encryptedRefreshToken: '',
       sendLimits: trimSendLimits(input.sendLimits) ?? { ...DEFAULT_REDDIT_SEND_LIMITS },
     };
   }
@@ -219,9 +345,7 @@ export class RedditService {
         ? await encryptString(patch.clientSecret)
         : prev.encryptedClientSecret,
       username: patch.username ?? prev.username,
-      encryptedPassword: patch.password
-        ? await encryptString(patch.password)
-        : prev.encryptedPassword,
+      encryptedRefreshToken: prev.encryptedRefreshToken,
       sendLimits: trimSendLimits(patch.sendLimits) ?? prev.sendLimits,
     };
   }
@@ -244,15 +368,27 @@ export class RedditService {
         clientId: stored.clientId,
         clientSecret: REDACTED_SECRET,
         username: stored.username,
-        password: REDACTED_SECRET,
+        connected: Boolean(stored.encryptedRefreshToken),
         ...(stored.sendLimits ? { sendLimits: { ...stored.sendLimits } } : {}),
       },
     };
   }
 }
 
+export function publicChannelConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const parsed = StoredRedditChannelConfigSchema.safeParse(config);
+  if (!parsed.success) return {};
+  const stored = parsed.data;
+  return {
+    clientId: stored.clientId,
+    username: stored.username,
+    connected: Boolean(stored.encryptedRefreshToken),
+    ...(stored.sendLimits ? { sendLimits: stored.sendLimits } : {}),
+  };
+}
+
 export function needsCredentials(stored: StoredRedditChannelConfig): boolean {
-  return !stored.encryptedClientSecret || !stored.encryptedPassword;
+  return !stored.encryptedClientSecret || !stored.encryptedRefreshToken;
 }
 
 export function storedToJsonb(stored: StoredRedditChannelConfig): Record<string, unknown> {
@@ -286,6 +422,15 @@ function flattenError(error: z.ZodError): string {
 async function encryptString(plaintext: string): Promise<string> {
   const ctx = getCurrentContext();
   const rows = await ctx.db.execute<{ ct: string } & Record<string, unknown>>(
+    sql`SELECT ${encryptSecretSql(plaintext)} AS ct`,
+  );
+  const ct = rows[0]?.ct;
+  if (!ct) throw new ConflictException('conv_conflict: encryption_failed');
+  return ct;
+}
+
+async function encryptStringWith(tx: Db | Tx, plaintext: string): Promise<string> {
+  const rows = await tx.execute<{ ct: string } & Record<string, unknown>>(
     sql`SELECT ${encryptSecretSql(plaintext)} AS ct`,
   );
   const ct = rows[0]?.ct;

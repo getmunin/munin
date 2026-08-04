@@ -82,6 +82,10 @@ const GetRulesInput = z.object({
   subreddit: SubredditSchema,
 });
 
+const ConnectUrlInput = z.object({
+  channelId: z.string().min(1).max(64).describe('Id of the Reddit channel to authorize.'),
+});
+
 @Injectable()
 export class RedditAdminTools {
   constructor(
@@ -219,6 +223,22 @@ export class RedditAdminTools {
       },
       rateLimit: res.rateLimit,
     };
+  }
+
+  @McpTool({
+    name: 'conv_get_reddit_connect_url',
+    title: 'Conv: Get a Reddit authorization link',
+    description:
+      "Return the Reddit authorization link for a Reddit channel, plus the redirect uri the channel's Reddit app must be registered with. A person opens the link, approves the permissions as the account the channel is configured for, and Reddit sends them back to Munin, which stores the grant and activates the channel. The link expires after ten minutes. The channel must already have its client secret stored.",
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: ConnectUrlInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  async getRedditConnectUrl(args: z.infer<typeof ConnectUrlInput>) {
+    const channel = await this.reddit.requireChannel(args.channelId);
+    return this.reddit.connectUrl(channel.id, jsonbToStored(channel.config));
   }
 
   @McpTool({

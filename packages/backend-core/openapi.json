@@ -2614,6 +2614,37 @@
         ]
       }
     },
+    "/v1/conversations/channels/{id}/reddit/connect-url": {
+      "get": {
+        "operationId": "ConvChannelsController_redditConnectUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/channels/messagebird-sms": {
       "post": {
         "operationId": "ConvChannelsController_configureMessageBirdSms",
@@ -5599,6 +5630,21 @@
         },
         "tags": [
           "ChannelWebhook"
+        ],
+        "security": []
+      }
+    },
+    "/v1/conversations/channels/reddit/oauth/callback": {
+      "get": {
+        "operationId": "RedditOAuthController_callback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "RedditOAuth"
         ],
         "security": []
       }

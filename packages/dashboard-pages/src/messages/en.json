@@ -522,7 +522,8 @@
         "deactivatedMessage": "Auto-deactivated after {threshold} failed polls",
         "failingMessage": "Inbound polling failing · {attempt}/{threshold} · auto-deactivates at {threshold}",
         "activate": "Activate",
-        "awaitingCredentials": "Awaiting credentials"
+        "awaitingCredentials": "Awaiting credentials",
+        "awaitingAuthorization": "Awaiting authorization"
       },
       "enterCredentials": {
         "button": "Enter credentials",
@@ -606,7 +607,8 @@
       },
       "addRedditDialog": {
         "title": "Add a Reddit channel",
-        "description": "Connect a Reddit account as a conversation channel. Comments and messages it receives arrive as chat conversations; replies are sent from the same account.",
+        "description": "Step 1 of 2 — create the channel with your Reddit app's client ID and secret. The channel stays inactive until step 2, where you click Connect and approve Munin's access on Reddit. After that, comments and messages the account receives arrive as chat conversations, and replies are sent from the same account.",
+        "nextStepHint": "Step 2 comes right after: the new channel gets a Connect button that sends you to Reddit to authorize the account.",
         "create": "Create Reddit channel"
       },
       "twilioSms": {
@@ -759,14 +761,28 @@
       },
       "reddit": {
         "nameHint": "For your reference. Lowercase, no spaces.",
+        "redirectUriLabel": "Redirect URI",
+        "redirectUriHint": "Paste this into the \"redirect uri\" field of your Reddit app before you continue. Reddit compares it character for character — a trailing slash or the wrong scheme is enough for it to refuse the authorization.",
         "clientIdLabel": "Client ID",
-        "clientIdHint": "From the script-type Reddit app you registered at reddit.com/prefs/apps, owned by the account below.",
+        "clientIdHint": "From the web-app-type Reddit app you registered at reddit.com/prefs/apps. It's the string under the app name.",
         "clientSecretLabel": "Client secret",
         "clientSecretHintCreate": "The secret shown next to the client ID on the same Reddit app.",
         "usernameLabel": "Reddit username",
-        "usernameHint": "The account Munin posts and replies as, without the u/ prefix.",
-        "passwordLabel": "Reddit password",
-        "passwordHintCreate": "The account password. Reddit needs it for script-app login, so the account cannot have two-factor authentication enabled."
+        "usernameHint": "The account Munin posts and replies as, without the u/ prefix. You'll authorize as this account in step 2.",
+        "connect": "Connect",
+        "reconnect": "Reconnect Reddit account",
+        "connectStatus": {
+          "connectedTitle": "Reddit account connected",
+          "connectedBody": "The authorization went through and the channel is active. Munin now reads and replies as that account.",
+          "deniedTitle": "Authorization cancelled",
+          "deniedBody": "You declined access on Reddit, so nothing changed. Click Connect on the channel whenever you want to try again.",
+          "errorTitle": "Couldn't finish connecting",
+          "errorBody": "Reddit didn't complete the handshake. Click Connect to start over — the link is only valid for ten minutes. Also check that the redirect URI on your Reddit app matches the one the dialog shows, character for character.",
+          "mismatchTitle": "Authorized with the wrong account",
+          "mismatchBody": "You were signed in to Reddit as a different account than this channel is configured for, so nothing was stored. Sign in as the account the channel names (a private window is the quickest way) and click Connect again — or change the channel's Reddit username to the account you just authorized.",
+          "scopesTitle": "A permission is missing",
+          "scopesBody": "One of the permissions Munin needs wasn't granted on Reddit's consent screen. Click Connect again and leave all of them on — identity, read, submit and privatemessages."
+        }
       },
       "errors": {
         "load": "Could not load channels.",
@@ -788,6 +804,7 @@
         "updateThrell": "Could not update Threll voice channel.",
         "placeThrellCall": "Could not place voice call.",
         "createReddit": "Could not create Reddit channel.",
+        "redditConnect": "Could not start the Reddit authorization.",
         "rotate": "Could not rotate key.",
         "rotateIdentity": "Could not rotate identity secret.",
         "test": "Could not test email credentials.",

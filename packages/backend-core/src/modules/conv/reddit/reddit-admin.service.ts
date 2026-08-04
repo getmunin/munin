@@ -7,6 +7,7 @@ import {
   RedditService,
   jsonbToStored,
   type RedditChannelDto,
+  type RedditConnectUrlResult,
 } from './reddit.service.ts';
 
 export const ConfigureInput = z.object({
@@ -37,17 +38,7 @@ export const ConfigureInput = z.object({
       ),
   ),
   username: RedditUsernameSchema.optional().describe(
-    'Reddit account the script app belongs to, without the "u/" prefix. Comments and DMs are posted as this account. Required on create.',
-  ),
-  password: sensitive(
-    z
-      .string()
-      .min(1)
-      .max(256)
-      .optional()
-      .describe(
-        'Password of that Reddit account. Required on create. On update, omit to keep the stored password, or pass a new value to rotate.',
-      ),
+    'Reddit account the app belongs to, without the "u/" prefix. Comments and DMs are posted as this account, and the authorization must be granted by it. Required on create.',
   ),
   sendLimits: SendLimitsSchema.optional().describe(
     `Outbound pacing for this Reddit account. Defaults to ${DEFAULT_REDDIT_SEND_LIMITS.perHourMax} sends per hour and ${DEFAULT_REDDIT_SEND_LIMITS.perDayMax} per day, which keeps a young account under Reddit's own comment throttle.`,
@@ -78,7 +69,6 @@ export class RedditAdminService {
           clientId: args.clientId,
           clientSecret: args.clientSecret,
           username: args.username,
-          password: args.password,
           sendLimits: args.sendLimits,
         },
       });
@@ -86,7 +76,7 @@ export class RedditAdminService {
     if (!args.name) {
       throw new BadRequestException('conv_invalid: name is required when creating a channel');
     }
-    const missing = (['clientId', 'clientSecret', 'username', 'password'] as const).filter(
+    const missing = (['clientId', 'clientSecret', 'username'] as const).filter(
       (key) => !args[key],
     );
     if (missing.length > 0) {
@@ -101,10 +91,14 @@ export class RedditAdminService {
         clientId: args.clientId!,
         clientSecret: args.clientSecret!,
         username: args.username!,
-        password: args.password!,
         ...(args.sendLimits ? { sendLimits: args.sendLimits } : {}),
       },
     });
+  }
+
+  async connectUrl(args: { channelId: string }): Promise<RedditConnectUrlResult> {
+    const channel = await this.svc.requireChannel(args.channelId);
+    return this.svc.connectUrl(channel.id, jsonbToStored(channel.config));
   }
 
   async testChannel(args: { channelId: string }): Promise<

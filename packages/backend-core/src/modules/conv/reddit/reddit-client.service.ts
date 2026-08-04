@@ -13,7 +13,7 @@ export interface RedditCredentials {
   clientId: string;
   clientSecret: string;
   username: string;
-  password: string;
+  refreshToken: string;
 }
 
 export interface RedditRateLimit {
@@ -88,6 +88,7 @@ const TokenResponseSchema = z.object({
   token_type: z.string().optional(),
   expires_in: z.number().optional(),
   scope: z.string().optional(),
+  refresh_token: z.string().min(1).optional(),
 });
 
 const MeSchema = z.object({
@@ -311,9 +312,9 @@ const TERMINAL_ERROR_CODES = new Set([
 
 const DEFERRED_ERROR_CODES = new Set(['RATELIMIT', 'QUOTA_FILLED']);
 
-export function redditUserAgent(username: string): string {
+export function redditUserAgent(username: string | null): string {
   const version = process.env.MUNIN_VERSION ?? FALLBACK_VERSION;
-  return `web:munin:v${version} (by /u/${username})`;
+  return username ? `web:munin:v${version} (by /u/${username})` : `web:munin:v${version}`;
 }
 
 export function parseRedditRateLimit(headers: Record<string, string>): RedditRateLimit {
@@ -373,6 +374,79 @@ export class RedditClientService {
     this.http = http;
     this.tokens.clear();
     this.budgets.clear();
+  }
+
+  async exchangeAuthorizationCode(input: {
+    clientId: string;
+    clientSecret: string;
+    code: string;
+    redirectUri: string;
+  }): Promise<{ accessToken: string; refreshToken: string; scopes: string[] }> {
+    const basic = Buffer.from(`${input.clientId}:${input.clientSecret}`).toString('base64');
+    const res = await this.transport({
+      method: 'POST',
+      url: REDDIT_TOKEN_URL,
+      headers: {
+        authorization: `Basic ${basic}`,
+        'content-type': 'application/x-www-form-urlencoded',
+        'user-agent': redditUserAgent(null),
+        accept: 'application/json',
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: input.code,
+        redirect_uri: input.redirectUri,
+      }).toString(),
+    });
+    if (res.status >= 500) {
+      throw new RedditApiError({
+        message: `reddit_auth_unavailable_${res.status}`,
+        kind: 'retry',
+        status: res.status,
+      });
+    }
+    const parsed = TokenResponseSchema.safeParse(parseJson(res.body));
+    if (!parsed.success) {
+      throw new RedditApiError({
+        message: 'reddit_auth_failed: Reddit rejected the authorization code',
+        kind: 'terminal',
+        status: res.status,
+      });
+    }
+    if (!parsed.data.refresh_token) {
+      throw new RedditApiError({
+        message:
+          'reddit_auth_failed: Reddit returned no refresh token — the authorize request must use duration=permanent',
+        kind: 'terminal',
+        status: res.status,
+      });
+    }
+    return {
+      accessToken: parsed.data.access_token,
+      refreshToken: parsed.data.refresh_token,
+      scopes: parsed.data.scope ? parsed.data.scope.split(' ').filter(Boolean) : [],
+    };
+  }
+
+  async identityFromAccessToken(accessToken: string): Promise<string> {
+    const res = await this.transport({
+      method: 'GET',
+      url: `${REDDIT_API_BASE}/api/v1/me`,
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'user-agent': redditUserAgent(null),
+        accept: 'application/json',
+      },
+    });
+    const parsed = MeSchema.safeParse(parseJson(res.body));
+    if (!parsed.success) {
+      throw new RedditApiError({
+        message: 'reddit_auth_failed: could not read the authorized account from Reddit',
+        kind: 'terminal',
+        status: res.status,
+      });
+    }
+    return parsed.data.name;
   }
 
   async getMe(credentials: RedditCredentials): Promise<RedditCallResult<RedditMe>> {
@@ -703,14 +777,14 @@ export class RedditClientService {
         accept: 'application/json',
       },
       body: new URLSearchParams({
-        grant_type: 'password',
-        username: credentials.username,
-        password: credentials.password,
+        grant_type: 'refresh_token',
+        refresh_token: credentials.refreshToken,
       }).toString(),
     });
     if (res.status === 401 || res.status === 400) {
       throw new RedditApiError({
-        message: 'reddit_auth_failed: Reddit rejected the script app credentials',
+        message:
+          'reddit_auth_failed: Reddit rejected the stored authorization — reconnect the channel',
         kind: 'terminal',
         status: res.status,
       });

@@ -1,6 +1,6 @@
 ---
 title: Set up a Reddit channel
-description: Register a Reddit script app, configure the channel with non-secret config, hand off the client secret and password through a credential link, and verify the account — including the account-warming and pacing requirements that decide whether sends land at all.
+description: Register a Reddit web app, configure the channel, send the operator through Reddit's authorization screen to grant access, and verify the account — including the account-warming and pacing requirements that decide whether sends land at all.
 audiences: [admin]
 ---
 
@@ -12,26 +12,31 @@ This channel is **bring-your-own-key**: the customer registers their own Reddit 
 
 ## TL;DR
 
-1. The human creates a **script** app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) — "create another app…", type **script**. Note the client id (under the app name) and the client secret.
-2. `conv_configure_vendor_channel` with `vendor: 'reddit'`, a `name`, and the **non-secret** config: `clientId` and `username`. The channel is created inactive and the response includes a one-time **credential link**.
-3. Share the credential link — the human enters `clientSecret` and `password` in the dashboard. Saving verifies the credentials against Reddit and activates the channel. The link works once and expires after 24 hours; mint a fresh one with `conv_request_channel_credentials`.
-4. `conv_test_vendor_channel { channelId }` re-verifies the stored credentials any time. `conv_send_vendor_channel_test_message { channelId, to }` sends a real DM to a username you supply.
+Two steps: create the channel, then authorize the account. The channel stays inactive until the second step finishes.
 
-**Never ask for the client secret or the account password in the conversation** — the tool rejects secret fields.
+1. The human creates an app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) — "create another app…", type **web app**. The **redirect uri must be exactly** the value the dashboard shows, `<your Munin URL>/v1/conversations/channels/reddit/oauth/callback`; Reddit compares it character for character and rejects anything else. Note the client id (under the app name) and the client secret.
+2. `conv_configure_vendor_channel` with `vendor: 'reddit'`, a `name`, and `clientId` + `username`. The channel is created inactive, and the response includes a one-time **credential link** for the client secret.
+3. Share the credential link — the human enters `clientSecret` in the dashboard.
+4. The human clicks **Connect** on the channel and approves the permissions on Reddit. Reddit redirects back, Munin stores a refresh token, and the channel activates. `conv_test_vendor_channel` re-verifies any time.
+
+**Never ask for the client secret in the conversation** — the tool rejects secret fields. **Munin never asks for the account password at all**; there is nothing to type and nothing for you to hold.
 
 ## Config fields
 
 | field | secret | what it is |
 |---|---|---|
-| `clientId` | no | Client id of the script app, shown under the app name at reddit.com/prefs/apps. |
+| `clientId` | no | Client id of the app, shown under the app name at reddit.com/prefs/apps. |
 | `username` | no | The Reddit account, **without** the `u/` prefix. Comments and DMs are posted as this account. |
-| `clientSecret` | yes | Secret of the same script app. |
-| `password` | yes | Password of that Reddit account. |
+| `clientSecret` | yes | Secret of the same app. |
 | `sendLimits` | no | `{ perHourMax, perDayMax }`. Defaults to **3/hour, 15/day** — see pacing below. |
 
-The app must be type **script**, not "web app" or "installed app": only script apps accept the password grant Munin uses. A script app is usable only by the account that owns it, so **the app has to be created while logged in as the account that will be commenting** — the app and the `username` must be the same account. The redirect uri is required by the form but unused; `http://localhost:8080` is fine.
+The app must be type **web app**, because only that type can complete a redirect-based authorization. The redirect uri has to match what Munin sends, exactly — a trailing slash or `http` where Munin uses `https` is enough for Reddit to refuse the authorization.
 
-**The account must not have two-factor authentication enabled.** Reddit's password grant requires the password and the current OTP joined as `password:otp` for a 2FA account, which cannot work for an unattended service. Use an account without 2FA, and treat the password as the credential it is.
+**Authorize as the account the channel is configured for.** Munin fetches the authorized account from Reddit and refuses the connection if it is not `username`, because otherwise you would silently be posting as whoever happened to be logged in. If the operator was signed into a personal account, they should log into the right one and click Connect again.
+
+Reddit's consent screen lists the permissions Munin asks for — `identity`, `read`, `submit`, `privatemessages`. All four are required; unticking any of them makes the connection fail with a clear message rather than half-working.
+
+**Two-factor authentication is fine here.** The operator authorizes in a browser, where their 2FA works normally. Munin never sees the password, so there is no `password:otp` problem and no reason to weaken the account for the sake of an integration.
 
 Munin sends its own descriptive `User-Agent` derived from the username, as Reddit's API terms require — there is nothing to configure and nothing to get wrong.
 
@@ -56,6 +61,8 @@ If Reddit rate-limits a send, Munin honours the retry time Reddit returns and do
 
 With BYOK the **customer is the API consumer of record** and is bound by Reddit's Data API terms. Reddit's free tier is for non-commercial use; commercial use requires approval from Reddit, and obtaining it is the customer's obligation, not Munin's. Say this during setup rather than after — it is not something Munin can negotiate on their behalf, and it is the customer's account that is at risk.
 
+**Revoking is theirs too, and it is one click.** The authorization appears under the account's [app permissions](https://www.reddit.com/prefs/apps) and can be revoked there without changing the password. Munin's next send then fails terminally with a message telling the operator to reconnect, rather than retrying against a dead grant.
+
 ## What Munin can and cannot see
 
 - **DMs go to the "Messages" inbox, not Reddit Chat.** Reddit Chat — the modern DM UI most people actually read — has no public API. Munin can neither send nor read there. A DM that Reddit accepts is genuinely delivered, but to the inbox many users never open, so a successful send is not the same as being read. Set the customer's expectations accordingly.
@@ -79,7 +86,7 @@ When anyone asks to be left alone — in a DM or publicly in a thread — set `d
 
 ## Verify
 
-- `conv_test_vendor_channel { channelId }` — fetches the authenticated account from Reddit, so it confirms the app credentials, the password grant, and which account Munin will speak as. No message sent.
+- `conv_test_vendor_channel { channelId }` — fetches the authenticated account from Reddit, so it confirms the app credentials, the stored authorization, and which account Munin will speak as. No message sent.
 - `conv_send_vendor_channel_test_message { channelId, to }` — sends a real DM to a username you supply. Use a colleague's account or a throwaway; do not test against a prospect.
 
 ## Related

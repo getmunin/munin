@@ -3796,6 +3796,35 @@
     }
   },
   {
+    "name": "conv_get_reddit_connect_url",
+    "title": "Conv: Get a Reddit authorization link",
+    "description": "Return the Reddit authorization link for a Reddit channel, plus the redirect uri the channel's Reddit app must be registered with. A person opens the link, approves the permissions as the account the channel is configured for, and Reddit sends them back to Munin, which stores the grant and activates the channel. The link expires after ten minutes. The channel must already have its client secret stored.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the Reddit channel to authorize."
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "conv_get_subreddit_rules",
     "title": "Conv: Read a subreddit's rules",
     "description": "Read a subreddit's posted rules and the site-wide rules, using a Reddit channel's stored credentials. Returns each rule's short name, what it applies to, its violation reason and a truncated description. Use it to check what a subreddit permits before posting there.",

@@ -148,6 +148,7 @@ interface RedditChannelDto extends ChannelDto {
   config: {
     clientId?: string;
     username?: string;
+    connected?: boolean;
   };
 }
 
@@ -208,6 +209,22 @@ interface ChannelAlertDto {
 
 const KEY_DISPLAY_TIMEOUT_MS = 1500;
 
+const REDDIT_CONNECT_STATUSES = ['connected', 'denied', 'error', 'mismatch', 'scopes'] as const;
+
+type RedditConnectStatus = (typeof REDDIT_CONNECT_STATUSES)[number];
+
+function readRedditConnectStatus(): RedditConnectStatus | null {
+  if (typeof window === 'undefined') return null;
+  const raw = new URLSearchParams(window.location.search).get('reddit');
+  return REDDIT_CONNECT_STATUSES.find((status) => status === raw) ?? null;
+}
+
+function clearRedditConnectStatus(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('reddit');
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
 export function ChannelsPage() {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
@@ -235,6 +252,7 @@ export function ChannelsPage() {
   const [sendMessageBirdTestFor, setSendMessageBirdTestFor] =
     useState<MessageBirdSmsChannelDto | null>(null);
   const [alerts, setAlerts] = useState<Record<string, ChannelAlertDto>>({});
+  const [redditStatus, setRedditStatus] = useState<RedditConnectStatus | null>(null);
 
   const load = useCallback(async () => {
     const [list, alertsRes] = await Promise.all([
@@ -257,6 +275,24 @@ export function ChannelsPage() {
   useEffect(() => {
     void tryLoad();
   }, [tryLoad]);
+
+  useEffect(() => {
+    const status = readRedditConnectStatus();
+    if (!status) return;
+    setRedditStatus(status);
+    clearRedditConnectStatus();
+  }, []);
+
+  async function connectReddit(channel: ChannelDto) {
+    try {
+      const res = await api<{ url: string }>(
+        `/v1/conversations/channels/${channel.id}/reddit/connect-url`,
+      );
+      window.location.assign(res.url);
+    } catch (err) {
+      notify.error(translate(err) || t('errors.redditConnect'));
+    }
+  }
 
   async function rotateKey(channel: ChannelDto) {
     const ok = await confirm({
@@ -341,6 +377,10 @@ export function ChannelsPage() {
         title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
         lede={t('subtitle')}
       />
+
+      {redditStatus && (
+        <RedditConnectNotice status={redditStatus} onDismiss={() => setRedditStatus(null)} />
+      )}
 
       <CreateWidgetDialog
         open={widgetOpen}
@@ -578,6 +618,9 @@ export function ChannelsPage() {
                 onRotateIdentity={() => {
                   void rotateIdentity(c);
                 }}
+                onConnectReddit={() => {
+                  void connectReddit(c);
+                }}
                 onDelete={() => {
                   void deleteChannel(c);
                 }}
@@ -627,6 +670,7 @@ function ChannelRow({
   onActivate,
   onRotate,
   onRotateIdentity,
+  onConnectReddit,
   onDelete,
   onShowEmbed,
   onEnterCredentials,
@@ -638,6 +682,7 @@ function ChannelRow({
   onActivate: () => void;
   onRotate: () => void;
   onRotateIdentity: () => void;
+  onConnectReddit: () => void;
   onDelete: () => void;
   onShowEmbed: () => void;
   onEnterCredentials: () => void;
@@ -663,6 +708,7 @@ function ChannelRow({
   const vapiConfig = isVapiVoice ? (channel.config as VapiChannelDto['config']) : null;
   const threllConfig = isThrellVoice ? (channel.config as ThrellChannelDto['config']) : null;
   const redditConfig = isReddit ? (channel.config as RedditChannelDto['config']) : null;
+  const redditConnected = redditConfig?.connected === true;
   const origins = widgetConfig?.originAllowlist ?? [];
 
   const badgeKind = channel.type;
@@ -696,6 +742,11 @@ function ChannelRow({
             {channel.needsCredentials && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
                 {t('status.awaitingCredentials')}
+              </span>
+            )}
+            {isReddit && !redditConnected && (
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                {t('status.awaitingAuthorization')}
               </span>
             )}
           </div>
@@ -785,6 +836,13 @@ function ChannelRow({
                 <Code className="size-3.5" />
                 {t('showEmbed')}
               </Button>
+            ) : isReddit ? (
+              !redditConnected && (
+                <Button size="sm" onClick={onConnectReddit} className="gap-1.5">
+                  <RedditGlyph className="size-3.5" />
+                  {t('reddit.connect')}
+                </Button>
+              )
             ) : channel.type === 'email' || isTwilioSms || isMessageBirdSms || isVapiVoice || isThrellVoice ? (
               <Button variant="outline" size="sm" onClick={onEdit}>
                 {tCommon('edit')}
@@ -815,6 +873,14 @@ function ChannelRow({
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={onRotateIdentity}>
                       {t('rotateIdentity')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {isReddit && redditConnected && (
+                  <>
+                    <DropdownMenuItem onClick={onConnectReddit}>
+                      {t('reddit.reconnect')}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
@@ -910,6 +976,82 @@ function AlertFooter({
       )}
     </div>
   );
+}
+
+function RedditConnectNotice({
+  status,
+  onDismiss,
+}: {
+  status: RedditConnectStatus;
+  onDismiss: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const connected = status === 'connected';
+  const copy = redditConnectCopy(status, t);
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4"
+    >
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-center gap-2.5">
+            <span
+              className={cn(
+                'size-[7px] shrink-0 rounded-full',
+                connected ? 'bg-emerald-500' : 'bg-amber-500',
+              )}
+              aria-hidden
+            />
+            <h3 className="font-serif text-lg leading-none text-ink dark:text-foreground">
+              {copy.title}
+            </h3>
+          </div>
+          <p className="text-[13px] leading-snug text-ink-soft dark:text-foreground/70">
+            {copy.body}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onDismiss} className="shrink-0">
+          {tCommon('gotIt')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function redditConnectCopy(
+  status: RedditConnectStatus,
+  t: ReturnType<typeof useTranslations<'dashboard.channels'>>,
+): { title: string; body: string } {
+  switch (status) {
+    case 'connected':
+      return {
+        title: t('reddit.connectStatus.connectedTitle'),
+        body: t('reddit.connectStatus.connectedBody'),
+      };
+    case 'denied':
+      return {
+        title: t('reddit.connectStatus.deniedTitle'),
+        body: t('reddit.connectStatus.deniedBody'),
+      };
+    case 'mismatch':
+      return {
+        title: t('reddit.connectStatus.mismatchTitle'),
+        body: t('reddit.connectStatus.mismatchBody'),
+      };
+    case 'scopes':
+      return {
+        title: t('reddit.connectStatus.scopesTitle'),
+        body: t('reddit.connectStatus.scopesBody'),
+      };
+    default:
+      return {
+        title: t('reddit.connectStatus.errorTitle'),
+        body: t('reddit.connectStatus.errorBody'),
+      };
+  }
 }
 
 function TypeBadge({ kind, label }: { kind: 'chat' | 'email' | 'voice' | 'sms'; label: string }) {
@@ -3407,7 +3549,6 @@ function AddRedditDialog({
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>(
     'draft_only',
   );
@@ -3421,7 +3562,6 @@ function AddRedditDialog({
     setClientId('');
     setClientSecret('');
     setUsername('');
-    setPassword('');
     setDefaultAgentMode('draft_only');
     setSubmitError(null);
     setFieldErrors({});
@@ -3434,7 +3574,6 @@ function AddRedditDialog({
     if (!clientId.trim()) errors.clientId = t('errors.required');
     if (!clientSecret) errors.clientSecret = t('errors.required');
     if (!username.trim()) errors.username = t('errors.required');
-    if (!password) errors.password = t('errors.required');
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
@@ -3443,7 +3582,6 @@ function AddRedditDialog({
       clientId: clientId.trim(),
       clientSecret,
       username: username.trim(),
-      password,
     });
     if (!config.success) {
       setFieldErrors(zodIssuesToFieldErrors(config.error.issues, t));
@@ -3490,6 +3628,11 @@ function AddRedditDialog({
             void submit();
           }}
         >
+          <CopyableSecret
+            label={t('reddit.redirectUriLabel')}
+            value={redditRedirectUri()}
+            hint={t('reddit.redirectUriHint')}
+          />
           <FormField label={t('nameLabel')} hint={t('reddit.nameHint')} error={fieldErrors.name}>
             <Input
               value={name}
@@ -3539,19 +3682,6 @@ function AddRedditDialog({
               required
             />
           </FormField>
-          <FormField
-            label={t('reddit.passwordLabel')}
-            hint={t('reddit.passwordHintCreate')}
-            error={fieldErrors.password}
-          >
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="off"
-              required
-            />
-          </FormField>
           <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintReddit')}>
             <NativeSelect
               value={defaultAgentMode}
@@ -3564,6 +3694,7 @@ function AddRedditDialog({
               <option value="off">{t('agentReplies.off')}</option>
             </NativeSelect>
           </FormField>
+          <p className={dialogHintClass}>{t('addRedditDialog.nextStepHint')}</p>
           {submitError && <FormError detail={submitError} />}
           <DialogFooter className={dialogFooterClass}>
             <Button
@@ -3590,6 +3721,11 @@ function AddRedditDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function redditRedirectUri(): string {
+  const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  return `${host}/v1/conversations/channels/reddit/oauth/callback`;
 }
 
 function vapiWebhookUrl(channelId: string): string {

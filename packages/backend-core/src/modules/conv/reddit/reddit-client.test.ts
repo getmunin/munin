@@ -13,13 +13,30 @@ import {
   type RedditHttpRequest,
   type RedditHttpResponse,
 } from './reddit-client.service.ts';
+import {
+  REDDIT_CONNECT_STATE_TTL_MS,
+  REDDIT_OAUTH_SCOPES,
+  buildRedditAuthorizeUrl,
+  redditOAuthRedirectUri,
+  signRedditConnectState,
+  verifyRedditConnectState,
+} from './reddit-oauth.ts';
 
 const CREDENTIALS: RedditCredentials = {
   cacheKey: 'cch_test',
   clientId: 'cid',
   clientSecret: 'csecret',
   username: 'munin_bot',
-  password: 'pw',
+  refreshToken: 'rtok',
+};
+
+const STATE_SECRET = 'reddit-connect-state-secret-not-for-prod';
+
+const EXCHANGE = {
+  clientId: 'cid',
+  clientSecret: 'csecret',
+  code: 'the-code',
+  redirectUri: 'https://munin.test/v1/conversations/channels/reddit/oauth/callback',
 };
 
 class ScriptedHttp implements RedditHttp {
@@ -50,9 +67,21 @@ function json(body: unknown, headers: Record<string, string> = {}, status = 200)
   return { status, headers, body: JSON.stringify(body) };
 }
 
+function payloadOf(signed: string): string {
+  return signed.slice(0, signed.lastIndexOf('.'));
+}
+
+function signatureOf(signed: string): string {
+  return signed.slice(signed.lastIndexOf('.') + 1);
+}
+
 describe('redditUserAgent', () => {
   it('names the platform, app, version and the operating account', () => {
     expect(redditUserAgent('munin_bot')).toMatch(/^web:munin:v[\w.-]+ \(by \/u\/munin_bot\)$/);
+  });
+
+  it('drops the by-clause while the authorizing account is still unknown', () => {
+    expect(redditUserAgent(null)).toMatch(/^web:munin:v[\w.-]+$/);
   });
 });
 
@@ -162,6 +191,78 @@ describe('fullname and subreddit normalisation', () => {
   });
 });
 
+describe('reddit connect state', () => {
+  const state = {
+    orgId: 'org_1',
+    channelId: 'cch_1',
+    exp: Date.now() + REDDIT_CONNECT_STATE_TTL_MS,
+  };
+
+  it('round-trips the org and channel the connect link was minted for', () => {
+    const signed = signRedditConnectState(state, STATE_SECRET);
+    expect(verifyRedditConnectState(signed, STATE_SECRET)).toEqual(state);
+  });
+
+  it('rejects a payload rewritten to point at another org', () => {
+    const signed = signRedditConnectState(state, STATE_SECRET);
+    const forged = Buffer.from(
+      JSON.stringify({ ...state, orgId: 'org_attacker' }),
+    ).toString('base64url');
+    expect(verifyRedditConnectState(`${forged}.${signatureOf(signed)}`, STATE_SECRET)).toBeNull();
+  });
+
+  it('rejects a signature lifted from a different state', () => {
+    const signed = signRedditConnectState(state, STATE_SECRET);
+    const other = signRedditConnectState({ ...state, channelId: 'cch_2' }, STATE_SECRET);
+    expect(
+      verifyRedditConnectState(`${payloadOf(signed)}.${signatureOf(other)}`, STATE_SECRET),
+    ).toBeNull();
+  });
+
+  it('rejects an expired state', () => {
+    const signed = signRedditConnectState({ ...state, exp: Date.now() - 1 }, STATE_SECRET);
+    expect(verifyRedditConnectState(signed, STATE_SECRET)).toBeNull();
+  });
+
+  it('rejects a state signed with a different secret', () => {
+    const signed = signRedditConnectState(state, 'another-deployments-secret');
+    expect(verifyRedditConnectState(signed, STATE_SECRET)).toBeNull();
+  });
+
+  it.each([undefined, null, 42, {}, [], ''])(
+    'rejects a state that is not a usable string (%o)',
+    (raw) => {
+      expect(verifyRedditConnectState(raw, STATE_SECRET)).toBeNull();
+    },
+  );
+
+  it('rejects a state carrying no signature at all', () => {
+    expect(verifyRedditConnectState('just-a-payload', STATE_SECRET)).toBeNull();
+  });
+
+  it('rejects an oversized state instead of hashing it', () => {
+    expect(verifyRedditConnectState(`${'a'.repeat(5_000)}.sig`, STATE_SECRET)).toBeNull();
+  });
+});
+
+describe('buildRedditAuthorizeUrl', () => {
+  const built = buildRedditAuthorizeUrl({ clientId: 'cid', state: 'st_1' });
+
+  it('asks for a permanent grant, without which Reddit returns no refresh token', () => {
+    expect(built).toContain('duration=permanent');
+  });
+
+  it('asks for a code, every scope the channel needs and the exact callback', () => {
+    const url = new URL(built);
+    expect(url.searchParams.get('response_type')).toBe('code');
+    expect(url.searchParams.get('client_id')).toBe('cid');
+    expect(url.searchParams.get('state')).toBe('st_1');
+    expect(url.searchParams.get('redirect_uri')).toBe(redditOAuthRedirectUri());
+    expect(url.searchParams.get('scope')).toBe('identity read submit privatemessages');
+    expect(url.searchParams.get('scope')).toBe(REDDIT_OAUTH_SCOPES.join(' '));
+  });
+});
+
 describe('RedditClientService', () => {
   let http: ScriptedHttp;
   let client: RedditClientService;
@@ -172,7 +273,72 @@ describe('RedditClientService', () => {
     client.setHttp(http);
   });
 
-  it('exchanges the script app credentials for a bearer token and sends the User-Agent everywhere', async () => {
+  it('exchanges an authorization code for a refresh token and the granted scopes', async () => {
+    http.push(
+      json({
+        access_token: 'acc',
+        refresh_token: 'ref',
+        expires_in: 3600,
+        scope: 'identity read submit privatemessages',
+      }),
+    );
+
+    await expect(client.exchangeAuthorizationCode(EXCHANGE)).resolves.toEqual({
+      accessToken: 'acc',
+      refreshToken: 'ref',
+      scopes: ['identity', 'read', 'submit', 'privatemessages'],
+    });
+
+    const req = http.seen[0]!;
+    expect(req.url).toContain('/api/v1/access_token');
+    expect(req.headers.authorization).toBe(
+      `Basic ${Buffer.from('cid:csecret').toString('base64')}`,
+    );
+    expect(req.headers['user-agent']).toBe(redditUserAgent(null));
+    const body = new URLSearchParams(req.body ?? '');
+    expect(body.get('grant_type')).toBe('authorization_code');
+    expect(body.get('code')).toBe('the-code');
+    expect(body.get('redirect_uri')).toBe(EXCHANGE.redirectUri);
+  });
+
+  it('fails the code exchange loudly when Reddit returns no refresh token', async () => {
+    http.push(json({ access_token: 'acc', expires_in: 3600, scope: 'identity read' }));
+    const attempt = client.exchangeAuthorizationCode(EXCHANGE);
+    await expect(attempt).rejects.toMatchObject({ name: 'RedditApiError', kind: 'terminal' });
+    await expect(attempt).rejects.toThrow(/duration=permanent/);
+  });
+
+  it('treats a rejected authorization code as terminal', async () => {
+    http.push({ status: 400, headers: {}, body: JSON.stringify({ error: 'invalid_grant' }) });
+    await expect(client.exchangeAuthorizationCode(EXCHANGE)).rejects.toMatchObject({
+      kind: 'terminal',
+    });
+  });
+
+  it('retries the code exchange when Reddit itself is down', async () => {
+    http.push({ status: 503, headers: {}, body: 'upstream down' });
+    await expect(client.exchangeAuthorizationCode(EXCHANGE)).rejects.toMatchObject({
+      kind: 'retry',
+    });
+  });
+
+  it('reads the authorized account from the access token so the callback can check it', async () => {
+    http.push(json({ name: 'munin_bot' }));
+    await expect(client.identityFromAccessToken('acc')).resolves.toBe('munin_bot');
+    const req = http.seen[0]!;
+    expect(req.url).toBe('https://oauth.reddit.com/api/v1/me');
+    expect(req.headers.authorization).toBe('Bearer acc');
+    expect(req.headers['user-agent']).toBe(redditUserAgent(null));
+  });
+
+  it('treats an unreadable identity response as terminal', async () => {
+    http.push({ status: 403, headers: {}, body: 'nope' });
+    await expect(client.identityFromAccessToken('acc')).rejects.toMatchObject({
+      kind: 'terminal',
+    });
+  });
+
+  it('exchanges the stored refresh token for a bearer token and sends the User-Agent everywhere', async () => {
     http.pushToken();
     http.push(json({ name: 'munin_bot', total_karma: 12 }));
 
@@ -183,8 +349,10 @@ describe('RedditClientService', () => {
     expect(token!.headers.authorization).toBe(
       `Basic ${Buffer.from('cid:csecret').toString('base64')}`,
     );
-    expect(token!.body).toContain('grant_type=password');
-    expect(token!.body).toContain('username=munin_bot');
+    const body = new URLSearchParams(token!.body ?? '');
+    expect(body.get('grant_type')).toBe('refresh_token');
+    expect(body.get('refresh_token')).toBe('rtok');
+    expect(body.get('password')).toBeNull();
     expect(token!.headers['user-agent']).toBe(redditUserAgent('munin_bot'));
     expect(me!.url).toBe('https://oauth.reddit.com/api/v1/me');
     expect(me!.headers.authorization).toBe('Bearer tok');
@@ -213,13 +381,15 @@ describe('RedditClientService', () => {
     expect(http.seen.filter((r) => r.url.includes('access_token'))).toHaveLength(2);
   });
 
-  it('rejects bad script app credentials terminally', async () => {
-    http.push({ status: 401, headers: {}, body: '{}' });
-    await expect(client.getMe(CREDENTIALS)).rejects.toMatchObject({
-      name: 'RedditApiError',
-      kind: 'terminal',
-    });
-  });
+  it.each([401, 400])(
+    'tells the operator to reconnect when Reddit answers %i to the refresh grant',
+    async (status) => {
+      http.push({ status, headers: {}, body: '{}' });
+      const attempt = client.getMe(CREDENTIALS);
+      await expect(attempt).rejects.toMatchObject({ name: 'RedditApiError', kind: 'terminal' });
+      await expect(attempt).rejects.toThrow(/reconnect/);
+    },
+  );
 
   it('reports a 200 carrying json.errors as a failure, not a success', async () => {
     http.pushToken();

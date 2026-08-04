@@ -15,6 +15,10 @@ import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import {
+  REDDIT_CHANNEL_VENDOR,
+  publicChannelConfig as redditPublicChannelConfig,
+} from './reddit/reddit.service.ts';
+import {
   CHANNEL_ADAPTERS,
   ChannelAdapterRegistry,
   type ChannelAdapter,
@@ -1600,11 +1604,18 @@ function toChannelDto(row: typeof schema.convChannels.$inferSelect): ChannelDto 
     vendor: row.vendor,
     name: row.name,
     active: row.active,
-    config: row.config,
+    config: publicChannelConfig(row),
     defaultAgentMode: row.defaultAgentMode as AgentMode,
     needsCredentials: channelNeedsCredentials(row),
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function publicChannelConfig(
+  row: typeof schema.convChannels.$inferSelect,
+): Record<string, unknown> {
+  if (row.vendor === REDDIT_CHANNEL_VENDOR) return redditPublicChannelConfig(row.config);
+  return row.config;
 }
 
 function channelNeedsCredentials(row: typeof schema.convChannels.$inferSelect): boolean {

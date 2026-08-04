@@ -550,7 +550,8 @@
         "deactivatedMessage": "Auto-deaktivert etter {threshold} feilede henteforsøk",
         "failingMessage": "Innkommende henting feiler · {attempt}/{threshold} · deaktiveres ved {threshold}",
         "activate": "Aktiver",
-        "awaitingCredentials": "Venter på tilgang"
+        "awaitingCredentials": "Venter på tilgang",
+        "awaitingAuthorization": "Venter på godkjenning"
       },
       "enterCredentials": {
         "button": "Legg inn tilgang",
@@ -606,7 +607,8 @@
       },
       "addRedditDialog": {
         "title": "Legg til en Reddit-kanal",
-        "description": "Koble en Reddit-konto til som samtalekanal. Kommentarer og meldinger kontoen mottar kommer inn som chat-samtaler, og svar sendes fra samme konto.",
+        "description": "Steg 1 av 2 — opprett kanalen med client ID og client secret fra Reddit-appen din. Kanalen står inaktiv fram til steg 2, der du klikker Koble til og godkjenner tilgangen på Reddit. Etter det kommer kommentarer og meldinger kontoen mottar inn som chat-samtaler, og svar sendes fra samme konto.",
+        "nextStepHint": "Steg 2 kommer rett etter: den nye kanalen får en Koble til-knapp som sender deg til Reddit for å godkjenne kontoen.",
         "create": "Opprett Reddit-kanal"
       },
       "twilioSms": {
@@ -759,14 +761,28 @@
       },
       "reddit": {
         "nameHint": "Til din egen referanse. Små bokstaver, ingen mellomrom.",
+        "redirectUriLabel": "Redirect URI",
+        "redirectUriHint": "Lim denne inn i feltet «redirect uri» på Reddit-appen før du går videre. Reddit sammenligner tegn for tegn — en skråstrek på slutten eller feil protokoll er nok til at godkjenningen avvises.",
         "clientIdLabel": "Client ID",
-        "clientIdHint": "Fra Reddit-appen av typen «script» som du registrerte på reddit.com/prefs/apps, eid av kontoen nedenfor.",
+        "clientIdHint": "Fra Reddit-appen av typen «web app» som du registrerte på reddit.com/prefs/apps. Det er strengen som står under appnavnet.",
         "clientSecretLabel": "Client secret",
         "clientSecretHintCreate": "Hemmeligheten som står ved siden av client ID på samme Reddit-app.",
         "usernameLabel": "Reddit-brukernavn",
-        "usernameHint": "Kontoen Munin poster og svarer som, uten u/-prefikset.",
-        "passwordLabel": "Reddit-passord",
-        "passwordHintCreate": "Passordet til kontoen. Reddit krever det for innlogging fra en script-app, så kontoen kan ikke ha tofaktorautentisering slått på."
+        "usernameHint": "Kontoen Munin poster og svarer som, uten u/-prefikset. Det er denne kontoen du godkjenner med i steg 2.",
+        "connect": "Koble til",
+        "reconnect": "Koble til Reddit-kontoen på nytt",
+        "connectStatus": {
+          "connectedTitle": "Reddit-kontoen er koblet til",
+          "connectedBody": "Godkjenningen gikk gjennom, og kanalen er aktiv. Munin leser og svarer som denne kontoen fra nå.",
+          "deniedTitle": "Godkjenningen ble avbrutt",
+          "deniedBody": "Du avslo tilgangen på Reddit, så ingenting er endret. Klikk Koble til på kanalen når du vil prøve igjen.",
+          "errorTitle": "Fikk ikke fullført tilkoblingen",
+          "errorBody": "Reddit fullførte ikke utvekslingen. Klikk Koble til for å starte på nytt — lenken er bare gyldig i ti minutter. Sjekk også at redirect URI på Reddit-appen er identisk med den dialogen viser, tegn for tegn.",
+          "mismatchTitle": "Du godkjente med feil konto",
+          "mismatchBody": "Du var innlogget på Reddit med en annen konto enn kanalen er satt opp for, så ingenting ble lagret. Logg inn som kontoen kanalen peker på (raskest i et privat vindu) og klikk Koble til igjen — eller endre Reddit-brukernavnet på kanalen til kontoen du nettopp godkjente med.",
+          "scopesTitle": "Det mangler en tillatelse",
+          "scopesBody": "En av tillatelsene Munin trenger ble ikke gitt på Reddits samtykkeskjerm. Klikk Koble til igjen og la alle stå på — identity, read, submit og privatemessages."
+        }
       },
       "errors": {
         "load": "Kunne ikke laste kanaler.",
@@ -788,6 +804,7 @@
         "updateThrell": "Kunne ikke oppdatere Threll stemmekanal.",
         "placeThrellCall": "Kunne ikke starte stemmeanrop.",
         "createReddit": "Kunne ikke opprette Reddit-kanal.",
+        "redditConnect": "Kunne ikke starte Reddit-godkjenningen.",
         "rotate": "Kunne ikke rotere nøkkel.",
         "rotateIdentity": "Kunne ikke rotere identitetshemmelighet.",
         "test": "Kunne ikke teste påloggingsinformasjon for e-post.",

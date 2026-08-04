@@ -56,6 +56,7 @@ import { RedditAdapter } from './reddit/reddit-adapter.ts';
 import { RedditAdminService } from './reddit/reddit-admin.service.ts';
 import { RedditAdminProvider } from './reddit/reddit-admin.provider.ts';
 import { RedditAdminTools } from './reddit/reddit.tools.ts';
+import { RedditOAuthController } from './reddit/reddit-oauth.controller.ts';
 import { RedditService } from './reddit/reddit.service.ts';
 import { TwilioClientService } from './twilio/twilio-client.service.ts';
 import { TwilioSmsAdapter } from './twilio/twilio-sms-adapter.ts';
@@ -72,7 +73,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
 
 @Module({
   imports: [CuratorModule, McpModule, RealtimeModule, PublicThrottleModule, CredentialHandoffModule],
-  controllers: [WidgetController, ChannelWebhookController],
+  controllers: [WidgetController, ChannelWebhookController, RedditOAuthController],
   providers: [
     ConvService,
     ConvSchedulerService,

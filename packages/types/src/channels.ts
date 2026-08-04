@@ -80,9 +80,6 @@ export const RedditChannelConfigInput = z.object({
   username: RedditUsernameSchema.describe(
     'Reddit account the script app is registered to, without the "u/" prefix. Comments and DMs are posted as this account.',
   ),
-  password: sensitive(
-    z.string().min(1).max(256).describe('Password of that Reddit account.'),
-  ),
   sendLimits: SendLimitsSchema.optional(),
 });
 

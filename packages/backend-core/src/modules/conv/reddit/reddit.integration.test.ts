@@ -21,7 +21,18 @@ import {
   type RedditHttpRequest,
   type RedditHttpResponse,
 } from './reddit-client.service.ts';
-import { DEFAULT_REDDIT_SEND_LIMITS, RedditService, jsonbToStored } from './reddit.service.ts';
+import {
+  REDDIT_OAUTH_SCOPES,
+  redditOAuthRedirectUri,
+  signRedditConnectState,
+  verifyRedditConnectState,
+} from './reddit-oauth.ts';
+import {
+  DEFAULT_REDDIT_SEND_LIMITS,
+  RedditService,
+  jsonbToStored,
+  needsCredentials,
+} from './reddit.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -31,7 +42,7 @@ const skipReason = TEST_URL
 const CLIENT_ID = 'reddit-client-id';
 const CLIENT_SECRET = 'reddit-client-secret';
 const REDDIT_USERNAME = 'munin_bot';
-const REDDIT_PASSWORD = 'reddit-account-password';
+const REFRESH_TOKEN = 'reddit-refresh-token-from-the-code-exchange';
 
 interface Route {
   match: string;
@@ -100,6 +111,7 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
   beforeAll(async () => {
     process.env.MUNIN_ENCRYPTION_KEY ??=
       'dGVzdC1lbmNyeXB0aW9uLWtleS1tdXN0LWJlLWxvbmctZW5vdWdoLWZvci1wZ2NyeXB0bw==';
+    process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod-it-must-be-32-chars';
     await runMigrations(TEST_URL!);
     db = createDb(TEST_URL!, { serviceRole: true });
     const appUrl = TEST_URL!.replace(
@@ -119,7 +131,7 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
     http.reset();
     client = new RedditClientService();
     client.setHttp(http);
-    reddit = new RedditService(db);
+    reddit = new RedditService(db, client);
     const dispatcher = new WebhookDispatcher();
     const ingest = new ChannelIngestService(db, dispatcher, new CuratorJobsService(dispatcher));
     adapter = new RedditAdapter(db, client, reddit, ingest);
@@ -239,6 +251,35 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
     return rows[0]!;
   }
 
+  function connectState(input: { orgId: string; channelId: string; exp?: number }): string {
+    return signRedditConnectState(
+      {
+        orgId: input.orgId,
+        channelId: input.channelId,
+        exp: input.exp ?? Date.now() + 60_000,
+      },
+      process.env.MUNIN_AUTH_SECRET!,
+    );
+  }
+
+  function storedRefreshTokenOf(row: ChannelRow): string {
+    return jsonbToStored(row.config).encryptedRefreshToken;
+  }
+
+  function stubOAuthCallback(input: { scopes?: readonly string[]; username?: string }): void {
+    http.reset();
+    client.setHttp(http);
+    http.on('access_token', () =>
+      jsonResponse({
+        access_token: 'oauth-access-token',
+        refresh_token: REFRESH_TOKEN,
+        expires_in: 3600,
+        scope: (input.scopes ?? REDDIT_OAUTH_SCOPES).join(' '),
+      }),
+    );
+    http.on('/api/v1/me', () => jsonResponse({ name: input.username ?? REDDIT_USERNAME }));
+  }
+
   describe('channel creation and credential handoff', () => {
     it('creates an inactive chat:reddit channel that stores no secret until the handoff completes', async () => {
       const created = await runAs(actor, () =>
@@ -261,7 +302,7 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
 
       const row = await loadChannelRow(channelId);
       expect(JSON.stringify(row.config)).not.toContain(CLIENT_SECRET);
-      expect(JSON.stringify(row.config)).not.toContain(REDDIT_PASSWORD);
+      expect(JSON.stringify(row.config)).not.toContain(REFRESH_TOKEN);
     });
 
     it('rejects secrets passed through the agent-facing configure path', async () => {
@@ -275,7 +316,6 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
                 clientId: CLIENT_ID,
                 username: REDDIT_USERNAME,
                 clientSecret: CLIENT_SECRET,
-                password: REDDIT_PASSWORD,
               },
             },
             { rejectSecrets: true },
@@ -284,26 +324,30 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('activates the channel once the credential link supplies both secrets, encrypted at rest', async () => {
+    it('stores the client secret encrypted at rest once the credential link completes', async () => {
       const result = await runAs(actor, () =>
-        channelAdmin.completeSetup(channelId, {
-          clientSecret: CLIENT_SECRET,
-          password: REDDIT_PASSWORD,
-        }),
+        channelAdmin.completeSetup(channelId, { clientSecret: CLIENT_SECRET }),
       );
       expect(result.ok).toBe(true);
 
       const row = await loadChannelRow(channelId);
-      expect(row.active).toBe(true);
       const stored = jsonbToStored(row.config);
       expect(stored.clientId).toBe(CLIENT_ID);
       expect(stored.username).toBe(REDDIT_USERNAME);
+      expect(stored.encryptedClientSecret).not.toBe('');
       expect(stored.encryptedClientSecret).not.toContain(CLIENT_SECRET);
-      expect(stored.encryptedPassword).not.toContain(REDDIT_PASSWORD);
       expect(JSON.stringify(row.config)).not.toContain(CLIENT_SECRET);
-      expect(JSON.stringify(row.config)).not.toContain(REDDIT_PASSWORD);
+    });
 
-      channelRow = row;
+    it('leaves a configured channel that has not been connected inactive and unusable', async () => {
+      const row = await loadChannelRow(channelId);
+      const stored = jsonbToStored(row.config);
+      expect(stored.encryptedRefreshToken).toBe('');
+      expect(needsCredentials(stored)).toBe(true);
+      expect(row.active).toBe(false);
+      await expect(reddit.loadCredentials(channelId, stored)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('paces a fresh account by default', async () => {
@@ -311,7 +355,115 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
       expect(stored.sendLimits).toEqual(DEFAULT_REDDIT_SEND_LIMITS);
     });
 
-    it('decrypts both credentials back to plaintext for the adapter', async () => {
+    it('mints a connect URL whose state is bound to this org and channel', async () => {
+      const stored = jsonbToStored((await loadChannelRow(channelId)).config);
+      const result = await runAs(actor, () =>
+        Promise.resolve(reddit.connectUrl(channelId, stored)),
+      );
+
+      expect(result.redirectUri).toBe(redditOAuthRedirectUri());
+      expect(new Date(result.expiresAt).getTime()).toBeGreaterThan(Date.now());
+      const url = new URL(result.url);
+      expect(url.searchParams.get('client_id')).toBe(CLIENT_ID);
+      expect(url.searchParams.get('duration')).toBe('permanent');
+      const state = verifyRedditConnectState(
+        url.searchParams.get('state'),
+        process.env.MUNIN_AUTH_SECRET!,
+      );
+      expect(state?.orgId).toBe(orgId);
+      expect(state?.channelId).toBe(channelId);
+      expect(state?.exp).toBeGreaterThan(Date.now());
+    });
+
+    it('refuses to mint a connect URL before the client secret is entered', async () => {
+      const stored = jsonbToStored((await loadChannelRow(channelId)).config);
+      await expect(
+        runAs(actor, () =>
+          Promise.resolve(reddit.connectUrl(channelId, { ...stored, encryptedClientSecret: '' })),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects a callback state that was not signed by this deployment', async () => {
+      stubOAuthCallback({});
+      const forged = signRedditConnectState(
+        { orgId, channelId, exp: Date.now() + 60_000 },
+        'another-deployments-secret',
+      );
+      await expect(
+        reddit.completeOAuth({ code: 'code-1', state: forged }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(storedRefreshTokenOf(await loadChannelRow(channelId))).toBe('');
+    });
+
+    it('rejects an expired callback state', async () => {
+      stubOAuthCallback({});
+      await expect(
+        reddit.completeOAuth({
+          code: 'code-1',
+          state: connectState({ orgId, channelId, exp: Date.now() - 1 }),
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(storedRefreshTokenOf(await loadChannelRow(channelId))).toBe('');
+    });
+
+    it('rejects a callback state that claims this channel for another org', async () => {
+      stubOAuthCallback({});
+      await expect(
+        reddit.completeOAuth({
+          code: 'code-1',
+          state: connectState({ orgId: otherOrgId, channelId }),
+        }),
+      ).rejects.toThrow(/reddit_channel_missing/);
+      expect(storedRefreshTokenOf(await loadChannelRow(channelId))).toBe('');
+    });
+
+    it('refuses a grant authorized by a different reddit account than the channel names', async () => {
+      stubOAuthCallback({ username: 'someone_else' });
+      await expect(
+        reddit.completeOAuth({ code: 'code-1', state: connectState({ orgId, channelId }) }),
+      ).rejects.toThrow(/reddit_account_mismatch/);
+
+      const row = await loadChannelRow(channelId);
+      expect(row.active).toBe(false);
+      expect(storedRefreshTokenOf(row)).toBe('');
+    });
+
+    it('refuses a grant that is missing a scope the channel needs', async () => {
+      stubOAuthCallback({ scopes: ['identity', 'read'] });
+      await expect(
+        reddit.completeOAuth({ code: 'code-1', state: connectState({ orgId, channelId }) }),
+      ).rejects.toThrow(/reddit_missing_scopes/);
+
+      const row = await loadChannelRow(channelId);
+      expect(row.active).toBe(false);
+      expect(storedRefreshTokenOf(row)).toBe('');
+    });
+
+    it('stores the refresh token encrypted and activates the channel once the account is connected', async () => {
+      stubOAuthCallback({});
+      const result = await reddit.completeOAuth({
+        code: 'code-1',
+        state: connectState({ orgId, channelId }),
+      });
+      expect(result.orgId).toBe(orgId);
+      expect(formOf(http.calls('access_token')[0]!).get('code')).toBe('code-1');
+      expect(formOf(http.calls('access_token')[0]!).get('redirect_uri')).toBe(
+        redditOAuthRedirectUri(),
+      );
+
+      const row = await loadChannelRow(channelId);
+      expect(row.active).toBe(true);
+      const stored = jsonbToStored(row.config);
+      expect(stored.encryptedRefreshToken).not.toBe('');
+      expect(needsCredentials(stored)).toBe(false);
+      expect(JSON.stringify(row.config)).not.toContain(REFRESH_TOKEN);
+      expect(JSON.stringify(row.config)).not.toContain(CLIENT_SECRET);
+
+      channelRow = row;
+    });
+
+    it('decrypts every credential back to plaintext for the adapter', async () => {
       const stored = jsonbToStored((await loadChannelRow(channelId)).config);
       const credentials = await reddit.loadCredentials(channelId, stored);
       expect(credentials).toEqual({
@@ -319,17 +471,20 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
         clientId: CLIENT_ID,
         clientSecret: CLIENT_SECRET,
         username: REDDIT_USERNAME,
-        password: REDDIT_PASSWORD,
+        refreshToken: REFRESH_TOKEN,
       });
     });
 
-    it('redacts both secrets in the DTO', async () => {
+    it('reports the channel as connected without exposing a secret anywhere in the DTO', async () => {
       const dto = await runAs(actor, () =>
         reddit.updateChannel({ channelId, name: 'Reddit engagement' }),
       );
-      expect(dto.config.clientSecret).not.toBe(CLIENT_SECRET);
-      expect(dto.config.password).not.toBe(REDDIT_PASSWORD);
       expect(dto.config.clientId).toBe(CLIENT_ID);
+      expect(dto.config.username).toBe(REDDIT_USERNAME);
+      expect(dto.config.connected).toBe(true);
+      expect(dto.config.clientSecret).not.toBe(CLIENT_SECRET);
+      expect(JSON.stringify(dto)).not.toContain(CLIENT_SECRET);
+      expect(JSON.stringify(dto)).not.toContain(REFRESH_TOKEN);
     });
 
     it('keeps the stored ciphertext when an update omits the secrets', async () => {
@@ -338,10 +493,11 @@ function formOf(req: RedditHttpRequest): URLSearchParams {
       const after = jsonbToStored((await loadChannelRow(channelId)).config);
       expect(after.clientId).toBe('rotated');
       expect(after.encryptedClientSecret).toBe(before.encryptedClientSecret);
-      expect(after.encryptedPassword).toBe(before.encryptedPassword);
-      await runAs(actor, () =>
+      expect(after.encryptedRefreshToken).toBe(before.encryptedRefreshToken);
+      const dto = await runAs(actor, () =>
         reddit.updateChannel({ channelId, config: { clientId: CLIENT_ID } }),
       );
+      expect(dto.config.connected).toBe(true);
       channelRow = await loadChannelRow(channelId);
     });
   });

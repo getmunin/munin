@@ -25,6 +25,7 @@ import { MessageBirdSmsAdminService } from '../modules/conv/messagebird/messageb
 import { VapiAdminService } from '../modules/conv/vapi/vapi-admin.service.ts';
 import { ThrellAdminService } from '../modules/conv/threll/threll-admin.service.ts';
 import { ChannelAdminService } from '../modules/conv/channels/channel-admin.service.ts';
+import { RedditAdminService } from '../modules/conv/reddit/reddit-admin.service.ts';
 import { ChannelCredentialService } from '../modules/conv/channels/channel-credential.service.ts';
 import {
   CreateWidgetBody,
@@ -69,6 +70,7 @@ export class ConvChannelsController {
     private readonly threllTools: ThrellAdminService,
     private readonly channelAdmin: ChannelAdminService,
     private readonly channelCredentials: ChannelCredentialService,
+    private readonly redditTools: RedditAdminService,
   ) {}
 
   @Get('vendors')
@@ -221,6 +223,13 @@ export class ConvChannelsController {
       to: parsed.data.to,
       body: parsed.data.body,
     });
+  }
+
+  @Get(':id/reddit/connect-url')
+  async redditConnectUrl(
+    @Param('id') id: string,
+  ): Promise<Awaited<ReturnType<RedditAdminService['connectUrl']>>> {
+    return this.redditTools.connectUrl({ channelId: id });
   }
 
   @Post('messagebird-sms')

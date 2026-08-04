@@ -98,6 +98,24 @@ const ListCurationCandidatesInput = z.object({
   limit: z.number().int().positive().max(200).optional(),
 });
 
+const DismissCurationCandidateInput = z.object({
+  candidateDocumentId: z.string().min(1),
+  ifVersion: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'The candidate document `version` that was reviewed, binding this dismissal to that exact text.',
+    ),
+  reason: z.string().min(1).max(500).optional(),
+});
+
+const ListCurationDecisionsInput = z.object({
+  outcome: z.enum(['dismissed', 'published']).optional(),
+  sourceConversationId: z.string().min(1).max(64).optional(),
+  limit: z.number().int().positive().max(200).optional(),
+});
+
 const ImportWebsiteInput = z.object({
   url: z.string().min(1).max(2048),
   synthesizeCompanyProfile: z.boolean().optional(),
@@ -384,7 +402,7 @@ export class KbAdminTools {
     name: 'kb_propose_curation_candidate',
     title: 'KB: Propose curation candidate',
     description:
-      "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/review-content` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`.",
+      "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/review-content` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`. Fails with `kb_curation_decided` when a candidate from the same `sourceConversationId` was already dismissed or published — those conversations are closed for curation permanently.",
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: ProposeCurationCandidateInput,
@@ -409,6 +427,40 @@ export class KbAdminTools {
   })
   listCurationCandidates(args: z.infer<typeof ListCurationCandidatesInput>) {
     return this.kb.listCurationCandidates(args.limit);
+  }
+
+  @McpTool({
+    name: 'kb_dismiss_curation_candidate',
+    title: 'KB: Dismiss curation candidate',
+    description:
+      'Reject a curation candidate: deletes the draft from the `kb-curation-inbox` space and records the decision, with an optional reason. The decision is permanent and scoped to the source conversation — later curation passes are refused when they try to file another candidate from it, so a rejected draft stays rejected instead of reappearing on the next weekly sweep. Pass `ifVersion` (the candidate `version` that was reviewed). Read past decisions with `kb_list_curation_decisions`.',
+    audiences: ['admin'],
+    scopes: ['kb:write'],
+    input: DismissCurationCandidateInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  dismissCurationCandidate(args: z.infer<typeof DismissCurationCandidateInput>) {
+    return this.kb.dismissCurationCandidate({
+      id: args.candidateDocumentId,
+      ifVersion: args.ifVersion,
+      reason: args.reason,
+    });
+  }
+
+  @McpTool({
+    name: 'kb_list_curation_decisions',
+    title: 'KB: List curation decisions',
+    description:
+      'List curation candidates that were already decided — dismissed (with the reason, when one was given) or published — newest first. Filter by `outcome` or `sourceConversationId`. A conversation that appears here is closed for curation: `kb_propose_curation_candidate` refuses further candidates from it.',
+    audiences: ['admin'],
+    scopes: ['kb:read'],
+    input: ListCurationDecisionsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listCurationDecisions(args: z.infer<typeof ListCurationDecisionsInput>) {
+    return this.kb.listCurationDecisions(args);
   }
 
   @McpTool({

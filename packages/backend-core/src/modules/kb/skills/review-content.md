@@ -14,8 +14,11 @@ This skill walks through one pass. It supports two modes:
 
 Both modes share Steps 2–6 below. Don't refile a candidate that's already in `kb-curation-inbox` for the same source conversation — `kb_propose_curation_candidate` tags candidates with `source:<conversationId>`, so check `kb_list_documents({ tag: "candidate" })` and skip pairs whose source you've already filed.
 
+**A source conversation is curated once, ever.** Once an operator dismisses or publishes a candidate, the draft leaves the inbox, so the inbox alone can't tell you the pair was already judged. `kb_list_curation_decisions` can: it keeps one row per decision, with the dismissal reason. `kb_propose_curation_candidate` refuses (`kb_curation_decided`) any further candidate from a decided conversation, so fetch the decisions before you start drafting and skip those sources rather than spending a draft on a refusal. If a decided conversation genuinely raised something new, write it with `kb_create_document` and say so to the operator — don't try to route around the refusal.
+
 ## TL;DR
 
+0. **Fetch prior decisions** with `kb_list_curation_decisions` and drop those source conversations from consideration — they were already judged.
 1. **List recently-resolved handovers** with `conv_list_conversations`, then narrow to the ones that needed human attention but no longer do.
 2. **Read each conversation's messages** with `conv_get_conversation` and pull out the (end-user question, human-reply) pair.
 3. **Skip duplicates and fluff.** If a candidate is functionally identical to one you've already filed, skip. If the human reply is a one-off ("yes", "ok"), skip.
@@ -133,7 +136,9 @@ Read each one (`kb_get_document`), edit if needed (`kb_update_document`), then p
 }
 ```
 
-That moves the doc into the target space, drops the candidate tags, and sets the audiences (default `['admin', 'self_service']` so the self-service agent can find it next time). Discarding instead? Just `kb_delete_document`.
+That moves the doc into the target space, drops the candidate tags, and sets the audiences (default `['admin', 'self_service']` so the self-service agent can find it next time).
+
+Rejecting instead? `kb_dismiss_curation_candidate({ candidateDocumentId, ifVersion, reason })`. It deletes the draft and records the rejection, so no later pass can refile that conversation — give it a `reason` when you have one; it's what the next reader (human or agent) sees in `kb_list_curation_decisions`.
 
 **Publishing is bound to the text that was reviewed.** `ifVersion` is the candidate's `version` as the operator read it. If the draft moved since — your own `kb_update_document`, or anyone else's — the publish fails with `kb_version_conflict` and nothing is written to the target space. Don't re-read the document and retry with the new version: that publishes text the operator never saw. Re-read it, show them the current body, and get their word on that. The same applies to a card in the panel or a Slack button posted before the edit; both refuse rather than publishing stale text.
 
@@ -143,6 +148,7 @@ That moves the doc into the target space, drops the candidate tags, and sets the
 - **Don't file candidates from agent-only chatter.** If both messages in the pair are from agents (the self-service agent and an admin agent debating internally), there's no human-confirmed answer — skip.
 - **Don't include private end-user data.** Names, emails, account numbers, internal tickets — strip them when drafting. The candidate is *general* knowledge.
 - **Don't recreate the same candidate.** If you already filed one for this gap in a previous pass and it's still pending review, leave it alone. The operator hasn't gotten to it yet; piling on doesn't help.
+- **Don't retry past a `kb_curation_decided` refusal.** A dismissal is the operator's answer for that conversation and it doesn't expire. Rewording the subject to slip past it wastes a pass and re-litigates a decision a human already made.
 
 ## Related
 

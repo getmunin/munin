@@ -108,3 +108,15 @@ DROP POLICY IF EXISTS tenant_isolation ON kb_document_versions;
 CREATE POLICY tenant_isolation ON kb_document_versions
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- Curation decisions are operator-internal: they record what a human rejected
+-- and why, so delegated end-user tokens never see them.
+ALTER TABLE kb_curation_decisions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kb_curation_decisions FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON kb_curation_decisions;
+CREATE POLICY tenant_isolation ON kb_curation_decisions
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

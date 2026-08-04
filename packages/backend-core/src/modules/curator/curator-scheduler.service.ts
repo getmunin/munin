@@ -16,7 +16,7 @@ import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 import { CuratorJobsService } from './curator-jobs.service.ts';
 
 const KB_SWEEP_PROMPT =
-  'Run a KB curation pass over the last 7 days of resolved-handover conversations. Follow the procedure in the skill exactly. Skip duplicates and one-off answers. File each candidate via kb_propose_curation_candidate. Stop when there are no more candidates to file.';
+  'Run a KB curation pass over the last 7 days of resolved-handover conversations. Follow the procedure in the skill exactly. First fetch prior decisions via kb_list_curation_decisions so you do not redraft sources an operator already dismissed or published. Skip duplicates and one-off answers. File each candidate via kb_propose_curation_candidate. Stop when there are no more candidates to file.';
 const CRM_HYGIENE_PROMPT =
   'Run a CRM hygiene pass. Follow the skill. First fetch dismissed pairs via crm_list_merge_proposals so you do not refile rejected pairs. Then list contacts, build suspect pairs, judge each, and file high-confidence pairs as structured proposals via crm_propose_merge. Stop when there are no more new pairs to propose.';
 const CMS_STALE_PROMPT =

@@ -711,6 +711,37 @@ export const kbDocumentVersions = pgTable(
   }),
 );
 
+// Outcome log for curation candidates. Candidates live in kb_documents and are
+// deleted on dismiss or publish, so without this table a rejected draft is
+// indistinguishable from one that was never filed — and the weekly sweep
+// refiles it. Rows outlive both the candidate and its source conversation.
+export const kbCurationDecisions = pgTable(
+  'kb_curation_decisions',
+  {
+    id: id('kcd'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    sourceConversationId: text('source_conversation_id'),
+    candidateDocumentId: text('candidate_document_id').notNull(),
+    title: text('title').notNull(),
+    outcome: varchar('outcome', { length: 16 }).notNull(),
+    // 'dismissed' | 'published'
+    reason: text('reason'),
+    publishedDocumentId: text('published_document_id').references(() => kbDocuments.id, {
+      onDelete: 'set null',
+    }),
+    decidedByActorType: varchar('decided_by_actor_type', { length: 16 }).notNull(),
+    decidedByActorId: text('decided_by_actor_id').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt,
+  },
+  (t) => ({
+    orgSourceIdx: index('kb_curation_decisions_org_source_idx').on(t.orgId, t.sourceConversationId),
+    orgOutcomeIdx: index('kb_curation_decisions_org_outcome_idx').on(t.orgId, t.outcome),
+  }),
+);
+
 // ───────────────────────── Conversations (M3) ────────────────────────
 // Multi-channel customer communications — both inbound (support / chat /
 // inbound email) and outbound (proactive outreach by phone, email, SMS,

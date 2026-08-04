@@ -9,7 +9,14 @@ import {
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { CURATION_INBOX_SLUG, KbService, KbConflictError, KbNotFoundError, KbInvalidError } from './kb.service.ts';
+import {
+  CURATION_INBOX_SLUG,
+  KbService,
+  KbConflictError,
+  KbCurationDecidedError,
+  KbNotFoundError,
+  KbInvalidError,
+} from './kb.service.ts';
 import { EmbeddingProviderHolder } from './embedding.provider.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 
@@ -55,6 +62,7 @@ const skipReason = TEST_URL
 
   beforeEach(async () => {
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    await db.execute(sql`DELETE FROM kb_curation_decisions WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM kb_documents WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM kb_spaces WHERE org_id = ${orgId}`);
   });
@@ -472,6 +480,189 @@ const skipReason = TEST_URL
         proposedTargetSpaceSlug: null,
         sourceConversationId: null,
       });
+    });
+
+    it('records a dismissal that outlives the deleted draft', async () => {
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Weekend hours',
+          draftBody: 'We open 10–16 Saturdays.',
+          sourceConversationId: 'ccv_dismissed',
+        }),
+      );
+      const result = await run(() =>
+        svc.dismissCurationCandidate({
+          id: candidate.id,
+          ifVersion: candidate.version,
+          reason: 'answer is customer-specific',
+        }),
+      );
+      expect(result).toEqual({
+        dismissed: true,
+        id: candidate.id,
+        sourceConversationId: 'ccv_dismissed',
+      });
+      await expect(run(() => svc.getDocument(candidate.id))).rejects.toThrow(KbNotFoundError);
+
+      const decisions = await run(() => svc.listCurationDecisions());
+      expect(decisions).toHaveLength(1);
+      expect(decisions[0]).toMatchObject({
+        sourceConversationId: 'ccv_dismissed',
+        candidateDocumentId: candidate.id,
+        title: 'Weekend hours',
+        outcome: 'dismissed',
+        reason: 'answer is customer-specific',
+        publishedDocumentId: null,
+        decidedByActorType: 'agent',
+      });
+    });
+
+    it('refuses to refile a candidate from a conversation whose draft was dismissed', async () => {
+      const first = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Weekend hours',
+          draftBody: 'We open 10–16 Saturdays.',
+          sourceConversationId: 'ccv_rejected',
+        }),
+      );
+      await run(() =>
+        svc.dismissCurationCandidate({ id: first.id, ifVersion: first.version }),
+      );
+
+      await expect(
+        run(() =>
+          svc.proposeCurationCandidate({
+            subject: 'Opening hours on weekends',
+            draftBody: 'Reworded, same conversation.',
+            sourceConversationId: 'ccv_rejected',
+          }),
+        ),
+      ).rejects.toThrow(KbCurationDecidedError);
+      expect(await run(() => svc.listCurationCandidates())).toHaveLength(0);
+    });
+
+    it('refuses to refile a candidate from a conversation that was already published', async () => {
+      await run(() => svc.createSpace({ name: 'Support FAQ', slug: 'support-faq' }));
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'How to reset password',
+          draftBody: 'Click the reset link.',
+          sourceConversationId: 'ccv_published',
+          proposedTargetSpaceSlug: 'support-faq',
+        }),
+      );
+      const published = await run(() =>
+        svc.publishCurationCandidate({
+          candidateDocumentId: candidate.id,
+          targetSpaceSlug: 'support-faq',
+          ifVersion: candidate.version,
+        }),
+      );
+
+      const decisions = await run(() => svc.listCurationDecisions({ outcome: 'published' }));
+      expect(decisions).toHaveLength(1);
+      expect(decisions[0]).toMatchObject({
+        sourceConversationId: 'ccv_published',
+        outcome: 'published',
+        publishedDocumentId: published.id,
+        reason: null,
+      });
+
+      await expect(
+        run(() =>
+          svc.proposeCurationCandidate({
+            subject: 'Password reset steps',
+            draftBody: 'Same conversation, next sweep.',
+            sourceConversationId: 'ccv_published',
+          }),
+        ),
+      ).rejects.toThrow(KbCurationDecidedError);
+    });
+
+    it('leaves candidates without a source conversation, and other conversations, filable', async () => {
+      const first = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Weekend hours',
+          draftBody: 'Body.',
+          sourceConversationId: 'ccv_one',
+        }),
+      );
+      await run(() => svc.dismissCurationCandidate({ id: first.id, ifVersion: first.version }));
+
+      const other = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Refunds',
+          draftBody: 'Within 14 days.',
+          sourceConversationId: 'ccv_two',
+        }),
+      );
+      const sourceless = await run(() =>
+        svc.proposeCurationCandidate({ subject: 'Shipping', draftBody: 'Ships in 2 days.' }),
+      );
+      expect((await run(() => svc.listCurationCandidates())).map((c) => c.id).sort()).toEqual(
+        [other.id, sourceless.id].sort(),
+      );
+    });
+
+    it('filters decisions by source conversation', async () => {
+      for (const conv of ['ccv_a', 'ccv_b']) {
+        const candidate = await run(() =>
+          svc.proposeCurationCandidate({
+            subject: `Q ${conv}`,
+            draftBody: 'A',
+            sourceConversationId: conv,
+          }),
+        );
+        await run(() =>
+          svc.dismissCurationCandidate({ id: candidate.id, ifVersion: candidate.version }),
+        );
+      }
+      const onlyB = await run(() =>
+        svc.listCurationDecisions({ sourceConversationId: 'ccv_b' }),
+      );
+      expect(onlyB.map((d) => d.title)).toEqual(['Q ccv_b']);
+    });
+
+    it('rejects dismissing a document that is not a curation candidate', async () => {
+      const space = await run(() => svc.createSpace({ name: 'Plain', slug: 'plain' }));
+      const doc = await run(() =>
+        svc.createDocument({ spaceId: space.id, title: 'Plain', body: 'body' }),
+      );
+      await expect(
+        run(() => svc.dismissCurationCandidate({ id: doc.id, ifVersion: doc.version })),
+      ).rejects.toThrow(KbInvalidError);
+      expect(await run(() => svc.listCurationDecisions())).toHaveLength(0);
+    });
+
+    it('refuses to dismiss a candidate that was edited after the reviewed version', async () => {
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({ subject: 'Q', draftBody: 'A' }),
+      );
+      await run(() =>
+        svc.updateDocument({ id: candidate.id, ifVersion: candidate.version, body: 'A2' }),
+      );
+      await expect(
+        run(() =>
+          svc.dismissCurationCandidate({ id: candidate.id, ifVersion: candidate.version }),
+        ),
+      ).rejects.toThrow(KbConflictError);
+      expect(await run(() => svc.listCurationDecisions())).toHaveLength(0);
+      expect(await run(() => svc.listCurationCandidates())).toHaveLength(1);
+    });
+
+    it('records a dismissal when a candidate is removed with kb_delete_document', async () => {
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Q',
+          draftBody: 'A',
+          sourceConversationId: 'ccv_deleted',
+        }),
+      );
+      await run(() => svc.deleteDocument({ id: candidate.id, ifVersion: candidate.version }));
+      const decisions = await run(() => svc.listCurationDecisions());
+      expect(decisions).toMatchObject([
+        { sourceConversationId: 'ccv_deleted', outcome: 'dismissed', reason: null },
+      ]);
     });
 
     it('emits no curation events when deleting a plain document', async () => {

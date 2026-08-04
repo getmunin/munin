@@ -139,14 +139,19 @@ export function KbQueueDrawer({
           shortcut={t('shortcutSave')}
         />
       ) : loadFailed ? null : (
-        <DrawerFooter
-          primary={{ label: t('approve'), onClick: onApprove, disabled: blocked }}
-          secondary={[
-            { label: t('edit'), onClick: () => setEditing(true), disabled: blocked },
-            { label: t('dismiss'), onClick: onDismiss, disabled: blocked },
-          ]}
-          shortcut={t('shortcutApprove')}
-        />
+        <>
+          <p className="px-6 pb-2 text-xs leading-relaxed text-ink-mute">
+            {t('kbDismissPermanent')}
+          </p>
+          <DrawerFooter
+            primary={{ label: t('approve'), onClick: onApprove, disabled: blocked }}
+            secondary={[
+              { label: t('edit'), onClick: () => setEditing(true), disabled: blocked },
+              { label: t('dismiss'), onClick: onDismiss, disabled: blocked },
+            ]}
+            shortcut={t('shortcutApprove')}
+          />
+        </>
       )}
     </>
   );

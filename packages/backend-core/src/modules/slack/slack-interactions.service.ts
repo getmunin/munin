@@ -287,7 +287,10 @@ export class SlackInteractionsService {
                 });
               } else {
                 const doc = await this.kb.getDocument(subject.subjectId);
-                await this.kb.deleteDocument({ id: doc.id, ifVersion: doc.version });
+                await this.kb.dismissCurationCandidate({
+                  id: doc.id,
+                  ifVersion: doc.version,
+                });
               }
               return;
             }

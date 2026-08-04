@@ -1,5 +1,38 @@
 # @getmunin/agent-runtime
 
+## 4.78.0
+
+### Patch Changes
+
+- cfa0241: Withhold the agent reply when the audit pass marks a conversation as spam, and stop the assistant redirecting senders off-channel.
+
+  The audit pass runs after generation but before delivery, so a `mark_spam` verdict flipped the conversation to `spam` and then posted the generated reply anyway — a cold pitch got both a spam label and a polite answer. The verdict now gates delivery: on spam the reply is withheld and parked as a `draft_reply` instead, so a misclassified customer is one click from recovery rather than a silently dropped thread. `shouldRespond` already skips non-open conversations, so later turns stay silent too.
+
+  Parking needs a way to author a draft without requesting a handover, so `conv.setDraftReply` and `POST /v1/conversations/:id/draft-reply` are new; the endpoint replaces any existing draft rather than stacking, and pre-checks the conversation so an unknown id is a 404 rather than a poisoned transaction.
+
+  The seed system prompt scoped its no-redirect rule to handovers only, so it never bound on a reply that wasn't one. That rule is now unconditional, adds "never name a contact address the sender already wrote to" (inbound mail has by definition already reached the right inbox), and tells the assistant to decline pitches briefly without routing anyone anywhere. Existing orgs keep the prompt they already have in KB — the seed only applies to orgs that don't have the document yet.
+
+- 144a49c: fix(agent-runtime): close three prompt-injection holes in how untrusted text reaches the model
+
+  Three gaps in the runtime's untrusted-content handling, all reachable by text an outsider controls. A new `untrusted.ts` module in `@getmunin/agent-runtime` is now the single place that fences untrusted text: `fenceUntrusted(tag, body, attrs)` wraps content in a reserved tag and escapes any reserved framing tag inside it, so a fenced region can only be closed by the fence itself.
+
+  **Tool results could break out of their own `<data>` wrapper.** `runAgent` wraps every tool result in `<tool_result tool="…"><data>…</data></tool_result>` and pairs it with a system note telling the model to treat everything inside `<data>` as information, never as instructions. The wrapper interpolated the tool body verbatim, so a KB document, CRM field, or inbound email containing the literal `</data></tool_result>` closed the region early and everything after it read as sitting _outside_ the untrusted frame — the whole defense was a string-delimiter contract with no escaping, the same shape of bug as unescaped SQL. Escaping is tolerant of casing, internal whitespace and attributes, and leaves `<database>`-style lookalikes alone. The `tool` attribute is sanitized too: the name comes from the model's tool call, so a crafted name could otherwise escape the attribute even when the call itself resolves to an unknown tool.
+
+  **Scraped third-party HTML reached the customer-facing agent's system prompt.** `kb_import_website` crawls a site, summarises it into a `company-profile` KB document, and the conversation runtime concatenated that document verbatim into the system prompt of every end-user conversation. Neither stage was defended: the summariser called the provider directly (bypassing `runAgent`, so it never got the untrusted-data note) and pasted raw page markdown into a plain user turn, and the runtime pasted the result straight into its most-trusted channel. A crawl reaching any page with third-party content — a blog comment, a review widget, a forum, a stale subdomain — could therefore write instructions into the support agent's system prompt. Scraped pages are now fenced per page as `<source_page url="…" title="…">` with the summariser told explicitly that page content is data to describe and never instructions to follow, and the runtime wraps the profile in `<company_context>` behind a note marking it as reference material. The block is still omitted entirely when no profile exists.
+
+  **Imported conversation history could plant a real system turn.** `historyToChatMessage` mapped a message with `authorType: 'system'` to a genuine `role: 'system'` message. Every system note Munin writes itself is `internal: true` and filtered out of runtime history, so the branch was unreachable in practice — except through `conv_import`, whose schema accepts `authorType: 'system'` with `internal: false`. Migration payloads are exactly where third-party text lives (a Zendesk or Intercom export is full of end-user prose), which made this a path from an untrusted export straight into the agent's most-trusted channel. Fixed at both ends: system-authored history is now rendered as an assistant-side `[System note]`, matching how staff messages are already handled, and `conv_import` stores `system` messages as internal staff-only notes regardless of the payload flag, reporting each coercion in `warnings`.
+
+  **Connected MCP hosts were told none of this.** The untrusted-data note lives inside Munin's own runtime, so an admin agent driving `/mcp` from claude.ai or any other host received raw tool results — arbitrary customer and end-user prose — into a session holding `kb:write`, `crm:write` and the rest, with nothing marking it as third-party text. The server `instructions` every host surfaces at initialize now carry a data-provenance paragraph naming which modules return text Munin did not author, and a note that the `agent-runtime` and `website-import` KB spaces are live agent configuration rather than reference material, so edits there change how the org's support agent behaves in every future conversation.
+
+  None of this changes normal operation — no code path produced a public `system` message, no legitimate tool result or company profile contains its own closing framing tags, and the profile's content and wording are unchanged.
+
+- Updated dependencies [5802b45]
+- Updated dependencies [180727a]
+- Updated dependencies [cfa0241]
+- Updated dependencies [6dd772d]
+  - @getmunin/types@4.78.0
+  - @getmunin/core@4.78.0
+
 ## 4.77.0
 
 ### Patch Changes

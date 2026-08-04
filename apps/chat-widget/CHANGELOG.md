@@ -1,5 +1,13 @@
 # @getmunin/chat-widget
 
+## 4.78.0
+
+### Patch Changes
+
+- Updated dependencies [5802b45]
+- Updated dependencies [180727a]
+  - @getmunin/types@4.78.0
+
 ## 4.77.0
 
 ### Patch Changes

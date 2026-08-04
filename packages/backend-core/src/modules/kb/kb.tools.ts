@@ -84,6 +84,13 @@ const ProposeCurationCandidateInput = z.object({
 const PublishCurationCandidateInput = z.object({
   candidateDocumentId: z.string().min(1),
   targetSpaceSlug: z.string().min(1).max(64),
+  ifVersion: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'The candidate document `version` that was reviewed, binding this publish to that exact text.',
+    ),
   audiences: AudiencesSchema.optional(),
 });
 
@@ -408,7 +415,7 @@ export class KbAdminTools {
     name: 'kb_publish_curation_candidate',
     title: 'KB: Publish curation candidate',
     description:
-      "Promote a reviewed curation candidate into a target KB space. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the `curation`/`candidate` tags, and removes the candidate from the inbox. The target space must already exist.",
+      "Promote a reviewed curation candidate into a target KB space. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the `curation`/`candidate` tags, and removes the candidate from the inbox. The target space must already exist. Pass `ifVersion` (the candidate `version` that was reviewed) for optimistic concurrency; if the draft was edited since, the call fails and nothing is published.",
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: PublishCurationCandidateInput,

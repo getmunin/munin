@@ -693,6 +693,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         sourceConversationId: sourceTag ?? str(payload.sourceConversationId),
         dashboardUrl,
       });
+      fingerprint = doc ? String(doc.version) : null;
       approveLabel = target ? `Publish to ${target}` : null;
       resolution = outcome
         ? { outcome, decidedByName: actorId ? await this.userName(actorId) : null }

@@ -6666,7 +6666,7 @@
   {
     "name": "kb_publish_curation_candidate",
     "title": "KB: Publish curation candidate",
-    "description": "Promote a reviewed curation candidate into a target KB space. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the `curation`/`candidate` tags, and removes the candidate from the inbox. The target space must already exist.",
+    "description": "Promote a reviewed curation candidate into a target KB space. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the `curation`/`candidate` tags, and removes the candidate from the inbox. The target space must already exist. Pass `ifVersion` (the candidate `version` that was reviewed) for optimistic concurrency; if the draft was edited since, the call fails and nothing is published.",
     "audiences": [
       "admin"
     ],
@@ -6688,6 +6688,12 @@
           "minLength": 1,
           "maxLength": 64
         },
+        "ifVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "The candidate document `version` that was reviewed, binding this publish to that exact text."
+        },
         "audiences": {
           "minItems": 1,
           "type": "array",
@@ -6702,7 +6708,8 @@
       },
       "required": [
         "candidateDocumentId",
-        "targetSpaceSlug"
+        "targetSpaceSlug",
+        "ifVersion"
       ],
       "additionalProperties": false
     }

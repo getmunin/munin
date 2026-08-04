@@ -279,6 +279,7 @@ export class SlackInteractionsService {
                 await this.kb.publishCurationCandidate({
                   candidateDocumentId: subject.subjectId,
                   targetSpaceSlug: candidate.proposedTargetSpaceSlug,
+                  ifVersion: Number(subject.fingerprint),
                 });
               } else {
                 const doc = await this.kb.getDocument(subject.subjectId);

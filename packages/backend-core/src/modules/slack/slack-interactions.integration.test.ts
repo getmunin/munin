@@ -631,9 +631,16 @@ class FakeSlackApi extends SlackApiClient {
     it('publishes a KB candidate to its proposed target space', async () => {
       const candidateId = await seedKbCandidate(['curation', 'candidate', 'target:faq']);
       await linkSubject('kb_curation_candidate', candidateId);
+      const [seeded] = await db
+        .select()
+        .from(schema.kbDocuments)
+        .where(eq(schema.kbDocuments.id, candidateId));
 
       await interactions.processBlockActions(
-        approvalPayload('munin_approval_approve', `kb_curation_candidate:${candidateId}`),
+        approvalPayload(
+          'munin_approval_approve',
+          `kb_curation_candidate:${candidateId}#${seeded!.version}`,
+        ),
       );
 
       expect(api.ephemerals).toHaveLength(0);
@@ -649,6 +656,35 @@ class FakeSlackApi extends SlackApiClient {
         .innerJoin(schema.kbSpaces, eq(schema.kbSpaces.id, schema.kbDocuments.spaceId))
         .where(eq(schema.kbDocuments.orgId, orgId));
       expect(published).toEqual([{ title: 'Weekend hours', slug: 'faq' }]);
+    });
+
+    it('refuses a publish button whose version no longer matches the candidate', async () => {
+      const candidateId = await seedKbCandidate(['curation', 'candidate', 'target:faq']);
+      await linkSubject('kb_curation_candidate', candidateId);
+      const [seeded] = await db
+        .select()
+        .from(schema.kbDocuments)
+        .where(eq(schema.kbDocuments.id, candidateId));
+      await db
+        .update(schema.kbDocuments)
+        .set({ body: 'Rewritten after the card was posted.', version: seeded!.version + 1 })
+        .where(eq(schema.kbDocuments.id, candidateId));
+
+      await interactions.processBlockActions(
+        approvalPayload(
+          'munin_approval_approve',
+          `kb_curation_candidate:${candidateId}#${seeded!.version}`,
+        ),
+      );
+
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('kb_version_conflict');
+      const [candidate] = await db
+        .select()
+        .from(schema.kbDocuments)
+        .where(eq(schema.kbDocuments.id, candidateId));
+      expect(candidate).toBeDefined();
+      expect(candidate!.tags).toContain('candidate');
     });
 
     it('asks for a target space when the candidate has none, leaving it untouched', async () => {

@@ -393,7 +393,7 @@ export function useInboxData(): InboxController {
           const targetSlug = item.raw.proposedTargetSpaceSlug ?? 'support-faq';
           await api(`/v1/kb/curation/candidates/${item.id}/publish`, {
             method: 'POST',
-            body: JSON.stringify({ targetSpaceSlug: targetSlug }),
+            body: JSON.stringify({ targetSpaceSlug: targetSlug, ifVersion: item.raw.version }),
           });
         } else if (item.kind === 'crm') {
           await api(`/v1/crm/merge-proposals/${item.id}/apply`, { method: 'POST' });

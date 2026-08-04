@@ -2,6 +2,7 @@ export interface KbCandidateDto {
   id: string;
   title: string;
   body?: string;
+  version: number;
   updatedAt: string;
   proposedTargetSpaceSlug: string | null;
 }

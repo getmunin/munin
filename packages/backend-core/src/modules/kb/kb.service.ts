@@ -433,6 +433,7 @@ export class KbService {
   async publishCurationCandidate(input: {
     candidateDocumentId: string;
     targetSpaceSlug: string;
+    ifVersion: number;
     audiences?: readonly string[];
   }): Promise<DocumentDto> {
     const ctx = getCurrentContext();
@@ -441,6 +442,9 @@ export class KbService {
       throw new KbInvalidError(
         `document ${input.candidateDocumentId} is not a curation candidate (missing 'candidate' tag)`,
       );
+    }
+    if (candidate.version !== input.ifVersion) {
+      throw new KbConflictError(candidate.version, input.ifVersion);
     }
     const targetSpaceRows = await ctx.db
       .select()

@@ -43,7 +43,7 @@ Decide now:
 
 You can flip a collection from non-localized to localized later, but only the "default locale" entries get auto-populated — anything else needs backfill. Going from localized to non-localized loses data.
 
-Individual fields can also opt out of localization with `localized: false` on the field (e.g. a `publishedAt` datetime doesn't translate). Default behavior when the collection is localized: every field is localized unless you say otherwise.
+Individual fields can also opt out of localization with `localized: false` on the field (e.g. an `eventDate` datetime doesn't translate). Default behavior when the collection is localized: every field is localized unless you say otherwise.
 
 ## Step 3 — pick field types
 
@@ -119,7 +119,7 @@ Reach for `json` only when you'd otherwise be cramming structured data into a `t
 1. Hero / cover image (`asset`).
 2. Headline (`text`).
 3. Excerpt or summary (`text` or `markdown`).
-4. Metadata that affects publishing (`status`, `category`, `featured`, `publishedAt`).
+4. Metadata that affects publishing (`category`, `featured`, `audience`).
 5. Body content (`rich_text` or `markdown`).
 6. Optional / trailing fields (SEO overrides, internal notes, custom JSON).
 
@@ -141,7 +141,7 @@ Every field accepts a `description` (max 500 chars) that shows up in the editor 
 - Length / dimension guidance (`"Recommended 1600×900, max 2MB"`).
 - What the field does and doesn't do (`"Falls back to the global site title if empty"`).
 
-Skip descriptions for fields whose name + type are self-explanatory (`title: text`, `publishedAt: datetime`).
+Skip descriptions for fields whose name + type are self-explanatory (`title: text`, `eventDate: datetime`).
 
 ## Step 7 — create it
 
@@ -167,7 +167,6 @@ Skip descriptions for fields whose name + type are self-explanatory (`title: tex
         "options": { "choices": ["news", "tutorial", "release-notes"] } },
       { "name": "tags", "type": "multi_select", "localized": false,
         "options": { "choices": ["frontend", "backend", "ai", "ops"] } },
-      { "name": "publishedAt", "type": "datetime", "localized": false },
       { "name": "body", "type": "markdown", "required": true },
       { "name": "seoTitleOverride", "type": "text",
         "description": "Optional — defaults to `title` if empty." }
@@ -197,7 +196,7 @@ Or accept one direction as canonical (blog post → author) and skip the back-re
 
 These are sketches — fill in fields specific to your content.
 
-**Blog / article** — `coverImage` (asset), `title` (text), `slug` (text, non-localized), `excerpt` (text), `author` (reference→authors), `category` (select), `tags` (multi_select), `publishedAt` (datetime), `body` (markdown or rich_text).
+**Blog / article** — `coverImage` (asset), `title` (text), `slug` (text, non-localized), `excerpt` (text), `author` (reference→authors), `category` (select), `tags` (multi_select), `body` (markdown or rich_text). No `publishedAt` field — every entry already has one (see the "What NOT to do" note below).
 
 **Author / team member** — `avatar` (asset), `name` (text), `slug` (text, non-localized), `role` (text), `bio` (markdown), `socialLinks` (json or array<text>).
 
@@ -223,7 +222,8 @@ The dashboard editor will warn before destructive changes; if you're driving thi
 - **Don't make every metadata field a separate reference collection.** It's tempting (normalize all the things), but a single `select` with `["news", "tutorial", "release-notes"]` is faster to read, faster to render, and one fewer collection to maintain. Reach for `reference` when the related thing has its own editor surface (an author has a bio and an avatar; a category is just a label).
 - **Don't use `json` as a "we'll figure it out later" field.** It bypasses validation, doesn't get search-indexed, and the editor renders raw JSON. Use specific types for as much structure as you can name.
 - **Don't put HTML in `text` fields.** Use `rich_text` (structured) or `markdown` (source). Raw HTML in a string field means every consumer has to sanitize.
-- **Don't skip `slug` non-localization for fundamentally non-translatable fields.** A blog post's URL slug should be the same across locales (or different by deliberate choice); a `publishedAt` timestamp doesn't change between en and ja. Mark these `localized: false` on the field even when the collection is localized.
+- **Don't add your own `publishedAt` field.** Every entry already carries a first-class `publishedAt` timestamp next to `status` and `version`. `cms_create_entry` and `cms_publish_entry` both accept one (pass the original date when migrating content in from another CMS), `cms_export`/`cms_import` round-trip it, and the delivery API orders by it descending — so a frontend archive sorts on the built-in field with no duplicate in `data`. Add a datetime field only for a *different* date the content is about: an `eventDate`, an `effectiveFrom`.
+- **Don't skip `slug` non-localization for fundamentally non-translatable fields.** A blog post's URL slug should be the same across locales (or different by deliberate choice); an `eventDate` timestamp doesn't change between en and ja. Mark these `localized: false` on the field even when the collection is localized.
 - **Don't reuse a collection for "kind of similar" content.** Two collections with 80% overlap is fine and easy to evolve. One collection with a `type` discriminator and a bunch of conditionally-populated fields is hard to evolve and hard to query.
 
 ## Related

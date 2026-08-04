@@ -20,6 +20,8 @@ const skipReason = TEST_URL
 const PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
+const ORIGINAL_PUBLISHED_AT = '2019-04-12T08:30:00.000Z';
+
 (skipReason ? describe.skip : describe)('CMS transfer: export org A → import org B via /mcp', () => {
   let app: INestApplication;
   let baseUrl: string;
@@ -117,7 +119,13 @@ const PNG_BASE64 =
   interface CmsExportData {
     locales: Array<{ id: string; code: string }>;
     collections: Array<{ id: string; slug: string }>;
-    entries: Array<{ id: string; collectionId: string; slug: string; locale: string }>;
+    entries: Array<{
+      id: string;
+      collectionId: string;
+      slug: string;
+      locale: string;
+      publishedAt: string | null;
+    }>;
     assets: Array<{ id: string; name: string; base64Body: string | null }>;
   }
   interface ImportResult {
@@ -168,6 +176,7 @@ const PNG_BASE64 =
             hero: asset.id,
           },
           status: 'published',
+          publishedAt: ORIGINAL_PUBLISHED_AT,
         },
       });
       await c.callTool({
@@ -188,6 +197,9 @@ const PNG_BASE64 =
     expect(seeded.exported.entries.length).toBe(2);
     expect(seeded.exported.assets.length).toBe(1);
     expect(seeded.exported.assets[0]!.base64Body).toBeTruthy();
+    expect(
+      seeded.exported.entries.find((e) => e.slug === 'refund-policy')!.publishedAt,
+    ).toBe(ORIGINAL_PUBLISHED_AT);
 
     const srcLocaleId = seeded.exported.locales[0]!.id;
     const srcCollectionId = seeded.exported.collections[0]!.id;
@@ -208,7 +220,14 @@ const PNG_BASE64 =
       ) as Array<{ id: string; slug: string }>;
       const entries = firstJson(
         (await c.callTool({ name: 'cms_list_entries', arguments: {} })),
-      ) as { entries: Array<{ id: string; slug: string; data: Record<string, unknown> }> };
+      ) as {
+        entries: Array<{
+          id: string;
+          slug: string;
+          data: Record<string, unknown>;
+          publishedAt: string | null;
+        }>;
+      };
       return { result, hits, collections, entries: entries.entries };
     });
 
@@ -226,6 +245,7 @@ const PNG_BASE64 =
     const newAssetId = firstImport.result.idMap[srcAssetId];
     const refundEntry = firstImport.entries.find((e) => e.slug === 'refund-policy');
     expect(refundEntry).toBeTruthy();
+    expect(refundEntry!.publishedAt).toBe(ORIGINAL_PUBLISHED_AT);
     const hero = (refundEntry!.data as { hero?: unknown }).hero;
     const heroId = typeof hero === 'string' ? hero : (hero as { id?: string } | null)?.id;
     expect(heroId).toBe(newAssetId);
@@ -260,6 +280,83 @@ const PNG_BASE64 =
     expect(secondImport.entryCount).toBe(2);
     expect(secondImport.localeCount).toBe(1);
     expect(secondImport.assetCount).toBe(1);
+  });
+
+  it('restores scheduled and archived entries instead of collapsing them into drafts', async () => {
+    const futureAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const pastAt = '2020-01-01T00:00:00.000Z';
+    const records = {
+      locales: [],
+      collections: [
+        {
+          id: 'cmc_src_states',
+          name: 'States',
+          slug: 'states',
+          description: null,
+          fields: [{ name: 'title', type: 'text', required: true }],
+          localized: false,
+          settings: {},
+        },
+      ],
+      entries: [
+        {
+          id: 'cme_src_future',
+          collectionId: 'cmc_src_states',
+          slug: 'future-launch',
+          locale: 'en',
+          status: 'scheduled',
+          data: { title: 'Future launch' },
+          publishedAt: null,
+          scheduledAt: futureAt,
+        },
+        {
+          id: 'cme_src_stale',
+          collectionId: 'cmc_src_states',
+          slug: 'stale-schedule',
+          locale: 'en',
+          status: 'scheduled',
+          data: { title: 'Stale schedule' },
+          publishedAt: null,
+          scheduledAt: pastAt,
+        },
+        {
+          id: 'cme_src_archived',
+          collectionId: 'cmc_src_states',
+          slug: 'retired-notice',
+          locale: 'en',
+          status: 'archived',
+          data: { title: 'Retired notice' },
+          publishedAt: null,
+          scheduledAt: null,
+        },
+      ],
+      assets: [],
+    };
+
+    const imported = await withClient(adminKeyB, async (c) => {
+      const res = await c.callTool({ name: 'cms_import', arguments: { records } });
+      const result = firstJson(res) as ImportResult;
+      const entries = firstJson(
+        (await c.callTool({ name: 'cms_list_entries', arguments: { collection: 'states' } })),
+      ) as { entries: Array<{ slug: string; status: string }> };
+      return { result, entries: entries.entries };
+    });
+
+    const byStatus = new Map(imported.entries.map((e) => [e.slug, e.status]));
+    expect(byStatus.get('future-launch')).toBe('scheduled');
+    expect(byStatus.get('retired-notice')).toBe('archived');
+    expect(byStatus.get('stale-schedule')).toBe('draft');
+    expect(
+      imported.result.warnings.some(
+        (w) => w.includes('stale-schedule') && w.includes('not in the future'),
+      ),
+    ).toBe(true);
+
+    const scheduledRow = await db
+      .select()
+      .from(schema.cmsEntries)
+      .where(eq(schema.cmsEntries.id, imported.result.idMap['cme_src_future']!));
+    expect(scheduledRow[0]!.scheduledAt?.toISOString()).toBe(futureAt);
   });
 
   it('does not persist SVG asset bytes on import (XSS-prone uploads blocked)', async () => {

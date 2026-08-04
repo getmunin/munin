@@ -51,6 +51,21 @@ export class KbInvalidError extends Error {
   }
 }
 
+export class KbCurationDecidedError extends Error {
+  readonly code = 'kb_curation_decided';
+  constructor(
+    public readonly sourceConversationId: string,
+    public readonly outcome: string,
+    decidedAt: string,
+  ) {
+    super(
+      outcome === 'published'
+        ? `kb_curation_decided: a candidate from conversation ${sourceConversationId} was already published on ${decidedAt} — that knowledge is in the KB, so do not refile it. Create a document directly with kb_create_document if something genuinely new came up.`
+        : `kb_curation_decided: a candidate from conversation ${sourceConversationId} was dismissed on ${decidedAt} and dismissals are permanent — do not refile it. Read the decision with kb_list_curation_decisions.`,
+    );
+  }
+}
+
 export interface SpaceDto {
   id: string;
   name: string;
@@ -82,6 +97,21 @@ export interface CurationCandidateSummary extends DocumentSummary {
 export interface CurationCandidateDto extends DocumentDto {
   proposedTargetSpaceSlug: string | null;
   sourceConversationId: string | null;
+}
+
+export type CurationOutcome = 'dismissed' | 'published';
+
+export interface CurationDecisionDto {
+  id: string;
+  sourceConversationId: string | null;
+  candidateDocumentId: string;
+  title: string;
+  outcome: CurationOutcome;
+  reason: string | null;
+  publishedDocumentId: string | null;
+  decidedByActorType: string;
+  decidedByActorId: string;
+  decidedAt: string;
 }
 
 export interface DocumentSummary {
@@ -359,7 +389,7 @@ export class KbService {
 
   private async removeDocument(
     existing: typeof schema.kbDocuments.$inferSelect,
-    opts: { emitCandidateDismissed: boolean },
+    opts: { emitCandidateDismissed: boolean; reason?: string },
   ): Promise<{ deleted: true }> {
     const ctx = getCurrentContext();
     await ctx.db.delete(schema.kbDocuments).where(eq(schema.kbDocuments.id, existing.id));
@@ -372,16 +402,97 @@ export class KbService {
       },
     });
     if (opts.emitCandidateDismissed && existing.tags.includes('candidate')) {
+      const refs = extractCandidateRefs(existing.tags);
+      await this.recordCurationDecision({
+        sourceConversationId: refs.sourceConversationId,
+        candidateDocumentId: existing.id,
+        title: existing.title,
+        outcome: 'dismissed',
+        reason: opts.reason ?? null,
+        publishedDocumentId: null,
+      });
       await this.webhooks.emit({
         type: 'kb.curation_candidate.dismissed',
         payload: {
           candidateDocumentId: existing.id,
           title: existing.title,
-          ...extractCandidateRefs(existing.tags),
+          reason: opts.reason ?? null,
+          ...refs,
         },
       });
     }
     return { deleted: true };
+  }
+
+  private async recordCurationDecision(input: {
+    sourceConversationId: string | null;
+    candidateDocumentId: string;
+    title: string;
+    outcome: CurationOutcome;
+    reason: string | null;
+    publishedDocumentId: string | null;
+  }): Promise<void> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    await ctx.db.insert(schema.kbCurationDecisions).values({
+      orgId: actor.orgId,
+      sourceConversationId: input.sourceConversationId,
+      candidateDocumentId: input.candidateDocumentId,
+      title: input.title,
+      outcome: input.outcome,
+      reason: input.reason,
+      publishedDocumentId: input.publishedDocumentId,
+      decidedByActorType: actor.type === 'user' ? 'user' : 'agent',
+      decidedByActorId: actor.id,
+      decidedAt: new Date(),
+    });
+  }
+
+  async dismissCurationCandidate(input: {
+    id: string;
+    ifVersion: number;
+    reason?: string;
+  }): Promise<{ dismissed: true; id: string; sourceConversationId: string | null }> {
+    const existing = await this.loadForUpdate(input.id);
+    if (!existing.tags.includes('candidate')) {
+      throw new KbInvalidError(
+        `document ${input.id} is not a curation candidate (missing 'candidate' tag)`,
+      );
+    }
+    if (existing.version !== input.ifVersion) {
+      throw new KbConflictError(existing.version, input.ifVersion);
+    }
+    await this.removeDocument(existing, {
+      emitCandidateDismissed: true,
+      reason: input.reason,
+    });
+    return {
+      dismissed: true,
+      id: input.id,
+      sourceConversationId: extractCandidateRefs(existing.tags).sourceConversationId,
+    };
+  }
+
+  async listCurationDecisions(input?: {
+    outcome?: CurationOutcome;
+    sourceConversationId?: string;
+    limit?: number;
+  }): Promise<CurationDecisionDto[]> {
+    const ctx = getCurrentContext();
+    const filters = [];
+    if (input?.outcome) filters.push(eq(schema.kbCurationDecisions.outcome, input.outcome));
+    if (input?.sourceConversationId) {
+      filters.push(
+        eq(schema.kbCurationDecisions.sourceConversationId, input.sourceConversationId),
+      );
+    }
+    const rows = await ctx.db
+      .select()
+      .from(schema.kbCurationDecisions)
+      .where(filters.length ? and(...filters) : undefined)
+      .orderBy(desc(schema.kbCurationDecisions.decidedAt))
+      .limit(clampLimit(input?.limit, 50, 200));
+    return rows.map(toCurationDecisionDto);
   }
 
   async listCurationCandidates(limit?: number): Promise<CurationCandidateSummary[]> {
@@ -404,6 +515,9 @@ export class KbService {
     sourceMessageIds?: string[];
     proposedTargetSpaceSlug?: string;
   }): Promise<DocumentDto> {
+    if (input.sourceConversationId) {
+      await this.assertSourceNotDecided(input.sourceConversationId);
+    }
     const space = await this.ensureCurationInboxSpace();
     const doc = await this.createDocument({
       spaceId: space.id,
@@ -485,6 +599,14 @@ export class KbService {
       tags: carriedTags,
     });
     await this.removeDocument(candidate, { emitCandidateDismissed: false });
+    await this.recordCurationDecision({
+      sourceConversationId: extractCandidateRefs(candidate.tags).sourceConversationId,
+      candidateDocumentId: candidate.id,
+      title: candidate.title,
+      outcome: 'published',
+      reason: null,
+      publishedDocumentId: published.id,
+    });
     await this.webhooks.emit({
       type: 'kb.curation_candidate.published',
       payload: {
@@ -496,6 +618,25 @@ export class KbService {
       },
     });
     return published;
+  }
+
+  private async assertSourceNotDecided(sourceConversationId: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const [decided] = await ctx.db
+      .select({
+        outcome: schema.kbCurationDecisions.outcome,
+        decidedAt: schema.kbCurationDecisions.decidedAt,
+      })
+      .from(schema.kbCurationDecisions)
+      .where(eq(schema.kbCurationDecisions.sourceConversationId, sourceConversationId))
+      .orderBy(desc(schema.kbCurationDecisions.decidedAt))
+      .limit(1);
+    if (!decided) return;
+    throw new KbCurationDecidedError(
+      sourceConversationId,
+      decided.outcome,
+      decided.decidedAt.toISOString(),
+    );
   }
 
   private async ensureCurationInboxSpace(): Promise<SpaceDto> {
@@ -811,6 +952,23 @@ function toVersionDto(row: typeof schema.kbDocumentVersions.$inferSelect): Versi
     audiences: row.audiences,
     tags: row.tags,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function toCurationDecisionDto(
+  row: typeof schema.kbCurationDecisions.$inferSelect,
+): CurationDecisionDto {
+  return {
+    id: row.id,
+    sourceConversationId: row.sourceConversationId,
+    candidateDocumentId: row.candidateDocumentId,
+    title: row.title,
+    outcome: row.outcome as CurationOutcome,
+    reason: row.reason,
+    publishedDocumentId: row.publishedDocumentId,
+    decidedByActorType: row.decidedByActorType,
+    decidedByActorId: row.decidedByActorId,
+    decidedAt: row.decidedAt.toISOString(),
   };
 }
 

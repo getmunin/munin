@@ -526,6 +526,7 @@
         "button": "Enter credentials",
         "title": "Enter channel credentials",
         "description": "Enter the passwords for {name}. They're encrypted at rest and never shown again.",
+        "vendorDescription": "Enter the vendor keys for {name}. They're encrypted at rest and never shown again. Saving verifies them and activates the channel.",
         "smtpLabel": "SMTP password",
         "imapLabel": "IMAP password",
         "submit": "Save",

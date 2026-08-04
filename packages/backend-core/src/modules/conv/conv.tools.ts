@@ -2,18 +2,28 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { getCurrentContext } from '@getmunin/core';
-import { AGENT_MODES, CHANNEL_TYPES, ConvService, STATUSES } from './conv.service.ts';
+import { AGENT_MODES, CHANNEL_TYPES, ConvService, HANDOVER_FILTERS, STATUSES } from './conv.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
 const SelfContainedChannelTypeSchema = z.enum(['email', 'chat']);
 const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
+const HandoverSchema = z.enum(HANDOVER_FILTERS);
 
 const ListConversationsInput = z.object({
   status: StatusSchema.optional(),
   assigneeUserId: z.string().optional(),
   topicId: z.string().optional(),
+  handover: HandoverSchema.optional().describe(
+    '`active` = waiting on a human right now, `resolved` = a handover was answered and cleared, `never` = no handover on record.',
+  ),
+  since: z
+    .string()
+    .min(1)
+    .max(40)
+    .optional()
+    .describe('ISO 8601 timestamp; keeps only conversations whose last message is at or after it.'),
   limit: z.number().int().positive().max(200).optional(),
 });
 
@@ -124,7 +134,7 @@ export class ConvAdminTools {
     name: 'conv_list_conversations',
     title: 'Conv: List conversations',
     description:
-      'List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, or topic.',
+      'List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp. `handover: "resolved"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: ListConversationsInput,

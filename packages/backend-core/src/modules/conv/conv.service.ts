@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import type { MessageComponent } from '@getmunin/types';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
@@ -51,6 +51,8 @@ export class AgentReplyRaceError extends Error {
 export const CHANNEL_TYPES = ['email', 'voice', 'chat', 'sms'] as const;
 export const STATUSES = ['open', 'snoozed', 'closed', 'spam'] as const;
 export const AGENT_MODES = ['auto', 'draft_only', 'off'] as const;
+export const HANDOVER_FILTERS = ['active', 'resolved', 'never'] as const;
+export type HandoverFilter = (typeof HANDOVER_FILTERS)[number];
 
 const DELIVERABLE_CHANNEL_TYPES: readonly string[] = ['email', 'sms'];
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
@@ -109,6 +111,7 @@ export interface ConversationSummary {
   lastInboundPreview?: string | null;
   needsHumanAttention: boolean;
   needsHumanAttentionAt: string | null;
+  handoverResolvedAt: string | null;
   agentMode: AgentMode;
   outreachCampaignId: string | null;
   voiceActive: boolean;
@@ -381,6 +384,8 @@ export class ConvService {
     topicId?: string;
     endUserId?: string;
     needsHumanAttention?: boolean;
+    handover?: HandoverFilter;
+    since?: string;
     limit?: number;
   }): Promise<ConversationSummary[]> {
     const page = await this.listConversationsPage({ ...input });
@@ -394,6 +399,8 @@ export class ConvService {
     topicId?: string;
     endUserId?: string;
     needsHumanAttention?: boolean;
+    handover?: HandoverFilter;
+    since?: string;
     limit?: number;
     cursor?: { lastMessageAt: string | null; id: string };
   }): Promise<{ items: ConversationSummary[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
@@ -409,6 +416,21 @@ export class ConvService {
     if (input.endUserId) filters.push(eq(schema.convConversations.endUserId, input.endUserId));
     if (input.needsHumanAttention !== undefined) {
       filters.push(eq(schema.convConversations.needsHumanAttention, input.needsHumanAttention));
+    }
+    if (input.handover === 'active') {
+      filters.push(eq(schema.convConversations.needsHumanAttention, true));
+    } else if (input.handover === 'resolved') {
+      filters.push(isNotNull(schema.convConversations.handoverResolvedAt));
+    } else if (input.handover === 'never') {
+      filters.push(eq(schema.convConversations.needsHumanAttention, false));
+      filters.push(isNull(schema.convConversations.handoverResolvedAt));
+    }
+    if (input.since) {
+      const since = new Date(input.since);
+      if (Number.isNaN(since.getTime())) {
+        throw new ConvInvalidError(`since must be an ISO 8601 timestamp, got "${input.since}"`);
+      }
+      filters.push(gte(schema.convConversations.lastMessageAt, since));
     }
     if (input.cursor) {
       const { lastMessageAt, id } = input.cursor;
@@ -812,7 +834,11 @@ export class ConvService {
         lastMessageAt: new Date(),
         updatedAt: new Date(),
         ...(clearAttention
-          ? { needsHumanAttention: false, needsHumanAttentionAt: null }
+          ? {
+              needsHumanAttention: false,
+              needsHumanAttentionAt: null,
+              handoverResolvedAt: stampHandoverResolved(),
+            }
           : {}),
       })
       .where(eq(schema.convConversations.id, input.conversationId));
@@ -1076,7 +1102,11 @@ export class ConvService {
         snoozeUntil: input.snoozeUntil ? new Date(input.snoozeUntil) : null,
         updatedAt: new Date(),
         ...(clearAttention
-          ? { needsHumanAttention: false, needsHumanAttentionAt: null }
+          ? {
+              needsHumanAttention: false,
+              needsHumanAttentionAt: null,
+              handoverResolvedAt: stampHandoverResolved(),
+            }
           : {}),
         ...(releaseRunner
           ? { runnerHolder: null, runnerLeaseExpiresAt: null }
@@ -1116,6 +1146,7 @@ export class ConvService {
         snoozeUntil: null,
         needsHumanAttention: true,
         needsHumanAttentionAt: now,
+        handoverResolvedAt: null,
         updatedAt: now,
       })
       .where(
@@ -1269,6 +1300,7 @@ export class ConvService {
       .set({
         needsHumanAttention: true,
         needsHumanAttentionAt: now,
+        handoverResolvedAt: null,
         lastMessageAt: now,
         updatedAt: now,
       })
@@ -1612,6 +1644,11 @@ function toTopicDto(row: typeof schema.convTopics.$inferSelect): TopicDto {
   return { id: row.id, name: row.name, slug: row.slug, color: row.color };
 }
 
+function stampHandoverResolved(): SQL {
+  return sql`CASE WHEN ${schema.convConversations.needsHumanAttention} THEN now()
+                  ELSE ${schema.convConversations.handoverResolvedAt} END`;
+}
+
 function previewText(body: string | null): string | null {
   if (body === null) return null;
   const collapsed = body.replace(/\s+/g, ' ').trim();
@@ -1641,6 +1678,7 @@ function toConversationSummary(
       : {}),
     needsHumanAttention: row.needsHumanAttention,
     needsHumanAttentionAt: row.needsHumanAttentionAt?.toISOString() ?? null,
+    handoverResolvedAt: row.handoverResolvedAt?.toISOString() ?? null,
     agentMode: row.agentMode as AgentMode,
     outreachCampaignId: row.outreachCampaignId,
     voiceActive: row.metadata.voiceActive === true,

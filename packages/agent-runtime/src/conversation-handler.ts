@@ -33,6 +33,13 @@ function errorCode(err: Error): string | null {
 }
 const HANDOVER_TOOL_NAME = 'conv_request_human';
 
+interface AuditOutcome {
+  handoverReason: string | null;
+  spam: boolean;
+}
+
+const NO_AUDIT_ACTIONS: AuditOutcome = { handoverReason: null, spam: false };
+
 export interface OpenedMcp extends McpToolHandle {
   close(): Promise<void>;
 }
@@ -274,14 +281,25 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             | { reason?: string; suggestedReply?: string }
             | undefined;
           const llmHandoverReason = llmHandoverArgs?.reason;
-          const auditHandoverReason = await runAuditPass({
+          const audit = await runAuditPass({
             conversationId,
             reply,
             history,
             mcp,
             log,
           });
-          const handoverReason = llmHandoverReason ?? auditHandoverReason;
+          if (audit.spam) {
+            log.warn(`${conversationId} spam verdict: withholding reply, parking draft`);
+            await deps.rest
+              .setDraftReply(conversationId, reply.body)
+              .catch((err) =>
+                log.warn(
+                  `${conversationId} failed to park withheld reply: ${err instanceof Error ? err.message : String(err)}`,
+                ),
+              );
+            return;
+          }
+          const handoverReason = llmHandoverReason ?? audit.handoverReason;
           const handoverThisTurn = handoverReason !== null && handoverReason !== undefined;
           await deps.rest.postAgentMessage(conversationId, reply.body, {
             preserveAttention: handoverThisTurn,
@@ -399,12 +417,12 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     history: ConversationMessage[];
     mcp: McpToolHandle;
     log: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
-  }): Promise<string | null> {
-    if (deps.config.auditEnabled === false) return null;
+  }): Promise<AuditOutcome> {
+    if (deps.config.auditEnabled === false) return NO_AUDIT_ACTIONS;
     const lastUser = [...args.history].reverse().find(
       (m) => m.authorType === 'user' || m.authorType === 'end_user',
     );
-    if (!lastUser) return null;
+    if (!lastUser) return NO_AUDIT_ACTIONS;
 
     const topics = await deps.rest
       .listTopics()
@@ -427,15 +445,16 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const agentCalledHandover = args.reply.toolCalls.some(
       (t) => t.name === HANDOVER_TOOL_NAME,
     );
-    let dispatchedHandoverReason: string | null = null;
-    for (const action of verdict.actions) {
-      if (action.type === 'request_handover' && agentCalledHandover) continue;
+    const dispatched = verdict.actions.filter(
+      (action) => !(action.type === 'request_handover' && agentCalledHandover),
+    );
+    for (const action of dispatched) {
       await dispatchAuditAction(args.conversationId, action, args.mcp, topics, args.log);
-      if (action.type === 'request_handover') {
-        dispatchedHandoverReason = action.reason ?? '';
-      }
     }
-    return dispatchedHandoverReason;
+    return {
+      handoverReason: dispatched.find((a) => a.type === 'request_handover')?.reason ?? null,
+      spam: dispatched.some((a) => a.type === 'mark_spam'),
+    };
   }
 
   async function dispatchAuditAction(

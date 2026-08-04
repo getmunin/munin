@@ -116,6 +116,7 @@ function buildRest(overrides: Partial<MuninRestClient> = {}): MuninRestClient {
     ),
     releaseConversationClaim: vi.fn(() => Promise.resolve({ released: true })),
     requestHandover: vi.fn(() => Promise.resolve()),
+    setDraftReply: vi.fn(() => Promise.resolve()),
     clearDraftReply: vi.fn(() => Promise.resolve()),
     ...overrides,
   };
@@ -564,6 +565,89 @@ describe('createConversationHandler', () => {
     await handler.flush();
 
     expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it('withholds the reply when the audit marks the conversation as spam', async () => {
+    const rest = buildRest();
+    const postSpy = vi.fn(() => Promise.resolve());
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    const statusSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    rest.changeStatus = statusSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('Please forward this to hello@example.com instead.'),
+        assistantStop('{"actions":[{"type":"mark_spam","reason":"templated blast"}]}'),
+      ]),
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(statusSpy).toHaveBeenCalledWith('conv_1', 'spam');
+    expect(draftSpy).toHaveBeenCalledTimes(1);
+    expect(draftSpy.mock.calls[0]).toEqual([
+      'conv_1',
+      'Please forward this to hello@example.com instead.',
+    ]);
+  });
+
+  it('still sends the reply when the audit acts without marking spam', async () => {
+    const rest = buildRest();
+    const postSpy = vi.fn(() => Promise.resolve());
+    const draftSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('We open at 10am.'),
+        assistantStop('{"actions":[{"type":"close_conversation","reason":"resolved"}]}'),
+      ]),
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(draftSpy).not.toHaveBeenCalled();
+  });
+
+  it('still withholds the reply when parking the withheld draft fails', async () => {
+    const rest = buildRest();
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = vi.fn(() => Promise.reject(new Error('draft store down')));
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('Thanks for the pitch.'),
+        assistantStop('{"actions":[{"type":"mark_spam","reason":"cold outreach"}]}'),
+      ]),
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).not.toHaveBeenCalled();
   });
 
   it('passes endUserId to openMcp once per attempt and never calls rest.mintDelegatedToken', async () => {

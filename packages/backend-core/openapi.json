@@ -3423,6 +3423,37 @@
         ]
       }
     },
+    "/v1/conversations/{id}/draft-reply": {
+      "post": {
+        "operationId": "ConversationsController_setDraftReply",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/{id}/clear-draft": {
       "post": {
         "operationId": "ConversationsController_clearDraft",

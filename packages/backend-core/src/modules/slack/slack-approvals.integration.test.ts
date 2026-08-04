@@ -698,6 +698,14 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
     expect(buttonLabels(api.posted[0]!.blocks)).toEqual(['Publish to support-faq', 'Dismiss']);
     expect(buttonLabels(api.posted[1]!.blocks)).toEqual(['Dismiss']);
     expect(api.posted[1]!.text).toContain('No target space proposed');
+
+    const [doc] = await db
+      .select()
+      .from(schema.kbDocuments)
+      .where(eq(schema.kbDocuments.id, withTarget));
+    expect(buttonValues(api.posted[0]!.blocks)[0]).toBe(
+      `kb_curation_candidate:${withTarget}#${doc!.version}`,
+    );
   });
 
   it('resolves a KB candidate from the event payload after the row is deleted', async () => {

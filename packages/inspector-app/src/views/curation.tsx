@@ -30,7 +30,9 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
   const { locale, t } = useI18n();
   const [candidates, setCandidates] = useState<CurationCandidate[]>(initial);
   const [openId, setOpenId] = useState<string | null>(initial[0]?.id ?? null);
-  const [bodies, setBodies] = useState<Record<string, string | null>>({});
+  const [bodies, setBodies] = useState<Record<string, { body: string; version: number } | null>>(
+    {},
+  );
   const [cards, setCards] = useState<Record<string, CardState>>({});
   const [targets, setTargets] = useState<Record<string, string>>({});
   const [spaces, setSpaces] = useState<KbSpace[] | null>(null);
@@ -79,7 +81,10 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
         if (!cancelled) {
           setBodies((prev) => ({
             ...prev,
-            [openId]: !result.isError && isKbDocument(parsed) ? parsed.body : null,
+            [openId]:
+              !result.isError && isKbDocument(parsed)
+                ? { body: parsed.body, version: parsed.version }
+                : null,
           }));
         }
       } catch {
@@ -90,6 +95,10 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
       cancelled = true;
     };
   }, [app, openId, bodies]);
+
+  function reviewedVersion(candidate: CurationCandidate): number {
+    return bodies[candidate.id]?.version ?? candidate.version;
+  }
 
   function targetFor(candidate: CurationCandidate): string {
     const chosen = targets[candidate.id];
@@ -108,10 +117,17 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
     try {
       const result = await app.callServerTool({
         name: 'kb_publish_curation_candidate',
-        arguments: { candidateDocumentId: candidate.id, targetSpaceSlug },
+        arguments: {
+          candidateDocumentId: candidate.id,
+          targetSpaceSlug,
+          ifVersion: reviewedVersion(candidate),
+        },
       });
       if (result.isError) {
-        patchCard(candidate.id, { busy: null, error: errorText(result) });
+        const message = errorText(result);
+        await refresh();
+        setOpenId(candidate.id);
+        patchCard(candidate.id, { busy: null, error: message });
         return;
       }
       patchCard(candidate.id, {
@@ -132,7 +148,7 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
     try {
       const result = await app.callServerTool({
         name: 'kb_delete_document',
-        arguments: { id: candidate.id },
+        arguments: { id: candidate.id, ifVersion: reviewedVersion(candidate) },
       });
       if (result.isError) {
         patchCard(candidate.id, { busy: null, error: errorText(result) });
@@ -203,7 +219,7 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
       {candidates.map((candidate) => {
         const state = cards[candidate.id] ?? IDLE;
         const open = openId === candidate.id;
-        const body = bodies[candidate.id];
+        const body = bodies[candidate.id]?.body ?? null;
         return (
           <div className="row" key={candidate.id}>
             <div

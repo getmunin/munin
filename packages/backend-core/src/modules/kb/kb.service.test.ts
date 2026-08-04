@@ -337,6 +337,7 @@ const skipReason = TEST_URL
         svc.publishCurationCandidate({
           candidateDocumentId: candidate.id,
           targetSpaceSlug: 'support-faq',
+          ifVersion: candidate.version,
         }),
       );
       expect(published.audiences).toEqual(['admin', 'self_service']);
@@ -344,6 +345,65 @@ const skipReason = TEST_URL
       expect(published.title).toBe('How to reset password');
 
       await expect(run(() => svc.getDocument(candidate.id))).rejects.toThrow(KbNotFoundError);
+    });
+
+    it('refuses to publish a candidate that was edited after the version being published was read', async () => {
+      await run(() => svc.createSpace({ name: 'Support FAQ', slug: 'support-faq' }));
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Refund window',
+          draftBody: 'Refunds within 30 days.',
+          proposedTargetSpaceSlug: 'support-faq',
+        }),
+      );
+      await run(() =>
+        svc.updateDocument({
+          id: candidate.id,
+          ifVersion: candidate.version,
+          body: 'Refunds within 3 days.',
+        }),
+      );
+
+      await expect(
+        run(() =>
+          svc.publishCurationCandidate({
+            candidateDocumentId: candidate.id,
+            targetSpaceSlug: 'support-faq',
+            ifVersion: candidate.version,
+          }),
+        ),
+      ).rejects.toThrow(KbConflictError);
+
+      const stillInInbox = await run(() => svc.getCurationCandidate(candidate.id));
+      expect(stillInInbox.body).toBe('Refunds within 3 days.');
+      const target = await run(() => svc.listDocuments({ tag: 'candidate' }));
+      expect(target.map((d) => d.id)).toContain(candidate.id);
+
+      const republished = await run(() =>
+        svc.publishCurationCandidate({
+          candidateDocumentId: candidate.id,
+          targetSpaceSlug: 'support-faq',
+          ifVersion: stillInInbox.version,
+        }),
+      );
+      expect(republished.body).toBe('Refunds within 3 days.');
+    });
+
+    it('does not auto-create the target space when the version check fails', async () => {
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({ subject: 'Q', draftBody: 'A' }),
+      );
+      await expect(
+        run(() =>
+          svc.publishCurationCandidate({
+            candidateDocumentId: candidate.id,
+            targetSpaceSlug: 'brand-new-space',
+            ifVersion: candidate.version + 5,
+          }),
+        ),
+      ).rejects.toThrow(KbConflictError);
+      const spaces = await run(() => svc.listSpaces());
+      expect(spaces.find((s) => s.slug === 'brand-new-space')).toBeUndefined();
     });
 
     async function curationEvents(candidateId: string): Promise<Array<{ type: string; payload: Record<string, unknown> }>> {
@@ -382,6 +442,7 @@ const skipReason = TEST_URL
         svc.publishCurationCandidate({
           candidateDocumentId: candidate.id,
           targetSpaceSlug: 'support-faq',
+          ifVersion: candidate.version,
         }),
       );
       events = await curationEvents(candidate.id);
@@ -433,6 +494,7 @@ const skipReason = TEST_URL
           svc.publishCurationCandidate({
             candidateDocumentId: doc.id,
             targetSpaceSlug: 'target',
+            ifVersion: doc.version,
           }),
         ),
       ).rejects.toThrow(KbInvalidError);
@@ -449,6 +511,7 @@ const skipReason = TEST_URL
         svc.publishCurationCandidate({
           candidateDocumentId: candidate.id,
           targetSpaceSlug: 'support-faq',
+          ifVersion: candidate.version,
         }),
       );
       const spaces = await run(() => svc.listSpaces());
@@ -470,6 +533,7 @@ const skipReason = TEST_URL
           svc.publishCurationCandidate({
             candidateDocumentId: candidate.id,
             targetSpaceSlug: 'NOT a slug!',
+            ifVersion: candidate.version,
           }),
         ),
       ).rejects.toThrow(KbInvalidError);

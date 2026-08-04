@@ -19,6 +19,7 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
   KbService,
   KbConflictError,
+  KbCurationDecidedError,
   KbInvalidError,
   KbNotFoundError,
   type CurationCandidateDto,
@@ -35,6 +36,10 @@ const PublishBody = z.object({
 const UpdateBody = z.object({
   title: z.string().min(1).optional(),
   body: z.string().min(1).optional(),
+});
+const DismissBody = z.object({
+  ifVersion: z.number().int().nonnegative().optional(),
+  reason: z.string().min(1).max(500).optional(),
 });
 
 interface CandidateListResponse {
@@ -92,9 +97,17 @@ export class KbCandidatesController {
 
   @Post(':id/dismiss')
   @HttpCode(200)
-  async dismiss(@Param('id') id: string): Promise<{ dismissed: true }> {
+  async dismiss(@Param('id') id: string, @Body() body: unknown): Promise<{ dismissed: true }> {
+    const parsed = DismissBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     const doc = await translate(() => this.kb.getDocument(id));
-    await translate(() => this.kb.deleteDocument({ id, ifVersion: doc.version }));
+    await translate(() =>
+      this.kb.dismissCurationCandidate({
+        id,
+        ifVersion: parsed.data.ifVersion ?? doc.version,
+        reason: parsed.data.reason,
+      }),
+    );
     return { dismissed: true };
   }
 }
@@ -116,6 +129,7 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (err) {
     if (err instanceof KbConflictError) throw new ConflictException(err.message);
+    if (err instanceof KbCurationDecidedError) throw new ConflictException(err.message);
     if (err instanceof KbInvalidError) throw new BadRequestException(err.message);
     if (err instanceof KbNotFoundError) throw new BadRequestException(err.message);
     throw err;

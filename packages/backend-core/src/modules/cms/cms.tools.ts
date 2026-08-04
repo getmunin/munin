@@ -86,6 +86,12 @@ const CreateEntryInput = z.object({
   collection: z.string(),
   slug: z.string().min(1).max(200),
   locale: z.string().optional(),
+  translationOf: z
+    .string()
+    .optional()
+    .describe(
+      'Id of an existing entry in the same collection that this entry is the translation of. Joins that entry\'s translation group, so both locales are treated as the same content even when their slugs differ.',
+    ),
   data: z.record(z.string(), z.unknown()),
   status: z.enum(['draft', 'published']).optional(),
   publishedAt: PublishedAtInput.optional(),
@@ -118,6 +124,15 @@ const DeleteEntryInput = z.object({
   id: z.string(),
   ifVersion: z.number().int().nonnegative(),
 });
+
+const ListTranslationsInput = z.object({ entryId: z.string() });
+
+const LinkTranslationInput = z.object({
+  id: z.string(),
+  translationOf: z.string(),
+});
+
+const UnlinkTranslationInput = z.object({ id: z.string() });
 
 const ListVersionsInput = z.object({ entryId: z.string() });
 
@@ -216,6 +231,7 @@ const CmsImportInput = z.object({
         collectionId: z.string(),
         slug: z.string().min(1).max(200),
         locale: z.string().min(1).max(16),
+        translationGroupId: z.string().optional(),
         status: z.enum(ENTRY_STATUSES),
         data: z.record(z.string(), z.unknown()),
         publishedAt: z.string().nullable().optional(),
@@ -367,7 +383,7 @@ export class CmsAdminTools {
     name: 'cms_create_entry',
     title: 'CMS: Create entry',
     description:
-      'Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: "published"` to publish on creation; default is draft. Published entries are stamped with `publishedAt` — pass one to preserve the original date when migrating existing content.',
+      'Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: "published"` to publish on creation; default is draft. Published entries are stamped with `publishedAt` — pass one to preserve the original date when migrating existing content. Slugs are unique per (collection, slug, locale), so each locale can have its own slug — when the entry is a translation of an existing one, pass `translationOf` with that entry\'s id to link them.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: CreateEntryInput,
@@ -449,6 +465,51 @@ export class CmsAdminTools {
   })
   deleteEntry(args: z.infer<typeof DeleteEntryInput>) {
     return this.cms.deleteEntry(args);
+  }
+
+  @McpTool({
+    name: 'cms_list_entry_translations',
+    title: 'CMS: List entry translations',
+    description:
+      "List every locale variant of one entry — the entries sharing its translation group — with each variant's own slug, status and id. Each locale carries its own slug, so this is how you find the Norwegian URL of an English entry, build a language switcher, or see which locales are still missing.",
+    audiences: ['admin'],
+    scopes: ['cms:read'],
+    input: ListTranslationsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listEntryTranslations(args: z.infer<typeof ListTranslationsInput>) {
+    return this.cms.listEntryTranslations(args.entryId);
+  }
+
+  @McpTool({
+    name: 'cms_link_translation',
+    title: 'CMS: Link entry as translation',
+    description:
+      'Move an entry into the translation group of another entry in the same collection, so the two are recognized as locale variants of the same content. Use it for entries that were authored separately and should have been linked; entries created with `translationOf` are already linked. Conflicts if the target group already has an entry in this entry\'s locale.',
+    audiences: ['admin'],
+    scopes: ['cms:write'],
+    input: LinkTranslationInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  linkTranslation(args: z.infer<typeof LinkTranslationInput>) {
+    return this.cms.linkTranslation(args);
+  }
+
+  @McpTool({
+    name: 'cms_unlink_translation',
+    title: 'CMS: Unlink entry translation',
+    description:
+      'Detach an entry from its translation group and give it a fresh group of its own. Its former siblings keep their group; content, slug and locale are untouched. Use it to undo an incorrect link.',
+    audiences: ['admin'],
+    scopes: ['cms:write'],
+    input: UnlinkTranslationInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  unlinkTranslation(args: z.infer<typeof UnlinkTranslationInput>) {
+    return this.cms.unlinkTranslation(args);
   }
 
   @McpTool({
@@ -676,7 +737,7 @@ export class CmsAdminTools {
     name: 'cms_import',
     title: 'CMS: Import data',
     description:
-      'Import CMS `records` produced by `cms_export` (typically from another Munin server). Locales are upserted by code, collections by slug, entries by (collection, slug, locale), and assets by (name, size) — so re-running is idempotent. Asset bytes are re-uploaded to this server and entry references/asset ids are rewritten to local ids. Entry embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.',
+      'Import CMS `records` produced by `cms_export` (typically from another Munin server). Locales are upserted by code, collections by slug, entries by (collection, slug, locale), and assets by (name, size) — so re-running is idempotent. Entries that shared a `translationGroupId` on the source stay linked as locale variants here; payloads exported before translation groups existed fall back to grouping by (collection, slug). Asset bytes are re-uploaded to this server and entry references/asset ids are rewritten to local ids. Entry embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: CmsImportInput,

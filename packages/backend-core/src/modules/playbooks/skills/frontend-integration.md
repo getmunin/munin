@@ -181,6 +181,8 @@ This is where every coding agent gets stuck. The CMS delivery API is public, ano
 
 Returns plain JSON: `{ collection, items: [...] }` for the list, a flat entry object (`{ slug, locale, data, version, publishedAt, updatedAt, ... }`) for one entry. No auth header.
 
+A localized site routes on the slug of the locale it is serving: each locale variant has its own slug, and the single-entry endpoint matches on slug **and** locale, so a pair with no published entry is a `404` rather than the default-language version. The single-entry response carries `_locales: [{ locale, slug }, …]` — every published variant of that entry — which is what you build `hreflang` tags and a language switcher from.
+
 `{{ORG_ID}}` above is your tenant's `org_…` id, already substituted from your authenticated session — no need to ask for it. Store it in env too — `MUNIN_ORG_ID` / `NEXT_PUBLIC_MUNIN_ORG_ID` / `VITE_MUNIN_ORG_ID` per the framework convention above.
 
 ### Option A — server-side fetch (recommended)

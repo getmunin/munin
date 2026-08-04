@@ -362,6 +362,23 @@ const skipReason = TEST_URL
       expect(rows[0]!.config).toEqual({ sender: 'ACME', encryptedApiToken: 'enc(tok_secret)' });
     });
 
+    it('completes a pending vendor channel from the dashboard, with no link involved', async () => {
+      const created = await asAdmin(() =>
+        adminSvc.configure(
+          { vendor: 'fakesms', name: 'Dashboard line', config: { sender: 'ACME' } },
+          { rejectSecrets: true },
+        ),
+      );
+
+      const applied = await asAdmin(() => channels.apply(created.id, { apiToken: 'tok_dash' }));
+      expect(applied.ok).toBe(true);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db.select().from(schema.convChannels).where(sql`id = ${created.id}`);
+      expect(rows[0]!.active).toBe(true);
+      expect(rows[0]!.config).toEqual({ sender: 'ACME', encryptedApiToken: 'enc(tok_dash)' });
+    });
+
     it('surfaces a failed vendor verification without dropping the saved credentials', async () => {
       fakeProvider.testResult = { ok: false, error: 'vendor rejected the token' };
       const created = await asAdmin(() =>

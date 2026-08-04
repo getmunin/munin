@@ -15,6 +15,8 @@ import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { countSignatureHints, isTrailingSignatureSplit } from './email/reply-history.ts';
+import { readPendingSetup } from './channels/channel-admin.ts';
+import { publicChannelConfig } from './channels/public-config.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
@@ -1587,7 +1589,7 @@ function toChannelDto(row: typeof schema.convChannels.$inferSelect): ChannelDto 
     vendor: row.vendor,
     name: row.name,
     active: row.active,
-    config: row.config,
+    config: publicChannelConfig(row.config),
     defaultAgentMode: row.defaultAgentMode as AgentMode,
     needsCredentials: channelNeedsCredentials(row),
     createdAt: row.createdAt.toISOString(),
@@ -1595,6 +1597,7 @@ function toChannelDto(row: typeof schema.convChannels.$inferSelect): ChannelDto 
 }
 
 function channelNeedsCredentials(row: typeof schema.convChannels.$inferSelect): boolean {
+  if (readPendingSetup(row.config)) return true;
   if (row.type !== 'email') return false;
   const config = row.config as {
     outbound?: { provider?: string; encryptedPassword?: string };

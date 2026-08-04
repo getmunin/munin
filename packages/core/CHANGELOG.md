@@ -1,5 +1,40 @@
 # @getmunin/core
 
+## 4.78.0
+
+### Patch Changes
+
+- cfa0241: Withhold the agent reply when the audit pass marks a conversation as spam, and stop the assistant redirecting senders off-channel.
+
+  The audit pass runs after generation but before delivery, so a `mark_spam` verdict flipped the conversation to `spam` and then posted the generated reply anyway — a cold pitch got both a spam label and a polite answer. The verdict now gates delivery: on spam the reply is withheld and parked as a `draft_reply` instead, so a misclassified customer is one click from recovery rather than a silently dropped thread. `shouldRespond` already skips non-open conversations, so later turns stay silent too.
+
+  Parking needs a way to author a draft without requesting a handover, so `conv.setDraftReply` and `POST /v1/conversations/:id/draft-reply` are new; the endpoint replaces any existing draft rather than stacking, and pre-checks the conversation so an unknown id is a 404 rather than a poisoned transaction.
+
+  The seed system prompt scoped its no-redirect rule to handovers only, so it never bound on a reply that wasn't one. That rule is now unconditional, adds "never name a contact address the sender already wrote to" (inbound mail has by definition already reached the right inbox), and tells the assistant to decline pitches briefly without routing anyone anywhere. Existing orgs keep the prompt they already have in KB — the seed only applies to orgs that don't have the document yet.
+
+- 6dd772d: fix(deps): clear the eight actionable Dependabot advisories
+
+  Three packages moved, closing eight open alerts. Two were stale-lockfile cases where the declared range already permitted the fix; the third needed a manifest edit to take effect.
+
+  - **`undici` 7.28.0 → 7.29.0** closes five advisories at once, since 7.29.0 is a security release: GHSA-4cwx-7wf7-3272 (high, CVSS 7.4 — cross-user information disclosure and parse-time crash via degenerate `private` cache directives), GHSA-jr45-8vmc-qm54 (cross-user disclosure via whitespace around `=` in `Cache-Control` directives), GHSA-8xcm-r25x-g524 (downstream response desynchronization via the retry interceptor), GHSA-m8rv-5g2x-5cg5 (CRLF injection via a blob-like body's `type` property) and GHSA-v3r7-h72x-cjcm (cookie attribute injection via unsanitized `setCookie` fields). A direct dependency of `@getmunin/core`, where it backs `safe-fetch.ts`, so this is the one bump on a code path we own rather than a transitive refresh. `packages/core/package.json` now declares `^7.29.0` so the patched floor is recorded rather than merely resolved.
+  - **`ip-address` 10.2.0 → 10.4.0** (GHSA-4xrf-jv44-h6hh and GHSA-22jq-vg5j-6vgg, both medium — a CIDR suffix suppressing special-use classification, and misclassified IPv4-mapped/NAT64 IPv6 addresses, each able to bypass SSRF and trust-boundary checks). Transitive via `express-rate-limit` and `socks`; it is not the library behind our own SSRF guard, which does its own classification, so the exposure was rate-limit keying rather than outbound request filtering. The override moves to `^10.2.2` to pin the patched floor.
+  - **`brace-expansion` 2.1.2 → 2.1.4** (GHSA-mh99-v99m-4gvg, high, CVSS 7.5 — unbounded expansion length causing an OOM process crash).
+
+  The `brace-expansion` override is why this needed a manifest change rather than a lockfile refresh. The existing `brace-expansion@>=2.0.0 <2.1.2` key was added for an earlier advisory and had done its job — the installed 2.1.2 no longer matched its own selector, so `pnpm` had nothing to re-resolve, while the new advisory covers everything below 2.1.3. An override keyed to a range the tree has already climbed out of is inert, and silently so. The key is now `>=2.0.0 <2.1.3` → `^2.1.3`. The sibling `<1.1.16` and `>=5.0.0 <5.0.8` overrides sit outside the advisory range and are untouched.
+
+  Two remaining alerts are deliberately left open, neither exploitable here:
+
+  - **`@hono/node-server` 1.19.14** (GHSA-frvp-7c67-39w9, medium) is transitive via `@modelcontextprotocol/node@2.0.0`, which pins `^1.19.9`; the fix is a 2.x major, so forcing it would push the MCP SDK outside its declared range. The bug is path traversal in `serve-static` on Windows via an encoded backslash — we do not use that middleware and do not deploy on Windows. It clears when the SDK bumps.
+  - **`@better-auth/oauth-provider` 1.6.23** (GHSA-p2fr-6hmx-4528, medium) has no stable fix: the advisory states the 1.6.x line is not patched, and the fix lands only in `1.7.0-beta.4`+ as a breaking change requiring a schema migration. The advisory's escalation needs resource servers that make authorization decisions on a client-chosen `aud`. Ours do the opposite: `oauth-jwt.ts` rejects a token whose `aud` is outside the accepted set (so an absent `aud` is a 401) and then stamps the resolved credential's audience to the constant `oauthMcpResourceAudience()` instead of copying the claim, and `ControlPlaneGuard` refuses any OAuth bearer token on `/v1/*` outright. An OAuth token therefore only ever reaches `/mcp`, carrying the scopes the grant actually granted, whatever resource it asked for — there is no second privilege level for a swapped audience to reach. What remains is the spec-compliance gap (the resource is not bound to the grant), which starts to matter only if a second resource server with different privileges is added.
+
+- Updated dependencies [fdf6734]
+- Updated dependencies [59634b2]
+- Updated dependencies [992f78a]
+- Updated dependencies [5802b45]
+- Updated dependencies [180727a]
+  - @getmunin/db@4.78.0
+  - @getmunin/types@4.78.0
+
 ## 4.77.0
 
 ### Patch Changes

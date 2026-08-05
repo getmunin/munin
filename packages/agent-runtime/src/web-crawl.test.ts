@@ -102,17 +102,87 @@ describe('parseRobots', () => {
     expect(r.isAllowed('/admin/users')).toBe(false);
     expect(r.isAllowed('/about')).toBe(true);
   });
-  it('respects MuninOnboardingBot agent group', () => {
-    const r = parseRobots(`User-agent: muninonboardingbot\nDisallow: /private\n`);
+  it('respects a group naming our product token', () => {
+    const r = parseRobots(`User-agent: Munin-Crawler\nDisallow: /private\n`);
     expect(r.isAllowed('/private/x')).toBe(false);
     expect(r.isAllowed('/public')).toBe(true);
+  });
+  it('ignores a group naming another vendor’s bot', () => {
+    const r = parseRobots(`User-agent: ClaudeBot\nDisallow: /\n`);
+    expect(r.isAllowed('/')).toBe(true);
+  });
+  it('ignores a malformed empty User-agent group', () => {
+    const r = parseRobots(`User-agent:\nDisallow: /\n`);
+    expect(r.isAllowed('/')).toBe(true);
   });
   it('treats empty text as allow-all', () => {
     const r = parseRobots('');
     expect(r.isAllowed('/anything')).toBe(true);
     expect(r.sitemaps).toEqual([]);
   });
+  it('does not inherit the next agent’s Disallow into a group whose only rule is Allow', () => {
+    const r = parseRobots(CLOUDFLARE_MANAGED_ROBOTS);
+    expect(r.isAllowed('/')).toBe(true);
+    expect(r.isAllowed('/salgsbetingelser')).toBe(true);
+    expect(r.isAllowed('/personvernerklaering')).toBe(true);
+    expect(r.isAllowed('/intervju')).toBe(false);
+    expect(r.isAllowed('/api/orders')).toBe(false);
+    expect(r.sitemaps).toEqual(['https://klarlagt.no/sitemap.xml']);
+  });
+  it('does not inherit the next agent’s Disallow across an empty Disallow', () => {
+    const r = parseRobots(`User-agent: *\nDisallow:\n\nUser-agent: Bytespider\nDisallow: /\n`);
+    expect(r.isAllowed('/')).toBe(true);
+  });
+  it('lets a longer Allow override a broader Disallow', () => {
+    const r = parseRobots(`User-agent: *\nDisallow: /docs\nAllow: /docs/public\n`);
+    expect(r.isAllowed('/docs/internal')).toBe(false);
+    expect(r.isAllowed('/docs/public/intro')).toBe(true);
+  });
+  it('prefers Allow when Allow and Disallow match with equal specificity', () => {
+    const r = parseRobots(`User-agent: *\nDisallow: /x\nAllow: /x\n`);
+    expect(r.isAllowed('/x')).toBe(true);
+  });
+  it('honours $ as an end-of-path anchor', () => {
+    const r = parseRobots(`User-agent: *\nDisallow: /\nAllow: /$\n`);
+    expect(r.isAllowed('/')).toBe(true);
+    expect(r.isAllowed('/about')).toBe(false);
+  });
+  it('honours * as a wildcard inside a pattern', () => {
+    const r = parseRobots(`User-agent: *\nDisallow: /*/preview\n`);
+    expect(r.isAllowed('/blog/preview')).toBe(false);
+    expect(r.isAllowed('/blog/post')).toBe(true);
+  });
 });
+
+const CLOUDFLARE_MANAGED_ROBOTS = `# BEGIN Cloudflare Managed content
+
+User-agent: *
+Content-Signal: search=yes,ai-train=no,use=reference
+Allow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /
+
+# END Cloudflare Managed Content
+
+User-agent: *
+Allow: /$
+Allow: /salgsbetingelser
+Allow: /personvernerklaering
+Disallow: /intervju
+Disallow: /hvelv
+Disallow: /logg-inn
+Disallow: /api/
+Disallow: /auth/
+
+Sitemap: https://klarlagt.no/sitemap.xml
+`;
 
 describe('extractSitemapLocs', () => {
   it('parses urlset', () => {

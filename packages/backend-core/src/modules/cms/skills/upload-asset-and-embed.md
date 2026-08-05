@@ -10,7 +10,7 @@ CMS assets are uploaded out-of-band: the server hands you a **presigned upload**
 ## TL;DR
 
 1. `cms_request_asset_upload` — server creates an `uploaded: false` row, returns `uploadUrl`, `uploadMethod`, `uploadFields`, `uploadExpiresAt`.
-2. Send the binary to `uploadUrl` using `uploadMethod` (PUT raw body for local self-host; POST multipart for S3, including every field from `uploadFields` plus a `file` part). On S3 the embedded policy enforces `Content-Length-Range` so an oversized body is rejected by the bucket itself.
+2. Send the binary to `uploadUrl` using `uploadMethod` (PUT raw body for local disk storage; POST multipart for S3, including every field from `uploadFields` plus a `file` part). On S3 the embedded policy enforces `Content-Length-Range` so an oversized body is rejected by the bucket itself.
 3. `cms_complete_asset_upload` — verifies the on-storage size matches what was declared, then flips `uploaded: true`. On size mismatch the storage object is deleted; the row stays at `uploaded:false` and you can retry from step 1.
 4. Embed by writing the asset id into an entry's `data` field via `cms_update_entry`.
 
@@ -29,7 +29,7 @@ CMS assets are uploaded out-of-band: the server hands you a **presigned upload**
 }
 ```
 
-Response (PUT-style, local self-host):
+Response (PUT-style, local disk storage):
 ```jsonc
 {
   "id": "<assetId>",

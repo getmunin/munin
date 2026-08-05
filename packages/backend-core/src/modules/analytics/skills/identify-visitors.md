@@ -21,7 +21,7 @@ This skill walks through wiring it up.
 
 ```jsonc
 // analytics_create_tracker
-{ "name": "getmunin.com landing" }
+{ "name": "example.com landing" }
 // → returns:
 //   "trackerKey": "mn_track_…",                  // safe to embed
 //   "identityVerificationSecret": "…",           // server-only

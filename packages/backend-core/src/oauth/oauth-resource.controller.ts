@@ -4,7 +4,7 @@ import {
   authorizationServerUrl,
   mcpResourceOrigin,
   mcpResourceUrl,
-  SUPPORTED_SCOPES,
+  RESOURCE_ADVERTISED_SCOPES,
 } from './oauth.constants.ts';
 
 interface ProtectedResourceMetadata {
@@ -29,7 +29,7 @@ export class OAuthResourceController {
       resource_name: 'Munin',
       resource_logo_uri: `${mcpResourceOrigin()}/icon.png`,
       authorization_servers: [authorizationServerUrl()],
-      scopes_supported: SUPPORTED_SCOPES,
+      scopes_supported: RESOURCE_ADVERTISED_SCOPES,
       bearer_methods_supported: ['header'],
       resource_documentation: `${authorizationServerUrl()}/docs`,
       resource_indicators_supported: true,

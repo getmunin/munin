@@ -5,16 +5,15 @@ import { oauthProvider } from '@better-auth/oauth-provider';
 import { schema, type Db } from '@getmunin/db';
 import { readMembershipsForUser } from '@getmunin/core';
 import {
-  SUPPORTED_SCOPES as MUNIN_SUPPORTED_SCOPES,
+  STANDARD_OIDC_SCOPES,
+  SUPPORTED_AUTH_SCOPES,
   mcpResourceUrl,
 } from '../oauth/oauth.constants.ts';
 import { authCookiePrefix } from './auth-cookies.ts';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
 
-export const STANDARD_OIDC_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const;
-
-export const SUPPORTED_AUTH_SCOPES = [...STANDARD_OIDC_SCOPES, ...MUNIN_SUPPORTED_SCOPES] as const;
+export { STANDARD_OIDC_SCOPES, SUPPORTED_AUTH_SCOPES };
 
 export interface SignupHookUser {
   id: string;

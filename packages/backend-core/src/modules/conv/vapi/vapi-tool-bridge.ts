@@ -6,11 +6,12 @@ import {
   withContext,
   type RequestContext,
 } from '@getmunin/core';
-import type { Db } from '@getmunin/db';
+import type { Db, Tx } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
 import { McpRegistryService } from '../../../mcp/mcp.registry.ts';
 import { applyTenancyGUCs } from '../../../common/tenancy/tenancy.interceptor.ts';
 import { SELF_SERVICE_SCOPES } from '../../../control/delegated-token.controller.ts';
+import { VoiceSelfServiceToolsService } from '../channels/voice-self-service-tools.service.ts';
 
 export interface VapiFunctionTool {
   type: 'function';
@@ -41,10 +42,12 @@ export class VapiToolBridge {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(McpRegistryService) private readonly registry: McpRegistryService,
+    @Inject(VoiceSelfServiceToolsService) private readonly voiceTools: VoiceSelfServiceToolsService,
   ) {}
 
-  buildToolList(): VapiFunctionTool[] {
-    return this.registry.list('self_service').map((t) => ({
+  async buildToolList(orgId: string, db?: Db | Tx): Promise<VapiFunctionTool[]> {
+    const tools = await this.voiceTools.list(orgId, db);
+    return tools.map((t) => ({
       type: 'function',
       function: {
         name: t.meta.name,
@@ -73,6 +76,10 @@ export class VapiToolBridge {
         continue;
       }
       if (!tool.meta.audiences.includes('self_service')) {
+        results.push({ toolCallId: id, error: `tool_not_available:${name}` });
+        continue;
+      }
+      if (!this.voiceTools.isCallable(tool)) {
         results.push({ toolCallId: id, error: `tool_not_available:${name}` });
         continue;
       }

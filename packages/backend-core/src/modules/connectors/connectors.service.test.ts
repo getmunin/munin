@@ -467,6 +467,51 @@ class FakeAdapter implements ConnectorAdapter {
     });
   });
 
+  describe('listActiveDomains', () => {
+    const ALL: ConnectorDomain[] = ['commerce', 'bookings'];
+
+    it('reports only domains that currently have an active connection', async () => {
+      const svc = new ConnectorsService(new ConnectorRegistry([shopAdapter]), undefined, db);
+
+      expect([...(await svc.listActiveDomains(orgId, ALL))]).toEqual([]);
+
+      const shop = await createConnection('fakeshop', 'Main store');
+      expect([...(await svc.listActiveDomains(orgId, ALL))]).toEqual(['commerce']);
+
+      await createConnection('fakedesk', 'Front desk');
+      expect([...(await svc.listActiveDomains(orgId, ALL))].sort()).toEqual([
+        'bookings',
+        'commerce',
+      ]);
+
+      await run(() => connectors.updateConnection({ connectionId: shop.id, active: false }));
+      expect([...(await svc.listActiveDomains(orgId, ALL))]).toEqual(['bookings']);
+    });
+
+    it('never reports a domain the caller did not ask about', async () => {
+      await createConnection('fakedesk', 'Front desk');
+      const svc = new ConnectorsService(new ConnectorRegistry([shopAdapter]), undefined, db);
+
+      expect([...(await svc.listActiveDomains(orgId, ['commerce']))]).toEqual([]);
+      expect([...(await svc.listActiveDomains(orgId, []))]).toEqual([]);
+    });
+
+    it('does not leak across orgs', async () => {
+      await createConnection('fakeshop', 'Main store');
+      const svc = new ConnectorsService(new ConnectorRegistry([shopAdapter]), undefined, db);
+
+      const [otherOrg] = await db
+        .insert(schema.orgs)
+        .values({ name: 'Other listActiveDomains Org' })
+        .returning();
+
+      expect([...(await svc.listActiveDomains(otherOrg!.id, ALL))]).toEqual([]);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
+    });
+  });
+
   describe('RLS', () => {
     it('lets an end-user context read connections but not write them', async () => {
       const dto = await createConnection('fakeshop', 'Main store');

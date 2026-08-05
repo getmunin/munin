@@ -199,7 +199,8 @@ export class ThrellAdapter implements ChannelAdapter {
 
       const deliveryUrl = buildWebhookUrl(channel.id);
       const tools = deliveryUrl
-        ? this.tools.buildToolList({
+        ? await this.tools.buildToolList({
+            orgId: channel.orgId,
             deliveryUrl,
             signingSecret: await this.client.loadSecret(jsonbToStored(channel.config).encryptedWebhookSecret),
           })

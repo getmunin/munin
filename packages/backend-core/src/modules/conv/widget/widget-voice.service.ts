@@ -172,7 +172,12 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
         const webhookSecret = await this.threll.loadSecret(threllConfig.encryptedWebhookSecret);
         const deliveryUrl = buildVoiceWebhookUrl(channel.id);
         const externalTools = deliveryUrl
-          ? this.threllToolBridge.buildToolList({ deliveryUrl, signingSecret: webhookSecret })
+          ? await this.threllToolBridge.buildToolList({
+              orgId,
+              deliveryUrl,
+              signingSecret: webhookSecret,
+              db: tx,
+            })
           : [];
         const instructions = openerInstruction
           ? `${systemPrompt}\n\n${openerInstruction}`
@@ -242,7 +247,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       const inlineAssistant = buildInlineAssistantConfig({
         baseConfig: fetched.config,
         messages: seededMessages,
-        tools: this.toolBridge.buildToolList(),
+        tools: await this.toolBridge.buildToolList(orgId, tx),
       });
       this.logger.log(
         `voice/start convId=${conv.id} vendor=vapi seededMessages=${seededMessages.length}`,

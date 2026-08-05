@@ -22,6 +22,8 @@ import { ChannelAdminTools } from './channels/channel-admin.tools.ts';
 import { ChannelCredentialService } from './channels/channel-credential.service.ts';
 import { ChannelCredentialTools } from './channels/channel-credential.tools.ts';
 import { CredentialHandoffModule } from '../credential-handoff/credential-handoff.module.ts';
+import { ConnectorsModule } from '../connectors/connectors.module.ts';
+import { VoiceSelfServiceToolsService } from './channels/voice-self-service-tools.service.ts';
 import { CredentialTargetRegistry } from '../credential-handoff/credential-target.ts';
 import { VapiAdminProvider } from './vapi/vapi-admin.provider.ts';
 import { VapiOutreachCaller } from './vapi/vapi-outreach-caller.ts';
@@ -65,7 +67,14 @@ import { WidgetAdminTools } from './widget/widget.tools.ts';
 import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
 
 @Module({
-  imports: [CuratorModule, McpModule, RealtimeModule, PublicThrottleModule, CredentialHandoffModule],
+  imports: [
+    CuratorModule,
+    McpModule,
+    RealtimeModule,
+    PublicThrottleModule,
+    CredentialHandoffModule,
+    ConnectorsModule,
+  ],
   controllers: [WidgetController, ChannelWebhookController],
   providers: [
     ConvService,
@@ -91,6 +100,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     TwilioSmsService,
     TwilioSmsAdapter,
     TwilioSmsAdminService,
+    VoiceSelfServiceToolsService,
     VapiClientService,
     VapiService,
     VapiAdapter,

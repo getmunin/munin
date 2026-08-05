@@ -6,11 +6,12 @@ import {
   withContext,
   type RequestContext,
 } from '@getmunin/core';
-import type { Db } from '@getmunin/db';
+import type { Db, Tx } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
 import { McpRegistryService } from '../../../mcp/mcp.registry.ts';
 import { applyTenancyGUCs } from '../../../common/tenancy/tenancy.interceptor.ts';
 import { SELF_SERVICE_SCOPES } from '../../../control/delegated-token.controller.ts';
+import { VoiceSelfServiceToolsService } from '../channels/voice-self-service-tools.service.ts';
 
 export interface ThrellExternalToolSpec {
   name: string;
@@ -34,13 +35,17 @@ export class ThrellToolBridge {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(McpRegistryService) private readonly registry: McpRegistryService,
+    @Inject(VoiceSelfServiceToolsService) private readonly voiceTools: VoiceSelfServiceToolsService,
   ) {}
 
-  buildToolList(opts: {
+  async buildToolList(opts: {
+    orgId: string;
     deliveryUrl: string;
     signingSecret: string;
-  }): ThrellExternalToolSpec[] {
-    return this.registry.list('self_service').map((t) => ({
+    db?: Db | Tx;
+  }): Promise<ThrellExternalToolSpec[]> {
+    const tools = await this.voiceTools.list(opts.orgId, opts.db);
+    return tools.map((t) => ({
       name: t.meta.name,
       description: t.meta.description,
       inputSchema: sanitizeJsonSchema(t.inputJsonSchema as Record<string, unknown>),
@@ -59,6 +64,9 @@ export class ThrellToolBridge {
     const tool = this.registry.get(name);
     if (!tool) return { ok: false, error: `unknown_tool:${name}` };
     if (!tool.meta.audiences.includes('self_service')) {
+      return { ok: false, error: `tool_not_available:${name}` };
+    }
+    if (!this.voiceTools.isCallable(tool)) {
       return { ok: false, error: `tool_not_available:${name}` };
     }
 

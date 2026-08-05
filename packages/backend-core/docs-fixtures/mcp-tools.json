@@ -4147,6 +4147,208 @@
     }
   },
   {
+    "name": "connectors_list_vendors",
+    "title": "Connectors: List supported vendors",
+    "description": "List the third-party systems Munin can connect to, grouped by domain (commerce, bookings) with the config fields each vendor requires. Use it to see what credentials are needed before creating a connection.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_list_connections",
+    "title": "Connectors: List connections",
+    "description": "List this org’s connections to third-party systems with domain, non-secret settings, active state, and the result of the last credential test. Secrets are never returned.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_create_connection",
+    "title": "Connectors: Create a connection",
+    "description": "Create a connection to a third-party system. `config` takes the vendor’s non-secret fields only — connectors_list_vendors returns the exact fields and marks which are secret. Secret fields are rejected here: the connection is created pending and the response includes a one-time link for a human to enter the secrets in the dashboard. The vendor determines the domain (commerce, bookings). Connection names must be unique within the org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "vendor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "config": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "vendor",
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_request_credentials",
+    "title": "Connectors: Request a credential link",
+    "description": "Return a one-time link a human opens to enter a connection’s secret credentials in the dashboard, so the secret is never pasted into a conversation. Use it for a pending connection created without its secret. The link expires after 24 hours.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "connectionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_update_connection",
+    "title": "Connectors: Update a connection",
+    "description": "Rename, activate/deactivate, or reconfigure a connection. When passing `config`, supply the full non-secret vendor config; the stored secret values are kept. Secret fields are rejected here — to rotate a secret, delete the connection and create it again, entering the new secret through the credential link.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "config": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "active": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "connectionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_delete_connection",
+    "title": "Connectors: Delete a connection",
+    "description": "Delete a connection and its stored credentials. Lookups through this connection stop working immediately.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "connectionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "connectors_test_connection",
+    "title": "Connectors: Test a connection’s credentials",
+    "description": "Verify a connection’s stored credentials against the vendor with a read-only probe (no external data is changed). Records the result on the connection.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "connectors:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connectionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "connectionId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "crm_list_contacts",
     "title": "CRM: List contacts",
     "description": "List contacts in your org, newest-updated first. Filter by company or tag.",
@@ -8470,208 +8672,6 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "connectors_list_vendors",
-    "title": "Connectors: List supported vendors",
-    "description": "List the third-party systems Munin can connect to, grouped by domain (commerce, bookings) with the config fields each vendor requires. Use it to see what credentials are needed before creating a connection.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "connectors:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "connectors_list_connections",
-    "title": "Connectors: List connections",
-    "description": "List this org’s connections to third-party systems with domain, non-secret settings, active state, and the result of the last credential test. Secrets are never returned.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "connectors:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "connectors_create_connection",
-    "title": "Connectors: Create a connection",
-    "description": "Create a connection to a third-party system. `config` takes the vendor’s non-secret fields only — connectors_list_vendors returns the exact fields and marks which are secret. Secret fields are rejected here: the connection is created pending and the response includes a one-time link for a human to enter the secrets in the dashboard. The vendor determines the domain (commerce, bookings). Connection names must be unique within the org.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "connectors:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "vendor": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 32
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "config": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        }
-      },
-      "required": [
-        "vendor",
-        "name"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "connectors_request_credentials",
-    "title": "Connectors: Request a credential link",
-    "description": "Return a one-time link a human opens to enter a connection’s secret credentials in the dashboard, so the secret is never pasted into a conversation. Use it for a pending connection created without its secret. The link expires after 24 hours.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "connectors:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "connectionId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "connectionId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "connectors_update_connection",
-    "title": "Connectors: Update a connection",
-    "description": "Rename, activate/deactivate, or reconfigure a connection. When passing `config`, supply the full non-secret vendor config; the stored secret values are kept. Secret fields are rejected here — to rotate a secret, delete the connection and create it again, entering the new secret through the credential link.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "connectors:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "connectionId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "config": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        },
-        "active": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "connectionId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "connectors_delete_connection",
-    "title": "Connectors: Delete a connection",
-    "description": "Delete a connection and its stored credentials. Lookups through this connection stop working immediately.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "connectors:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "connectionId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "connectionId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "connectors_test_connection",
-    "title": "Connectors: Test a connection’s credentials",
-    "description": "Verify a connection’s stored credentials against the vendor with a read-only probe (no external data is changed). Records the result on the connection.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "connectors:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "connectionId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "connectionId"
-      ],
       "additionalProperties": false
     }
   },

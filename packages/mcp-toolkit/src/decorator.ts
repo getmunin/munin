@@ -11,6 +11,7 @@ export interface McpToolMeta<TInput extends z.ZodObject = z.ZodObject> {
   title?: string;
   readOnlyHint?: boolean;
   destructiveHint?: boolean;
+  excludeChannelKinds?: readonly string[];
   _meta?: Record<string, unknown>;
 }
 

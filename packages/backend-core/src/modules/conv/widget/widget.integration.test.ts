@@ -1146,7 +1146,11 @@ const skipReason = TEST_URL
       widgetKey,
     );
     expect(all.status).toBe(200);
-    const allBody = all.json as { messages: Array<{ body: string; role: string; at: string }>; hasMore: boolean };
+    const allBody = all.json as {
+      messages: Array<{ body: string; role: string; at: string }>;
+      hasMore: boolean;
+      cursor: string | null;
+    };
     expect(allBody.hasMore).toBe(false);
     expect(allBody.messages.map((m) => m.body)).toEqual(['one', 'two', 'three']);
     expect(allBody.messages.map((m) => m.role)).toEqual(['end_user', 'agent', 'end_user']);
@@ -1155,15 +1159,64 @@ const skipReason = TEST_URL
       expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]!);
     }
 
-    const since = allBody.messages[0]!.at;
     const after = await call(
       'GET',
-      `/v1/widget/messages?${qs({ channelId, sessionId, since })}`,
+      `/v1/widget/messages?${qs({ channelId, sessionId, since: allBody.cursor! })}`,
       widgetKey,
     );
     expect(after.status).toBe(200);
     const afterBody = after.json as { messages: Array<{ body: string }> };
-    expect(afterBody.messages.map((m) => m.body)).not.toContain('one');
+    expect(afterBody.messages).toHaveLength(0);
+  });
+
+  it('delivers a backdated message the cursor has already passed and sorts it by spoken time', async () => {
+    const sessionId = 'vis_backdated';
+    const first = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'before the call' }],
+    });
+    expect(first.status).toBe(201);
+    const conversationId = (first.json as { conversationId: string }).conversationId;
+
+    const opened = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      widgetKey,
+    );
+    const cursor = (opened.json as { cursor: string | null }).cursor!;
+
+    const backdated = new Date(Date.parse(cursor) - 60_000);
+    await db.insert(schema.convMessages).values({
+      orgId,
+      conversationId,
+      authorType: 'agent',
+      authorId: 'threll',
+      body: 'spoken before the cursor',
+      internal: false,
+      createdAt: backdated,
+    });
+
+    const after = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId, since: cursor })}`,
+      widgetKey,
+    );
+    expect(after.status).toBe(200);
+    const afterBody = after.json as { messages: Array<{ body: string }>; cursor: string | null };
+    expect(afterBody.messages.map((m) => m.body)).toEqual(['spoken before the cursor']);
+    expect(Date.parse(afterBody.cursor!)).toBeGreaterThan(Date.parse(cursor));
+
+    const reloaded = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      widgetKey,
+    );
+    const reloadedBody = reloaded.json as { messages: Array<{ body: string }> };
+    expect(reloadedBody.messages.map((m) => m.body)).toEqual([
+      'spoken before the cursor',
+      'before the call',
+    ]);
   });
 
   it('returns hasMore: true when the conversation has > 100 messages', async () => {

@@ -42,6 +42,7 @@ export interface ConversationEnvelope {
 export interface BackfillResult {
   messages: ListedMessage[];
   hasMore: boolean;
+  cursor: string | null;
   conversation: ConversationEnvelope | null;
 }
 

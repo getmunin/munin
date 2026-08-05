@@ -176,6 +176,7 @@ export interface WidgetConversationEnvelope {
 export interface WidgetListMessagesResult {
   messages: WidgetListedMessage[];
   hasMore: boolean;
+  cursor: string | null;
   conversation: WidgetConversationEnvelope | null;
 }
 

@@ -158,9 +158,8 @@ export function start(config: WidgetConfig): void {
               ui.setAgentTyping(false);
             }
           }
-          const last = res.messages[res.messages.length - 1]!;
-          lastSeenAt = new Date(last.at);
         }
+        if (res.cursor) lastSeenAt = new Date(res.cursor);
         if (res.conversation) {
           ui.setConversation(res.conversation);
           currentEnvelope = res.conversation;

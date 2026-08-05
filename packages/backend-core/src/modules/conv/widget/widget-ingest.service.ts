@@ -88,7 +88,7 @@ export class WidgetIngestService {
         ),
       )
       .limit(1);
-    if (!conv[0]) return { messages: [], hasMore: false, conversation: null };
+    if (!conv[0]) return { messages: [], hasMore: false, cursor: null, conversation: null };
 
     const contactRow = conv[0].contactId
       ? (
@@ -107,12 +107,12 @@ export class WidgetIngestService {
       const contactExternalId = (contactRow?.metadata as { externalId?: string } | undefined)
         ?.externalId;
       if (contactExternalId !== identity.externalId) {
-        return { messages: [], hasMore: false, conversation: null };
+        return { messages: [], hasMore: false, cursor: null, conversation: null };
       }
     }
 
     const sinceFilter = query.since
-      ? gte(schema.convMessages.createdAt, new Date(query.since.getTime() + 1))
+      ? gte(schema.convMessages.ingestedAt, new Date(query.since.getTime() + 1))
       : undefined;
     const rows = await tx
       .select({
@@ -122,6 +122,7 @@ export class WidgetIngestService {
         body: schema.convMessages.body,
         bodyHtml: schema.convMessages.bodyHtml,
         createdAt: schema.convMessages.createdAt,
+        ingestedAt: schema.convMessages.ingestedAt,
         internal: schema.convMessages.internal,
         metadata: schema.convMessages.metadata,
       })
@@ -131,12 +132,15 @@ export class WidgetIngestService {
           ? and(eq(schema.convMessages.conversationId, conv[0].id), sinceFilter)
           : eq(schema.convMessages.conversationId, conv[0].id),
       )
-      .orderBy(asc(schema.convMessages.createdAt))
+      .orderBy(asc(schema.convMessages.ingestedAt))
       .limit(LIST_MESSAGES_LIMIT + 1);
 
     const hasMore = rows.length > LIST_MESSAGES_LIMIT;
     const slice = hasMore ? rows.slice(0, LIST_MESSAGES_LIMIT) : rows;
-    const visible = slice.filter((r) => !r.internal);
+    const cursor = slice[slice.length - 1]?.ingestedAt.toISOString() ?? null;
+    const visible = slice
+      .filter((r) => !r.internal)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
     const userIdSet = new Set<string>(
       visible.filter((r) => r.authorType === 'user').map((r) => r.authorId),
@@ -188,7 +192,7 @@ export class WidgetIngestService {
       contactEmail: contactRow?.email ?? null,
     };
 
-    return { messages, hasMore, conversation: envelope };
+    return { messages, hasMore, cursor, conversation: envelope };
   }
 
   async listConversations(

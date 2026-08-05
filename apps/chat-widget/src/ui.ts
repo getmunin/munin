@@ -3,6 +3,7 @@ import type { WidgetConfig } from './config.ts';
 import { WIDGET_END_USER_BODY_MAX_CHARS } from './config.ts';
 import { buildWidgetCss } from './styles.ts';
 import { registerBundledFonts } from './fonts.ts';
+import { readableOn } from './color.ts';
 import { pickLocale } from './strings/index.ts';
 import type { Strings } from './strings/index.ts';
 import { renderMarkdownInto } from './markdown.ts';
@@ -50,6 +51,7 @@ export interface UiController {
   setVoiceCallWho(who: string): void;
   open(): void;
   close(): void;
+  isOpen(): boolean;
   destroy(): void;
 }
 
@@ -61,7 +63,9 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   if (config.fonts === 'bundled') registerBundledFonts();
   const host = document.createElement('div');
   host.style.all = 'initial';
+  if (config.fonts === 'inherit') host.style.fontFamily = 'inherit';
   host.setAttribute('data-munin-widget', '');
+  host.setAttribute('data-scheme', config.colorScheme);
   document.body.appendChild(host);
   const shadow = host.attachShadow({ mode: 'open' });
 
@@ -74,6 +78,20 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   root.setAttribute('data-position', config.position);
   root.setAttribute('data-size', config.size);
   root.style.setProperty('--munin-theme', config.themeColor);
+  root.style.setProperty('--munin-theme-fg', readableOn(config.themeColor));
+  if (config.launcherColor) {
+    root.style.setProperty('--munin-launcher', config.launcherColor);
+    root.style.setProperty(
+      '--munin-launcher-fg',
+      config.launcherIconColor ?? readableOn(config.launcherColor),
+    );
+  } else if (config.launcherIconColor) {
+    root.style.setProperty('--munin-launcher-fg', config.launcherIconColor);
+  }
+  if (config.headerColor) {
+    root.style.setProperty('--munin-header', config.headerColor);
+    root.style.setProperty('--munin-header-fg', readableOn(config.headerColor));
+  }
   shadow.appendChild(root);
 
   const { btn: launcher, badge: launcherBadge } = renderLauncher(strings);
@@ -82,6 +100,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   panel.el.hidden = true;
 
   let view: 'welcome' | 'chat' = 'welcome';
+  let panelOpen = false;
   let pastConvs: ConversationSummary[] = [];
   let conversationEnvelope: ConversationEnvelope | null = null;
   let chatKind: ChatKind = 'new';
@@ -296,6 +315,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   }
 
   function open(): void {
+    panelOpen = true;
     panel.el.hidden = false;
     lockBodyScroll();
     requestAnimationFrame(() => panel.el.classList.add('open'));
@@ -307,6 +327,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   }
 
   function close(): void {
+    panelOpen = false;
     panel.el.classList.remove('open');
     unlockBodyScroll();
     launcher.hidden = false;
@@ -315,6 +336,10 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       if (!panel.el.classList.contains('open')) panel.el.hidden = true;
     }, 220);
     hooks.onClose?.();
+  }
+
+  function isOpen(): boolean {
+    return panelOpen;
   }
 
   function scrollToBottom(): void {
@@ -589,6 +614,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     setVoiceCallWho,
     open,
     close,
+    isOpen,
     destroy,
   };
 }

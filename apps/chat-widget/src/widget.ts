@@ -91,7 +91,10 @@ export function start(config: WidgetConfig): void {
   }
 
   const w = window as Window & {
-    mn?: { identify?: (externalId: string, userHash: string) => void | Promise<void> };
+    mn?: {
+      identify?: (externalId: string, userHash: string) => void | Promise<void>;
+      widget?: { open: () => void; close: () => void; toggle: () => void; isOpen: () => boolean };
+    };
   };
   const mn = (w.mn ??= {});
   const previousIdentify = mn.identify;
@@ -419,6 +422,19 @@ export function start(config: WidgetConfig): void {
       toggleVoiceMute(muted);
     },
   });
+
+  if (mn.widget) {
+    console.warn(
+      '[munin-widget] window.mn.widget is already installed by another embed on this page; it stays bound to the first widget that mounted',
+    );
+  } else {
+    mn.widget = {
+      open: () => ui.open(),
+      close: () => ui.close(),
+      toggle: () => (ui.isOpen() ? ui.close() : ui.open()),
+      isOpen: () => ui.isOpen(),
+    };
+  }
 
   async function sendMessage(text: string): Promise<void> {
     ui.setSending(true);

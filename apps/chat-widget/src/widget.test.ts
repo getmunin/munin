@@ -60,7 +60,21 @@ vi.mock('./realtime.ts', () => ({
 }));
 
 vi.mock('./ui.ts', () => ({
-  mount: () => new Proxy({}, { get: () => vi.fn() }),
+  mount: () => {
+    let open = false;
+    const stateful: Record<string, () => unknown> = {
+      open: () => {
+        open = true;
+      },
+      close: () => {
+        open = false;
+      },
+      isOpen: () => open,
+    };
+    return new Proxy(stateful, {
+      get: (target, prop) => (typeof prop === 'string' && prop in target ? target[prop] : vi.fn()),
+    });
+  },
 }));
 
 vi.mock('@getmunin/widget-voice', () => ({
@@ -80,7 +94,8 @@ const baseConfig: WidgetConfig = {
   eyebrow: null,
   locale: null,
   size: 'standard',
-  fonts: 'system',
+  fonts: 'inherit',
+  colorScheme: 'auto',
   showHistory: true,
 };
 
@@ -127,5 +142,68 @@ describe('widget identity carry-over', () => {
     await vi.waitFor(() => expect(h.listConversations).toHaveBeenCalledTimes(2));
 
     expect(h.identify).toHaveBeenCalledTimes(1);
+  });
+});
+
+interface WindowWithMnWidget {
+  mn?: { widget?: { open: () => void; close: () => void; toggle: () => void; isOpen: () => boolean } };
+}
+
+function getMnWidget(): { open: () => void; close: () => void; toggle: () => void; isOpen: () => boolean } {
+  const widget = (window as Window & WindowWithMnWidget).mn?.widget;
+  if (!widget) throw new Error('window.mn.widget not installed');
+  return widget;
+}
+
+describe('window.mn.widget', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.listeners.state = undefined;
+    document.body.innerHTML = '';
+    delete (window as Window & WindowWithMnWidget).mn;
+  });
+
+  it('exposes open/close/toggle/isOpen bound to the mounted panel', () => {
+    start({ ...baseConfig });
+    const widget = getMnWidget();
+
+    expect(widget.isOpen()).toBe(false);
+    widget.open();
+    expect(widget.isOpen()).toBe(true);
+    widget.close();
+    expect(widget.isOpen()).toBe(false);
+  });
+
+  it('toggle() flips between open and closed', () => {
+    start({ ...baseConfig });
+    const widget = getMnWidget();
+
+    widget.toggle();
+    expect(widget.isOpen()).toBe(true);
+    widget.toggle();
+    expect(widget.isOpen()).toBe(false);
+  });
+});
+
+describe('window.mn.widget collisions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.listeners.state = undefined;
+    document.body.innerHTML = '';
+    delete (window as Window & WindowWithMnWidget).mn;
+  });
+
+  it('leaves the global bound to the first embed and warns on the second', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    start({ ...baseConfig });
+    const first = getMnWidget();
+    first.open();
+
+    start({ ...baseConfig, channelId: 'cch_other' });
+
+    expect(getMnWidget()).toBe(first);
+    expect(getMnWidget().isOpen()).toBe(true);
+    expect(warn.mock.calls.flat().join(' ')).toContain('already installed');
+    warn.mockRestore();
   });
 });

@@ -15,7 +15,8 @@ const baseConfig: WidgetConfig = {
   eyebrow: null,
   locale: null,
   size: 'standard',
-  fonts: 'system',
+  fonts: 'inherit',
+  colorScheme: 'auto',
   showHistory: true,
 };
 
@@ -660,7 +661,7 @@ describe('ui: product list component', () => {
     const css = $('style').textContent ?? '';
     expect(css).toMatch(/\.pcard-shot\s*\{[^}]*aspect-ratio:\s*1 \/ 1/);
     expect(css).toMatch(/\.pcard-shot\s*\{[^}]*object-fit:\s*contain/);
-    expect(css).toMatch(/\.pcard-shot\s*\{[^}]*background:\s*#fff/);
+    expect(css).toMatch(/\.pcard-shot\s*\{[^}]*background:\s*var\(--munin-shot\)/);
   });
 
   it('never renders components on an end-user message', () => {
@@ -679,5 +680,209 @@ describe('ui: product list component', () => {
     controller!.addMessages([msg({ id: 'n1', role: 'agent', body: 'just text' })]);
     expect($$('.plist-rail')).toHaveLength(0);
     expect($('[data-message-id="n1"]').classList.contains('has-app')).toBe(false);
+  });
+});
+
+describe('ui: font modes', () => {
+  beforeEach(() => {
+    document.getElementById('munin-widget-fonts')?.remove();
+  });
+
+  it('fonts=inherit adopts the page family on the host and every shadow node', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    const host = document.querySelector<HTMLElement>('[data-munin-widget]')!;
+    expect(host.style.fontFamily).toBe('inherit');
+    const css = $('style').textContent ?? '';
+    expect(css).toMatch(/:host\s*\{\s*font-family:\s*inherit/);
+    expect(css).toMatch(/\.root,\s*\.root \*\s*\{\s*font-family:\s*inherit/);
+  });
+
+  it('fonts=inherit downloads no webfonts', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    expect(document.getElementById('munin-widget-fonts')).toBeNull();
+  });
+
+  it('fonts=bundled keeps the designed serif/mono stack and registers the faces', () => {
+    controller = mount({ ...baseConfig, fonts: 'bundled' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    const host = document.querySelector<HTMLElement>('[data-munin-widget]')!;
+    expect(host.style.fontFamily).toBe('');
+    const css = $('style').textContent ?? '';
+    expect(css).not.toMatch(/font-family:\s*inherit/);
+    expect(css).toMatch(/--munin-serif:\s*'Munin Serif'/);
+    expect(document.getElementById('munin-widget-fonts')).not.toBeNull();
+  });
+});
+
+describe('ui: launcher colors', () => {
+  function root(): HTMLElement {
+    return $('.root');
+  }
+
+  it('leaves the launcher on the default ink bubble when no color is given', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    expect(root().style.getPropertyValue('--munin-launcher')).toBe('');
+    expect(root().style.getPropertyValue('--munin-launcher-fg')).toBe('');
+  });
+
+  it('paints the launcher bubble and picks a readable icon color for it', () => {
+    controller = mount({ ...baseConfig, launcherColor: '#6E2BD9' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(root().style.getPropertyValue('--munin-launcher')).toBe('#6E2BD9');
+    expect(root().style.getPropertyValue('--munin-launcher-fg')).toBe('#FBFAF7');
+  });
+
+  it('flips the icon to ink on a light launcher bubble', () => {
+    controller = mount({ ...baseConfig, launcherColor: '#FFE066' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(root().style.getPropertyValue('--munin-launcher-fg')).toBe('#0F1419');
+  });
+
+  it('an explicit icon color wins over the readable default', () => {
+    controller = mount(
+      { ...baseConfig, launcherColor: '#6E2BD9', launcherIconColor: '#FFE066' },
+      strings,
+      { onSend: () => {}, onTypingIntent: () => {} },
+    );
+    expect(root().style.getPropertyValue('--munin-launcher-fg')).toBe('#FFE066');
+  });
+
+  it('recolors only the icon when just an icon color is given', () => {
+    controller = mount({ ...baseConfig, launcherIconColor: '#FFE066' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(root().style.getPropertyValue('--munin-launcher')).toBe('');
+    expect(root().style.getPropertyValue('--munin-launcher-fg')).toBe('#FFE066');
+  });
+
+  it('keeps text on theme-colored surfaces readable when the theme is light', () => {
+    controller = mount({ ...baseConfig, themeColor: '#FFE066' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(root().style.getPropertyValue('--munin-theme-fg')).toBe('#0F1419');
+  });
+});
+
+describe('ui: header color', () => {
+  function root(): HTMLElement {
+    return $('.root');
+  }
+
+  it('leaves the header on the default chrome when no color is given', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    expect(root().style.getPropertyValue('--munin-header')).toBe('');
+    expect(root().style.getPropertyValue('--munin-header-fg')).toBe('');
+  });
+
+  it('paints the header bar and picks a readable text/icon color for it', () => {
+    controller = mount({ ...baseConfig, headerColor: '#6E2BD9' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(root().style.getPropertyValue('--munin-header')).toBe('#6E2BD9');
+    expect(root().style.getPropertyValue('--munin-header-fg')).toBe('#FBFAF7');
+  });
+
+  it('flips the header text to ink on a light header color', () => {
+    controller = mount({ ...baseConfig, headerColor: '#FFE066' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(root().style.getPropertyValue('--munin-header-fg')).toBe('#0F1419');
+  });
+});
+
+describe('ui: color scheme', () => {
+  function host(): HTMLElement {
+    return document.querySelector('[data-munin-widget]')!;
+  }
+
+  it('defaults to data-scheme="auto"', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    expect(host().getAttribute('data-scheme')).toBe('auto');
+  });
+
+  it('reflects an explicit dark or light scheme onto the host', () => {
+    controller = mount({ ...baseConfig, colorScheme: 'dark' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(host().getAttribute('data-scheme')).toBe('dark');
+    controller.destroy();
+
+    controller = mount({ ...baseConfig, colorScheme: 'light' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(host().getAttribute('data-scheme')).toBe('light');
+  });
+
+  it('ships dark-mode variable overrides in the stylesheet', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    const css = $('style').textContent ?? '';
+    expect(css).toMatch(/:host\(\[data-scheme='dark'\]\)/);
+    expect(css).toMatch(/prefers-color-scheme:\s*dark/);
+  });
+
+  it('declares color-scheme on .root, never on bare :host, which the host inline all:initial would override', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    const css = $('style').textContent ?? '';
+    const hostBlock = /:host \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(hostBlock).not.toBe('');
+    expect(hostBlock).not.toMatch(/color-scheme/);
+    expect(css).toMatch(/\.root \{[^}]*color-scheme:\s*light/);
+    expect(css).toMatch(/:host\(\[data-scheme='dark'\]\) \.root \{\s*color-scheme:\s*dark/);
+    expect(css).toMatch(/:host\(\[data-scheme='auto'\]\) \.root \{\s*color-scheme:\s*dark/);
+  });
+
+  it('keeps on-chrome danger and the product image tile out of the scheme-flipped palette', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    const css = $('style').textContent ?? '';
+    const dark = /:host\(\[data-scheme='dark'\]\) \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(dark).not.toBe('');
+
+    expect(css).toMatch(/--munin-chrome-danger:\s*#F87171/);
+    expect(dark).not.toMatch(/--munin-chrome-danger/);
+    expect(css).not.toMatch(/#B91C1C; animation: none/);
+    expect(css).toMatch(/\.voice-banner\[data-state='error'\][^\n]*var\(--munin-chrome-danger\)/);
+    expect(css).toMatch(/\.voice-call\[data-state='error'\][^\n]*var\(--munin-chrome-danger\)/);
+
+    expect(css).toMatch(/\.pcard-shot \{[^}]*background:\s*var\(--munin-shot\)/);
+    expect(css).toMatch(/--munin-shot:\s*#FFFFFF/);
+    expect(dark).toMatch(/--munin-shot:\s*#E8E4DC/);
+  });
+
+  it('gives the panel edge a token so dark mode can invert it', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    const css = $('style').textContent ?? '';
+    expect(css).toMatch(/inset 0 0 0 1px var\(--munin-edge\)/);
+    expect(css).toMatch(/--munin-edge:\s*rgba\(15, 20, 25, 0\.08\)/);
+    expect(css).toMatch(/--munin-edge:\s*rgba\(255, 255, 255, 0\.14\)/);
+  });
+});
+
+describe('ui: open/close/isOpen', () => {
+  it('tracks open state through open() and close()', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    expect(controller.isOpen()).toBe(false);
+    controller.open();
+    expect(controller.isOpen()).toBe(true);
+    controller.close();
+    expect(controller.isOpen()).toBe(false);
+  });
+
+  it('reflects open state via the launcher/panel visibility', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    controller.open();
+    expect(($('.panel')).hidden).toBe(false);
+    expect(($('.launcher')).hidden).toBe(true);
   });
 });

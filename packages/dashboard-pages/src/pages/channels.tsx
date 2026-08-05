@@ -2167,7 +2167,7 @@ function EmbedSnippetDialog({
     `        data-munin-host="${host}"`,
     `        data-widget-key="<your widget key>"`,
     `        data-channel-id="${channel.id}"`,
-    `        data-munin-fonts="system"`,
+    `        data-munin-fonts="inherit"`,
     `        defer></script>`,
   ].join('\n');
 

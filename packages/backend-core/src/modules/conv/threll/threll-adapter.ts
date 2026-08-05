@@ -283,7 +283,14 @@ export class ThrellAdapter implements ChannelAdapter {
         typeof event.data?.turnIndex === 'number'
           ? event.data.turnIndex
           : await this.nextTurnIndex(tx, conversation.id);
-      await this.insertVoiceMessage(tx, channel, conversation, { role, text, callId, voiceTurnIndex: turnIndex });
+      const occurredAt = voiceTurnTimestamp(conversation, turnIndex);
+      await this.insertVoiceMessage(tx, channel, conversation, {
+        role,
+        text,
+        callId,
+        voiceTurnIndex: turnIndex,
+        occurredAt,
+      });
     });
   }
 
@@ -303,7 +310,6 @@ export class ThrellAdapter implements ChannelAdapter {
         threllCall: callMeta,
         voiceActive: false,
       };
-      delete nextMeta.voiceStartedAt;
       await tx
         .update(schema.convConversations)
         .set({ metadata: nextMeta, updatedAt: new Date() })
@@ -326,7 +332,13 @@ export class ThrellAdapter implements ChannelAdapter {
     tx: Db | Tx,
     channel: ChannelRow,
     conversation: typeof schema.convConversations.$inferSelect,
-    args: { role: 'user' | 'assistant'; text: string; callId: string; voiceTurnIndex: number },
+    args: {
+      role: 'user' | 'assistant';
+      text: string;
+      callId: string;
+      voiceTurnIndex: number;
+      occurredAt: Date;
+    },
   ): Promise<void> {
     const authorType = args.role === 'user' ? 'end_user' : 'agent';
     const authorId = (args.role === 'user' ? conversation.contactId ?? 'voice-user' : 'threll') || 'threll';
@@ -338,10 +350,10 @@ export class ThrellAdapter implements ChannelAdapter {
     const newId = makeId('cvm');
     const inserted = await tx.execute<{ id: string }>(sql`
       INSERT INTO conv_messages
-        (id, org_id, conversation_id, author_type, author_id, body, internal, metadata)
+        (id, org_id, conversation_id, author_type, author_id, body, internal, created_at, metadata)
       VALUES
         (${newId}, ${channel.orgId}, ${conversation.id}, ${authorType}, ${authorId}, ${args.text}, false,
-         ${JSON.stringify(metadata)}::jsonb)
+         ${args.occurredAt.toISOString()}, ${JSON.stringify(metadata)}::jsonb)
       ON CONFLICT (conversation_id, ((metadata ->> 'threllCallId')), ((metadata ->> 'voiceTurnIndex')), ((metadata ->> 'threllRole')))
         WHERE (metadata ->> 'threllCallId') IS NOT NULL
       DO NOTHING
@@ -520,6 +532,18 @@ function mapRole(role: string | undefined): 'user' | 'assistant' | null {
   if (role === 'user') return 'user';
   if (role === 'agent') return 'assistant';
   return null;
+}
+
+const VOICE_TURN_SPACING_MS = 1000;
+
+function voiceTurnTimestamp(
+  conversation: typeof schema.convConversations.$inferSelect,
+  turnIndex: number,
+): Date {
+  const raw = conversation.metadata.voiceStartedAt;
+  const startedAt = typeof raw === 'string' ? new Date(raw) : conversation.createdAt;
+  const base = Number.isNaN(startedAt.getTime()) ? conversation.createdAt : startedAt;
+  return new Date(base.getTime() + turnIndex * VOICE_TURN_SPACING_MS);
 }
 
 function jsonResponse(body: unknown): WebhookResponse {

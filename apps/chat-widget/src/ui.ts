@@ -331,13 +331,30 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     }
   }
 
+  function insertByTime(el: HTMLElement, at: string): void {
+    const ts = Date.parse(at);
+    if (Number.isNaN(ts)) {
+      panel.messagesEl.appendChild(el);
+      return;
+    }
+    const rendered = panel.messagesEl.querySelectorAll('[data-at]');
+    let before: Element | null = null;
+    for (let i = rendered.length - 1; i >= 0; i -= 1) {
+      const candidate = rendered[i]!;
+      const candidateTs = Date.parse(candidate.getAttribute('data-at') ?? '');
+      if (Number.isNaN(candidateTs) || candidateTs <= ts) break;
+      before = candidate;
+    }
+    panel.messagesEl.insertBefore(el, before);
+  }
+
   function addMessages(messages: ListedMessage[]): void {
     let appended = false;
     for (const m of messages) {
       if (seenIds.has(m.id)) continue;
       seenIds.add(m.id);
       const el = renderMessage(m, strings, locale);
-      panel.messagesEl.appendChild(el);
+      insertByTime(el, m.at);
       if (readObserver && m.role !== 'end_user' && m.role !== 'system') {
         readObserver.observe(el);
       }
@@ -623,12 +640,14 @@ function renderMessage(m: ListedMessage, strings: Strings, locale: string): HTML
     el.className = 'system';
     el.innerHTML = '<span class="system-line"></span><span class="system-text"></span><span class="system-line"></span>';
     (el.querySelector('.system-text') as HTMLElement).textContent = m.body;
+    el.setAttribute('data-at', m.at);
     return el;
   }
   const wrap = document.createElement('div');
   const mine = m.role === 'end_user';
   wrap.className = `msg ${mine ? 'mine' : 'theirs'}`;
   wrap.setAttribute('data-message-id', m.id);
+  wrap.setAttribute('data-at', m.at);
 
   if (!mine) {
     const head = document.createElement('div');

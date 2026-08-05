@@ -607,6 +607,77 @@ const skipReason = TEST_URL
     expect(msgs.length).toBe(1);
   });
 
+  it('orders transcript turns by turnIndex even when webhooks arrive out of order', async () => {
+    const callId = 'call_threll_out_of_order';
+    const r1 = await postEvent({
+      type: 'call.transcript',
+      data: {
+        callId,
+        role: 'agent',
+        text: 'Second thing the agent said.',
+        isFinal: true,
+        turnIndex: 3,
+      },
+    });
+    expect(r1.status).toBe(204);
+    const r2 = await postEvent({
+      type: 'call.transcript',
+      data: {
+        callId,
+        role: 'user',
+        text: 'First thing the caller said.',
+        isFinal: true,
+        turnIndex: 0,
+      },
+    });
+    expect(r2.status).toBe(204);
+    const r3 = await postEvent({
+      type: 'call.transcript',
+      data: {
+        callId,
+        role: 'agent',
+        text: 'First thing the agent said.',
+        isFinal: true,
+        turnIndex: 1,
+      },
+    });
+    expect(r3.status).toBe(204);
+    const r4 = await postEvent({
+      type: 'call.transcript',
+      data: {
+        callId,
+        role: 'user',
+        text: 'Second thing the caller said.',
+        isFinal: true,
+        turnIndex: 2,
+      },
+    });
+    expect(r4.status).toBe(204);
+
+    const convs = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      );
+    expect(convs.length).toBe(1);
+
+    const msgs = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, convs[0]!.id))
+      .orderBy(schema.convMessages.createdAt);
+    expect(msgs.map((m) => m.body)).toEqual([
+      'First thing the caller said.',
+      'First thing the agent said.',
+      'Second thing the caller said.',
+      'Second thing the agent said.',
+    ]);
+  });
+
   it('skips non-final transcripts', async () => {
     const callId = 'call_threll_partial';
     await postEvent({

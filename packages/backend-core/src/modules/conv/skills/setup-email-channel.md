@@ -24,7 +24,7 @@ Required from the operator:
 - **Addressing**: `fromAddress` (must be a real mailbox they control), optional `fromName` (e.g. "Acme Support").
 - **Outbound mode**:
   - `smtp` — host, port, secure (TLS yes/no), username. Most providers: port 587 with `secure: false` (STARTTLS) or 465 with `secure: true`. The password is entered through the credential link, never in the conversation.
-  - `mailer` — no extra config; uses the Munin instance's configured Mailer. Best for self-host without an SMTP relay.
+  - `mailer` — no extra config; uses the Munin instance's configured Mailer. Best when you have no separate SMTP relay.
 - **Inbound (optional)**: IMAP host, port, secure, username, mailbox name (defaults to `INBOX`). The password comes through the credential link.
 
 Passwords are stored encrypted via pgcrypto and only enter Munin through the credential link. Re-calling `conv_configure_email_channel` for updates keeps the stored passwords — non-secret fields can be changed freely.

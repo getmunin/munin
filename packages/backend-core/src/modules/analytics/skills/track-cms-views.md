@@ -181,7 +181,7 @@ Returns `[{ subjectType, subjectId, views, visitors }]` — `subjectId` is the e
 ## What NOT to do
 
 - **Don't bake `mn_track_*` keys into a CMS-served page.** That's the website tracker's flow. CMS entries already get authenticated tracking for free via `_tracking`; using a tracker key in addition just buys you a second URL-keyed event and a key to rotate. Run both only if you want both URL-level and entry-level analytics (often you do — see top of skill).
-- **Don't strip `_tracking` from your delivery client.** If you're mapping the JSON into typed objects, thread `_tracking` through. Discarding it is the single most common reason "we have no journal analytics" in cloud.
+- **Don't strip `_tracking` from your delivery client.** If you're mapping the JSON into typed objects, thread `_tracking` through. Discarding it is the single most common reason for "we have no journal analytics".
 - **Don't slice the token out of `pixelUrl`.** `_tracking.token` ships the bare token; a regex over the URL breaks the moment the URL shape changes.
 - **Don't reach for the pixel on a page that runs `tracker.js`.** You'd trade `visitors`, dwell and read depth for nothing.
 - **Don't tag list cards with `data-mn-entry-token` (or their pixels).** `cms_entry` views answer "what got read"; firing one per card on every index load turns that into "what got listed" and quietly ranks your homepage highest. Use a separate `subjectType` for impressions.

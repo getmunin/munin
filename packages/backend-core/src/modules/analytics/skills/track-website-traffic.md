@@ -21,15 +21,15 @@ For tracking individual CMS entries you fetch from Munin's delivery API and rend
 {
   "name": "analytics_create_tracker",
   "arguments": {
-    "name": "getmunin.com landing",
-    "allowedOrigins": ["https://getmunin.com"]
+    "name": "example.com landing",
+    "allowedOrigins": ["https://example.com"]
   }
 }
 ```
 
 Response includes `trackerKey: "mn_track_…"` — shown once. The key is **public** — safe to embed in HTML, mobile clients, anything browsers can see. It can only write view events scoped to your org, never read them.
 
-**`allowedOrigins`** is required — the ingest endpoints reject any request whose `Origin` header doesn't match one of the listed full origins (scheme + host + port, exact match — no wildcards or path prefixes). Multi-environment? List each one (`https://getmunin.com`, `https://dev.getmunin.com`, `http://localhost:3000`).
+**`allowedOrigins`** is required — the ingest endpoints reject any request whose `Origin` header doesn't match one of the listed full origins (scheme + host + port, exact match — no wildcards or path prefixes). Multi-environment? List each one (`https://example.com`, `https://dev.example.com`, `http://localhost:3000`).
 
 The `Origin` header is browser-set and trivially spoofable via curl — origin allowlisting stops casual JS-from-another-site abuse but is not a security boundary on its own. The real defences are key rotation (`analytics_revoke_tracker`) and per-IP rate-limiting at the ingest layer.
 
@@ -269,7 +269,7 @@ Returns `[{ utmSource, utmMedium, utmCampaign, views, visitors }]`. The row with
 ```jsonc
 // Which external sites send us traffic?
 { "name": "analytics_list_referrer_hosts",
-  "arguments": { "excludeHost": "getmunin.com", "sinceDays": 30, "limit": 50 } }
+  "arguments": { "excludeHost": "example.com", "sinceDays": 30, "limit": 50 } }
 ```
 
 Returns `[{ host, views, visitors }]`. Pass `excludeHost` set to your production host to filter out internal navigations; the `host: null` row is direct/bookmark traffic and `rel=noreferrer` clicks.

@@ -37,7 +37,7 @@ Good:
 
 Bad:
 
-`Hi! 👋 We wanted to reach out about **our new onboarding flow** — check it out at https://getmunin.com/onboarding and book a slot!` — emoji and markdown read aloud, a URL nobody can use, no identification, no goal, no boundaries.
+`Hi! 👋 We wanted to reach out about **our new onboarding flow** — check it out at https://example.com/onboarding and book a slot!` — emoji and markdown read aloud, a URL nobody can use, no identification, no goal, no boundaries.
 
 ## What happens on approval
 

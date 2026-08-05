@@ -1,7 +1,7 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { and, eq, isNull, lt, lte, sql } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
-import { describeError, parseEnvDisableFlag, parseEnvInt } from '@getmunin/core';
+import { describeError, parseEnvDisableFlag, parseEnvInt, readApiBaseUrl } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
@@ -41,7 +41,6 @@ import {
   approvalSubjectRef,
   readWebBaseUrl,
 } from './slack.constants.ts';
-import { mcpResourceOrigin } from '../../oauth/oauth.constants.ts';
 import { draftFingerprint } from '../outreach/proposal-fingerprint.ts';
 import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
 
@@ -302,7 +301,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         username: identity.username,
         iconEmoji: identity.iconEmoji,
         iconUrl: identity.avatarKey
-          ? `${mcpResourceOrigin()}/v1/slack/avatars/${identity.avatarKey}.png`
+          ? `${readApiBaseUrl()}/v1/slack/avatars/${identity.avatarKey}.png`
           : undefined,
       });
     } catch (err) {

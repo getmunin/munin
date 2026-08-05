@@ -25,7 +25,9 @@ You can mint widget keys and tracker keys yourself via MCP. `API_URL` and your o
 
 ### 1. `API_URL` — the Munin API origin
 
-The same origin serves `/widget.js`, `/tracker.js`, `/v1/cms/*`, and `/mcp`. **The MCP server has already told you this value** — it's stated in the server instructions you received on connect, and every `{{API_URL}}` in this playbook has been substituted with it. Use it as-is; do not ask the operator and do not guess (the cloud default `https://api.getmunin.com` is only correct for cloud tenants — self-host and OSS dev differ).
+One origin serves `/widget.js`, `/tracker.js` and `/v1/cms/*`. **The MCP server has already told you this value** — it's stated in the server instructions you received on connect, and every `{{API_URL}}` in this playbook has been substituted with it. Use it as-is; do not ask the operator and do not guess. It differs per deployment, so no host is a safe default.
+
+The `/mcp` endpoint you are connected to may be on a *different* host — some deployments put the API and MCP on separate subdomains. Never derive `API_URL` from your MCP connection URL; take it from the server instructions.
 
 If for some reason the value is still the literal `{{API_URL}}` (an old client that doesn't substitute), fall back to the operator's env (`MUNIN_API_URL`, `NEXT_PUBLIC_API_URL`, `VITE_API_URL`, `API_URL`) and only ask as a last resort.
 
@@ -72,10 +74,10 @@ Response includes `channelId` and `widgetKey: "mn_widget_…"`. Both go into the
 
 **Empty-allowlist behavior depends on `MUNIN_WIDGET_REQUIRE_ALLOWLIST`:**
 
-- **OSS dev / not set / `0` / `false`** (the default) — empty `originAllowlist` accepts requests from **any** origin. Fine for local development and getting a preview running quickly; **not safe for production**.
-- **`MUNIN_WIDGET_REQUIRE_ALLOWLIST=1`** (recommended for cloud / production) — empty allowlist fails closed: ingest returns `403 origin_allowlist_required` until at least one origin is configured.
+- **Unset / `0` / `false`** (the default) — empty `originAllowlist` accepts requests from **any** origin. Fine for local development and getting a preview running quickly; **not safe for production**.
+- **`MUNIN_WIDGET_REQUIRE_ALLOWLIST=1`** (recommended for production) — empty allowlist fails closed: ingest returns `403 origin_allowlist_required` until at least one origin is configured.
 
-If you don't have the preview URL yet, creating the channel with `originAllowlist: []` will work *in OSS dev* — but populate it as soon as you know the origin, both so the smoke test exercises the real path and so the channel is safe to promote to prod without changes.
+If you don't have the preview URL yet, creating the channel with `originAllowlist: []` will work while the env var is unset — but populate it as soon as you know the origin, both so the smoke test exercises the real path and so the channel is safe to promote to prod without changes.
 
 ### 1b. Embed the script
 
@@ -128,7 +130,7 @@ The widget itself doesn't care about route changes — it's a fixed-position bub
 }
 ```
 
-Response includes `trackerKey: "mn_track_…"` (shown once — capture it). Same origin allowlisting story as the widget: empty `allowedOrigins` accepts any origin by default; setting `MUNIN_TRACKER_REQUIRE_ALLOWLIST=1` on the backend makes it fail closed instead. Cloud production should run with the env var on; OSS dev is open-by-default for ergonomics.
+Response includes `trackerKey: "mn_track_…"` (shown once — capture it). Same origin allowlisting story as the widget: empty `allowedOrigins` accepts any origin by default; setting `MUNIN_TRACKER_REQUIRE_ALLOWLIST=1` on the backend makes it fail closed instead. Production deployments should run with the env var on.
 
 ### 2b. Embed the script
 
@@ -246,9 +248,9 @@ If any of the three fails, the most likely cause is in this table:
 
 ## What NOT to do
 
-- **Don't guess `API_URL` or hardcode it in source.** It's been substituted into this playbook and stated in the server instructions — use that value and write it into the frontend's env (`NEXT_PUBLIC_API_URL` / `VITE_API_URL` / etc.). The cloud host is `https://api.getmunin.com`, but self-host and OSS dev differ, so don't assume.
+- **Don't guess `API_URL` or hardcode it in source.** It's been substituted into this playbook and stated in the server instructions — use that value and write it into the frontend's env (`NEXT_PUBLIC_API_URL` / `VITE_API_URL` / etc.). Every deployment has its own host — never assume one, and never copy a host out of another project.
 - **Don't put the widget key or tracker key in a `.env` as a server-only secret.** Both are designed to be visible in browser source. The origin allowlist is what protects them.
-- **Don't ship to production with an empty `originAllowlist` / `allowedOrigins`.** With `MUNIN_WIDGET_REQUIRE_ALLOWLIST` / `MUNIN_TRACKER_REQUIRE_ALLOWLIST` unset (OSS-dev default), empty means open-to-any-origin. Production deployments should both set the env var to `1` *and* configure the actual origins.
+- **Don't ship to production with an empty `originAllowlist` / `allowedOrigins`.** With `MUNIN_WIDGET_REQUIRE_ALLOWLIST` / `MUNIN_TRACKER_REQUIRE_ALLOWLIST` unset (the default), empty means open-to-any-origin. Production deployments should both set the env var to `1` *and* configure the actual origins.
 - **Don't skip the smoke test.** All three integrations have silent-failure modes (widget renders but ingest 403s; tracker loads but `allowedOrigins` blocks events; CMS fetch returns build-time data). Verify each in a real browser before reporting done.
 - **Don't mix this playbook with the embedded chat widget for end-user agents** (`skill://conv/setup-chat-widget` step 4, "browser-direct integration"). That's a different threat model: this playbook is browser-embed; that one is agent-pushed transcripts.
 

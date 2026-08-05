@@ -10,17 +10,17 @@ Use this when the operator wants their team to triage Munin conversations from S
 
 ## TL;DR
 
-1. Confirm the deployment has a Slack app (`slack_get_status` → `appConfigured`). Self-host without one: create the app from the manifest below and set the env vars.
+1. Confirm the deployment has a Slack app (`slack_get_status` → `appConfigured`). If it doesn't, create the app from the manifest below and set the env vars.
 2. Call `slack_get_install_url` and have the operator open and approve the link in a browser (workspace admin required).
 3. Call `slack_set_routing` with the channel ID conversations should mirror into; have the operator `/invite` the bot to that channel.
 4. Optionally route escalations to a second channel: `slack_set_routing` with `purpose: "escalations"` and a `mention` like `<!here>`.
 5. Verify with `slack_send_test_message`, then confirm `slack_get_status` shows `connected: true`.
 
-## Step 0 — deployment prerequisites (self-host only)
+## Step 0 — deployment prerequisites
 
-Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_get_status`: if `appConfigured` is `false`, the operator must create a Slack app once for the deployment:
+Check `slack_get_status` first: if `appConfigured` is `true`, the deployment already has a Slack app and you skip this whole step. If it is `false`, the operator must create one once for the deployment:
 
-1. Go to https://api.slack.com/apps → *Create New App* → *From an app manifest* and paste (replace `YOUR_API_HOST` with the deployment's public API base URL; also available as `slack-app-manifest.json` in the repo root):
+1. Go to https://api.slack.com/apps → *Create New App* → *From an app manifest* and paste the manifest below — the URLs already carry this deployment's public API base URL (an unsubstituted `slack-app-manifest.json` also lives in the repo root):
 
 ```json
 {
@@ -32,19 +32,19 @@ Munin cloud ships a Slack app; skip this on cloud. On self-host, check `slack_ge
     "bot_user": { "display_name": "Munin", "always_online": true }
   },
   "oauth_config": {
-    "redirect_urls": ["https://YOUR_API_HOST/v1/slack/oauth/callback"],
+    "redirect_urls": ["{{API_URL}}/v1/slack/oauth/callback"],
     "scopes": {
       "bot": ["chat:write", "chat:write.customize", "channels:read", "channels:history", "users:read", "users:read.email"]
     }
   },
   "settings": {
     "event_subscriptions": {
-      "request_url": "https://YOUR_API_HOST/v1/slack/events",
+      "request_url": "{{API_URL}}/v1/slack/events",
       "bot_events": ["message.channels", "member_joined_channel"]
     },
     "interactivity": {
       "is_enabled": true,
-      "request_url": "https://YOUR_API_HOST/v1/slack/interactivity"
+      "request_url": "{{API_URL}}/v1/slack/interactivity"
     },
     "org_deploy_enabled": false,
     "socket_mode_enabled": false,

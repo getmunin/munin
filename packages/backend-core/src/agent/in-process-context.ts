@@ -4,6 +4,7 @@ import {
   RequestContextStore,
   buildAdminAgentActor,
   buildEndUserAgentActor,
+  readApiBaseUrl,
   type ActorIdentity,
   type Audience,
   type RequestContext,
@@ -84,6 +85,7 @@ function wrapInProcessMcp(opts: WrapOptions): AgentMcpClient {
     actor: opts.actor,
     audience: opts.audience,
     audit,
+    apiBaseUrl: readApiBaseUrl(),
   });
 
   function withTenancy<T>(fn: () => Promise<T>): Promise<T> {

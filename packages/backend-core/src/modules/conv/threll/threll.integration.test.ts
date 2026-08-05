@@ -572,6 +572,41 @@ const skipReason = TEST_URL
     expect(msgs[1]!.authorType).toBe('agent');
   });
 
+  it('ignores a redelivered transcript turn instead of storing it twice', async () => {
+    const callId = 'call_threll_redelivered';
+    const turn = {
+      type: 'call.transcript',
+      data: {
+        callId,
+        role: 'user',
+        text: 'Can you check my order status?',
+        isFinal: true,
+        turnIndex: 0,
+      },
+    };
+    const r1 = await postEvent(turn);
+    expect(r1.status).toBe(204);
+    const r2 = await postEvent(turn);
+    expect(r2.status).toBe(204);
+
+    const convs = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      );
+    expect(convs.length).toBe(1);
+
+    const msgs = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, convs[0]!.id));
+    expect(msgs.length).toBe(1);
+  });
+
   it('skips non-final transcripts', async () => {
     const callId = 'call_threll_partial';
     await postEvent({
@@ -617,6 +652,75 @@ const skipReason = TEST_URL
     expect(threllCall.recordingAvailable).toBe(true);
     expect(threllCall.analysis).toBe('Resolved.');
     expect(threllCall.endedReason).toBe('completed');
+  });
+
+  it('emits conversation.status_changed on call.ended so operator bridges see the auto-close', async () => {
+    const callId = 'call_threll_end_status_event';
+    await postEvent({
+      type: 'call.transcript',
+      data: { callId, role: 'user', text: 'That is all, thanks', isFinal: true, turnIndex: 0 },
+    });
+    await postEvent({
+      type: 'call.ended',
+      data: { callId, status: 'completed', recordingAvailable: false, analysis: null },
+    });
+
+    const [conv] = await db
+      .select({ id: schema.convConversations.id, status: schema.convConversations.status })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      )
+      .limit(1);
+    expect(conv!.status).toBe('closed');
+
+    const events = await db
+      .select({ type: schema.events.type })
+      .from(schema.events)
+      .where(
+        and(
+          eq(schema.events.orgId, orgId),
+          sql`${schema.events.payload}->>'conversationId' = ${conv!.id}`,
+        ),
+      );
+    expect(events.map((e) => e.type)).toContain('conversation.status_changed');
+  });
+
+  it('enqueues the CRM contact-extraction pass when a voice call auto-closes', async () => {
+    const callId = 'call_threll_end_curator_job';
+    await postEvent({
+      type: 'call.transcript',
+      data: { callId, role: 'user', text: 'I am Ada, ada@example.com', isFinal: true, turnIndex: 0 },
+    });
+    await postEvent({
+      type: 'call.ended',
+      data: { callId, status: 'completed', recordingAvailable: false, analysis: null },
+    });
+
+    const [conv] = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      )
+      .limit(1);
+
+    const jobs = await db
+      .select({ jobUri: schema.curatorJobs.jobUri })
+      .from(schema.curatorJobs)
+      .where(
+        and(
+          eq(schema.curatorJobs.orgId, orgId),
+          eq(schema.curatorJobs.dedupeKey, `crm-contact-extract:conv:${conv!.id}`),
+        ),
+      );
+    expect(jobs.map((j) => j.jobUri)).toContain('skill://crm/extract-contact-from-message');
   });
 });
 

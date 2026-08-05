@@ -33,6 +33,7 @@ import {
   verifyVapiWebhookSecret,
 } from './vapi-client.service.ts';
 import { findOrCreateContactByPhone } from '../contact-by-phone.ts';
+import { ConvService } from '../conv.service.ts';
 import { jsonbToStored } from './vapi.service.ts';
 import { VapiToolBridge, type VapiToolCall } from './vapi-tool-bridge.ts';
 import {
@@ -41,6 +42,10 @@ import {
   composeVoiceSystemPrompt,
   type ChatMessageSeed,
 } from './vapi-assistant.ts';
+
+interface ConversationStatusWriter {
+  changeStatus(input: { id: string; status: 'closed' }): Promise<unknown>;
+}
 
 interface VapiServerMessage {
   type: string;
@@ -81,6 +86,7 @@ export class VapiAdapter implements ChannelAdapter {
     @Inject(VapiClientService) private readonly client: VapiClientService,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(VapiToolBridge) private readonly tools: VapiToolBridge,
+    @Inject(ConvService) private readonly conv: ConversationStatusWriter,
   ) {}
 
   readonly inbound: InboundMode = {
@@ -517,10 +523,10 @@ export class VapiAdapter implements ChannelAdapter {
         .update(schema.convConversations)
         .set({
           metadata: nextMeta,
-          status: 'closed',
           updatedAt: new Date(),
         })
         .where(eq(schema.convConversations.id, conversation.id));
+      await this.conv.changeStatus({ id: conversation.id, status: 'closed' });
       await this.webhooks.emit({
         type: 'conversation.voice.call_ended',
         payload: {

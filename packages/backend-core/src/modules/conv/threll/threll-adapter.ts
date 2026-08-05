@@ -40,12 +40,17 @@ import {
 import { findOrCreateContactByPhone } from '../contact-by-phone.ts';
 import { jsonbToStored } from './threll.service.ts';
 import { ThrellToolBridge } from './threll-tool-bridge.ts';
+import { ConvService } from '../conv.service.ts';
 
 interface ThrellCustomer {
   number?: string;
   name?: string | null;
   personId?: string | null;
   language?: string | null;
+}
+
+interface ConversationStatusWriter {
+  changeStatus(input: { id: string; status: 'closed' }): Promise<unknown>;
 }
 
 interface ThrellEvent {
@@ -81,6 +86,7 @@ export class ThrellAdapter implements ChannelAdapter {
     @Inject(ThrellClientService) private readonly client: ThrellClientService,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(ThrellToolBridge) private readonly tools: ThrellToolBridge,
+    @Inject(ConvService) private readonly conv: ConversationStatusWriter,
   ) {}
 
   readonly inbound: InboundMode = {
@@ -300,8 +306,9 @@ export class ThrellAdapter implements ChannelAdapter {
       delete nextMeta.voiceStartedAt;
       await tx
         .update(schema.convConversations)
-        .set({ metadata: nextMeta, status: 'closed', updatedAt: new Date() })
+        .set({ metadata: nextMeta, updatedAt: new Date() })
         .where(eq(schema.convConversations.id, conversation.id));
+      await this.conv.changeStatus({ id: conversation.id, status: 'closed' });
       await this.webhooks.emit({
         type: 'conversation.voice.call_ended',
         payload: {
@@ -322,38 +329,39 @@ export class ThrellAdapter implements ChannelAdapter {
     args: { role: 'user' | 'assistant'; text: string; callId: string; voiceTurnIndex: number },
   ): Promise<void> {
     const authorType = args.role === 'user' ? 'end_user' : 'agent';
-    const authorId = args.role === 'user' ? conversation.contactId ?? 'voice-user' : 'threll';
-    const [stored] = await tx
-      .insert(schema.convMessages)
-      .values({
-        orgId: channel.orgId,
-        conversationId: conversation.id,
-        authorType,
-        authorId: authorId || 'threll',
-        body: args.text,
-        internal: false,
-        metadata: {
-          threllCallId: args.callId,
-          threllRole: args.role,
-          voiceTurnIndex: args.voiceTurnIndex,
-        },
-      })
-      .returning();
+    const authorId = (args.role === 'user' ? conversation.contactId ?? 'voice-user' : 'threll') || 'threll';
+    const metadata = {
+      threllCallId: args.callId,
+      threllRole: args.role,
+      voiceTurnIndex: args.voiceTurnIndex,
+    };
+    const newId = makeId('cvm');
+    const inserted = await tx.execute<{ id: string }>(sql`
+      INSERT INTO conv_messages
+        (id, org_id, conversation_id, author_type, author_id, body, internal, metadata)
+      VALUES
+        (${newId}, ${channel.orgId}, ${conversation.id}, ${authorType}, ${authorId}, ${args.text}, false,
+         ${JSON.stringify(metadata)}::jsonb)
+      ON CONFLICT (conversation_id, ((metadata ->> 'threllCallId')), ((metadata ->> 'voiceTurnIndex')), ((metadata ->> 'threllRole')))
+        WHERE (metadata ->> 'threllCallId') IS NOT NULL
+      DO NOTHING
+      RETURNING id
+    `);
+    const storedId = inserted[0]?.id;
+    if (!storedId) return;
     await tx
       .update(schema.convConversations)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.convConversations.id, conversation.id));
-    if (stored) {
-      await this.webhooks.emit({
-        type: 'conversation.message.received',
-        payload: {
-          conversationId: conversation.id,
-          messageId: stored.id,
-          authorType,
-          internal: false,
-        },
-      });
-    }
+    await this.webhooks.emit({
+      type: 'conversation.message.received',
+      payload: {
+        conversationId: conversation.id,
+        messageId: storedId,
+        authorType,
+        internal: false,
+      },
+    });
   }
 
   private async runAsSystem<T = void>(

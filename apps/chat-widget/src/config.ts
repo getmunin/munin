@@ -7,11 +7,14 @@ type Position = (typeof VALID_POSITIONS)[number];
 const VALID_SIZES = ['compact', 'standard', 'generous'] as const;
 type Size = (typeof VALID_SIZES)[number];
 
-const VALID_FONTS = ['bundled', 'system'] as const;
+const VALID_FONTS = ['bundled', 'inherit'] as const;
 type Fonts = (typeof VALID_FONTS)[number];
 
+const VALID_COLOR_SCHEMES = ['auto', 'light', 'dark'] as const;
+type ColorScheme = (typeof VALID_COLOR_SCHEMES)[number];
+
 const HEX64 = /^[0-9a-f]{64}$/i;
-const HEX_COLOR = /^#[0-9a-f]{3,8}$/i;
+const HEX_COLOR = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const VISITOR_META_MAX_BYTES = 4 * 1024;
@@ -29,6 +32,9 @@ export interface WidgetConfig {
   externalId?: string;
   userHash?: string;
   themeColor: string;
+  launcherColor?: string;
+  launcherIconColor?: string;
+  headerColor?: string;
   position: Position;
   greeting: string | null;
   title: string | null;
@@ -36,6 +42,7 @@ export interface WidgetConfig {
   locale: string | null;
   size: Size;
   fonts: Fonts;
+  colorScheme: ColorScheme;
   showHistory: boolean;
   visitor?: WidgetVisitor;
   cookieDomain?: string;
@@ -55,6 +62,7 @@ const DEFAULTS = {
   position: 'bottom-right' as Position,
   size: 'standard' as Size,
   fonts: 'bundled' as Fonts,
+  colorScheme: 'auto' as ColorScheme,
   showHistory: true,
 };
 
@@ -82,6 +90,9 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
   }
 
   const themeColor = optColor(scriptEl, 'data-munin-theme-color', warnings) ?? DEFAULTS.themeColor;
+  const launcherColor = optColor(scriptEl, 'data-munin-launcher-color', warnings);
+  const launcherIconColor = optColor(scriptEl, 'data-munin-launcher-icon-color', warnings);
+  const headerColor = optColor(scriptEl, 'data-munin-header-color', warnings);
   const position = optPosition(scriptEl, warnings) ?? DEFAULTS.position;
   const greeting = scriptEl.getAttribute('data-munin-greeting');
   const title =
@@ -90,6 +101,9 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
   const locale = scriptEl.getAttribute('data-munin-locale');
   const size = optEnum(scriptEl, 'data-munin-size', VALID_SIZES, warnings) ?? DEFAULTS.size;
   const fonts = optEnum(scriptEl, 'data-munin-fonts', VALID_FONTS, warnings) ?? DEFAULTS.fonts;
+  const colorScheme =
+    optEnum(scriptEl, 'data-munin-color-scheme', VALID_COLOR_SCHEMES, warnings) ??
+    DEFAULTS.colorScheme;
   const showHistory =
     optBool(scriptEl, 'data-munin-show-history', warnings) ?? DEFAULTS.showHistory;
 
@@ -110,6 +124,9 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
       externalId,
       userHash,
       themeColor,
+      launcherColor,
+      launcherIconColor,
+      headerColor,
       position,
       greeting,
       title,
@@ -117,6 +134,7 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
       locale,
       size,
       fonts,
+      colorScheme,
       showHistory,
       visitor,
       cookieDomain,

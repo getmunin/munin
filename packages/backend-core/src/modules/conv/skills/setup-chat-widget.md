@@ -24,6 +24,43 @@ Response includes `widgetKey: "mn_widget_…"` — shown once. Store it server-s
 
 The widget key is bound to this channel via `api_keys.channel_id`. Rotate with `conv_rotate_widget_key`; update origins with `conv_update_widget_channel`.
 
+### Appearance attributes on the drop-in embed
+
+If the customer uses Munin's own `widget.js` bundle rather than their own chat UI, these optional `data-*` attributes on the script tag configure it. Add them only when the operator asked for that look.
+
+| Attribute | Values | Effect |
+|---|---|---|
+| `data-munin-fonts` | `bundled` (default), `inherit` | `bundled` ships subset Instrument Serif + JetBrains Mono (~60 KB) and matches the dashboard typography. `inherit` downloads no fonts and renders every string in whatever `font-family` the page applies to `<body>`, so the panel blends into the site's type stack. Sizes, weights and italics are unchanged either way. |
+| `data-munin-theme-color` | hex, e.g. `#0066FF` | Accent for the unread badge, send button, links and visitor bubbles. Text on top of it flips between ink and paper for contrast. |
+| `data-munin-launcher-color` | hex | Fill of the round launcher bubble. Defaults to the near-black ink of the panel header, so a brand-colored bubble is an explicit opt-in; the glyph inside follows for contrast. |
+| `data-munin-launcher-icon-color` | hex | Color of the chat glyph in the launcher, overriding the automatic contrast pick. |
+| `data-munin-header-color` | hex | Fill of the panel's top bar (org name + close button). Defaults to the same near-black chrome as the launcher; the text/icon color picks whichever of ink/paper contrasts better. |
+| `data-munin-position` | `bottom-right` (default), `bottom-left` | Launcher corner. |
+| `data-munin-size` | `compact`, `standard` (default), `generous` | Panel size. |
+| `data-munin-org-name` | free text | Header title. Defaults to "Chat". |
+| `data-munin-eyebrow` | free text | Small uppercase label above the greeting. |
+| `data-munin-greeting` | free text | Welcome line; the widget italicizes everything after the first sentence. |
+| `data-munin-locale` | BCP-47 tag | Forces the widget's UI language instead of negotiating from the browser. |
+| `data-munin-color-scheme` | `auto` (default), `light`, `dark` | `auto` follows the visitor's OS/browser preference (`prefers-color-scheme`) and updates live if they switch it; `light`/`dark` pins the panel regardless of OS setting. The launcher bubble, header bar and voice-call screen stay their fixed near-black chrome in every mode unless overridden by the color attributes above — only the panel body (welcome/chat/composer/cards) inverts. |
+| `data-munin-show-history` | `true` (default), `false` | Whether past conversations are listed on the welcome screen. |
+
+An unrecognized value is a console warning, not an error — the widget falls back to the default and still mounts.
+
+### Programmatic open/close
+
+Once the widget script has executed, `window.mn.widget` exposes:
+
+```ts
+window.mn.widget.open();     // opens the panel
+window.mn.widget.close();    // closes the panel
+window.mn.widget.toggle();   // flips it
+window.mn.widget.isOpen();   // current state, boolean
+```
+
+Wire a "Chat with us" link anywhere in the page's own nav/footer to `window.mn.widget.toggle()` instead of relying on the launcher bubble alone. Because the script tag has `defer`, `window.mn.widget` isn't installed until after the page has parsed — safe to call from a click handler, not safe to call synchronously in an inline `<script>` above the widget tag.
+
+`window.mn.widget` is a single global, so on a page with two widget embeds it stays bound to whichever mounted **first** and the second logs a warning. Don't rely on it when you deliberately run two channels on one page — drive those from their own launchers.
+
 ## 2. Push transcripts from the agent
 
 `POST /v1/widget/messages` — server-to-server is the recommended integration so the key never reaches browser JS.

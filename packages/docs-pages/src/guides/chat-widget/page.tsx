@@ -46,7 +46,7 @@ export default function WidgetGuide() {
         data-munin-host="${host}"
         data-widget-key="mn_widget_…"
         data-channel-id="cch_…"
-        data-munin-fonts="system"
+        data-munin-fonts="inherit"
         defer></script>`}</pre>
       </div>
 
@@ -78,10 +78,11 @@ export default function WidgetGuide() {
       <dl className="docs-attrs">
         <dt>data-munin-fonts</dt>
         <dd>
-          <code>&quot;system&quot;</code> (default) skips the bundled WOFF2 fonts and falls back to the
-          visitor&rsquo;s system stack (SF Pro / Segoe UI / Roboto + ui-serif). Set to{' '}
-          <code>&quot;bundled&quot;</code> to ship subset Instrument Serif + JetBrains Mono with the
-          widget — adds ~60 KB and matches the dashboard typography pixel-for-pixel.
+          <code>&quot;bundled&quot;</code> (default) ships subset Instrument Serif + JetBrains Mono with
+          the widget — adds ~60 KB and matches the dashboard typography pixel-for-pixel. Set to{' '}
+          <code>&quot;inherit&quot;</code> to download no fonts and render every string in whatever
+          font-family your page already applies to <code>&lt;body&gt;</code>, so the panel blends into
+          your own type stack. Sizes, weights and italics stay as designed either way.
         </dd>
         <dt>data-munin-org-name</dt>
         <dd>Header title shown in the panel. Defaults to <code>&quot;Chat&quot;</code>.</dd>
@@ -89,8 +90,33 @@ export default function WidgetGuide() {
         <dd>Small uppercase label above the welcome greeting, e.g. &ldquo;Acme Support · powered by Munin&rdquo;.</dd>
         <dt>data-munin-theme-color</dt>
         <dd>
-          Hex accent color for the launcher, send button, and visitor bubbles. Defaults to{' '}
-          <code>#0066FF</code>.
+          Hex accent color for the unread badge, send button, links, and visitor bubbles. Defaults to{' '}
+          <code>#0066FF</code>. Text drawn on top of it flips between ink and paper automatically,
+          whichever contrasts better.
+        </dd>
+        <dt>data-munin-launcher-color</dt>
+        <dd>
+          Hex fill of the round launcher bubble. Defaults to the widget&rsquo;s near-black chrome tone
+          (fixed regardless of light/dark mode), so a brand-colored bubble is an explicit opt-in. The chat
+          glyph inside follows with whichever of ink/paper contrasts better.
+        </dd>
+        <dt>data-munin-launcher-icon-color</dt>
+        <dd>
+          Hex color of the chat glyph inside the launcher, overriding the automatic contrast pick. Use
+          it on its own to recolor the glyph while keeping the default bubble.
+        </dd>
+        <dt>data-munin-header-color</dt>
+        <dd>
+          Hex fill of the panel&rsquo;s top bar (org name + close button). Defaults to the same near-black
+          chrome as the launcher; the text/icon color follows the same automatic contrast pick.
+        </dd>
+        <dt>data-munin-color-scheme</dt>
+        <dd>
+          <code>&quot;auto&quot;</code> (default) follows the visitor&rsquo;s OS/browser preference and
+          updates live if they flip it; <code>&quot;light&quot;</code> or <code>&quot;dark&quot;</code>
+          pins the panel regardless of their OS setting. The launcher bubble, header bar and voice-call
+          screen keep their fixed near-black chrome in every mode unless you set the color attributes
+          above &mdash; only the panel body (welcome/chat/composer/cards) inverts.
         </dd>
         <dt>data-munin-position</dt>
         <dd>
@@ -186,6 +212,33 @@ window.mn.identify(externalId, userHash);`}</pre>
         Idempotent — calling it twice with the same <code>externalId</code> is a no-op. Calling it with a
         different <code>externalId</code> on a session that&rsquo;s already verified returns 403; mint a
         fresh session if you genuinely need to swap identities mid-flight.
+      </p>
+
+      <h2 className="tag-h" id="programmatic" style={{ marginTop: 56 }}>
+        Programmatic open/close
+      </h2>
+      <p className="tag-blurb">
+        Once the deferred script has executed, <code>window.mn.widget</code> exposes{' '}
+        <code>open()</code>, <code>close()</code>, <code>toggle()</code>, and{' '}
+        <code>isOpen()</code> so you can drive the panel from your own nav, a &ldquo;Chat with
+        us&rdquo; link, or a proactive prompt on a timer — instead of relying on the launcher bubble
+        alone.
+      </p>
+      <div className="curl">
+        <div className="curl-h">
+          <span>Browser</span>
+          <span style={{ color: 'var(--docs-mute)' }}>anywhere after the script tag runs</span>
+        </div>
+        <pre>{`document.getElementById('chat-with-us').addEventListener('click', () => {
+  window.mn.widget.toggle();
+});`}</pre>
+      </div>
+      <p className="tag-blurb" style={{ marginTop: 16 }}>
+        The script tag has <code>defer</code>, so <code>window.mn.widget</code> isn&rsquo;t installed
+        until the page has parsed — safe to call from a click handler, not safe to call synchronously
+        from an inline <code>&lt;script&gt;</code> placed above the widget tag. It&rsquo;s a single
+        global: on a page with two widget embeds it stays bound to whichever mounted first, and the
+        second logs a console warning rather than silently stealing it.
       </p>
 
       <h2 className="tag-h" id="visitor" style={{ marginTop: 56 }}>

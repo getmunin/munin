@@ -1,11 +1,54 @@
-export function buildWidgetCss(_fonts: 'bundled' | 'system'): string {
-  return BASE_CSS + PRODUCT_LIST_CSS;
+export function buildWidgetCss(fonts: 'bundled' | 'inherit'): string {
+  return BASE_CSS + DARK_MODE_CSS + PRODUCT_LIST_CSS + (fonts === 'inherit' ? INHERIT_FONTS_CSS : '');
 }
+
+const INHERIT_FONTS_CSS = String.raw`
+:host { font-family: inherit; }
+.root, .root * { font-family: inherit; }
+`;
+
+const DARK_VARS = String.raw`
+    --munin-bone: #2E3038;
+    --munin-paper: #1B1D22;
+    --munin-paper-deep: #24262C;
+    --munin-ink: #F5F4F0;
+    --munin-ink-soft: #C7C9D1;
+    --munin-ink-mute: #9297A3;
+    --munin-rule: rgba(255, 255, 255, 0.14);
+    --munin-overlay: rgba(255, 255, 255, 0.08);
+    --munin-edge: rgba(255, 255, 255, 0.14);
+    --munin-shot: #E8E4DC;
+    --munin-warn-bg: rgba(234, 88, 12, 0.18);
+    --munin-warn-fg: #FDBA74;
+    --munin-danger: #F87171;
+`;
+
+const DARK_MODE_CSS = String.raw`
+:host([data-scheme='dark']) {
+${DARK_VARS}
+}
+:host([data-scheme='dark']) .root { color-scheme: dark; }
+@media (prefers-color-scheme: dark) {
+  :host([data-scheme='auto']) {
+${DARK_VARS}
+  }
+  :host([data-scheme='auto']) .root { color-scheme: dark; }
+}
+`;
 
 const BASE_CSS = String.raw`
 :host {
   --munin-theme: #0066FF;
   --munin-theme-fg: #FBFAF7;
+
+  --munin-chrome: #0F1419;
+  --munin-chrome-fg: #FBFAF7;
+  --munin-chrome-danger: #F87171;
+  --munin-header: var(--munin-chrome);
+  --munin-header-fg: var(--munin-chrome-fg);
+  --munin-launcher: var(--munin-chrome);
+  --munin-launcher-fg: var(--munin-chrome-fg);
+
   --munin-bone: #E8E4DC;
   --munin-paper: #FBFAF7;
   --munin-paper-deep: #F0EEE8;
@@ -13,6 +56,12 @@ const BASE_CSS = String.raw`
   --munin-ink-soft: #3D424A;
   --munin-ink-mute: #7E8590;
   --munin-rule: rgba(15, 20, 25, 0.18);
+  --munin-overlay: rgba(15, 20, 25, 0.06);
+  --munin-edge: rgba(15, 20, 25, 0.08);
+  --munin-shot: #FFFFFF;
+  --munin-warn-bg: #FFF7ED;
+  --munin-warn-fg: #9A3412;
+  --munin-danger: #B91C1C;
 
   --munin-serif: 'Munin Serif', ui-serif, 'Iowan Old Style', Georgia, serif;
   --munin-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
@@ -20,7 +69,6 @@ const BASE_CSS = String.raw`
 
   font-family: var(--munin-sans);
   color: var(--munin-ink);
-  color-scheme: light;
 }
 
 .root {
@@ -31,6 +79,7 @@ const BASE_CSS = String.raw`
   font-size: 13.5px;
   line-height: 1.4;
   color: var(--munin-ink);
+  color-scheme: light;
 }
 .root[data-position='bottom-right'] { right: 24px; }
 .root[data-position='bottom-left']  { left:  24px; }
@@ -52,8 +101,8 @@ button {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: var(--munin-ink);
-  color: var(--munin-paper);
+  background: var(--munin-launcher);
+  color: var(--munin-launcher-fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -112,7 +161,7 @@ button {
   box-shadow:
     0 24px 64px rgba(15, 20, 25, 0.22),
     0 6px 18px rgba(15, 20, 25, 0.10),
-    inset 0 0 0 1px rgba(15, 20, 25, 0.08);
+    inset 0 0 0 1px var(--munin-edge);
   width: 400px;
   height: 640px;
   max-width: calc(100vw - 48px);
@@ -136,15 +185,15 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 16px 18px;
-  background: var(--munin-ink);
-  color: var(--munin-paper);
+  background: var(--munin-header);
+  color: var(--munin-header-fg);
   flex-shrink: 0;
 }
 .panel-head-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .panel-head-mark {
   width: 30px; height: 30px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--munin-header-fg) 8%, transparent);
   display: inline-flex; align-items: center; justify-content: center;
 }
 .panel-head-mark svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
@@ -164,7 +213,7 @@ button {
   font-size: 9px;
   letter-spacing: .14em;
   text-transform: uppercase;
-  color: rgba(251, 250, 247, 0.6);
+  color: color-mix(in srgb, var(--munin-header-fg) 60%, transparent);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -173,23 +222,23 @@ button {
   width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--munin-theme);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--munin-header-fg) 8%, transparent);
 }
 .panel-head-right { display: flex; gap: 4px; }
 .icon-btn {
   width: 28px; height: 28px;
   border-radius: 6px;
-  color: rgba(251, 250, 247, 0.6);
+  color: color-mix(in srgb, var(--munin-header-fg) 60%, transparent);
   display: inline-flex; align-items: center; justify-content: center;
 }
-.icon-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--munin-paper); }
+.icon-btn:hover { background: color-mix(in srgb, var(--munin-header-fg) 8%, transparent); color: var(--munin-header-fg); }
 .icon-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
 
 /* ─── Status banner ──────────────────────────────────── */
 .status {
   padding: 6px 14px;
-  background: #FFF7ED;
-  color: #9A3412;
+  background: var(--munin-warn-bg);
+  color: var(--munin-warn-fg);
   font-size: 12px;
   border-bottom: 1px solid var(--munin-rule);
 }
@@ -345,8 +394,8 @@ button {
   border-radius: 3px;
 }
 .tag-open { background: color-mix(in srgb, var(--munin-theme) 12%, transparent); color: var(--munin-theme); }
-.tag-closed { background: rgba(15, 20, 25, 0.06); color: var(--munin-ink-mute); }
-.tag-snoozed { background: rgba(15, 20, 25, 0.06); color: var(--munin-ink-soft); }
+.tag-closed { background: var(--munin-overlay); color: var(--munin-ink-mute); }
+.tag-snoozed { background: var(--munin-overlay); color: var(--munin-ink-soft); }
 .past-when {
   font-family: var(--munin-mono);
   font-size: 9px;
@@ -476,14 +525,14 @@ button {
 .bubble code {
   font-family: var(--munin-mono);
   font-size: 12px;
-  background: rgba(15, 20, 25, 0.06);
+  background: var(--munin-overlay);
   padding: 1px 5px;
   border-radius: 4px;
 }
 .bubble pre {
   margin: 6px 0 0;
   padding: 8px 10px;
-  background: rgba(15, 20, 25, 0.06);
+  background: var(--munin-overlay);
   border-radius: 6px;
   overflow-x: auto;
   font-family: var(--munin-mono);
@@ -634,7 +683,7 @@ button {
   letter-spacing: 0.04em;
   color: var(--munin-ink-mute);
 }
-.counter.over { color: #B91C1C; }
+.counter.over { color: var(--munin-danger); }
 .send {
   width: 38px;
   height: 38px;
@@ -681,8 +730,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: var(--munin-ink);
-  color: var(--munin-paper);
+  background: var(--munin-chrome);
+  color: var(--munin-chrome-fg);
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   padding: 9px 16px;
@@ -709,8 +758,8 @@ button {
   background: #E0A93B;
   animation: none;
 }
-.voice-banner[data-state='error'] .voice-banner-dot { background: #B91C1C; animation: none; }
-.voice-banner-timer { color: var(--munin-paper); font-variant-numeric: tabular-nums; }
+.voice-banner[data-state='error'] .voice-banner-dot { background: var(--munin-chrome-danger); animation: none; }
+.voice-banner-timer { color: var(--munin-chrome-fg); font-variant-numeric: tabular-nums; }
 .voice-banner-muted-tag {
   margin-left: 6px;
   font-size: 9px;
@@ -724,8 +773,8 @@ button {
 .voice-call {
   position: absolute;
   inset: 0;
-  background: var(--munin-ink);
-  color: var(--munin-paper);
+  background: var(--munin-chrome);
+  color: var(--munin-chrome-fg);
   display: flex;
   flex-direction: column;
   z-index: 5;
@@ -743,7 +792,7 @@ button {
   border-radius: 6px;
   background: transparent;
 }
-.voice-call-min:hover { color: var(--munin-paper); background: rgba(255, 255, 255, 0.06); }
+.voice-call-min:hover { color: var(--munin-chrome-fg); background: rgba(255, 255, 255, 0.06); }
 .voice-call-stage {
   flex: 1;
   min-height: 0;
@@ -766,7 +815,7 @@ button {
   align-items: center;
   justify-content: center;
   margin-bottom: 6px;
-  color: var(--munin-paper);
+  color: var(--munin-chrome-fg);
 }
 .voice-call-avatar svg { width: 48px; height: 48px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 .voice-call-avatar.pulsing::before,
@@ -797,7 +846,7 @@ button {
   color: rgba(251, 250, 247, 0.7);
 }
 .voice-call-status .voice-call-sep { color: rgba(251, 250, 247, 0.35); }
-.voice-call-status .voice-call-timer { color: var(--munin-paper); font-variant-numeric: tabular-nums; }
+.voice-call-status .voice-call-timer { color: var(--munin-chrome-fg); font-variant-numeric: tabular-nums; }
 .voice-call-dot {
   width: 7px;
   height: 7px;
@@ -805,7 +854,7 @@ button {
   background: var(--munin-theme);
 }
 .voice-call-dot.blink { animation: voice-blink 1.4s ease-in-out infinite; }
-.voice-call[data-state='error'] .voice-call-dot { background: #B91C1C; animation: none; }
+.voice-call[data-state='error'] .voice-call-dot { background: var(--munin-chrome-danger); animation: none; }
 .voice-call-hint {
   max-width: 240px;
   margin-top: 6px;
@@ -824,7 +873,7 @@ button {
   flex: 0 1 110px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  color: var(--munin-paper);
+  color: var(--munin-chrome-fg);
   border-radius: 14px;
   padding: 14px 8px 12px;
   display: inline-flex;
@@ -949,7 +998,7 @@ const PRODUCT_LIST_CSS = String.raw`
   aspect-ratio: 1 / 1;
   object-fit: contain;
   border-radius: 6px;
-  background: #fff;
+  background: var(--munin-shot);
 }
 .pcard-shot-empty {
   background: var(--munin-paper-deep);

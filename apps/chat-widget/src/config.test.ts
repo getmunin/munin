@@ -36,6 +36,7 @@ describe('parseConfig', () => {
       locale: null,
       size: 'standard',
       fonts: 'bundled',
+      colorScheme: 'auto',
       showHistory: true,
     });
     expect(result.config.visitor).toBeUndefined();
@@ -144,6 +145,146 @@ describe('parseConfig', () => {
     if (!result.ok) return;
     expect(result.config.position).toBe('bottom-right');
     expect(result.warnings.some((w) => w.attr === 'data-munin-position')).toBe(true);
+  });
+
+  it('parses launcher colors and drops malformed ones with a warning', () => {
+    const el = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-launcher-color': '#6E2BD9',
+      'data-munin-launcher-icon-color': 'white',
+    });
+    const result = parseConfig(el);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.launcherColor).toBe('#6E2BD9');
+    expect(result.config.launcherIconColor).toBeUndefined();
+    expect(result.warnings.some((w) => w.attr === 'data-munin-launcher-icon-color')).toBe(true);
+  });
+
+  it('rejects hex lengths CSS cannot parse, so a color never reaches CSS as an invalid token', () => {
+    for (const bad of ['#12345', '#1234567', '#1', '#12']) {
+      const el = makeScript({
+        'data-munin-host': 'https://h.example',
+        'data-widget-key': 'mn_widget_x',
+        'data-channel-id': 'c',
+        'data-munin-header-color': bad,
+        'data-munin-theme-color': bad,
+      });
+      const result = parseConfig(el);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.config.headerColor).toBeUndefined();
+      expect(result.config.themeColor).toBe('#0066FF');
+      expect(result.warnings.some((w) => w.attr === 'data-munin-header-color')).toBe(true);
+    }
+  });
+
+  it('accepts every hex length CSS does accept', () => {
+    for (const good of ['#abc', '#abcd', '#aabbcc', '#aabbccdd']) {
+      const el = makeScript({
+        'data-munin-host': 'https://h.example',
+        'data-widget-key': 'mn_widget_x',
+        'data-channel-id': 'c',
+        'data-munin-header-color': good,
+      });
+      const result = parseConfig(el);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.config.headerColor).toBe(good);
+      expect(result.warnings).toEqual([]);
+    }
+  });
+
+  it('parses the header color and drops a malformed one with a warning', () => {
+    const el = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-header-color': '#123456',
+    });
+    const result = parseConfig(el);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.headerColor).toBe('#123456');
+
+    const bad = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-header-color': 'papayawhip',
+    });
+    const badResult = parseConfig(bad);
+    expect(badResult.ok).toBe(true);
+    if (!badResult.ok) return;
+    expect(badResult.config.headerColor).toBeUndefined();
+    expect(badResult.warnings.some((w) => w.attr === 'data-munin-header-color')).toBe(true);
+  });
+
+  it('accepts a valid data-munin-color-scheme and defaults to auto', () => {
+    const withScheme = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-color-scheme': 'dark',
+    });
+    const result = parseConfig(withScheme);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.colorScheme).toBe('dark');
+
+    const withoutScheme = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+    });
+    const defaultResult = parseConfig(withoutScheme);
+    expect(defaultResult.ok).toBe(true);
+    if (!defaultResult.ok) return;
+    expect(defaultResult.config.colorScheme).toBe('auto');
+  });
+
+  it('demotes an invalid color scheme to auto with a warning', () => {
+    const el = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-color-scheme': 'midnight',
+    });
+    const result = parseConfig(el);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.colorScheme).toBe('auto');
+    expect(result.warnings.some((w) => w.attr === 'data-munin-color-scheme')).toBe(true);
+  });
+
+  it('accepts fonts=inherit', () => {
+    const el = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-fonts': 'inherit',
+    });
+    const result = parseConfig(el);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.fonts).toBe('inherit');
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('warns on the removed fonts=system and falls back to bundled', () => {
+    const el = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-fonts': 'system',
+    });
+    const result = parseConfig(el);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.fonts).toBe('bundled');
+    expect(result.warnings.some((w) => w.attr === 'data-munin-fonts')).toBe(true);
   });
 
   it('parses visitor name + valid email; drops invalid email with warning', () => {

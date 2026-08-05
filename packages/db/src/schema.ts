@@ -908,10 +908,14 @@ export const convMessages = pgTable(
     attachments: jsonb('attachments').$type<unknown[]>().notNull().default([]),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
+    ingestedAt: timestamp('ingested_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
   },
   (t) => ({
     conversationIdx: index('conv_messages_conv_idx').on(t.conversationId, t.createdAt),
     orgIdx: index('conv_messages_org_idx').on(t.orgId),
+    ingestedIdx: index('conv_messages_ingested_idx').on(t.conversationId, t.ingestedAt),
   }),
 );
 

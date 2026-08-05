@@ -330,6 +330,24 @@ describe('ui: addMessages', () => {
     expect(bubble.textContent).toBe('<script>alert(1)</script>');
     expect(bubble.querySelector('script')).toBeNull();
   });
+
+  it('places a message delivered late but spoken earlier above the ones already rendered', () => {
+    controller!.addMessages([
+      msg({ id: 'm1', role: 'end_user', body: 'typed first', at: '2026-01-01T00:00:10.000Z' }),
+      msg({ id: 'm2', role: 'system', body: 'call ended', at: '2026-01-01T00:00:30.000Z' }),
+    ]);
+    controller!.addMessages([
+      msg({ id: 'm3', role: 'agent', body: 'spoken mid-call', at: '2026-01-01T00:00:20.000Z' }),
+      msg({ id: 'm4', role: 'agent', body: 'spoken before anything', at: '2026-01-01T00:00:05.000Z' }),
+    ]);
+    const order = $$('[data-at]').map((el) => el.getAttribute('data-at'));
+    expect(order).toEqual([
+      '2026-01-01T00:00:05.000Z',
+      '2026-01-01T00:00:10.000Z',
+      '2026-01-01T00:00:20.000Z',
+      '2026-01-01T00:00:30.000Z',
+    ]);
+  });
 });
 
 describe('ui: handover envelope', () => {

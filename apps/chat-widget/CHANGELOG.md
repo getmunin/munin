@@ -1,5 +1,94 @@
 # @getmunin/chat-widget
 
+## 4.79.0
+
+### Minor Changes
+
+- dfd3327: chat widget: `data-munin-fonts="inherit"` really adopts the page's typography, and the launcher bubble is themeable
+
+  `data-munin-fonts` used to accept `"system"`, which did nothing to the type stack: `buildWidgetCss()`
+  discarded its argument, so the only effect was skipping the `@font-face` injection and letting
+  `'Munin Serif'` / `'Munin Mono'` fall through to `ui-serif` / `ui-monospace`. The widget still rendered
+  serif headings and mono labels, and never picked up the host page's font — `all: initial` on the shadow
+  host plus `font-family: var(--munin-sans)` on `:host` made that impossible.
+
+  `"system"` is replaced by `"inherit"`, which does what the name says: no webfonts are downloaded and
+  every string in the panel renders in the `font-family` the page applies to `<body>`. Sizes, weights and
+  italics are unchanged. `"bundled"` remains the default and the designed look. An embed still passing
+  `data-munin-fonts="system"` logs the usual console warning and falls back to `"bundled"`.
+
+  The launcher bubble was hardcoded to the near-black ink of the panel header, with `data-munin-theme-color`
+  only reaching the badge, links, send button and visitor bubbles. Two new attributes fix that:
+  `data-munin-launcher-color` fills the bubble and `data-munin-launcher-icon-color` overrides the glyph.
+  Given only a bubble color, the glyph picks whichever of ink/paper contrasts better — the same pick now
+  also drives `--munin-theme-fg`, so a light `data-munin-theme-color` no longer paints near-white text on
+  visitor bubbles.
+
+  Three more gaps closed in the same pass:
+
+  - **`data-munin-header-color`** themes the panel's top bar (org name + close button) the same way
+    `data-munin-launcher-color` themes the bubble — auto-contrast text/icon, defaults to the same fixed
+    chrome tone.
+  - **`data-munin-color-scheme`** (`auto` default, `light`, `dark`) gives the panel a real dark mode.
+    `auto` follows `prefers-color-scheme` live; `light`/`dark` pin it regardless of the visitor's OS
+    setting. Only the panel body (welcome/chat/composer/cards/bubbles) inverts — the launcher, header bar
+    and voice-call screen keep their fixed near-black chrome in every mode (introduced `--munin-chrome`/
+    `--munin-chrome-fg`, decoupled from the `--munin-ink`/`--munin-paper` pair that now flips per scheme)
+    so brand-color and dark-mode customization don't fight each other.
+  - **`window.mn.widget`** exposes `open()`/`close()`/`toggle()`/`isOpen()` once the script has run, so a
+    site's own "Chat with us" link (or a proactive prompt) can drive the panel instead of requiring a click
+    on the launcher bubble. It's one global, so with two embeds on a page it stays bound to whichever
+    mounted first and the second warns instead of silently stealing an already-wired control surface.
+
+  Two latent bugs found while reviewing the above, both verified in a browser rather than from the source:
+
+  - `color-scheme` was declared on `:host`, where the shadow host's inline `style="all: initial"` outranks
+    it — so it computed to `normal` and every UA-rendered surface inside the panel (scrollbar track/thumb
+    where scrollbars aren't overlay-style, autofill styling) stayed in light mode even with the panel fully
+    dark. It now sits on `.root`, which the inline reset can't reach. The pre-existing `color-scheme: light`
+    was inert for the same reason.
+  - `HEX_COLOR` accepted `{3,8}` hex digits, including the 5- and 7-digit lengths CSS rejects. A typo'd
+    `data-munin-header-color="#12345"` passed validation without a warning, reached CSS as an invalid token,
+    and resolved to a _transparent_ header — near-white auto-contrast text on the near-white panel, so the
+    org name and close button both became invisible. Now `{3,4}|{6}|{8}` only, so a bad value warns and
+    falls back like every other malformed attribute.
+
+  The panel's edge also moved to a `--munin-edge` token that inverts to a light hairline in dark mode; the
+  only edge treatment was an `inset … rgba(15, 20, 25, 0.08)` hairline plus dark drop shadows, which made
+  the panel dissolve entirely into a host page whose background was near `#1B1D22`. Light mode is
+  byte-identical.
+
+  Two more hardcoded colors became tokens, on opposite sides of the chrome/body split:
+
+  - The two voice `[data-state='error']` dots used `#B91C1C` on the always-dark chrome — 2.8:1 against
+    `#0F1419`, too weak for a 7px status dot. They now use a `--munin-chrome-danger` that is deliberately
+    _not_ scheme-flipped (`#F87171`, ~6.6:1) because the surface under them never flips. Body-scoped
+    `--munin-danger` still inverts per scheme for `.counter.over`.
+  - `.pcard-shot` hardcoded `background: #fff`, a blinding tile in a dark panel. It's now `--munin-shot`:
+    `#FFFFFF` in light, `#E8E4DC` in dark. It stays a _light_ tile in both because `object-fit: contain`
+    letterboxes product photography that overwhelmingly assumes white — a dark tile would make
+    transparent-PNG product art disappear and leave white-background JPEGs sitting in a bright rectangle.
+    The `.pcard-shot-empty` placeholder is unaffected and still follows the scheme.
+
+### Patch Changes
+
+- 068fb46: Show voice transcript turns in the order they were spoken.
+
+  Threll redelivers the full call transcript as a burst of `call.transcript` events around `call.ended`, and on a browser voice call that burst is the only delivery — no turns stream in live. Munin handled each webhook the instant it arrived, so nothing was delayed on our side, but `conv_messages.created_at` was left to its `now()` default and so recorded when the webhook was _processed_, not when the turn was spoken. Every read path orders by `created_at`, so a burst that arrived grouped by speaker rendered as every agent turn followed by every caller turn. A real call in the widget produced exactly that.
+
+  `ThrellAdapter` now derives `created_at` from the `turnIndex` Threll already sends, anchored to the call's start (`metadata.voiceStartedAt`, falling back to the conversation's own `created_at` for inbound phone calls). `turnIndex` was already being captured into `metadata.voiceTurnIndex` and never read. It also makes the timestamp idempotent across redeliveries: the turn dedup added alongside this keeps whichever copy inserted first, and an arrival-time `created_at` meant that copy decided where the turn sorted. `handleEnded` no longer deletes `voiceStartedAt`: transcripts and `call.ended` arrive in the same burst with retries, so a straggler processed after the call closed would otherwise re-anchor to a conversation that opened days earlier and scatter those turns through the chat history. Nothing reads the field, so keeping it is free.
+
+  Backdating `created_at` collided with the widget's incremental fetch, which is the only way a rendered conversation ever gains a message: the realtime event carries no body, it just triggers `backfillSince(lastSeenAt)`, and `lastSeenAt` is a monotonic high-water mark. The "Call ended · 00:36" separator is a real message inserted at real time, so it pushed the cursor past the entire call before the transcript burst landed — and every backdated turn then sat below the cursor and was never delivered at all. Ordering the rows correctly in the database would have traded a scrambled transcript for a missing one.
+
+  So `created_at` is now purely the display clock and `conv_messages.ingested_at` (default `clock_timestamp()`) is the arrival clock. The widget's `since` filter and page ordering both move to `ingested_at`, the response carries an explicit `cursor` the client advances instead of inferring one from the last message's `at`, and rows are sorted by `created_at` before serialization. `clock_timestamp()` rather than `now()` because `now()` is fixed for a transaction: a batch that inserts several turns at once — Vapi's end-of-call report does — would tie on the cursor column and let keyset pagination skip rows. The server-computed cursor also advances past a page of internal-only messages, which previously stalled the `while (hasMore)` loop.
+
+  `ui.addMessages` inserts by timestamp instead of appending, so a turn that arrives late but was spoken earlier lands in the right place without waiting for a reload.
+
+  Existing rows inherit `created_at` as their `ingested_at`. The backfill runs inside a `bypass_rls` block because `conv_messages` is FORCE ROW LEVEL SECURITY, which applies to the table owner too — without it the `UPDATE` matches nothing on a live deploy while a fresh CI database, where the policies are applied only after migrations run, looks green.
+
+  Vapi has the same display-ordering defect and is untouched here: `handleEndOfCallReport` inserts every turn of a report inside one transaction, so all of them share a `created_at` and `ORDER BY created_at` breaks ties arbitrarily.
+  - @getmunin/types@4.79.0
+
 ## 4.78.0
 
 ### Patch Changes

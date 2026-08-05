@@ -23,6 +23,7 @@ export class ConvSelfServiceTools {
     input: RequestMyHandoverInput,
     readOnlyHint: false,
     destructiveHint: true,
+    excludeChannelKinds: ['voice'],
   })
   requestMyHandover(args: z.infer<typeof RequestMyHandoverInput>) {
     return this.conv.requestHandover({ ...args, postSystemNote: false });

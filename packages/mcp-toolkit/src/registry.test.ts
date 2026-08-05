@@ -34,6 +34,20 @@ describe('McpToolRegistry', () => {
     expect(r.list().map((t) => t.meta.name)).toHaveLength(3);
   });
 
+  it('filters list by channel kind exclusion', () => {
+    const r = new McpToolRegistry();
+    r.register(meta('voice_and_chat', ['self_service']), () => 'a');
+    r.register(
+      { ...meta('chat_only', ['self_service']), excludeChannelKinds: ['voice'] },
+      () => 'b',
+    );
+
+    expect(r.list('self_service').map((t) => t.meta.name)).toEqual(['voice_and_chat', 'chat_only']);
+    expect(r.list('self_service', { channelKind: 'voice' }).map((t) => t.meta.name)).toEqual([
+      'voice_and_chat',
+    ]);
+  });
+
   it('generates JSON schema from zod input', () => {
     const r = new McpToolRegistry();
     r.register(

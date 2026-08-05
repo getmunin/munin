@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
@@ -109,6 +109,25 @@ export class ConnectorsService {
       .from(schema.connectorConnections)
       .orderBy(schema.connectorConnections.createdAt);
     return rows.map((row) => this.toDto(row));
+  }
+
+  async listActiveDomains(
+    orgId: string,
+    domains: readonly ConnectorDomain[],
+    db?: Db | Tx,
+  ): Promise<Set<ConnectorDomain>> {
+    if (domains.length === 0) return new Set();
+    const rows = await (db ?? this.requireRootDb())
+      .selectDistinct({ domain: schema.connectorConnections.domain })
+      .from(schema.connectorConnections)
+      .where(
+        and(
+          eq(schema.connectorConnections.orgId, orgId),
+          inArray(schema.connectorConnections.domain, [...domains]),
+          eq(schema.connectorConnections.active, true),
+        ),
+      );
+    return new Set(rows.map((r) => r.domain as ConnectorDomain));
   }
 
   async createConnection(

@@ -20,10 +20,14 @@ export class McpToolRegistry {
     this.byName.set(meta.name, { meta, handler, inputJsonSchema });
   }
 
-  list(audience?: Audience): RegisteredMcpTool[] {
-    const all = Array.from(this.byName.values());
-    if (!audience) return all;
-    return all.filter((t) => t.meta.audiences.includes(audience));
+  list(audience?: Audience, opts?: { channelKind?: string }): RegisteredMcpTool[] {
+    let all = Array.from(this.byName.values());
+    if (audience) all = all.filter((t) => t.meta.audiences.includes(audience));
+    if (opts?.channelKind) {
+      const channelKind = opts.channelKind;
+      all = all.filter((t) => !t.meta.excludeChannelKinds?.includes(channelKind));
+    }
+    return all;
   }
 
   get(name: string): RegisteredMcpTool | undefined {

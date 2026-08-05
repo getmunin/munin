@@ -240,7 +240,7 @@ export class VapiAdapter implements ChannelAdapter {
       const inlineAssistant = buildInlineAssistantConfig({
         baseConfig: fetched.config,
         messages,
-        tools: this.tools.buildToolList(),
+        tools: await this.tools.buildToolList(channel.orgId),
       });
 
       const body = JSON.stringify({

@@ -1,12 +1,12 @@
 ---
-title: 'Playbook: Data migration (self-host ⇄ cloud)'
-description: Move one org's data between two Munin servers (self-hosted and cloud, either direction) using the per-module export/import tools — in foreign-key order, threading the returned idMap so dependent records resolve their parents on the target.
+title: 'Playbook: Data migration (server ⇄ server)'
+description: Move one org's data between two Munin servers, either direction, using the per-module export/import tools — in foreign-key order, threading the returned idMap so dependent records resolve their parents on the target.
 audiences: [admin]
 ---
 
-# Data migration (self-host ⇄ cloud)
+# Data migration (server ⇄ server)
 
-Move an org's content from a **source** Munin server to a **target** server (self-host → cloud, cloud → self-host, or server → server). Every module exposes a symmetric `*_export` / `*_import` tool pair; this playbook sequences them.
+Move an org's content from a **source** Munin server to a **target** server, in either direction. Every module exposes a symmetric `*_export` / `*_import` tool pair; this playbook sequences them.
 
 This is a **playbook** — it composes per-module transfer tools. You run it as an agent connected to *both* servers (two MCP connections, or two admin API keys), reading from the source and writing to the target.
 

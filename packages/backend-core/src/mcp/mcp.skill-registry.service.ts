@@ -2,10 +2,10 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SkillRegistry } from '@getmunin/mcp-toolkit';
-import type { Audience } from '@getmunin/core';
+import { readApiBaseUrl, type Audience } from '@getmunin/core';
 import { loadSkills, type SkillSource } from './skill-loader.ts';
 import { inspectorAppResource } from './inspector.resource.ts';
-import { mcpResourceOrigin } from '../oauth/oauth.constants.ts';
+import { mcpResourceUrl } from '../oauth/oauth.constants.ts';
 
 @Injectable()
 export class McpSkillRegistryService extends SkillRegistry implements OnModuleInit {
@@ -21,7 +21,8 @@ export class McpSkillRegistryService extends SkillRegistry implements OnModuleIn
     this.register(inspectorAppResource());
     this.cachedInstructions = buildInstructions(
       this.list('admin').filter((s) => s.uri.startsWith('skill://')),
-      mcpResourceOrigin(),
+      readApiBaseUrl(),
+      mcpResourceUrl(),
     );
   }
 
@@ -33,14 +34,16 @@ export class McpSkillRegistryService extends SkillRegistry implements OnModuleIn
 export function buildInstructions(
   adminSkills: ReadonlyArray<{ uri: string; name: string }>,
   apiBaseUrl: string,
+  mcpUrl: string,
 ): string {
   const playbooks = adminSkills.filter((s) => s.uri.startsWith('skill://playbooks/'));
   const rest = adminSkills.filter((s) => !s.uri.startsWith('skill://playbooks/'));
   const featured = [...playbooks, ...rest].slice(0, 8);
   const lines = [
-    `This Munin tenant's API base URL is ${apiBaseUrl} — it serves /widget.js, /tracker.js,`,
-    '/v1/cms/* and this /mcp endpoint. Use it directly when scaffolding a frontend; do not ask',
-    'for it. Skill bodies have it (and your org id) pre-filled.',
+    `This Munin tenant's API base URL is ${apiBaseUrl} — it serves /widget.js, /tracker.js`,
+    'and /v1/cms/*. Use it directly when scaffolding a frontend; do not ask for it. Skill',
+    'bodies have it (and your org id) pre-filled. This MCP endpoint can live on a different',
+    `host — it is ${mcpUrl}, which is not necessarily the API base URL above.`,
     '',
     'Munin: the customer platform for the agentic era. Your tools span these modules:',
     '  • Knowledge Base (kb_*)        — articles, search, versions',

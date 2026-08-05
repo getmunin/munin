@@ -12,7 +12,7 @@ import {
 import type { Request, Response } from 'express';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
-import { AuditLogger, getCurrentContext } from '@getmunin/core';
+import { AuditLogger, getCurrentContext, readApiBaseUrl } from '@getmunin/core';
 import { createMcpServer } from '@getmunin/mcp-toolkit';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
@@ -27,7 +27,6 @@ import {
   type ErrorReporter,
 } from '../common/error-reporter/error-reporter.ts';
 import { deriveMcpAudience } from './mcp.audience.ts';
-import { mcpResourceOrigin } from '../oauth/oauth.constants.ts';
 
 @Controller('mcp')
 @UseGuards(AuthGuard, McpBurstGuard)
@@ -74,7 +73,7 @@ export class McpController {
         await this.quotas.recordCall('mcp_tool', toolName);
       },
       skills: this.skills,
-      apiBaseUrl: mcpResourceOrigin(),
+      apiBaseUrl: readApiBaseUrl(),
       instructions: this.skills.instructions(),
       captureException: (error, context) => this.errorReporter.captureException(error, context),
     });

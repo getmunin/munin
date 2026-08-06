@@ -13,6 +13,7 @@ import {
   socialCallbackUrl,
   absoluteCallbackUrl,
 } from '../../auth/post-signin-redirect';
+import { resolvePostAuthDestination } from '../../auth/setup-status';
 import { AuthShell, AuthHeading, AuthSubheading, AuthFootnote, AuthDivider } from './auth-shell';
 import { AuthEpigraph } from './auth-epigraph';
 import { ErrorAlert } from './error-alert';
@@ -90,7 +91,7 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
         window.location.assign(oauthResume);
         return;
       }
-      router.push(redirectTo);
+      router.push(redirectRaw ? redirectTo : await resolvePostAuthDestination(redirectTo));
     } catch (err) {
       turnstileRef.current?.reset();
       setError({

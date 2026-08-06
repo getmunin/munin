@@ -13,6 +13,7 @@ import {
   hasOauthAuthorizeParams,
   socialCallbackUrl,
 } from '../../auth/post-signin-redirect';
+import { resolvePostAuthDestination } from '../../auth/setup-status';
 import {
   AuthShell,
   AuthHeading,
@@ -110,7 +111,7 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
         router.push(`/setup?${params.toString()}`);
         return;
       }
-      router.push(redirectTo);
+      router.push(redirectRaw ? redirectTo : await resolvePostAuthDestination(redirectTo));
     } catch (err) {
       turnstileRef.current?.reset();
       setError(translateError(err) || tCommon('networkError'));

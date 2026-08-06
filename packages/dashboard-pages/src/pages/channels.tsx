@@ -8,7 +8,6 @@ import {
   Mail,
   MessageCircle,
   MessageSquare,
-  MoreHorizontal,
   Phone,
   RefreshCw,
 } from 'lucide-react';
@@ -17,7 +16,7 @@ import { api, ApiError } from '../api';
 import { authClient } from '../auth-client';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
-import { CardListSkeleton } from '../components/skeleton';
+import { CardGridSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { FormError, toFormError, type FormErrorDetail } from '../components/form-error';
 import { useConfirm } from '../components/confirm-dialog';
@@ -58,8 +57,9 @@ import {
   SectionHead,
   cn,
 } from '@getmunin/ui';
+import { CardGrid, CardMenu, SettingsCard, StatusLine } from '../components/card-kit';
+import { formatPhoneNumber } from '../lib/format-phone';
 import { MessageBirdLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
-import { StatusLine } from '../components/integrations/integration-card';
 
 interface ChannelDto {
   id: string;
@@ -266,6 +266,7 @@ export function ChannelsPage() {
 
   const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
   const buildLoadFailedProps = useSettingsLoadFailedProps();
+  const awaitingCredentialsCount = channels?.filter((c) => c.needsCredentials).length ?? 0;
 
   useEffect(() => {
     void tryLoad();
@@ -541,6 +542,11 @@ export function ChannelsPage() {
               ? t('channelsTitleCount', { count: channels.length })
               : t('channelsTitle')
           }
+          meta={
+            awaitingCredentialsCount > 0
+              ? t('awaitingCredentialsCount', { count: awaitingCredentialsCount })
+              : undefined
+          }
           actions={
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button size="sm" className="gap-2" />}>
@@ -571,11 +577,11 @@ export function ChannelsPage() {
         />
 
         {channels === null ? (
-          <CardListSkeleton rows={3} />
+          <CardGridSkeleton count={3} columns={3} />
         ) : channels.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
-          <ul className="space-y-3">
+          <CardGrid columns={3}>
             {channels.map((c) => (
               <ChannelRow
                 key={c.id}
@@ -629,7 +635,7 @@ export function ChannelsPage() {
                 }}
               />
             ))}
-          </ul>
+          </CardGrid>
         )}
       </section>
     </>
@@ -677,24 +683,7 @@ function ChannelRow({
   const mbSmsConfig = isMessageBirdSms
     ? (channel.config as MessageBirdSmsChannelDto['config'])
     : null;
-  const vapiConfig = isVapiVoice ? (channel.config as VapiChannelDto['config']) : null;
-  const threllConfig = isThrellVoice ? (channel.config as ThrellChannelDto['config']) : null;
   const origins = widgetConfig?.originAllowlist ?? [];
-
-  const badgeKind = channel.type;
-  const badgeLabel = isChat
-    ? t('typeChat')
-    : isTwilioSms
-      ? t('typeTwilioSms')
-      : isMessageBirdSms
-        ? t('typeMessageBirdSms')
-        : isVapiVoice
-          ? t('typeVapi')
-          : isThrellVoice
-            ? t('typeThrell')
-            : channel.type === 'email'
-              ? t('typeEmail')
-              : channel.type;
 
   const isDeactivated = !channel.active;
   const awaitingCredentials = channel.needsCredentials === true;
@@ -702,182 +691,153 @@ function ChannelRow({
     !awaitingCredentials &&
     (channel.type === 'email' || isTwilioSms || isMessageBirdSms || isVapiVoice || isThrellVoice);
 
+  const kind = isChat
+    ? t('typeChat')
+    : channel.type === 'email'
+      ? t('typeEmail')
+      : channel.type === 'sms'
+        ? t('kindSms')
+        : t('kindVoice');
+
+  const qualifier = isChat
+    ? origins.length === 0
+      ? t('anyOrigin')
+      : undefined
+    : isTwilioSms
+      ? (smsConfig?.fromNumber ? formatPhoneNumber(smsConfig.fromNumber) : undefined)
+      : isMessageBirdSms
+        ? (mbSmsConfig?.originator ? formatPhoneNumber(mbSmsConfig.originator) : undefined)
+        : undefined;
+
+  const emailIdentity = emailConfig?.addressing?.fromAddress
+    ? emailConfig.addressing.fromName
+      ? `${emailConfig.addressing.fromName} <${emailConfig.addressing.fromAddress}>`
+      : emailConfig.addressing.fromAddress
+    : null;
+
+  const description = isChat
+    ? origins.length > 0
+      ? t('descriptions.chat', { origins: origins.join(', ') })
+      : t('descriptions.chatAnyOrigin')
+    : channel.type === 'email'
+      ? emailIdentity
+        ? t('descriptions.email', { identity: emailIdentity })
+        : t('descriptions.emailGeneric')
+      : awaitingCredentials
+        ? t('descriptions.pendingCredentials')
+        : channel.type === 'sms'
+          ? t('descriptions.sms')
+          : t('descriptions.voice');
+
+  const knownVendor: ChannelVendor | null = isTwilioSms
+    ? 'twilio'
+    : isMessageBirdSms
+      ? 'messagebird'
+      : isVapiVoice
+        ? 'vapi'
+        : isThrellVoice
+          ? 'threll'
+          : null;
+
+  const vendorLabel = isChat
+    ? undefined
+    : channel.type === 'email'
+      ? (emailConfig?.outbound?.provider ?? undefined)
+      : (
+          <span className="inline-flex items-center gap-1.5">
+            {knownVendor ? <VendorLogo vendor={knownVendor} className="size-3" /> : null}
+            {channel.vendor}
+          </span>
+        );
+
+  const status = awaitingCredentials ? (
+    <StatusLine tone="pending" label={t('status.awaitingCredentials')} />
+  ) : isDeactivated ? (
+    <StatusLine tone="error" label={t('status.deactivated')} />
+  ) : (
+    <StatusLine tone="active" label={t('status.active')} />
+  );
+
+  const footerAction = isChat ? (
+    <Button variant="outline" size="sm" onClick={onShowEmbed} className="gap-1.5">
+      <Code className="size-3.5" />
+      {t('showEmbed')}
+    </Button>
+  ) : awaitingCredentials && canEnterCredentials ? (
+    <Button variant="outline" size="sm" onClick={onEnterCredentials}>
+      {t('enterCredentials.button')}
+    </Button>
+  ) : canEdit ? (
+    <Button variant="outline" size="sm" onClick={onEdit}>
+      {tCommon('edit')}
+    </Button>
+  ) : null;
+
   return (
-    <li className="border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
-      <div className="flex items-start justify-between gap-6">
-        <div className={cn('min-w-0 flex-1 space-y-3', isDeactivated && 'opacity-50')}>
-          <div className="flex items-center gap-3 flex-wrap">
-            <TypeBadge kind={badgeKind} label={badgeLabel} />
-            <h3 className="font-serif text-lg leading-none text-ink dark:text-foreground">
-              {channel.name}
-            </h3>
-            {channel.needsCredentials && (
-              <StatusLine tone="pending" label={t('status.awaitingCredentials')} />
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            {isChat ? (
-              origins.length > 0 ? (
-                origins.map((o) => <OriginChip key={o} text={o} />)
-              ) : (
-                <OriginChip text={t('anyOrigin')} muted />
-              )
-            ) : isTwilioSms ? (
-              <>
-                <VendorLogo vendor="twilio" className="size-4" />
-                {smsConfig?.fromNumber && (
-                  <span className="font-mono text-[11px] text-ink dark:text-foreground">
-                    {smsConfig.fromNumber}
-                  </span>
-                )}
-                {smsConfig?.messagingServiceSid && (
-                  <OriginChip text={t('twilioSms.messagingService', { sid: smsConfig.messagingServiceSid })} />
-                )}
-                {smsConfig?.accountSid && (
-                  <OriginChip text={t('twilioSms.accountSidChip', { sid: smsConfig.accountSid })} />
-                )}
-              </>
-            ) : isMessageBirdSms ? (
-              <>
-                <VendorLogo vendor="messagebird" className="size-4" />
-                {mbSmsConfig?.originator && (
-                  <span className="font-mono text-[11px] text-ink dark:text-foreground">
-                    {mbSmsConfig.originator}
-                  </span>
-                )}
-              </>
-            ) : isVapiVoice ? (
-              <>
-                <VendorLogo vendor="vapi" className="size-4" />
-                {vapiConfig?.assistantId && (
-                  <OriginChip text={t('vapi.assistantChip', { id: shortenId(vapiConfig.assistantId) })} />
-                )}
-                {vapiConfig?.phoneNumberId && (
-                  <OriginChip text={t('vapi.phoneChip', { id: shortenId(vapiConfig.phoneNumberId) })} />
-                )}
-              </>
-            ) : isThrellVoice ? (
-              <>
-                <VendorLogo vendor="threll" className="size-4" />
-                {threllConfig?.accountId && (
-                  <OriginChip text={t('threll.accountChip', { id: shortenId(threllConfig.accountId) })} />
-                )}
-                {threllConfig?.workerId && (
-                  <OriginChip text={t('threll.workerChip', { id: shortenId(threllConfig.workerId) })} />
-                )}
-              </>
-            ) : (
-              <>
-                {emailConfig?.addressing?.fromAddress && (
-                  <span className="font-mono text-[11px] text-ink dark:text-foreground">
-                    {emailConfig.addressing.fromName
-                      ? `${emailConfig.addressing.fromName} <${emailConfig.addressing.fromAddress}>`
-                      : emailConfig.addressing.fromAddress}
-                  </span>
-                )}
-                {emailConfig?.outbound?.provider === 'smtp' && (
-                  <OriginChip text={t('smtpServer', { host: emailConfig.outbound.host })} />
-                )}
-                {emailConfig?.inbound && <OriginChip text={t('imapPolling')} />}
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <div className="flex items-center gap-1">
-            {isChat ? (
-              <Button variant="outline" size="sm" onClick={onShowEmbed} className="gap-1.5">
-                <Code className="size-3.5" />
-                {t('showEmbed')}
-              </Button>
-            ) : canEdit ? (
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                {tCommon('edit')}
-              </Button>
-            ) : null}
-            {awaitingCredentials && canEnterCredentials && (
-              <Button variant="outline" size="sm" onClick={onEnterCredentials}>
-                {t('enterCredentials.button')}
-              </Button>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    aria-label={t('moreActions')}
-                  />
-                }
-              >
-                <MoreHorizontal className="size-3.5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {isChat && (
-                  <>
-                    <DropdownMenuItem onClick={onRotate}>
-                      {t('rotateKey')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={onRotateIdentity}>
-                      {t('rotateIdentity')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                {!awaitingCredentials && channel.type === 'email' && (
-                  <>
-                    <DropdownMenuItem onClick={onSendTest}>
-                      {t('sendTestEmail')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                {!awaitingCredentials && isTwilioSms && (
-                  <>
-                    <DropdownMenuItem onClick={onSendTest}>
-                      {t('twilioSms.sendTest')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                {!awaitingCredentials && isMessageBirdSms && (
-                  <>
-                    <DropdownMenuItem onClick={onSendTest}>
-                      {t('messageBirdSms.sendTest')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                {!awaitingCredentials && isVapiVoice && (
-                  <>
-                    <DropdownMenuItem onClick={onSendTest}>
-                      {t('vapi.placeCall')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                {!awaitingCredentials && isThrellVoice && (
-                  <>
-                    <DropdownMenuItem onClick={onSendTest}>
-                      {t('threll.placeCall')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                <DropdownMenuItem className="text-destructive" onClick={onDelete}>
-                  {t('deleteChannel')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </div>
-      {alert && (
-        <AlertFooter alert={alert} channel={channel} onActivate={onActivate} t={t} />
-      )}
-    </li>
+    <SettingsCard
+      kind={kind}
+      name={channel.name}
+      qualifier={qualifier}
+      status={status}
+      pending={awaitingCredentials}
+      footerAction={footerAction}
+      footerMeta={vendorLabel}
+      menu={
+        <CardMenu label={t('moreActions')}>
+          {isChat && (
+            <>
+              <DropdownMenuItem onClick={onRotate}>{t('rotateKey')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={onRotateIdentity}>
+                {t('rotateIdentity')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {!awaitingCredentials && channel.type === 'email' && (
+            <>
+              <DropdownMenuItem onClick={onSendTest}>{t('sendTestEmail')}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {!awaitingCredentials && isTwilioSms && (
+            <>
+              <DropdownMenuItem onClick={onSendTest}>
+                {t('twilioSms.sendTest')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {!awaitingCredentials && isMessageBirdSms && (
+            <>
+              <DropdownMenuItem onClick={onSendTest}>
+                {t('messageBirdSms.sendTest')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {!awaitingCredentials && isVapiVoice && (
+            <>
+              <DropdownMenuItem onClick={onSendTest}>{t('vapi.placeCall')}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {!awaitingCredentials && isThrellVoice && (
+            <>
+              <DropdownMenuItem onClick={onSendTest}>
+                {t('threll.placeCall')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem className="text-destructive" onClick={onDelete}>
+            {t('deleteChannel')}
+          </DropdownMenuItem>
+        </CardMenu>
+      }
+    >
+      <p className="text-[12.5px] leading-snug text-ink-mute">{description}</p>
+      {alert && <AlertFooter alert={alert} channel={channel} onActivate={onActivate} t={t} />}
+    </SettingsCard>
   );
 }
 
@@ -916,25 +876,6 @@ function AlertFooter({
         </Button>
       )}
     </div>
-  );
-}
-
-function TypeBadge({ kind, label }: { kind: 'chat' | 'email' | 'voice' | 'sms'; label: string }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow rounded',
-        kind === 'chat'
-          ? 'bg-cobalt/15 text-cobalt-deep dark:bg-cobalt-soft/20 dark:text-cobalt-soft'
-          : kind === 'sms'
-            ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100'
-            : kind === 'voice'
-              ? 'bg-violet-100 text-violet-900 dark:bg-violet-900/30 dark:text-violet-100'
-              : 'bg-auth-navy/15 text-auth-navy dark:bg-auth-navy/30 dark:text-paper',
-      )}
-    >
-      {label}
-    </span>
   );
 }
 
@@ -1003,24 +944,6 @@ function VendorPicker<V extends ChannelVendor>({
 }
 
 type TwilioSender = 'number' | 'service';
-
-function shortenId(id: string): string {
-  if (id.length <= 14) return id;
-  return `${id.slice(0, 6)}…${id.slice(-4)}`;
-}
-
-function OriginChip({ text, muted }: { text: string; muted?: boolean }) {
-  return (
-    <span
-      className={cn(
-        'inline-block border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
-        muted ? 'text-ink-mute italic' : 'text-ink dark:text-foreground',
-      )}
-    >
-      {text}
-    </span>
-  );
-}
 
 function CreateWidgetDialog({
   open,

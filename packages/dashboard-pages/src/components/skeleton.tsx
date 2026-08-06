@@ -70,3 +70,42 @@ export function CardListSkeleton({ rows = 3, className }: { rows?: number; class
     </div>
   );
 }
+
+function SettingsCardSkeleton() {
+  return (
+    <div className="flex flex-col gap-2.5 border-[1px] border-rule-soft p-4 dark:border-rule-on-dark">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-2 w-14" />
+      </div>
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="h-2.5 w-4/5" />
+      <div className="mt-2 flex items-center gap-2">
+        <Skeleton className="h-6 w-20" />
+      </div>
+    </div>
+  );
+}
+
+export function CardGridSkeleton({
+  count = 3,
+  columns = 3,
+}: {
+  count?: number;
+  columns?: 2 | 3;
+}) {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      className={cn(
+        'grid grid-cols-1 gap-3.5',
+        columns === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3',
+      )}
+    >
+      <span className="sr-only">Loading…</span>
+      {Array.from({ length: count }).map((_, i) => (
+        <SettingsCardSkeleton key={i} />
+      ))}
+    </div>
+  );
+}

@@ -1,5 +1,52 @@
 # @getmunin/dashboard-pages
 
+## 4.80.0
+
+### Minor Changes
+
+- 556e620: Redesign Channels and Trackers as card grids matching the Integrations page, and give Trackers real 7-day view stats.
+
+  Channels and Trackers rendered as full-width `<ul><li>` rows while Integrations already shipped a bordered-card grid (`IntegrationCard`/`CardMenu`/`StatusLine`/`CardGrid`), so the three settings pages didn't read as one family. `CardGrid`, `CardMenu`, and `StatusLine` move out of `components/integrations/integration-card.tsx` into a new shared `components/card-kit.tsx`, alongside a new `SettingsCard` shell: mono kind eyebrow (chat/email/SMS/voice — no logo tile, since nothing real would go in one) with the vendor logo + name demoted to footer metadata, serif name with a mono qualifier, an always-visible status line, a one-line description, and a 1.5px amber top rule for anything needing attention (awaiting credentials, never fired). A new `CardGridSkeleton` gives the loading state the same shape as the loaded grid; the Integrations page itself is visually untouched (only its internal imports move), and Channels/Trackers keep their existing `EmptyCallout`/`LoadFailed` empty and error states unchanged.
+
+  Trackers' cards also show a 7-day view count and sparkline per tracker. `analytics_view_events` previously had no way to attribute a view to a specific tracker — the ingest controller resolved the tracker from its API key but discarded the id before calling `recordView` — so this needed a small backend addition: a nullable `trackerId` column (+ index) on `analytics_view_events`, threaded through from the two ingest call sites, a new `AnalyticsService.trackerViewSummaries()` aggregation, and a dashboard-only `GET /v1/analytics/trackers/views-summary` endpoint (kept off the `analytics_*` MCP tool surface deliberately). Phone-number qualifiers (SMS `fromNumber`/`originator`) now format through `libphonenumber-js` instead of showing the raw E.164 string.
+
+- 3695371: Add a middleware-safe `@getmunin/dashboard-pages/setup-gate` entry point so every web app can gate the dashboard on onboarding without copying the rule.
+
+  `withSetupGate(handler, options)` wraps an existing next-intl middleware and returns a hard `307` to `/<locale>/setup` when the caller is an owner or admin whose org has no name or no LLM provider. Options are `locales`, `scope` (`'root'` or `'subtree'`), `exempt`, `apiUrl` and `timeoutMs`. It leaves an upstream locale redirect untouched, skips the API entirely without a session cookie or on an ungated path, and treats every unknown answer — failed read, missing membership, non-admin member — as "not incomplete", so the client-side `useDashboardGate` remains the backstop.
+
+  `isSetupIncomplete` now has a single home in `auth/setup-status.ts` with no imports of its own, shared by the gate and by `resolvePostAuthDestination` (moved to `auth/post-auth-destination.ts`). The predicate was previously duplicated in `apps/web`, which could not import it because middleware must not pull in the `'use client'` root barrel.
+
+  For a consumer whose middleware post-processes redirects — rewriting `Location` from `x-forwarded-host`, for instance — wrap the gated handler so that rewriting stays the outer layer; the setup redirect then inherits it instead of pointing at an internal host.
+
+### Patch Changes
+
+- 12d99b9: Stop the onboarding wizard clipping the focus ring on its inputs.
+
+  `Card` carries `overflow-hidden`, and `BARE_CARD` — which turns a card into a plain layout wrapper for the wizard — dropped the border, background and padding but kept the clip. With `px-0` in bare mode the input is exactly as wide as the card, so the focused input's `ring-1` box-shadow, which paints outside the border box, was cut off on the left and right while the top and bottom kept their full 2px. The effect was a focus outline that looked thinner on the vertical edges than the horizontal ones.
+
+  Bare cards clip nothing intentionally, so `BARE_CARD` now sets `overflow-visible`. This covers the workspace name, provider API key, models and website import steps.
+
+- cf10e8c: Make the API-key reveal dialog's copy control a fixed-size icon button.
+
+  The button was labelled "Copy to clipboard" and collapsed to a bare `✓` on success, so it shrank
+  from ~340px to ~70px on click and the key field snapped wider underneath it. It is now a square
+  icon button that swaps the copy glyph for a green check, with the label moved to
+  `title`/`aria-label` and an `aria-live` region announcing "Copied" — no reflow, and the key gets
+  the reclaimed width.
+
+  The key field is pinned to `h-9` to match the button exactly; it previously derived a 34px height
+  from `py-2` and sat 2px short. Moving the value into a `truncate` span means the field is no
+  longer its own overflow container, so it also carries `min-w-0 overflow-hidden` — without that it
+  cannot shrink below the key's intrinsic width and pushes the button outside the dialog.
+
+- 2d896ca: Send a freshly signed-up or signed-in owner straight to onboarding instead of routing them through the dashboard first.
+
+  `SignupForm` and `LoginForm` always pushed `/dashboard` (the `safeRedirect` fallback), and the need for onboarding was only discovered afterwards by `useDashboardGate` — two client-side API calls plus a route-bundle load later. The browser therefore sat on `/dashboard` for hundreds of milliseconds, and for seconds when the `/setup` route still had to be built, which read as "signup dropped me on the dashboard and a reload fixed it". Both forms now resolve the destination before navigating.
+
+  `resolvePostAuthDestination` falls back to `/dashboard` whenever the setup state can't be established (either read failing, no membership, a non-admin member), so `useDashboardGate` remains the backstop rather than being replaced. An explicit `?redirect=` target — invitations, deep links, the OAuth authorize resume — still wins over the setup check.
+  - @getmunin/types@4.80.0
+  - @getmunin/ui@4.80.0
+
 ## 4.79.0
 
 ### Minor Changes

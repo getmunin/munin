@@ -147,6 +147,7 @@ export { OAuthModule } from './oauth/oauth.module.ts';
 export {
   MCP_RESOURCE_PATH,
   SUPPORTED_SCOPES,
+  RESOURCE_ADVERTISED_SCOPES,
   type SupportedScope,
   mcpResourceUrl,
   authorizationServerUrl,

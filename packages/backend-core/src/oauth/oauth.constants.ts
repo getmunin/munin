@@ -33,6 +33,12 @@ export const SUPPORTED_SCOPES = [
 
 export type SupportedScope = (typeof SUPPORTED_SCOPES)[number];
 
+export const STANDARD_OIDC_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const;
+
+export const SUPPORTED_AUTH_SCOPES = [...STANDARD_OIDC_SCOPES, ...SUPPORTED_SCOPES] as const;
+
+export const RESOURCE_ADVERTISED_SCOPES = ['offline_access', ...SUPPORTED_SCOPES] as const;
+
 const DEFAULT_MCP_URL = 'http://localhost:3001/mcp';
 
 export function mcpResourceUrl(): string {

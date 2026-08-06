@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { OAuthResourceController } from './oauth-resource.controller.ts';
-import { SUPPORTED_SCOPES } from './oauth.constants.ts';
+import { RESOURCE_ADVERTISED_SCOPES, SUPPORTED_AUTH_SCOPES } from './oauth.constants.ts';
 
 describe('OAuthResourceController', () => {
   let originalUrl: string | undefined;
@@ -22,7 +22,7 @@ describe('OAuthResourceController', () => {
       resource_name: 'Munin',
       resource_logo_uri: 'https://api.example.test/icon.png',
       authorization_servers: ['https://api.example.test'],
-      scopes_supported: SUPPORTED_SCOPES,
+      scopes_supported: RESOURCE_ADVERTISED_SCOPES,
       bearer_methods_supported: ['header'],
       resource_documentation: 'https://api.example.test/docs',
       resource_indicators_supported: true,
@@ -56,5 +56,17 @@ describe('OAuthResourceController', () => {
     expect(meta.scopes_supported).toContain('kb:read');
     expect(meta.scopes_supported).toContain('conv:write');
     expect(meta.bearer_methods_supported).toEqual(['header']);
+  });
+
+  it('advertises offline_access so dynamically registered clients may request refresh tokens', () => {
+    const meta = new OAuthResourceController().metadata();
+    expect(meta.scopes_supported).toContain('offline_access');
+  });
+
+  it('advertises no scope the authorization server would reject', () => {
+    const meta = new OAuthResourceController().metadata();
+    for (const scope of meta.scopes_supported) {
+      expect(SUPPORTED_AUTH_SCOPES).toContain(scope);
+    }
   });
 });

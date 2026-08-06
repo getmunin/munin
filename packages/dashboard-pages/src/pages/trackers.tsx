@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Code, Copy, MoreHorizontal } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { Code, Copy } from 'lucide-react';
+import { useFormatter, useNow, useTranslations } from 'next-intl';
 import { CreateTrackerBody } from '@getmunin/types';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
-import { CardListSkeleton } from '../components/skeleton';
+import { CardGridSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { CopyableSecret } from '../components/copyable-secret';
 import { useConfirm } from '../components/confirm-dialog';
@@ -25,17 +25,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
   Hero,
   Input,
   Label,
   SectionHead,
   cn,
 } from '@getmunin/ui';
+import { CardGrid, CardMenu, SettingsCard, StatusLine } from '../components/card-kit';
+import { Sparkline } from '../components/sparkline';
 
 interface TrackerSummary {
   id: string;
@@ -66,6 +65,13 @@ interface RotatedKey {
   trackerKey: string;
 }
 
+interface TrackerViewSummary {
+  totalViews: number;
+  points: Array<{ day: string; views: number }>;
+}
+
+type TrackerViewSummaries = Record<string, TrackerViewSummary>;
+
 const KEY_DISPLAY_TIMEOUT_MS = 1500;
 
 export function TrackersPage() {
@@ -74,18 +80,24 @@ export function TrackersPage() {
   const translate = useTranslateError();
   const confirm = useConfirm();
   const [trackers, setTrackers] = useState<TrackerSummary[] | null>(null);
+  const [viewsSummary, setViewsSummary] = useState<TrackerViewSummaries>({});
   const [createOpen, setCreateOpen] = useState(false);
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [rotatedKey, setRotatedKey] = useState<RotatedKey | null>(null);
   const [embedFor, setEmbedFor] = useState<TrackerSummary | null>(null);
 
   const load = useCallback(async () => {
-    const res = await api<{ items: TrackerSummary[] }>('/v1/analytics/trackers');
+    const [res, summary] = await Promise.all([
+      api<{ items: TrackerSummary[] }>('/v1/analytics/trackers'),
+      api<TrackerViewSummaries>('/v1/analytics/trackers/views-summary').catch(() => ({})),
+    ]);
     setTrackers(res.items);
+    setViewsSummary(summary);
   }, []);
 
   const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
   const buildLoadFailedProps = useSettingsLoadFailedProps();
+  const neverFiredCount = trackers?.filter((tr) => !tr.lastUsedAt).length ?? 0;
 
   useEffect(() => {
     void tryLoad();
@@ -205,6 +217,9 @@ export function TrackersPage() {
               ? t('trackersTitleCount', { count: trackers.length })
               : t('trackersTitle')
           }
+          meta={
+            neverFiredCount > 0 ? t('neverFiredCount', { count: neverFiredCount }) : undefined
+          }
           actions={
             <Button size="sm" onClick={() => setCreateOpen(true)}>
               {t('addTracker')}
@@ -214,15 +229,16 @@ export function TrackersPage() {
         />
 
         {trackers === null ? (
-          <CardListSkeleton rows={3} />
+          <CardGridSkeleton count={2} columns={2} />
         ) : trackers.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
-          <ul className="space-y-3">
+          <CardGrid columns={2}>
             {trackers.map((tr) => (
               <TrackerRow
                 key={tr.id}
                 tracker={tr}
+                viewSummary={viewsSummary[tr.id] ?? null}
                 onShowEmbed={() => setEmbedFor(tr)}
                 onRotateKey={() => {
                   void rotateKey(tr);
@@ -235,7 +251,7 @@ export function TrackersPage() {
                 }}
               />
             ))}
-          </ul>
+          </CardGrid>
         )}
       </section>
     </>
@@ -244,82 +260,74 @@ export function TrackersPage() {
 
 function TrackerRow({
   tracker,
+  viewSummary,
   onShowEmbed,
   onRotateKey,
   onRotateIdentity,
   onRevoke,
 }: {
   tracker: TrackerSummary;
+  viewSummary: TrackerViewSummary | null;
   onShowEmbed: () => void;
   onRotateKey: () => void;
   onRotateIdentity: () => void;
   onRevoke: () => void;
 }) {
   const t = useTranslations('dashboard.trackers');
+  const format = useFormatter();
+  const now = useNow();
   const origins = tracker.allowedOrigins;
-  return (
-    <li className="border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper dark:bg-card px-5 py-4">
-      <div className="flex items-start justify-between gap-6">
-        <div className="min-w-0 flex-1 space-y-3">
-          <h3 className="font-serif text-lg leading-none text-ink dark:text-foreground">
-            {tracker.name}
-          </h3>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            {origins.length > 0 ? (
-              origins.map((o) => <OriginChip key={o} text={o} />)
-            ) : (
-              <OriginChip text={t('anyOrigin')} muted />
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0">
-          <Button variant="outline" size="sm" onClick={onShowEmbed} className="gap-1.5">
-            <Code className="size-3.5" />
-            {t('showEmbed')}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label={t('rotateKey')}
-                />
-              }
-            >
-              <MoreHorizontal className="size-3.5" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onRotateKey}>
-                {t('rotateKey')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onRotateIdentity}>
-                {t('rotateIdentity')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={onRevoke}>
-                {t('revoke')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </li>
+  const qualifier = origins.length > 0 ? origins[0] : t('anyOrigin');
+  const hasFired = tracker.lastUsedAt !== null;
+  const status = hasFired ? (
+    <StatusLine
+      tone="active"
+      label={t('status.receiving', {
+        time: format.relativeTime(new Date(tracker.lastUsedAt!), now),
+      })}
+    />
+  ) : (
+    <StatusLine tone="pending" label={t('status.neverFired')} />
   );
-}
+  const totalViews = viewSummary?.totalViews ?? 0;
+  const points = viewSummary?.points ?? [];
 
-function OriginChip({ text, muted }: { text: string; muted?: boolean }) {
   return (
-    <span
-      className={cn(
-        'inline-block border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-2 py-0.5 font-mono text-[11px]',
-        muted ? 'text-ink-mute italic' : 'text-ink dark:text-foreground',
-      )}
+    <SettingsCard
+      kind={t('kindWebsite')}
+      name={tracker.name}
+      qualifier={qualifier}
+      status={status}
+      pending={!hasFired}
+      footerAction={
+        <Button variant="outline" size="sm" onClick={onShowEmbed} className="gap-1.5">
+          <Code className="size-3.5" />
+          {hasFired ? t('showEmbed') : t('install')}
+        </Button>
+      }
+      menu={
+        <CardMenu label={t('moreActions')}>
+          <DropdownMenuItem onClick={onRotateKey}>{t('rotateKey')}</DropdownMenuItem>
+          <DropdownMenuItem onClick={onRotateIdentity}>{t('rotateIdentity')}</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="text-destructive" onClick={onRevoke}>
+            {t('revoke')}
+          </DropdownMenuItem>
+        </CardMenu>
+      }
     >
-      {text}
-    </span>
+      <div className="flex items-baseline gap-1.5">
+        <span className="font-serif text-[26px] leading-none tracking-tight text-ink dark:text-foreground">
+          {totalViews.toLocaleString()}
+        </span>
+        <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+          {t('viewsLabel')}
+        </span>
+      </div>
+      <div className="mt-2">
+        <Sparkline points={points} />
+      </div>
+    </SettingsCard>
   );
 }
 

@@ -1664,6 +1664,28 @@
         ]
       }
     },
+    "/v1/analytics/trackers/views-summary": {
+      "get": {
+        "operationId": "AnalyticsTrackersController_viewsSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AnalyticsTrackers"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/analytics/trackers/{id}": {
       "patch": {
         "operationId": "AnalyticsTrackersController_update",

@@ -521,7 +521,19 @@
         "deactivatedMessage": "Auto-deactivated after {threshold} failed polls",
         "failingMessage": "Inbound polling failing · {attempt}/{threshold} · auto-deactivates at {threshold}",
         "activate": "Activate",
-        "awaitingCredentials": "Awaiting credentials"
+        "awaitingCredentials": "Awaiting credentials",
+        "active": "Active",
+        "deactivated": "Deactivated"
+      },
+      "awaitingCredentialsCount": "{count} awaiting credentials",
+      "descriptions": {
+        "chat": "Live chat on {origins}.",
+        "chatAnyOrigin": "Unrestricted origins — development only.",
+        "email": "Sends as {identity}.",
+        "emailGeneric": "Sends outbound email for this workspace.",
+        "pendingCredentials": "No number assigned yet — add credentials to go live.",
+        "sms": "Inbound and outbound SMS via this number.",
+        "voice": "Answers calls and hands off to a human on request."
       },
       "enterCredentials": {
         "button": "Enter credentials",
@@ -545,6 +557,8 @@
       "typeMessageBirdSms": "MessageBird",
       "typeVapi": "Vapi",
       "typeThrell": "Threll.ai",
+      "kindSms": "SMS",
+      "kindVoice": "Voice",
       "anyOrigin": "any origin",
       "moreActions": "More actions",
       "deleteChannel": "Delete channel",
@@ -801,6 +815,15 @@
       "keyLabelIdentitySecret": "Identity verification secret",
       "identitySecretHint": "Keep this on your server. Use it to compute data-user-hash for verified visitors. Never expose it in the browser.",
       "anyOrigin": "any origin",
+      "kindWebsite": "Website",
+      "install": "Install",
+      "viewsLabel": "views · 7d",
+      "neverFiredCount": "{count} never fired",
+      "moreActions": "More actions",
+      "status": {
+        "receiving": "Receiving · last event {time}",
+        "neverFired": "Never fired — snippet not detected"
+      },
       "rotateKey": "Rotate tracker key",
       "rotateKeyConfirmTitle": "Rotate tracker key?",
       "rotateKeyConfirm": "Rotate the tracker key for {name}. The old mn_track_* key will be revoked; pages still embedding it will silently stop recording views.",

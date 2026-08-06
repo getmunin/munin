@@ -140,6 +140,7 @@ export interface RecordViewInput {
   subjectType: string;
   subjectId: string;
   source: 'pixel' | 'beacon' | 'tracker';
+  trackerId?: string | null;
   path?: string | null;
   locale?: string | null;
   referrer?: string | null;
@@ -221,6 +222,7 @@ export class AnalyticsService {
         subjectType: input.subjectType.slice(0, 32),
         subjectId: input.subjectId,
         source: input.source,
+        trackerId: input.trackerId ?? null,
         path: truncate(input.path, 512),
         locale: truncate(input.locale, 16),
         referrer: truncate(input.referrer, 512),
@@ -1038,6 +1040,55 @@ export class AnalyticsService {
       views: r.views,
       visitors: r.visitors,
     }));
+  }
+
+  async trackerViewSummaries(args: {
+    sinceDays: number;
+  }): Promise<Record<string, { totalViews: number; points: Array<{ day: string; views: number }> }>> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db.execute<{
+      trackerId: string;
+      day: Date | string;
+      views: number;
+    }>(sql`
+      WITH days AS (
+        SELECT generate_series(
+          date_trunc('day', NOW()) - ((${args.sinceDays} - 1) || ' days')::interval,
+          date_trunc('day', NOW()),
+          '1 day'::interval
+        )::date AS day
+      ),
+      grid AS (
+        SELECT t.id AS tracker_id, d.day
+        FROM analytics_trackers t
+        CROSS JOIN days d
+        WHERE t.org_id = ${actor.orgId}
+      ),
+      counts AS (
+        SELECT tracker_id, date_trunc('day', created_at)::date AS day, COUNT(*)::int AS views
+        FROM analytics_view_events
+        WHERE org_id = ${actor.orgId}
+          AND tracker_id IS NOT NULL
+          AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
+        GROUP BY 1, 2
+      )
+      SELECT g.tracker_id AS "trackerId", g.day, COALESCE(c.views, 0)::int AS views
+      FROM grid g
+      LEFT JOIN counts c ON c.tracker_id = g.tracker_id AND c.day = g.day
+      ORDER BY g.tracker_id, g.day ASC
+    `);
+    const summaries: Record<
+      string,
+      { totalViews: number; points: Array<{ day: string; views: number }> }
+    > = {};
+    for (const r of rows) {
+      const day = typeof r.day === 'string' ? r.day : r.day.toISOString().slice(0, 10);
+      const entry = (summaries[r.trackerId] ??= { totalViews: 0, points: [] });
+      entry.points.push({ day, views: r.views });
+      entry.totalViews += r.views;
+    }
+    return summaries;
   }
 
   async subjectEngagement(args: {

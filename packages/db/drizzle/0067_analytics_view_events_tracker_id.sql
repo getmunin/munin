@@ -1,0 +1,3 @@
+ALTER TABLE "analytics_view_events" ADD COLUMN "tracker_id" text;--> statement-breakpoint
+ALTER TABLE "analytics_view_events" ADD CONSTRAINT "analytics_view_events_tracker_id_analytics_trackers_id_fk" FOREIGN KEY ("tracker_id") REFERENCES "public"."analytics_trackers"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "analytics_view_events_tracker_idx" ON "analytics_view_events" USING btree ("org_id","tracker_id","created_at");

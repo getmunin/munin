@@ -525,6 +525,8 @@
       "typeMessageBirdSms": "MessageBird",
       "typeVapi": "Vapi",
       "typeThrell": "Threll.ai",
+      "kindSms": "SMS",
+      "kindVoice": "Stemme",
       "anyOrigin": "alle opphav",
       "moreActions": "Flere handlinger",
       "deleteChannel": "Slett kanal",
@@ -548,7 +550,19 @@
         "deactivatedMessage": "Auto-deaktivert etter {threshold} feilede henteforsøk",
         "failingMessage": "Innkommende henting feiler · {attempt}/{threshold} · deaktiveres ved {threshold}",
         "activate": "Aktiver",
-        "awaitingCredentials": "Venter på tilgang"
+        "awaitingCredentials": "Venter på tilgang",
+        "active": "Aktiv",
+        "deactivated": "Deaktivert"
+      },
+      "awaitingCredentialsCount": "{count} venter på tilgang",
+      "descriptions": {
+        "chat": "Live chat på {origins}.",
+        "chatAnyOrigin": "Uten opphavsbegrensning — kun for utvikling.",
+        "email": "Sender som {identity}.",
+        "emailGeneric": "Sender utgående e-post for dette arbeidsområdet.",
+        "pendingCredentials": "Ikke tildelt nummer ennå — legg inn tilgang for å aktivere.",
+        "sms": "Inn- og utgående SMS via dette nummeret.",
+        "voice": "Svarer anrop og setter over til et menneske ved behov."
       },
       "enterCredentials": {
         "button": "Legg inn tilgang",
@@ -801,6 +815,15 @@
       "keyLabelIdentitySecret": "Identitetshemmelighet",
       "identitySecretHint": "Hold denne på server-siden. Bruk den til å beregne data-user-hash for verifiserte besøkende. Aldri eksponer i nettleseren.",
       "anyOrigin": "alle opphav",
+      "kindWebsite": "Nettsted",
+      "install": "Installer",
+      "viewsLabel": "visninger · 7 dager",
+      "neverFiredCount": "{count} har aldri utløst",
+      "moreActions": "Flere handlinger",
+      "status": {
+        "receiving": "Mottar · siste hendelse {time}",
+        "neverFired": "Har aldri utløst — snutt ikke oppdaget"
+      },
       "rotateKey": "Roter sporingsnøkkel",
       "rotateKeyConfirmTitle": "Roter sporingsnøkkel?",
       "rotateKeyConfirm": "Roter sporingsnøkkelen for {name}. Den gamle mn_track_*-nøkkelen blir trukket tilbake; sider som fortsatt bruker den slutter å registrere visninger uten varsel.",

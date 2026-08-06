@@ -1,5 +1,43 @@
 # @getmunin/backend-core
 
+## 4.80.0
+
+### Minor Changes
+
+- 556e620: Redesign Channels and Trackers as card grids matching the Integrations page, and give Trackers real 7-day view stats.
+
+  Channels and Trackers rendered as full-width `<ul><li>` rows while Integrations already shipped a bordered-card grid (`IntegrationCard`/`CardMenu`/`StatusLine`/`CardGrid`), so the three settings pages didn't read as one family. `CardGrid`, `CardMenu`, and `StatusLine` move out of `components/integrations/integration-card.tsx` into a new shared `components/card-kit.tsx`, alongside a new `SettingsCard` shell: mono kind eyebrow (chat/email/SMS/voice — no logo tile, since nothing real would go in one) with the vendor logo + name demoted to footer metadata, serif name with a mono qualifier, an always-visible status line, a one-line description, and a 1.5px amber top rule for anything needing attention (awaiting credentials, never fired). A new `CardGridSkeleton` gives the loading state the same shape as the loaded grid; the Integrations page itself is visually untouched (only its internal imports move), and Channels/Trackers keep their existing `EmptyCallout`/`LoadFailed` empty and error states unchanged.
+
+  Trackers' cards also show a 7-day view count and sparkline per tracker. `analytics_view_events` previously had no way to attribute a view to a specific tracker — the ingest controller resolved the tracker from its API key but discarded the id before calling `recordView` — so this needed a small backend addition: a nullable `trackerId` column (+ index) on `analytics_view_events`, threaded through from the two ingest call sites, a new `AnalyticsService.trackerViewSummaries()` aggregation, and a dashboard-only `GET /v1/analytics/trackers/views-summary` endpoint (kept off the `analytics_*` MCP tool surface deliberately). Phone-number qualifiers (SMS `fromNumber`/`originator`) now format through `libphonenumber-js` instead of showing the raw E.164 string.
+
+### Patch Changes
+
+- 12dce01: Advertise `offline_access` in the protected-resource metadata so Claude Code can authenticate.
+
+  `/.well-known/oauth-protected-resource` listed only the Munin permission scopes. The MCP SDK
+  uses that list verbatim as the `scope` of its dynamic client registration (SEP-835 scope
+  selection), so the resulting OAuth client was stored without `offline_access`. Claude Code then
+  requested `offline_access` at `/auth/oauth2/authorize` to obtain a refresh token, and Better
+  Auth validates the requested scopes against the _client's_ registered scopes before falling back
+  to the server-wide list — so the browser landed on `invalid_scope: The following scopes are
+invalid: offline_access`. claude.ai was unaffected because it registers without a `scope`, which
+  defaults the client to the full server-wide list.
+
+  The two metadata documents now derive from one source: `STANDARD_OIDC_SCOPES`,
+  `SUPPORTED_AUTH_SCOPES` and the new `RESOURCE_ADVERTISED_SCOPES` all live in
+  `oauth.constants.ts`, and a test asserts the resource metadata never advertises a scope the
+  authorization server would reject.
+
+- Updated dependencies [556e620]
+- Updated dependencies [05dd500]
+  - @getmunin/db@4.80.0
+  - @getmunin/agent-runtime@4.80.0
+  - @getmunin/inspector-app@4.80.0
+  - @getmunin/core@4.80.0
+  - @getmunin/mcp-toolkit@4.80.0
+  - @getmunin/types@4.80.0
+  - @getmunin/emails@4.80.0
+
 ## 4.79.0
 
 ### Minor Changes

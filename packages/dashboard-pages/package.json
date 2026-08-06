@@ -18,6 +18,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
+    "./setup-gate": "./src/setup-gate.ts",
     "./messages/*.json": "./src/messages/*.json"
   },
   "files": [

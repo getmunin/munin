@@ -18,13 +18,19 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
 import { AnalyticsAdminTools } from '../modules/analytics/analytics.tools.ts';
+import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
+
+const VIEWS_SUMMARY_SINCE_DAYS = 7;
 
 @Controller('v1/analytics/trackers')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 @RequireRole('owner', 'admin')
 export class AnalyticsTrackersController {
-  constructor(private readonly tools: AnalyticsAdminTools) {}
+  constructor(
+    private readonly tools: AnalyticsAdminTools,
+    private readonly analytics: AnalyticsService,
+  ) {}
 
   @Get()
   async list(): Promise<{
@@ -32,6 +38,11 @@ export class AnalyticsTrackersController {
   }> {
     const items = await this.tools.listTrackers({ includeRevoked: false });
     return { items };
+  }
+
+  @Get('views-summary')
+  async viewsSummary(): Promise<Awaited<ReturnType<AnalyticsService['trackerViewSummaries']>>> {
+    return this.analytics.trackerViewSummaries({ sinceDays: VIEWS_SUMMARY_SINCE_DAYS });
   }
 
   @Post()

@@ -8,7 +8,8 @@ import { notify } from '../../lib/notify';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useConfirm } from '../confirm-dialog';
 import { CardSkeleton } from '../skeleton';
-import { CardGrid, CardMenu, IntegrationCard, SectionHeading, StatusLine } from './integration-card';
+import { CardGrid, CardMenu, StatusLine } from '../card-kit';
+import { IntegrationCard, SectionHeading } from './integration-card';
 import { NativeSelect } from '../native-select';
 import { dialogLabelClass } from '../../lib/dialog-style';
 

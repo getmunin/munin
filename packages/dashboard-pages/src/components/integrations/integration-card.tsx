@@ -1,13 +1,6 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { MoreHorizontal } from 'lucide-react';
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@getmunin/ui';
 import { VendorIcon } from './vendor-catalog';
 
 export function SectionHeading({
@@ -31,12 +24,6 @@ export function SectionHeading({
         </span>
       ) : null}
     </div>
-  );
-}
-
-export function CardGrid({ children }: { children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
   );
 }
 
@@ -74,51 +61,5 @@ export function IntegrationCard({
       <p className="flex-1 text-[13px] leading-snug text-ink-mute">{description}</p>
       <div className="flex flex-wrap items-center gap-2">{footer}</div>
     </div>
-  );
-}
-
-export function CardMenu({
-  label,
-  disabled,
-  children,
-}: {
-  label: string;
-  disabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button variant="ghost" size="icon-sm" aria-label={label} disabled={disabled} />
-        }
-      >
-        <MoreHorizontal className="size-3.5" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-export function StatusLine({
-  label,
-  tone = 'active',
-}: {
-  label: string;
-  tone?: 'active' | 'pending' | 'error' | 'inactive';
-}) {
-  const color =
-    tone === 'error'
-      ? 'text-destructive'
-      : tone === 'pending'
-        ? 'text-amber-600 dark:text-amber-400'
-        : tone === 'inactive'
-          ? 'text-ink-mute'
-          : 'text-cobalt';
-  return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] ${color}`}>
-      <span className="size-[5px] rounded-full bg-current" />
-      {label}
-    </span>
   );
 }

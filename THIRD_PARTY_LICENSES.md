@@ -22404,17 +22404,6 @@ SOFTWARE.
 
 ---
 
-## eastasianwidth@0.2.0
-
-> Get East Asian Width from a character.
-- Homepage: https://github.com/komagata/eastasianwidth#readme
-- Author: Masaki Komagata
-- License: MIT
-
-_No LICENSE file shipped in the package; refer to homepage above._
-
----
-
 ## eciesjs@0.4.18
 
 > Elliptic Curve Integrated Encryption Scheme for secp256k1/curve25519
@@ -22498,7 +22487,7 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 
 ---
 
-## emoji-regex@8.0.0, 9.2.2, 10.6.0
+## emoji-regex@8.0.0, 10.6.0
 
 > A regular expression to match all Emoji-only symbols as per the Unicode Standard.
 - Homepage: https://mths.be/emoji-regex
@@ -28113,6 +28102,40 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+```
+
+---
+
+## libphonenumber-js@1.13.10
+
+> A simpler (and smaller) rewrite of Google Android's libphonenumber library in javascript
+- Homepage: https://gitlab.com/catamphetamine/libphonenumber-js#readme
+- Author: catamphetamine
+- License: MIT
+
+```
+(The MIT License)
+
+Copyright (c) 2016 @catamphetamine <purecatamphetamine@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+'Software'), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ---
@@ -37099,7 +37122,7 @@ IN THE SOFTWARE.
 
 ---
 
-## string-width@4.2.3, 5.1.2, 7.2.0
+## string-width@4.2.3, 7.2.0
 
 > Get the visual width of a string - the number of columns required to display it
 - Homepage: https://github.com/sindresorhus/string-width#readme

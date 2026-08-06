@@ -13,7 +13,7 @@ import {
   hasOauthAuthorizeParams,
   socialCallbackUrl,
 } from '../../auth/post-signin-redirect';
-import { resolvePostAuthDestination } from '../../auth/setup-status';
+import { resolvePostAuthDestination } from '../../auth/post-auth-destination';
 import {
   AuthShell,
   AuthHeading,

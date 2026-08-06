@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Copy } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
@@ -325,6 +325,7 @@ function MintKeyDialog({
 }
 
 function KeyReveal({ value, copyLabel }: { value: string; copyLabel: string }) {
+  const tCommon = useTranslations('common');
   const [copied, setCopied] = useState(false);
   function copy() {
     void navigator.clipboard.writeText(value).then(() => {
@@ -332,15 +333,29 @@ function KeyReveal({ value, copyLabel }: { value: string; copyLabel: string }) {
       setTimeout(() => setCopied(false), 1500);
     });
   }
+  const label = copied ? tCommon('copied') : copyLabel;
   return (
     <div className="flex items-center gap-2">
-      <code className="flex-1 truncate border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-3 py-2 font-mono text-xs text-ink dark:text-foreground">
-        {value}
+      <code className="flex h-9 min-w-0 flex-1 items-center overflow-hidden border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-3 font-mono text-xs text-ink dark:text-foreground">
+        <span className="min-w-0 truncate">{value}</span>
       </code>
-      <Button variant="outline" size="sm" onClick={copy} className="gap-1.5">
-        <Copy className="size-3.5" />
-        {copied ? '✓' : copyLabel}
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={copy}
+        title={label}
+        aria-label={label}
+        className="shrink-0"
+      >
+        {copied ? (
+          <Check className="size-4 text-emerald-600 dark:text-emerald-400" />
+        ) : (
+          <Copy className="size-4" />
+        )}
       </Button>
+      <span aria-live="polite" className="sr-only">
+        {copied ? tCommon('copied') : ''}
+      </span>
     </div>
   );
 }

@@ -1602,9 +1602,6 @@ export const analyticsViewEvents = pgTable(
       .references(() => orgs.id, { onDelete: 'cascade' }),
     subjectType: varchar('subject_type', { length: 32 }).notNull(),
     subjectId: text('subject_id').notNull(),
-    // Set only when source = 'tracker': which analytics tracker recorded this
-    // event, so per-tracker view stats can be aggregated. NULL for pixel/beacon
-    // events and for tracker events recorded before this column existed.
     trackerId: text('tracker_id').references(() => analyticsTrackers.id, {
       onDelete: 'set null',
     }),

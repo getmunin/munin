@@ -185,6 +185,76 @@ const skipReason = TEST_URL
     expect(await countTrackerEvents(db, orgId)).toBe(beforeBad);
   }, 30_000);
 
+  it('attributes ingested views to their tracker and summarizes them per tracker over 7 days', async () => {
+    const alpha = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'views summary alpha' },
+        }),
+      ),
+    );
+    const beta = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'views summary beta' },
+        }),
+      ),
+    );
+
+    const before = await countTrackerEvents(db, orgId);
+    for (const visitorId of ['summary-alpha-1', 'summary-alpha-2']) {
+      const beacon = await fetch(`${baseUrl}/v1/a/t`, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({
+          key: alpha.trackerKey,
+          subjectType: 'page',
+          subjectId: '/summary-alpha',
+          visitorId,
+        }),
+      });
+      expect(beacon.status).toBe(204);
+    }
+    const pixel = await fetch(
+      `${baseUrl}/v1/a/t/${beta.trackerKey}.gif?s=/summary-beta&t=page&v=summary-beta-1`,
+    );
+    expect(pixel.status).toBe(200);
+    await waitFor(async () => (await countTrackerEvents(db, orgId)) >= before + 3);
+
+    const attributed = await db
+      .select({
+        visitorId: schema.analyticsViewEvents.visitorId,
+        trackerId: schema.analyticsViewEvents.trackerId,
+      })
+      .from(schema.analyticsViewEvents)
+      .where(sql`org_id = ${orgId} AND visitor_id LIKE 'summary-%'`);
+    expect(attributed).toHaveLength(3);
+    expect(
+      attributed
+        .filter((r) => r.visitorId?.startsWith('summary-alpha'))
+        .every((r) => r.trackerId === alpha.id),
+    ).toBe(true);
+    expect(
+      attributed.find((r) => r.visitorId === 'summary-beta-1')?.trackerId,
+    ).toBe(beta.id);
+
+    const res = await fetch(`${baseUrl}/v1/analytics/trackers/views-summary`, {
+      headers: { Authorization: `Bearer ${adminKey}` },
+    });
+    expect(res.status).toBe(200);
+    const summary = (await res.json()) as Record<
+      string,
+      { totalViews: number; points: Array<{ day: string; views: number }> }
+    >;
+    expect(summary[alpha.id]?.totalViews).toBe(2);
+    expect(summary[beta.id]?.totalViews).toBe(1);
+    expect(summary[alpha.id]?.points).toHaveLength(7);
+    expect(summary[alpha.id]?.points.at(-1)?.views).toBe(2);
+    expect(summary[beta.id]?.points.at(-1)?.views).toBe(1);
+  }, 30_000);
+
   it('viewId enrichment keeps one row per view and never overwrites attribution', async () => {
     const minted = await withClient(adminKey, async (c) =>
       parseToolResult<{ id: string; trackerKey: string }>(

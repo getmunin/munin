@@ -729,13 +729,23 @@ function ChannelRow({
           ? t('descriptions.sms')
           : t('descriptions.voice');
 
+  const knownVendor: ChannelVendor | null = isTwilioSms
+    ? 'twilio'
+    : isMessageBirdSms
+      ? 'messagebird'
+      : isVapiVoice
+        ? 'vapi'
+        : isThrellVoice
+          ? 'threll'
+          : null;
+
   const vendorLabel = isChat
     ? undefined
     : channel.type === 'email'
       ? (emailConfig?.outbound?.provider ?? undefined)
       : (
           <span className="inline-flex items-center gap-1.5">
-            <VendorLogo vendor={channel.vendor as ChannelVendor} className="size-3" />
+            {knownVendor ? <VendorLogo vendor={knownVendor} className="size-3" /> : null}
             {channel.vendor}
           </span>
         );

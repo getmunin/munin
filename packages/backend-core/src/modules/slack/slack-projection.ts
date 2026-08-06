@@ -109,7 +109,7 @@ export interface SpeakerIdentity {
 }
 
 export function avatarKey(name: string | null): string {
-  const initial = (name ?? '').match(/[A-Za-z0-9]/)?.[0];
+  const initial = (name ?? '').match(/[A-Za-z]/)?.[0];
   return initial ? initial.toUpperCase() : 'default';
 }
 
@@ -118,16 +118,16 @@ export function speakerIdentity(kind: AuthorKind, name: string | null): SpeakerI
     case 'end_user':
       return { username: name ?? 'Customer', avatarKey: avatarKey(name) };
     case 'agent':
+    case 'system':
       return { username: name ?? 'Munin' };
     case 'user':
-      return { username: name ?? 'Teammate', iconEmoji: ':technologist:' };
-    case 'system':
-      return { username: 'System', iconEmoji: ':gear:' };
+      return { username: name ?? 'Teammate', avatarKey: `${avatarKey(name)}-dark` };
   }
 }
 
 export function messageBodyText(msg: MessageSnapshot): string {
-  const body = truncate(escapeSlackText(msg.body));
+  const rawBody = truncate(escapeSlackText(msg.body));
+  const body = msg.authorKind === 'system' ? `:gear: *${rawBody}*` : rawBody;
   const attachmentLines = (msg.attachments ?? []).map((a) => {
     const name = escapeSlackText(a.name ?? 'attachment');
     return a.url ? `:paperclip: <${a.url}|${name}>` : `:paperclip: ${name}`;

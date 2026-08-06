@@ -1,6 +1,6 @@
 import { describeError, safeFetch } from '@getmunin/core';
 
-const USER_AGENT = 'MuninOnboardingBot/1.0 (+https://getmunin.com/bot)';
+const USER_AGENT = 'Munin-Crawler/1.0 (+https://getmunin.com)';
 const DEFAULT_MAX_PAGES = 25;
 const HARD_MAX_PAGES = 50;
 const FETCH_TIMEOUT_MS = 5000;
@@ -306,10 +306,16 @@ interface RobotsRules {
   isAllowed: (path: string) => boolean;
 }
 
+interface RobotsRule {
+  allow: boolean;
+  pattern: string;
+}
+
 export function parseRobots(text: string): RobotsRules {
   const sitemaps: string[] = [];
-  const groups: { agents: string[]; disallows: string[] }[] = [];
-  let current: { agents: string[]; disallows: string[] } | null = null;
+  const groups: { agents: string[]; rules: RobotsRule[] }[] = [];
+  let current: { agents: string[]; rules: RobotsRule[] } | null = null;
+  let sawRule = false;
   for (const rawLine of text.split('\n')) {
     const line = rawLine.replace(/#.*$/, '').trim();
     if (!line) continue;
@@ -322,34 +328,66 @@ export function parseRobots(text: string): RobotsRules {
       continue;
     }
     if (key === 'user-agent') {
-      if (!current || current.disallows.length > 0) {
-        current = { agents: [value.toLowerCase()], disallows: [] };
+      if (!current || sawRule) {
+        current = { agents: [value.toLowerCase()], rules: [] };
         groups.push(current);
+        sawRule = false;
       } else {
         current.agents.push(value.toLowerCase());
       }
       continue;
     }
-    if (key === 'disallow' && current) {
-      if (value) current.disallows.push(value);
+    if ((key === 'allow' || key === 'disallow') && current) {
+      sawRule = true;
+      if (value) current.rules.push({ allow: key === 'allow', pattern: value });
       continue;
     }
   }
   const ua = USER_AGENT.toLowerCase();
-  const matching = groups.filter((g) =>
-    g.agents.some((a) => a === '*' || ua.startsWith(a) || a === 'muninonboardingbot'),
-  );
+  const rules = groups
+    .filter((g) => g.agents.some((a) => a === '*' || (a !== '' && ua.startsWith(a))))
+    .flatMap((g) => g.rules);
   return {
     sitemaps,
     isAllowed(path: string): boolean {
-      for (const g of matching) {
-        for (const dis of g.disallows) {
-          if (dis === '/' || (dis && path.startsWith(dis))) return false;
+      let best: RobotsRule | null = null;
+      let bestLength = -1;
+      for (const rule of rules) {
+        if (!matchesRobotsPattern(rule.pattern, path)) continue;
+        const length = patternLength(rule.pattern);
+        if (length > bestLength || (length === bestLength && rule.allow)) {
+          best = rule;
+          bestLength = length;
         }
       }
-      return true;
+      return best ? best.allow : true;
     },
   };
+}
+
+function patternLength(pattern: string): number {
+  return pattern.endsWith('$') ? pattern.length - 1 : pattern.length;
+}
+
+export function matchesRobotsPattern(pattern: string, path: string): boolean {
+  const anchored = pattern.endsWith('$');
+  const body = anchored ? pattern.slice(0, -1) : pattern;
+  const segments = body.split('*');
+  const first = segments[0]!;
+  if (!path.startsWith(first)) return false;
+  if (segments.length === 1) return anchored ? path.length === first.length : true;
+  let index = first.length;
+  for (let i = 1; i < segments.length - 1; i++) {
+    const segment = segments[i]!;
+    if (!segment) continue;
+    const found = path.indexOf(segment, index);
+    if (found === -1) return false;
+    index = found + segment.length;
+  }
+  const last = segments[segments.length - 1]!;
+  if (!last) return true;
+  if (!anchored) return path.indexOf(last, index) !== -1;
+  return path.length - last.length >= index && path.endsWith(last);
 }
 
 export function extractSitemapLocs(xml: string): string[] {

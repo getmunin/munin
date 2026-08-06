@@ -1,6 +1,6 @@
 import { Get, Header } from '@nestjs/common';
 import { PublicController } from '../common/auth/auth.guard.ts';
-import { authorizationServerUrl, SUPPORTED_SCOPES } from './oauth.constants.ts';
+import { authorizationServerUrl, SUPPORTED_AUTH_SCOPES } from './oauth.constants.ts';
 
 interface AuthorizationServerMetadata {
   issuer: string;
@@ -45,7 +45,7 @@ export class OAuthAsAliasController {
         'none',
       ],
       code_challenge_methods_supported: ['S256'],
-      scopes_supported: ['openid', 'profile', 'email', 'offline_access', ...SUPPORTED_SCOPES],
+      scopes_supported: SUPPORTED_AUTH_SCOPES,
       resource_indicators_supported: true,
       authorization_response_iss_parameter_supported: true,
     };

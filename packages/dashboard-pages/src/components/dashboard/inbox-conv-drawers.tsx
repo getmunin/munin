@@ -324,21 +324,7 @@ export function FullConvDrawer({
             placeholder={t('replyPlaceholder')}
             className="w-full rounded-input border-[1px] border-rule-soft bg-paper px-3 py-2 text-base md:text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
           />
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {!claimed ? (
-                <Button size="sm" onClick={onTakeOver} disabled={pending} pending={pending}>
-                  {t('takeOver')}
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" onClick={onRelease} disabled={pending}>
-                  <Unplug className="size-3.5" /> {t('release')}
-                </Button>
-              )}
-              <Button size="sm" variant="ghost" onClick={onCloseConv} disabled={pending}>
-                {t('closeConv')}
-              </Button>
-            </div>
+          <div className="mt-3 flex items-center gap-2">
             <Button
               size="sm"
               variant="accent"
@@ -347,6 +333,18 @@ export function FullConvDrawer({
               pending={pending}
             >
               {actionError?.type === 'send' ? t('retryAction.send') : t('send')}
+            </Button>
+            {!claimed ? (
+              <Button size="sm" onClick={onTakeOver} disabled={pending} pending={pending}>
+                {t('takeOver')}
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={onRelease} disabled={pending}>
+                <Unplug className="size-3.5" /> {t('release')}
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={onCloseConv} disabled={pending}>
+              {t('closeConv')}
             </Button>
           </div>
         </div>

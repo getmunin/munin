@@ -4,17 +4,20 @@ import {
   approvalBlocks,
   approvalResolvedLine,
   authorLabel,
+  avatarKey,
   encodeApprovalValue,
   escalationAlertText,
   escapeSlackText,
   kbCandidateApprovalText,
   mergeProposalApprovalText,
+  messageBodyText,
   messageText,
   outreachCampaignParentMovedText,
   outreachCampaignParentText,
   outreachProposalApprovalText,
   parentStateLine,
   parseApprovalValue,
+  speakerIdentity,
   statusChangedText,
   threadParentBlocks,
   threadParentText,
@@ -101,6 +104,61 @@ describe('authorLabel', () => {
     expect(authorLabel('agent', null)).toContain('AI agent');
     expect(authorLabel('user', 'Kim')).toContain('Kim');
     expect(authorLabel('system', null)).toContain('System');
+  });
+});
+
+describe('avatarKey', () => {
+  it('uses the first letter, uppercased', () => {
+    expect(avatarKey('Ada')).toBe('A');
+    expect(avatarKey('ada')).toBe('A');
+  });
+
+  it('falls back to default for anonymous names or ones with no letters at all', () => {
+    expect(avatarKey(null)).toBe('default');
+    expect(avatarKey('')).toBe('default');
+    expect(avatarKey('+4741425762')).toBe('default');
+    expect(avatarKey('+47 414 25 762')).toBe('default');
+  });
+});
+
+describe('speakerIdentity', () => {
+  it('gives system messages the same plain Munin identity as agent messages, no icon override', () => {
+    expect(speakerIdentity('system', null)).toEqual({ username: 'Munin' });
+    expect(speakerIdentity('agent', null)).toEqual({ username: 'Munin' });
+  });
+
+  it('routes a digit-led end_user name to the default avatar', () => {
+    expect(speakerIdentity('end_user', '+4741425762')).toEqual({
+      username: '+4741425762',
+      avatarKey: 'default',
+    });
+  });
+
+  it('gives teammates the same letter-avatar scheme as customers, on a dark variant', () => {
+    expect(speakerIdentity('user', 'Kim')).toEqual({ username: 'Kim', avatarKey: 'K-dark' });
+    expect(speakerIdentity('user', null)).toEqual({
+      username: 'Teammate',
+      avatarKey: 'default-dark',
+    });
+  });
+});
+
+describe('messageBodyText', () => {
+  it('wraps system messages with a gear and bold, leaves other kinds plain', () => {
+    expect(messageBodyText({ authorKind: 'system', authorName: null, internal: false, body: 'Voice call started · Thea' }))
+      .toBe(':gear: *Voice call started · Thea*');
+    expect(messageBodyText({ authorKind: 'agent', authorName: 'Munin', internal: false, body: 'Hi there' }))
+      .toBe('Hi there');
+  });
+
+  it('composes the gear+bold wrap with the internal-note prefix', () => {
+    const text = messageBodyText({
+      authorKind: 'system',
+      authorName: null,
+      internal: true,
+      body: 'Agent requested handover: billing question',
+    });
+    expect(text).toBe(':lock: _Internal note_\n:gear: *Agent requested handover: billing question*');
   });
 });
 

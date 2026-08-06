@@ -55,6 +55,14 @@ describe('setupPathFor', () => {
     expect(setupPathFor('/en/dashboard/')).toBe('/en/setup');
     expect(setupPathFor('/nb/dashboard/settings/channels')).toBe('/nb/setup');
   });
+
+  it('stays linear on a path stuffed with repeated dashboard segments', () => {
+    expect(setupPathFor(`/en${'/dashboard'.repeat(5000)}`)).toBe('/en/setup');
+  });
+
+  it('leaves a path without the segment alone', () => {
+    expect(setupPathFor('/en/setup')).toBe('/en/setup');
+  });
 });
 
 describe('hasSessionCookie', () => {
@@ -153,6 +161,18 @@ describe('withSetupGate', () => {
     const handle = withSetupGate(() => NextResponse.next(), ROOT);
     await handle(request('/en/dashboard/settings', SESSION));
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('trims trailing slashes off the configured api url', async () => {
+    stubApi({ providerConfigured: true }, [
+      { orgId: 'o', name: 'Acme', role: 'owner', isDefault: true },
+    ]);
+    const handle = withSetupGate(() => NextResponse.next(), {
+      ...ROOT,
+      apiUrl: 'http://api.test///',
+    });
+    await handle(request('/en/dashboard', SESSION));
+    expect(fetch).toHaveBeenCalledWith('http://api.test/v1/agent-config', expect.anything());
   });
 
   it('leaves an upstream locale redirect untouched', async () => {

@@ -20,6 +20,7 @@ export type MiddlewareHandler = (
 ) => NextResponse | Promise<NextResponse>;
 
 const DEFAULT_TIMEOUT_MS = 1500;
+const DASHBOARD_SEGMENT = '/dashboard';
 
 function localeGroup(locales: readonly string[]): string {
   return `(?:${locales.join('|')})`;
@@ -45,16 +46,24 @@ export function isSetupGatedPath(pathname: string, options: SetupGateOptions): b
 }
 
 export function setupPathFor(pathname: string): string {
-  return pathname.replace(/\/dashboard(?:\/.*)?$/, '/setup');
+  const at = pathname.indexOf(DASHBOARD_SEGMENT);
+  return at < 0 ? pathname : `${pathname.slice(0, at)}/setup`;
 }
 
 export function hasSessionCookie(cookieHeader: string): boolean {
   return cookieHeader.includes('session_token');
 }
 
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end -= 1;
+  return value.slice(0, end);
+}
+
 function resolveApiUrl(options: SetupGateOptions): string {
-  const raw = options.apiUrl ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-  return raw.replace(/\/+$/, '');
+  return trimTrailingSlashes(
+    options.apiUrl ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001',
+  );
 }
 
 async function readJson<T>(url: string, cookie: string, timeoutMs: number): Promise<T | null> {

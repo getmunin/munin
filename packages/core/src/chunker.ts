@@ -12,6 +12,7 @@ export interface Chunk {
 const DEFAULT_TARGET = 512;
 const DEFAULT_OVERLAP = 64;
 const CHARS_PER_TOKEN = 4;
+const MAX_CONTENT_HASH_CHARS = 5_000_000;
 
 export function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / CHARS_PER_TOKEN));
@@ -77,7 +78,13 @@ export function contentHash(title: string, body: string): string {
   let h1 = 0xdeadbeef;
   let h2 = 0x41c6ce57;
   const input = `${title}${body}`;
-  for (let i = 0; i < input.length; i++) {
+  if (input.length > MAX_CONTENT_HASH_CHARS) {
+    throw new RangeError(
+      `content_too_large_to_hash: ${input.length} characters exceeds the ${MAX_CONTENT_HASH_CHARS} limit`,
+    );
+  }
+  const length = Math.min(input.length, MAX_CONTENT_HASH_CHARS);
+  for (let i = 0; i < length; i++) {
     const c = input.charCodeAt(i);
     h1 = Math.imul(h1 ^ c, 0x9e3779b1) >>> 0;
     h2 = Math.imul(h2 ^ c, 0x85ebca77) >>> 0;

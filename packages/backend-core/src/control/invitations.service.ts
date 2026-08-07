@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import {
   getCurrentContext,
   hashSecret,
@@ -21,6 +22,7 @@ import { MAILER } from '../common/mail/mail.module.ts';
 import { VALID_ROLES } from './role-guard.ts';
 
 const INVITE_TTL_DAYS = 7;
+const EmailSchema = z.string().email();
 
 export interface InvitationDto {
   id: string;
@@ -59,7 +61,7 @@ export class InvitationsService {
       throw new BadRequestException(`invalid role: ${role}`);
     }
     const email = input.email.trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (!EmailSchema.safeParse(email).success) {
       throw new BadRequestException('invalid email');
     }
 

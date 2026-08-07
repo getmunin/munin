@@ -1,5 +1,28 @@
 # @getmunin/agent-host
 
+## 4.80.1
+
+### Patch Changes
+
+- 0250c9c: Replace the inline `safeParse` + `throw BadRequestException` boilerplate across the control-plane HTTP handlers with `nestjs-zod`'s `createZodDto` + a globally registered `ZodValidationPipe`. Each route's body is now declared at the parameter signature (`@Body() input: CreateApiKeyBody`) and validated before the handler runs, so handlers start at their business logic instead of six lines of unwrapping. The schema is still plain Zod — `createZodDto(z.object({...}))` only wraps it in a class the pipe recognises. Query and route-param validation is untouched.
+
+  The pipe is created with a custom exception factory (`common/zod-validation.pipe.ts`) rather than the library default. Out of the box `nestjs-zod` answers a validation failure with `{ message: 'Validation failed', errors: [...zod issues] }`, which drops every field name from the message and puts the detail under a key the dashboard's API client does not read — so the previously informative 400 would have degraded to an unhelpful constant. The factory instead emits `{ message: 'validation_failed: host: …; port: …', fieldErrors: [{ field, message }] }`, matching the shape `packages/dashboard-pages/src/api.ts` already parses and the convention `connectors.service.ts` already uses, so form-level validation errors can bind per field.
+
+  Three groups of handlers keep the manual `safeParse` on purpose, because they do not answer a malformed body with a 400 and the global pipe would force them to. The public analytics beacons (`analytics-tracker.controller.ts`, `analytics-views.controller.ts`) are `@HttpCode(204)` fire-and-forget browser endpoints that log and swallow an invalid payload — a 400 there would be noise the browser cannot act on, and would also reveal whether a tracker key parsed. The widget endpoints (`conv/widget/widget.controller.ts`) throw `ForbiddenException('invalid_widget_input: …')` deliberately, and they validate only _after_ the key checks, so routing them through the pipe would both change 403 to 400 and let an unauthenticated caller learn its body was malformed before `widget_auth_required` fires. Query and route-param validation is likewise untouched everywhere.
+
+  This originally shipped as #303 but was lost before it reached `main`: it was stacked on another PR's branch and merged into that branch seconds after the parent had already squash-merged, so the commit was stranded on a deleted branch. Re-landed here against `main`, extended to the controllers added in the meantime.
+
+- Updated dependencies [9558bc2]
+- Updated dependencies [0250c9c]
+- Updated dependencies [0250c9c]
+- Updated dependencies [c2a6218]
+- Updated dependencies [2ea6198]
+  - @getmunin/agent-runtime@4.80.1
+  - @getmunin/backend-core@4.80.1
+  - @getmunin/core@4.80.1
+  - @getmunin/db@4.80.1
+  - @getmunin/types@4.80.1
+
 ## 4.80.0
 
 ### Patch Changes

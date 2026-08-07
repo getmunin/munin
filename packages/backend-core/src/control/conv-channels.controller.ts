@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
@@ -27,28 +27,62 @@ import { ThrellAdminService } from '../modules/conv/threll/threll-admin.service.
 import { ChannelAdminService } from '../modules/conv/channels/channel-admin.service.ts';
 import { ChannelCredentialService } from '../modules/conv/channels/channel-credential.service.ts';
 import {
-  CreateWidgetBody,
-  UpdateWidgetBody,
-  SetupEmailBody,
-  SendEmailTestBody,
-  ConfigureTwilioSmsBody,
-  SendTwilioSmsTestBody,
-  ConfigureMessageBirdSmsBody,
-  SendMessageBirdSmsTestBody,
-  ConfigureVapiBody,
-  VapiCallInitiateBody,
-  ConfigureThrellBody,
-  ChannelListOptionsBody,
-  ThrellCallInitiateBody,
-  ConfigureChannelBody,
-  ChannelVoiceCallBody,
-  ChannelSendTestBody,
+  CreateWidgetBody as CreateWidgetSchema,
+  UpdateWidgetBody as UpdateWidgetSchema,
+  SetupEmailBody as SetupEmailSchema,
+  SendEmailTestBody as SendEmailTestSchema,
+  ConfigureTwilioSmsBody as ConfigureTwilioSmsSchema,
+  SendTwilioSmsTestBody as SendTwilioSmsTestSchema,
+  ConfigureMessageBirdSmsBody as ConfigureMessageBirdSmsSchema,
+  SendMessageBirdSmsTestBody as SendMessageBirdSmsTestSchema,
+  ConfigureVapiBody as ConfigureVapiSchema,
+  VapiCallInitiateBody as VapiCallInitiateSchema,
+  ConfigureThrellBody as ConfigureThrellSchema,
+  ChannelListOptionsBody as ChannelListOptionsSchema,
+  ThrellCallInitiateBody as ThrellCallInitiateSchema,
+  ConfigureChannelBody as ConfigureChannelSchema,
+  ChannelVoiceCallBody as ChannelVoiceCallSchema,
+  ChannelSendTestBody as ChannelSendTestSchema,
 } from '@getmunin/types';
 import { z } from 'zod';
 
-const ChannelCredentialsBody = z.object({
-  secrets: z.record(z.string(), z.string().min(1)),
-});
+class ConfigureChannelBody extends createZodDto(ConfigureChannelSchema) {}
+
+class ApplyChannelCredentialsBody extends createZodDto(
+  z.object({
+    secrets: z.record(z.string(), z.string().min(1)),
+  }),
+) {}
+
+class ChannelVoiceCallBody extends createZodDto(ChannelVoiceCallSchema) {}
+
+class ChannelSendTestBody extends createZodDto(ChannelSendTestSchema) {}
+
+class CreateWidgetBody extends createZodDto(CreateWidgetSchema) {}
+
+class UpdateWidgetBody extends createZodDto(UpdateWidgetSchema) {}
+
+class SetupEmailBody extends createZodDto(SetupEmailSchema) {}
+
+class SendEmailTestBody extends createZodDto(SendEmailTestSchema) {}
+
+class ConfigureTwilioSmsBody extends createZodDto(ConfigureTwilioSmsSchema) {}
+
+class SendTwilioSmsTestBody extends createZodDto(SendTwilioSmsTestSchema) {}
+
+class ConfigureMessageBirdSmsBody extends createZodDto(ConfigureMessageBirdSmsSchema) {}
+
+class SendMessageBirdSmsTestBody extends createZodDto(SendMessageBirdSmsTestSchema) {}
+
+class ConfigureVapiBody extends createZodDto(ConfigureVapiSchema) {}
+
+class VapiCallInitiateBody extends createZodDto(VapiCallInitiateSchema) {}
+
+class ConfigureThrellBody extends createZodDto(ConfigureThrellSchema) {}
+
+class ChannelListOptionsBody extends createZodDto(ChannelListOptionsSchema) {}
+
+class ThrellCallInitiateBody extends createZodDto(ThrellCallInitiateSchema) {}
 
 interface ChannelListResponse {
   items: ChannelDto[];
@@ -78,10 +112,8 @@ export class ConvChannelsController {
 
   @Post()
   @HttpCode(200)
-  async configureChannel(@Body() body: unknown): Promise<Awaited<ReturnType<ChannelAdminService['configure']>>> {
-    const parsed = ConfigureChannelBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.channelAdmin.configure(parsed.data);
+  async configureChannel(@Body() input: ConfigureChannelBody): Promise<Awaited<ReturnType<ChannelAdminService['configure']>>> {
+    return this.channelAdmin.configure(input);
   }
 
   @Post(':id/test')
@@ -92,10 +124,8 @@ export class ConvChannelsController {
 
   @Post(':id/credentials')
   @HttpCode(200)
-  applyCredentials(@Param('id') id: string, @Body() body: unknown): ReturnType<ChannelCredentialService['apply']> {
-    const parsed = ChannelCredentialsBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.channelCredentials.apply(id, parsed.data.secrets);
+  applyCredentials(@Param('id') id: string, @Body() input: ApplyChannelCredentialsBody): ReturnType<ChannelCredentialService['apply']> {
+    return this.channelCredentials.apply(id, input.secrets);
   }
 
   @Post(':id/credential-link')
@@ -106,18 +136,14 @@ export class ConvChannelsController {
 
   @Post(':id/call')
   @HttpCode(200)
-  async callChannel(@Param('id') id: string, @Body() body: unknown): Promise<unknown> {
-    const parsed = ChannelVoiceCallBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.channelAdmin.call({ channelId: id, to: parsed.data.to, customerName: parsed.data.customerName });
+  async callChannel(@Param('id') id: string, @Body() input: ChannelVoiceCallBody): Promise<unknown> {
+    return this.channelAdmin.call({ channelId: id, to: input.to, customerName: input.customerName });
   }
 
   @Post(':id/send-test')
   @HttpCode(200)
-  async sendTestChannel(@Param('id') id: string, @Body() body: unknown): Promise<unknown> {
-    const parsed = ChannelSendTestBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.channelAdmin.sendTest({ channelId: id, to: parsed.data.to, body: parsed.data.body });
+  async sendTestChannel(@Param('id') id: string, @Body() input: ChannelSendTestBody): Promise<unknown> {
+    return this.channelAdmin.sendTest({ channelId: id, to: input.to, body: input.body });
   }
 
   @Get()
@@ -129,22 +155,18 @@ export class ConvChannelsController {
   @Post('widget')
   @HttpCode(201)
   async createWidget(
-    @Body() body: unknown,
+    @Body() input: CreateWidgetBody,
   ): Promise<Awaited<ReturnType<WidgetAdminTools['createChannel']>>> {
-    const parsed = CreateWidgetBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.widgetTools.createChannel(parsed.data);
+    return this.widgetTools.createChannel(input);
   }
 
   @Patch('widget/:id')
   @HttpCode(200)
   async updateWidget(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: UpdateWidgetBody,
   ): Promise<Awaited<ReturnType<WidgetAdminTools['updateChannel']>>> {
-    const parsed = UpdateWidgetBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.widgetTools.updateChannel({ channelId: id, ...parsed.data });
+    return this.widgetTools.updateChannel({ channelId: id, ...input });
   }
 
   @Post('widget/:id/rotate-key')
@@ -164,11 +186,9 @@ export class ConvChannelsController {
   @Post('email')
   @HttpCode(200)
   async setupEmail(
-    @Body() body: unknown,
+    @Body() input: SetupEmailBody,
   ): Promise<Awaited<ReturnType<EmailAdminTools['setupChannel']>>> {
-    const parsed = SetupEmailBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.emailTools.setupChannel(parsed.data);
+    return this.emailTools.setupChannel(input);
   }
 
   @Post('email/:id/test')
@@ -183,21 +203,17 @@ export class ConvChannelsController {
   @HttpCode(200)
   async sendTestEmail(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: SendEmailTestBody,
   ): Promise<Awaited<ReturnType<EmailAdminTools['sendTest']>>> {
-    const parsed = SendEmailTestBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.emailTools.sendTest({ channelId: id, to: parsed.data.to });
+    return this.emailTools.sendTest({ channelId: id, to: input.to });
   }
 
   @Post('twilio-sms')
   @HttpCode(200)
   async configureTwilioSms(
-    @Body() body: unknown,
+    @Body() input: ConfigureTwilioSmsBody,
   ): Promise<Awaited<ReturnType<TwilioSmsAdminService['configure']>>> {
-    const parsed = ConfigureTwilioSmsBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.twilioSmsTools.configure(parsed.data);
+    return this.twilioSmsTools.configure(input);
   }
 
   @Post('twilio-sms/:id/test')
@@ -212,25 +228,21 @@ export class ConvChannelsController {
   @HttpCode(200)
   async sendTwilioSmsTest(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: SendTwilioSmsTestBody,
   ): Promise<Awaited<ReturnType<TwilioSmsAdminService['sendTest']>>> {
-    const parsed = SendTwilioSmsTestBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.twilioSmsTools.sendTest({
       channelId: id,
-      to: parsed.data.to,
-      body: parsed.data.body,
+      to: input.to,
+      body: input.body,
     });
   }
 
   @Post('messagebird-sms')
   @HttpCode(200)
   async configureMessageBirdSms(
-    @Body() body: unknown,
+    @Body() input: ConfigureMessageBirdSmsBody,
   ): Promise<Awaited<ReturnType<MessageBirdSmsAdminService['configure']>>> {
-    const parsed = ConfigureMessageBirdSmsBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.messageBirdSmsTools.configure(parsed.data);
+    return this.messageBirdSmsTools.configure(input);
   }
 
   @Post('messagebird-sms/:id/test')
@@ -245,25 +257,21 @@ export class ConvChannelsController {
   @HttpCode(200)
   async sendMessageBirdSmsTest(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: SendMessageBirdSmsTestBody,
   ): Promise<Awaited<ReturnType<MessageBirdSmsAdminService['sendTest']>>> {
-    const parsed = SendMessageBirdSmsTestBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.messageBirdSmsTools.sendTest({
       channelId: id,
-      to: parsed.data.to,
-      body: parsed.data.body,
+      to: input.to,
+      body: input.body,
     });
   }
 
   @Post('vapi')
   @HttpCode(200)
   async configureVapi(
-    @Body() body: unknown,
+    @Body() input: ConfigureVapiBody,
   ): Promise<Awaited<ReturnType<VapiAdminService['configure']>>> {
-    const parsed = ConfigureVapiBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.vapiTools.configure(parsed.data);
+    return this.vapiTools.configure(input);
   }
 
   @Post('vapi/:id/test')
@@ -278,35 +286,29 @@ export class ConvChannelsController {
   @HttpCode(200)
   async vapiCall(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: VapiCallInitiateBody,
   ): Promise<Awaited<ReturnType<VapiAdminService['callInitiate']>>> {
-    const parsed = VapiCallInitiateBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.vapiTools.callInitiate({
       channelId: id,
-      to: parsed.data.to,
-      customerName: parsed.data.customerName,
+      to: input.to,
+      customerName: input.customerName,
     });
   }
 
   @Post('threll')
   @HttpCode(200)
   async configureThrell(
-    @Body() body: unknown,
+    @Body() input: ConfigureThrellBody,
   ): Promise<Awaited<ReturnType<ThrellAdminService['configure']>>> {
-    const parsed = ConfigureThrellBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.threllTools.configure(parsed.data);
+    return this.threllTools.configure(input);
   }
 
   @Post('options')
   @HttpCode(200)
   async listChannelOptions(
-    @Body() body: unknown,
+    @Body() input: ChannelListOptionsBody,
   ): Promise<Awaited<ReturnType<ChannelAdminService['listOptions']>>> {
-    const parsed = ChannelListOptionsBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.channelAdmin.listOptions({ vendor: parsed.data.vendor, config: parsed.data.config });
+    return this.channelAdmin.listOptions({ vendor: input.vendor, config: input.config });
   }
 
   @Post(':id/options')
@@ -329,14 +331,12 @@ export class ConvChannelsController {
   @HttpCode(200)
   async threllCall(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: ThrellCallInitiateBody,
   ): Promise<Awaited<ReturnType<ThrellAdminService['callInitiate']>>> {
-    const parsed = ThrellCallInitiateBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return this.threllTools.callInitiate({
       channelId: id,
-      to: parsed.data.to,
-      customerName: parsed.data.customerName,
+      to: input.to,
+      customerName: input.customerName,
     });
   }
 

@@ -11,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { readApiBaseUrl } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
@@ -28,18 +29,28 @@ import {
 
 const StatusSchema = z.enum(PROPOSAL_STATUSES);
 const KindSchema = z.enum(PROPOSAL_KINDS);
-const ApproveBody = z.object({
-  fingerprint: z.string().min(1).max(64),
-  sendAt: z.string().datetime().nullable().optional(),
-});
-const DismissBody = z.object({ reason: z.string().max(500).optional() });
-const WithdrawBody = z.object({ reason: z.string().min(1).max(500) });
-const CancelScheduledSendBody = z.object({ reason: z.string().min(1).max(500) });
-const UpdateBody = z.object({
-  draftSubject: z.string().max(500).nullable().optional(),
-  draftBody: z.string().min(1).optional(),
-  reason: z.string().max(500).optional(),
-});
+class ApproveProposalBody extends createZodDto(
+  z.object({
+    fingerprint: z.string().min(1).max(64),
+    sendAt: z.string().datetime().nullable().optional(),
+  }),
+) {}
+class DismissProposalBody extends createZodDto(
+  z.object({ reason: z.string().max(500).optional() }),
+) {}
+class WithdrawProposalBody extends createZodDto(
+  z.object({ reason: z.string().min(1).max(500) }),
+) {}
+class CancelScheduledSendBody extends createZodDto(
+  z.object({ reason: z.string().min(1).max(500) }),
+) {}
+class UpdateProposalBody extends createZodDto(
+  z.object({
+    draftSubject: z.string().max(500).nullable().optional(),
+    draftBody: z.string().min(1).optional(),
+    reason: z.string().max(500).optional(),
+  }),
+) {}
 
 interface ProposalListResponse {
   items: ProposalSummaryDto[];
@@ -86,15 +97,13 @@ export class OutreachProposalsController {
 
   @Patch(':id')
   @HttpCode(200)
-  async update(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
-    const parsed = UpdateBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async update(@Param('id') id: string, @Body() input: UpdateProposalBody): Promise<ProposalDto> {
     return translate(() =>
       this.outreach.updateProposal({
         id,
-        draftSubject: parsed.data.draftSubject,
-        draftBody: parsed.data.draftBody,
-        reason: parsed.data.reason,
+        draftSubject: input.draftSubject,
+        draftBody: input.draftBody,
+        reason: input.reason,
       }),
     );
   }
@@ -107,43 +116,39 @@ export class OutreachProposalsController {
 
   @Post(':id/withdraw')
   @HttpCode(200)
-  async withdraw(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
-    const parsed = WithdrawBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() => this.outreach.withdrawProposal({ id, reason: parsed.data.reason }));
+  async withdraw(
+    @Param('id') id: string,
+    @Body() input: WithdrawProposalBody,
+  ): Promise<ProposalDto> {
+    return translate(() => this.outreach.withdrawProposal({ id, reason: input.reason }));
   }
 
   @Post(':id/approve')
   @HttpCode(200)
-  async approve(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
-    const parsed = ApproveBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async approve(@Param('id') id: string, @Body() input: ApproveProposalBody): Promise<ProposalDto> {
     const publicBaseUrl = readApiBaseUrl();
     return translate(() =>
       this.outreach.approveProposal(id, {
         publicBaseUrl,
-        fingerprint: parsed.data.fingerprint,
-        sendAt: parsed.data.sendAt,
+        fingerprint: input.fingerprint,
+        sendAt: input.sendAt,
       }),
     );
   }
 
   @Post(':id/cancel-scheduled-send')
   @HttpCode(200)
-  async cancelScheduledSend(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
-    const parsed = CancelScheduledSendBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() =>
-      this.outreach.cancelScheduledSend({ id, reason: parsed.data.reason }),
-    );
+  async cancelScheduledSend(
+    @Param('id') id: string,
+    @Body() input: CancelScheduledSendBody,
+  ): Promise<ProposalDto> {
+    return translate(() => this.outreach.cancelScheduledSend({ id, reason: input.reason }));
   }
 
   @Post(':id/dismiss')
   @HttpCode(200)
-  async dismiss(@Param('id') id: string, @Body() body: unknown): Promise<ProposalDto> {
-    const parsed = DismissBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() => this.outreach.dismissProposal({ id, reason: parsed.data.reason }));
+  async dismiss(@Param('id') id: string, @Body() input: DismissProposalBody): Promise<ProposalDto> {
+    return translate(() => this.outreach.dismissProposal({ id, reason: input.reason }));
   }
 }
 

@@ -24209,7 +24209,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## fast-uri@3.1.4
+## fast-uri@3.1.5
 
 > Dependency-free RFC 3986 URI toolbox
 - Homepage: https://github.com/fastify/fast-uri
@@ -25559,7 +25559,7 @@ SOFTWARE.
 
 ---
 
-## hono@4.12.32
+## hono@4.13.1
 
 > Web framework built on Web Standards
 - Homepage: https://hono.dev
@@ -27569,7 +27569,7 @@ THE SOFTWARE.
 
 ---
 
-## js-yaml@4.3.0
+## js-yaml@4.3.1
 
 > YAML 1.2 parser and serializer
 - Homepage: https://github.com/nodeca/js-yaml#readme

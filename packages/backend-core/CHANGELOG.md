@@ -1,5 +1,44 @@
 # @getmunin/backend-core
 
+## 4.80.1
+
+### Patch Changes
+
+- 0250c9c: Replace the inline `safeParse` + `throw BadRequestException` boilerplate across the control-plane HTTP handlers with `nestjs-zod`'s `createZodDto` + a globally registered `ZodValidationPipe`. Each route's body is now declared at the parameter signature (`@Body() input: CreateApiKeyBody`) and validated before the handler runs, so handlers start at their business logic instead of six lines of unwrapping. The schema is still plain Zod — `createZodDto(z.object({...}))` only wraps it in a class the pipe recognises. Query and route-param validation is untouched.
+
+  The pipe is created with a custom exception factory (`common/zod-validation.pipe.ts`) rather than the library default. Out of the box `nestjs-zod` answers a validation failure with `{ message: 'Validation failed', errors: [...zod issues] }`, which drops every field name from the message and puts the detail under a key the dashboard's API client does not read — so the previously informative 400 would have degraded to an unhelpful constant. The factory instead emits `{ message: 'validation_failed: host: …; port: …', fieldErrors: [{ field, message }] }`, matching the shape `packages/dashboard-pages/src/api.ts` already parses and the convention `connectors.service.ts` already uses, so form-level validation errors can bind per field.
+
+  Three groups of handlers keep the manual `safeParse` on purpose, because they do not answer a malformed body with a 400 and the global pipe would force them to. The public analytics beacons (`analytics-tracker.controller.ts`, `analytics-views.controller.ts`) are `@HttpCode(204)` fire-and-forget browser endpoints that log and swallow an invalid payload — a 400 there would be noise the browser cannot act on, and would also reveal whether a tracker key parsed. The widget endpoints (`conv/widget/widget.controller.ts`) throw `ForbiddenException('invalid_widget_input: …')` deliberately, and they validate only _after_ the key checks, so routing them through the pipe would both change 403 to 400 and let an unauthenticated caller learn its body was malformed before `widget_auth_required` fires. Query and route-param validation is likewise untouched everywhere.
+
+  This originally shipped as #303 but was lost before it reached `main`: it was stacked on another PR's branch and merged into that branch seconds after the parent had already squash-merged, so the commit was stranded on a deleted branch. Re-landed here against `main`, extended to the controllers added in the meantime.
+
+- 0250c9c: Close two CodeQL high-severity findings on paths that take remote input.
+
+  `InvitationsService.create` validated the invitee address with a hand-rolled `/^[^@\s]+@[^@\s]+\.[^@\s]+$/`. Because `.` is itself a member of `[^@\s]`, the group on either side of `\.` is ambiguous and the pattern can be driven into polynomial backtracking. It now runs the same `z.string().email()` the `POST /v1/orgs/me/invitations` DTO already applies, so the service agrees with its own controller instead of re-deriving a weaker rule.
+
+  `contentHash` looped to `input.length` over freshly concatenated remote content with no ceiling. HTTP bodies are already capped by the default 100kb parser limit, but the scraper and import paths do not go through it, so the loop was bounded only by whatever a document happened to contain. It now rejects input above 5,000,000 characters — roughly fifty times the HTTP limit and far above any real document — rather than hashing an unbounded string on the event loop.
+
+  Digests are unchanged: the guard is a pre-check and does not touch the mixing loop or the `\x01` title/body separator, and `chunker.test.ts` now pins three known digests (including one with surrogate pairs) so a future edit cannot silently change them. That matters because `content_hash` is persisted and compared to decide whether to re-embed — altering the function would invalidate every stored hash and force a full re-embed of the KB and CMS.
+
+- c2a6218: Fix three Slack-mirror rendering bugs.
+
+  An anonymous customer's mirrored message showed a nearly-blank avatar (a single dot baked into the fallback PNG); it now renders a Lucide `user-round` icon. A customer identified only by phone number showed the raw E.164 string as their Slack display name and the first digit as their avatar initial — `authorName()`/`contactPhone` now format through `libphonenumber-js` (matching the same fix already shipped on the dashboard), and `avatarKey()` only matches letters, so a name with no letters at all (any phone number) falls through to the same icon fallback as a fully anonymous contact. The now-unreachable digit-keyed avatar PNGs (`0`–`9`) are removed.
+
+  System-generated notifications were inconsistently attributed: voice-call-started/ended and the internal handover note (real `conv_messages` rows with `authorType: 'system'`) posted under a distinct `System` username with a `:gear:` icon, while conversation-lifecycle notifications (resolved, assigned, taken over, handover requested/resolved — never stored as `conv_messages`, posted directly from the event handler) fell through to the Slack app's own default identity (`Munin` + the raven logo) because those call sites never set a username override. `speakerIdentity()` drops the separate `system` identity — both paths now post as plain `Munin`, matching what the lifecycle events already did — and `messageBodyText()` carries the `:gear:` signal into the message text instead (`:gear: *Voice call started · Thea*`), the same way `Conversation is resolved.` already leads with an emoji and bolds the key phrase. The raw `conv_messages.body` strings are untouched — Slack-specific mrkdwn only lives in the Slack presentation layer, not the channel-agnostic stored value.
+
+  Teammates previously got a generic `:technologist:` emoji icon, indistinguishable from any other teammate. They now get the same letter-avatar scheme as customers — but rendered on a dark tile (an exact color swap of the customer tiles' paper/ink colors) so a teammate reply is visually distinguishable from a customer message at a glance, not just by the username text. `SlackAvatarsController` serves the new tiles from `-dark`-suffixed keys (`K-dark.png`, `default-dark.png`).
+
+- 2ea6198: Expose the widget greeting's trailing-clause emphasis as the `--munin-greeting-emphasis` custom property, defaulting to the existing serif italic. Sites that want the clause upright can now set it to `normal` from their own stylesheet: custom properties inherit across the shadow boundary, so this is the one override route that does not depend on the panel's internal class names.
+- Updated dependencies [9558bc2]
+- Updated dependencies [0250c9c]
+  - @getmunin/agent-runtime@4.80.1
+  - @getmunin/core@4.80.1
+  - @getmunin/mcp-toolkit@4.80.1
+  - @getmunin/db@4.80.1
+  - @getmunin/types@4.80.1
+  - @getmunin/inspector-app@4.80.1
+  - @getmunin/emails@4.80.1
+
 ## 4.80.0
 
 ### Minor Changes

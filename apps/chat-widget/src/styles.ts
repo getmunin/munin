@@ -282,7 +282,7 @@ button {
   color: var(--munin-ink);
 }
 .welcome-h1 em {
-  font-style: italic;
+  font-style: var(--munin-greeting-emphasis, italic);
   color: var(--munin-ink-soft);
 }
 .welcome-status {

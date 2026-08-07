@@ -131,7 +131,8 @@ export default function WidgetGuide() {
         <dd>
           First line on the welcome screen. The widget splits on the first sentence so the second clause
           renders in italic, matching &ldquo;Hi there.{' '}
-          <em>How can we help?</em>&rdquo;.
+          <em>How can we help?</em>&rdquo;. Set <code>--munin-greeting-emphasis: normal</code> on{' '}
+          <code>[data-munin-widget]</code> from your own stylesheet to keep it upright.
         </dd>
         <dt>data-munin-show-history</dt>
         <dd>

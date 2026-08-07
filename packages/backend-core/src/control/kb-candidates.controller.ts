@@ -11,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -28,19 +29,25 @@ import {
   type SpaceDto,
 } from '../modules/kb/kb.service.ts';
 
-const PublishBody = z.object({
-  targetSpaceSlug: z.string().min(1),
-  ifVersion: z.number().int().nonnegative(),
-  audiences: z.array(z.string().min(1)).optional(),
-});
-const UpdateBody = z.object({
-  title: z.string().min(1).optional(),
-  body: z.string().min(1).optional(),
-});
-const DismissBody = z.object({
-  ifVersion: z.number().int().nonnegative().optional(),
-  reason: z.string().min(1).max(500).optional(),
-});
+class PublishCandidateBody extends createZodDto(
+  z.object({
+    targetSpaceSlug: z.string().min(1),
+    ifVersion: z.number().int().nonnegative(),
+    audiences: z.array(z.string().min(1)).optional(),
+  }),
+) {}
+class UpdateCandidateBody extends createZodDto(
+  z.object({
+    title: z.string().min(1).optional(),
+    body: z.string().min(1).optional(),
+  }),
+) {}
+class DismissCandidateBody extends createZodDto(
+  z.object({
+    ifVersion: z.number().int().nonnegative().optional(),
+    reason: z.string().min(1).max(500).optional(),
+  }),
+) {}
 
 interface CandidateListResponse {
   items: CurationCandidateSummary[];
@@ -65,16 +72,17 @@ export class KbCandidatesController {
 
   @Patch(':id')
   @HttpCode(200)
-  async update(@Param('id') id: string, @Body() body: unknown): Promise<CurationCandidateDto> {
-    const parsed = UpdateBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async update(
+    @Param('id') id: string,
+    @Body() input: UpdateCandidateBody,
+  ): Promise<CurationCandidateDto> {
     return translate(async () => {
       const existing = await this.kb.getCurationCandidate(id);
       await this.kb.updateDocument({
         id,
         ifVersion: existing.version,
-        title: parsed.data.title,
-        body: parsed.data.body,
+        title: input.title,
+        body: input.body,
       });
       return this.kb.getCurationCandidate(id);
     });
@@ -82,30 +90,32 @@ export class KbCandidatesController {
 
   @Post(':id/publish')
   @HttpCode(200)
-  async publish(@Param('id') id: string, @Body() body: unknown): Promise<DocumentDto> {
-    const parsed = PublishBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async publish(
+    @Param('id') id: string,
+    @Body() input: PublishCandidateBody,
+  ): Promise<DocumentDto> {
     return translate(() =>
       this.kb.publishCurationCandidate({
         candidateDocumentId: id,
-        targetSpaceSlug: parsed.data.targetSpaceSlug,
-        ifVersion: parsed.data.ifVersion,
-        audiences: parsed.data.audiences,
+        targetSpaceSlug: input.targetSpaceSlug,
+        ifVersion: input.ifVersion,
+        audiences: input.audiences,
       }),
     );
   }
 
   @Post(':id/dismiss')
   @HttpCode(200)
-  async dismiss(@Param('id') id: string, @Body() body: unknown): Promise<{ dismissed: true }> {
-    const parsed = DismissBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async dismiss(
+    @Param('id') id: string,
+    @Body() input: DismissCandidateBody,
+  ): Promise<{ dismissed: true }> {
     const doc = await translate(() => this.kb.getDocument(id));
     await translate(() =>
       this.kb.dismissCurationCandidate({
         id,
-        ifVersion: parsed.data.ifVersion ?? doc.version,
-        reason: parsed.data.reason,
+        ifVersion: input.ifVersion ?? doc.version,
+        reason: input.reason,
       }),
     );
     return { dismissed: true };

@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -20,21 +20,27 @@ import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
 import { ConnectorsService } from '../modules/connectors/connectors.service.ts';
 
-const CreateBody = z.object({
-  vendor: z.string().min(1).max(32),
-  name: z.string().min(1).max(120),
-  config: z.record(z.string(), z.unknown()).optional(),
-});
+class CreateConnectionBody extends createZodDto(
+  z.object({
+    vendor: z.string().min(1).max(32),
+    name: z.string().min(1).max(120),
+    config: z.record(z.string(), z.unknown()).optional(),
+  }),
+) {}
 
-const UpdateBody = z.object({
-  name: z.string().min(1).max(120).optional(),
-  config: z.record(z.string(), z.unknown()).optional(),
-  active: z.boolean().optional(),
-});
+class UpdateConnectionBody extends createZodDto(
+  z.object({
+    name: z.string().min(1).max(120).optional(),
+    config: z.record(z.string(), z.unknown()).optional(),
+    active: z.boolean().optional(),
+  }),
+) {}
 
-const CredentialsBody = z.object({
-  secrets: z.record(z.string(), z.string().min(1)),
-});
+class ApplyConnectionCredentialsBody extends createZodDto(
+  z.object({
+    secrets: z.record(z.string(), z.string().min(1)),
+  }),
+) {}
 
 @Controller('v1/connectors')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
@@ -55,17 +61,13 @@ export class ConnectorsController {
 
   @Post()
   @HttpCode(201)
-  create(@Body() body: unknown) {
-    const parsed = CreateBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.connectors.createConnection(parsed.data);
+  create(@Body() input: CreateConnectionBody) {
+    return this.connectors.createConnection(input);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: unknown) {
-    const parsed = UpdateBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.connectors.updateConnection({ connectionId: id, ...parsed.data });
+  update(@Param('id') id: string, @Body() input: UpdateConnectionBody) {
+    return this.connectors.updateConnection({ connectionId: id, ...input });
   }
 
   @Delete(':id')
@@ -79,10 +81,8 @@ export class ConnectorsController {
   }
 
   @Post(':id/credentials')
-  applyCredentials(@Param('id') id: string, @Body() body: unknown) {
-    const parsed = CredentialsBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.connectors.applyCredentials(id, parsed.data.secrets);
+  applyCredentials(@Param('id') id: string, @Body() input: ApplyConnectionCredentialsBody) {
+    return this.connectors.applyCredentials(id, input.secrets);
   }
 
   @Post(':id/credential-link')

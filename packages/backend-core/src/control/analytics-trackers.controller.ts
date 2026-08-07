@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -10,6 +9,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { CreateTrackerBody, UpdateTrackerBody } from '@getmunin/types';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -21,6 +21,10 @@ import { AnalyticsAdminTools } from '../modules/analytics/analytics.tools.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
 
 const VIEWS_SUMMARY_SINCE_DAYS = 7;
+
+class CreateAnalyticsTrackerBody extends createZodDto(CreateTrackerBody) {}
+
+class UpdateAnalyticsTrackerBody extends createZodDto(UpdateTrackerBody) {}
 
 @Controller('v1/analytics/trackers')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
@@ -48,22 +52,18 @@ export class AnalyticsTrackersController {
   @Post()
   @HttpCode(201)
   async create(
-    @Body() body: unknown,
+    @Body() input: CreateAnalyticsTrackerBody,
   ): Promise<Awaited<ReturnType<AnalyticsAdminTools['createTracker']>>> {
-    const parsed = CreateTrackerBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.tools.createTracker(parsed.data);
+    return this.tools.createTracker(input);
   }
 
   @Patch(':id')
   @HttpCode(200)
   async update(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: UpdateAnalyticsTrackerBody,
   ): Promise<Awaited<ReturnType<AnalyticsAdminTools['updateTracker']>>> {
-    const parsed = UpdateTrackerBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.tools.updateTracker({ trackerId: id, ...parsed.data });
+    return this.tools.updateTracker({ trackerId: id, ...input });
   }
 
   @Post(':id/rotate-identity-secret')

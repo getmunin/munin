@@ -10,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -24,13 +25,17 @@ import {
 
 const StatusSchema = z.enum(MERGE_STATUSES);
 
-const ApplyBody = z.object({ fingerprint: z.string().min(1).max(64) });
+class ApplyMergeProposalBody extends createZodDto(
+  z.object({ fingerprint: z.string().min(1).max(64) }),
+) {}
 
-const DismissBody = z
-  .object({
-    reason: z.string().max(500).optional(),
-  })
-  .partial();
+class DismissMergeProposalBody extends createZodDto(
+  z
+    .object({
+      reason: z.string().max(500).optional(),
+    })
+    .partial(),
+) {}
 
 interface MergeProposalListResponse {
   items: MergeProposalDto[];
@@ -67,23 +72,20 @@ export class CrmMergeProposalsController {
 
   @Post(':id/apply')
   @HttpCode(200)
-  async apply(@Param('id') id: string, @Body() body: unknown): Promise<MergeProposalDto> {
-    const parsed = ApplyBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() =>
-      this.crm.applyMergeProposal({ id, fingerprint: parsed.data.fingerprint }),
-    );
+  async apply(
+    @Param('id') id: string,
+    @Body() input: ApplyMergeProposalBody,
+  ): Promise<MergeProposalDto> {
+    return translate(() => this.crm.applyMergeProposal({ id, fingerprint: input.fingerprint }));
   }
 
   @Post(':id/dismiss')
   @HttpCode(200)
   async dismiss(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: DismissMergeProposalBody,
   ): Promise<MergeProposalDto> {
-    const parsed = DismissBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() => this.crm.dismissMergeProposal({ id, reason: parsed.data.reason }));
+    return translate(() => this.crm.dismissMergeProposal({ id, reason: input.reason }));
   }
 }
 

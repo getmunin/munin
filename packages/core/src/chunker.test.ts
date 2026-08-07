@@ -70,4 +70,19 @@ describe('contentHash', () => {
   it('returns 16 hex chars', () => {
     expect(contentHash('a', 'b')).toMatch(/^[0-9a-f]{16}$/);
   });
+
+  it('keeps the digests it produced before the input-size guard was added', () => {
+    expect(contentHash('hello', 'world')).toBe('4b3bb6b1e1b0cc95');
+    expect(contentHash('', 'x')).toBe('b553321f37472e19');
+    expect(contentHash('Tïtle 😀', 'bödy 😀 with surrogates')).toBe('e980282dbf0a5061');
+  });
+
+  it('rejects input beyond the hashing limit instead of looping over it', () => {
+    expect(() => contentHash('', 'a'.repeat(5_000_001))).toThrow(RangeError);
+    expect(() => contentHash('', 'a'.repeat(4_999_998))).not.toThrow();
+  });
+
+  it('separates title from body so a shifted boundary is a different digest', () => {
+    expect(contentHash('ab', 'c')).not.toBe(contentHash('a', 'bc'));
+  });
 });

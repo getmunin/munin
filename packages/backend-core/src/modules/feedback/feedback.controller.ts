@@ -10,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../../common/auth/control-plane.guard.ts';
@@ -23,13 +24,15 @@ import {
   type FeedbackOutboxDto,
 } from './feedback.service.ts';
 
-const CreateBody = z.object({
-  title: z.string().min(3).max(200),
-  body: z.string().min(10).max(4000),
-  appScope: z.enum(APP_SCOPES).optional(),
-  includeOrgName: z.boolean().optional(),
-  includeUserName: z.boolean().optional(),
-});
+class CreateFeedbackBody extends createZodDto(
+  z.object({
+    title: z.string().min(3).max(200),
+    body: z.string().min(10).max(4000),
+    appScope: z.enum(APP_SCOPES).optional(),
+    includeOrgName: z.boolean().optional(),
+    includeUserName: z.boolean().optional(),
+  }),
+) {}
 
 @Controller('v1/feedback')
 @UseGuards(AuthGuard)
@@ -38,10 +41,8 @@ export class FeedbackController {
   constructor(private readonly service: FeedbackService) {}
 
   @Post()
-  async create(@Body() raw: unknown): Promise<FeedbackOutboxDto> {
-    const parsed = CreateBody.safeParse(raw);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.service.create(parsed.data);
+  async create(@Body() input: CreateFeedbackBody): Promise<FeedbackOutboxDto> {
+    return this.service.create(input);
   }
 
   @Post(':id/approve')

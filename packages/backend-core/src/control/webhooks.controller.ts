@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -36,17 +37,21 @@ export const WebhookUrl = z
     }
   }, 'webhook URL must use https://');
 
-const CreateDto = z.object({
-  url: WebhookUrl,
-  events: z.array(z.string().min(1).max(64)).default([]),
-  active: z.boolean().optional(),
-});
+class CreateWebhookBody extends createZodDto(
+  z.object({
+    url: WebhookUrl,
+    events: z.array(z.string().min(1).max(64)).default([]),
+    active: z.boolean().optional(),
+  }),
+) {}
 
-const PatchDto = z.object({
-  url: WebhookUrl.optional(),
-  events: z.array(z.string().min(1).max(64)).optional(),
-  active: z.boolean().optional(),
-});
+class PatchWebhookBody extends createZodDto(
+  z.object({
+    url: WebhookUrl.optional(),
+    events: z.array(z.string().min(1).max(64)).optional(),
+    active: z.boolean().optional(),
+  }),
+) {}
 
 const DeliveriesQuery = z.object({
   limit: z.coerce.number().int().positive().max(200).optional(),
@@ -72,17 +77,13 @@ export class WebhooksController {
 
   @Post()
   @HttpCode(201)
-  create(@Body() body: unknown): Promise<WebhookDto> {
-    const parsed = CreateDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.webhooks.create(parsed.data);
+  create(@Body() input: CreateWebhookBody): Promise<WebhookDto> {
+    return this.webhooks.create(input);
   }
 
   @Patch(':id')
-  patch(@Param('id') id: string, @Body() body: unknown): Promise<WebhookDto> {
-    const parsed = PatchDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.webhooks.update(id, parsed.data);
+  patch(@Param('id') id: string, @Body() input: PatchWebhookBody): Promise<WebhookDto> {
+    return this.webhooks.update(id, input);
   }
 
   @Delete(':id')

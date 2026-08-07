@@ -7,6 +7,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
@@ -49,6 +50,8 @@ export const MintDto = z
     message: 'at least one of endUserId, externalId, email, phone is required',
   });
 
+class MintTokenBody extends createZodDto(MintDto) {}
+
 interface MintResult {
   accessToken: string;
   tokenId: string;
@@ -65,11 +68,7 @@ interface MintResult {
 export class DelegatedTokenController {
   @Post()
   @HttpCode(201)
-  async mint(@Body() body: unknown): Promise<MintResult> {
-    const parsed = MintDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    const input = parsed.data;
-
+  async mint(@Body() input: MintTokenBody): Promise<MintResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
 

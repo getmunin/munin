@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,6 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -28,12 +28,14 @@ import {
 
 const INSTALL_NONCE_MAX_AGE_MS = 10 * 60 * 1000;
 
-const RoutingDto = z.object({
-  slackChannelId: z.string().min(1).max(32),
-  purpose: z.enum(['default', 'escalations']).optional(),
-  mention: z.string().max(64).nullish(),
-  convChannelId: z.string().max(64).nullish(),
-});
+class SetSlackRoutingBody extends createZodDto(
+  z.object({
+    slackChannelId: z.string().min(1).max(32),
+    purpose: z.enum(['default', 'escalations']).optional(),
+    mention: z.string().max(64).nullish(),
+    convChannelId: z.string().max(64).nullish(),
+  }),
+) {}
 
 @Controller('v1/slack')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
@@ -70,14 +72,14 @@ export class SlackController {
   }
 
   @Put('routing')
-  setRouting(@Body() body: unknown): Promise<SlackRouteDto & { botInChannel: boolean }> {
-    const parsed = RoutingDto.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  setRouting(
+    @Body() input: SetSlackRoutingBody,
+  ): Promise<SlackRouteDto & { botInChannel: boolean }> {
     return this.slack.setRouting({
-      slackChannelId: parsed.data.slackChannelId,
-      purpose: parsed.data.purpose,
-      mention: parsed.data.mention ?? undefined,
-      convChannelId: parsed.data.convChannelId ?? undefined,
+      slackChannelId: input.slackChannelId,
+      purpose: input.purpose,
+      mention: input.mention ?? undefined,
+      convChannelId: input.convChannelId ?? undefined,
     });
   }
 

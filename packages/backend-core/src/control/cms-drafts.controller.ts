@@ -11,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -31,29 +32,37 @@ export interface CmsDraftDetailDto extends EntryDto {
   fields: FieldDef[];
 }
 
-const PatchBody = z.object({
-  data: z.record(z.string(), z.unknown()).optional(),
-  slug: z.string().min(1).optional(),
-  locale: z.string().min(1).optional(),
-});
+class PatchDraftBody extends createZodDto(
+  z.object({
+    data: z.record(z.string(), z.unknown()).optional(),
+    slug: z.string().min(1).optional(),
+    locale: z.string().min(1).optional(),
+  }),
+) {}
 
-const ScheduleBody = z.object({
-  scheduledAt: z.string().min(1),
-});
+class ScheduleDraftBody extends createZodDto(
+  z.object({
+    scheduledAt: z.string().min(1),
+  }),
+) {}
 
-const AssetUploadBody = z.object({
-  name: z.string().min(1).max(255),
-  mime: z.string().min(1).max(120),
-  base64Body: z.string().min(1).max(2_800_000),
-  altText: z.string().max(500).optional(),
-});
+class UploadAssetBody extends createZodDto(
+  z.object({
+    name: z.string().min(1).max(255),
+    mime: z.string().min(1).max(120),
+    base64Body: z.string().min(1).max(2_800_000),
+    altText: z.string().max(500).optional(),
+  }),
+) {}
 
-const AssetUploadRequestBody = z.object({
-  name: z.string().min(1).max(255),
-  mime: z.string().min(1).max(120),
-  sizeBytes: z.number().int().positive(),
-  altText: z.string().max(500).optional(),
-});
+class RequestAssetUploadBody extends createZodDto(
+  z.object({
+    name: z.string().min(1).max(255),
+    mime: z.string().min(1).max(120),
+    sizeBytes: z.number().int().positive(),
+    altText: z.string().max(500).optional(),
+  }),
+) {}
 
 @Controller('v1/cms/drafts')
 @UseGuards(AuthGuard, ControlPlaneGuard)
@@ -69,17 +78,15 @@ export class CmsDraftsController {
 
   @Patch(':id')
   @HttpCode(200)
-  async patch(@Param('id') id: string, @Body() body: unknown): Promise<CmsDraftDetailDto> {
-    const parsed = PatchBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async patch(@Param('id') id: string, @Body() input: PatchDraftBody): Promise<CmsDraftDetailDto> {
     const entry = await translate(async () => {
       const existing = await this.cms.getEntry(id);
       return this.cms.updateEntry({
         id,
         ifVersion: existing.version,
-        data: parsed.data.data,
-        slug: parsed.data.slug,
-        locale: parsed.data.locale,
+        data: input.data,
+        slug: input.slug,
+        locale: input.locale,
       });
     });
     return this.attachFields(entry);
@@ -96,27 +103,23 @@ export class CmsDraftsController {
 
   @Post(':id/schedule')
   @HttpCode(200)
-  async schedule(@Param('id') id: string, @Body() body: unknown): Promise<EntryDto> {
-    const parsed = ScheduleBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async schedule(@Param('id') id: string, @Body() input: ScheduleDraftBody): Promise<EntryDto> {
     return translate(async () => {
       const existing = await this.cms.getEntry(id);
       return this.cms.scheduleEntry({
         id,
         ifVersion: existing.version,
-        scheduledAt: parsed.data.scheduledAt,
+        scheduledAt: input.scheduledAt,
       });
     });
   }
 
   @Post(':id/assets')
   @HttpCode(200)
-  async uploadAsset(@Param('id') id: string, @Body() body: unknown): Promise<AssetDto> {
-    const parsed = AssetUploadBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async uploadAsset(@Param('id') id: string, @Body() input: UploadAssetBody): Promise<AssetDto> {
     return translate(async () => {
       await this.cms.getEntry(id);
-      return this.cms.uploadAssetFromBase64(parsed.data);
+      return this.cms.uploadAssetFromBase64(input);
     });
   }
 
@@ -124,13 +127,11 @@ export class CmsDraftsController {
   @HttpCode(200)
   async requestAssetUpload(
     @Param('id') id: string,
-    @Body() body: unknown,
+    @Body() input: RequestAssetUploadBody,
   ): Promise<AssetUploadHandle> {
-    const parsed = AssetUploadRequestBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
     return translate(async () => {
       await this.cms.getEntry(id);
-      return this.cms.requestAssetUpload(parsed.data);
+      return this.cms.requestAssetUpload(input);
     });
   }
 

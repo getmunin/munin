@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -32,19 +33,23 @@ const FilterSchema = z.object({
   contactedSince: z.string().datetime().optional(),
 });
 
-const CreateBody = z.object({
-  name: z.string().min(1).max(120),
-  description: z.string().max(1000).optional(),
-  filter: FilterSchema,
-});
+class CreateSegmentBody extends createZodDto(
+  z.object({
+    name: z.string().min(1).max(120),
+    description: z.string().max(1000).optional(),
+    filter: FilterSchema,
+  }),
+) {}
 
-const UpdateBody = z
-  .object({
-    name: z.string().min(1).max(120).optional(),
-    description: z.string().max(1000).nullable().optional(),
-    filter: FilterSchema.optional(),
-  })
-  .refine((p) => Object.keys(p).length > 0, { message: 'patch must contain at least one field' });
+class UpdateSegmentBody extends createZodDto(
+  z
+    .object({
+      name: z.string().min(1).max(120).optional(),
+      description: z.string().max(1000).nullable().optional(),
+      filter: FilterSchema.optional(),
+    })
+    .refine((p) => Object.keys(p).length > 0, { message: 'patch must contain at least one field' }),
+) {}
 
 interface SegmentListResponse {
   items: SegmentDto[];
@@ -73,24 +78,20 @@ export class CrmSegmentsController {
 
   @Post()
   @HttpCode(201)
-  async create(@Body() body: unknown): Promise<SegmentDto> {
-    const parsed = CreateBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return translate(() => this.crm.createSegment(parsed.data));
+  async create(@Body() input: CreateSegmentBody): Promise<SegmentDto> {
+    return translate(() => this.crm.createSegment(input));
   }
 
   @Patch(':id')
   @HttpCode(200)
-  async update(@Param('id') id: string, @Body() body: unknown): Promise<SegmentDto> {
-    const parsed = UpdateBody.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+  async update(@Param('id') id: string, @Body() input: UpdateSegmentBody): Promise<SegmentDto> {
     return translate(() =>
       this.crm.updateSegment({
         id,
         patch: {
-          name: parsed.data.name,
-          description: parsed.data.description,
-          filter: parsed.data.filter,
+          name: input.name,
+          description: input.description,
+          filter: input.filter,
         },
       }),
     );

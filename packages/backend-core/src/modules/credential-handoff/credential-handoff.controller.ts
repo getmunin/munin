@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import {
   CredentialHandoffService,
@@ -8,10 +9,13 @@ import {
 import type { CredentialApplyResult } from './credential-target.ts';
 
 const DescribeQuery = z.object({ token: z.string().min(1).max(128) });
-const CompleteBody = z.object({
-  token: z.string().min(1).max(128),
-  secrets: z.record(z.string(), z.string().min(1)),
-});
+
+class CompleteCredentialHandoffBody extends createZodDto(
+  z.object({
+    token: z.string().min(1).max(128),
+    secrets: z.record(z.string(), z.string().min(1)),
+  }),
+) {}
 
 @Controller('v1/credentials')
 export class CredentialHandoffController {
@@ -25,10 +29,8 @@ export class CredentialHandoffController {
   }
 
   @Post()
-  complete(@Body() body: unknown): Promise<CredentialApplyResult> {
-    const parsed = CompleteBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(parsed.error.message);
-    return this.handoff.complete(parsed.data.token, parsed.data.secrets);
+  complete(@Body() input: CompleteCredentialHandoffBody): Promise<CredentialApplyResult> {
+    return this.handoff.complete(input.token, input.secrets);
   }
 }
 

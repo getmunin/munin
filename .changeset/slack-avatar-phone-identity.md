@@ -1,0 +1,11 @@
+---
+'@getmunin/backend-core': patch
+---
+
+Fix three Slack-mirror rendering bugs.
+
+An anonymous customer's mirrored message showed a nearly-blank avatar (a single dot baked into the fallback PNG); it now renders a Lucide `user-round` icon. A customer identified only by phone number showed the raw E.164 string as their Slack display name and the first digit as their avatar initial — `authorName()`/`contactPhone` now format through `libphonenumber-js` (matching the same fix already shipped on the dashboard), and `avatarKey()` only matches letters, so a name with no letters at all (any phone number) falls through to the same icon fallback as a fully anonymous contact. The now-unreachable digit-keyed avatar PNGs (`0`–`9`) are removed.
+
+System-generated notifications were inconsistently attributed: voice-call-started/ended and the internal handover note (real `conv_messages` rows with `authorType: 'system'`) posted under a distinct `System` username with a `:gear:` icon, while conversation-lifecycle notifications (resolved, assigned, taken over, handover requested/resolved — never stored as `conv_messages`, posted directly from the event handler) fell through to the Slack app's own default identity (`Munin` + the raven logo) because those call sites never set a username override. `speakerIdentity()` drops the separate `system` identity — both paths now post as plain `Munin`, matching what the lifecycle events already did — and `messageBodyText()` carries the `:gear:` signal into the message text instead (`:gear: *Voice call started · Thea*`), the same way `Conversation is resolved.` already leads with an emoji and bolds the key phrase. The raw `conv_messages.body` strings are untouched — Slack-specific mrkdwn only lives in the Slack presentation layer, not the channel-agnostic stored value.
+
+Teammates previously got a generic `:technologist:` emoji icon, indistinguishable from any other teammate. They now get the same letter-avatar scheme as customers — but rendered on a dark tile (an exact color swap of the customer tiles' paper/ink colors) so a teammate reply is visually distinguishable from a customer message at a glance, not just by the username text. `SlackAvatarsController` serves the new tiles from `-dark`-suffixed keys (`K-dark.png`, `default-dark.png`).

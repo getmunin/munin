@@ -3,6 +3,7 @@ import { and, eq, isNull, lt, lte, sql } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
 import { describeError, parseEnvDisableFlag, parseEnvInt, readApiBaseUrl } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
+import { formatPhoneNumber } from '../../common/format-phone.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
 import { decryptSecretValue } from './slack.service.ts';
@@ -912,7 +913,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       channelName: channel?.name ?? null,
       contactName: contact?.name ?? null,
       contactEmail: contact?.email ?? null,
-      contactPhone: contact?.phone ?? null,
+      contactPhone: contact?.phone ? formatPhoneNumber(contact.phone) : null,
       dashboardUrl: `${readWebBaseUrl()}/dashboard`,
     };
     return { conversation, contact: contact ?? null, snapshot };
@@ -925,7 +926,10 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   ): Promise<string | null> {
     if (kind === 'user') return await this.userName(authorId);
     if (kind === 'end_user') {
-      return context.contact?.name ?? context.contact?.email ?? context.contact?.phone ?? null;
+      if (context.contact?.name) return context.contact.name;
+      if (context.contact?.email) return context.contact.email;
+      if (context.contact?.phone) return formatPhoneNumber(context.contact.phone);
+      return null;
     }
     if (kind === 'agent') {
       const [assistant] = await this.db

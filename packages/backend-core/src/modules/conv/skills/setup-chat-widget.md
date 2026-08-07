@@ -39,12 +39,24 @@ If the customer uses Munin's own `widget.js` bundle rather than their own chat U
 | `data-munin-size` | `compact`, `standard` (default), `generous` | Panel size. |
 | `data-munin-org-name` | free text | Header title. Defaults to "Chat". |
 | `data-munin-eyebrow` | free text | Small uppercase label above the greeting. |
-| `data-munin-greeting` | free text | Welcome line; the widget italicizes everything after the first sentence. |
+| `data-munin-greeting` | free text | Welcome line; the widget renders everything after the first sentence in serif italic and a softer ink tone. Set the `--munin-greeting-emphasis` custom property to `normal` on the embed host for an upright second clause (see below). |
 | `data-munin-locale` | BCP-47 tag | Forces the widget's UI language instead of negotiating from the browser. |
 | `data-munin-color-scheme` | `auto` (default), `light`, `dark` | `auto` follows the visitor's OS/browser preference (`prefers-color-scheme`) and updates live if they switch it; `light`/`dark` pins the panel regardless of OS setting. The launcher bubble, header bar and voice-call screen stay their fixed near-black chrome in every mode unless overridden by the color attributes above — only the panel body (welcome/chat/composer/cards) inverts. |
 | `data-munin-show-history` | `true` (default), `false` | Whether past conversations are listed on the welcome screen. |
 
 An unrecognized value is a console warning, not an error — the widget falls back to the default and still mounts.
+
+### Overriding styles from the page
+
+The panel renders inside a shadow root, so the site's own stylesheets cannot reach its internals — but CSS custom properties do inherit across the shadow boundary. Set them on the widget host element from an ordinary page stylesheet:
+
+```css
+[data-munin-widget] {
+  --munin-greeting-emphasis: normal;
+}
+```
+
+`--munin-greeting-emphasis` styles the part of the greeting after the first sentence; it takes any `font-style` value and defaults to `italic`. This is the only supported way to restyle panel internals — reaching into `.shadowRoot` from JavaScript depends on class names that change between releases.
 
 ### Programmatic open/close
 

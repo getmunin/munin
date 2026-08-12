@@ -1,5 +1,6 @@
 import { Link } from '../../i18n-navigation';
 import { GuidesSidebar } from '../../_components/guides-sidebar';
+import { DashboardLink } from '../../_components/dashboard-link';
 
 export const metadata = {
   title: 'Munin · Connect Claude over MCP',
@@ -44,7 +45,7 @@ export default function ConnectClaude() {
           1 · Mint an API key
         </h2>
         <p className="tag-blurb">
-          In the dashboard, go to <Link href="/dashboard/settings/api-keys">Settings → API keys</Link>{' '}
+          In the dashboard, go to <DashboardLink href="/dashboard/settings/api-keys">Settings → API keys</DashboardLink>{' '}
           and create a key. Scope it to what Claude should be allowed to do — read-only KB access,
           full CRM write, or everything. The token starts with <code>mn_admin_</code>. You&rsquo;ll
           only see it once.

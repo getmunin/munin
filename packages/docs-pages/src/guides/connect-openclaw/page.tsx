@@ -1,5 +1,6 @@
 import { Link } from '../../i18n-navigation';
 import { GuidesSidebar } from '../../_components/guides-sidebar';
+import { DashboardLink } from '../../_components/dashboard-link';
 
 export const metadata = {
   title: 'Munin · Connect OpenClaw over MCP',
@@ -35,7 +36,7 @@ export default function ConnectOpenClaw() {
         </h2>
         <p className="tag-blurb">
           In the dashboard, go to{' '}
-          <Link href="/dashboard/settings/api-keys">Settings → API keys</Link> and create a key.
+          <DashboardLink href="/dashboard/settings/api-keys">Settings → API keys</DashboardLink> and create a key.
           Scope it to what OpenClaw should be allowed to do — read-only KB, full CRM write, or
           everything. The token starts with <code>mn_admin_</code> and is shown once.
         </p>

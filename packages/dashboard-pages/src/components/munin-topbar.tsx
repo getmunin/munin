@@ -29,7 +29,7 @@ export function DashboardTopbar({
   settingsLabel,
 }: DashboardTopbarProps) {
   return (
-    <header className={`${topbarChromeBase} flex h-14 items-stretch gap-6 px-4 md:px-10`}>
+    <header className={`${topbarChromeBase} flex h-14 items-stretch gap-2 px-4 md:gap-6 md:px-10`}>
       <Link
         href={brandHref}
         className="flex items-center gap-1 self-center text-ink dark:text-foreground"
@@ -42,15 +42,19 @@ export function DashboardTopbar({
 
       <span className="my-auto hidden h-5 w-px bg-rule-soft md:block dark:bg-rule-on-dark" aria-hidden />
 
-      <div className="hidden items-center gap-3 self-center md:flex">
-        {leftSlot ?? (
-          <span className="text-[13px] font-medium text-ink dark:text-foreground">{brand}</span>
-        )}
-      </div>
+      {leftSlot ? (
+        <div className="flex min-w-0 items-center gap-3 self-center">{leftSlot}</div>
+      ) : (
+        <>
+          <div className="hidden items-center gap-3 self-center md:flex">
+            <span className="text-[13px] font-medium text-ink dark:text-foreground">{brand}</span>
+          </div>
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex h-14 items-center justify-center md:hidden">
-        <span className="text-[13px] font-medium text-ink dark:text-foreground">{brand}</span>
-      </div>
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex h-14 items-center justify-center md:hidden">
+            <span className="text-[13px] font-medium text-ink dark:text-foreground">{brand}</span>
+          </div>
+        </>
+      )}
 
       <div className="ml-auto flex items-center self-center">
         <Link

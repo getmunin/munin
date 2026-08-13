@@ -65,6 +65,23 @@ Returns the channel ID, type `'email'`, the redacted DTO (passwords show as `•
 
 To **update** an existing channel, pass `channelId` and only the fields you want to change. Stored passwords are preserved; to rotate a password, mint a link with `conv_request_channel_credentials`.
 
+## Step 2b — decide what the agent does with inbound mail
+
+`defaultAgentMode` on the channel sets the posture every new conversation inherits (`conv_change_agent_mode` overrides it per conversation):
+
+- `auto` (default) — the agent answers the sender directly.
+- `draft_only` — the agent does the same work (knowledge-base lookups, CRM, connectors, the audit pass) but writes the answer to an **internal draft** and flags the conversation for human attention instead of sending. The draft appears in the dashboard inbox, pre-filled in an editable composer; a teammate edits and sends it. The sender sees nothing until a human sends — no reply, no typing indicator.
+- `off` — the agent does nothing on this channel.
+
+Reach for `draft_only` when a customer wants a human in the loop before anything leaves the building — a cautious launch, a regulated business, or an inbox where a wrong answer is expensive. It costs the same model call as `auto`, so it is a review posture, not a cheaper one.
+
+Two things to tell the operator:
+
+- **Audit actions that end a thread are withheld in `draft_only`.** The audit pass still tags a topic and can still mark spam, but it will not close or snooze a conversation whose answer hasn't been sent yet.
+- **Drafts are produced when the message arrives, not retroactively.** If the runner is down when mail lands, the conversation is simply unanswered in the inbox — a human still sees it. `auto` conversations get swept and answered on recovery; `draft_only` ones don't, on purpose, so a parked draft is never regenerated on a loop.
+
+Outreach-originated conversations are always `draft_only` and are drafted by `skill://outreach/draft-reply-email` into the proposal review queue instead — the conversation runner leaves them alone.
+
 ## Step 3 — verify
 
 Call `conv_test_email_channel` with `{ channelId }`. It performs:

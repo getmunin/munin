@@ -6,3 +6,11 @@ updates:
       interval: "weekly"
     # 0 keeps security updates on while suppressing routine version-update PRs.
     open-pull-requests-limit: 0
+
+  # Workflow actions are pinned to commit SHAs, so nothing moves them but this.
+  # Unlike npm, routine updates stay on: a stale pin never picks up a fix.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3

@@ -1672,6 +1672,9 @@ export const analyticsSearchEvents = pgTable(
       .references(() => orgs.id, { onDelete: 'cascade' }),
     subjectType: varchar('subject_type', { length: 32 }).notNull(),
     query: varchar('query', { length: 256 }).notNull(),
+    trackerId: text('tracker_id').references(() => analyticsTrackers.id, {
+      onDelete: 'set null',
+    }),
     locale: varchar('locale', { length: 16 }),
     resultCount: integer('result_count').notNull(),
     visitorId: varchar('visitor_id', { length: 64 }),
@@ -1683,6 +1686,11 @@ export const analyticsSearchEvents = pgTable(
       t.orgId,
       t.subjectType,
       t.resultCount,
+      t.createdAt,
+    ),
+    trackerIdx: index('analytics_search_events_tracker_idx').on(
+      t.orgId,
+      t.trackerId,
       t.createdAt,
     ),
     orgIdx: index('analytics_search_events_org_idx').on(t.orgId, t.createdAt),

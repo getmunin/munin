@@ -155,6 +155,8 @@ The same admin-only MCP tools used for the website tracker work here — just fi
 
 Returns `[{ subjectType, subjectId, views, visitors }]` — `subjectId` is the entry id. Join against `cms_entries` for slugs/titles.
 
+Entry views recorded through the pre-signed `_tracking` pixel or beacon carry no tracker key, so they belong to no tracker: a query that passes `trackerId` filters them out entirely. Use `source: 'pixel'` / `'beacon'` to isolate them, and `trackerId` only for traffic from a `tracker.js` key (see `skill://analytics/track-website-traffic`). Entry views fired through `mn.trackEntry` are token-signed the same way, so they behave identically even though `tracker.js` is on the page.
+
 ```jsonc
 // How is one entry performing?
 {

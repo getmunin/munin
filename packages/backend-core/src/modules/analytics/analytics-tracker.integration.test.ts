@@ -255,6 +255,97 @@ const skipReason = TEST_URL
     expect(summary[beta.id]?.points.at(-1)?.views).toBe(1);
   }, 30_000);
 
+  it('scopes view stats to one tracker when trackerId is passed, and sums them when it is not', async () => {
+    const { orgId: splitOrg, key: splitAdminKey } = await createSeedOrg(db, 'Split Org');
+    try {
+      const [alpha, beta] = await withClient(splitAdminKey, async (c) => [
+        parseToolResult<{ id: string; trackerKey: string }>(
+          await c.callTool({
+            name: 'analytics_create_tracker',
+            arguments: { name: 'split alpha' },
+          }),
+        ),
+        parseToolResult<{ id: string; trackerKey: string }>(
+          await c.callTool({
+            name: 'analytics_create_tracker',
+            arguments: { name: 'split beta' },
+          }),
+        ),
+      ]);
+
+      await postBeacon(baseUrl, {
+        key: alpha.trackerKey,
+        subjectId: '/split-alpha',
+        visitorId: 'visitor-split-alpha',
+        referrer: 'https://alpha-referrer.example/',
+        utm: { source: 'alpha-campaign' },
+      });
+      await postBeacon(baseUrl, {
+        key: beta.trackerKey,
+        subjectId: '/split-beta',
+        visitorId: 'visitor-split-beta',
+        referrer: 'https://beta-referrer.example/',
+        utm: { source: 'beta-campaign' },
+      });
+      await waitFor(async () => (await countTrackerEvents(db, splitOrg)) === 2);
+
+      const [both, onlyAlpha, alphaSources, alphaReferrers, alphaSeries] = await withClient(
+        splitAdminKey,
+        async (c) => [
+          parseToolResult<Array<{ subjectId: string }>>(
+            await c.callTool({
+              name: 'analytics_list_top_subjects',
+              arguments: { sinceDays: 1, limit: 10 },
+            }),
+          ),
+          parseToolResult<Array<{ subjectId: string; views: number }>>(
+            await c.callTool({
+              name: 'analytics_list_top_subjects',
+              arguments: { sinceDays: 1, limit: 10, trackerId: alpha.id },
+            }),
+          ),
+          parseToolResult<Array<{ utmSource: string | null }>>(
+            await c.callTool({
+              name: 'analytics_list_traffic_sources',
+              arguments: { sinceDays: 1, limit: 10, trackerId: alpha.id },
+            }),
+          ),
+          parseToolResult<Array<{ host: string | null }>>(
+            await c.callTool({
+              name: 'analytics_list_referrer_hosts',
+              arguments: { sinceDays: 1, limit: 10, trackerId: alpha.id },
+            }),
+          ),
+          parseToolResult<Array<{ day: string; views: number }>>(
+            await c.callTool({
+              name: 'analytics_get_views_over_time',
+              arguments: { sinceDays: 1, trackerId: alpha.id },
+            }),
+          ),
+        ],
+      );
+
+      expect(both.map((r) => r.subjectId).sort()).toEqual(['/split-alpha', '/split-beta']);
+      expect(onlyAlpha).toEqual([
+        expect.objectContaining({ subjectId: '/split-alpha', views: 1 }),
+      ]);
+      expect(alphaSources.map((r) => r.utmSource)).toEqual(['alpha-campaign']);
+      expect(alphaReferrers.map((r) => r.host)).toEqual(['alpha-referrer.example']);
+      expect(alphaSeries.reduce((sum, p) => sum + p.views, 0)).toBe(1);
+
+      const unknownTracker = await withClient(splitAdminKey, async (c) =>
+        (await c.callTool({
+          name: 'analytics_list_top_subjects',
+          arguments: { sinceDays: 1, limit: 10, trackerId: 'atr_does_not_exist' },
+        })) as { isError?: boolean; content?: Array<{ text?: string }> },
+      );
+      expect(unknownTracker.isError).toBe(true);
+      expect(unknownTracker.content?.[0]?.text).toMatch(/not found/i);
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${splitOrg}`);
+    }
+  }, 30_000);
+
   it('viewId enrichment keeps one row per view and never overwrites attribution', async () => {
     const minted = await withClient(adminKey, async (c) =>
       parseToolResult<{ id: string; trackerKey: string }>(
@@ -545,6 +636,7 @@ const skipReason = TEST_URL
       expect(row?.query).toBe('refund policy');
       expect(row?.resultCount).toBe(0);
       expect(row?.visitorId).toBe('visitor-search-1');
+      expect(row?.trackerId).toBe(minted.id);
 
       const botted = await fetch(`${baseUrl}/v1/a/s`, {
         method: 'POST',
@@ -584,6 +676,44 @@ const skipReason = TEST_URL
       expect(zero).toEqual([
         expect.objectContaining({ query: 'refund policy', occurrences: 1 }),
       ]);
+
+      const second = await withClient(searchAdminKey, async (c) =>
+        parseToolResult<{ id: string; trackerKey: string }>(
+          await c.callTool({
+            name: 'analytics_create_tracker',
+            arguments: { name: 'second search tracker' },
+          }),
+        ),
+      );
+      const secondRes = await fetch(`${baseUrl}/v1/a/s`, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify({
+          key: second.trackerKey,
+          query: 'shipping times',
+          resultCount: 0,
+          visitorId: 'visitor-search-2',
+        }),
+      });
+      expect(secondRes.status).toBe(204);
+      await waitFor(async () => (await countSearchEvents(db, searchOrg)) === 2);
+
+      const [firstOnly, secondOnly] = await withClient(searchAdminKey, async (c) => [
+        parseToolResult<Array<{ query: string }>>(
+          await c.callTool({
+            name: 'analytics_list_zero_result_searches',
+            arguments: { sinceDays: 1, limit: 10, trackerId: minted.id },
+          }),
+        ),
+        parseToolResult<Array<{ query: string }>>(
+          await c.callTool({
+            name: 'analytics_list_zero_result_searches',
+            arguments: { sinceDays: 1, limit: 10, trackerId: second.id },
+          }),
+        ),
+      ]);
+      expect(firstOnly.map((r) => r.query)).toEqual(['refund policy']);
+      expect(secondOnly.map((r) => r.query)).toEqual(['shipping times']);
     } finally {
       await db.delete(schema.orgs).where(sql`id = ${searchOrg}`);
     }
@@ -664,6 +794,21 @@ const skipReason = TEST_URL
         ),
       );
       expect(engagement.views).toBe(1);
+
+      const [identified] = await db
+        .select({ id: schema.endUsers.id })
+        .from(schema.endUsers)
+        .where(sql`org_id = ${backfillOrg}`)
+        .limit(1);
+      const journey = await withClient(backfillAdminKey, async (c) =>
+        parseToolResult<Array<{ kind: string }>>(
+          await c.callTool({
+            name: 'analytics_get_contact_journey',
+            arguments: { endUserId: identified!.id, sinceDays: 1, trackerId: minted.id },
+          }),
+        ),
+      );
+      expect(journey.map((e) => e.kind).sort()).toEqual(['search', 'view']);
     } finally {
       await db.delete(schema.orgs).where(sql`id = ${backfillOrg}`);
     }
@@ -1181,6 +1326,14 @@ const skipReason = TEST_URL
 
   it('analytics_get_funnel counts ordered steps and drop-off', async () => {
     const { orgId: fOrg, key: fKey } = await createSeedOrg(db, 'Funnel Org A');
+    const funnelTracker = await withClient(fKey, async (c) =>
+      parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'funnel tracker' },
+        }),
+      ),
+    );
     const now = new Date();
     const sec = (s: number): Date => new Date(now.getTime() - s * 1000);
     const ev = (visitorId: string, subjectId: string, createdAt: Date) => ({
@@ -1190,6 +1343,7 @@ const skipReason = TEST_URL
       path: subjectId,
       visitorId,
       source: 'tracker' as const,
+      trackerId: visitorId === 'fa-v1' || visitorId === 'fa-v2' ? funnelTracker.id : null,
       createdAt,
     });
     await db.insert(schema.analyticsViewEvents).values([
@@ -1226,6 +1380,24 @@ const skipReason = TEST_URL
       expect(funnel.steps[1]!.dropFromPrev).toBeCloseTo(0.6);
       expect(funnel.steps[2]!.conversionFromPrev).toBeCloseTo(0.5);
       expect(funnel.overallConversion).toBeCloseTo(0.2);
+
+      const scoped = await withClient(fKey, async (c) =>
+        parseToolResult<FunnelResult>(
+          await c.callTool({
+            name: 'analytics_get_funnel',
+            arguments: {
+              steps: [
+                { subjectType: 'page', subjectId: '/pricing' },
+                { subjectType: 'page', subjectId: '/signup' },
+                { pathLike: '/welcome/%' },
+              ],
+              sinceDays: 1,
+              trackerId: funnelTracker.id,
+            },
+          }),
+        ),
+      );
+      expect(scoped.steps.map((s) => s.actors)).toEqual([2, 2, 1]);
     } finally {
       await db.delete(schema.orgs).where(sql`id = ${fOrg}`);
     }

@@ -208,6 +208,7 @@ export class AnalyticsTrackerController {
       subjectType: body.subjectType ?? DEFAULT_SEARCH_SUBJECT_TYPE,
       query: body.query,
       resultCount: body.resultCount,
+      trackerId: tracker.trackerId,
       locale: body.locale ?? null,
       visitorId: body.visitorId ?? null,
       requireVerifiedIdentity: tracker.requireVerifiedIdentity,

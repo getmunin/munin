@@ -1,5 +1,6 @@
 import { Link } from '../../i18n-navigation';
 import { GuidesSidebar } from '../../_components/guides-sidebar';
+import { DashboardLink } from '../../_components/dashboard-link';
 
 export const metadata = {
   title: 'Munin · Connect ChatGPT over MCP',
@@ -46,7 +47,7 @@ export default function ConnectChatGPT() {
         </h2>
         <p className="tag-blurb">
           From the dashboard, go to{' '}
-          <Link href="/dashboard/settings/api-keys">Settings → API keys</Link> and create one.
+          <DashboardLink href="/dashboard/settings/api-keys">Settings → API keys</DashboardLink> and create one.
           Scope it to what ChatGPT should be allowed to do. The token starts with{' '}
           <code>mn_admin_</code> and is shown once.
         </p>

@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { Link, usePathname } from '../i18n-navigation';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { DocsSearch, type SearchIndex } from './search';
+import { DashboardLink } from './dashboard-link';
 
 export function DocsShell({
   children,
@@ -47,9 +48,9 @@ export function DocsShell({
         <div className="sep" aria-hidden />
         <div className="org-name">Munin developer portal</div>
         <div className="spacer" />
-        <Link className="docs-btn primary" href="/dashboard/settings/api-keys">
+        <DashboardLink className="docs-btn primary" href="/dashboard/settings/api-keys">
           Get a key →
-        </Link>
+        </DashboardLink>
       </header>
 
       <nav className="docs-switcher">

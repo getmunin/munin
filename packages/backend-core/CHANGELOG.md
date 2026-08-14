@@ -1,5 +1,82 @@
 # @getmunin/backend-core
 
+## 4.81.0
+
+### Minor Changes
+
+- 42abe67: Analytics: separate the stats per tracker.
+
+  An org with several trackers (marketing site, docs, app) could mint one key per site but only ever read the sum: every query tool aggregated across the whole org, and `analytics_view_events.tracker_id` was written but never read. Search events didn't even record which tracker sent them, so `analytics_list_zero_result_searches` could never be split.
+
+  Every analytics read tool now takes an optional `trackerId` — `analytics_list_top_subjects`, `analytics_list_top_countries`, `analytics_list_traffic_sources`, `analytics_list_referrer_hosts`, `analytics_get_views_over_time`, `analytics_get_subject_engagement`, `analytics_get_funnel`, `analytics_get_contact_journey` and `analytics_list_zero_result_searches`. Omitting it keeps the previous org-wide behaviour; an id that doesn't belong to the org is a `404` rather than an empty result, so a typo can't be misread as "no traffic".
+
+  `analytics_search_events` gains a `tracker_id` column (migration `0068`), stamped by the `/v1/a/s` ingest endpoint from the tracker key. Pre-existing rows and searches Munin ran itself through the CMS delivery API stay NULL and are excluded from tracker-scoped queries. Views recorded through the token-signed CMS entry pixel/beacon carry no tracker either — filter those with `source` instead.
+
+  Analytics export/import now round-trips the tracker foreign key on both event kinds, resolved through the transfer `idMap`, so moving an org between servers no longer flattens per-tracker attribution.
+
+- 978d28e: `agentMode: 'draft_only'` now actually drafts on a support conversation
+
+  Until now `draft_only` and `off` were the same code path outside outreach: the conversation
+  runner bailed at `agentMode !== 'auto'`, so an email or SMS channel set to _Draft only ·
+  needs approval_ produced no draft and no reply — the agent was simply silent. The only thing
+  that ever drafted was an outreach-originated conversation, via
+  `skill://outreach/draft-reply-email`. Both the dashboard channel dialog (`agentReplies.draftOnly`
+  in `en`/`nb`) and the `conv_configure_email_channel` / SMS tool descriptions already promised
+  human-approved drafts, so this closes a gap between the documented product and the runtime.
+
+  The runner now resolves a _delivery_ per conversation instead of a boolean: `send` for `auto`,
+  `draft` for `draft_only`. A draft run does the identical work — prompt assembly, MCP tool
+  loop, knowledge-base and connector lookups, the audit pass — and then calls `setDraftReply`
+  plus `requestHandover` instead of `postAgentMessage`. The dashboard inbox already renders the
+  latest `draft_reply` message in an editable composer for a flagged conversation, so a teammate
+  edits and sends with no UI change.
+
+  Deliberate boundaries, each covered by a test:
+
+  - **Outreach conversations are untouched.** They carry an `outreachCampaignId`, have their own
+    proposal review queue with evidence and no-unsubscribe-footer rules, and are drafted by the
+    outreach curator. Two drafts per inbound would be worse than none, so the runner skips them.
+  - **No typing indicator and no greeting.** Nothing is being sent to the end user, so the widget
+    must not claim someone is writing, and a proactive greeting nobody will read is not worth
+    drafting.
+  - **Audit actions that end a thread are withheld.** `set_topic` and `mark_spam` still apply;
+    `close_conversation` and `snooze_conversation` do not, because they would hide a conversation
+    whose answer has not been sent from the person who still has to send it.
+  - **The retries-exhausted fallback flags a handover without its public message.** In `send` mode
+    the customer gets "a teammate will follow up"; in `draft` mode nothing should reach them.
+  - **No recovery sweep.** `listConversationsAwaitingAgentReply` stays `auto`-only. It keys off the
+    last _non-internal_ message being from the end user, and a parked draft is internal — including
+    `draft_only` there would redraft the same conversation every 30 seconds forever. A draft is
+    produced from the inbound realtime event; if the runner is down when mail lands the
+    conversation is just unanswered in the inbox, which is what a human-in-the-loop inbox is for.
+
+  One follow-on worth knowing: because drafting flags the conversation for attention, a human
+  sending the reply resolves that handover, which enqueues the existing `skill://kb/review-content`
+  curation pass. A `draft_only` inbox therefore feeds the knowledge base from every human-sent
+  answer. Candidates still require human approval before an agent can use them.
+
+  `skill://conv/setup-email-channel` documents the three modes and these boundaries.
+
+### Patch Changes
+
+- c37dd17: fix(deps): clear the three open Dependabot advisories and unblock the security updater
+
+  - **`js-yaml` 4.3.0 → 4.3.1** (GHSA / CVE-2026-59870, quadratic CPU consumption in `!!omap` resolution). The override key `js-yaml@>=4 <4.3.0` had already been climbed out of by the installed 4.3.0, so it was inert; it is now `>=4 <4.3.1` → `^4.3.1`. Reached only through dev tooling (`cosmiconfig`, and `read-yaml-file` under changesets).
+  - **`fast-uri` 3.1.4 → 3.1.5** (host confusion via a backslash authority introducer). Transitive via `ajv`; the previous `^3.1.4` floor sat exactly at the vulnerable version.
+  - **`hono` 4.12.32 → 4.13.1** (ReDoS in the CORS middleware via `Access-Control-Request-Headers`). Transitive and optional under `@modelcontextprotocol/node`, which we drive over the Express transport rather than the Hono one, so the CORS middleware is never mounted.
+
+  This also fixes the failing Dependabot security-update job. `.github/dependabot.yml` ignored `js-yaml` with no version qualifier — every version, not just the pinned one — so the updater had nothing it was permitted to propose and aborted the whole run with `all_versions_ignored`, taking the other ecosystems' updates down with it. The rule's stated reason no longer held: it was added when changesets pinned js-yaml at v3 through `read-yaml-file@1`, and the existing `read-yaml-file@1` → `^2.1.0` override has since moved that consumer onto js-yaml 4. There is no v3 left in the tree, so the ignore is removed rather than narrowed.
+
+- Updated dependencies [42abe67]
+- Updated dependencies [978d28e]
+  - @getmunin/db@4.81.0
+  - @getmunin/agent-runtime@4.81.0
+  - @getmunin/core@4.81.0
+  - @getmunin/inspector-app@4.81.0
+  - @getmunin/mcp-toolkit@4.81.0
+  - @getmunin/types@4.81.0
+  - @getmunin/emails@4.81.0
+
 ## 4.80.1
 
 ### Patch Changes

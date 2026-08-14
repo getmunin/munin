@@ -47,7 +47,7 @@ export class EmailAdminTools {
     name: 'conv_configure_email_channel',
     title: 'Conv: Configure an email channel',
     description:
-      "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` on an outreach-only inbox so inbound replies are always drafted for human approval rather than auto-sent.",
+      "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` so the agent answers into an internal draft that a human reviews and sends, instead of replying to the sender itself — use it to run an inbox with a human in the loop, or on an outreach-only inbox where a reply must never be auto-sent.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetupInput,

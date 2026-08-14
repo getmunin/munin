@@ -230,14 +230,128 @@ describe('createConversationHandler', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
-  it('skips when agentMode is draft_only (an outreach-originated conv)', async () => {
+  it('parks a draft and flags it for review instead of replying when agentMode is draft_only', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() =>
-        Promise.resolve(buildConversation({ agentMode: 'draft_only' })),
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'email' })),
       ),
     });
     const postSpy = vi.fn(() => Promise.resolve());
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    const handoverSpy = vi.fn(() => Promise.resolve());
     rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    rest.requestHandover = handoverSpy;
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('We open at 10am.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(draftSpy.mock.calls[0]).toEqual(['conv_1', 'We open at 10am.']);
+    expect(handoverSpy).toHaveBeenCalledWith('conv_1', {
+      reason: 'draft reply ready for review',
+    });
+  });
+
+  it('leaves an outreach-originated draft_only conversation to the outreach reply curator', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'email',
+            outreachCampaignId: 'ocmp_1',
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    const draftSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('Happy to help.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(draftSpy).not.toHaveBeenCalled();
+  });
+
+  it('never shows a typing indicator to the end user in draft_only mode', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'chat' })),
+      ),
+    });
+    const typingSpy = vi.fn();
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      onTyping: typingSpy,
+      provider: sequenceProvider([assistantStop('We open at 10am.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(typingSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not greet first in draft_only mode', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({ agentMode: 'draft_only', channelType: 'chat', messages: [] }),
+        ),
+      ),
+    });
+    const draftSpy = vi.fn(() => Promise.resolve());
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('Hi! How can I help?')]),
+    });
+    handler.greet({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(draftSpy).not.toHaveBeenCalled();
+  });
+
+  it('withholds an audit close while a draft_only draft is still awaiting review', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'email' })),
+      ),
+    });
+    const statusSpy = vi.fn(() => Promise.resolve());
+    const topicSpy = vi.fn(() => Promise.resolve());
+    const draftSpy = vi.fn(() => Promise.resolve());
+    rest.changeStatus = statusSpy;
+    rest.setTopic = topicSpy;
+    rest.setDraftReply = draftSpy;
+    rest.listTopics = vi.fn(() =>
+      Promise.resolve([{ id: 'top_1', slug: 'billing', name: 'Billing' }]),
+    );
     const handler = createConversationHandler({
       config: baseConfig,
       rest,
@@ -245,10 +359,45 @@ describe('createConversationHandler', () => {
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('Your invoice is attached.'),
+        assistantStop(
+          '{"actions":[{"type":"set_topic","topicSlug":"billing","reason":"invoice question"},{"type":"close_conversation","reason":"resolved"}]}',
+        ),
+      ]),
     });
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
-    expect(postSpy).not.toHaveBeenCalled();
+    expect(statusSpy).not.toHaveBeenCalled();
+    expect(topicSpy).toHaveBeenCalledWith('conv_1', 'top_1');
+    expect(draftSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('flags a handover without a public fallback message when draft_only retries are exhausted', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'email' })),
+      ),
+    });
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.requestHandover = handoverSpy;
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: () => Promise.reject(new Error('provider exploded')),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(handoverSpy).toHaveBeenCalledTimes(1);
+    const [, input] = handoverSpy.mock.calls[0] as unknown as [
+      string,
+      { reason?: string; publicFallbackMessage?: string },
+    ];
+    expect(input.publicFallbackMessage).toBeUndefined();
   });
 
   it('skips when agentMode is off', async () => {

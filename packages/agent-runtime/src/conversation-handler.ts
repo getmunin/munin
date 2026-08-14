@@ -33,6 +33,9 @@ function errorCode(err: Error): string | null {
   return typeof code === 'string' ? code : null;
 }
 const HANDOVER_TOOL_NAME = 'conv_request_human';
+const DRAFT_REVIEW_REASON = 'draft reply ready for review';
+
+type Delivery = 'send' | 'draft';
 
 interface AuditOutcome {
   handoverReason: string | null;
@@ -125,42 +128,58 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       );
   }
 
-  function shouldRespond(detail: ConversationDetail, mode: 'reply' | 'greet'): boolean {
+  function resolveDelivery(
+    detail: ConversationDetail,
+    mode: 'reply' | 'greet',
+  ): Delivery | null {
     if (detail.channelType === 'voice') {
       log.info(`skip ${detail.id}: voice channel (vendor owns the response loop)`);
-      return false;
+      return null;
     }
     if (detail.voiceActive) {
       log.info(`skip ${detail.id}: voice call in progress (vendor owns the response loop)`);
-      return false;
+      return null;
     }
     if (detail.status !== 'open') {
       log.info(`skip ${detail.id}: status=${detail.status}`);
-      return false;
+      return null;
     }
     if (detail.assigneeUserId) {
       log.info(`skip ${detail.id}: assigned to staff ${detail.assigneeUserId}`);
-      return false;
+      return null;
     }
-    if (detail.agentMode && detail.agentMode !== 'auto') {
+    if (
+      detail.agentMode !== undefined &&
+      detail.agentMode !== 'auto' &&
+      detail.agentMode !== 'draft_only'
+    ) {
       log.info(`skip ${detail.id}: agentMode=${detail.agentMode}`);
-      return false;
+      return null;
+    }
+    const delivery: Delivery = detail.agentMode === 'draft_only' ? 'draft' : 'send';
+    if (delivery === 'draft' && mode === 'greet') {
+      log.info(`skip ${detail.id}: agentMode=draft_only never greets first`);
+      return null;
+    }
+    if (delivery === 'draft' && detail.outreachCampaignId) {
+      log.info(`skip ${detail.id}: outreach reply curator owns the draft for this conversation`);
+      return null;
     }
     if (detail.claim && detail.claim.holderType === 'user') {
       log.info(`skip ${detail.id}: claimed by ${detail.claim.holderId} until ${detail.claim.expiresAt}`);
-      return false;
+      return null;
     }
     if (!detail.endUserId) {
       log.info(`skip ${detail.id}: no end-user bound`);
-      return false;
+      return null;
     }
-    if (mode === 'greet') return true;
+    if (mode === 'greet') return delivery;
     const last = lastInbound(detail);
     if (!last) {
       log.info(`skip ${detail.id}: no inbound message yet`);
-      return false;
+      return null;
     }
-    return true;
+    return delivery;
   }
 
   async function run(
@@ -176,7 +195,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     if (signal.aborted) return;
 
     const detail = await deps.rest.getConversation(conversationId);
-    if (!shouldRespond(detail, mode)) return;
+    const delivery = resolveDelivery(detail, mode);
+    if (delivery === null) return;
     if (signal.aborted) return;
 
     const claim = await deps.rest.tryAcquireConversation({
@@ -269,7 +289,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
       if (signal.aborted) return;
       const mcp = await deps.openMcp({ endUserId });
-      startTyping();
+      if (delivery === 'send') startTyping();
       try {
         const reply = await runAgent({
           config: {
@@ -301,6 +321,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             history,
             mcp,
             log,
+            delivery,
           });
           if (audit.spam) {
             log.warn(`${conversationId} spam verdict: withholding reply, parking draft`);
@@ -311,6 +332,20 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
                   `${conversationId} failed to park withheld reply: ${err instanceof Error ? err.message : String(err)}`,
                 ),
               );
+            return;
+          }
+          if (delivery === 'draft') {
+            await deps.rest.setDraftReply(conversationId, reply.body);
+            await deps.rest
+              .requestHandover(conversationId, { reason: DRAFT_REVIEW_REASON })
+              .catch((err) =>
+                log.warn(
+                  `${conversationId} failed to flag draft for review: ${err instanceof Error ? err.message : String(err)}`,
+                ),
+              );
+            log.info(
+              `${conversationId} drafted for review (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,
+            );
             return;
           }
           const handoverReason = llmHandoverReason ?? audit.handoverReason;
@@ -411,7 +446,9 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       await deps.rest
         .requestHandover(conversationId, {
           reason,
-          publicFallbackMessage: FALLBACK_HANDOVER[fallbackLocale],
+          ...(delivery === 'send'
+            ? { publicFallbackMessage: FALLBACK_HANDOVER[fallbackLocale] }
+            : {}),
         })
         .catch((err) => {
           log.error(
@@ -431,6 +468,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     history: ConversationMessage[];
     mcp: McpToolHandle;
     log: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
+    delivery: Delivery;
   }): Promise<AuditOutcome> {
     if (deps.config.auditEnabled === false) return NO_AUDIT_ACTIONS;
     const lastUser = [...args.history].reverse().find(
@@ -459,9 +497,20 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const agentCalledHandover = args.reply.toolCalls.some(
       (t) => t.name === HANDOVER_TOOL_NAME,
     );
-    const dispatched = verdict.actions.filter(
+    const candidates = verdict.actions.filter(
       (action) => !(action.type === 'request_handover' && agentCalledHandover),
     );
+    const dispatched = candidates.filter((action) => {
+      if (args.delivery === 'send') return true;
+      const closesThread =
+        action.type === 'close_conversation' || action.type === 'snooze_conversation';
+      if (closesThread) {
+        args.log.info(
+          `${args.conversationId} audit → ${action.type} withheld: nothing was sent, draft awaits review`,
+        );
+      }
+      return !closesThread;
+    });
     for (const action of dispatched) {
       await dispatchAuditAction(args.conversationId, action, args.mcp, topics, args.log);
     }

@@ -63,6 +63,7 @@ export interface AnalyticsViewEventExport {
   subjectType: string;
   subjectId: string;
   source: string;
+  trackerId: string | null;
   path: string | null;
   locale: string | null;
   referrer: string | null;
@@ -83,6 +84,7 @@ export interface AnalyticsSearchEventExport {
   id: string;
   subjectType: string;
   query: string;
+  trackerId: string | null;
   locale: string | null;
   resultCount: number;
   visitorId: string | null;
@@ -109,7 +111,8 @@ export interface AnalyticsImportData {
   };
   events?: {
     viewEvents: Array<
-      Omit<AnalyticsViewEventExport, 'path' | 'locale' | 'referrer' | 'utmSource' | 'utmMedium' | 'utmCampaign' | 'visitorId' | 'endUserId' | 'userAgentClass' | 'dwellMs' | 'readDepth' | 'country' | 'metadata'> & {
+      Omit<AnalyticsViewEventExport, 'trackerId' | 'path' | 'locale' | 'referrer' | 'utmSource' | 'utmMedium' | 'utmCampaign' | 'visitorId' | 'endUserId' | 'userAgentClass' | 'dwellMs' | 'readDepth' | 'country' | 'metadata'> & {
+        trackerId?: string | null;
         path?: string | null;
         locale?: string | null;
         referrer?: string | null;
@@ -126,7 +129,8 @@ export interface AnalyticsImportData {
       }
     >;
     searchEvents: Array<
-      Omit<AnalyticsSearchEventExport, 'locale' | 'visitorId' | 'endUserId'> & {
+      Omit<AnalyticsSearchEventExport, 'trackerId' | 'locale' | 'visitorId' | 'endUserId'> & {
+        trackerId?: string | null;
         locale?: string | null;
         visitorId?: string | null;
         endUserId?: string | null;
@@ -162,6 +166,7 @@ export interface RecordSearchInput {
   subjectType: string;
   query: string;
   resultCount: number;
+  trackerId?: string | null;
   locale?: string | null;
   visitorId?: string | null;
   requireVerifiedIdentity?: boolean;
@@ -269,6 +274,7 @@ export class AnalyticsService {
         orgId: input.orgId,
         subjectType: input.subjectType.slice(0, 32),
         query: q.slice(0, 256),
+        trackerId: input.trackerId ?? null,
         locale: truncate(input.locale, 16),
         resultCount: Math.max(0, Math.floor(input.resultCount)),
         visitorId,
@@ -352,6 +358,7 @@ export class AnalyticsService {
       subject_type: string;
       subject_id: string | null;
       source: string | null;
+      tracker_id: string | null;
       path: string | null;
       locale: string | null;
       referrer: string | null;
@@ -370,14 +377,14 @@ export class AnalyticsService {
     }>(sql`
       SELECT * FROM (
         SELECT 'view'::text AS kind, id, created_at, subject_type, subject_id,
-               source, path, locale, referrer, utm_source, utm_medium, utm_campaign,
+               source, tracker_id, path, locale, referrer, utm_source, utm_medium, utm_campaign,
                visitor_id, end_user_id, user_agent_class, dwell_ms, read_depth,
                country, metadata, NULL::text AS query, NULL::int AS result_count
         FROM analytics_view_events
         WHERE org_id = ${actor.orgId} ${after}
         UNION ALL
         SELECT 'search'::text AS kind, id, created_at, subject_type, NULL::text AS subject_id,
-               NULL::text AS source, NULL::text AS path, locale, NULL::text AS referrer,
+               NULL::text AS source, tracker_id, NULL::text AS path, locale, NULL::text AS referrer,
                NULL::text AS utm_source, NULL::text AS utm_medium, NULL::text AS utm_campaign,
                visitor_id, end_user_id, NULL::text AS user_agent_class, NULL::int AS dwell_ms,
                NULL::int AS read_depth, NULL::text AS country, NULL::jsonb AS metadata,
@@ -401,6 +408,7 @@ export class AnalyticsService {
           subjectType: r.subject_type,
           subjectId: r.subject_id ?? '',
           source: r.source ?? 'tracker',
+          trackerId: r.tracker_id,
           path: r.path,
           locale: r.locale,
           referrer: r.referrer,
@@ -421,6 +429,7 @@ export class AnalyticsService {
           id: r.id,
           subjectType: r.subject_type,
           query: r.query ?? '',
+          trackerId: r.tracker_id,
           locale: r.locale,
           resultCount: r.result_count ?? 0,
           visitorId: r.visitor_id,
@@ -542,6 +551,7 @@ export class AnalyticsService {
           subjectType: event.subjectType,
           subjectId: event.subjectId,
           source: event.source,
+          trackerId: resolveId(result.idMap, event.trackerId) ?? null,
           path: event.path,
           locale: event.locale,
           referrer: event.referrer,
@@ -579,6 +589,7 @@ export class AnalyticsService {
           orgId: actor.orgId,
           subjectType: event.subjectType,
           query: event.query,
+          trackerId: resolveId(result.idMap, event.trackerId) ?? null,
           locale: event.locale,
           resultCount: event.resultCount,
           visitorId: event.visitorId,
@@ -846,11 +857,13 @@ export class AnalyticsService {
     sinceDays: number;
     limit: number;
     source?: ViewSource;
+    trackerId?: string;
     endUserId?: string;
     contactId?: string;
   }): Promise<Array<{ subjectType: string; subjectId: string; views: number; visitors: number }>> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await this.assertTrackerExists(args.trackerId);
     const conditions = this.viewWindowConditions(actor.orgId, args);
     const endUserId = await this.resolveQueryEndUserId(args);
     if (args.endUserId || args.contactId) {
@@ -886,9 +899,11 @@ export class AnalyticsService {
     sinceDays: number;
     limit: number;
     source?: ViewSource;
+    trackerId?: string;
   }): Promise<Array<{ country: string | null; views: number; visitors: number }>> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await this.assertTrackerExists(args.trackerId);
     const where = sql.join(this.viewWindowConditions(actor.orgId, args), sql` AND `);
     const rows = await ctx.db.execute<{
       country: string | null;
@@ -916,6 +931,7 @@ export class AnalyticsService {
     sinceDays: number;
     limit: number;
     source?: ViewSource;
+    trackerId?: string;
   }): Promise<
     Array<{
       utmSource: string | null;
@@ -927,6 +943,7 @@ export class AnalyticsService {
   > {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await this.assertTrackerExists(args.trackerId);
     const where = sql.join(this.viewWindowConditions(actor.orgId, args), sql` AND `);
     const rows = await ctx.db.execute<{
       utm_source: string | null;
@@ -959,9 +976,11 @@ export class AnalyticsService {
     sinceDays: number;
     limit: number;
     source?: ViewSource;
+    trackerId?: string;
   }): Promise<Array<{ host: string | null; views: number; visitors: number }>> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await this.assertTrackerExists(args.trackerId);
     const where = sql.join(this.viewWindowConditions(actor.orgId, args), sql` AND `);
     const hostExpr = sql`NULLIF(substring(referrer FROM '^[a-zA-Z]+://([^/?#]+)'), '')`;
     const exclude = args.excludeHost
@@ -993,11 +1012,13 @@ export class AnalyticsService {
     subjectId?: string;
     sinceDays: number;
     source?: ViewSource;
+    trackerId?: string;
     endUserId?: string;
     contactId?: string;
   }): Promise<Array<{ day: string; views: number; visitors: number }>> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await this.assertTrackerExists(args.trackerId);
     const eventConditions = this.viewWindowConditions(actor.orgId, args);
     const endUserId = await this.resolveQueryEndUserId(args);
     if (args.endUserId || args.contactId) {
@@ -1095,6 +1116,7 @@ export class AnalyticsService {
     subjectType: string;
     subjectId: string;
     sinceDays: number;
+    trackerId?: string;
     endUserId?: string;
     contactId?: string;
   }): Promise<{
@@ -1106,12 +1128,14 @@ export class AnalyticsService {
   }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await this.assertTrackerExists(args.trackerId);
     const conditions = [
       sql`org_id = ${actor.orgId}`,
       sql`subject_type = ${args.subjectType}`,
       sql`subject_id = ${args.subjectId}`,
       sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
     ];
+    if (args.trackerId) conditions.push(sql`tracker_id = ${args.trackerId}`);
     const endUserId = await this.resolveQueryEndUserId(args);
     if (args.endUserId || args.contactId) {
       if (!endUserId) {
@@ -1156,6 +1180,7 @@ export class AnalyticsService {
     sinceDays: number;
     stepWindowHours?: number;
     source?: ViewSource;
+    trackerId?: string;
   }): Promise<{
     sinceDays: number;
     steps: Array<{
@@ -1170,6 +1195,7 @@ export class AnalyticsService {
   }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await this.assertTrackerExists(args.trackerId);
     const steps = args.steps;
 
     const prefilter = sql.join(
@@ -1177,6 +1203,7 @@ export class AnalyticsService {
       sql` OR `,
     );
     const sourceCond = args.source ? sql` AND ev.source = ${args.source}` : sql``;
+    const trackerCond = args.trackerId ? sql` AND ev.tracker_id = ${args.trackerId}` : sql``;
 
     const ctes: SQL[] = [
       sql`base AS (
@@ -1189,7 +1216,7 @@ export class AnalyticsService {
         LEFT JOIN analytics_visitor_identities vi
           ON vi.org_id = ev.org_id AND vi.visitor_id = ev.visitor_id
         WHERE ev.org_id = ${actor.orgId}
-          AND ev.created_at > NOW() - (${args.sinceDays} || ' days')::interval${sourceCond}
+          AND ev.created_at > NOW() - (${args.sinceDays} || ' days')::interval${sourceCond}${trackerCond}
           AND COALESCE(vi.end_user_id, ev.visitor_id) IS NOT NULL
           AND (${prefilter})
       )`,
@@ -1254,6 +1281,7 @@ export class AnalyticsService {
     contactId?: string;
     sinceDays: number;
     limit: number;
+    trackerId?: string;
   }): Promise<
     Array<{
       kind: 'view' | 'search';
@@ -1267,12 +1295,14 @@ export class AnalyticsService {
   > {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await this.assertTrackerExists(args.trackerId);
     const endUserId = await this.resolveQueryEndUserId(args);
     if (!endUserId) return [];
     const matchActor = sql`(end_user_id = ${endUserId} OR visitor_id IN (
       SELECT visitor_id FROM analytics_visitor_identities
       WHERE org_id = ${actor.orgId} AND end_user_id = ${endUserId}
     ))`;
+    const trackerCond = args.trackerId ? sql`AND tracker_id = ${args.trackerId}` : sql``;
     const rows = await ctx.db.execute<{
       kind: 'view' | 'search';
       at: Date | string;
@@ -1293,6 +1323,7 @@ export class AnalyticsService {
       WHERE org_id = ${actor.orgId}
         AND ${matchActor}
         AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
+        ${trackerCond}
       UNION ALL
       SELECT 'search'::text AS kind,
              created_at AS at,
@@ -1305,6 +1336,7 @@ export class AnalyticsService {
       WHERE org_id = ${actor.orgId}
         AND ${matchActor}
         AND created_at > NOW() - (${args.sinceDays} || ' days')::interval
+        ${trackerCond}
       ORDER BY at ASC
       LIMIT ${args.limit}
     `);
@@ -1323,15 +1355,18 @@ export class AnalyticsService {
     subjectType?: string;
     sinceDays: number;
     limit: number;
+    trackerId?: string;
   }): Promise<Array<{ query: string; occurrences: number; lastSeenAt: string }>> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await this.assertTrackerExists(args.trackerId);
     const conditions = [
       sql`org_id = ${actor.orgId}`,
       sql`result_count = 0`,
       sql`created_at > NOW() - (${args.sinceDays} || ' days')::interval`,
     ];
     if (args.subjectType) conditions.push(sql`subject_type = ${args.subjectType}`);
+    if (args.trackerId) conditions.push(sql`tracker_id = ${args.trackerId}`);
     const where = sql.join(conditions, sql` AND `);
     const rows = await ctx.db.execute<{
       query: string;
@@ -1356,7 +1391,13 @@ export class AnalyticsService {
 
   private viewWindowConditions(
     orgId: string,
-    args: { sinceDays: number; subjectType?: string; subjectId?: string; source?: ViewSource },
+    args: {
+      sinceDays: number;
+      subjectType?: string;
+      subjectId?: string;
+      source?: ViewSource;
+      trackerId?: string;
+    },
   ): SQL[] {
     const conditions: SQL[] = [
       sql`org_id = ${orgId}`,
@@ -1365,7 +1406,25 @@ export class AnalyticsService {
     if (args.subjectType) conditions.push(sql`subject_type = ${args.subjectType}`);
     if (args.subjectId) conditions.push(sql`subject_id = ${args.subjectId}`);
     if (args.source) conditions.push(sql`source = ${args.source}`);
+    if (args.trackerId) conditions.push(sql`tracker_id = ${args.trackerId}`);
     return conditions;
+  }
+
+  private async assertTrackerExists(trackerId: string | undefined): Promise<void> {
+    if (!trackerId) return;
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select({ id: schema.analyticsTrackers.id })
+      .from(schema.analyticsTrackers)
+      .where(
+        and(
+          eq(schema.analyticsTrackers.id, trackerId),
+          eq(schema.analyticsTrackers.orgId, actor.orgId),
+        ),
+      )
+      .limit(1);
+    if (!rows[0]) throw new NotFoundException(`tracker ${trackerId} not found`);
   }
 
   private async resolveQueryEndUserId(args: {

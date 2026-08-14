@@ -35,6 +35,7 @@ const AnalyticsImportInput = z.object({
           subjectType: z.string().max(32),
           subjectId: z.string(),
           source: z.string().max(8),
+          trackerId: z.string().nullable().optional(),
           path: z.string().nullable().optional(),
           locale: z.string().nullable().optional(),
           referrer: z.string().nullable().optional(),
@@ -56,6 +57,7 @@ const AnalyticsImportInput = z.object({
           id: z.string(),
           subjectType: z.string().max(32),
           query: z.string(),
+          trackerId: z.string().nullable().optional(),
           locale: z.string().nullable().optional(),
           resultCount: z.number().int(),
           visitorId: z.string().nullable().optional(),
@@ -105,11 +107,14 @@ const ListTrackersInput = z.object({
   includeRevoked: z.boolean().optional(),
 });
 
+const TrackerIdFilter = z.string().optional();
+
 const TopSubjectsInput = z.object({
   subjectType: z.string().max(32).optional(),
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(200).default(20),
   source: ViewSourceSchema.optional(),
+  trackerId: TrackerIdFilter,
   endUserId: z.string().optional(),
   contactId: z.string().optional(),
 });
@@ -119,6 +124,7 @@ const TopCountriesInput = z.object({
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(200).default(50),
   source: ViewSourceSchema.optional(),
+  trackerId: TrackerIdFilter,
 });
 
 const TrafficBySourceInput = z.object({
@@ -126,6 +132,7 @@ const TrafficBySourceInput = z.object({
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(200).default(50),
   source: ViewSourceSchema.optional(),
+  trackerId: TrackerIdFilter,
 });
 
 const ReferrerHostsInput = z.object({
@@ -134,6 +141,7 @@ const ReferrerHostsInput = z.object({
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(200).default(50),
   source: ViewSourceSchema.optional(),
+  trackerId: TrackerIdFilter,
 });
 
 const ViewsOverTimeInput = z.object({
@@ -141,6 +149,7 @@ const ViewsOverTimeInput = z.object({
   subjectId: z.string().optional(),
   sinceDays: z.number().int().min(1).max(365).default(30),
   source: ViewSourceSchema.optional(),
+  trackerId: TrackerIdFilter,
   endUserId: z.string().optional(),
   contactId: z.string().optional(),
 });
@@ -149,6 +158,7 @@ const SubjectEngagementInput = z.object({
   subjectType: z.string().max(32),
   subjectId: z.string(),
   sinceDays: z.number().int().min(1).max(365).default(90),
+  trackerId: TrackerIdFilter,
   endUserId: z.string().optional(),
   contactId: z.string().optional(),
 });
@@ -157,6 +167,7 @@ const ZeroResultSearchesInput = z.object({
   subjectType: z.string().max(32).optional(),
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(200).default(50),
+  trackerId: TrackerIdFilter,
 });
 
 const ContactJourneyInput = z.object({
@@ -164,6 +175,7 @@ const ContactJourneyInput = z.object({
   endUserId: z.string().optional(),
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(500).default(100),
+  trackerId: TrackerIdFilter,
 });
 
 const FunnelStepSchema = z
@@ -182,6 +194,7 @@ const FunnelInput = z.object({
   sinceDays: z.number().int().min(1).max(365).default(30),
   stepWindowHours: z.number().int().min(1).max(24 * 365).optional(),
   source: ViewSourceSchema.optional(),
+  trackerId: TrackerIdFilter,
 });
 
 @Injectable()
@@ -315,7 +328,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_list_top_subjects',
     title: 'Analytics: List top subjects by view count',
     description:
-      'List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`). Pass `endUserId` or `contactId` to restrict the ranking to one identified visitor — useful for "what has this lead been reading?".',
+      'List the most-viewed subjects (CMS entries, landing pages, etc.) over a recent window. Use this to see what content is actually getting traffic. Filter by `subjectType` to scope to one surface (e.g. `cms_entry`). Pass `trackerId` (from `analytics_list_trackers`) to report on a single site or app instead of every tracker in the org summed together. Pass `endUserId` or `contactId` to restrict the ranking to one identified visitor — useful for "what has this lead been reading?".',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: TopSubjectsInput,
@@ -330,7 +343,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_list_top_countries',
     title: 'Analytics: List top countries by visitors',
     description:
-      'Visitor and view counts grouped by ISO 3166-1 alpha-2 country code over a recent window. Requires the backend to have `MUNIN_GEOIP_DB_PATH` configured; rows recorded without a GeoIP DB carry `country = NULL` and roll up into an "unknown" bucket. Filter by `subjectType` (e.g. `page`, `cms_entry`) or `source` to scope.',
+      'Visitor and view counts grouped by ISO 3166-1 alpha-2 country code over a recent window. Requires the backend to have `MUNIN_GEOIP_DB_PATH` configured; rows recorded without a GeoIP DB carry `country = NULL` and roll up into an "unknown" bucket. Filter by `subjectType` (e.g. `page`, `cms_entry`), `source`, or `trackerId` (from `analytics_list_trackers`, to report on a single site or app instead of every tracker summed together) to scope.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: TopCountriesInput,
@@ -345,7 +358,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_list_traffic_sources',
     title: 'Analytics: List traffic by UTM source',
     description:
-      'Views and unique visitors grouped by `utm_source` (with `utm_medium` / `utm_campaign` breakdown). Use this to compare campaign attribution: which channels actually drive engaged traffic vs. just clicks. Rows where `utm_source` is NULL (no campaign params on the URL) roll into a single "direct/organic" bucket.',
+      'Views and unique visitors grouped by `utm_source` (with `utm_medium` / `utm_campaign` breakdown). Use this to compare campaign attribution: which channels actually drive engaged traffic vs. just clicks. Rows where `utm_source` is NULL (no campaign params on the URL) roll into a single "direct/organic" bucket. Pass `trackerId` (from `analytics_list_trackers`) to attribute one site or app on its own instead of every tracker in the org summed together.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: TrafficBySourceInput,
@@ -361,7 +374,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_list_referrer_hosts',
     title: 'Analytics: List top referrer hosts',
     description:
-      'External traffic sources grouped by the host portion of `referrer`. Use this to see which sites are linking to you (HN, Reddit, partner blogs). Same-origin referrers are excluded server-side via the `excludeHost` argument (typically your own production host); pass it to keep internal navigations from drowning out external referrals. Rows with NULL referrer (direct navigation, bookmarks, link-with-`rel=noreferrer`) roll into a single "direct" bucket.',
+      'External traffic sources grouped by the host portion of `referrer`. Use this to see which sites are linking to you (HN, Reddit, partner blogs). Same-origin referrers are excluded server-side via the `excludeHost` argument (typically your own production host); pass it to keep internal navigations from drowning out external referrals. Rows with NULL referrer (direct navigation, bookmarks, link-with-`rel=noreferrer`) roll into a single "direct" bucket. Pass `trackerId` (from `analytics_list_trackers`) to scope to one site or app instead of every tracker in the org summed together — which also makes `excludeHost` meaningful when the org runs several domains.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: ReferrerHostsInput,
@@ -376,7 +389,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_get_views_over_time',
     title: 'Analytics: Get daily view time-series',
     description:
-      'Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches. In hosts that support MCP Apps this renders an inline time-series chart.',
+      'Daily view + unique-visitor counts over a recent window. Returns one row per UTC day, ordered oldest → newest, with zero-filled gaps so days with no traffic appear as `views: 0`. Use this to spot trends, weekly patterns, and the impact of campaigns or content launches. Pass `trackerId` (from `analytics_list_trackers`) for one site or app on its own; without it every tracker in the org is summed into one line. In hosts that support MCP Apps this renders an inline time-series chart.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: ViewsOverTimeInput,
@@ -392,7 +405,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_get_subject_engagement',
     title: 'Analytics: Get engagement for one subject',
     description:
-      'View counts, unique visitors, and average dwell/read-depth for one subject (e.g. one CMS entry) over a recent window. Use this when judging whether a stale entry should be refreshed or archived.',
+      'View counts, unique visitors, and average dwell/read-depth for one subject (e.g. one CMS entry) over a recent window. Use this when judging whether a stale entry should be refreshed or archived. Pass `trackerId` (from `analytics_list_trackers`) when the same subject id is served by more than one tracked site and you want them apart.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: SubjectEngagementInput,
@@ -407,7 +420,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_get_funnel',
     title: 'Analytics: Get conversion funnel across ordered steps',
     description:
-      'Compute a conversion funnel over page-view events: how many distinct visitors reached each ordered step, and where they drop off. Pass 2–8 `steps`; each step matches a view event by `subjectType` and/or `subjectId` (e.g. `{ subjectType: "page", subjectId: "/pricing" }`) and/or a `pathLike` SQL LIKE pattern (e.g. `{ pathLike: "/blog/%" }`). Steps are strictly ordered — a visitor counts at step N only if they hit step N after reaching step N-1. Visitors are grouped by a stable actor key (their identified end-user when known, else their anonymous `visitor_id`), so a journey that spans the anonymous → identified transition is not double-counted. Set `stepWindowHours` to require each step to follow the previous within a time budget (e.g. signup within 24h of viewing pricing). Anonymous funnels work without any identity setup. Returns per-step actor counts plus conversion/drop rates.',
+      'Compute a conversion funnel over page-view events: how many distinct visitors reached each ordered step, and where they drop off. Pass 2–8 `steps`; each step matches a view event by `subjectType` and/or `subjectId` (e.g. `{ subjectType: "page", subjectId: "/pricing" }`) and/or a `pathLike` SQL LIKE pattern (e.g. `{ pathLike: "/blog/%" }`). Steps are strictly ordered — a visitor counts at step N only if they hit step N after reaching step N-1. Visitors are grouped by a stable actor key (their identified end-user when known, else their anonymous `visitor_id`), so a journey that spans the anonymous → identified transition is not double-counted. Set `stepWindowHours` to require each step to follow the previous within a time budget (e.g. signup within 24h of viewing pricing). Pass `trackerId` (from `analytics_list_trackers`) to build the funnel from one site or app only; without it, steps match events from every tracker in the org. Anonymous funnels work without any identity setup. Returns per-step actor counts plus conversion/drop rates.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: FunnelInput,
@@ -423,7 +436,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_get_contact_journey',
     title: 'Analytics: Get a contact’s view journey',
     description:
-      'Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`. Events recorded under a `visitor_id` *before* that link was established are still included retroactively — the link is resolved at read time — so the journey spans the visitor\'s anonymous history too.',
+      'Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`. Events recorded under a `visitor_id` *before* that link was established are still included retroactively — the link is resolved at read time — so the journey spans the visitor\'s anonymous history too. Pass `trackerId` (from `analytics_list_trackers`) to narrow the timeline to one site or app.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: ContactJourneyInput,
@@ -439,7 +452,7 @@ export class AnalyticsAdminTools {
     name: 'analytics_list_zero_result_searches',
     title: 'Analytics: List zero-result searches',
     description:
-      'List recent public search queries that returned zero results. The single best input for "what should we write about next" — readers are asking but Munin has no answer.',
+      'List recent public search queries that returned zero results. The single best input for "what should we write about next" — readers are asking but Munin has no answer. Pass `trackerId` (from `analytics_list_trackers`) to see one site\'s or app\'s searches on their own; searches Munin ran itself through the CMS delivery API carry no tracker and are excluded by that filter.',
     audiences: ['admin'],
     scopes: ['analytics:read'],
     input: ZeroResultSearchesInput,

@@ -152,8 +152,8 @@ const skipReason = TEST_URL
     }
     interface EventsPage {
       records: {
-        viewEvents: Array<{ id: string; subjectId: string }>;
-        searchEvents: Array<{ id: string; query: string }>;
+        viewEvents: Array<{ id: string; subjectId: string; trackerId: string | null }>;
+        searchEvents: Array<{ id: string; query: string; trackerId: string | null }>;
       };
       nextCursor: string | null;
     }
@@ -177,6 +177,13 @@ const skipReason = TEST_URL
         };
         expect(tracker.identityVerificationSecret.length).toBeGreaterThan(0);
 
+        await db.execute(
+          sql`UPDATE analytics_view_events SET tracker_id = ${tracker.id} WHERE org_id = ${orgAId}`,
+        );
+        await db.execute(
+          sql`UPDATE analytics_search_events SET tracker_id = ${tracker.id} WHERE org_id = ${orgAId}`,
+        );
+
         const config = firstJson(
           (await c.callTool({ name: 'analytics_export_config', arguments: {} })),
         ) as ConfigExport;
@@ -188,8 +195,8 @@ const skipReason = TEST_URL
           })),
         ) as EventsPage;
 
-        const allViews: Array<{ id: string; subjectId: string }> = [];
-        const allSearches: Array<{ id: string; query: string }> = [];
+        const allViews: EventsPage['records']['viewEvents'] = [];
+        const allSearches: EventsPage['records']['searchEvents'] = [];
         let page = firstPage;
         for (;;) {
           allViews.push(...page.records.viewEvents);
@@ -232,6 +239,21 @@ const skipReason = TEST_URL
       for (const id of srcViewIds) expect(firstImport.idMap[id]).toMatch(/^avw_/);
       expect(firstImport.idMap[srcSearchId]).toMatch(/^asr_/);
       expect(firstImport.warnings.some((w) => w.includes('identity-verification'))).toBe(true);
+
+      expect(seeded.allViews.every((v) => v.trackerId === srcTrackerId)).toBe(true);
+      expect(seeded.allSearches.every((s) => s.trackerId === srcTrackerId)).toBe(true);
+      const importedTrackerId = firstImport.idMap[srcTrackerId];
+      const importedViews = await db
+        .select({ trackerId: schema.analyticsViewEvents.trackerId })
+        .from(schema.analyticsViewEvents)
+        .where(sql`org_id = ${orgBId}`);
+      const importedSearches = await db
+        .select({ trackerId: schema.analyticsSearchEvents.trackerId })
+        .from(schema.analyticsSearchEvents)
+        .where(sql`org_id = ${orgBId}`);
+      expect(importedViews).toHaveLength(4);
+      expect(importedViews.every((r) => r.trackerId === importedTrackerId)).toBe(true);
+      expect(importedSearches.every((r) => r.trackerId === importedTrackerId)).toBe(true);
 
       const secondImport = await withClient(adminKeyB, async (c) => {
         const res = await c.callTool({

@@ -35,6 +35,8 @@ The `Origin` header is browser-set and trivially spoofable via curl — origin a
 
 Edit later with `analytics_update_tracker({trackerId, allowedOrigins})`. Rotate with `analytics_revoke_tracker` + a fresh `analytics_create_tracker`. List with `analytics_list_trackers`.
 
+Mint **one tracker per site or app**, not one per org. Every event records which tracker sent it, so separate trackers are what lets you ask "how is the docs site doing" rather than only "how is everything doing" — see the `trackerId` note in section 4. Sharing one key across two sites merges them permanently: past rows keep the tracker they were written with, so splitting later only separates traffic from that day forward.
+
 ## 2. Drop the script tag
 
 ```html
@@ -232,6 +234,15 @@ Four admin-only MCP tools cover the questions you'll ask first:
   "arguments": { "subjectType": "page", "source": "tracker", "sinceDays": 7, "limit": 50 } }
 ```
 
+> **One org, several sites?** Every query tool below takes an optional `trackerId`. Leave it out and the numbers cover the whole org — every tracker summed into one figure, which is what you want for "how are we doing overall" and wrong for everything else. Pass one (`analytics_list_trackers` returns the ids) and views, visitors, countries, referrers, campaigns, funnels and searches are all scoped to that one site or app. An unknown id is an error rather than an empty result, so a typo can't read as "no traffic".
+>
+> ```jsonc
+> { "name": "analytics_get_views_over_time",
+>   "arguments": { "trackerId": "atr_…", "sinceDays": 30 } }
+> ```
+>
+> Rows recorded before a tracker existed, and CMS-entry views from `skill://analytics/track-cms-views` (token-signed, no tracker key), carry no tracker — they're only visible in unscoped queries.
+
 Returns `[{ subjectType, subjectId, views, visitors }]` ordered by view count.
 
 ```jsonc
@@ -248,7 +259,7 @@ Returns `{ views, visitors, avgDwellMs, avgReadDepth, lastViewAt }` — combine 
   "arguments": { "sinceDays": 30, "limit": 50 } }
 ```
 
-Returns `[{ query, occurrences, lastSeenAt }]`. The single best signal for "what should we write next" — readers asked and nothing came back. It covers Munin's own CMS delivery search plus anything you report through `mn.trackSearch` / `POST /v1/a/s`; if your site search never reports, this list is empty no matter how much searching happens.
+Returns `[{ query, occurrences, lastSeenAt }]`. The single best signal for "what should we write next" — readers asked and nothing came back. It covers Munin's own CMS delivery search plus anything you report through `mn.trackSearch` / `POST /v1/a/s`; if your site search never reports, this list is empty no matter how much searching happens. Searches arriving with a tracker key are stamped with that tracker, so `trackerId` splits them per site; CMS delivery searches carry no key and drop out of a tracker-scoped list.
 
 ```jsonc
 // Where are visitors coming from? (requires MUNIN_GEOIP_DB_PATH set; otherwise everything rolls into `country: null`)
@@ -331,6 +342,7 @@ The beacon also accepts `viewId` — send the same value twice to enrich one row
 |---|---|
 | Rotate a key | `analytics_revoke_tracker({trackerId})` then `analytics_create_tracker({name})`. Old key 401s immediately. |
 | Audit which keys exist | `analytics_list_trackers({})`. Returns id, name, prefix, last-used, revoked-at. |
+| Report on one site among several | Pass `trackerId` to any query tool. Omit it for an org-wide total. |
 | Disable a single page from tracking | Remove the script tag from that page. The script is per-page-load opt-in. |
 | Delete a visitor's data | `DELETE FROM analytics_view_events WHERE visitor_id = $1`. No PII is stored beyond the random uuid — but if a regulator-grade deletion is needed, this is the path. |
 | Fold a locale prefix the page's `lang` doesn't match | `analytics_update_tracker({trackerId, canonicalLocales: ["no"]})`. Applies from the next event; no redeploy. Matching prefixes are already folded automatically. |

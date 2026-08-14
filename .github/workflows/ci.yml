@@ -9,20 +9,23 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only by default. Jobs that install and execute dependency code must not
+# hold a token that can publish packages or push commits; the write grants live
+# on the release job, which runs only after `build` passes on main.
 permissions:
-  contents: write
-  pull-requests: write
-  packages: write
-  id-token: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
-    name: lint · typecheck · test · build · release
+    name: lint · typecheck · test · build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    permissions:
+      contents: read
 
     services:
       postgres:
@@ -51,13 +54,13 @@ jobs:
       MUNIN_CMS_SCHEDULE_WORKER_DISABLED: '1'
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -65,7 +68,7 @@ jobs:
           scope: '@getmunin'
 
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Migrate (creates munin_app role + RLS policies + module SQL)
         run: pnpm -F @getmunin/db db:migrate
@@ -112,12 +115,42 @@ jobs:
       - name: Build
         run: pnpm build
 
+  release:
+    name: release (changesets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: write
+      pull-requests: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@getmunin'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # `pnpm release` builds the publishable packages, then runs `changeset
+      # publish` — the app builds this job does not need are skipped.
       - name: Release (Changesets)
         id: changesets
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: changesets/action@v1
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
-          publish: pnpm changeset publish
+          publish: pnpm release
           version: pnpm changeset version
           commit: 'chore: release'
           title: 'chore: release packages'
@@ -138,12 +171,17 @@ jobs:
         env:
           MCP_PRIVATE_KEY: ${{ secrets.MCP_PRIVATE_KEY }}
           PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
         run: |
           set -euo pipefail
           VERSION=$(node -e "process.stdout.write(JSON.parse(process.env.PUBLISHED_PACKAGES)[0].version)")
           echo "Publishing com.getmunin/munin@$VERSION to the MCP registry"
           jq --arg v "$VERSION" '.version = $v' server.json > server.json.tmp && mv server.json.tmp server.json
-          curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          curl -sSLf -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
           ./mcp-publisher login dns --domain getmunin.com --private-key "$MCP_PRIVATE_KEY"
           ./mcp-publisher publish
 
@@ -152,16 +190,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # `contents: write` is load-bearing: the regen step below pushes back to
+    # Dependabot branches. It is the only non-release job holding a write token.
+    permissions:
+      contents: write
+
     steps:
       # Branch tip, not the merge commit, so the regen step can push back. Fork PRs
       # fall back to the default ref: their head branch does not exist here.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -169,7 +212,7 @@ jobs:
           scope: '@getmunin'
 
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       # Dependabot cannot run licenses:generate, so its bumps failed this job by
       # construction. The check below still runs, so an unapproved license blocks merge.
@@ -194,12 +237,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    permissions:
+      contents: read
+
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -207,14 +253,14 @@ jobs:
           scope: '@getmunin'
 
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build internal packages the web app depends on
         run: pnpm --filter '@getmunin/dashboard-pages' --filter '@getmunin/sdk' --filter '@getmunin/types' --filter '@getmunin/ui' build
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('apps/web/package.json', 'pnpm-lock.yaml') }}
@@ -232,7 +278,7 @@ jobs:
 
       - name: Upload trace artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: playwright-traces
           path: apps/web/test-results/

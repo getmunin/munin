@@ -1,5 +1,13 @@
 # @getmunin/dashboard-pages
 
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies [ace185f]
+  - @getmunin/types@5.0.0
+  - @getmunin/ui@5.0.0
+
 ## 4.81.0
 
 ### Patch Changes

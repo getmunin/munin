@@ -12,6 +12,8 @@ interface BeaconCall {
 
 let beacons: BeaconCall[];
 let sendBeacon: ReturnType<typeof vi.fn>;
+let identifyPosts: Array<{ url: string; body: string }>;
+let identifyStatus: number;
 let keyCounter = 0;
 
 interface LoadOpts {
@@ -41,6 +43,13 @@ async function loadTracker(opts: LoadOpts = {}): Promise<string> {
 
 async function decode(call: BeaconCall): Promise<Record<string, unknown>> {
   return JSON.parse(await call.blob.text()) as Record<string, unknown>;
+}
+
+function identifyPayloads(key: string): Record<string, unknown>[] {
+  return identifyPosts
+    .filter((p) => p.url.endsWith('/v1/a/identify'))
+    .map((p) => JSON.parse(p.body) as Record<string, unknown>)
+    .filter((p) => p.key === key);
 }
 
 async function beaconsFor(key: string, pathSuffix: string): Promise<Record<string, unknown>[]> {
@@ -117,6 +126,15 @@ beforeEach(() => {
     return true;
   });
   Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: sendBeacon });
+  identifyPosts = [];
+  identifyStatus = 204;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string, init?: { body?: string }) => {
+      identifyPosts.push({ url: String(url), body: init?.body ?? '' });
+      return Promise.resolve(new Response(null, { status: identifyStatus }));
+    }),
+  );
   clearLocalStorageIfAvailable();
   delete (window as { mn?: unknown }).mn;
   setVisibility('visible');
@@ -129,6 +147,7 @@ beforeEach(() => {
 afterEach(() => {
   history.pushState = nativePushState;
   history.replaceState = nativeReplaceState;
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -260,7 +279,7 @@ describe('identify', () => {
     beacons = [];
     const visitorId = mn().getVisitorId();
     mn().identify('user_7', 'abc123');
-    const [payload] = await beaconsFor(key, '/v1/a/identify');
+    const [payload] = identifyPayloads(key);
     expect(payload).toMatchObject({ key, externalId: 'user_7', userHash: 'abc123', visitorId });
   });
 
@@ -274,7 +293,7 @@ describe('identify', () => {
     const key = await loadTracker();
     beacons = [];
     mn().identify('user_7', '');
-    expect(await beaconsFor(key, '/v1/a/identify')).toHaveLength(0);
+    expect(identifyPayloads(key)).toHaveLength(0);
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('identify requires'));
   });
 
@@ -286,7 +305,7 @@ describe('identify', () => {
     const key = await loadTracker();
     mn().identify('user_9', 'hash9');
     expect(widgetIdentify).not.toHaveBeenCalled();
-    expect(await beaconsFor(key, '/v1/a/identify')).toHaveLength(1);
+    expect(identifyPayloads(key)).toHaveLength(1);
     expect((window as unknown as { mn: { widget: unknown } }).mn.widget).toBeDefined();
   });
 
@@ -303,13 +322,35 @@ describe('identify', () => {
     expect(mn().identify).toBe(firstIdentify);
   });
 
+  it('warns when the server rejects the identity instead of dropping it silently', async () => {
+    identifyStatus = 400;
+    await loadTracker();
+    mn().identify('user_14', 'wrong-hash');
+
+    await vi.waitFor(() =>
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('identify rejected by the server (HTTP 400)'),
+      ),
+    );
+  });
+
+  it('stays quiet when the server accepts the identity', async () => {
+    await loadTracker();
+    mn().identify('user_15', 'good-hash');
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(console.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('identify rejected'),
+    );
+  });
+
   it('sends a trimmed email trait, and omits the field when there is none', async () => {
     const key = await loadTracker();
     beacons = [];
     mn().identify('user_11', 'hash11', { email: '  kari@example.no  ' });
     mn().identify('user_12', 'hash12', { email: '   ' });
     mn().identify('user_13', 'hash13');
-    const payloads = await beaconsFor(key, '/v1/a/identify');
+    const payloads = identifyPayloads(key);
     expect(payloads[0]).toMatchObject({ externalId: 'user_11', email: 'kari@example.no' });
     expect(payloads[1]).not.toHaveProperty('email');
     expect(payloads[2]).not.toHaveProperty('email');

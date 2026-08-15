@@ -163,6 +163,30 @@ function warn(message: string, ...detail: unknown[]): void {
     }
   }
 
+  function postIdentify(url: string, payload: unknown): void {
+    try {
+      void fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      })
+        .then((res) => {
+          if (res.ok || res.status === 204) return;
+          warn(
+            `identify rejected by the server (HTTP ${res.status}) — check that userHash was signed ` +
+              `with this tracker's identity secret over the mn.identity.v1 payload, and that this ` +
+              `origin is on the tracker's allowlist`,
+          );
+        })
+        .catch((err) => {
+          warn('identify request failed:', err);
+        });
+    } catch (err) {
+      warn('failed to send identify:', err);
+    }
+  }
+
   function readUtm(): { source?: string; medium?: string; campaign?: string } {
     try {
       const p = new URLSearchParams(location.search);
@@ -369,7 +393,7 @@ function warn(message: string, ...detail: unknown[]): void {
     };
     const email = traits?.email?.trim();
     if (email) payload.email = email;
-    post(identifyUrl, payload);
+    postIdentify(identifyUrl, payload);
   }
 
   function onLoad(): void {

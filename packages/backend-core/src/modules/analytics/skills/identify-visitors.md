@@ -77,9 +77,13 @@ The `ready` flag is what closes the listener-attached-too-late race: if the trac
 
 Call it once, after sign-in, on every authenticated page. The tracker sends `(visitorId, externalId, userHash, email?)` to `POST /v1/a/identify`. The backend:
 
-1. Validates the HMAC against the tracker's identity verification secret. Mismatches and missing secrets are silently dropped.
+1. Validates the HMAC against the tracker's identity verification secret.
 2. Resolves the `end_users` row (see step 4).
 3. Upserts the `(orgId, visitorId) → endUserId` row in `analytics_visitor_identities`.
+
+A rejected identity is **not** silent — the endpoint answers `400 identity_hash_mismatch` (or `identity_invalid` / `identity_secret_missing`, and `403 identity_origin_not_allowed`), and the tracker logs it to the browser console. Check there first when a journey stays empty; the usual causes are signing the wrong payload, using the widget channel's secret instead of the tracker's, or an origin that isn't on the tracker's allowlist.
+
+An unrecognized tracker key is the one case that still answers `204`, so the endpoint doesn't confirm which keys exist.
 
 Every subsequent tracker beacon for the same `visitorId` lands with `end_user_id` populated.
 

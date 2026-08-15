@@ -233,6 +233,9 @@ export const endUsers = pgTable(
     orgIdx: index('end_users_org_idx').on(t.orgId),
     externalUq: uniqueIndex('end_users_org_external_uq').on(t.orgId, t.externalId),
     emailIdx: index('end_users_email_idx').on(t.orgId, t.email),
+    emailUq: uniqueIndex('end_users_org_email_uq')
+      .on(t.orgId, sql`lower(${t.email})`)
+      .where(sql`${t.email} IS NOT NULL`),
     phoneIdx: index('end_users_phone_idx').on(t.orgId, t.phone),
   }),
 );

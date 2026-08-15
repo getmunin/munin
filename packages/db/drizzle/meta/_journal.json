@@ -484,6 +484,13 @@
       "when": 1786653895496,
       "tag": "0068_analytics_search_events_tracker_id",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1786822566063,
+      "tag": "0069_end_users_email_uq",
+      "breakpoints": true
     }
   ]
 }

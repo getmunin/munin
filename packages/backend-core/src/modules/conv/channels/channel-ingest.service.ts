@@ -9,6 +9,7 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { DB } from '../../../common/db/db.module.ts';
+import { findOrCreateEndUserByEmail } from '../end-user-by-email.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
@@ -250,38 +251,34 @@ async function findOrCreateContact(
     if (existing[0]) return existing[0];
   }
 
-  const externalId = email ? `email:${email}` : phone ? `phone:${phone}` : null;
   let endUserId: string | null = null;
-  if (externalId) {
+  if (email) {
+    endUserId = await findOrCreateEndUserByEmail(tx, orgId, email, name, 'channel-webhook');
+  } else if (phone) {
+    const externalId = `phone:${phone}`;
     const existingEu = await tx
-      .select()
+      .select({ id: schema.endUsers.id })
       .from(schema.endUsers)
       .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
       .limit(1);
     if (existingEu[0]) {
       endUserId = existingEu[0].id;
     } else {
-      try {
-        const [created] = await tx
-          .insert(schema.endUsers)
-          .values({
-            orgId,
-            externalId,
-            email,
-            phone,
-            name,
-            metadata: { source: 'channel-webhook' },
-          })
-          .returning();
-        endUserId = created!.id;
-      } catch {
-        const reread = await tx
-          .select()
-          .from(schema.endUsers)
-          .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
-          .limit(1);
-        if (reread[0]) endUserId = reread[0].id;
-      }
+      const [created] = await tx
+        .insert(schema.endUsers)
+        .values({
+          orgId,
+          externalId,
+          phone,
+          name,
+          metadata: { source: 'channel-webhook' },
+        })
+        .onConflictDoUpdate({
+          target: [schema.endUsers.orgId, schema.endUsers.externalId],
+          set: { updatedAt: new Date() },
+        })
+        .returning({ id: schema.endUsers.id });
+      endUserId = created!.id;
     }
   }
 

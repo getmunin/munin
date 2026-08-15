@@ -38,12 +38,24 @@ Read it in the browser with `window.mn.getVisitorId()` and send it to your serve
 ```ts
 import { createHmac } from 'node:crypto';
 
-function userHash(externalId: string, visitorId: string, secret: string): string {
-  return createHmac('sha256', secret).update(`${externalId}:${visitorId}`).digest('hex');
+function identityPayload(externalId: string, visitorId: string, email?: string): string {
+  return ['mn.identity.v1', externalId, visitorId, email ?? '']
+    .map((field) => `${Buffer.byteLength(field, 'utf8')}:${field}`)
+    .join('');
+}
+
+function userHash(payload: string, secret: string): string {
+  return createHmac('sha256', secret).update(payload).digest('hex');
 }
 ```
 
+Each field is length-prefixed so no value can be shifted across a field boundary — which matters because Munin's own provisional ids contain a colon (`email:kari@example.no`).
+
 `externalId` is whatever stable id you use for the user in your own system (database row id, auth provider sub, etc.). The same value will be stored on the resulting `end_users` row. `visitorId` is the value returned by `window.mn.getVisitorId()`.
+
+`email` is optional, and it is what joins web analytics to the email inbox — see step 4. Sign the exact string you send: the email is inside the HMAC precisely so that a browser can't claim someone else's address and pull down their journey. An unsigned or mis-signed email is rejected outright, and the whole `identify` call is dropped with it.
+
+Integrations written before the email field exist keep working: when no `email` is sent, the older `${externalId}:${visitorId}` payload is still accepted.
 
 ## 3. Call `window.mn.identify` from the browser
 
@@ -52,8 +64,8 @@ The tracker loads async, so `window.mn` is `undefined` until the script has exec
 ```js
 const go = () => {
   const visitorId = window.mn.getVisitorId();
-  // send { externalId, visitorId } to your server, get back userHash, then:
-  window.mn.identify(externalId, userHash);
+  // send { externalId, visitorId, email } to your server, get back userHash, then:
+  window.mn.identify(externalId, userHash, { email });
 };
 
 window.mn?.ready
@@ -63,17 +75,31 @@ window.mn?.ready
 
 The `ready` flag is what closes the listener-attached-too-late race: if the tracker finished initializing before your code ran, the event has already fired and gone, but the flag tells you it is safe to run immediately.
 
-Call it once, after sign-in, on every authenticated page. The tracker sends `(visitorId, externalId, userHash)` to `POST /v1/a/identify`. The backend:
+Call it once, after sign-in, on every authenticated page. The tracker sends `(visitorId, externalId, userHash, email?)` to `POST /v1/a/identify`. The backend:
 
-1. Validates the HMAC of `${externalId}:${visitorId}` against the tracker's identity verification secret. Mismatches and missing secrets are silently dropped.
-2. Upserts an `end_users` row keyed by `(orgId, externalId)`.
+1. Validates the HMAC against the tracker's identity verification secret. Mismatches and missing secrets are silently dropped.
+2. Resolves the `end_users` row (see step 4).
 3. Upserts the `(orgId, visitorId) → endUserId` row in `analytics_visitor_identities`.
 
 Every subsequent tracker beacon for the same `visitorId` lands with `end_user_id` populated.
 
 Because the hash covers the `visitorId`, you must sign per browser session — you can't precompute a hash server-side without first learning the visitor's id, so the old `data-user-hash` script-tag auto-identify is not supported. Do the one-time round trip (read `getVisitorId()` → sign → `identify()`) on the first authenticated page load.
 
-## 4. Read the journey
+## 4. How the signed email joins web analytics to the inbox
+
+Without an email, `identify` only ever matches on `externalId`, and a person who emailed support before they ever logged in ends up as two `end_users` rows that never meet — one keyed by your customer id, one keyed by the address they wrote from.
+
+Passing the signed `email` closes that gap in both directions:
+
+| Order of events | What happens |
+|---|---|
+| They emailed first, then signed in | The inbound mail created a **provisional** identity keyed `email:<address>`. `identify` finds it by address and promotes it in place — `external_id` becomes your customer id, the row id never changes, so every conversation, CRM contact and analytics event already attached to it stays attached. |
+| They signed in first, then emailed | `identify` created the identity with your customer id and stamped the address on it. The inbound mail resolves by address and reuses that same row instead of forking a provisional one. |
+| Both identities already exist with real ids | Nothing is merged. The address stays with whoever holds it, the caller's identity is kept separate, and the server logs `identify.email_conflict`. Merging two established people is a decision for an operator, not a side effect of a page load. |
+
+One address belongs to one identity per org — enforced by a unique index — so a shared mailbox (`post@firma.no`) resolves to a single `end_users` row no matter how many humans write from it. That is usually what you want for a support inbox, and it is worth knowing before you treat a journey as one person's browsing history.
+
+## 5. Read the journey
 
 ```jsonc
 // analytics_get_contact_journey

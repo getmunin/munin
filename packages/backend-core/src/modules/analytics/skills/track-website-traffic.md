@@ -67,7 +67,7 @@ The tracker mints a `viewId` (uuid) per page view and sends it on both the initi
 
 A fresh `viewId` is minted for each SPA route change and each bfcache restore (`pageshow` with `persisted: true`), since both start a new dwell clock. Enrichment is fill-if-null for attribution (`referrer`, `utm_*`, `path`, `locale`, `country`, `metadata`) and max-wins for `dwell_ms` / `read_depth`, so out-of-order beacons — `sendBeacon` guarantees no ordering — can't overwrite the real referrer.
 
-Calls you make yourself (`mn.track`, `mn.trackOnce`, declarative events) carry no `viewId` and always insert their own row.
+Calls you make yourself (`mn.analytics.track`, `mn.analytics.trackOnce`, declarative events) carry no `viewId` and always insert their own row.
 
 > **Deploy seam:** before this landed, every page load wrote ≥2 rows (one per beacon). Tracker-sourced `views` therefore drops roughly 50% on the day you upgrade, and `visitors` is unchanged. History is not repairable — old rows carry no `viewId` — so don't compare `views` across the upgrade date.
 
@@ -121,7 +121,7 @@ It applies from the next event with no site redeploy — which is why this lives
 
 ## 3. Custom events from JavaScript
 
-`mn.track(subjectId, attrs?)` records anything beyond an auto-fired page view — funnel steps, CTA clicks, modal opens, SPA route changes. Same row schema as a page view (`analytics_view_events`); each call inherits `visitorId`, the script tag's key, and the initial referrer, so attribution stays consistent without you passing it every time.
+`mn.analytics.track(subjectId, attrs?)` records anything beyond an auto-fired page view — funnel steps, CTA clicks, modal opens, SPA route changes. Same row schema as a page view (`analytics_view_events`); each call inherits `visitorId`, the script tag's key, and the initial referrer, so attribution stays consistent without you passing it every time.
 
 The first argument is `subjectId`, the second an optional attribute bag:
 - `subjectType` — defaults to `data-subject-type` on the script tag (typically `'page'`). Override per call if a single tracker handles multiple surfaces (e.g. `'funnel'`, `'cta'`, `'docs'`).
@@ -129,17 +129,17 @@ The first argument is `subjectId`, the second an optional attribute bag:
 - `dwellMs`, `readDepth`, `metadata` — pass through unchanged.
 - `utm` — falls back to URL `?utm_*` params if not provided.
 
-The full API on `window.mn`:
+The full API on `window.mn.analytics`:
 
 | Call | What it does |
 |---|---|
-| `mn.track(subjectId, attrs?)` | One view event. |
-| `mn.trackOnce(subjectId, attrs?)` | Same, but at most once per browser session (sessionStorage-guarded) — the JS twin of `data-mn-once`. |
-| `mn.trackPageView()` | Re-fire the auto page view, minting a fresh `viewId`. |
-| `mn.trackSearch(query, resultCount, opts?)` | A search event (see below). |
-| `mn.trackEntry(token, attrs?)` | A CMS entry view — see `skill://analytics/track-cms-views`. |
-| `mn.getVisitorId()` | The `visitor_id` this browser is sending. |
-| `mn.identify(externalId, userHash, traits?)` | Link the visitor to a known user; pass `{ email }` (signed) to join up with the identity the email channel created — see `skill://analytics/identify-visitors`. |
+| `mn.analytics.track(subjectId, attrs?)` | One view event. |
+| `mn.analytics.trackOnce(subjectId, attrs?)` | Same, but at most once per browser session (sessionStorage-guarded) — the JS twin of `data-mn-once`. |
+| `mn.analytics.trackPageView()` | Re-fire the auto page view, minting a fresh `viewId`. |
+| `mn.analytics.trackSearch(query, resultCount, opts?)` | A search event (see below). |
+| `mn.analytics.trackEntry(token, attrs?)` | A CMS entry view — see `skill://analytics/track-cms-views`. |
+| `mn.analytics.getVisitorId()` | The `visitor_id` this browser is sending. |
+| `mn.analytics.identify(externalId, userHash, traits?)` | Link the visitor to a known user; pass `{ email }` (signed) to join up with the identity the email channel created — see `skill://analytics/identify-visitors`. |
 
 ## 3b. Search events from any search box
 
@@ -147,7 +147,7 @@ The full API on `window.mn`:
 
 ```javascript
 const hits = await mySearch(query);
-window.mn.trackSearch(query, hits.length);
+window.mn.analytics.trackSearch(query, hits.length);
 ```
 
 Writes to `analytics_search_events` with `subject_type='site'` (override with `opts.subjectType`, e.g. `'docs'`), the visitor's `visitor_id`, and `locale` from `<html lang>` unless you pass `opts.locale`. Fire it once per completed search — debounce keystrokes on your side, or the zero-result list fills with prefixes of real queries.
@@ -167,12 +167,12 @@ Same tracker key, same origin allowlist, same bot filter and per-IP throttle as 
 **Funnel step** — instrument a multi-step flow so you can compute conversion in `analytics_get_subject_engagement` or a custom query. Clicks need no JS at all (`data-mn-event="signup-cta-click" data-mn-subject-type="funnel"`); use the API for steps that aren't clicks:
 
 ```javascript
-window.mn.trackOnce('checkout-step-2-reached', {
+window.mn.analytics.trackOnce('checkout-step-2-reached', {
   subjectType: 'funnel',
   metadata: { cartValue: 49 },
 });
 
-window.mn.track('checkout-complete', {
+window.mn.analytics.track('checkout-complete', {
   subjectType: 'funnel',
   metadata: { orderId: 'ord_abc', amount: 49 },
 });
@@ -204,7 +204,7 @@ let routeEnter = Date.now();
 let lastRoute = location.pathname;
 let viewId = crypto.randomUUID();
 router.afterEach((to) => {
-  window.mn.track(lastRoute, {
+  window.mn.analytics.track(lastRoute, {
     viewId,
     dwellMs: Date.now() - routeEnter,
     referrer: null,
@@ -212,7 +212,7 @@ router.afterEach((to) => {
   routeEnter = Date.now();
   lastRoute = to.path;
   viewId = crypto.randomUUID();
-  window.mn.track(to.path, { viewId, referrer: null });
+  window.mn.analytics.track(to.path, { viewId, referrer: null });
 });
 ```
 
@@ -221,7 +221,7 @@ router.afterEach((to) => {
 For a bespoke measure (words read, video watched, a custom "engaged" heuristic), pass your own number and it lands in the same column:
 
 ```javascript
-window.mn.track(location.pathname, { readDepth: myOwnScore(), subjectType: 'page' });
+window.mn.analytics.track(location.pathname, { readDepth: myOwnScore(), subjectType: 'page' });
 ```
 
 ## 4. Query the data
@@ -259,7 +259,7 @@ Returns `{ views, visitors, avgDwellMs, avgReadDepth, lastViewAt }` — combine 
   "arguments": { "sinceDays": 30, "limit": 50 } }
 ```
 
-Returns `[{ query, occurrences, lastSeenAt }]`. The single best signal for "what should we write next" — readers asked and nothing came back. It covers Munin's own CMS delivery search plus anything you report through `mn.trackSearch` / `POST /v1/a/s`; if your site search never reports, this list is empty no matter how much searching happens. Searches arriving with a tracker key are stamped with that tracker, so `trackerId` splits them per site; CMS delivery searches carry no key and drop out of a tracker-scoped list.
+Returns `[{ query, occurrences, lastSeenAt }]`. The single best signal for "what should we write next" — readers asked and nothing came back. It covers Munin's own CMS delivery search plus anything you report through `mn.analytics.trackSearch` / `POST /v1/a/s`; if your site search never reports, this list is empty no matter how much searching happens. Searches arriving with a tracker key are stamped with that tracker, so `trackerId` splits them per site; CMS delivery searches carry no key and drop out of a tracker-scoped list.
 
 ```jsonc
 // Where are visitors coming from? (requires MUNIN_GEOIP_DB_PATH set; otherwise everything rolls into `country: null`)

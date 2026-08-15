@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   Body,
+  ForbiddenException,
   Get,
   HttpCode,
   Headers,
@@ -231,19 +233,22 @@ export class AnalyticsTrackerController {
     const parsed = IdentifyBodySchema.safeParse(rawBody);
     if (!parsed.success) {
       this.logger.warn(`identify.validation_failed: ${parsed.error.message}`);
-      return;
+      throw new BadRequestException('identity_invalid');
     }
     const body = parsed.data;
     const tracker = await this.resolveTrackerKey(body.key);
     if (!tracker) return;
-    if (!originIsAllowed(tracker.allowedOrigins, origin)) return;
+    if (!originIsAllowed(tracker.allowedOrigins, origin)) {
+      this.logger.warn(`identify.rejected: origin_not_allowed origin=${origin ?? '(none)'}`);
+      throw new ForbiddenException('identity_origin_not_allowed');
+    }
 
     const secret = tracker.identityVerificationSecret;
     if (!secret) {
       this.logger.warn(
         `identify.rejected: tracker ${tracker.trackerId} has no identity_verification_secret`,
       );
-      return;
+      throw new BadRequestException('identity_secret_missing');
     }
     const signature = body.userHash.toLowerCase();
     const canonical = identityHashPayload({
@@ -261,7 +266,7 @@ export class AnalyticsTrackerController {
         ));
     if (!ok) {
       this.logger.warn(`identify.rejected: hmac_mismatch tracker=${tracker.trackerId}`);
-      return;
+      throw new BadRequestException('identity_hash_mismatch');
     }
 
     const email = normalizeIdentityEmail(body.email);
@@ -284,6 +289,7 @@ export class AnalyticsTrackerController {
       });
     } catch (err) {
       this.logger.warn(`identify.persist_failed: ${(err as Error).message}`);
+      throw err;
     }
   }
 

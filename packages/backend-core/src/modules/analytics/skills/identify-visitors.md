@@ -33,7 +33,7 @@ Rotate later with `analytics_rotate_tracker_identity_secret`. The previous secre
 
 The hash binds a specific browser (its `visitorId`) to a specific `externalId`, so a leaked or observed hash can only ever link the one visitor it was signed for — it can't be replayed to attach a different visitor to that identity. The browser therefore has to tell your server its `visitorId` before you sign.
 
-Read it in the browser with `window.mn.getVisitorId()` and send it to your server alongside the logged-in user. Then compute:
+Read it in the browser with `window.mn.analytics.getVisitorId()` and send it to your server alongside the logged-in user. Then compute:
 
 ```ts
 import { createHmac } from 'node:crypto';
@@ -51,35 +51,39 @@ function userHash(payload: string, secret: string): string {
 
 Each field is length-prefixed so no value can be shifted across a field boundary — which matters because Munin's own provisional ids contain a colon (`email:kari@example.no`).
 
-`externalId` is whatever stable id you use for the user in your own system (database row id, auth provider sub, etc.). The same value will be stored on the resulting `end_users` row. `visitorId` is the value returned by `window.mn.getVisitorId()`.
+`externalId` is whatever stable id you use for the user in your own system (database row id, auth provider sub, etc.). The same value will be stored on the resulting `end_users` row. `visitorId` is the value returned by `window.mn.analytics.getVisitorId()`.
 
 `email` is optional, and it is what joins web analytics to the email inbox — see step 4. Sign the exact string you send: the email is inside the HMAC precisely so that a browser can't claim someone else's address and pull down their journey. An unsigned or mis-signed email is rejected outright, and the whole `identify` call is dropped with it.
 
 Integrations written before the email field exist keep working: when no `email` is sent, the older `${externalId}:${visitorId}` payload is still accepted.
 
-## 3. Call `window.mn.identify` from the browser
+## 3. Call `window.mn.analytics.identify` from the browser
 
-The tracker loads async, so `window.mn` is `undefined` until the script has executed. Once initialized the tracker sets `window.mn.ready = true` and dispatches a `munin:ready` CustomEvent on `document` — gate on those instead of polling:
+The tracker loads async, so `window.mn.analytics` is `undefined` until the script has executed. Once initialized the tracker installs the namespace with `ready = true` and dispatches a `munin:analytics-ready` CustomEvent on `document` — gate on those instead of polling:
 
 ```js
 const go = () => {
-  const visitorId = window.mn.getVisitorId();
+  const visitorId = window.mn.analytics.getVisitorId();
   // send { externalId, visitorId, email } to your server, get back userHash, then:
-  window.mn.identify(externalId, userHash, { email });
+  window.mn.analytics.identify(externalId, userHash, { email });
 };
 
-window.mn?.ready
+window.mn?.analytics?.ready
   ? go()
-  : document.addEventListener('munin:ready', go, { once: true });
+  : document.addEventListener('munin:analytics-ready', go, { once: true });
 ```
 
 The `ready` flag is what closes the listener-attached-too-late race: if the tracker finished initializing before your code ran, the event has already fired and gone, but the flag tells you it is safe to run immediately.
 
 Call it once, after sign-in, on every authenticated page. The tracker sends `(visitorId, externalId, userHash, email?)` to `POST /v1/a/identify`. The backend:
 
-1. Validates the HMAC against the tracker's identity verification secret. Mismatches and missing secrets are silently dropped.
+1. Validates the HMAC against the tracker's identity verification secret.
 2. Resolves the `end_users` row (see step 4).
 3. Upserts the `(orgId, visitorId) → endUserId` row in `analytics_visitor_identities`.
+
+A rejected identity is **not** silent — the endpoint answers `400 identity_hash_mismatch` (or `identity_invalid` / `identity_secret_missing`, and `403 identity_origin_not_allowed`), and the tracker logs it to the browser console. Check there first when a journey stays empty; the usual causes are signing the wrong payload, using the widget channel's secret instead of the tracker's, or an origin that isn't on the tracker's allowlist.
+
+An unrecognized tracker key is the one case that still answers `204`, so the endpoint doesn't confirm which keys exist.
 
 Every subsequent tracker beacon for the same `visitorId` lands with `end_user_id` populated.
 
@@ -120,8 +124,17 @@ Rows older than 30 days keep `end_user_id = NULL`. `analytics_get_contact_journe
 
 The chat widget does its own identity resolution (via `verifiedExternalId` + `userHash` on the widget channel's secret — a *different* secret from the tracker's; see `skill://conv/setup-chat-widget`). Note the widget hash covers `externalId` **only**, not the visitor, so it can be server-rendered without a round-trip — the opposite of the tracker's visitor-bound hash above. When the widget creates or resolves an `end_users` row, it also writes the bridge row using its own `visitorId`. Because the widget and the analytics tracker share the same `localStorage` key (`mn.vid`) for their visitor id, a visitor who first opened the chat widget already has their analytics history linked — no additional `identify` call needed for that path.
 
-### Don't route both surfaces through `window.mn.identify`
+### Each surface identifies through its own namespace
 
-Both bundles install `window.mn.identify` and the second one to load chains to the first, so a single call reaches both — but each verifies a different payload against a different secret, so one of them always rejects. The failure is lopsided: the widget logs `identify failed` in the console, while the tracker posts with `sendBeacon` and drops it **silently**, leaving only `identify.rejected: hmac_mismatch` in the server log. An empty contact journey with no client-side error is the symptom.
+The two bundles share the `window.mn` object but own separate namespaces, so a page running both calls each one explicitly:
 
-On a page running both, identify the widget through its script-tag attributes (`data-external-id` + `data-user-hash`, server-rendered) and keep `window.mn.identify(externalId, userHash, { email })` for the tracker alone. Each surface then gets its own credential over its own path. The unsolved case is an SPA that signs in without a reload, where the widget has no script tag to re-render — until the widget's `identify` moves to its own `window.mn.widget` namespace, identify it on the next full page load.
+```js
+window.mn.analytics.identify(externalId, trackerHash, { email });  // visitor-bound hash
+window.mn.widget.identify(externalId, widgetHash);                 // externalId-only hash
+```
+
+Two calls, because these are genuinely two credentials: the tracker verifies the visitor-bound `mn.identity.v1` payload against the tracker's secret, the widget verifies `externalId` against the widget channel's secret. A hash minted for one will never verify for the other, so don't pass the same value to both.
+
+On a server-rendered page you can skip the widget call entirely by putting `data-external-id` + `data-user-hash` on the embed instead.
+
+**Migrating from 4.x:** `window.mn.identify(...)` was the tracker's and is now `window.mn.analytics.identify(...)`; `window.mn.ready` is now `window.mn.analytics.ready`, and the `munin:ready` event is now `munin:analytics-ready`. Before the split both bundles installed `identify` on the shared root and chained to each other, so one of them always rejected the hash it was handed — silently, on the tracker's side.

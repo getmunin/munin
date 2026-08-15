@@ -56,7 +56,7 @@ So if you ever see `_tracking` missing in production, check `MUNIN_KEY_PEPPER` f
 
 | Situation | Use | You get |
 |---|---|---|
-| The page already loads `tracker.js` | `data-mn-entry-token` or `mn.trackEntry(token)` | `views`, `visitors`, `dwell_ms`, `read_depth` |
+| The page already loads `tracker.js` | `data-mn-entry-token` or `mn.analytics.trackEntry(token)` | `views`, `visitors`, `dwell_ms`, `read_depth` |
 | No JS at all — email, RSS, plain HTML | `pixelUrl` | `views` only |
 
 **The pixel cannot report `visitors`.** It takes no visitor parameter, so every pixel-only entry reports `visitors: 0` and raw `views` — no per-person dedupe. That isn't fixable in the pixel: the `visitor_id` lives in the browser's `localStorage`, and the obvious server-side workaround (a first-party cookie set on the pixel response) fails because the API is a different origin from your site, where ITP and third-party-cookie blocking kill it. Only JS can read the visitor id, so if the page can run the tracker, let the tracker do it.
@@ -66,7 +66,7 @@ So if you ever see `_tracking` missing in production, check `MUNIN_KEY_PEPPER` f
 `tracker.js` (see `skill://analytics/track-website-traffic` for minting the key) exposes an entry-view call that carries the visitor id, a per-view `viewId`, `path` and `locale`:
 
 ```javascript
-window.mn.trackEntry(entry._tracking.token);
+window.mn.analytics.trackEntry(entry._tracking.token);
 ```
 
 For a static export or server-rendered page that ships no JS of its own, use the declarative form — the tracker fires one entry view per element on load:
@@ -77,11 +77,11 @@ For a static export or server-rendered page that ships no JS of its own, use the
 
 **Put the token on the page that shows the entry, never on cards in a list.** A `cms_entry` view means "someone read this entry". Tag the cards on a journal index and every index load records a read for every entry on it, so your most-read list becomes whatever happens to sit on the homepage. This applies to the pixel too — delivery list responses ship a `_tracking` block per item, and rendering all of them has the same effect.
 
-Want to know which cards get seen? That's a different question with a different answer: `window.mn.track(entryId, { subjectType: 'cms_entry_impression' })`, so impressions and reads stay separable at query time.
+Want to know which cards get seen? That's a different question with a different answer: `window.mn.analytics.track(entryId, { subjectType: 'cms_entry_impression' })`, so impressions and reads stay separable at query time.
 
 Either way the view is one row: on `visibilitychange` (hidden) and `pagehide`, and on route change, the tracker re-sends the same `viewId` with `dwellMs` and `readDepth`, which enriches that row instead of adding another. The **first 10** entry views on a page are registered for that enrichment; past 10 the view is still recorded, it just never gets dwell or read depth — the cap bounds exit-beacon fan-out on a big page, not the views themselves.
 
-`mn.trackEntry(token, attrs?)` takes the same attribute bag as `mn.track` (`path`, `referrer`, `metadata`, `dwellMs`, `readDepth`, `viewId`).
+`mn.analytics.trackEntry(token, attrs?)` takes the same attribute bag as `mn.analytics.track` (`path`, `referrer`, `metadata`, `dwellMs`, `readDepth`, `viewId`).
 
 ## Pixel embed (static pages, server-rendered HTML, emails)
 
@@ -134,7 +134,7 @@ window.addEventListener('pagehide', () => {
 
 The beacon accepts the same `path`, `referrer`, `visitorId`, `locale`, `dwellMs`, `readDepth`, `viewId`, `utm`, `metadata` fields as the website tracker. Sending the same `viewId` twice enriches one row (fill-if-null attribution, max-wins dwell/read-depth) rather than writing two; omit it and every post is its own row.
 
-If `tracker.js` is on the page, `mn.trackEntry` already does all of this — including reading the visitor id it shares with the chat widget under the `mn.vid` key.
+If `tracker.js` is on the page, `mn.analytics.trackEntry` already does all of this — including reading the visitor id it shares with the chat widget under the `mn.vid` key.
 
 ## Querying entry views
 
@@ -155,7 +155,7 @@ The same admin-only MCP tools used for the website tracker work here — just fi
 
 Returns `[{ subjectType, subjectId, views, visitors }]` — `subjectId` is the entry id. Join against `cms_entries` for slugs/titles.
 
-Entry views recorded through the pre-signed `_tracking` pixel or beacon carry no tracker key, so they belong to no tracker: a query that passes `trackerId` filters them out entirely. Use `source: 'pixel'` / `'beacon'` to isolate them, and `trackerId` only for traffic from a `tracker.js` key (see `skill://analytics/track-website-traffic`). Entry views fired through `mn.trackEntry` are token-signed the same way, so they behave identically even though `tracker.js` is on the page.
+Entry views recorded through the pre-signed `_tracking` pixel or beacon carry no tracker key, so they belong to no tracker: a query that passes `trackerId` filters them out entirely. Use `source: 'pixel'` / `'beacon'` to isolate them, and `trackerId` only for traffic from a `tracker.js` key (see `skill://analytics/track-website-traffic`). Entry views fired through `mn.analytics.trackEntry` are token-signed the same way, so they behave identically even though `tracker.js` is on the page.
 
 ```jsonc
 // How is one entry performing?
@@ -169,7 +169,7 @@ Entry views recorded through the pre-signed `_tracking` pixel or beacon carry no
 }
 ```
 
-`source` distinguishes events by ingest path: `'pixel'` for the 1×1 GIF, `'beacon'` for `mn.trackEntry` and hand-rolled beacon posts. Combine both for a complete read count; segment by `source` if you care about how readers were tracked (e.g., to compare static vs. SPA hits).
+`source` distinguishes events by ingest path: `'pixel'` for the 1×1 GIF, `'beacon'` for `mn.analytics.trackEntry` and hand-rolled beacon posts. Combine both for a complete read count; segment by `source` if you care about how readers were tracked (e.g., to compare static vs. SPA hits).
 
 ## Operations
 

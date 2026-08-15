@@ -132,3 +132,4 @@ When intent signals fire (specific keywords, sentiment, "talk to a human"), foll
 - `skill://conv/setup-email-channel` — channel prereq.
 - `skill://conv/escalate-to-human` — when a human takes over.
 - `skill://crm/progress-deal-through-pipeline` — once a reply is real intent.
+- `skill://analytics/identify-visitors` — to see what a contact did on the site after your email, link their signed email to the tracker.

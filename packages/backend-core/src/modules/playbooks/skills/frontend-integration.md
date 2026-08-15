@@ -160,9 +160,11 @@ On the first authenticated page load, read the visitor id, have your server sign
 ```ts
 const go = () => {
   const visitorId = window.mn.getVisitorId();
-  // POST { externalId: 'user_42', visitorId } to your server; it returns
-  // userHash = HMAC_sha256(secret, `${externalId}:${visitorId}`)
-  window.mn.identify('user_42', userHash);
+  // POST { externalId: 'user_42', visitorId, email } to your server; it signs
+  //   ['mn.identity.v1', externalId, visitorId, email].map(f =>
+  //     `${Buffer.byteLength(f, 'utf8')}:${f}`).join('')
+  // with the tracker's identity secret and returns userHash.
+  window.mn.identify('user_42', userHash, { email });
 };
 
 window.mn?.ready
@@ -170,7 +172,9 @@ window.mn?.ready
   : document.addEventListener('munin:ready', go, { once: true });
 ```
 
-The hash binds the specific browser to the identity, so an observed hash can't be replayed to hijack a different visitor's trail — which is why it must be signed per session rather than baked into the script tag. Full recipe (minting the identity secret, signing the hash): `skill://analytics/identify-visitors`.
+The hash binds the specific browser to the identity, so an observed hash can't be replayed to hijack a different visitor's trail — which is why it must be signed per session rather than baked into the script tag. Each field is length-prefixed so no value can be shifted across a field boundary.
+
+**Pass the email if the same people also reach you by email.** It is optional, but it is the only thing that joins this browser to the identity the email channel created when they wrote in — without it, the person who emailed support last week and signs in today stays two separate records, and their journey starts at the login page. The address is inside the HMAC precisely so a browser can't claim someone else's; sign it server-side, never trust one the client supplies. Full recipe (minting the identity secret, how the two orderings resolve): `skill://analytics/identify-visitors`.
 
 ## Step 3 — CMS content (the CORS trap)
 

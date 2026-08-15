@@ -101,7 +101,7 @@ Call `conv_list_channels`. Look for the new row with `type: 'email'`, `active: t
 
 - **Outbound**: when an admin uses `conv_send_message` on a conversation tied to this channel, the message is enqueued in `conv_message_deliveries`. The `OutboundDeliveryWorker` drains that queue and the email adapter sends via SMTP (or the Mailer).
 - **Inbound** (if IMAP is configured): the `InboundPollWorker` ticks every 60s, fetches new UIDs, threads each message into an existing conversation (via `In-Reply-To` + `References` headers) or opens a new one. End-user senders are auto-created as `conv_contacts`.
-- **Identity**: each sender also gets an `end_users` row keyed by their address. If the same people sign in on a site running the analytics tracker, passing their signed email to `window.mn.identify` makes the two the same person, so their page-views land on the same contact as the email thread — see `skill://analytics/identify-visitors`.
+- **Identity**: each sender also gets an `end_users` row keyed by their address. If the same people sign in on a site running the analytics tracker, passing their signed email to `window.mn.analytics.identify` makes the two the same person, so their page-views land on the same contact as the email thread — see `skill://analytics/identify-visitors`.
 
 ## Troubleshooting
 

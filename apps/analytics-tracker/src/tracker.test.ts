@@ -73,7 +73,7 @@ interface MnApi {
 }
 
 function mn(): MnApi {
-  return (window as unknown as { mn: MnApi }).mn;
+  return (window as unknown as { mn: { analytics: MnApi } }).mn.analytics;
 }
 
 function setLocation(href: string): void {
@@ -278,21 +278,29 @@ describe('identify', () => {
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('identify requires'));
   });
 
-  it('forwards to a pre-existing window.mn.identify', async () => {
-    const prior = vi.fn();
-    (window as { mn?: { identify?: unknown } }).mn = { identify: prior };
+  it('leaves a chat widget sharing window.mn untouched', async () => {
+    const widgetIdentify = vi.fn();
+    (window as { mn?: { widget?: unknown } }).mn = {
+      widget: { identify: widgetIdentify, ready: true },
+    };
     const key = await loadTracker();
     mn().identify('user_9', 'hash9');
-    expect(prior).toHaveBeenCalledWith('user_9', 'hash9');
+    expect(widgetIdentify).not.toHaveBeenCalled();
     expect(await beaconsFor(key, '/v1/a/identify')).toHaveLength(1);
+    expect((window as unknown as { mn: { widget: unknown } }).mn.widget).toBeDefined();
   });
 
-  it('forwards traits to a pre-existing window.mn.identify only when given', async () => {
-    const prior = vi.fn();
-    (window as { mn?: { identify?: unknown } }).mn = { identify: prior };
+  it('refuses to replace an analytics API another tracker already installed', async () => {
+    const firstIdentify = vi.fn();
+    (window as { mn?: { analytics?: unknown } }).mn = {
+      analytics: { identify: firstIdentify, ready: true },
+    };
     await loadTracker();
-    mn().identify('user_10', 'hash10', { email: 'Kari@Example.no' });
-    expect(prior).toHaveBeenCalledWith('user_10', 'hash10', { email: 'Kari@Example.no' });
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('already installed'),
+      ...[],
+    );
+    expect(mn().identify).toBe(firstIdentify);
   });
 
   it('sends a trimmed email trait, and omits the field when there is none', async () => {
@@ -309,17 +317,17 @@ describe('identify', () => {
 });
 
 describe('readiness signal', () => {
-  it('sets window.mn.ready once initialized', async () => {
+  it('sets window.mn.analytics.ready once initialized', async () => {
     await loadTracker();
     expect(mn().ready).toBe(true);
   });
 
-  it('dispatches munin:ready on document after the full API is installed', async () => {
+  it('dispatches munin:analytics-ready on document after the full API is installed', async () => {
     let apiAtDispatch: Partial<MnApi> | undefined;
     const listener = vi.fn(() => {
-      apiAtDispatch = { ...(window as unknown as { mn: MnApi }).mn };
+      apiAtDispatch = { ...(window as unknown as { mn: { analytics: MnApi } }).mn.analytics };
     });
-    document.addEventListener('munin:ready', listener, { once: true });
+    document.addEventListener('munin:analytics-ready', listener, { once: true });
     await loadTracker();
     expect(listener).toHaveBeenCalledTimes(1);
     expect(apiAtDispatch!.ready).toBe(true);
@@ -329,11 +337,11 @@ describe('readiness signal', () => {
 
   it('signals nothing when the tracker is disabled', async () => {
     const listener = vi.fn();
-    document.addEventListener('munin:ready', listener, { once: true });
+    document.addEventListener('munin:analytics-ready', listener, { once: true });
     await loadTracker({ noKey: true });
     expect(listener).not.toHaveBeenCalled();
     expect((window as { mn?: unknown }).mn).toBeUndefined();
-    document.removeEventListener('munin:ready', listener);
+    document.removeEventListener('munin:analytics-ready', listener);
   });
 });
 

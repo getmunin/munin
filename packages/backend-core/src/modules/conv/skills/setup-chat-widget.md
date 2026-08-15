@@ -67,9 +67,23 @@ window.mn.widget.open();     // opens the panel
 window.mn.widget.close();    // closes the panel
 window.mn.widget.toggle();   // flips it
 window.mn.widget.isOpen();   // current state, boolean
+window.mn.widget.ready;      // true once the namespace is installed
+await window.mn.widget.identify(externalId, userHash);  // see §4
 ```
 
 Wire a "Chat with us" link anywhere in the page's own nav/footer to `window.mn.widget.toggle()` instead of relying on the launcher bubble alone. Because the script tag has `defer`, `window.mn.widget` isn't installed until after the page has parsed — safe to call from a click handler, not safe to call synchronously in an inline `<script>` above the widget tag.
+
+For code that must run as soon as the widget is usable — an `identify` call on a freshly signed-in SPA, say — gate on the namespace rather than polling. The widget dispatches `munin:widget-ready` on `document` once it mounts:
+
+```js
+const go = () => window.mn.widget.identify(externalId, userHash);
+
+window.mn?.widget?.ready
+  ? go()
+  : document.addEventListener('munin:widget-ready', go, { once: true });
+```
+
+The flag closes the listener-attached-too-late race: if the widget mounted before your code ran, the event has already fired, but the flag says it is safe to call now. (`munin:widget-ready` is the widget's own signal — the analytics tracker fires `munin:analytics-ready` separately.)
 
 `window.mn.widget` is a single global, so on a page with two widget embeds it stays bound to whichever mounted **first** and the second logs a warning. Don't rely on it when you deliberately run two channels on one page — drive those from their own launchers.
 
@@ -149,18 +163,22 @@ The widget hash covers `externalId` **only** — no visitor binding. That's a de
 
 Set `requireVerifiedIdentity: true` on the channel (`conv_create_widget_channel` / `conv_update_widget_channel`) to reject unverified sessions outright; the default (`false`) allows anonymous ingest alongside verified ones.
 
-Because the widget and the analytics tracker share the same `localStorage` visitor id (`mn.vid`), identifying a visitor to the widget also stitches their prior anonymous analytics history — no separate `window.mn.identify` call needed for that visitor.
+Because the widget and the analytics tracker share the same `localStorage` visitor id (`mn.vid`), identifying a visitor to the widget also stitches their prior anonymous analytics history — no separate `window.mn.analytics.identify` call needed for that visitor.
 
 ### Running the widget and the analytics tracker on the same page
 
-Both bundles install `window.mn.identify`, and whichever loads second chains to the first — so one call reaches both. But they verify **different hashes against different secrets**: the widget checks `externalId` against the widget channel's secret, the tracker checks the visitor-bound payload against the tracker's. A hash minted for one is always rejected by the other, and the two fail differently: the widget logs `identify failed` to the console, while the tracker posts with `sendBeacon` and fails **silently** — the only trace is `identify.rejected: hmac_mismatch` in the server log.
+Both bundles hang off `window.mn`, but each owns its own namespace — `mn.widget` and `mn.analytics` — so nothing collides. A page running both identifies each surface explicitly:
 
-So don't route both through the JS call. Give each surface its own channel:
+```js
+window.mn.widget.identify(externalId, widgetHash);                 // externalId-only hash
+window.mn.analytics.identify(externalId, trackerHash, { email });  // visitor-bound hash
+```
 
-- **Widget** — `data-external-id` + `data-user-hash` on the embed script tag, server-rendered. No round-trip, no `window.mn.identify`.
-- **Tracker** — `window.mn.identify(externalId, trackerHash, { email })`, after the `getVisitorId()` round-trip.
+They take **different hashes signed with different secrets** (see the contrast above), so passing the same value to both will fail one of them. On a server-rendered page, drop the first call and use `data-external-id` + `data-user-hash` on the embed instead.
 
-That covers every page where the user is known at render time. The gap is an SPA that signs a user in without a reload: the widget has already mounted anonymously and needs the JS path — which is also what claims an anonymous chat session for the now-known user — and that is exactly when the collision bites. Until the widget's `identify` moves to its own `window.mn.widget` namespace, identify it on the next full page load, or re-render the embed with the identity attributes.
+`window.mn.widget.identify` earns its keep on an SPA that signs a user in without a reload: the widget has already mounted anonymously, and this is the call that claims that anonymous chat session — transcript and all — for the now-known user.
+
+**Migrating from 4.x:** the widget's `identify` used to sit on the shared root as `window.mn.identify`, where it chained with the tracker's identically-named call and one of the two always rejected the hash it received. It is now `window.mn.widget.identify`.
 
 ### Sharing a session across subdomains
 

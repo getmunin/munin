@@ -50,7 +50,7 @@ interface SearchOpts {
   locale?: string;
 }
 
-interface MuninGlobal {
+interface MuninAnalyticsApi {
   track: (subjectId: string, attrs?: TrackAttrs) => void;
   trackOnce: (subjectId: string, attrs?: TrackAttrs) => void;
   trackPageView: () => void;
@@ -420,28 +420,23 @@ function warn(message: string, ...detail: unknown[]): void {
     trackDeclaredEntries();
   });
 
-  const w = window as Window & { mn?: Partial<MuninGlobal> };
+  const w = window as Window & { mn?: { analytics?: MuninAnalyticsApi } };
   const mn = (w.mn ??= {});
-  mn.track = trackView;
-  mn.trackOnce = trackOnce;
-  mn.trackPageView = trackPageView;
-  mn.trackSearch = trackSearch;
-  mn.trackEntry = trackEntry;
-  mn.getVisitorId = (): string => visitorId;
-  const previousIdentify = mn.identify;
-  mn.identify = (externalId: string, userHash: string, traits?: IdentifyTraits): void => {
-    identify(externalId, userHash, traits);
-    if (previousIdentify) {
-      try {
-        if (traits) previousIdentify(externalId, userHash, traits);
-        else previousIdentify(externalId, userHash);
-      } catch (err) {
-        warn('forward identify:', err);
-      }
-    }
+  if (mn.analytics) {
+    warn('window.mn.analytics is already installed by another tracker on this page; ignoring');
+    return;
+  }
+  mn.analytics = {
+    track: trackView,
+    trackOnce,
+    trackPageView,
+    trackSearch,
+    trackEntry,
+    getVisitorId: (): string => visitorId,
+    identify,
+    ready: true,
   };
-  mn.ready = true;
-  doc.dispatchEvent(new CustomEvent('munin:ready'));
+  doc.dispatchEvent(new CustomEvent('munin:analytics-ready'));
 })();
 
 export {};

@@ -59,6 +59,20 @@ const SearchInput = z.object({
   limit: z.number().int().positive().max(100).optional(),
 });
 
+const EmailOpenStatsInput = z.object({
+  channelId: z
+    .string()
+    .optional()
+    .describe('Restrict to one email channel. Omit to cover every email channel in the org.'),
+  sinceDays: z
+    .number()
+    .int()
+    .positive()
+    .max(365)
+    .optional()
+    .describe('Window size in days, counted back from now. Defaults to 30.'),
+});
+
 const CreateChannelInput = z.object({
   type: SelfContainedChannelTypeSchema,
   vendor: z.string().min(1).max(32),
@@ -238,6 +252,21 @@ export class ConvAdminTools {
   })
   search(args: z.infer<typeof SearchInput>) {
     return this.conv.searchMessages(args);
+  }
+
+  @McpTool({
+    name: 'conv_get_email_open_stats',
+    title: 'Conv: Read email open stats',
+    description:
+      'Aggregate email open tracking per email channel over a recent window (default 30 days, max 365). Returns for each channel the number of messages delivered in the window, how many of those were opened at least once, the total open count, and the resulting open rate, plus org-wide totals. `trackOpens` reports whether the channel currently embeds the tracking pixel — a channel with tracking off records no opens, so its rate reads 0 rather than "nobody opened these". Open tracking is best-effort in general: only messages with an HTML part carry a pixel, clients that block remote images never report an open, and privacy proxies such as Apple Mail Privacy Protection pre-fetch images and inflate the count.',
+    audiences: ['admin'],
+    scopes: ['conv:read'],
+    input: EmailOpenStatsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getEmailOpenStats(args: z.infer<typeof EmailOpenStatsInput>) {
+    return this.conv.getEmailOpenStats(args);
   }
 
   @McpTool({

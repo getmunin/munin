@@ -94,6 +94,26 @@ export interface MessageDto {
   metadata: Record<string, unknown>;
   createdAt: string;
   seenAt: string | null;
+  firstOpenedAt: string | null;
+  lastOpenedAt: string | null;
+  openCount: number | null;
+}
+
+export interface EmailOpenStatsChannel {
+  channelId: string;
+  channelName: string;
+  trackOpens: boolean;
+  sent: number;
+  opened: number;
+  totalOpens: number;
+  openRate: number | null;
+}
+
+export interface EmailOpenStats {
+  since: string;
+  sinceDays: number;
+  channels: EmailOpenStatsChannel[];
+  totals: Omit<EmailOpenStatsChannel, 'channelId' | 'channelName' | 'trackOpens'>;
 }
 
 export interface ConversationSummary {
@@ -586,13 +606,39 @@ export class ConvService {
       .groupBy(schema.convMessageReads.messageId)
       .as('reads');
 
+    const opens = ctx.db
+      .select({
+        messageId: schema.convMessageDeliveries.messageId,
+        firstOpenedAt: sql<string | null>`MIN(${schema.convMessageDeliveries.firstOpenedAt})`.as(
+          'first_opened_at',
+        ),
+        lastOpenedAt: sql<string | null>`MAX(${schema.convMessageDeliveries.lastOpenedAt})`.as(
+          'last_opened_at',
+        ),
+        openCount: sql<number>`COALESCE(SUM(${schema.convMessageDeliveries.openCount}), 0)::int`.as(
+          'open_count',
+        ),
+      })
+      .from(schema.convMessageDeliveries)
+      .innerJoin(
+        schema.convMessages,
+        eq(schema.convMessages.id, schema.convMessageDeliveries.messageId),
+      )
+      .where(eq(schema.convMessages.conversationId, id))
+      .groupBy(schema.convMessageDeliveries.messageId)
+      .as('opens');
+
     const rows = await ctx.db
       .select({
         msg: schema.convMessages,
         seenAt: reads.seenAt,
+        firstOpenedAt: opens.firstOpenedAt,
+        lastOpenedAt: opens.lastOpenedAt,
+        openCount: opens.openCount,
       })
       .from(schema.convMessages)
       .leftJoin(reads, eq(reads.messageId, schema.convMessages.id))
+      .leftJoin(opens, eq(opens.messageId, schema.convMessages.id))
       .where(eq(schema.convMessages.conversationId, id))
       .orderBy(asc(schema.convMessages.createdAt));
 
@@ -600,12 +646,95 @@ export class ConvService {
     const authorNames = await this.loadAuthorNames(messages);
     return {
       ...toConversationSummary(row.conv, row.channelType),
-      messages: rows.map((r) => toMessageDto(r.msg, authorNames, r.seenAt)),
+      messages: rows.map((r) =>
+        toMessageDto(r.msg, authorNames, r.seenAt, {
+          firstOpenedAt: r.firstOpenedAt,
+          lastOpenedAt: r.lastOpenedAt,
+          openCount: r.openCount,
+        }),
+      ),
       assistantName: row.assistantName ?? null,
       endUserLocale: row.endUserLocale ?? null,
       contactEmail: row.contactEmail ?? row.endUserEmail ?? null,
       contactName: row.contactName ?? row.endUserName ?? null,
       contactPhone: row.contactPhone ?? row.endUserPhone ?? null,
+    };
+  }
+
+  async getEmailOpenStats(input?: {
+    channelId?: string;
+    sinceDays?: number;
+  }): Promise<EmailOpenStats> {
+    const ctx = getCurrentContext();
+    const sinceDays = clampLimit(input?.sinceDays, 30, 365);
+    const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+
+    if (input?.channelId) {
+      const existing = await ctx.db
+        .select({ id: schema.convChannels.id, type: schema.convChannels.type })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, input.channelId))
+        .limit(1);
+      const channel = existing[0];
+      if (!channel) {
+        throw new NotFoundException(`conv_not_found: channel ${input.channelId}`);
+      }
+      if (channel.type !== 'email') {
+        throw new BadRequestException(
+          `conv_invalid: channel ${input.channelId} is a ${channel.type} channel; opens are tracked on email channels only`,
+        );
+      }
+    }
+
+    const rows = await ctx.db
+      .select({
+        channelId: schema.convChannels.id,
+        channelName: schema.convChannels.name,
+        trackOpens: sql<boolean>`COALESCE((${schema.convChannels.config}->'outbound'->>'trackOpens')::boolean, false)`,
+        sent: sql<number>`COUNT(${schema.convMessageDeliveries.id})::int`,
+        opened: sql<number>`COUNT(${schema.convMessageDeliveries.firstOpenedAt})::int`,
+        totalOpens: sql<number>`COALESCE(SUM(${schema.convMessageDeliveries.openCount}), 0)::int`,
+      })
+      .from(schema.convChannels)
+      .leftJoin(
+        schema.convMessageDeliveries,
+        and(
+          eq(schema.convMessageDeliveries.channelId, schema.convChannels.id),
+          eq(schema.convMessageDeliveries.status, 'sent'),
+          gte(schema.convMessageDeliveries.sentAt, since),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.convChannels.type, 'email'),
+          input?.channelId ? eq(schema.convChannels.id, input.channelId) : undefined,
+        ),
+      )
+      .groupBy(schema.convChannels.id, schema.convChannels.name, schema.convChannels.config)
+      .orderBy(asc(schema.convChannels.name));
+
+    const channels = rows.map((r) => ({
+      channelId: r.channelId,
+      channelName: r.channelName,
+      trackOpens: r.trackOpens,
+      sent: r.sent,
+      opened: r.opened,
+      totalOpens: r.totalOpens,
+      openRate: toOpenRate(r.opened, r.sent),
+    }));
+
+    const sent = channels.reduce((acc, c) => acc + c.sent, 0);
+    const opened = channels.reduce((acc, c) => acc + c.opened, 0);
+    return {
+      since: since.toISOString(),
+      sinceDays,
+      channels,
+      totals: {
+        sent,
+        opened,
+        totalOpens: channels.reduce((acc, c) => acc + c.totalOpens, 0),
+        openRate: toOpenRate(opened, sent),
+      },
     };
   }
 
@@ -1687,10 +1816,17 @@ function toConversationSummary(
   };
 }
 
+interface MessageOpens {
+  firstOpenedAt: Date | string | null;
+  lastOpenedAt: Date | string | null;
+  openCount: number | null;
+}
+
 function toMessageDto(
   row: typeof schema.convMessages.$inferSelect,
   authorNames: Map<string, string> = new Map(),
   seenAt: Date | string | null = null,
+  opens: MessageOpens | null = null,
 ): MessageDto {
   return {
     id: row.id,
@@ -1705,9 +1841,17 @@ function toMessageDto(
     metadata: row.metadata,
     createdAt: toIsoString(row.createdAt) ?? new Date(0).toISOString(),
     seenAt: toIsoString(seenAt),
+    firstOpenedAt: toIsoString(opens?.firstOpenedAt ?? null),
+    lastOpenedAt: toIsoString(opens?.lastOpenedAt ?? null),
+    openCount: opens?.openCount ?? null,
   };
 }
 
+
+function toOpenRate(opened: number, sent: number): number | null {
+  if (sent <= 0) return null;
+  return Math.round((opened / sent) * 1000) / 1000;
+}
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);

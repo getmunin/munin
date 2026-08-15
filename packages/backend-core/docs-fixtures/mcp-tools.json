@@ -3090,6 +3090,36 @@
     }
   },
   {
+    "name": "conv_get_email_open_stats",
+    "title": "Conv: Read email open stats",
+    "description": "Aggregate email open tracking per email channel over a recent window (default 30 days, max 365). Returns for each channel the number of messages delivered in the window, how many of those were opened at least once, the total open count, and the resulting open rate, plus org-wide totals. `trackOpens` reports whether the channel currently embeds the tracking pixel — a channel with tracking off records no opens, so its rate reads 0 rather than \"nobody opened these\". Open tracking is best-effort in general: only messages with an HTML part carry a pixel, clients that block remote images never report an open, and privacy proxies such as Apple Mail Privacy Protection pre-fetch images and inflate the count.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "description": "Restrict to one email channel. Omit to cover every email channel in the org.",
+          "type": "string"
+        },
+        "sinceDays": {
+          "description": "Window size in days, counted back from now. Defaults to 30.",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 365
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "conv_list_channels",
     "title": "Conv: List conversation channels",
     "description": "List conversation channels of every kind configured for your org — email, chat (widget), SMS and voice.",

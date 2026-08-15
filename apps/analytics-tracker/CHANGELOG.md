@@ -1,5 +1,54 @@
 # @getmunin/analytics-tracker
 
+## 5.0.0
+
+### Major Changes
+
+- 68748a3: Namespace the browser API: `window.mn.analytics.*` and `window.mn.widget.*`
+
+  **Breaking.** Both bundles used to install onto `window.mn` — the tracker owned the root, the widget owned `mn.widget` _and_ leaked `identify` onto the root. Since each also chained to whatever `identify` was already there, a page running both sent one hash to two verifiers that check different payloads against different secrets, so one always rejected. That failure was lopsided and the bad half was silent: the widget logs to the console, the tracker fires `sendBeacon` and never looks at the response, leaving only `identify.rejected: hmac_mismatch` in a server log an integrator can't see. An empty contact journey with no client-side error was the only symptom.
+
+  Each surface now owns a namespace, and the chaining is gone:
+
+  | Before                                | After                                  |
+  | ------------------------------------- | -------------------------------------- |
+  | `window.mn.track(...)`                | `window.mn.analytics.track(...)`       |
+  | `window.mn.trackOnce(...)`            | `window.mn.analytics.trackOnce(...)`   |
+  | `window.mn.trackPageView()`           | `window.mn.analytics.trackPageView()`  |
+  | `window.mn.trackSearch(...)`          | `window.mn.analytics.trackSearch(...)` |
+  | `window.mn.trackEntry(...)`           | `window.mn.analytics.trackEntry(...)`  |
+  | `window.mn.getVisitorId()`            | `window.mn.analytics.getVisitorId()`   |
+  | `window.mn.identify(...)` _(tracker)_ | `window.mn.analytics.identify(...)`    |
+  | `window.mn.identify(...)` _(widget)_  | `window.mn.widget.identify(...)`       |
+  | `window.mn.ready`                     | `window.mn.analytics.ready`            |
+  | `munin:ready` event                   | `munin:analytics-ready` event          |
+
+  `window.mn.widget.open/close/toggle/isOpen` are unchanged. The widget gains `ready` and a `munin:widget-ready` event, which it never had — needed now that `identify` lives behind a namespace that only exists once the widget mounts.
+
+  **Declarative embeds need no changes.** Every `data-*` attribute — `data-key`, `data-subject-type`, `data-mn-event`, `data-mn-once`, `data-external-id`, `data-user-hash`, `data-mn-entry-token` — works exactly as before. This is a JS-API change only, so a site that never calls `window.mn` from its own code is unaffected by the upgrade.
+
+  **Where the break lands is unusual.** Nothing fails at deploy: the backend starts, the API is unchanged, and the new bundles serve normally. What breaks is JavaScript on the _customer's_ pages, the moment the upgraded bundle is served. Anyone calling `window.mn.*` from their own code updates the calls above; the failure is a loud `TypeError` rather than silent wrong behaviour.
+
+  **A rejected identify is no longer silent.** `POST /v1/a/identify` used to answer `204` for every outcome, and the tracker sent it with `sendBeacon` and never read the response — so a hash signed with the wrong secret produced no client-side signal at all, only a server log the integrator couldn't see. The endpoint now answers `400 identity_invalid` / `identity_secret_missing` / `identity_hash_mismatch` and `403 identity_origin_not_allowed`, the tracker posts with `fetch(..., { keepalive: true })` and logs a console warning naming the status. An unrecognized tracker key still answers `204`, so the endpoint doesn't confirm which keys exist. Direct callers of this endpoint that assumed "always 204" should expect real status codes now.
+
+### Minor Changes
+
+- 39613c3: Analytics `identify` accepts a signed email, so web analytics and the email inbox converge on one identity
+
+  `window.mn.identify(externalId, userHash, { email })` now takes an optional email trait, and the email address is covered by the HMAC — an unsigned or mis-signed address is rejected, so a browser cannot claim someone else's address and pull down their journey.
+
+  This closes a split that used to be invisible. Inbound email creates a provisional identity keyed `email:<address>`; `identify` created one keyed by the customer's own id. The same human ended up as two `end_users` rows, and neither the contact journey nor the funnel could see across them. Now:
+
+  - **Email first, sign-in second** — `identify` finds the provisional row by address and promotes it in place. `external_id` becomes the caller's id and the row id is unchanged, so every conversation, CRM contact and analytics event already pointing at it stays attached. No merge, no FK repointing.
+  - **Sign-in first, email second** — inbound mail resolves by the email column and reuses that identity instead of forking a provisional one. Both inbound paths (email channel and channel webhooks) share one resolver.
+  - **Two established identities already hold the address** — nothing is merged; the conflict is logged as `identify.email_conflict` for an operator to resolve. Auto-merging two real people on a page load is not a decision this code should make.
+
+  The identity payload is now length-prefixed per field (`mn.identity.v1`) so no value can be shifted across a field boundary — the previous `${externalId}:${visitorId}` form was ambiguous, and Munin's own provisional ids contain a colon. Integrations that send no email keep working: the legacy payload is still accepted in that case.
+
+  Adds a partial unique index on `(org_id, lower(email))`, which is what makes the two paths converge rather than race.
+
+  Existing duplicates are merged by the migration rather than left for an operator, because a self-hosted deploy has no one to hand-merge them. The rows are the same human by construction — one address, one org — so only the survivor is a decision, and it is ordered rather than guessed: a real `external_id` beats a provisional `email:<address>` one, then oldest, then id. Every reference is repointed before the losers are deleted, and the keeper backfills its own null `name`/`phone` from them, so nothing is detached and nothing is overwritten. Read receipts are deduplicated to the earliest per message, since `(message_id, end_user_id)` is unique and the same read can sit on the keeper and on two different losers at once. Each merge is announced with a `RAISE NOTICE` naming the address and the surviving id.
+
 ## 4.81.0
 
 ## 4.80.1

@@ -145,11 +145,20 @@ describe('widget identity carry-over', () => {
   });
 });
 
-interface WindowWithMnWidget {
-  mn?: { widget?: { open: () => void; close: () => void; toggle: () => void; isOpen: () => boolean } };
+interface MnWidgetApi {
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
+  isOpen: () => boolean;
+  identify: (externalId: string, userHash: string) => Promise<void>;
+  ready: boolean;
 }
 
-function getMnWidget(): { open: () => void; close: () => void; toggle: () => void; isOpen: () => boolean } {
+interface WindowWithMnWidget {
+  mn?: { widget?: MnWidgetApi };
+}
+
+function getMnWidget(): MnWidgetApi {
   const widget = (window as Window & WindowWithMnWidget).mn?.widget;
   if (!widget) throw new Error('window.mn.widget not installed');
   return widget;
@@ -182,6 +191,23 @@ describe('window.mn.widget', () => {
     expect(widget.isOpen()).toBe(true);
     widget.toggle();
     expect(widget.isOpen()).toBe(false);
+  });
+
+  it('identifies through the namespace, never the shared root', async () => {
+    start({ ...baseConfig });
+    await getMnWidget().identify('user_42', HASH);
+
+    await vi.waitFor(() => expect(h.identify).toHaveBeenCalledWith('user_42', HASH));
+    expect((window as Window & { mn?: { identify?: unknown } }).mn?.identify).toBeUndefined();
+  });
+
+  it('announces readiness so a caller can gate on the namespace existing', () => {
+    const listener = vi.fn();
+    document.addEventListener('munin:widget-ready', listener, { once: true });
+    start({ ...baseConfig });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(getMnWidget().ready).toBe(true);
   });
 });
 

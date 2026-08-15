@@ -194,8 +194,8 @@ const userHash = crypto
       </h3>
       <p className="tag-blurb">
         If sign-in happens <em>after</em> the widget loads — typical for single-page apps where login is a
-        route change, not a full reload — call <code>window.mn.identify(externalId, userHash)</code> once
-        the user is known. The widget POSTs to <code>/v1/widget/identify</code>, reconnects its WebSocket
+        route change, not a full reload — call <code>window.mn.widget.identify(externalId, userHash)</code>{' '}
+        once the user is known. The widget POSTs to <code>/v1/widget/identify</code>, reconnects its WebSocket
         under the new identity, and the backend migrates the current chat: the anonymous end-user becomes
         the verified one, the contact&rsquo;s <code>externalId</code> is updated, and the conversation
         history stays put.
@@ -207,10 +207,19 @@ const userHash = crypto
         </div>
         <pre>{`// userHash is the same server-signed HMAC as data-user-hash above —
 // compute it once the externalId is known and hand it to the widget.
-window.mn.identify(externalId, userHash);`}</pre>
+const go = () => window.mn.widget.identify(externalId, userHash);
+
+window.mn?.widget?.ready
+  ? go()
+  : document.addEventListener('munin:widget-ready', go, { once: true });`}</pre>
       </div>
       <p className="tag-blurb" style={{ marginTop: 16 }}>
-        Idempotent — calling it twice with the same <code>externalId</code> is a no-op. Calling it with a
+        The widget installs its namespace when it mounts and fires{' '}
+        <code>munin:widget-ready</code>, so gate on <code>window.mn.widget.ready</code> or that event
+        rather than polling. The analytics tracker has its own{' '}
+        <code>window.mn.analytics.identify()</code> with a different hash and a different secret — the
+        two never share a call. Idempotent — calling it twice with the
+        same <code>externalId</code> is a no-op. Calling it with a
         different <code>externalId</code> on a session that&rsquo;s already verified returns 403; mint a
         fresh session if you genuinely need to swap identities mid-flight.
       </p>

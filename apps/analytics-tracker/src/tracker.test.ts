@@ -12,6 +12,8 @@ interface BeaconCall {
 
 let beacons: BeaconCall[];
 let sendBeacon: ReturnType<typeof vi.fn>;
+let identifyPosts: Array<{ url: string; body: string }>;
+let identifyStatus: number;
 let keyCounter = 0;
 
 interface LoadOpts {
@@ -41,6 +43,13 @@ async function loadTracker(opts: LoadOpts = {}): Promise<string> {
 
 async function decode(call: BeaconCall): Promise<Record<string, unknown>> {
   return JSON.parse(await call.blob.text()) as Record<string, unknown>;
+}
+
+function identifyPayloads(key: string): Record<string, unknown>[] {
+  return identifyPosts
+    .filter((p) => p.url.endsWith('/v1/a/identify'))
+    .map((p) => JSON.parse(p.body) as Record<string, unknown>)
+    .filter((p) => p.key === key);
 }
 
 async function beaconsFor(key: string, pathSuffix: string): Promise<Record<string, unknown>[]> {
@@ -73,7 +82,7 @@ interface MnApi {
 }
 
 function mn(): MnApi {
-  return (window as unknown as { mn: MnApi }).mn;
+  return (window as unknown as { mn: { analytics: MnApi } }).mn.analytics;
 }
 
 function setLocation(href: string): void {
@@ -117,6 +126,15 @@ beforeEach(() => {
     return true;
   });
   Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: sendBeacon });
+  identifyPosts = [];
+  identifyStatus = 204;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string, init?: { body?: string }) => {
+      identifyPosts.push({ url: String(url), body: init?.body ?? '' });
+      return Promise.resolve(new Response(null, { status: identifyStatus }));
+    }),
+  );
   clearLocalStorageIfAvailable();
   delete (window as { mn?: unknown }).mn;
   setVisibility('visible');
@@ -129,6 +147,7 @@ beforeEach(() => {
 afterEach(() => {
   history.pushState = nativePushState;
   history.replaceState = nativeReplaceState;
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -260,7 +279,7 @@ describe('identify', () => {
     beacons = [];
     const visitorId = mn().getVisitorId();
     mn().identify('user_7', 'abc123');
-    const [payload] = await beaconsFor(key, '/v1/a/identify');
+    const [payload] = identifyPayloads(key);
     expect(payload).toMatchObject({ key, externalId: 'user_7', userHash: 'abc123', visitorId });
   });
 
@@ -274,25 +293,55 @@ describe('identify', () => {
     const key = await loadTracker();
     beacons = [];
     mn().identify('user_7', '');
-    expect(await beaconsFor(key, '/v1/a/identify')).toHaveLength(0);
+    expect(identifyPayloads(key)).toHaveLength(0);
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('identify requires'));
   });
 
-  it('forwards to a pre-existing window.mn.identify', async () => {
-    const prior = vi.fn();
-    (window as { mn?: { identify?: unknown } }).mn = { identify: prior };
+  it('leaves a chat widget sharing window.mn untouched', async () => {
+    const widgetIdentify = vi.fn();
+    (window as { mn?: { widget?: unknown } }).mn = {
+      widget: { identify: widgetIdentify, ready: true },
+    };
     const key = await loadTracker();
     mn().identify('user_9', 'hash9');
-    expect(prior).toHaveBeenCalledWith('user_9', 'hash9');
-    expect(await beaconsFor(key, '/v1/a/identify')).toHaveLength(1);
+    expect(widgetIdentify).not.toHaveBeenCalled();
+    expect(identifyPayloads(key)).toHaveLength(1);
+    expect((window as unknown as { mn: { widget: unknown } }).mn.widget).toBeDefined();
   });
 
-  it('forwards traits to a pre-existing window.mn.identify only when given', async () => {
-    const prior = vi.fn();
-    (window as { mn?: { identify?: unknown } }).mn = { identify: prior };
+  it('refuses to replace an analytics API another tracker already installed', async () => {
+    const firstIdentify = vi.fn();
+    (window as { mn?: { analytics?: unknown } }).mn = {
+      analytics: { identify: firstIdentify, ready: true },
+    };
     await loadTracker();
-    mn().identify('user_10', 'hash10', { email: 'Kari@Example.no' });
-    expect(prior).toHaveBeenCalledWith('user_10', 'hash10', { email: 'Kari@Example.no' });
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('already installed'),
+      ...[],
+    );
+    expect(mn().identify).toBe(firstIdentify);
+  });
+
+  it('warns when the server rejects the identity instead of dropping it silently', async () => {
+    identifyStatus = 400;
+    await loadTracker();
+    mn().identify('user_14', 'wrong-hash');
+
+    await vi.waitFor(() =>
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('identify rejected by the server (HTTP 400)'),
+      ),
+    );
+  });
+
+  it('stays quiet when the server accepts the identity', async () => {
+    await loadTracker();
+    mn().identify('user_15', 'good-hash');
+
+    await new Promise((r) => setTimeout(r, 10));
+    expect(console.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('identify rejected'),
+    );
   });
 
   it('sends a trimmed email trait, and omits the field when there is none', async () => {
@@ -301,7 +350,7 @@ describe('identify', () => {
     mn().identify('user_11', 'hash11', { email: '  kari@example.no  ' });
     mn().identify('user_12', 'hash12', { email: '   ' });
     mn().identify('user_13', 'hash13');
-    const payloads = await beaconsFor(key, '/v1/a/identify');
+    const payloads = identifyPayloads(key);
     expect(payloads[0]).toMatchObject({ externalId: 'user_11', email: 'kari@example.no' });
     expect(payloads[1]).not.toHaveProperty('email');
     expect(payloads[2]).not.toHaveProperty('email');
@@ -309,17 +358,17 @@ describe('identify', () => {
 });
 
 describe('readiness signal', () => {
-  it('sets window.mn.ready once initialized', async () => {
+  it('sets window.mn.analytics.ready once initialized', async () => {
     await loadTracker();
     expect(mn().ready).toBe(true);
   });
 
-  it('dispatches munin:ready on document after the full API is installed', async () => {
+  it('dispatches munin:analytics-ready on document after the full API is installed', async () => {
     let apiAtDispatch: Partial<MnApi> | undefined;
     const listener = vi.fn(() => {
-      apiAtDispatch = { ...(window as unknown as { mn: MnApi }).mn };
+      apiAtDispatch = { ...(window as unknown as { mn: { analytics: MnApi } }).mn.analytics };
     });
-    document.addEventListener('munin:ready', listener, { once: true });
+    document.addEventListener('munin:analytics-ready', listener, { once: true });
     await loadTracker();
     expect(listener).toHaveBeenCalledTimes(1);
     expect(apiAtDispatch!.ready).toBe(true);
@@ -329,11 +378,11 @@ describe('readiness signal', () => {
 
   it('signals nothing when the tracker is disabled', async () => {
     const listener = vi.fn();
-    document.addEventListener('munin:ready', listener, { once: true });
+    document.addEventListener('munin:analytics-ready', listener, { once: true });
     await loadTracker({ noKey: true });
     expect(listener).not.toHaveBeenCalled();
     expect((window as { mn?: unknown }).mn).toBeUndefined();
-    document.removeEventListener('munin:ready', listener);
+    document.removeEventListener('munin:analytics-ready', listener);
   });
 });
 

@@ -149,27 +149,27 @@ The only required attribute is `data-key`. The script auto-fires a page view on 
 
 `data-api` is optional and defaults to the script's origin. Don't set it unless the API origin differs from where you loaded the bundle.
 
-For funnel steps and CTA clicks, prefer the markup attributes — no JS file, no wiring: `data-mn-event="signup-cta-click"` plus `data-mn-subject-type="funnel"` (and `data-mn-once="session"` for step milestones). For anything that isn't a click, `window.mn.track(subjectId, attrs?)` / `window.mn.trackOnce(...)` are exposed once the bundle loads, and `window.mn.trackSearch(query, resultCount)` reports your own site search so `analytics_list_zero_result_searches` has something to show — see `skill://analytics/track-website-traffic`. Drop-off across those steps is then one call to `analytics_get_funnel`.
+For funnel steps and CTA clicks, prefer the markup attributes — no JS file, no wiring: `data-mn-event="signup-cta-click"` plus `data-mn-subject-type="funnel"` (and `data-mn-once="session"` for step milestones). For anything that isn't a click, `window.mn.analytics.track(subjectId, attrs?)` / `window.mn.analytics.trackOnce(...)` are exposed once the bundle loads, and `window.mn.analytics.trackSearch(query, resultCount)` reports your own site search so `analytics_list_zero_result_searches` has something to show — see `skill://analytics/track-website-traffic`. Drop-off across those steps is then one call to `analytics_get_funnel`.
 
 ### 2c. Identify logged-in users (optional, but it's what makes journeys/funnels pay off)
 
 Anonymous tracking works with zero extra setup. But if the site has signed-in users, link each one to a known identity so their page-views attach to a CRM contact and funnels stop double-counting the anonymous → signed-in transition.
 
-On the first authenticated page load, read the visitor id, have your server sign it together with your stable user id, then call identify. The tracker loads async — gate on the `window.mn.ready` flag / `munin:ready` document event rather than polling for `window.mn`:
+On the first authenticated page load, read the visitor id, have your server sign it together with your stable user id, then call identify. The tracker loads async — gate on the `window.mn.analytics.ready` flag / `munin:analytics-ready` document event rather than polling for `window.mn.analytics`:
 
 ```ts
 const go = () => {
-  const visitorId = window.mn.getVisitorId();
+  const visitorId = window.mn.analytics.getVisitorId();
   // POST { externalId: 'user_42', visitorId, email } to your server; it signs
   //   ['mn.identity.v1', externalId, visitorId, email].map(f =>
   //     `${Buffer.byteLength(f, 'utf8')}:${f}`).join('')
   // with the tracker's identity secret and returns userHash.
-  window.mn.identify('user_42', userHash, { email });
+  window.mn.analytics.identify('user_42', userHash, { email });
 };
 
-window.mn?.ready
+window.mn?.analytics?.ready
   ? go()
-  : document.addEventListener('munin:ready', go, { once: true });
+  : document.addEventListener('munin:analytics-ready', go, { once: true });
 ```
 
 The hash binds the specific browser to the identity, so an observed hash can't be replayed to hijack a different visitor's trail — which is why it must be signed per session rather than baked into the script tag. Each field is length-prefixed so no value can be shifted across a field boundary.

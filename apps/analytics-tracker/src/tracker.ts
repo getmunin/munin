@@ -50,7 +50,7 @@ interface SearchOpts {
   locale?: string;
 }
 
-interface MuninGlobal {
+interface MuninAnalyticsApi {
   track: (subjectId: string, attrs?: TrackAttrs) => void;
   trackOnce: (subjectId: string, attrs?: TrackAttrs) => void;
   trackPageView: () => void;
@@ -160,6 +160,30 @@ function warn(message: string, ...detail: unknown[]): void {
       });
     } catch (err) {
       warn('failed to send beacon:', err);
+    }
+  }
+
+  function postIdentify(url: string, payload: unknown): void {
+    try {
+      void fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      })
+        .then((res) => {
+          if (res.ok || res.status === 204) return;
+          warn(
+            `identify rejected by the server (HTTP ${res.status}) — check that userHash was signed ` +
+              `with this tracker's identity secret over the mn.identity.v1 payload, and that this ` +
+              `origin is on the tracker's allowlist`,
+          );
+        })
+        .catch((err) => {
+          warn('identify request failed:', err);
+        });
+    } catch (err) {
+      warn('failed to send identify:', err);
     }
   }
 
@@ -369,7 +393,7 @@ function warn(message: string, ...detail: unknown[]): void {
     };
     const email = traits?.email?.trim();
     if (email) payload.email = email;
-    post(identifyUrl, payload);
+    postIdentify(identifyUrl, payload);
   }
 
   function onLoad(): void {
@@ -420,28 +444,23 @@ function warn(message: string, ...detail: unknown[]): void {
     trackDeclaredEntries();
   });
 
-  const w = window as Window & { mn?: Partial<MuninGlobal> };
+  const w = window as Window & { mn?: { analytics?: MuninAnalyticsApi } };
   const mn = (w.mn ??= {});
-  mn.track = trackView;
-  mn.trackOnce = trackOnce;
-  mn.trackPageView = trackPageView;
-  mn.trackSearch = trackSearch;
-  mn.trackEntry = trackEntry;
-  mn.getVisitorId = (): string => visitorId;
-  const previousIdentify = mn.identify;
-  mn.identify = (externalId: string, userHash: string, traits?: IdentifyTraits): void => {
-    identify(externalId, userHash, traits);
-    if (previousIdentify) {
-      try {
-        if (traits) previousIdentify(externalId, userHash, traits);
-        else previousIdentify(externalId, userHash);
-      } catch (err) {
-        warn('forward identify:', err);
-      }
-    }
+  if (mn.analytics) {
+    warn('window.mn.analytics is already installed by another tracker on this page; ignoring');
+    return;
+  }
+  mn.analytics = {
+    track: trackView,
+    trackOnce,
+    trackPageView,
+    trackSearch,
+    trackEntry,
+    getVisitorId: (): string => visitorId,
+    identify,
+    ready: true,
   };
-  mn.ready = true;
-  doc.dispatchEvent(new CustomEvent('munin:ready'));
+  doc.dispatchEvent(new CustomEvent('munin:analytics-ready'));
 })();
 
 export {};

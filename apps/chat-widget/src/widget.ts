@@ -92,22 +92,17 @@ export function start(config: WidgetConfig): void {
 
   const w = window as Window & {
     mn?: {
-      identify?: (externalId: string, userHash: string) => void | Promise<void>;
-      widget?: { open: () => void; close: () => void; toggle: () => void; isOpen: () => boolean };
+      widget?: {
+        open: () => void;
+        close: () => void;
+        toggle: () => void;
+        isOpen: () => boolean;
+        identify: (externalId: string, userHash: string) => Promise<void>;
+        ready: boolean;
+      };
     };
   };
   const mn = (w.mn ??= {});
-  const previousIdentify = mn.identify;
-  mn.identify = async (externalId: string, userHash: string): Promise<void> => {
-    if (previousIdentify) {
-      try {
-        await previousIdentify(externalId, userHash);
-      } catch (err) {
-        console.warn('[munin-widget] forward identify:', err);
-      }
-    }
-    await identifyVisitor(externalId, userHash);
-  };
 
   let lastSeenAt: Date | undefined;
   let backfillInFlight = false;
@@ -432,7 +427,10 @@ export function start(config: WidgetConfig): void {
       close: () => ui.close(),
       toggle: () => (ui.isOpen() ? ui.close() : ui.open()),
       isOpen: () => ui.isOpen(),
+      identify: identifyVisitor,
+      ready: true,
     };
+    document.dispatchEvent(new CustomEvent('munin:widget-ready'));
   }
 
   async function sendMessage(text: string): Promise<void> {

@@ -1211,7 +1211,7 @@ const skipReason = TEST_URL
         userHash: '0'.repeat(64),
       }),
     });
-    expect(tampered.status).toBe(204);
+    expect(tampered.status).toBe(400);
     await new Promise((r) => setTimeout(r, 100));
     const tamperedBridge = await db
       .select()
@@ -1230,7 +1230,7 @@ const skipReason = TEST_URL
         userHash,
       }),
     });
-    expect(replayed.status).toBe(204);
+    expect(replayed.status).toBe(400);
     await new Promise((r) => setTimeout(r, 100));
     const replayedBridge = await db
       .select()
@@ -1361,7 +1361,7 @@ const skipReason = TEST_URL
         minted.identityVerificationSecret,
       ),
     });
-    expect(unsigned.status).toBe(204);
+    expect(unsigned.status).toBe(400);
     await new Promise((r) => setTimeout(r, 100));
     const unsignedRows = await db
       .select({ id: schema.endUsers.id })
